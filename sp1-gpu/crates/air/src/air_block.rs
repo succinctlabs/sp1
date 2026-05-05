@@ -64,6 +64,10 @@ impl<'a> BlockAir<SymbolicProverFolder<'a>> for RiscvAir<F> {
             RiscvAir::Secp256k1AddUser(secp256k1_add) => secp256k1_add.num_blocks(),
             RiscvAir::Secp256k1Double(secp256k1_double) => secp256k1_double.num_blocks(),
             RiscvAir::Secp256k1DoubleUser(secp256k1_double) => secp256k1_double.num_blocks(),
+            RiscvAir::Secp256r1Add(secp256r1_add) => secp256r1_add.num_blocks(),
+            RiscvAir::Secp256r1AddUser(secp256r1_add) => secp256r1_add.num_blocks(),
+            RiscvAir::Secp256r1Double(secp256r1_double) => secp256r1_double.num_blocks(),
+            RiscvAir::Secp256r1DoubleUser(secp256r1_double) => secp256r1_double.num_blocks(),
             _ => 1,
         }
     }
@@ -78,6 +82,14 @@ impl<'a> BlockAir<SymbolicProverFolder<'a>> for RiscvAir<F> {
             }
             RiscvAir::Secp256k1DoubleUser(secp256k1_double) => {
                 secp256k1_double.eval_block(builder, index)
+            }
+            RiscvAir::Secp256r1Add(secp256r1_add) => secp256r1_add.eval_block(builder, index),
+            RiscvAir::Secp256r1AddUser(secp256r1_add) => secp256r1_add.eval_block(builder, index),
+            RiscvAir::Secp256r1Double(secp256r1_double) => {
+                secp256r1_double.eval_block(builder, index)
+            }
+            RiscvAir::Secp256r1DoubleUser(secp256r1_double) => {
+                secp256r1_double.eval_block(builder, index)
             }
             _ => {
                 assert!(index == 0);
