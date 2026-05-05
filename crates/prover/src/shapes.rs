@@ -302,9 +302,16 @@ impl SP1RecursionProofShape {
     fn compress_proof_shape_from_arity(arity: usize) -> Option<Self> {
         match arity {
             DEFAULT_ARITY => {
-                let file = include_bytes!("../compress_shape.json");
+                #[cfg(not(feature = "mprotect"))]
+                let file: &[u8] = include_bytes!("../compress_shape.json");
+                #[cfg(feature = "mprotect")]
+                let file: &[u8] = include_bytes!("../compress_shape_mprotect.json");
+
                 serde_json::from_slice(file).ok().or_else(|| {
-                    tracing::warn!("Failed to load compress_shape.json, using default shape.");
+                    tracing::warn!(
+                        "Failed to load compress_shape{}.json, using default shape.",
+                        if cfg!(feature = "mprotect") { "_mprotect" } else { "" }
+                    );
                     // This is not a well-tuned shape, but is likely to be big enough even if
                     // relatively substantial changes are made to the verifier.
                     Some(SP1RecursionProofShape {
@@ -514,7 +521,6 @@ pub async fn build_vk_map<A: ArtifactClient, C: SP1ProverComponents + 'static>(
         let machine = machine.clone();
         set.spawn(async move {
             while let Some((i, shape)) = shape_rx.lock().await.recv().await {
-                // eprintln!("shape: {:?}", shape);
                 let compress_verifier = C::compress_verifier();
                 let recursive_compress_verifier =
                     recursive_verifier::<_, _, InnerConfig>(compress_verifier.shard_verifier());
@@ -1126,12 +1132,274 @@ mod tests {
         std::fs::remove_file(vk_map_path).unwrap();
     }
 
+    fn shape_label(shape: &SP1RecursionProgramShape) -> String {
+        match shape {
+            SP1RecursionProgramShape::Normalize(cps) => {
+                let mut names: Vec<String> =
+                    cps.shard_chips.iter().map(|c| c.name().to_string()).collect();
+                names.sort();
+                format!("Normalize[{}]", names.join(","))
+            }
+            SP1RecursionProgramShape::Compose(arity) => format!("Compose({arity})"),
+            SP1RecursionProgramShape::Deferred => "Deferred".into(),
+            SP1RecursionProgramShape::Shrink => "Shrink".into(),
+        }
+    }
+
+    #[test]
+    fn test_vk_map_shape_count() {
+        let reference_bytes: &[u8] = include_bytes!("vk_map.bin");
+        let reference: BTreeMap<[SP1Field; DIGEST_SIZE], usize> =
+            bincode::deserialize(reference_bytes)
+                .expect("failed to deserialize crates/prover/src/vk_map.bin");
+
+        let machine = RiscvAir::<SP1Field>::machine();
+        let shapes = create_all_input_shapes(machine.shape(), DEFAULT_ARITY);
+        let unique_count = shapes.iter().collect::<BTreeSet<_>>().len();
+
+        // Distinct-label breakdown, for diagnostic output.
+        let mut label_counts: BTreeMap<String, usize> = BTreeMap::new();
+        for shape in shapes.iter() {
+            *label_counts.entry(shape_label(shape)).or_insert(0) += 1;
+        }
+
+        eprintln!("vk_map shape-count test:");
+        eprintln!("  unique shapes on current branch: {}", unique_count);
+        eprintln!("  entries in main's vk_map.bin:    {}", reference.len());
+        eprintln!("  distinct cluster/kind labels:    {}", label_counts.len());
+
+        #[cfg(not(feature = "mprotect"))]
+        {
+            assert_eq!(
+                unique_count,
+                reference.len(),
+                "with mprotect OFF, unique shape count ({}) must exactly equal main's vk_map \
+                 entry count ({}). Mismatch means RiscvAir::machine() or chip_clusters construction \
+                 differs from main. Distinct cluster/kind labels: {}",
+                unique_count,
+                reference.len(),
+                label_counts.len()
+            );
+        }
+
+        #[cfg(feature = "mprotect")]
+        {
+            assert!(
+                unique_count >= reference.len(),
+                "with mprotect ON, unique shape count ({}) should be >= main's vk_map entry \
+                 count ({}). Fewer shapes means supervisor clusters are missing.",
+                unique_count,
+                reference.len()
+            );
+        }
+    }
+
+    #[tokio::test]
+    #[ignore = "slow test; invoke manually."]
+    async fn test_vk_map_per_cluster_membership() {
+        use either::Either;
+
+        use crate::worker::{cpu_worker_builder, SP1LocalNodeBuilder};
+
+        setup_logger();
+
+        // Load the frozen reference vk_map from main.
+        let reference_bytes: &[u8] = include_bytes!("vk_map.bin");
+        let reference: BTreeMap<[SP1Field; DIGEST_SIZE], usize> =
+            bincode::deserialize(reference_bytes)
+                .expect("failed to deserialize crates/prover/src/vk_map.bin");
+        let reference_keys: BTreeSet<[SP1Field; DIGEST_SIZE]> = reference.keys().copied().collect();
+
+        // Enumerate all shapes on the current branch.
+        let machine = RiscvAir::<SP1Field>::machine();
+        let all_shapes = create_all_input_shapes(machine.shape(), DEFAULT_ARITY);
+
+        // Compute the two target sizes to test each Normalize cluster at. Both use
+        // padding_cols = 1. Areas are expressed as `multiple << CORE_LOG_STACKING_HEIGHT`,
+        // matching how `create_all_input_shapes` builds them.
+        let (max_prep_mult, _, _) = normalize_program_parameter_space();
+        let max_main_mult = max_main_multiple_for_preprocessed_multiple(max_prep_mult);
+        let stacking: usize = 1_usize << CORE_LOG_STACKING_HEIGHT;
+
+        // (target_preprocessed_area, target_main_area, tag)
+        let targets: Vec<(usize, usize, &'static str)> = vec![
+            (stacking, stacking, "smallest"),
+            (max_prep_mult * stacking, max_main_mult * stacking, "biggest"),
+        ];
+
+        // For each target size, pick one Normalize shape per distinct cluster label
+        // matching that size + padding_cols=(1,1). Then add Compose/Deferred/Shrink
+        // once each (they don't have size parameters).
+        let mut selected_indices: Vec<usize> = Vec::new();
+        let mut selected_labels: Vec<String> = Vec::new();
+
+        for (target_prep_area, target_main_area, tag) in &targets {
+            let mut seen_labels: BTreeSet<String> = BTreeSet::new();
+            for (i, shape) in all_shapes.iter().enumerate() {
+                if let SP1RecursionProgramShape::Normalize(cps) = shape {
+                    if cps.preprocessed_area == *target_prep_area
+                        && cps.main_area == *target_main_area
+                        && cps.preprocessed_padding_cols == 1
+                        && cps.main_padding_cols == 1
+                    {
+                        let label = shape_label(shape);
+                        if seen_labels.insert(label.clone()) {
+                            selected_indices.push(i);
+                            selected_labels.push(format!("{tag}: {label}"));
+                        }
+                    }
+                }
+            }
+        }
+
+        // Add Compose/Deferred/Shrink once each.
+        let mut seen_non_normalize: BTreeSet<String> = BTreeSet::new();
+        for (i, shape) in all_shapes.iter().enumerate() {
+            if !matches!(shape, SP1RecursionProgramShape::Normalize(_)) {
+                let label = shape_label(shape);
+                if seen_non_normalize.insert(label.clone()) {
+                    selected_indices.push(i);
+                    selected_labels.push(label);
+                }
+            }
+        }
+
+        tracing::info!(
+            "selected {} representative shapes: 2 sizes (smallest + biggest) per Normalize \
+             cluster + Compose/Deferred/Shrink once each",
+            selected_indices.len()
+        );
+        for (idx, label) in selected_indices.iter().zip(selected_labels.iter()) {
+            tracing::debug!("  shape {idx}: {label}");
+        }
+
+        // Build VKs for the selected representative shapes.
+        let node = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
+            .build()
+            .await
+            .expect("failed to build local node");
+
+        enum Status {
+            Matched,
+            Unknown,
+            NoVk,
+        }
+
+        type PerShapeInfo = (String, Status, Option<[SP1Field; DIGEST_SIZE]>, Vec<usize>);
+
+        let mut per_shape: Vec<PerShapeInfo> = Vec::with_capacity(selected_indices.len());
+
+        for (idx, label) in selected_indices.iter().zip(selected_labels.iter()) {
+            let result = node
+                .build_vks(Some(Either::Left(vec![*idx])), DEFAULT_ARITY)
+                .await
+                .expect("build_vks failed");
+
+            let hash = result.vk_map.keys().next().copied();
+            let status = match hash {
+                Some(h) if reference_keys.contains(&h) => Status::Matched,
+                Some(_) => Status::Unknown,
+                None => Status::NoVk,
+            };
+            per_shape.push((label.clone(), status, hash, result.panic_indices.clone()));
+        }
+
+        // Emit a per-label report: one line per shape, sorted so matches and
+        // mismatches cluster together for readability.
+        eprintln!("vk_map per-cluster membership test (per-shape):");
+        eprintln!("  legend: ✓=matched  ✗=NOT in main's vk_map  !=panic/no VK");
+        let mut matched_count = 0usize;
+        let mut unknown_count = 0usize;
+        let mut novk_count = 0usize;
+        // Print in the order shapes were submitted (already groups smallest/biggest by cluster).
+        for (label, status, hash, panics) in &per_shape {
+            let (symbol, hash_str) = match (status, hash) {
+                (Status::Matched, Some(h)) => {
+                    matched_count += 1;
+                    ("✓", format!("{:?}", h))
+                }
+                (Status::Unknown, Some(h)) => {
+                    unknown_count += 1;
+                    ("✗", format!("{:?}", h))
+                }
+                _ => {
+                    novk_count += 1;
+                    ("!", format!("(no VK; panics: {:?})", panics))
+                }
+            };
+            eprintln!("  {symbol} {label}  —  {hash_str}");
+        }
+
+        // Summary of matching cluster *labels* (across both sizes).
+        // A label is "fully matched" if all its shapes (up to two: smallest+biggest) matched.
+        let mut by_label: std::collections::BTreeMap<&str, (usize, usize)> =
+            std::collections::BTreeMap::new();
+        for (label, status, _, _) in &per_shape {
+            // Strip the "smallest: " / "biggest: " prefix if present.
+            let base_label: &str = label
+                .strip_prefix("smallest: ")
+                .or_else(|| label.strip_prefix("biggest: "))
+                .unwrap_or(label);
+            let entry = by_label.entry(base_label).or_insert((0, 0));
+            entry.1 += 1;
+            if matches!(status, Status::Matched) {
+                entry.0 += 1;
+            }
+        }
+        eprintln!();
+        eprintln!("Per-label summary (matched/total):");
+        for (label, (m, t)) in &by_label {
+            let symbol = if m == t {
+                "✓"
+            } else if *m == 0 {
+                "✗"
+            } else {
+                "~"
+            };
+            eprintln!("  {symbol} {label}: {m}/{t}");
+        }
+
+        eprintln!();
+        eprintln!("Totals:");
+        eprintln!("  shapes submitted:         {}", selected_indices.len());
+        eprintln!("  matched main's vk_map:    {}", matched_count);
+        eprintln!("  NOT in main's vk_map:     {}", unknown_count);
+        eprintln!("  no VK produced (panics):  {}", novk_count);
+
+        #[cfg(not(feature = "mprotect"))]
+        {
+            assert_eq!(
+                unknown_count, 0,
+                "with mprotect OFF, {} VK(s) produced by current branch are NOT in \
+                 main's vk_map.bin. See per-cluster report above to narrow down the \
+                 failing cluster(s).",
+                unknown_count
+            );
+            assert_eq!(
+                novk_count, 0,
+                "{} shape(s) produced no VK (panic). See per-cluster report above.",
+                novk_count
+            );
+        }
+
+        #[cfg(feature = "mprotect")]
+        {
+            if unknown_count > 0 {
+                tracing::info!(
+                    "with mprotect ON: {} VK(s) are new (expected for user clusters)",
+                    unknown_count
+                );
+            }
+        }
+    }
+
     #[tokio::test]
     #[ignore = "should be invoked for shape tuning"]
     async fn test_find_recursion_shape() {
         setup_logger();
         let machine = RiscvAir::machine();
         let shape = SP1RecursionProofShape::compute_compress_shape(machine).await;
+
         let mut file = std::fs::File::create("compress_shape.json").unwrap();
         serde_json::to_writer_pretty(&mut file, &shape).unwrap();
     }

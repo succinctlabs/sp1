@@ -14,6 +14,7 @@ use sp1_hypercube::{air::MachineAir, Word};
 use sp1_primitives::consts::WORD_SIZE;
 use std::{
     borrow::{Borrow, BorrowMut},
+    marker::PhantomData,
     mem::{size_of, MaybeUninit},
 };
 use struct_reflection::{StructReflection, StructReflectionHelper};
@@ -24,25 +25,34 @@ use crate::{
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
+    eval_untrusted_program,
     operations::{AddOperation, AddOperationInput},
     utils::next_multiple_of_32,
+    SupervisorMode, TrustMode, UserMode,
 };
 
+pub const NUM_UTYPE_COLS_SUPERVISOR: usize = size_of::<UTypeColumns<u8, SupervisorMode>>();
+pub const NUM_UTYPE_COLS_USER: usize = size_of::<UTypeColumns<u8, UserMode>>();
+
 #[derive(Default)]
-pub struct UTypeChip;
+pub struct UTypeChip<M: TrustMode> {
+    pub _phantom: PhantomData<M>,
+}
 
-pub const NUM_UTYPE_COLS: usize = size_of::<UTypeColumns<u8>>();
-
-impl<F> BaseAir<F> for UTypeChip {
+impl<F, M: TrustMode> BaseAir<F> for UTypeChip<M> {
     fn width(&self) -> usize {
-        NUM_UTYPE_COLS
+        if M::IS_TRUSTED {
+            NUM_UTYPE_COLS_SUPERVISOR
+        } else {
+            NUM_UTYPE_COLS_USER
+        }
     }
 }
 
 /// The column layout for UType instructions.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
-pub struct UTypeColumns<T> {
+pub struct UTypeColumns<T, M: TrustMode> {
     /// The current shard, timestamp, program counter of the CPU.
     pub state: CPUState<T>,
 
@@ -60,18 +70,22 @@ pub struct UTypeColumns<T> {
 
     /// Whether the row is real.
     pub is_real: T,
+
+    /// Adapter columns for trust mode specific data.
+    pub adapter_cols: M::AdapterCols<T>,
 }
 
-impl<AB> Air<AB> for UTypeChip
+impl<AB, M> Air<AB> for UTypeChip<M>
 where
     AB: SP1CoreAirBuilder,
     AB::Var: Sized,
+    M: TrustMode,
 {
     #[inline(never)]
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local = main.row_slice(0);
-        let local: &UTypeColumns<AB::Var> = (*local).borrow();
+        let local: &UTypeColumns<AB::Var, M> = (*local).borrow();
 
         builder.assert_bool(local.is_real);
         builder.assert_bool(local.is_auipc);
@@ -140,6 +154,36 @@ where
         );
         <AddOperation<AB::F> as SP1Operation<AB>>::eval(builder, op_input);
 
+        let mut is_trusted: AB::Expr = local.is_real.into();
+
+        #[cfg(feature = "mprotect")]
+        builder.assert_eq(
+            builder.extract_public_values().is_untrusted_programs_enabled,
+            AB::Expr::from_bool(!M::IS_TRUSTED),
+        );
+
+        if !M::IS_TRUSTED {
+            let local = main.row_slice(0);
+            let local: &UTypeColumns<AB::Var, UserMode> = (*local).borrow();
+
+            let instruction = local.adapter.instruction::<AB>(opcode.clone());
+
+            #[cfg(not(feature = "mprotect"))]
+            builder.assert_zero(local.is_real);
+
+            eval_untrusted_program(
+                builder,
+                local.state.pc,
+                instruction,
+                [instr_type, base_opcode, funct3, funct7],
+                [local.state.clk_high::<AB>(), local.state.clk_low::<AB>()],
+                local.is_real.into(),
+                local.adapter_cols,
+            );
+
+            is_trusted = local.adapter_cols.is_trusted.into();
+        }
+
         // Constrain the program and register reads.
         <JTypeReader<AB::F> as SP1Operation<AB>>::eval(
             builder,
@@ -148,25 +192,32 @@ where
                 local.state.clk_low::<AB>(),
                 local.state.pc,
                 opcode,
-                [instr_type, base_opcode, funct3, funct7],
                 local.add_operation.value.map(|x| x.into()),
                 local.adapter,
                 local.is_real.into(),
+                is_trusted,
             ),
         );
     }
 }
 
-impl<F: PrimeField32> MachineAir<F> for UTypeChip {
+impl<F: PrimeField32, M: TrustMode> MachineAir<F> for UTypeChip<M> {
     type Record = ExecutionRecord;
 
     type Program = Program;
 
     fn name(&self) -> &'static str {
-        "UType"
+        if M::IS_TRUSTED {
+            "UType"
+        } else {
+            "UTypeUser"
+        }
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return Some(0);
+        }
         let nb_rows =
             next_multiple_of_32(input.utype_events.len(), input.fixed_log2_rows::<F, _>(self));
         Some(nb_rows)
@@ -178,31 +229,35 @@ impl<F: PrimeField32> MachineAir<F> for UTypeChip {
         output: &mut ExecutionRecord,
         buffer: &mut [MaybeUninit<F>],
     ) {
-        let padded_nb_rows = <UTypeChip as MachineAir<F>>::num_rows(self, input).unwrap();
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return;
+        }
+
+        let padded_nb_rows = <UTypeChip<M> as MachineAir<F>>::num_rows(self, input).unwrap();
         let chunk_size = std::cmp::max((input.utype_events.len()) / num_cpus::get(), 1);
         let num_event_rows = input.utype_events.len();
+        let width = <UTypeChip<M> as BaseAir<F>>::width(self);
 
         unsafe {
-            let padding_start = num_event_rows * NUM_UTYPE_COLS;
-            let padding_size = (padded_nb_rows - num_event_rows) * NUM_UTYPE_COLS;
+            let padding_start = num_event_rows * width;
+            let padding_size = (padded_nb_rows - num_event_rows) * width;
             if padding_size > 0 {
                 core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
             }
         }
 
         let buffer_ptr = buffer.as_mut_ptr() as *mut F;
-        let values =
-            unsafe { core::slice::from_raw_parts_mut(buffer_ptr, num_event_rows * NUM_UTYPE_COLS) };
+        let values = unsafe { core::slice::from_raw_parts_mut(buffer_ptr, num_event_rows * width) };
 
         let blu_events = values
-            .chunks_mut(chunk_size * NUM_UTYPE_COLS)
+            .chunks_mut(chunk_size * width)
             .enumerate()
             .par_bridge()
             .map(|(i, rows)| {
                 let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
-                rows.chunks_mut(NUM_UTYPE_COLS).enumerate().for_each(|(j, row)| {
+                rows.chunks_mut(width).enumerate().for_each(|(j, row)| {
                     let idx = i * chunk_size + j;
-                    let cols: &mut UTypeColumns<F> = row.borrow_mut();
+                    let cols: &mut UTypeColumns<F, M> = row.borrow_mut();
 
                     if idx < input.utype_events.len() {
                         let (event, record) = &input.utype_events[idx];
@@ -219,6 +274,10 @@ impl<F: PrimeField32> MachineAir<F> for UTypeChip {
                         }
                         cols.state.populate(&mut blu, event.clk, event.pc);
                         cols.adapter.populate(&mut blu, *record);
+                        if !M::IS_TRUSTED {
+                            let cols: &mut UTypeColumns<F, UserMode> = row.borrow_mut();
+                            cols.adapter_cols.is_trusted = F::from_bool(!record.is_untrusted);
+                        }
                     }
                 });
                 blu
@@ -233,11 +292,12 @@ impl<F: PrimeField32> MachineAir<F> for UTypeChip {
             shape.included::<F, _>(self)
         } else {
             !shard.utype_events.is_empty()
+                && (M::IS_TRUSTED != shard.program.enable_untrusted_programs)
         }
     }
 
     fn column_names(&self) -> Vec<String> {
-        UTypeColumns::<F>::struct_reflection().unwrap()
+        UTypeColumns::<F, M>::struct_reflection().unwrap()
     }
 }
 

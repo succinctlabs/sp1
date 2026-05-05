@@ -6,7 +6,7 @@ default-run = "mprotect-script"
 publish = false
 
 [dependencies]
-sp1-sdk = { workspace = true }
+sp1-sdk = { workspace = true, features = ["mprotect"] }
 tokio = { workspace = true }
 tracing = "0.1"
 

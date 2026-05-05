@@ -4,6 +4,7 @@ pub mod keccak256;
 pub mod mprotect;
 pub mod poseidon2;
 pub mod sha256;
+pub mod sigreturn;
 pub mod u256x2048_mul;
 pub mod uint256;
 pub mod uint256_ops;

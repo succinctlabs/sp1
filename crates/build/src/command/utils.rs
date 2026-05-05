@@ -57,13 +57,19 @@ pub(crate) fn get_rust_compiler_flags(args: &BuildArgs, version: &semver::Versio
         "passes=loweratomic"
     };
 
+    #[cfg(not(feature = "may_dump_elf"))]
+    let image_base = sp1_primitives::consts::STACK_TOP;
+    #[cfg(feature = "may_dump_elf")]
+    let image_base =
+        sp1_primitives::consts::STACK_TOP + sp1_primitives::consts::DUMP_ELF_EXTRA_STACK;
+
     // Start the section at the top of the stack for semantic purposes.
     // The stack will grow down to 0, never colliding with the start of the heap or static data.
     let rust_flags = [
         "-C",
         atomic_lower_pass,
         "-C",
-        &format!("link-arg=--image-base={}", sp1_primitives::consts::STACK_TOP),
+        &format!("link-arg=--image-base={}", image_base),
         "-C",
         "panic=abort",
         "--cfg",

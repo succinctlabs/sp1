@@ -5,11 +5,13 @@ use std::{
 
 use itertools::Itertools;
 use sp1_core_executor::{
-    chunked_memory_init_events, events::MemoryInitializeFinalizeEvent, Program, SP1CoreOpts,
-    SplitOpts, UnsafeMemory,
+    chunked_memory_init_events,
+    events::{MemoryInitializeFinalizeEvent, PageProtInitializeFinalizeEvent},
+    Program, SP1CoreOpts, SplitOpts, UnsafeMemory,
 };
 use sp1_core_executor_runner::MinimalExecutorRunner;
 use sp1_hypercube::air::ShardRange;
+use sp1_primitives::consts::DEFAULT_PAGE_PROT;
 use sp1_prover_types::{Artifact, ArtifactClient};
 use tokio::{
     sync::{mpsc, oneshot},
@@ -62,11 +64,46 @@ impl TouchedAddresses {
     }
 }
 
-pub struct GlobalMemoryHandler(mpsc::Receiver<SpliceAddresses>);
+pub struct SplicePages {
+    pub pages: Vec<u64>,
+}
 
-pub fn global_memory(capacity: usize) -> (TouchedAddresses, GlobalMemoryHandler) {
-    let (tx, rx) = mpsc::channel(capacity);
-    (TouchedAddresses { inner: tx }, GlobalMemoryHandler(rx))
+#[derive(Clone)]
+pub struct TouchedPages {
+    inner: mpsc::UnboundedSender<SplicePages>,
+}
+
+impl std::fmt::Debug for TouchedPages {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "TouchedPages")
+    }
+}
+
+impl TouchedPages {
+    pub fn blocking_extend(&self, pages: Vec<u64>) -> anyhow::Result<()> {
+        self.inner.send(SplicePages { pages })?;
+        Ok(())
+    }
+
+    pub async fn extend(&self, pages: Vec<u64>) -> anyhow::Result<()> {
+        self.inner.send(SplicePages { pages })?;
+        Ok(())
+    }
+}
+
+pub struct GlobalMemoryHandler {
+    addresses_rx: mpsc::Receiver<SpliceAddresses>,
+    pages_rx: mpsc::UnboundedReceiver<SplicePages>,
+}
+
+pub fn global_memory(capacity: usize) -> (TouchedAddresses, TouchedPages, GlobalMemoryHandler) {
+    let (addr_tx, addr_rx) = mpsc::channel(capacity);
+    let (pages_tx, pages_rx) = mpsc::unbounded_channel();
+    (
+        TouchedAddresses { inner: addr_tx },
+        TouchedPages { inner: pages_tx },
+        GlobalMemoryHandler { addresses_rx: addr_rx, pages_rx },
+    )
 }
 
 impl GlobalMemoryHandler {
@@ -104,7 +141,7 @@ impl GlobalMemoryHandler {
                 let mut touched_addresses = hashbrown::HashSet::<u64>::new();
 
                 // Collect the addresses
-                while let Some(addresses) = self.0.blocking_recv() {
+                while let Some(addresses) = self.addresses_rx.blocking_recv() {
                     let SpliceAddresses { start_clk, end_clk, addresses } = addresses;
                     for addr in addresses {
                         #[cfg(sp1_debug_global_memory)]
@@ -147,6 +184,12 @@ impl GlobalMemoryHandler {
                         // set.
                         dirty_addresses.remove(&addr);
                     }
+                }
+
+                // Collect the pages
+                let mut touched_pages = BTreeSet::<u64>::new();
+                while let Some(pages) = self.pages_rx.blocking_recv() {
+                    touched_pages.extend(pages.pages);
                 }
 
                 // Collect the hints
@@ -243,8 +286,47 @@ impl GlobalMemoryHandler {
                 let mut memory_finalize_events = Vec::with_capacity(finalized_events.len());
                 memory_finalize_events.extend(finalized_events.into_values());
 
+                // Collect page prot events if untrusted programs are enabled.
+                let (page_prot_initialize_events, page_prot_finalize_events) =
+                    if program.enable_untrusted_programs {
+                        touched_pages.extend(program.page_prot_image.keys().copied());
+
+                        let mut init_events = Vec::with_capacity(touched_pages.len());
+                        let mut finalize_events = Vec::with_capacity(touched_pages.len());
+
+                        for page_idx in &touched_pages {
+                            let record =
+                                minimal_executor.get_page_prot_record(*page_idx).unwrap();
+
+                            if !program.page_prot_image.contains_key(page_idx) {
+                                init_events.push(PageProtInitializeFinalizeEvent::initialize(
+                                    *page_idx,
+                                    DEFAULT_PAGE_PROT,
+                                ));
+                            }
+
+                            finalize_events.push(PageProtInitializeFinalizeEvent {
+                                page_idx: *page_idx,
+                                page_prot: record.value,
+                                timestamp: record.timestamp,
+                            });
+                        }
+
+                        init_events.sort_by_key(|e| e.page_idx);
+                        finalize_events.sort_by_key(|e| e.page_idx);
+
+                        (init_events, finalize_events)
+                    } else {
+                        assert!(touched_pages.is_empty());
+                        (vec![], vec![])
+                    };
+
                 // Get the split opts.
-                let split_opts = SplitOpts::new(&opts, program.instructions.len(), false);
+                let split_opts = SplitOpts::new(
+                    &opts,
+                    program.instructions.len(),
+                    program.enable_untrusted_programs,
+                );
                 let threshold = split_opts.memory;
 
                 let mut previous_init_addr = 0;
@@ -306,6 +388,8 @@ impl GlobalMemoryHandler {
                         final_state,
                         initialize_events,
                         finalize_events,
+                        page_prot_initialize_events: vec![],
+                        page_prot_finalize_events: vec![],
                         previous_init_addr,
                         previous_finalize_addr,
                         previous_init_page_idx,
@@ -325,6 +409,79 @@ impl GlobalMemoryHandler {
                     previous_finalize_addr = last_finalize_addr;
                     previous_init_page_idx = last_init_page_idx;
                     previous_finalize_page_idx = last_finalize_page_idx;
+                }
+
+                // Emit page prot shards (separate from memory shards).
+                let page_prot_threshold = split_opts.page_prot;
+                if page_prot_threshold > 0 {
+                    for chunks in page_prot_initialize_events
+                        .chunks(page_prot_threshold)
+                        .zip_longest(page_prot_finalize_events.chunks(page_prot_threshold))
+                    {
+                        let (pp_init_events, pp_finalize_events) = match chunks {
+                            itertools::EitherOrBoth::Left(init) => {
+                                (init.to_vec(), vec![])
+                            }
+                            itertools::EitherOrBoth::Right(fin) => {
+                                (vec![], fin.to_vec())
+                            }
+                            itertools::EitherOrBoth::Both(init, fin) => {
+                                (init.to_vec(), fin.to_vec())
+                            }
+                        };
+                        let last_init_page_idx = pp_init_events
+                            .last()
+                            .map(|e| e.page_idx)
+                            .unwrap_or(previous_init_page_idx);
+                        let last_finalize_page_idx = pp_finalize_events
+                            .last()
+                            .map(|e| e.page_idx)
+                            .unwrap_or(previous_finalize_page_idx);
+
+                        let range = ShardRange {
+                            timestamp_range: (final_state.timestamp, final_state.timestamp),
+                            initialized_address_range: (previous_init_addr, previous_init_addr),
+                            finalized_address_range: (
+                                previous_finalize_addr,
+                                previous_finalize_addr,
+                            ),
+                            initialized_page_index_range: (
+                                previous_init_page_idx,
+                                last_init_page_idx,
+                            ),
+                            finalized_page_index_range: (
+                                previous_finalize_page_idx,
+                                last_finalize_page_idx,
+                            ),
+                            deferred_proof_range: (
+                                num_deferred_proofs as u64,
+                                num_deferred_proofs as u64,
+                            ),
+                        };
+                        let page_prot_shard = GlobalMemoryShard {
+                            final_state,
+                            initialize_events: vec![],
+                            finalize_events: vec![],
+                            page_prot_initialize_events: pp_init_events,
+                            page_prot_finalize_events: pp_finalize_events,
+                            previous_init_addr,
+                            previous_finalize_addr,
+                            previous_init_page_idx,
+                            previous_finalize_page_idx,
+                            last_init_addr: previous_init_addr,
+                            last_finalize_addr: previous_finalize_addr,
+                            last_init_page_idx,
+                            last_finalize_page_idx,
+                        };
+
+                        let data = TraceData::Memory(Box::new(page_prot_shard));
+                        shard_data_tx.send((range, data)).map_err(|e| {
+                            anyhow::anyhow!("failed to send page prot shard data: {}", e)
+                        })?;
+
+                        previous_init_page_idx = last_init_page_idx;
+                        previous_finalize_page_idx = last_finalize_page_idx;
+                    }
                 }
 
                 Ok(Some(minimal_executor))

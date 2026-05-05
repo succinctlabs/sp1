@@ -83,10 +83,9 @@ impl<F: PrimeField32> MachineAir<F> for InstructionDecodeChip {
         let num_event_rows = input.instruction_decode_events.len();
 
         unsafe {
-            let padding_start = num_event_rows * NUM_INSTRUCTION_DECODE_COLS;
-            let padding_size = (padded_nb_rows - num_event_rows) * NUM_INSTRUCTION_DECODE_COLS;
-            if padding_size > 0 {
-                core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
+            let total_size = padded_nb_rows * NUM_INSTRUCTION_DECODE_COLS;
+            if total_size > 0 {
+                core::ptr::write_bytes(buffer.as_mut_ptr(), 0, total_size);
             }
         }
 
@@ -231,6 +230,15 @@ where
 
         // Assert that at most one of the instruction selectors is set.
         builder.assert_bool(is_real.clone());
+        builder.assert_eq(
+            builder.extract_public_values().is_untrusted_programs_enabled,
+            AB::Expr::one(),
+        );
+
+        #[cfg(not(feature = "mprotect"))]
+        builder.assert_zero(is_real.clone());
+        #[cfg(not(feature = "mprotect"))]
+        builder.assert_zero(local.multiplicity);
 
         // Assert that the right instruction selector is set.
         builder.assert_eq(

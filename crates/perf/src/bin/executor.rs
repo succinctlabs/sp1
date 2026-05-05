@@ -3,9 +3,9 @@ use std::sync::Arc;
 use clap::Parser;
 
 use slop_algebra::AbstractField;
-use sp1_core_executor::{MinimalExecutor, Program, SP1CoreOpts};
+use sp1_core_executor::{MinimalExecutor, Program, SP1CoreOpts, SupervisorMode};
 use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir};
-use sp1_hypercube::{septic_digest::SepticDigest, MachineVerifyingKey};
+use sp1_hypercube::{septic_digest::SepticDigest, MachineVerifyingKey, UntrustedConfig};
 use sp1_primitives::{Elf, SP1Field};
 use sp1_prover::{
     worker::{
@@ -81,7 +81,7 @@ async fn execute_node(args: Args, elf: Vec<u8>, stdin: SP1Stdin) {
         pc_start: [SP1Field::zero(); 3],
         initial_global_cumulative_sum: SepticDigest::zero(),
         preprocessed_commit: [SP1Field::zero(); 8],
-        enable_untrusted_programs: SP1Field::zero(),
+        untrusted_config: UntrustedConfig::zero(),
     };
     let dummy_vk = SP1VerifyingKey { vk: dummy_vk };
 
@@ -188,7 +188,7 @@ fn execute_minimal(elf: Vec<u8>, stdin: SP1Stdin, trace: bool) {
 
     let now = std::time::Instant::now();
     let program = Arc::new(Program::from(&elf).expect("parse elf"));
-    let mut executor = MinimalExecutor::new(program, false, max_trace_size);
+    let mut executor = MinimalExecutor::<SupervisorMode>::new(program, false, max_trace_size);
     for buf in stdin.buffer {
         executor.with_input(&buf);
     }

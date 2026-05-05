@@ -58,7 +58,10 @@ bn254 proof"
 }
 
 /// The verifying key for the program wrapping an SP1 proof into a SNARK friendly format.
+#[cfg(not(feature = "mprotect"))]
 pub const WRAP_VK_BYTES: &[u8] = include_bytes!("../wrap_vk.bin");
+#[cfg(feature = "mprotect")]
+pub const WRAP_VK_BYTES: &[u8] = include_bytes!("../wrap_vk_mprotect.bin");
 
 #[derive(Clone)]
 pub struct SP1Verifier {
@@ -351,9 +354,11 @@ impl SP1Verifier {
                 return Err(MachineVerifierError::InvalidPublicValues(
                     "previous_finalize_page_idx != last_finalize_page_idx_prev",
                 ));
-            } else if public_values.is_untrusted_programs_enabled != vk.enable_untrusted_programs {
+            } else if public_values.is_untrusted_programs_enabled
+                != vk.untrusted_config.enable_untrusted_programs
+            {
                 return Err(MachineVerifierError::InvalidPublicValues(
-                    "public_values.is_untrusted_programs_enabled != vk.enable_untrusted_programs",
+                    "public_values.is_untrusted_programs_enabled != vk.untrusted_config.enable_untrusted_programs",
                 ));
             }
 
@@ -371,6 +376,35 @@ impl SP1Verifier {
             return Err(MachineVerifierError::InvalidPublicValues(
                 "the zero address was never finalized",
             ));
+        }
+
+        // Public values and program configuration for untrusted programs.
+        // Constraints:
+        // - `enable_trap_handler` is equal between the `vk` and the public values.
+        // - `trap_context` is equal between the `vk` and the public values.
+        // - `untrusted_memory` is equal between the `vk` and the public values.
+        #[cfg(feature = "mprotect")]
+        for shard_proof in proof.0.iter() {
+            let public_values: &PublicValues<[_; 4], [_; 3], [_; 4], _> =
+                shard_proof.public_values.as_slice().borrow();
+
+            if public_values.trap_context != vk.untrusted_config.trap_context {
+                return Err(MachineVerifierError::InvalidPublicValues(
+                    "trap_context values mismatch",
+                ));
+            }
+
+            if public_values.untrusted_memory != vk.untrusted_config.untrusted_memory {
+                return Err(MachineVerifierError::InvalidPublicValues(
+                    "untrusted_memory values mismatch",
+                ));
+            }
+
+            if public_values.enable_trap_handler != vk.untrusted_config.enable_trap_handler {
+                return Err(MachineVerifierError::InvalidPublicValues(
+                    "enable_trap_handler values mismatch",
+                ));
+            }
         }
 
         // Digest constraints.
@@ -849,4 +883,15 @@ fn parse_bn254_public_input(s: &str) -> Result<BigUint> {
         return Err(anyhow!("public input exceeds 32 bytes: {}", s));
     }
     Ok(value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn wrap_vk_bytes_deserialize() {
+        let _vk: MachineVerifyingKey<SP1OuterGlobalContext> =
+            bincode::deserialize(WRAP_VK_BYTES).expect("WRAP_VK_BYTES failed to deserialize");
+    }
 }

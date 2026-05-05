@@ -1,3 +1,5 @@
+[workspace]
+
 [package]
 name = "untrusted-program-jit-program"
 version = "1.1.0"

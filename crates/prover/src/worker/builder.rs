@@ -360,6 +360,9 @@ pub fn cpu_worker_builder_with_machine(
 
     #[cfg(feature = "experimental")]
     {
+        if cfg!(feature = "mprotect") {
+            return base_builder.without_vk_verification();
+        }
         if let Ok(without_vk_verification) = std::env::var("WITHOUT_VK_VERIFICATION") {
             if without_vk_verification == "1" || without_vk_verification == "true" {
                 return base_builder.without_vk_verification();

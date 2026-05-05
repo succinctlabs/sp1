@@ -1,7 +1,7 @@
 use futures::{stream::FuturesUnordered, StreamExt};
 use slop_futures::pipeline::{AsyncEngine, AsyncWorker, Pipeline, SubmitHandle};
 use sp1_core_executor::{
-    ExecutionError, ExecutionReport, GasEstimatingVM, Program, SP1Context, SP1CoreOpts,
+    ExecutionError, ExecutionReport, GasEstimatingVMEnum, Program, SP1Context, SP1CoreOpts,
     SP1RecursionProof,
 };
 use sp1_core_executor_runner::MinimalExecutorRunner;
@@ -16,6 +16,8 @@ use std::sync::Arc;
 use tracing::Instrument;
 
 use crate::verify::SP1Verifier;
+#[cfg(feature = "mprotect")]
+use crate::{recursion::RecursionVks, worker::DEFAULT_MAX_COMPOSE_ARITY};
 
 type DeferredProofInput =
     (SP1RecursionProof<SP1GlobalContext, SP1PcsProofInner>, MachineVerifyingKey<SP1GlobalContext>);
@@ -96,12 +98,12 @@ impl AsyncWorker<GasExecutingTask, Result<ExecutionReport, ExecutionError>> for 
             return Ok(ExecutionReport::default());
         }
         let mut gas_estimating_vm =
-            GasEstimatingVM::new(&chunk, self.program.clone(), self.nonce, self.opts.clone());
+            GasEstimatingVMEnum::new(&chunk, self.program.clone(), self.nonce, self.opts.clone());
         let report = gas_estimating_vm.execute()?;
 
         // If the VM has completed execution, set the final state.
-        if gas_estimating_vm.core.is_done() {
-            let final_state = FinalVmState::new(&gas_estimating_vm.core);
+        if gas_estimating_vm.is_done() {
+            let final_state = FinalVmState::from_gas_estimating_vm_enum(&gas_estimating_vm);
             final_vm_state.set(final_state).map_err(|e| {
                 ExecutionError::Other(format!("failed to set final vm state: {}", e))
             })?;
@@ -118,10 +120,11 @@ fn verify_deferred_proofs(
     if proofs.is_empty() {
         return Ok(());
     }
-    let verifier = SP1Verifier::new_with_machine(
-        crate::verify::VerifierRecursionVks::default(),
-        machine.clone(),
-    );
+    #[cfg(feature = "mprotect")]
+    let verifier_vks = RecursionVks::new(None, DEFAULT_MAX_COMPOSE_ARITY, false).to_verifier_vks();
+    #[cfg(not(feature = "mprotect"))]
+    let verifier_vks = crate::verify::VerifierRecursionVks::default();
+    let verifier = SP1Verifier::new_with_machine(verifier_vks, machine.clone());
     for (index, (proof, vk)) in proofs.iter().enumerate() {
         let sp1_vk = SP1VerifyingKey { vk: vk.clone() };
         verifier

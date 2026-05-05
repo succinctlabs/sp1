@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use anyhow::anyhow;
-use slop_algebra::AbstractField;
 use slop_futures::pipeline::{AsyncEngine, AsyncWorker, Pipeline, SubmitError, SubmitHandle};
 use sp1_core_executor::{
     events::{PrecompileEvent, SyscallEvent},
@@ -299,6 +298,8 @@ where
                                 final_state,
                                 initialize_events,
                                 finalize_events,
+                                page_prot_initialize_events,
+                                page_prot_finalize_events,
                                 previous_init_addr,
                                 previous_finalize_addr,
                                 previous_init_page_idx,
@@ -315,9 +316,17 @@ where
                             );
                             record.global_memory_initialize_events = initialize_events;
                             record.global_memory_finalize_events = finalize_events;
+                            record.global_page_prot_initialize_events = page_prot_initialize_events;
+                            record.global_page_prot_finalize_events = page_prot_finalize_events;
 
-                            let enable_untrusted_programs =
-                                common_input.vk.vk.enable_untrusted_programs == SP1Field::one();
+                            let enable_untrusted_programs = program.enable_untrusted_programs;
+                            let enable_trap_handler = program.trap_context.is_some() as u32;
+                            let trap_context = program
+                                .trap_context
+                                .map_or([0, 0, 0], |addr| [addr, addr + 8, addr + 16]);
+                            let untrusted_memory = program
+                                .untrusted_memory
+                                .map_or([0, 0], |(start, end)| [start, end]);
 
                             // Update the public values
                             record.public_values.update_finalized_state(
@@ -325,6 +334,9 @@ where
                                 final_state.pc,
                                 final_state.exit_code,
                                 enable_untrusted_programs as u32,
+                                enable_trap_handler,
+                                trap_context,
+                                untrusted_memory,
                                 final_state.public_value_digest,
                                 common_input.deferred_digest,
                                 final_state.proof_nonce,
@@ -414,6 +426,8 @@ where
                             main_record.public_values.update_initialized_state(
                                 program.pc_start_abs,
                                 program.enable_untrusted_programs,
+                                program.trap_context,
+                                program.untrusted_memory,
                             );
 
                             (main_record, None, true)
@@ -439,8 +453,9 @@ where
                 async move {
                     // SplitOpts::new() parses JSON and builds lookup tables - run in spawn_blocking
                     let program_len = program.instructions.len();
+                    let enable_untrusted_programs = program.enable_untrusted_programs;
                     let split_opts = tokio::task::spawn_blocking(move || {
-                        SplitOpts::new(&opts, program_len, false)
+                        SplitOpts::new(&opts, program_len, enable_untrusted_programs)
                     })
                     .await
                     .map_err(|e| TaskError::Fatal(e.into()))?;

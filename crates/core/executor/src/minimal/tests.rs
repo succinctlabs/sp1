@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use super::*;
-use crate::Program;
+use crate::{Program, SupervisorMode};
 
 #[test]
 fn test_chunk_stops_correctly() {
@@ -12,7 +12,7 @@ fn test_chunk_stops_correctly() {
     let program = Program::from(&KECCAK256_ELF).unwrap();
     let program = Arc::new(program);
 
-    let mut executor = MinimalExecutor::new(program.clone(), true, Some(10));
+    let mut executor = MinimalExecutor::<SupervisorMode>::new(program.clone(), true, Some(10));
     executor.with_input(&serialize(&5_usize).unwrap());
     for i in 0..5 {
         executor.with_input(&serialize(&vec![i; i]).unwrap());
@@ -48,6 +48,7 @@ mod differential_tests {
 
     use crate::{
         debug::compare_states, minimal::arch::x86_64::MinimalExecutor as NativeExecutor, Program,
+        SupervisorMode,
     };
     use sp1_jit::debug::DebugState;
     use sp1_primitives::Elf;
@@ -60,7 +61,8 @@ mod differential_tests {
         let program = Arc::new(program);
 
         // Run the native x86_64 executor
-        let mut native_executor = NativeExecutor::new(program.clone(), false, None);
+        let mut native_executor =
+            NativeExecutor::<SupervisorMode>::new(program.clone(), false, None);
         let native_time = {
             let start = std::time::Instant::now();
             while native_executor.execute_chunk().is_some() {}
@@ -68,7 +70,8 @@ mod differential_tests {
         };
 
         // Run the portable executor
-        let mut portable_executor = MinimalExecutor::new(program.clone(), false, None);
+        let mut portable_executor =
+            MinimalExecutor::<SupervisorMode>::new(program.clone(), false, None);
         let portable_time = {
             let start = std::time::Instant::now();
             while portable_executor.execute_chunk().is_some() {}
@@ -103,7 +106,8 @@ mod differential_tests {
         let program = Arc::new(program);
 
         // Run the portable executor
-        let mut portable_executor = MinimalExecutor::new(program.clone(), false, None);
+        let mut portable_executor =
+            MinimalExecutor::<SupervisorMode>::new(program.clone(), false, None);
         portable_executor.with_input(&serialize(&5_usize).unwrap());
         for i in 0..5 {
             portable_executor.with_input(&serialize(&vec![i; i]).unwrap());
@@ -111,7 +115,8 @@ mod differential_tests {
         while portable_executor.execute_chunk().is_some() {}
 
         // Run the native x86_64 executor
-        let mut native_executor = NativeExecutor::new(program.clone(), false, None);
+        let mut native_executor =
+            NativeExecutor::<SupervisorMode>::new(program.clone(), false, None);
         native_executor.with_input(&serialize(&5_usize).unwrap());
         for i in 0..5 {
             native_executor.with_input(&serialize(&vec![i; i]).unwrap());
@@ -260,12 +265,13 @@ mod differential_tests {
 
         std::thread::scope(|s| {
             // Portable executor (MinimalExecutor when profiling is enabled)
-            let mut portable = MinimalExecutor::new(program.clone(), true, Some(50));
+            let mut portable =
+                MinimalExecutor::<SupervisorMode>::new(program.clone(), true, Some(50));
             let portable_rx =
                 portable.new_debug_receiver().expect("Failed to create debug receiver");
 
             // Native x86_64 executor
-            let mut native = NativeExecutor::new(program.clone(), true, None);
+            let mut native = NativeExecutor::<SupervisorMode>::new(program.clone(), true, None);
             let native_rx = native.new_debug_receiver().expect("Failed to create debug receiver");
 
             s.spawn(move || while portable.execute_chunk().is_some() {});

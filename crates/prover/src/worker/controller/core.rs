@@ -7,7 +7,7 @@ use futures::{prelude::*, stream::FuturesUnordered};
 use serde::{Deserialize, Serialize};
 use slop_futures::pipeline::Pipeline;
 use sp1_core_executor::{
-    events::{MemoryInitializeFinalizeEvent, MemoryRecord},
+    events::{MemoryInitializeFinalizeEvent, MemoryRecord, PageProtInitializeFinalizeEvent},
     CoreVM, ExecutionError, Program, SP1CoreOpts, SyscallCode, UnsafeMemory,
 };
 use sp1_core_executor_runner::MinimalExecutorRunner;
@@ -134,6 +134,8 @@ pub struct GlobalMemoryShard {
     pub final_state: FinalVmState,
     pub initialize_events: Vec<MemoryInitializeFinalizeEvent>,
     pub finalize_events: Vec<MemoryInitializeFinalizeEvent>,
+    pub page_prot_initialize_events: Vec<PageProtInitializeFinalizeEvent>,
+    pub page_prot_finalize_events: Vec<PageProtInitializeFinalizeEvent>,
     pub previous_init_addr: u64,
     pub previous_finalize_addr: u64,
     pub previous_init_page_idx: u64,
@@ -236,7 +238,7 @@ where
         })?);
 
         // Initialize the touched addresses map.
-        let (all_touched_addresses, global_memory_handler) =
+        let (all_touched_addresses, all_touched_pages, global_memory_handler) =
             global_memory(self.global_memory_buffer_size);
         let (deferred_marker_tx, precompile_handler) = precompile_channel(&program, &opts);
         // Initialize the final vm state.
@@ -335,6 +337,7 @@ where
                         common_input_artifact: common_input_artifact.clone(),
                         num_deferred_proofs: self.num_deferred_proofs,
                         all_touched_addresses: all_touched_addresses.clone(),
+                        all_touched_pages: all_touched_pages.clone(),
                         final_vm_state: final_vm_state.clone(),
                         prove_shard_tx: sender.clone(),
                         context: context.clone(),
@@ -500,7 +503,7 @@ pub struct FinalVmState {
 }
 
 impl FinalVmState {
-    pub fn new<'a, 'b>(vm: &'a CoreVM<'b>) -> Self {
+    pub fn new<'a, 'b, M: sp1_core_executor::ExecutionMode>(vm: &'a CoreVM<'b, M>) -> Self {
         let registers = *vm.registers();
         let timestamp = vm.clk();
         let pc = vm.pc();
@@ -509,6 +512,18 @@ impl FinalVmState {
         let proof_nonce = vm.proof_nonce;
 
         Self { registers, timestamp, pc, exit_code, public_value_digest, proof_nonce }
+    }
+
+    /// Create from a `GasEstimatingVMEnum`.
+    pub fn from_gas_estimating_vm_enum(vm: &sp1_core_executor::GasEstimatingVMEnum<'_>) -> Self {
+        Self {
+            registers: vm.registers(),
+            timestamp: vm.clk(),
+            pc: vm.pc(),
+            exit_code: vm.exit_code(),
+            public_value_digest: vm.public_value_digest(),
+            proof_nonce: vm.proof_nonce(),
+        }
     }
 }
 

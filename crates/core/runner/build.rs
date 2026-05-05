@@ -93,6 +93,9 @@ fn main() {
     #[cfg(feature = "profiling")]
     cmd.arg("--features").arg("profiling");
 
+    #[cfg(feature = "mprotect")]
+    cmd.arg("--features").arg("mprotect");
+
     let inner_target_dir = metadata.target_directory.join("sp1-native-bins");
     cmd.env("CARGO_TARGET_DIR", &inner_target_dir);
 

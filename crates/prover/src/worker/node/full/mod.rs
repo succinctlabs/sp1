@@ -383,6 +383,35 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(feature = "mprotect")]
+    #[serial]
+    async fn test_e2e_node_trap() -> anyhow::Result<()> {
+        setup_logger();
+        let elf = test_artifacts::TRAP_LOAD_STORE_ELF;
+        let stdin = SP1Stdin::default();
+        let mode = ProofMode::Compressed;
+        let client = SP1LocalNodeBuilder::from_worker_client_builder(
+            cpu_worker_builder().without_vk_verification(),
+        )
+        .build()
+        .await
+        .unwrap();
+        let proof_nonce = [0x6284, 0xC0DE, 0x4242, 0xCAFE];
+        let context = SP1Context { proof_nonce, ..Default::default() };
+        let (_, _, report) = client.execute(&elf, stdin.clone(), context.clone()).await.unwrap();
+        let cycles = report.total_instruction_count() as usize;
+        tracing::info!("cycles: {}", cycles);
+        let vk = client.setup(&elf).await.unwrap();
+        let time = tokio::time::Instant::now();
+        let proof = client.prove_with_mode(&elf, stdin, context, mode).await.unwrap();
+        tracing::info!("prove time: {:?}", time.elapsed());
+        tokio::task::spawn_blocking(move || client.verify(&vk, &proof.proof).unwrap())
+            .await
+            .unwrap();
+        Ok(())
+    }
+
+    #[tokio::test]
     #[serial]
     #[ignore = "only run to write the vk root and num keys to a file"]
     async fn make_verifier_vks() -> anyhow::Result<()> {
@@ -403,6 +432,7 @@ mod tests {
 
     #[tokio::test]
     #[serial]
+    #[ignore]
     async fn test_e2e_groth16_node() -> anyhow::Result<()> {
         setup_logger();
 

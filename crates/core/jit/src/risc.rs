@@ -119,6 +119,55 @@ pub struct MemValue {
     pub value: u64,
 }
 
+/// Basic elf information. It extracts information from Program, but
+/// does not introduce dependency on Program.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ElfInfo {
+    pub pc_base: u64,
+    pub instruction_count: usize,
+    pub untrusted_memory: Option<(u64, u64)>,
+}
+
+impl ElfInfo {
+    #[inline]
+    pub fn enable_untrusted_program(&self) -> bool {
+        self.untrusted_memory.is_some()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct PageProtValue {
+    pub timestamp: u64,
+    pub value: u8,
+}
+
+impl Default for PageProtValue {
+    fn default() -> Self {
+        Self { timestamp: 0, value: sp1_primitives::consts::DEFAULT_PAGE_PROT }
+    }
+}
+
+impl From<PageProtValue> for MemValue {
+    fn from(v: PageProtValue) -> MemValue {
+        MemValue { clk: v.timestamp, value: v.value as u64 }
+    }
+}
+
+impl From<MemValue> for PageProtValue {
+    fn from(v: MemValue) -> PageProtValue {
+        assert!(v.value & !0xff == 0, "value = {:x}", v.value);
+        PageProtValue { timestamp: v.clk, value: (v.value & 0xff).try_into().unwrap() }
+    }
+}
+
+/// A RISC-V interrupt, right now we are only doing trap with this
+/// structure but it might be expanded later.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Interrupt {
+    /// Trap code
+    pub code: u64,
+}
+
 /// A convience structure for getting offsets of fields in the actual [TraceChunk].
 #[repr(C)]
 pub struct TraceChunkHeader {

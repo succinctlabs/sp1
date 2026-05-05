@@ -1,0 +1,14 @@
+# Because of the `untrusted_programs` feature enabled on `sp1-zkvm`, this program should be in
+# its own workspace. Otherwise, it enables untrusted program support for all programs.
+[workspace]
+[package]
+name = "trap-load-store-program"
+version = "1.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+sp1-zkvm = {  path = "../../../../crates/zkvm/entrypoint", features = ["untrusted_programs"] }
+sp1-derive = { path = "../../../../crates/derive" }
+sp1-primitives = { path = "../../../../crates/primitives" }
+rand = "0.8.5"

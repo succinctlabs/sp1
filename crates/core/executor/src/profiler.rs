@@ -20,7 +20,7 @@ pub struct Profiler {
     /// `start_address`-> index in `function_ranges`
     start_lookup: HashMap<u64, usize>,
     /// the start and end of the function
-    function_ranges: Vec<(u64, u64, Frame)>,
+    function_ranges: Vec<(u64, u64, String, Frame)>,
 
     /// the current known call stack
     function_stack: Vec<Frame>,
@@ -50,14 +50,35 @@ impl Profiler {
         for (demangled_name, start_address, size) in &program.function_symbols {
             let end_address = start_address + size - 4;
             let string_idx = builder.intern_string(demangled_name);
+
             if main_idx.is_none() && demangled_name == "main" {
                 main_idx = Some(string_idx);
             }
 
             let start_idx = function_ranges.len();
-            function_ranges.push((*start_address, end_address, Frame::Label(string_idx)));
+            function_ranges.push((
+                *start_address,
+                end_address,
+                demangled_name.clone(),
+                Frame::Label(string_idx),
+            ));
             start_lookup.insert(*start_address, start_idx);
         }
+
+        let mut function_stack = Vec::new();
+        let mut function_stack_indices = Vec::new();
+        let mut function_stack_ranges = Vec::new();
+
+        for start_address in &program.dump_elf_stack {
+            let idx = start_lookup[start_address];
+            let (_, end_address, _, frame) = &function_ranges[idx];
+
+            function_stack.push(frame.clone());
+            function_stack_indices.push(idx);
+            function_stack_ranges.push((*start_address, *end_address));
+        }
+
+        let current_function_range = function_stack_ranges.last().copied().unwrap_or_default();
 
         Self {
             builder,
@@ -66,11 +87,46 @@ impl Profiler {
             samples: Vec::new(),
             start_lookup,
             function_ranges,
-            function_stack: Vec::new(),
-            function_stack_indices: Vec::new(),
-            function_stack_ranges: Vec::new(),
-            current_function_range: (0, 0),
+            function_stack,
+            function_stack_indices,
+            function_stack_ranges,
+            current_function_range,
         }
+    }
+
+    pub(super) fn insert(&mut self, name: &str, addr: u64, len: u64) {
+        let string_idx = self.builder.intern_string(name);
+        let start_idx = self.function_ranges.len();
+        self.function_ranges.push((
+            addr,
+            addr + len - 4,
+            name.to_string(),
+            Frame::Label(string_idx),
+        ));
+        self.start_lookup.insert(addr, start_idx);
+    }
+
+    pub(super) fn delete(&mut self, addr: u64) {
+        let start_idx = self.start_lookup.get(&addr).copied();
+        if let Some(start_idx) = start_idx {
+            if start_idx == self.function_ranges.len() - 1 {
+                self.function_ranges.pop();
+            } else {
+                let (last_start_address, last_end_address, last_name, last_label) =
+                    self.function_ranges.pop().unwrap();
+                self.function_ranges[start_idx] =
+                    (last_start_address, last_end_address, last_name, last_label);
+                self.start_lookup.insert(last_start_address, start_idx);
+            }
+            self.start_lookup.remove(&addr);
+        }
+    }
+
+    pub(super) fn dump(&self) -> (Vec<(String, u64, u64)>, Vec<u64>) {
+        let loaded_functions =
+            self.function_ranges.iter().map(|f| (f.2.clone(), f.0, f.1 + 4 - f.0)).collect();
+        let stack = self.function_stack_ranges.iter().map(|(start, _)| *start).collect();
+        (loaded_functions, stack)
     }
 
     pub(super) fn record(&mut self, clk: u64, pc: u64) {
@@ -88,7 +144,7 @@ impl Profiler {
             // Jump to a new function (not recursive).
             if !self.function_stack_indices.contains(f) {
                 self.function_stack_indices.push(*f);
-                let (start, end, name) = self.function_ranges.get(*f).unwrap();
+                let (start, end, _, name) = self.function_ranges.get(*f).unwrap();
                 self.current_function_range = (*start, *end);
                 self.function_stack_ranges.push((*start, *end));
                 self.function_stack.push(name.clone());

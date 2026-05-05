@@ -13,6 +13,7 @@ use slop_commit::Rounds;
 use sp1_hypercube::{
     septic_curve::SepticCurve, septic_digest::SepticDigest, septic_extension::SepticExtension,
     AirOpenedValues, ChipOpenedValues, MachineVerifyingKey, ShardOpenedValues, ShardProof,
+    UntrustedConfig,
 };
 use sp1_primitives::{SP1ExtensionField, SP1Field};
 pub use sp1_recursion_compiler::ir::Witness as OuterWitness;
@@ -323,6 +324,41 @@ where
     }
 }
 
+impl<C> Witnessable<C> for UntrustedConfig<SP1Field>
+where
+    C: CircuitConfig,
+{
+    type WitnessVariable = UntrustedConfig<Felt<SP1Field>>;
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
+        let enable_untrusted_programs = self.enable_untrusted_programs.read(builder);
+        #[cfg(feature = "mprotect")]
+        let enable_trap_handler = self.enable_trap_handler.read(builder);
+        #[cfg(feature = "mprotect")]
+        let trap_context = self.trap_context.read(builder);
+        #[cfg(feature = "mprotect")]
+        let untrusted_memory = self.untrusted_memory.read(builder);
+        Self::WitnessVariable {
+            enable_untrusted_programs,
+            #[cfg(feature = "mprotect")]
+            enable_trap_handler,
+            #[cfg(feature = "mprotect")]
+            trap_context,
+            #[cfg(feature = "mprotect")]
+            untrusted_memory,
+        }
+    }
+
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.enable_untrusted_programs.write(witness);
+        #[cfg(feature = "mprotect")]
+        {
+            self.enable_trap_handler.write(witness);
+            self.trap_context.write(witness);
+            self.untrusted_memory.write(witness);
+        }
+    }
+}
+
 impl<C, GC> Witnessable<C> for MachineVerifyingKey<GC>
 where
     C: CircuitConfig,
@@ -336,12 +372,12 @@ where
         let pc_start = self.pc_start.read(builder);
         let initial_global_cumulative_sum = self.initial_global_cumulative_sum.read(builder);
         let preprocessed_commit = self.preprocessed_commit.read(builder);
-        let enable_untrusted_programs = self.enable_untrusted_programs.read(builder);
+        let untrusted_config = self.untrusted_config.read(builder);
         Self::WitnessVariable {
             pc_start,
             initial_global_cumulative_sum,
             preprocessed_commit,
-            enable_untrusted_programs,
+            untrusted_config,
         }
     }
 
@@ -349,6 +385,6 @@ where
         self.pc_start.write(witness);
         self.initial_global_cumulative_sum.write(witness);
         self.preprocessed_commit.write(witness);
-        self.enable_untrusted_programs.write(witness);
+        self.untrusted_config.write(witness);
     }
 }

@@ -1,9 +1,9 @@
 use deepsize2::DeepSizeOf;
 use serde::{Deserialize, Serialize};
 
-use crate::{Instruction, Opcode};
-
 use super::MemoryRecordEnum;
+use crate::events::PageProtRecord;
+use crate::{vm::results::TrapResult, Instruction, Opcode};
 
 /// Alu Instruction Event.
 ///
@@ -76,6 +76,32 @@ impl MemInstrEvent {
     ) -> Self {
         Self { clk, pc, opcode, a, b, c, op_a_0, mem_access }
     }
+}
+
+/// Trap Memory Instruction Event.
+///
+/// This object encapsulated the information to prove a RISC-V memory operation that trapped.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, DeepSizeOf)]
+#[repr(C)]
+pub struct TrapMemInstrEvent {
+    /// The clk.
+    pub clk: u64,
+    /// The program counter.
+    pub pc: u64,
+    /// The opcode.
+    pub opcode: Opcode,
+    /// The first operand value.
+    pub a: u64,
+    /// The second operand value.
+    pub b: u64,
+    /// The third operand value.
+    pub c: u64,
+    /// Whether the first operand is register 0.
+    pub op_a_0: bool,
+    /// The page permission record for memory operations.
+    pub page_prot_access: PageProtRecord,
+    /// The trap result.
+    pub trap_result: TrapResult,
 }
 
 /// Branch Instruction Event.
@@ -190,6 +216,22 @@ impl UTypeEvent {
     pub fn new(clk: u64, pc: u64, opcode: Opcode, a: u64, b: u64, c: u64, op_a_0: bool) -> Self {
         Self { clk, pc, opcode, a, b, c, op_a_0 }
     }
+}
+
+/// A `TrapExec` Event.
+///
+/// The information needed to prove a trap on untrusted program's permissions.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, DeepSizeOf)]
+#[repr(C)]
+pub struct TrapExecEvent {
+    /// The clock cycle.
+    pub clk: u64,
+    /// The program counter.
+    pub pc: u64,
+    /// The trap result.
+    pub trap_result: TrapResult,
+    /// The page permission record.
+    pub page_prot_record: PageProtRecord,
 }
 
 /// Instruction Fetch Event.

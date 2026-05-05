@@ -3,32 +3,40 @@ use std::{borrow::BorrowMut, mem::MaybeUninit};
 use hashbrown::HashMap;
 use itertools::Itertools;
 use rayon::iter::{ParallelBridge, ParallelIterator};
+use slop_air::BaseAir;
 use slop_algebra::PrimeField32;
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord, SyscallEvent},
+    events::{ByteLookupEvent, ByteRecord, MemoryRecordEnum, SyscallEvent},
     ExecutionRecord, Program, RTypeRecord, SyscallCode, HALT_PC,
 };
-use sp1_hypercube::{air::MachineAir, Word};
+use sp1_hypercube::{addr_to_limbs, air::MachineAir, Word};
 use sp1_primitives::consts::u64_to_u16_limbs;
 use struct_reflection::StructReflectionHelper;
 
-use crate::{operations::SP1FieldWordRangeChecker, utils::next_multiple_of_32};
-
-use super::{
-    columns::{SyscallInstrColumns, NUM_SYSCALL_INSTR_COLS},
-    SyscallInstrsChip,
+use crate::{
+    operations::SP1FieldWordRangeChecker, utils::next_multiple_of_32, TrustMode, UserMode,
+    UserModeSyscallInstrCols,
 };
 
-impl<F: PrimeField32> MachineAir<F> for SyscallInstrsChip {
+use super::{columns::SyscallInstrColumns, SyscallInstrsChip};
+
+impl<F: PrimeField32, M: TrustMode> MachineAir<F> for SyscallInstrsChip<M> {
     type Record = ExecutionRecord;
 
     type Program = Program;
 
     fn name(&self) -> &'static str {
-        "SyscallInstrs"
+        if M::IS_TRUSTED {
+            "SyscallInstrs"
+        } else {
+            "SyscallInstrsUser"
+        }
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return Some(0);
+        }
         let nb_rows = input.syscall_events.len();
         let size_log2 = input.fixed_log2_rows::<F, _>(self);
         let padded_nb_rows = next_multiple_of_32(nb_rows, size_log2);
@@ -41,38 +49,77 @@ impl<F: PrimeField32> MachineAir<F> for SyscallInstrsChip {
         output: &mut ExecutionRecord,
         buffer: &mut [MaybeUninit<F>],
     ) {
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return;
+        }
         let chunk_size = std::cmp::max((input.syscall_events.len()) / num_cpus::get(), 1);
-        let padded_nb_rows = <SyscallInstrsChip as MachineAir<F>>::num_rows(self, input).unwrap();
+        let padded_nb_rows =
+            <SyscallInstrsChip<M> as MachineAir<F>>::num_rows(self, input).unwrap();
         let num_event_rows = input.syscall_events.len();
+        let width = <SyscallInstrsChip<M> as BaseAir<F>>::width(self);
 
         unsafe {
-            let padding_start = num_event_rows * NUM_SYSCALL_INSTR_COLS;
-            let padding_size = (padded_nb_rows - num_event_rows) * NUM_SYSCALL_INSTR_COLS;
+            let padding_start = num_event_rows * width;
+            let padding_size = (padded_nb_rows - num_event_rows) * width;
             if padding_size > 0 {
                 core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
             }
         }
 
         let buffer_ptr = buffer.as_mut_ptr() as *mut F;
-        let values = unsafe {
-            core::slice::from_raw_parts_mut(buffer_ptr, num_event_rows * NUM_SYSCALL_INSTR_COLS)
-        };
+        let values = unsafe { core::slice::from_raw_parts_mut(buffer_ptr, num_event_rows * width) };
 
         let blu_events = values
-            .chunks_mut(chunk_size * NUM_SYSCALL_INSTR_COLS)
+            .chunks_mut(chunk_size * width)
             .enumerate()
             .par_bridge()
             .map(|(i, rows)| {
                 let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
-                rows.chunks_mut(NUM_SYSCALL_INSTR_COLS).enumerate().for_each(|(j, row)| {
+                rows.chunks_mut(width).enumerate().for_each(|(j, row)| {
                     let idx = i * chunk_size + j;
-                    let cols: &mut SyscallInstrColumns<F> = row.borrow_mut();
+                    let cols: &mut SyscallInstrColumns<F, M> = row.borrow_mut();
 
                     if idx < input.syscall_events.len() {
                         let event = &input.syscall_events[idx];
                         self.event_to_row(&event.0, &event.1, cols, &mut blu);
                         cols.state.populate(&mut blu, event.0.clk, event.0.pc);
                         cols.adapter.populate(&mut blu, event.1);
+                        if !M::IS_TRUSTED {
+                            let cols: &mut SyscallInstrColumns<F, UserMode> = row.borrow_mut();
+                            cols.user_mode_cols = UserModeSyscallInstrCols::<F>::default();
+                            let syscall_id = event.0.syscall_id;
+                            cols.user_mode_cols.is_sig_return.populate_from_field_element(
+                                F::from_canonical_u32(syscall_id)
+                                    - F::from_canonical_u32(SyscallCode::SIG_RETURN.syscall_id()),
+                            );
+                            // Populate `is_page_protect`.
+                            cols.user_mode_cols.is_page_protect.populate_from_field_element(
+                                F::from_canonical_u32(syscall_id)
+                                    - F::from_canonical_u32(SyscallCode::MPROTECT.syscall_id()),
+                            );
+                            #[cfg(feature = "mprotect")]
+                            for i in 0..3 {
+                                cols.user_mode_cols.addresses[i] =
+                                    addr_to_limbs(input.public_values.trap_context[i]);
+                            }
+                            if let Some(pc_record) = event.0.sig_return_pc_record {
+                                cols.user_mode_cols
+                                    .next_pc_record
+                                    .populate(MemoryRecordEnum::Read(pc_record), &mut blu);
+                                let next_pc = pc_record.value;
+                                cols.next_pc = addr_to_limbs::<F>(next_pc);
+                            }
+                            if let Some(trap_result) = event.0.trap_result {
+                                cols.user_mode_cols.trap_operation.populate(&mut blu, trap_result);
+                                let trap_code = trap_result.code_record.value;
+                                cols.user_mode_cols.is_not_trap.populate(trap_code);
+                                cols.user_mode_cols.trap_code = F::from_canonical_u64(trap_code);
+                                let next_pc = trap_result.handler_record.value;
+                                cols.next_pc = addr_to_limbs::<F>(next_pc);
+                            } else {
+                                cols.user_mode_cols.is_not_trap.populate(0);
+                            }
+                        }
                     }
                 });
                 blu
@@ -87,20 +134,21 @@ impl<F: PrimeField32> MachineAir<F> for SyscallInstrsChip {
             shape.included::<F, _>(self)
         } else {
             !shard.syscall_events.is_empty()
+                && (M::IS_TRUSTED != shard.program.enable_untrusted_programs)
         }
     }
 
     fn column_names(&self) -> Vec<String> {
-        SyscallInstrColumns::<F>::struct_reflection().unwrap()
+        SyscallInstrColumns::<F, M>::struct_reflection().unwrap()
     }
 }
 
-impl SyscallInstrsChip {
+impl<M: TrustMode> SyscallInstrsChip<M> {
     fn event_to_row<F: PrimeField32>(
         &self,
         event: &SyscallEvent,
         record: &RTypeRecord,
-        cols: &mut SyscallInstrColumns<F>,
+        cols: &mut SyscallInstrColumns<F, M>,
         blu: &mut impl ByteRecord,
     ) {
         cols.is_real = F::one();

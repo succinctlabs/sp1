@@ -214,7 +214,7 @@ impl MemoryReadRecord {
         prev_page_prot_record: Option<PageProtRecord>,
     ) -> Self {
         let MemoryEntry { timestamp, value, .. } = *entry;
-        let MemoryEntry { timestamp: prev_timestamp, value: _, .. } = *prev_entry;
+        let MemoryEntry { timestamp: prev_timestamp, .. } = *prev_entry;
         debug_assert!(timestamp > prev_timestamp);
         Self { value, timestamp, prev_timestamp, prev_page_prot_record }
     }
@@ -324,6 +324,8 @@ pub struct PageProtRecord {
     pub external_flag: bool,
     /// The timestamp.
     pub timestamp: u64,
+    /// The page index.
+    pub page_idx: u64,
     /// The page prot.
     pub page_prot: u8,
 }

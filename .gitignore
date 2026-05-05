@@ -66,3 +66,4 @@ examples/fibonacci/fibonacci-plonk.bin
 
 # Local agent documents
 .claude/local/**
+.claude/settings.json
