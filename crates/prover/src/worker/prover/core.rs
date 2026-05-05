@@ -205,7 +205,7 @@ pub struct CoreWorker<A, W, C: SP1ProverComponents> {
     /// Optional fixed PK cache shared across workers.
     pk: Option<CoreProvingKeyCache<C>>,
     verify_intermediates: bool,
-    record_write_dir: Option<String>,
+    record_write_dir_and_frequency: Option<(String, usize)>,
 }
 
 impl<A, W, C: SP1ProverComponents> CoreWorker<A, W, C> {
@@ -220,7 +220,7 @@ impl<A, W, C: SP1ProverComponents> CoreWorker<A, W, C> {
         permits: ProverSemaphore,
         pk: Option<CoreProvingKeyCache<C>>,
         verify_intermediates: bool,
-        record_write_dir: Option<String>,
+        record_write_dir_and_frequency: Option<(String, usize)>,
     ) -> Self {
         Self {
             normalize_program_compiler,
@@ -232,7 +232,7 @@ impl<A, W, C: SP1ProverComponents> CoreWorker<A, W, C> {
             permits,
             pk,
             verify_intermediates,
-            record_write_dir,
+            record_write_dir_and_frequency,
         }
     }
 
@@ -262,7 +262,7 @@ where
             self.artifact_client.download::<TraceData>(&input.record),
         )?;
 
-        if let Some(dir) = self.record_write_dir.as_ref() {
+        if let Some((dir, _)) = self.record_write_dir_and_frequency.as_ref() {
             let dir = PathBuf::from(dir);
             let mut file = std::fs::File::create(dir.join("program.bin"))
                 .expect("failed to create program.bin");
@@ -523,14 +523,12 @@ where
         .map_err(|e| TaskError::Fatal(e.into()))?;
 
         // Optionally dump the shard record and vk to disk for benchmarking/replay.
-        if let Some(dir) = self.record_write_dir.as_ref() {
+        if let Some((dir, frequency)) = self.record_write_dir_and_frequency.as_ref() {
             let idx = SHARD_IDX.fetch_add(1, Ordering::Relaxed);
             let path = std::path::PathBuf::from(&dir);
             std::fs::create_dir_all(&path).ok();
 
-            if idx.is_multiple_of(
-                std::env::var("RECORD_WRITE_FREQUENCY").map_or(5, |v| v.parse().unwrap_or(5)),
-            ) {
+            if idx.is_multiple_of(*frequency) {
                 let record_bytes = bincode::serialize(&record).expect("failed to serialize record");
                 std::fs::write(path.join(format!("record_{idx:04}.bin")), &record_bytes)
                     .expect("failed to write record");
@@ -847,6 +845,10 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A
         let pk_cache = if config.use_fixed_pk { Some(Arc::new(OnceCell::new())) } else { None };
 
         let record_write_dir = std::env::var("SP1_RECORD_WRITE_DIR").ok();
+        let record_write_frequency =
+            std::env::var("SP1_RECORD_WRITE_FREQUENCY").map_or(5, |v| v.parse().unwrap_or(5));
+        let record_write_dir_and_frequency =
+            record_write_dir.map(|dir| (dir, record_write_frequency));
 
         // Initialize the unified core engine (handles both tracing and proving)
         let core_workers = (0..config.num_core_workers)
@@ -861,7 +863,7 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A
                     permits.clone(),
                     pk_cache.clone(),
                     config.verify_intermediates,
-                    record_write_dir.clone(),
+                    record_write_dir_and_frequency.clone(),
                 )
             })
             .collect::<Vec<_>>();
