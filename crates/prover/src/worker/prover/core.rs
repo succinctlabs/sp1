@@ -186,10 +186,12 @@ pub fn get_normalize_program(
     }
 
     let input = shape.dummy_input(vk);
-    let mut program = normalize_program_from_input(&recursive_verifier, &input);
+    let mut program = normalize_program_from_input(recursive_verifier, &input);
     program.shape = Some(reduce_shape.shape.clone());
     let program = Arc::new(program);
-    cache.map(|c| c.push(shape, program.clone()));
+    if let Some(c) = cache {
+        c.push(shape, program.clone());
+    }
     program
 }
 
