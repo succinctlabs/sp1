@@ -434,6 +434,18 @@ build_cargo_args() {
     out_args+=( --save-baseline "$baseline" )
 }
 
+# Remove every baseline directory under $target_dir/criterion that matches
+# `<label_prefix>-r*`. Without this, the formatter picks up stale baselines
+# from previous runs (e.g. bench IDs that have since been renamed), which
+# show up as ghost rows in the comparison output.
+wipe_baselines() {
+    local target_dir="$1"
+    local label_prefix="$2"
+    [[ -d "$target_dir" ]] || return 0
+    find "$target_dir" -depth -type d -name "${label_prefix}-r*" \
+        -exec rm -rf {} + 2>/dev/null || true
+}
+
 # Ensure a worktree at $wt_path is checked out to a commit whose tree is
 # $target_tree. If the worktree is already at that tree, this is a no-op.
 ensure_worktree_at_tree() {
@@ -513,6 +525,15 @@ REF_SKIP_PROGRAMS=0
 if [[ -f "$REF_BUILT_MARKER" ]] && [[ "$(cat "$REF_BUILT_MARKER" 2>/dev/null)" == "$REF_TREE" ]]; then
     REF_SKIP_PROGRAMS=1
 fi
+
+# ----------------------------------------------------------------------------
+# Wipe stale baselines from previous runs so the formatter only sees data
+# this invocation just produced. Working-tree edits between runs (renames,
+# new/deleted bench IDs, source changes) would otherwise leave dangling
+# rows in the comparison.
+# ----------------------------------------------------------------------------
+wipe_baselines "$REPO_ROOT/target/criterion" "$CURRENT_LABEL"
+wipe_baselines "$WT_REF/target/criterion"    "$REF_LABEL"
 
 # ----------------------------------------------------------------------------
 # Run N rounds with alternating side order.
