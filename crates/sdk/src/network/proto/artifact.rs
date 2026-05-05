@@ -45,6 +45,9 @@ pub enum ArtifactType {
     State = 5,
     /// An export artifact.
     Export = 6,
+    /// A private stdin artifact stored under the private-stdins/ prefix.
+    /// Only fetched via the authenticated GetStdinUri RPC.
+    PrivateStdin = 7,
 }
 impl ArtifactType {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -60,6 +63,7 @@ impl ArtifactType {
             Self::Transaction => "TRANSACTION",
             Self::State => "STATE",
             Self::Export => "EXPORT",
+            Self::PrivateStdin => "PRIVATE_STDIN",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -72,6 +76,7 @@ impl ArtifactType {
             "TRANSACTION" => Some(Self::Transaction),
             "STATE" => Some(Self::State),
             "EXPORT" => Some(Self::Export),
+            "PRIVATE_STDIN" => Some(Self::PrivateStdin),
             _ => None,
         }
     }

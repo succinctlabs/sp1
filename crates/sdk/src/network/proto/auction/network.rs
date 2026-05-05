@@ -216,6 +216,24 @@ pub mod prover_network_client {
                 .insert(GrpcMethod::new("network.ProverNetwork", "GetProofRequestDetails"));
             self.inner.unary(req, path, codec).await
         }
+        /// Get a short-lived presigned URL to download a private request's stdin.
+        /// Only callable by the requester, executor, or (post-settlement) fulfiller.
+        pub async fn get_stdin_uri(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetStdinUriRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetStdinUriResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetStdinUri");
+            let mut req = request.into_request();
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "GetStdinUri"));
+            self.inner.unary(req, path, codec).await
+        }
         /// Get the proof requests that meet the filter criteria.
         pub async fn get_filtered_proof_requests(
             &mut self,
@@ -2174,6 +2192,15 @@ pub mod prover_network_server {
             tonic::Response<super::super::types::GetProofRequestDetailsResponse>,
             tonic::Status,
         >;
+        /// Get a short-lived presigned URL to download a private request's stdin.
+        /// Only callable by the requester, executor, or (post-settlement) fulfiller.
+        async fn get_stdin_uri(
+            &self,
+            request: tonic::Request<super::super::types::GetStdinUriRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetStdinUriResponse>,
+            tonic::Status,
+        >;
         /// Get the proof requests that meet the filter criteria.
         async fn get_filtered_proof_requests(
             &self,
@@ -3319,6 +3346,48 @@ pub mod prover_network_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = GetProofRequestDetailsSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetStdinUri" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetStdinUriSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::GetStdinUriRequest>
+                        for GetStdinUriSvc<T>
+                    {
+                        type Response = super::super::types::GetStdinUriResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::super::types::GetStdinUriRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_stdin_uri(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetStdinUriSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

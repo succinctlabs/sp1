@@ -199,6 +199,10 @@ pub struct RequestProofRequestBody {
     /// The treasury address.
     #[prost(bytes = "vec", tag = "20")]
     pub treasury: ::prost::alloc::vec::Vec<u8>,
+    /// Whether the stdin is private. When true, stdin_uri must be under
+    /// the private-stdins/ prefix and is only fetchable via GetStdinUri.
+    #[prost(bool, tag = "21")]
+    pub stdin_private: bool,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct RequestProofResponse {
@@ -511,6 +515,10 @@ pub struct ProofRequest {
     /// Whether the request has been canceled.
     #[prost(bool, tag = "37")]
     pub is_canceled: bool,
+    /// Whether this request's stdin is private. When true, stdin_public_uri is
+    /// empty and stdin is only fetchable via GetStdinUri by an authorized caller.
+    #[prost(bool, tag = "38")]
+    pub stdin_private: bool,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct GetProofRequestStatusRequest {
@@ -561,6 +569,39 @@ pub struct GetProofRequestDetailsResponse {
     /// The detailed request.
     #[prost(message, optional, tag = "1")]
     pub request: ::core::option::Option<ProofRequest>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetStdinUriRequest {
+    /// The message format of the body.
+    #[prost(enumeration = "MessageFormat", tag = "1")]
+    pub format: i32,
+    /// The signature of the sender.
+    #[prost(bytes = "vec", tag = "2")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the request.
+    #[prost(message, optional, tag = "3")]
+    pub body: ::core::option::Option<GetStdinUriRequestBody>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetStdinUriRequestBody {
+    /// The account nonce of the sender.
+    #[prost(uint64, tag = "1")]
+    pub nonce: u64,
+    /// The identifier for the request.
+    #[prost(bytes = "vec", tag = "2")]
+    pub request_id: ::prost::alloc::vec::Vec<u8>,
+    /// The domain separator bytes for the request.
+    #[prost(bytes = "vec", tag = "3")]
+    pub domain: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetStdinUriResponse {
+    /// Presigned HTTPS URL for downloading the stdin artifact.
+    #[prost(string, tag = "1")]
+    pub stdin_uri: ::prost::alloc::string::String,
+    /// Unix seconds at which the URL expires.
+    #[prost(uint64, tag = "2")]
+    pub expires_at: u64,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct GetFilteredProofRequestsRequest {

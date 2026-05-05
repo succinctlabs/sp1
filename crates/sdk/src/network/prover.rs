@@ -87,6 +87,7 @@ impl Prover for NetworkProver {
             treasury: None,
             max_price_per_pgu: None,
             auction_timeout: None,
+            private_stdin: false,
         }
     }
 
@@ -392,6 +393,7 @@ impl NetworkProver {
         base_fee: u64,
         max_price_per_pgu: u64,
         domain: Vec<u8>,
+        private_stdin: bool,
     ) -> Result<B256> {
         if self.client.rpc_url == TEE_NETWORK_RPC_URL && strategy != FulfillmentStrategy::Reserved {
             return Err(anyhow::anyhow!(
@@ -459,6 +461,7 @@ impl NetworkProver {
                 base_fee,
                 max_price_per_pgu,
                 domain,
+                private_stdin,
             )
             .await?;
 
@@ -576,6 +579,7 @@ impl NetworkProver {
         verifier: Option<Address>,
         treasury: Option<Address>,
         max_price_per_pgu: Option<u64>,
+        private_stdin: bool,
     ) -> Result<B256> {
         let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
         let (cycle_limit, gas_limit, public_values_hash) = self
@@ -610,6 +614,7 @@ impl NetworkProver {
             base_fee,
             max_price_per_pgu,
             domain,
+            private_stdin,
         )
         .await
     }
@@ -634,6 +639,7 @@ impl NetworkProver {
         treasury: Option<Address>,
         max_price_per_pgu: Option<u64>,
         auction_timeout: Option<Duration>,
+        private_stdin: bool,
     ) -> Result<SP1ProofWithPublicValues> {
         #[allow(unused_mut)]
         let mut whitelist = whitelist.clone();
@@ -658,6 +664,7 @@ impl NetworkProver {
                     verifier,
                     treasury,
                     max_price_per_pgu,
+                    private_stdin,
                 )
                 .await?;
 
