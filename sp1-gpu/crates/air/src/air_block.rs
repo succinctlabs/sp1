@@ -27,12 +27,10 @@ use sp1_curves::params::FieldParameters;
 use sp1_curves::params::{Limbs, NumLimbs};
 use sp1_curves::weierstrass::WeierstrassParameters;
 use sp1_curves::{BigUint, CurveType, EllipticCurve};
-use sp1_hypercube::air::InstructionAirBuilder;
-#[cfg(feature = "mprotect")]
-use sp1_hypercube::air::MachineAirBuilder;
+use sp1_hypercube::air::{InstructionAirBuilder, MachineAirBuilder};
 use sp1_hypercube::operations::poseidon2::air::{eval_external_round, eval_internal_rounds};
 use sp1_hypercube::operations::poseidon2::permutation::Poseidon2Cols;
-use sp1_hypercube::operations::poseidon2::WIDTH;
+use sp1_hypercube::operations::poseidon2::{NUM_EXTERNAL_ROUNDS, WIDTH};
 use sp1_hypercube::septic_curve::SepticCurve;
 use sp1_hypercube::septic_extension::SepticExtension;
 use sp1_hypercube::Word;
@@ -60,6 +58,30 @@ pub trait BlockAir<AB: AirBuilder>: Air<AB> + MachineAir<F> + 'static + Send + S
     fn eval_block(&self, builder: &mut AB, index: usize) {
         assert!(index == 0);
         self.eval(builder);
+    }
+}
+
+/// Number of [`BlockAir`] blocks consumed by a single Poseidon2 permutation: one block per external
+/// round, plus one block holding all internal rounds.
+pub const POSEIDON2_PERM_NUM_BLOCKS: usize = NUM_EXTERNAL_ROUNDS + 1;
+
+/// Evaluates the `index`-th block of the Poseidon2 permutation constraints over `perm_cols`.
+///
+/// `index` must be in `0..POSEIDON2_PERM_NUM_BLOCKS`. The first `NUM_EXTERNAL_ROUNDS` indices each
+/// evaluate one external round; the final index evaluates all internal rounds.
+fn eval_poseidon2_perm_block<AB>(
+    builder: &mut AB,
+    perm_cols: &dyn Poseidon2Cols<AB::Var>,
+    index: usize,
+) where
+    AB: MachineAirBuilder + PairBuilder,
+{
+    if index < NUM_EXTERNAL_ROUNDS {
+        eval_external_round(builder, perm_cols, index);
+    } else if index == NUM_EXTERNAL_ROUNDS {
+        eval_internal_rounds(builder, perm_cols);
+    } else {
+        panic!("Poseidon2 permutation block index out of range: {index}");
     }
 }
 
@@ -864,7 +886,7 @@ where
 
 impl<'a, const DEGREE: usize> BlockAir<SymbolicProverFolder<'a>> for Poseidon2WideChip<DEGREE> {
     fn num_blocks(&self) -> usize {
-        9
+        POSEIDON2_PERM_NUM_BLOCKS
     }
 
     fn eval_block(&self, builder: &mut SymbolicProverFolder<'a>, index: usize) {
@@ -874,46 +896,43 @@ impl<'a, const DEGREE: usize> BlockAir<SymbolicProverFolder<'a>> for Poseidon2Wi
         let prep_local = prepr.row_slice(0);
         let prep_local: &Poseidon2PreprocessedColsWide<_> = (*prep_local).borrow();
 
-        match index {
-            0 => {
-                // Dummy constraints to normalize to DEGREE.
-                let lhs = (0..DEGREE)
-                    .map(|_| local_row.external_rounds_state()[0][0].into())
-                    .product::<SymbolicExprF>();
-                let rhs = (0..DEGREE)
-                    .map(|_| local_row.external_rounds_state()[0][0].into())
-                    .product::<SymbolicExprF>();
-                builder.assert_eq(lhs, rhs);
+        if index == 0 {
+            // Dummy constraints to normalize to DEGREE.
+            let lhs = (0..DEGREE)
+                .map(|_| local_row.external_rounds_state()[0][0].into())
+                .product::<SymbolicExprF>();
+            let rhs = (0..DEGREE)
+                .map(|_| local_row.external_rounds_state()[0][0].into())
+                .product::<SymbolicExprF>();
+            builder.assert_eq(lhs, rhs);
 
-                (0..WIDTH).for_each(|i| {
-                    builder.receive_single(
-                        prep_local.input[i],
-                        local_row.external_rounds_state()[0][i],
-                        prep_local.is_real,
-                    )
-                });
+            (0..WIDTH).for_each(|i| {
+                builder.receive_single(
+                    prep_local.input[i],
+                    local_row.external_rounds_state()[0][i],
+                    prep_local.is_real,
+                )
+            });
 
-                (0..WIDTH).for_each(|i| {
-                    builder.send_single(
-                        prep_local.output[i].addr,
-                        local_row.perm_output()[i],
-                        prep_local.output[i].mult,
-                    )
-                });
-                eval_external_round(builder, local_row.as_ref(), 0);
-            }
-            1..8 => {
-                eval_external_round(builder, local_row.as_ref(), index);
-            }
-            8 => eval_internal_rounds(builder, local_row.as_ref()),
-            _ => unreachable!(),
+            (0..WIDTH).for_each(|i| {
+                builder.send_single(
+                    prep_local.output[i].addr,
+                    local_row.perm_output()[i],
+                    prep_local.output[i].mult,
+                )
+            });
         }
+        eval_poseidon2_perm_block(builder, local_row.as_ref(), index);
     }
 }
 
+/// Number of `GlobalChip` [`BlockAir`] blocks consumed *after* the Poseidon2 permutation: one
+/// block each for the curve formula, y-coordinate sign + range checks, and digest accumulation.
+const GLOBAL_NUM_EC_BLOCKS: usize = 3;
+
 impl<'a> BlockAir<SymbolicProverFolder<'a>> for GlobalChip {
     fn num_blocks(&self) -> usize {
-        12
+        POSEIDON2_PERM_NUM_BLOCKS + GLOBAL_NUM_EC_BLOCKS
     }
 
     fn eval_block(&self, builder: &mut SymbolicProverFolder<'a>, index: usize) {
@@ -1014,13 +1033,13 @@ impl<'a> BlockAir<SymbolicProverFolder<'a>> for GlobalChip {
                     builder.when(is_real).assert_eq(*perm_input, *trial);
                 }
 
-                eval_external_round(builder, &cols.permutation.permutation, 0);
+                eval_poseidon2_perm_block(builder, &cols.permutation.permutation, 0);
             }
-            1..=7 => {
-                eval_external_round(builder, &cols.permutation.permutation, index);
+            i if i < POSEIDON2_PERM_NUM_BLOCKS - 1 => {
+                eval_poseidon2_perm_block(builder, &cols.permutation.permutation, i);
             }
-            8 => {
-                eval_internal_rounds(builder, &cols.permutation.permutation);
+            i if i == POSEIDON2_PERM_NUM_BLOCKS - 1 => {
+                eval_poseidon2_perm_block(builder, &cols.permutation.permutation, i);
 
                 // The Poseidon2 output is the x-coordinate of the curve point.
                 let m_hash = cols.permutation.permutation.perm_output();
