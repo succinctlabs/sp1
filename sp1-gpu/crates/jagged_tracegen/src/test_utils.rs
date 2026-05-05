@@ -75,10 +75,7 @@ pub mod bench_utils {
                 })
             })
             .collect();
-        assert!(
-            !sizes.is_empty(),
-            "empty size list in `{arg}`; use `random` for the default",
-        );
+        assert!(!sizes.is_empty(), "empty size list in `{arg}`; use `random` for the default",);
         Some(sizes)
     }
 
@@ -235,9 +232,10 @@ pub mod bench_utils {
         let positional: Vec<String> =
             std::env::args().skip(1).filter(|a| !a.starts_with('-')).collect();
 
-        if let Some(unsupported) = positional.iter().find(|a| {
-            a.ends_with(".json") || a.as_str() == "random" || a.starts_with("random:")
-        }) {
+        if let Some(unsupported) = positional
+            .iter()
+            .find(|a| a.ends_with(".json") || a.as_str() == "random" || a.starts_with("random:"))
+        {
             eprintln!(
                 "skipping bench: the `{unsupported}` source isn't supported (needs real trace \
                  data). Pass `-- real/<program>` (or no arg for the default) instead."
