@@ -265,18 +265,25 @@ while [[ $# -gt 0 ]]; do
             NEW_ARGS+=("$1"); shift ;;
     esac
 done
-set -- "${NEW_ARGS[@]:-}"
-[[ ${#NEW_ARGS[@]} -eq 0 ]] && set --
+set -- "${NEW_ARGS[@]+"${NEW_ARGS[@]}"}"
 
-case "$REPEAT" in
-    ''|*[!0-9]*|0)
-        echo "error: --repeat must be a positive integer (got '$REPEAT')" >&2
-        exit 1 ;;
-esac
+if ! [[ "$REPEAT" =~ ^[1-9][0-9]*$ ]]; then
+    echo "error: --repeat must be a positive integer (got '$REPEAT')" >&2
+    exit 1
+fi
 
 # Sanitize ref names for criterion baseline names and path components
 # (alnum/_/./-).
 sanitize() { printf '%s' "$1" | tr -c '[:alnum:]_.-' '_'; }
+
+# Worktree label for a given ref. "current" is reserved for the in-place side,
+# so a ref that sanitizes to "current" gets bumped to "current-other".
+ref_label() {
+    local label
+    label="$(sanitize "$1")"
+    [[ "$label" == "$CURRENT_LABEL" ]] && label="${label}-other"
+    printf '%s' "$label"
+}
 
 # List paths of worktrees that this script created, by checking for the marker.
 list_bench_worktrees() {
@@ -303,9 +310,9 @@ cmd_clear() {
 
     local removed=0
     if [[ -n "$target" ]]; then
-        local sanitized
-        sanitized="$(sanitize "$target")"
-        local path="$WORKTREE_CACHE/$sanitized"
+        local label
+        label="$(ref_label "$target")"
+        local path="$WORKTREE_CACHE/$label"
         if [[ -e "$path" ]] || \
            git -C "$REPO_ROOT" worktree list --porcelain | grep -Fxq "worktree $path"; then
             remove_worktree "$path"
@@ -392,11 +399,7 @@ if [[ -n "$BENCH_FILTER" ]]; then
     BENCHES=("${FILTERED[@]}")
 fi
 
-# Reserve "current" as the label for the in-place side — collide gracefully.
-REF_LABEL="$(sanitize "$REF")"
-if [[ "$REF_LABEL" == "$CURRENT_LABEL" ]]; then
-    REF_LABEL="${REF_LABEL}-other"
-fi
+REF_LABEL="$(ref_label "$REF")"
 
 mkdir -p "$WORKTREE_CACHE"
 git -C "$REPO_ROOT" worktree prune
