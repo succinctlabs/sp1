@@ -42,13 +42,14 @@ Options:
 
   --source ARG  Pick a trace source for benches that support multiple
                 ones (commit / jagged / prove_trusted_evaluations /
-                zerocheck). Forwarded as the first positional arg to
-                each bench, so it doubles as Criterion's filter:
+                zerocheck / hadamard). Forwarded as the first positional
+                arg to each bench, so it doubles as Criterion's filter:
 
-                  --source random              # default size, 2^25
-                  --source random:24           # single, 2^24
-                  --source random:22,24,26     # sweep three sizes
-                  --source real/<program>      # e.g. real/keccak256
+                  --source random                       # default size, 2^25
+                  --source random:24                    # single, 2^24
+                  --source random:22,24,26              # sweep three sizes
+                  --source random:24,cluster=all-chips  # override cluster
+                  --source real/<program>               # e.g. real/keccak256
                   --source /path/to/layout.json
 
                 Supported real programs: fibonacci, fibonacci_blake3,
@@ -58,12 +59,16 @@ Options:
                 test_utils to extend.)
 
                 Without this flag, every source-aware bench defaults to
-                random at 2^25. zerocheck synthesizes a full-cluster
-                chip_set + zero public_values for synthetic sources, so
-                its random/JSON timings reflect the largest-cluster
-                workload (apples-to-oranges vs. its real-source
-                timings). hadamard ignores the flag entirely (its inputs
-                aren't a trace) and always runs its single fixed config.
+                random at 2^25 with cluster=core (≈ base RISC-V).
+                cluster=all-chips populates every chip on the machine —
+                worst-case stress test, not comparable to any real shard.
+                hadamard accepts random:N for size sweeps but rejects
+                json / real (its inputs aren't a chip trace);
+                cluster= is parsed but has no effect for hadamard. When
+                --source is json/real and hadamard is in the selection,
+                the script drops it with a one-line note so the rest of
+                the comparison still runs; an explicit
+                "$prog hadamard --source real/X" errors out instead.
 
 Forms:
   $prog                          # current vs main, all benches
@@ -81,10 +86,10 @@ your working tree right now, committed or not. The other ref runs in a
 persistent worktree that is reused across invocations.
 
 Available benches:
-  zerocheck                  (sp1-gpu-zerocheck)         real-only
+  zerocheck                  (sp1-gpu-zerocheck)         any source
   prove_trusted_evaluations  (sp1-gpu-shard-prover)      any source
   jagged                     (sp1-gpu-jagged-sumcheck)   any source
-  hadamard                   (sp1-gpu-jagged-sumcheck)   single config
+  hadamard                   (sp1-gpu-jagged-sumcheck)   random only
   commit                     (sp1-gpu-commit)            any source
 
 Worktree cache: <repo>/sp1-gpu/.bench-worktrees/
@@ -304,6 +309,30 @@ if [[ -n "$BENCH_FILTER" ]]; then
         fi
     done
     BENCHES=("${FILTERED[@]}")
+fi
+
+# hadamard only accepts the `random` source kind. With a json/real source,
+# drop it from a multi-bench run rather than letting it abort the whole
+# comparison. If the user explicitly asked for hadamard with an
+# incompatible source, error out instead of silently skipping everything.
+if [[ -n "$SOURCE_ARG" ]] && [[ "$SOURCE_ARG" == real/* || "$SOURCE_ARG" == *.json ]]; then
+    KEPT=()
+    SKIPPED_HADAMARD=0
+    for entry in "${BENCHES[@]}"; do
+        if [[ "${entry##*:}" == "hadamard" ]]; then
+            SKIPPED_HADAMARD=1
+        else
+            KEPT+=("$entry")
+        fi
+    done
+    if (( SKIPPED_HADAMARD == 1 )); then
+        if (( ${#KEPT[@]} == 0 )); then
+            echo "error: hadamard doesn't accept '--source $SOURCE_ARG' (only random)" >&2
+            exit 1
+        fi
+        echo "Note: skipping hadamard (incompatible with --source $SOURCE_ARG)"
+        BENCHES=("${KEPT[@]}")
+    fi
 fi
 
 REF_LABEL="$(ref_label "$REF")"

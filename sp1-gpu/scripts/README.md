@@ -20,11 +20,11 @@ be enough on its own — every command below can be copy-pasted.
 After the script finishes, you'll see a table that looks roughly like:
 
 ```
-group                                            current        main           delta      95% CI                t
------------------------------------------------  -------------  -------------  ---------  --------------------  -----
-commit_multilinears/random/total_area_2^25       412.3±2.1ms    421.7±1.8ms    -2.23%     [-2.95, -1.51]%       -6.1
-jagged_sumcheck/random/total_area_2^25           188.4±0.9ms    187.1±1.1ms    +0.69%     [-0.07, +1.46]%       +1.8
-zerocheck/random/total_area_2^25                 1.207±0.012s   1.218±0.010s   -0.90%     [-2.21, +0.41]%       -1.4
+group                                       current        main           delta      95% CI                t
+------------------------------------------  -------------  -------------  ---------  --------------------  -----
+commit_multilinears/random/core_2^25        412.3±2.1ms    421.7±1.8ms    -2.23%     [-2.95, -1.51]%       -6.1
+jagged_sumcheck/random/core_2^25            188.4±0.9ms    187.1±1.1ms    +0.69%     [-0.07, +1.46]%       +1.8
+zerocheck/random/core_2^25                  1.207±0.012s   1.218±0.010s   -0.90%     [-2.21, +0.41]%       -1.4
 ```
 
 How to read it:
@@ -194,6 +194,11 @@ sp1-gpu/scripts/bench-compare.sh --source random:24
 # Sweep multiple random sizes (each becomes a separate row in the table)
 sp1-gpu/scripts/bench-compare.sh --source random:22,24,26
 
+# Override the chip cluster the synthetic trace populates. Default is
+# `core` (≈ base RISC-V); `all-chips` populates every chip on the
+# machine — worst-case stress, not comparable to any real shard.
+sp1-gpu/scripts/bench-compare.sh --source random:24,cluster=all-chips
+
 # Real zkVM execution of one of the bundled sample programs
 sp1-gpu/scripts/bench-compare.sh --source real/keccak256
 
@@ -212,13 +217,25 @@ To add more, edit `real_programs()` in
 
 ### Caveats
 
-- **`hadamard`** ignores `--source` entirely (its inputs are not a chip
-  trace) and always runs its single fixed configuration.
-- **`zerocheck`** synthesizes a full-cluster `chip_set` and zero-filled
-  `public_values` for synthetic sources. So its `random` and JSON
-  timings reflect the **largest-cluster workload**, not any particular
-  program's workload — they are NOT directly comparable to its
-  `real/<program>` timings.
+- **`hadamard`** accepts the `random` form (including size sweeps) but
+  rejects `json` / `real` — its inputs are raw `Felt`/`Ext` buffers,
+  not a chip trace. The `cluster=` modifier is parsed for uniformity
+  with the other benches but has no effect on hadamard. When
+  `--source` is `json` / `real` and hadamard is in the selection
+  (e.g. the default "all benches" run), the script silently drops it
+  with a one-line note so the rest of the comparison still runs.
+  Explicitly asking for `bench-compare.sh hadamard --source real/X`
+  errors out instead.
+- **Synthetic chip cluster.** `random` defaults to `cluster=core`
+  (≈ base RISC-V, no extensions or precompiles), which is the closest
+  synthetic analogue to a fibonacci-shaped real shard.
+  `cluster=all-chips` populates every chip the machine knows about —
+  not comparable to any real shard, useful only as a worst-case
+  stress test. For `zerocheck` in particular, the cluster choice
+  matters a lot: per-chip work means spreading the same total area
+  across more chips shifts the bench from per-row work toward
+  per-chip constants and can make timings look slower without doing
+  more "real" computation.
 - **Random / JSON traces don't satisfy AIR constraints**, so any proof
   built on top of them would not verify. Timing is still meaningful;
   end-to-end validation is not. See each bench folder's README for

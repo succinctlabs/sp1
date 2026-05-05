@@ -27,8 +27,9 @@ pub mod bench_utils {
 
     /// All the artifacts a [`FullKind`] bench gets. `cluster` is the chip set the bench should
     /// iterate when slicing per-chip evaluations — for the real source it's the program's actual
-    /// `smallest_cluster`; for synthetic sources it's the chip set the trace was built from
-    /// (sorted alphabetically to match `BTreeSet` iteration order).
+    /// `smallest_cluster`; for synthetic sources it's the [`ChipCluster`] the user asked for
+    /// (defaults to `Core`), resolved against the machine and used both as the trace's column
+    /// layout and as the bench's iteration set (alphabetical, to match `BTreeSet` iteration).
     ///
     /// `public_values` is real for the real source and a zero-filled vector of the right length
     /// for synthetic sources. Values don't need to be meaningful for timing (the prover doesn't
@@ -65,34 +66,92 @@ pub mod bench_utils {
         ]
     }
 
+    /// Which chip set a synthetic random trace should populate. The choice matters because
+    /// downstream work (e.g. zerocheck constraint evaluation) iterates per chip — splitting the
+    /// same area across more chips shifts the workload from per-row work toward per-chip
+    /// constants and stops resembling any real shard.
+    #[derive(Clone, Copy, Debug)]
+    pub enum ChipCluster {
+        /// The smallest cluster the machine knows about (≈ base RISC-V core, no extensions or
+        /// precompiles). Default for `random`. Closest synthetic analogue to the cluster a
+        /// fibonacci-shaped program would land in.
+        Core,
+        /// Every chip on the machine. Doesn't correspond to any real shard — use as a stress
+        /// test or worst-case upper bound, not as an apples-to-apples comparison against a
+        /// real program.
+        AllChips,
+    }
+
+    impl ChipCluster {
+        /// Stable short name used in bench ids and CLI parsing.
+        fn name(self) -> &'static str {
+            match self {
+                ChipCluster::Core => "core",
+                ChipCluster::AllChips => "all-chips",
+            }
+        }
+
+        fn parse(s: &str) -> Option<Self> {
+            match s {
+                "core" => Some(ChipCluster::Core),
+                "all-chips" => Some(ChipCluster::AllChips),
+                _ => None,
+            }
+        }
+    }
+
     /// Which trace source a bench should run against.
     pub enum TraceSource {
-        /// Synthetic random trace(s). Each `u32` is a log_2 area in field elements; one bench is
-        /// run per entry. Empty list means use the default [`DEFAULT_RANDOM_LOG_AREA`].
-        Random(Vec<u32>),
+        /// Synthetic random trace(s). Each `u32` in `sizes` is a log_2 area in field elements;
+        /// one bench is run per entry. Empty list means use the default
+        /// [`DEFAULT_RANDOM_LOG_AREA`]. `cluster` controls which chip set the trace populates.
+        Random { sizes: Vec<u32>, cluster: ChipCluster },
         /// Trace built from a JSON layout file.
         Json(String),
         /// Trace from an actual zkVM execution of a sample program.
         Real { name: &'static str, elf: &'static [u8] },
     }
 
-    /// Detect a `random` / `random:N` / `random:N1,N2,...` arg. Returns the parsed list of log
-    /// areas (empty for plain `random`), or `None` if the arg isn't a random spec.
-    fn parse_random_arg(arg: &str) -> Option<Vec<u32>> {
+    /// Detect a `random` / `random[:,]N[,N,...][,cluster=NAME]` arg. Returns `(sizes, cluster)`,
+    /// where `sizes` is empty for plain `random` and `cluster` defaults to [`ChipCluster::Core`].
+    /// Returns `None` if the arg doesn't start with `random`. Panics on inputs that start with
+    /// `random` but don't match a known form (silent fallback would just look like the default
+    /// behavior, which is a bad UX for typos like `random,cluster=foo` getting ignored).
+    ///
+    /// Both `:` and `,` are accepted as the separator after `random`, so e.g. either
+    /// `random:cluster=all-chips` or `random,cluster=all-chips` works.
+    fn parse_random_arg(arg: &str) -> Option<(Vec<u32>, ChipCluster)> {
         if arg == "random" {
-            return Some(vec![]);
+            return Some((vec![], ChipCluster::Core));
         }
-        let rest = arg.strip_prefix("random:")?;
-        let sizes: Vec<u32> = rest
-            .split(',')
-            .map(|s| {
-                s.trim().parse::<u32>().unwrap_or_else(|_| {
-                    panic!("invalid random log-area `{s}` in `{arg}`; expected `random:N[,N,...]`")
-                })
-            })
-            .collect();
-        assert!(!sizes.is_empty(), "empty size list in `{arg}`; use `random` for the default",);
-        Some(sizes)
+        if !arg.starts_with("random") {
+            return None;
+        }
+        let rest = arg
+            .strip_prefix("random:")
+            .or_else(|| arg.strip_prefix("random,"))
+            .unwrap_or_else(|| {
+                panic!(
+                    "invalid random spec `{arg}`; expected `random`, \
+                     `random:N[,N,...][,cluster=NAME]`, or `random,cluster=NAME`"
+                )
+            });
+        let mut sizes = Vec::new();
+        let mut cluster = ChipCluster::Core;
+        for part in rest.split(',') {
+            let part = part.trim();
+            if let Some(name) = part.strip_prefix("cluster=") {
+                cluster = ChipCluster::parse(name).unwrap_or_else(|| {
+                    panic!("unknown cluster `{name}` in `{arg}`; expected `core` or `all-chips`")
+                });
+            } else {
+                let n = part.parse::<u32>().unwrap_or_else(|_| {
+                    panic!("invalid item `{part}` in `{arg}`; expected `N` or `cluster=NAME`")
+                });
+                sizes.push(n);
+            }
+        }
+        Some((sizes, cluster))
     }
 
     impl TraceSource {
@@ -114,8 +173,8 @@ pub mod bench_utils {
                 return Self::Json(path.clone());
             }
             for arg in &positional {
-                if let Some(sizes) = parse_random_arg(arg) {
-                    return Self::Random(sizes);
+                if let Some((sizes, cluster)) = parse_random_arg(arg) {
+                    return Self::Random { sizes, cluster };
                 }
             }
             for (name, elf) in real_programs() {
@@ -124,7 +183,7 @@ pub mod bench_utils {
                     return Self::Real { name, elf };
                 }
             }
-            Self::Random(vec![])
+            Self::Random { sizes: vec![], cluster: ChipCluster::Core }
         }
     }
 
@@ -144,6 +203,7 @@ pub mod bench_utils {
         fn generate_random_data<R: Rng>(
             scope: &TaskScope,
             log_area: u32,
+            cluster: ChipCluster,
             rng: &mut R,
         ) -> Self::GeneratedData;
 
@@ -168,8 +228,8 @@ pub mod bench_utils {
             F: FnMut(&mut Criterion, BenchmarkId, &TaskScope, &mut R, Self::GeneratedData),
         {
             match TraceSource::from_cli_args() {
-                TraceSource::Random(sizes) => {
-                    // Bench IDs we register (`random/total_area_2^N`) don't contain the user's
+                TraceSource::Random { sizes, cluster } => {
+                    // Bench IDs we register (`random/<cluster>_2^N`) don't contain the user's
                     // source arg verbatim (e.g. `random:24` has a colon; sweep args have commas),
                     // so Criterion's substring CLI filter would drop them. With Random selected,
                     // every bench we register here is intended to run.
@@ -181,8 +241,11 @@ pub mod bench_utils {
                         let rng: &mut R = &mut *rng;
                         let f: &mut F = &mut f;
                         run_sync_in_place(move |scope| {
-                            let data = Self::generate_random_data(&scope, log_area, rng);
-                            let id = BenchmarkId::new("random", format!("total_area_2^{log_area}"));
+                            let data = Self::generate_random_data(&scope, log_area, cluster, rng);
+                            let id = BenchmarkId::new(
+                                "random",
+                                format!("{}_2^{log_area}", cluster.name()),
+                            );
                             f(c, id, &scope, rng, data);
                         })
                         .unwrap();
@@ -226,7 +289,12 @@ pub mod bench_utils {
     impl BenchKind for SizeOnlyKind {
         type GeneratedData = u32;
 
-        fn generate_random_data<R: Rng>(_: &TaskScope, log_area: u32, _: &mut R) -> u32 {
+        fn generate_random_data<R: Rng>(
+            _: &TaskScope,
+            log_area: u32,
+            _: ChipCluster,
+            _: &mut R,
+        ) -> u32 {
             log_area
         }
 
@@ -254,9 +322,11 @@ pub mod bench_utils {
         fn generate_random_data<R: Rng>(
             scope: &TaskScope,
             log_area: u32,
+            cluster: ChipCluster,
             rng: &mut R,
         ) -> JaggedTraceMle<Felt, TaskScope> {
-            let chips = sorted_machine_chips();
+            let machine = RiscvAir::<Felt>::machine();
+            let chips: Vec<_> = cluster_chip_set(&machine, cluster).into_iter().collect();
             let total_area = 1u64 << log_area;
             random_jagged_trace_mle::<Felt, _, _>(rng, &chips, total_area, LOG_STACKING_HEIGHT)
                 .into_device(scope)
@@ -288,17 +358,18 @@ pub mod bench_utils {
         fn generate_random_data<R: Rng>(
             scope: &TaskScope,
             log_area: u32,
+            cluster: ChipCluster,
             rng: &mut R,
         ) -> RealTraceData {
             let machine = RiscvAir::<Felt>::machine();
-            let chips = sorted_machine_chips();
-            let cluster: BTreeSet<_> = chips.iter().cloned().collect();
+            let cluster_set = cluster_chip_set(&machine, cluster);
+            let chips: Vec<_> = cluster_set.iter().cloned().collect();
             let total_area = 1u64 << log_area;
             let device_mle =
                 random_jagged_trace_mle::<Felt, _, _>(rng, &chips, total_area, LOG_STACKING_HEIGHT)
                     .into_device(scope);
             let public_values = vec![Felt::zero(); SP1_PROOF_NUM_PV_ELTS];
-            RealTraceData { machine, cluster, public_values, device_mle }
+            RealTraceData { machine, cluster: cluster_set, public_values, device_mle }
         }
 
         fn generate_json_data<R: Rng>(scope: &TaskScope, path: &str, rng: &mut R) -> RealTraceData {
@@ -341,14 +412,24 @@ pub mod bench_utils {
     // Shared private helpers: source-agnostic building blocks.
     // -------------------------------------------------------------------------
 
-    /// Sort `machine.chips()` by `Chip`'s `Ord` (= by name). Real tracegen lays out chips in
-    /// BTreeMap order (alphabetical); `BTreeSet<Chip>` iteration is alphabetical too. The
-    /// synthetic trace's chip layout has to match for downstream per-chip slicing to land on
-    /// the right columns.
-    fn sorted_machine_chips() -> Vec<Chip<Felt, RiscvAir<Felt>>> {
-        let mut chips = RiscvAir::<Felt>::machine().chips().to_vec();
-        chips.sort();
-        chips
+    /// Resolve a [`ChipCluster`] choice to the actual chip set on this machine. Returned as a
+    /// `BTreeSet` because downstream code (real tracegen, `RealTraceData::cluster`) uses that
+    /// type and its alphabetical iteration order — synthetic chip layout has to match for
+    /// per-chip slicing to land on the right columns.
+    ///
+    /// `Core` returns the smallest cluster the machine knows about. This relies on a structural
+    /// assumption about how `RiscvAir::machine()` builds clusters: extension and precompile
+    /// clusters all stack chips on top of the base core cluster, so the smallest is the base.
+    fn cluster_chip_set(
+        machine: &Machine<Felt, RiscvAir<Felt>>,
+        cluster: ChipCluster,
+    ) -> BTreeSet<Chip<Felt, RiscvAir<Felt>>> {
+        match cluster {
+            ChipCluster::Core => {
+                machine.smallest_cluster(&BTreeSet::new()).expect("machine has no clusters").clone()
+            }
+            ChipCluster::AllChips => machine.chips().iter().cloned().collect(),
+        }
     }
 
     /// Look up each JSON chip name against the machine and return a BTreeSet of the matching

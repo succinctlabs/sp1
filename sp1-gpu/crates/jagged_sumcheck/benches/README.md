@@ -23,6 +23,10 @@ cargo bench -p sp1-gpu-jagged-sumcheck --bench jagged -- random:24
 # Random sweep (one run per size)
 cargo bench -p sp1-gpu-jagged-sumcheck --bench jagged -- random:22,24,26
 
+# Override the chip cluster the synthetic trace populates. Default is `core`
+# (≈ base RISC-V); `all-chips` populates every chip on the machine.
+cargo bench -p sp1-gpu-jagged-sumcheck --bench jagged -- random:24,cluster=all-chips
+
 # Trace from a JSON layout (path must end in .json)
 cargo bench -p sp1-gpu-jagged-sumcheck --bench jagged -- /path/to/layout.json
 
@@ -49,7 +53,8 @@ cargo bench -p sp1-gpu-jagged-sumcheck --bench hadamard -- random:22,24,26
 ```
 
 JSON or `real/<program>` arguments will panic — the helpers don't synthesize
-hadamard inputs.
+hadamard inputs. `cluster=` is accepted in the random spec for parser
+uniformity but has no effect (hadamard doesn't iterate chips).
 
 ## Disclaimer on synthetic data
 

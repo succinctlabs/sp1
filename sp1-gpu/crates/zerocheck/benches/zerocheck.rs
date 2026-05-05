@@ -1,8 +1,8 @@
 //! Bench `zerocheck`. The zerocheck *prover* runs on any trace data — only verification cares
 //! about constraint satisfaction — so source selection (random / JSON / real) goes through
 //! [`with_trace_source`] with [`FullKind`]. For random and JSON sources the helper synthesizes
-//! `chip_set` (= all chips) and a zero-filled `public_values` of the right length, which means
-//! synthetic-source timings reflect the largest-cluster workload rather than a per-program one.
+//! `cluster` (default: the machine's `core` cluster; override with `random:N,cluster=all-chips`)
+//! and a zero-filled `public_values` of the right length. See [`benches/README.md`] for details.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;

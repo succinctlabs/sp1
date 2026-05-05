@@ -23,6 +23,10 @@ cargo bench -p sp1-gpu-commit --bench commit -- random:24
 # Random sweep across multiple log-areas (one bench run per size)
 cargo bench -p sp1-gpu-commit --bench commit -- random:22,24,26
 
+# Override the chip cluster the synthetic trace populates. Default is `core`
+# (≈ base RISC-V); `all-chips` populates every chip on the machine.
+cargo bench -p sp1-gpu-commit --bench commit -- random:24,cluster=all-chips
+
 # Trace built from a JSON layout file (path must end in .json)
 cargo bench -p sp1-gpu-commit --bench commit -- /path/to/layout.json
 

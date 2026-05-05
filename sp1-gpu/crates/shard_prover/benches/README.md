@@ -22,6 +22,10 @@ cargo bench -p sp1-gpu-shard-prover --bench prove_trusted_evaluations -- random:
 # Random sweep (one run per size)
 cargo bench -p sp1-gpu-shard-prover --bench prove_trusted_evaluations -- random:22,24,26
 
+# Override the chip cluster the synthetic trace populates. Default is `core`
+# (≈ base RISC-V); `all-chips` populates every chip on the machine.
+cargo bench -p sp1-gpu-shard-prover --bench prove_trusted_evaluations -- random:24,cluster=all-chips
+
 # Trace from a JSON layout (path must end in .json)
 cargo bench -p sp1-gpu-shard-prover --bench prove_trusted_evaluations -- /path/to/layout.json
 
