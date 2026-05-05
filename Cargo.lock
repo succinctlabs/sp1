@@ -7479,6 +7479,7 @@ dependencies = [
 name = "sp1-gpu-logup-gkr"
 version = "6.1.0"
 dependencies = [
+ "criterion",
  "futures",
  "itertools 0.14.0",
  "rand 0.8.6",

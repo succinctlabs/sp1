@@ -80,17 +80,22 @@ pub mod random {
     /// non-zero-height column and underflow if any chip is left empty. Panics if
     /// `total_area` is too small to give every chip its minimum allocation.
     ///
-    /// Heights are multiples of 4 (required so that `column_heights = height/2` is
-    /// even and matches the `height.div_ceil(4) * 2` pattern in
-    /// `next_start_indices_and_column_heights`). After the floor allocation, the
-    /// remaining budget is distributed greedily: pick a random fitting chip and
-    /// give it a random number of 4-row blocks until no chip fits in the leftover.
+    /// Heights are multiples of 32 to match the alignment that real shard tracegen
+    /// produces via `pad_rows_fixed` (sp1_hypercube::util). The looser-looking
+    /// `next_start_indices_and_column_heights` (`h.div_ceil(4) * 2`) only needs
+    /// even heights, but the GKR first-layer construction divides by 4
+    /// (`tracegen::generate_first_layer`) and then halves repeatedly, so the
+    /// effective requirement is "stay even all the way down" — multiples of 32 give
+    /// us margin and keep synthetic heights shaped like real shards. After the
+    /// floor allocation, the remaining budget is distributed greedily: pick a
+    /// random fitting chip and give it a random number of 32-row blocks until no
+    /// chip fits in the leftover.
     pub fn generate_random_heights<R: Rng>(
         rng: &mut R,
         layout: &AbstractChipLayout,
         total_area: u64,
     ) -> AbstractChipLayoutWithHeights {
-        const ALIGN: usize = 4;
+        const ALIGN: usize = 32;
 
         let entries = layout.entries();
 

@@ -126,6 +126,7 @@ invocation. The full list is:
 | `jagged` | `sp1-gpu-jagged-sumcheck` |
 | `hadamard` | `sp1-gpu-jagged-sumcheck` |
 | `commit` | `sp1-gpu-commit` |
+| `gkr` | `sp1-gpu-logup-gkr` |
 
 ### Compare against a different ref
 

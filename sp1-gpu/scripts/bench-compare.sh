@@ -42,8 +42,9 @@ Options:
 
   --source ARG  Pick a trace source for benches that support multiple
                 ones (commit / jagged / prove_trusted_evaluations /
-                zerocheck / hadamard). Forwarded as the first positional
-                arg to each bench, so it doubles as Criterion's filter:
+                zerocheck / gkr / hadamard). Forwarded as the first
+                positional arg to each bench, so it doubles as
+                Criterion's filter:
 
                   --source random                       # default size, 2^25
                   --source random:24                    # single, 2^24
@@ -91,6 +92,7 @@ Available benches:
   jagged                     (sp1-gpu-jagged-sumcheck)   any source
   hadamard                   (sp1-gpu-jagged-sumcheck)   random only
   commit                     (sp1-gpu-commit)            any source
+  gkr                        (sp1-gpu-logup-gkr)         any source
 
 Worktree cache: <repo>/sp1-gpu/.bench-worktrees/
 Requires:       python3, jq
@@ -108,6 +110,7 @@ BENCHES=(
     "sp1-gpu-jagged-sumcheck:jagged"
     "sp1-gpu-jagged-sumcheck:hadamard"
     "sp1-gpu-commit:commit"
+    "sp1-gpu-logup-gkr:gkr"
 )
 
 is_known_bench() {
