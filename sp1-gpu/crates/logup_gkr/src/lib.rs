@@ -10,7 +10,7 @@ use itertools::Itertools;
 use slop_algebra::AbstractField;
 use slop_alloc::HasBackend;
 use slop_challenger::{CanObserve, FieldChallenger, IopCtx, VariableLengthChallenger};
-use slop_multilinear::{MultilinearPcsChallenger, Point};
+use slop_multilinear::{MleEval, MultilinearPcsChallenger, Point};
 use sp1_gpu_basefold::{DeviceGrindingChallenger, GrindingPowCudaProver};
 use sp1_gpu_cudart::{DevicePoint, TaskScope};
 use tracing::instrument;
@@ -256,7 +256,7 @@ where
     // We accomplish this by doing jagged fix last variable on the evaluation point.
     let eval_point = eval_point.last_k(num_row_variables as usize);
     let host_evaluations = round_batch_evaluations(&eval_point, jagged_trace_data);
-    let [preprocessed, main] = host_evaluations.rounds.try_into().unwrap();
+    let [preprocessed, main]: [Vec<MleEval<Ext>>; 2] = host_evaluations.rounds.try_into().unwrap();
 
     let mut chip_evaluations = BTreeMap::new();
 
