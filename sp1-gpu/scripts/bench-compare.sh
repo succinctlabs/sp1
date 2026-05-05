@@ -26,6 +26,37 @@
 #     `rm -rf target/criterion` whenever you want.
 #
 # ----------------------------------------------------------------------------
+# REDUCING MEASUREMENT NOISE (optional but recommended)
+#
+# GPU/memory clocks drift with temperature and power state, which shows up
+# as run-to-run variation that can mask small (1-3%) regressions. Locking
+# clocks before benching typically drops noise from ~5% to <1%.
+#
+# Requires sudo. Skip this whole section if you don't have it -- the script
+# still works, you just need more --repeat rounds to see small effects.
+#
+#   # 1) Inspect supported clocks for GPU 0:
+#   nvidia-smi -q -d SUPPORTED_CLOCKS -i 0
+#
+#   # 2) Enable persistence mode and lock to a sustainable (not max boost)
+#   #    clock. Pick a graphics clock well below the boost ceiling so the
+#   #    GPU can hold it under load without thermal throttling. Memory
+#   #    clock should be the highest supported value.
+#   sudo nvidia-smi -pm 1 -i 0
+#   sudo nvidia-smi -lgc <graphics_clock_mhz> -i 0
+#   sudo nvidia-smi -lmc <memory_clock_mhz>   -i 0
+#
+#   # 3) When done benching, restore default behavior:
+#   sudo nvidia-smi -rgc -i 0
+#   sudo nvidia-smi -rmc -i 0
+#
+# Other knobs that help, in rough order of impact:
+#   - Pin to one GPU on multi-GPU boxes:    export CUDA_VISIBLE_DEVICES=0
+#   - No other CUDA processes on the same device while benching.
+#   - No display server / compositor on the bench GPU.
+#   - CPU governor to performance:          sudo cpupower frequency-set -g performance
+#
+# ----------------------------------------------------------------------------
 # QUICK START — copy/paste these commands.
 #
 # All commands below assume you are at the repo root (the directory that
@@ -202,7 +233,7 @@ Available benches:
   commit                     (sp1-gpu-commit)            any source
 
 Worktree cache: <repo>/sp1-gpu/.bench-worktrees/
-Requires:       python3
+Requires:       python3, jq
 EOF
 }
 
@@ -285,13 +316,27 @@ ref_label() {
     printf '%s' "$label"
 }
 
-# List paths of worktrees that this script created, by checking for the marker.
-list_bench_worktrees() {
+# All paths git has registered as worktrees of this repo (one per line).
+all_worktree_paths() {
     git -C "$REPO_ROOT" worktree list --porcelain 2>/dev/null \
-        | awk '/^worktree /{print substr($0, 10)}' \
-        | while IFS= read -r path; do
-            [[ -f "$path/$MARKER" ]] && printf '%s\n' "$path"
-          done
+        | awk '/^worktree /{print substr($0, 10)}'
+}
+
+# Test whether $1 is exactly the path of a registered worktree.
+is_registered_worktree() {
+    local target="$1" p
+    while IFS= read -r p; do
+        [[ "$p" == "$target" ]] && return 0
+    done < <(all_worktree_paths)
+    return 1
+}
+
+# Paths of worktrees this script created, identified by the marker file.
+list_bench_worktrees() {
+    local p
+    while IFS= read -r p; do
+        [[ -f "$p/$MARKER" ]] && printf '%s\n' "$p"
+    done < <(all_worktree_paths)
 }
 
 remove_worktree() {
@@ -313,8 +358,7 @@ cmd_clear() {
         local label
         label="$(ref_label "$target")"
         local path="$WORKTREE_CACHE/$label"
-        if [[ -e "$path" ]] || \
-           git -C "$REPO_ROOT" worktree list --porcelain | grep -Fxq "worktree $path"; then
+        if [[ -e "$path" ]] || is_registered_worktree "$path"; then
             remove_worktree "$path"
             removed=1
         else
@@ -352,6 +396,11 @@ fi
 
 if ! command -v python3 &>/dev/null; then
     echo "error: python3 not found." >&2
+    exit 1
+fi
+
+if ! command -v jq &>/dev/null; then
+    echo "error: jq not found (needed to parse 'cargo bench --no-run' output)." >&2
     exit 1
 fi
 
@@ -412,29 +461,60 @@ echo "Comparing: $CURRENT_LABEL  vs  $REF  (rounds: $REPEAT)"
 # Helpers.
 # ----------------------------------------------------------------------------
 
-# Build a single `cargo bench` arg list covering all selected benches.
-# Batching keeps cargo's feature graph unified across benches, avoiding
-# partial recompiles between separate `cargo bench -p X` invocations.
-build_cargo_args() {
-    local baseline="$1"
-    local -n out_args="$2"  # nameref to caller's array
+# Compile every selected bench in one `cargo bench --no-run` call and return
+# a (bench_name -> executable_path) map via a nameref. The single batched
+# compile keeps cargo's feature graph unified, and — together with running
+# the captured binaries directly per round — means the freshness check and
+# any build-script reruns (sp1-gpu-sys's CMake build, env-var-sensitive
+# rebuilds, etc.) happen exactly once per side instead of once per round.
+compile_benches() {
+    local cwd="$1"
+    local label="$2"
+    local -n bins_out="$3"
 
-    out_args=( bench )
+    local -a cargo_args=( bench --no-run --message-format=json )
     local crate
     while IFS= read -r crate; do
-        out_args+=( -p "$crate" )
+        cargo_args+=( -p "$crate" )
     done < <(printf '%s\n' "${BENCHES[@]}" | cut -d: -f1 | sort -u)
     local entry
     for entry in "${BENCHES[@]}"; do
-        out_args+=( --bench "${entry##*:}" )
+        cargo_args+=( --bench "${entry##*:}" )
     done
-    # Args after `--` go to each bench harness. SOURCE_ARG is read positionally
-    # by the trace-source helpers and also serves as Criterion's filter (they
-    # build bench IDs that contain the same string). --save-baseline is a
-    # Criterion flag.
-    out_args+=( -- )
-    [[ -n "$SOURCE_ARG" ]] && out_args+=( "$SOURCE_ARG" )
-    out_args+=( --save-baseline "$baseline" )
+
+    echo
+    echo "================================================================"
+    echo " Compiling benches @ $label"
+    echo "================================================================"
+
+    local tmp
+    tmp="$(mktemp)"
+    if ! ( cd "$cwd" && cargo "${cargo_args[@]}" >"$tmp" ); then
+        rm -f "$tmp"
+        echo "error: 'cargo bench --no-run' failed for $label" >&2
+        exit 1
+    fi
+
+    local name exe
+    while IFS=$'\t' read -r name exe; do
+        [[ -n "$name" && -n "$exe" ]] || continue
+        bins_out["$name"]="$exe"
+    done < <(jq -r '
+        select(.reason == "compiler-artifact"
+               and (.target.kind | index("bench"))
+               and .executable != null)
+        | "\(.target.name)\t\(.executable)"
+    ' "$tmp")
+    rm -f "$tmp"
+
+    for entry in "${BENCHES[@]}"; do
+        name="${entry##*:}"
+        if [[ -z "${bins_out[$name]:-}" ]]; then
+            echo "error: no compiled binary found for bench '$name' on $label" >&2
+            exit 1
+        fi
+        echo "  $name -> ${bins_out[$name]}"
+    done
 }
 
 # Remove every baseline directory under $target_dir/criterion that matches
@@ -457,7 +537,7 @@ ensure_worktree_at_tree() {
     local wt_path="$3"
 
     local current_tree=""
-    if git -C "$REPO_ROOT" worktree list --porcelain | grep -Fxq "worktree $wt_path"; then
+    if is_registered_worktree "$wt_path"; then
         current_tree="$(git -C "$wt_path" rev-parse HEAD^{tree})"
     fi
 
@@ -477,37 +557,33 @@ ensure_worktree_at_tree() {
     touch "$wt_path/$MARKER"
 }
 
-# Per-round runner for the "current" side (in main checkout).
-run_current_round() {
-    local baseline="$1"
-    local round="$2"
-    local cargo_args=()
-    build_cargo_args "$baseline" cargo_args
-    echo
-    echo "--- round $round/$REPEAT @ $CURRENT_LABEL  (saved as $baseline) ---"
-    ( cd "$REPO_ROOT" && cargo "${cargo_args[@]}" )
-}
+# Per-round runner. Invokes each pre-compiled bench binary directly, so no
+# cargo freshness check / relink happens between rounds.
+run_round() {
+    local cwd="$1"
+    local label="$2"
+    local baseline="$3"
+    local round="$4"
+    local -n bins="$5"
 
-# Per-round runner for the ref side (in cached worktree). Sets
-# SP1_SKIP_PROGRAM_BUILD when the SP1 guest programs were already built
-# at this tree on a previous run, breaking the test-artifacts recompile
-# cascade.
-run_ref_round() {
-    local baseline="$1"
-    local round="$2"
-    local cargo_args=()
-    build_cargo_args "$baseline" cargo_args
     echo
-    if [[ "$REF_SKIP_PROGRAMS" -eq 1 ]]; then
-        echo "--- round $round/$REPEAT @ $REF_LABEL  (saved as $baseline)  (SP1_SKIP_PROGRAM_BUILD=true) ---"
-        ( cd "$WT_REF" && SP1_SKIP_PROGRAM_BUILD=true cargo "${cargo_args[@]}" )
-    else
-        echo "--- round $round/$REPEAT @ $REF_LABEL  (saved as $baseline) ---"
-        ( cd "$WT_REF" && cargo "${cargo_args[@]}" )
-    fi
-    # Programs built (or already were); skip on subsequent rounds.
-    REF_SKIP_PROGRAMS=1
-    printf '%s\n' "$REF_TREE" > "$REF_BUILT_MARKER"
+    echo "--- round $round/$REPEAT @ $label  (saved as $baseline) ---"
+
+    local entry name bin
+    local -a bench_args
+    for entry in "${BENCHES[@]}"; do
+        name="${entry##*:}"
+        bin="${bins[$name]}"
+        # `--bench` is what cargo passes to a Criterion binary to put it in
+        # measurement mode. Without it Criterion 0.5+ defaults to test mode
+        # (one quick run, no samples written), which is the right default for
+        # `cargo test --benches` but means a direct invocation produces no
+        # sample.json — and the formatter then has nothing to compare.
+        bench_args=( --bench )
+        [[ -n "$SOURCE_ARG" ]] && bench_args+=( "$SOURCE_ARG" )
+        bench_args+=( --save-baseline "$baseline" )
+        ( cd "$cwd" && "$bin" "${bench_args[@]}" )
+    done
 }
 
 # ----------------------------------------------------------------------------
@@ -523,12 +599,6 @@ echo " Setting up ref worktree: $WT_REF"
 echo "================================================================"
 ensure_worktree_at_tree "$REF_TREE" "$REF_SHA" "$WT_REF"
 
-REF_BUILT_MARKER="$WT_REF/.sp1-programs-built-tree"
-REF_SKIP_PROGRAMS=0
-if [[ -f "$REF_BUILT_MARKER" ]] && [[ "$(cat "$REF_BUILT_MARKER" 2>/dev/null)" == "$REF_TREE" ]]; then
-    REF_SKIP_PROGRAMS=1
-fi
-
 # ----------------------------------------------------------------------------
 # Wipe stale baselines from previous runs so the formatter only sees data
 # this invocation just produced. Working-tree edits between runs (renames,
@@ -537,6 +607,16 @@ fi
 # ----------------------------------------------------------------------------
 wipe_baselines "$REPO_ROOT/target/criterion" "$CURRENT_LABEL"
 wipe_baselines "$WT_REF/target/criterion"    "$REF_LABEL"
+
+# ----------------------------------------------------------------------------
+# Compile each side once, capture per-bench binary paths, then invoke the
+# binaries directly per round. This bypasses cargo's per-invocation freshness
+# check (and any sp1-gpu-sys build.rs / CMake re-runs) for rounds 2+.
+# ----------------------------------------------------------------------------
+declare -A CURRENT_BINS=()
+declare -A REF_BINS=()
+compile_benches "$REPO_ROOT" "$CURRENT_LABEL" CURRENT_BINS
+compile_benches "$WT_REF"    "$REF_LABEL"     REF_BINS
 
 # ----------------------------------------------------------------------------
 # Run N rounds with alternating side order.
@@ -553,11 +633,11 @@ for ((k=1; k<=REPEAT; k++)); do
     cur_baseline="${CURRENT_LABEL}-r${k}"
     ref_baseline="${REF_LABEL}-r${k}"
     if (( k % 2 == 1 )); then
-        run_current_round "$cur_baseline" "$k"
-        run_ref_round "$ref_baseline" "$k"
+        run_round "$REPO_ROOT" "$CURRENT_LABEL" "$cur_baseline" "$k" CURRENT_BINS
+        run_round "$WT_REF"    "$REF_LABEL"     "$ref_baseline" "$k" REF_BINS
     else
-        run_ref_round "$ref_baseline" "$k"
-        run_current_round "$cur_baseline" "$k"
+        run_round "$WT_REF"    "$REF_LABEL"     "$ref_baseline" "$k" REF_BINS
+        run_round "$REPO_ROOT" "$CURRENT_LABEL" "$cur_baseline" "$k" CURRENT_BINS
     fi
 done
 
