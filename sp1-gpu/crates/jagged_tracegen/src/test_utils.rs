@@ -142,6 +142,11 @@ pub mod bench_utils {
     {
         match TraceSource::from_cli_args() {
             TraceSource::Random(sizes) => {
+                // The bench IDs we register (`random/total_area_2^N`) don't contain the user's
+                // source arg verbatim (e.g. `random:24` has a colon, the ID has a slash; sweep
+                // args have commas), so Criterion's substring CLI filter would drop them. With
+                // Random as the chosen source, every bench we register here is intended to run.
+                *c = std::mem::take(c).with_benchmark_filter(BenchmarkFilter::AcceptAll);
                 let sizes = if sizes.is_empty() { vec![DEFAULT_RANDOM_LOG_AREA] } else { sizes };
                 for log_area in sizes {
                     // Reborrow per iter so the FnOnce wrapper handed to `with_random` doesn't
