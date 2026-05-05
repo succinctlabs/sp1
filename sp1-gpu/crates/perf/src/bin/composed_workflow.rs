@@ -15,7 +15,7 @@ enum Mode {
 }
 
 #[derive(Parser, Debug)]
-#[command(author, version, about = "Compose dump/download/replay shard workflows end-to-end")]
+#[command(author, version, about = "Compose dump/replay shard workflows end-to-end")]
 struct Args {
     /// Workflow mode.
     #[arg(long, value_enum)]

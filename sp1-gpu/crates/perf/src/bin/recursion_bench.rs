@@ -169,7 +169,7 @@ async fn main() {
             _ => (compress_verifier.clone(), RECURSION_TRACE_ALLOCATION),
         };
         let prover: Arc<CudaShardProver<_, CudaProverRecursionComponents>> =
-            Arc::new(new_cuda_prover(prover_verifier, trace_alloc, 4, false, t.clone()).await);
+            Arc::new(new_cuda_prover(&prover_verifier, trace_alloc, 4, false, t.clone()).await);
 
         // Build witness stream.
         let mut witness_stream = Vec::new();

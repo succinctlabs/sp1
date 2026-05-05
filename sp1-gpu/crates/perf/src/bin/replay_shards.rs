@@ -7,10 +7,7 @@ use serde::Deserialize;
 use slop_algebra::AbstractField;
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_core_machine::riscv::RiscvAir;
-use sp1_gpu_prover::{
-    local_gpu_opts, new_cuda_prover, CudaProverCoreComponents, CudaProverRecursionComponents,
-    CudaShardProver, SP1CudaProverComponents, RECURSION_TRACE_ALLOCATION,
-};
+use sp1_gpu_prover::{core_prover_and_verifier, recursion_prover_and_verifier};
 use sp1_hypercube::{
     inner_perm,
     prover::{shape_from_record, AirProver},
@@ -18,9 +15,9 @@ use sp1_hypercube::{
 };
 use sp1_primitives::{SP1ExtensionField, SP1Field, SP1GlobalContext};
 use sp1_prover::{
-    recursion::{normalize_program_from_input, recursive_verifier},
-    shapes::{SP1NormalizeInputShape, SP1RecursionProofShape, DEFAULT_ARITY},
-    SP1ProverComponents, CORE_LOG_STACKING_HEIGHT,
+    recursion::recursive_verifier,
+    shapes::{SP1RecursionProofShape, DEFAULT_ARITY},
+    worker::get_normalize_program,
 };
 use sp1_recursion_circuit::{machine::SP1NormalizeWitnessValues, witness::Witnessable};
 use sp1_recursion_compiler::config::InnerConfig;
@@ -180,35 +177,17 @@ async fn main() {
 
         let permits = sp1_hypercube::prover::ProverSemaphore::new(1);
 
-        // Get the core options.
-        let (opts, recompute_first_layer) = local_gpu_opts();
-
-        let num_elts =
-            opts.sharding_threshold.element_threshold as usize + (1 << CORE_LOG_STACKING_HEIGHT);
-
         let machine = RiscvAir::machine();
-        let core_verifier = SP1CudaProverComponents::core_verifier(machine.clone());
-        let core_prover: Arc<CudaShardProver<_, CudaProverCoreComponents>> = Arc::new(
-            new_cuda_prover(core_verifier.clone(), num_elts, 4, recompute_first_layer, t.clone())
-                .await,
-        );
+        let (core_prover, core_verifier) =
+            core_prover_and_verifier(t.clone(), machine.clone()).await;
 
         // Set up the normalize-phase resources only if requested.
         let normalize_setup = if normalize {
             let recursive_core_verifier = recursive_verifier::<SP1GlobalContext, _, InnerConfig>(
                 core_verifier.shard_verifier(),
             );
-            let compress_verifier = SP1CudaProverComponents::compress_verifier();
-            let normalize_prover: Arc<CudaShardProver<_, CudaProverRecursionComponents>> = Arc::new(
-                new_cuda_prover(
-                    compress_verifier.clone(),
-                    RECURSION_TRACE_ALLOCATION,
-                    4,
-                    false,
-                    t.clone(),
-                )
-                .await,
-            );
+            let (normalize_prover, compress_verifier) =
+                recursion_prover_and_verifier(t.clone()).await;
             let reduce_shape = SP1RecursionProofShape::retrieve_or_compute_reduce_shape(
                 machine.clone(),
                 DEFAULT_ARITY,
@@ -270,19 +249,16 @@ async fn main() {
                 Some(proof_shape),
             ) = (normalize_setup.as_ref(), proof_shape)
             {
-                let normalize_input_shape = SP1NormalizeInputShape {
-                    proof_shapes: vec![proof_shape],
-                    max_log_row_count: core_verifier.max_log_row_count(),
-                    log_blowup: core_verifier.fri_config().log_blowup,
-                    log_stacking_height: core_verifier.log_stacking_height() as usize,
-                };
                 let normalize_start = Instant::now();
-                let dummy_input =
-                    normalize_input_shape.dummy_input(SP1VerifyingKey { vk: vk.clone() });
-                let mut normalize_program =
-                    normalize_program_from_input(recursive_core_verifier, &dummy_input);
-                normalize_program.shape = Some(reduce_shape.shape.clone());
-                let normalize_program = Arc::new(normalize_program);
+
+                let normalize_program = get_normalize_program(
+                    SP1VerifyingKey { vk: vk.clone() },
+                    &core_verifier,
+                    recursive_core_verifier,
+                    &proof_shape,
+                    reduce_shape,
+                    None,
+                );
 
                 // Build the witness using the real core proof. The other fields are not checked
                 // by the normalize program, so we use the same dummy values that
