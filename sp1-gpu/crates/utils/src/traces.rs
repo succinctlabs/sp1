@@ -151,11 +151,31 @@ impl<F: Field, B: Backend> TraceDenseData<F, B> {
 
 /// Abstract description of a chip layout used to build [`TraceDenseData`] / [`JaggedTraceMle`].
 /// Each tuple is`(chip_name, preprocessed_width, main_width)` for one chip;
-pub struct AbstractChipLayout(pub(crate) Vec<(String, usize, usize)>);
+pub struct AbstractChipLayout(Vec<(String, usize, usize)>);
+
+impl AbstractChipLayout {
+    pub fn new(entries: Vec<(String, usize, usize)>) -> Self {
+        Self(entries)
+    }
+
+    pub(crate) fn entries(&self) -> &[(String, usize, usize)] {
+        &self.0
+    }
+}
 
 /// Like [`AbstractChipLayout`], but with a per-chip row count attached to each entry.
 /// Each tuple is `(chip_name, preprocessed_width, main_width, height)` for one chip.
-pub struct AbstractChipLayoutWithHeights(pub(crate) Vec<(String, usize, usize, usize)>);
+pub struct AbstractChipLayoutWithHeights(Vec<(String, usize, usize, usize)>);
+
+impl AbstractChipLayoutWithHeights {
+    pub fn new(entries: Vec<(String, usize, usize, usize)>) -> Self {
+        Self(entries)
+    }
+
+    pub(crate) fn entries(&self) -> &[(String, usize, usize, usize)] {
+        &self.0
+    }
+}
 
 impl<F: Field> TraceDenseData<F, CpuBackend> {
     /// Build a `TraceDenseData` over a pre-allocated `dense` buffer using an

@@ -28,7 +28,7 @@ pub mod random {
             F: Field,
             A: MachineAir<F>,
         {
-            Self(
+            Self::new(
                 chips
                     .iter()
                     .map(|c| (c.air.name().to_string(), c.preprocessed_width(), c.width()))
@@ -64,7 +64,7 @@ pub mod random {
         let reader = std::io::BufReader::new(file);
         let entries: Vec<ChipEntry> = serde_json::from_reader(reader)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        Ok(AbstractChipLayoutWithHeights(
+        Ok(AbstractChipLayoutWithHeights::new(
             entries
                 .into_iter()
                 .map(|e| (e.name, e.preprocessed_width, e.main_width, e.height))
@@ -92,9 +92,11 @@ pub mod random {
     ) -> AbstractChipLayoutWithHeights {
         const ALIGN: usize = 4;
 
+        let entries = layout.entries();
+
         // Cost per row: each row contributes `preprocessed_width + width` field
         // elements to the dense buffer.
-        let row_costs: Vec<u64> = layout.0.iter().map(|(_, p, m)| (p + m) as u64).collect();
+        let row_costs: Vec<u64> = entries.iter().map(|(_, p, m)| (p + m) as u64).collect();
 
         // Floor: every chip gets one 4-row block up front so no chip is left at h=0.
         let min_total: u64 = row_costs.iter().sum::<u64>() * ALIGN as u64;
@@ -104,11 +106,11 @@ pub mod random {
              (need at least {min_total})",
         );
 
-        let mut heights = vec![ALIGN; layout.0.len()];
+        let mut heights = vec![ALIGN; entries.len()];
         let mut remaining = total_area - min_total;
         loop {
             let candidates: Vec<usize> =
-                (0..layout.0.len()).filter(|&i| row_costs[i] * ALIGN as u64 <= remaining).collect();
+                (0..entries.len()).filter(|&i| row_costs[i] * ALIGN as u64 <= remaining).collect();
             if candidates.is_empty() {
                 break;
             }
@@ -119,8 +121,8 @@ pub mod random {
             remaining -= blocks * row_costs[i] * ALIGN as u64;
         }
 
-        AbstractChipLayoutWithHeights(
-            layout.0.iter().zip(heights).map(|((n, p, m), h)| (n.clone(), *p, *m, h)).collect(),
+        AbstractChipLayoutWithHeights::new(
+            entries.iter().zip(heights).map(|((n, p, m), h)| (n.clone(), *p, *m, h)).collect(),
         )
     }
 
@@ -139,8 +141,9 @@ pub mod random {
         R: Rng,
     {
         let stacking = 1usize << log_stacking_height;
-        let total_preprocessed: usize = layout.0.iter().map(|(_, p, _, h)| p * h).sum();
-        let total_main: usize = layout.0.iter().map(|(_, _, m, h)| m * h).sum();
+        let entries = layout.entries();
+        let total_preprocessed: usize = entries.iter().map(|(_, p, _, h)| p * h).sum();
+        let total_main: usize = entries.iter().map(|(_, _, m, h)| m * h).sum();
         let padded_preprocessed = total_preprocessed.next_multiple_of(stacking);
         let padded_main = total_main.next_multiple_of(stacking);
 
