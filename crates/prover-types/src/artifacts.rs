@@ -42,6 +42,7 @@ pub enum ArtifactType {
     Proof,
     Groth16Circuit,
     PlonkCircuit,
+    PrivateStdin,
 }
 
 impl fmt::Display for ArtifactType {
@@ -53,6 +54,7 @@ impl fmt::Display for ArtifactType {
             Self::Proof => write!(f, "Proof"),
             Self::Groth16Circuit => write!(f, "Groth16Circuit"),
             Self::PlonkCircuit => write!(f, "PlonkCircuit"),
+            Self::PrivateStdin => write!(f, "PrivateStdin"),
         }
     }
 }

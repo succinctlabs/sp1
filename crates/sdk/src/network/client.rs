@@ -594,16 +594,21 @@ impl NetworkClient {
         base_fee: u64,
         max_price_per_pgu: u64,
         domain: Vec<u8>,
+        private_stdin: bool,
     ) -> Result<RequestProofResponse> {
         // Calculate the deadline.
         let start = SystemTime::now();
         let since_the_epoch = start.duration_since(UNIX_EPOCH).expect("Invalid start time");
         let deadline = since_the_epoch.as_secs() + timeout_secs;
-
-        // Create the stdin artifact.
         let mut store = self.artifact_store_client().await?;
-        let stdin_uri =
-            self.create_artifact_with_content(&mut store, ArtifactType::Stdin, &stdin).await?;
+
+        let stdin_uri = self
+            .create_artifact_with_content(
+                &mut store,
+                if private_stdin { ArtifactType::PrivateStdin } else { ArtifactType::Stdin },
+                &stdin,
+            )
+            .await?;
 
         // Send the request.
         match self.network_mode {
@@ -645,6 +650,7 @@ impl NetworkClient {
                             base_fee: base_fee.to_string(),
                             max_price_per_pgu: max_price_per_pgu.to_string(),
                             variant: AuctionTransactionVariant::RequestVariant.into(),
+                            stdin_private: private_stdin,
                         };
 
                         let request_response = rpc
@@ -683,6 +689,7 @@ impl NetworkClient {
                                 .clone()
                                 .map(|list| list.into_iter().map(|addr| addr.to_vec()).collect())
                                 .unwrap_or_default(),
+                            stdin_private: private_stdin,
                         };
 
                         let request_response = rpc
