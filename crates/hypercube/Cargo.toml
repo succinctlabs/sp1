@@ -48,6 +48,7 @@ rayon-scan = { workspace = true }
 rayon = { workspace = true }
 thiserror = { workspace = true }
 derive-where = { workspace = true }
+struct-reflection = { workspace = true }
 thousands = { workspace = true }
 deepsize2 = { workspace = true }
 
@@ -67,6 +68,7 @@ tokio = { workspace = true, features = ["macros", "rt"] }
 
 [features]
 test-proof = []
+mprotect = []
 
 [lints]
 workspace = true

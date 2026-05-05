@@ -7,7 +7,10 @@
 use crate::blocking::NetworkProver;
 #[cfg(feature = "cuda")]
 use crate::blocking::{cuda::builder::CudaProverBuilder, CudaProver};
-use crate::blocking::{prover::BaseProveRequest, CpuProver, LightProver, MockProver, Prover};
+use crate::{
+    blocking::{prover::BaseProveRequest, CpuProver, LightProver, MockProver, Prover},
+    SP1ProofWithPublicValues, SP1VerificationError, StatusCode,
+};
 use sp1_core_executor::SP1CoreOpts;
 
 pub mod pk;
@@ -16,8 +19,10 @@ pub mod prove;
 pub use pk::EnvProvingKey;
 use prove::EnvProveRequest;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_primitives::Elf;
-use sp1_prover::worker::SP1NodeCore;
+use sp1_core_machine::riscv::RiscvAir;
+use sp1_hypercube::Machine;
+use sp1_primitives::{Elf, SP1Field};
+use sp1_prover::{worker::SP1NodeCore, SP1VerifyingKey};
 
 /// A prover that can execute programs and generate proofs with a different implementation based on
 /// the value of the `SP1_PROVER` environment variable.
@@ -39,7 +44,7 @@ pub enum EnvProver {
 
 impl Default for EnvProver {
     fn default() -> Self {
-        Self::from_env_with_opts(None)
+        Self::new()
     }
 }
 
@@ -52,7 +57,13 @@ impl EnvProver {
     /// If the prover is a network prover, the `NETWORK_PRIVATE_KEY` variable must be set.
     #[must_use]
     pub fn new() -> Self {
-        Self::default()
+        Self::new_with_machine(RiscvAir::machine())
+    }
+
+    /// Same as [`Self::new`] but with a custom machine.
+    #[must_use]
+    pub fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
+        Self::from_env_with_opts_and_machine(None, machine)
     }
 
     /// Updates the core options for this prover.
@@ -82,22 +93,32 @@ impl EnvProver {
     /// If the prover is a network prover, the `NETWORK_PRIVATE_KEY` variable must be set.
     #[must_use]
     pub fn from_env_with_opts(core_opts: Option<SP1CoreOpts>) -> Self {
+        Self::from_env_with_opts_and_machine(core_opts, RiscvAir::machine())
+    }
+
+    /// Same as [`Self::from_env_with_opts`] but with a custom machine.
+    #[must_use]
+    pub fn from_env_with_opts_and_machine(
+        core_opts: Option<SP1CoreOpts>,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+    ) -> Self {
         let prover = match std::env::var("SP1_PROVER") {
             Ok(prover) => prover,
             Err(_) => "cpu".to_string(),
         };
 
         match prover.as_str() {
-            "cpu" => Self::Cpu(CpuProver::new_with_opts(core_opts)),
+            "cpu" => Self::Cpu(CpuProver::new_with_opts_and_machine(core_opts, machine)),
             #[cfg(feature = "cuda")]
-            "cuda" => Self::Cuda(CudaProverBuilder::default().build()),
+            "cuda" => Self::Cuda(CudaProverBuilder::new_with_machine(machine).build()),
             #[cfg(not(feature = "cuda"))]
             "cuda" => panic!("The CUDA prover requires the `cuda` feature to be enabled"),
-            "mock" => Self::Mock(MockProver::new()),
-            "light" => Self::Light(LightProver::new()),
+            "mock" => Self::Mock(MockProver::new_with_machine(machine)),
+            "light" => Self::Light(LightProver::new_with_machine(machine)),
             #[cfg(feature = "network")]
             "network" => Self::Network(Box::new(
-                crate::blocking::network::builder::NetworkProverBuilder::new().build(),
+                crate::blocking::network::builder::NetworkProverBuilder::new_with_machine(machine)
+                    .build(),
             )),
             #[cfg(not(feature = "network"))]
             "network" => panic!("The network prover requires the `network` feature to be enabled"),
@@ -151,5 +172,63 @@ impl Prover for EnvProver {
 
     fn prove<'a>(&'a self, pk: &'a Self::ProvingKey, stdin: SP1Stdin) -> Self::ProveRequest<'a> {
         EnvProveRequest { base: BaseProveRequest::new(self, pk, stdin) }
+    }
+
+    fn verify(
+        &self,
+        proof: &SP1ProofWithPublicValues,
+        vkey: &SP1VerifyingKey,
+        status_code: Option<StatusCode>,
+    ) -> Result<(), SP1VerificationError> {
+        match self {
+            Self::Cpu(prover) => prover.verify(proof, vkey, status_code),
+            #[cfg(feature = "cuda")]
+            Self::Cuda(prover) => prover.verify(proof, vkey, status_code),
+            Self::Mock(prover) => prover.verify(proof, vkey, status_code),
+            Self::Light(prover) => prover.verify(proof, vkey, status_code),
+            #[cfg(feature = "network")]
+            Self::Network(prover) => prover.verify(proof, vkey, status_code),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        blocking::{
+            prover::{ProveRequest, Prover},
+            MockProver,
+        },
+        utils::setup_logger,
+        SP1Stdin,
+    };
+
+    use super::EnvProver;
+
+    /// Regression: `EnvProver::Mock(...)` must delegate `verify` to the inner `MockProver`
+    /// for Plonk and Groth16 proofs. Before the dispatch fix, the trait default routed mock
+    /// proofs through the real verifier and failed parsing the formatted BN254 vkey hash
+    /// string with `invalid digit found in string`.
+    #[test]
+    fn test_envprover_mock_verifies_plonk_and_groth16() {
+        setup_logger();
+        let mock = MockProver::new();
+        let pk = mock.setup(test_artifacts::FIBONACCI_ELF).expect("failed to setup proving key");
+
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&10usize);
+        let plonk_proof =
+            mock.prove(&pk, stdin).plonk().run().expect("failed to create mock Plonk proof");
+
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&10usize);
+        let groth16_proof =
+            mock.prove(&pk, stdin).groth16().run().expect("failed to create mock Groth16 proof");
+
+        let env = EnvProver::Mock(mock);
+        env.verify(&plonk_proof, &pk.vk, None)
+            .expect("EnvProver::Mock must verify a mock Plonk proof");
+        env.verify(&groth16_proof, &pk.vk, None)
+            .expect("EnvProver::Mock must verify a mock Groth16 proof");
     }
 }

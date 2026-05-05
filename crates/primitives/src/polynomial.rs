@@ -1,8 +1,9 @@
+use alloc::{vec, vec::Vec};
 use core::{
     fmt::Debug,
     ops::{Add, AddAssign, Mul, Neg, Sub},
+    slice::Iter,
 };
-use std::slice::Iter;
 
 use itertools::Itertools;
 use slop_algebra::{AbstractExtensionField, AbstractField, Field};

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use sp1_core_executor::events::ByteRecord;
 use sp1_hypercube::{air::SP1AirBuilder, Word};
 use sp1_primitives::consts::{u64_to_u16_limbs, WORD_SIZE};
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use slop_air::AirBuilder;
 use slop_algebra::{AbstractField, Field};
@@ -20,6 +21,7 @@ use crate::air::{SP1Operation, WordAirBuilder};
     Deserialize,
     IntoShape,
     SP1OperationBuilder,
+    StructReflection,
 )]
 #[repr(C)]
 pub struct SubOperation<T> {

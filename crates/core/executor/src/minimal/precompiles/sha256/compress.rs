@@ -1,4 +1,4 @@
-use sp1_jit::SyscallContext;
+use sp1_jit::{Interrupt, SyscallContext};
 
 pub const SHA_COMPRESS_K: [u32; 64] = [
     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
@@ -23,16 +23,20 @@ pub(crate) unsafe fn sha256_compress(
     ctx: &mut impl SyscallContext,
     arg1: u64,
     arg2: u64,
-) -> Option<u64> {
+) -> Result<Option<u64>, Interrupt> {
     let w_ptr = arg1;
     let h_ptr = arg2;
 
+    let clk = ctx.get_current_clk();
+    ctx.read_slice_check(h_ptr, 8)?;
+    ctx.bump_memory_clk();
+    ctx.read_slice_check(w_ptr, 64)?;
+    ctx.bump_memory_clk();
+    ctx.write_slice_check(h_ptr, 8)?;
+
+    ctx.set_clk(clk);
     // Execute the "initialize" phase where we read in the h values.
-    let mut hx = [0u32; 8];
-    for i in 0..8 {
-        let value = ctx.mr(h_ptr + i as u64 * 8);
-        hx[i] = value as u32;
-    }
+    let hx: Vec<_> = ctx.mr_slice_without_prot(h_ptr, 8).into_iter().map(|h| *h as u32).collect();
 
     ctx.bump_memory_clk();
 
@@ -46,16 +50,14 @@ pub(crate) unsafe fn sha256_compress(
     let mut f = hx[5];
     let mut g = hx[6];
     let mut h = hx[7];
+
     for i in 0..64 {
         let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
         let ch = (e & f) ^ (!e & g);
-        let w_i = ctx.mr(w_ptr + i as u64 * 8) as u32;
+        let w_i = ctx.mr_without_prot(w_ptr + i as u64 * 8) as u32;
         original_w.push(w_i);
-        let temp1 = h
-            .wrapping_add(s1)
-            .wrapping_add(ch)
-            .wrapping_add(SHA_COMPRESS_K[i as usize])
-            .wrapping_add(w_i);
+        let temp1 =
+            h.wrapping_add(s1).wrapping_add(ch).wrapping_add(SHA_COMPRESS_K[i]).wrapping_add(w_i);
         let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
         let maj = (a & b) ^ (a & c) ^ (b & c);
         let temp2 = s0.wrapping_add(maj);
@@ -75,10 +77,17 @@ pub(crate) unsafe fn sha256_compress(
     ctx.bump_memory_clk();
 
     // Execute the "finalize" phase.
-    let v = [a, b, c, d, e, f, g, h];
-    for i in 0..8 {
-        ctx.mw(h_ptr + i as u64 * 8, hx[i].wrapping_add(v[i]) as u64);
-    }
+    let v = [
+        a.wrapping_add(hx[0]) as u64,
+        b.wrapping_add(hx[1]) as u64,
+        c.wrapping_add(hx[2]) as u64,
+        d.wrapping_add(hx[3]) as u64,
+        e.wrapping_add(hx[4]) as u64,
+        f.wrapping_add(hx[5]) as u64,
+        g.wrapping_add(hx[6]) as u64,
+        h.wrapping_add(hx[7]) as u64,
+    ];
+    ctx.mw_slice_without_prot(h_ptr, &v);
 
-    None
+    Ok(None)
 }

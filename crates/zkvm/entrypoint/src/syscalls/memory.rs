@@ -64,5 +64,5 @@ pub unsafe extern "C" fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u
 pub unsafe extern "C" fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u8 {
     use core::alloc::GlobalAlloc;
     crate::allocators::embedded::INNER_HEAP
-        .alloc(std::alloc::Layout::from_size_align(bytes, align).unwrap())
+        .alloc(core::alloc::Layout::from_size_align(bytes, align).unwrap())
 }

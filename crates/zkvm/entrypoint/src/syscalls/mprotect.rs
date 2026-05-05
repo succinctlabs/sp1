@@ -19,3 +19,19 @@ pub extern "C" fn syscall_mprotect(addr: *const u8, prot: u8) {
         );
     }
 }
+
+/// Executes the mprotect flush syscall.
+///
+/// SP1's mprotect syscall work on one page at a time. The flush syscall
+/// is provided so we can hint SP1 on batches of memory permission changes,
+/// so as to leave space for optimizations.
+#[no_mangle]
+pub extern "C" fn syscall_mprotect_flush() {
+    #[cfg(target_os = "zkvm")]
+    unsafe {
+        asm!(
+            "ecall",
+            in("t0") crate::syscalls::HINT_MPROTECT_FLUSH,
+        );
+    }
+}

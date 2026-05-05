@@ -38,7 +38,8 @@ impl Prover for CudaProver {
     }
 
     fn setup(&self, elf: Elf) -> impl SendFutureResult<Self::ProvingKey, Self::Error> {
-        self.prover.setup(elf)
+        let machine = self.node.inner().machine().clone();
+        async move { self.prover.setup_with_machine(elf, machine).await }
     }
 
     fn prove<'a>(&'a self, pk: &'a Self::ProvingKey, stdin: SP1Stdin) -> Self::ProveRequest<'a> {

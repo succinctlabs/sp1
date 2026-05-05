@@ -51,6 +51,7 @@ sp1-hypercube = { workspace = true }
 # Enables processing and printing of backtraces.
 debug = []
 program_validation = ["dep:range-set-blaze", "dep:smallvec"]
+mprotect = ["sp1-hypercube/mprotect"]
 
 [lints]
 workspace = true

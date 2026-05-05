@@ -1,8 +1,9 @@
 use clap::Parser;
 use rand::seq::SliceRandom;
 use sp1_core_executor::SP1Context;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_gpu_perf::get_program_and_input;
-use sp1_gpu_prover::cuda_worker_builder;
+use sp1_gpu_prover::cuda_worker_builder_with_machine;
 use sp1_prover::worker::{SP1LocalNodeBuilder, SP1Proof};
 use sp1_prover_types::network_base_types::ProofMode;
 
@@ -43,8 +44,9 @@ async fn main() {
     std::env::set_var("SP1_DUMP_SHARD_DIR", dump_path.to_str().unwrap());
 
     // Run the proving pipeline in core mode.
+    let machine = RiscvAir::machine();
     let num_shards = sp1_gpu_cudart::spawn(move |t| async move {
-        let worker_builder = cuda_worker_builder(t.clone()).await;
+        let worker_builder = cuda_worker_builder_with_machine(t.clone(), machine).await;
         let client =
             SP1LocalNodeBuilder::from_worker_client_builder(worker_builder).build().await.unwrap();
 

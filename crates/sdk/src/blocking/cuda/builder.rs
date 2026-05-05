@@ -4,7 +4,10 @@
 
 use super::CudaProver;
 use sp1_core_executor::SP1CoreOpts;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_cuda::CudaProver as CudaProverImpl;
+use sp1_hypercube::Machine;
+use sp1_primitives::SP1Field;
 use sp1_prover::worker::SP1LightNode;
 
 use crate::blocking::block_on;
@@ -12,14 +15,33 @@ use crate::blocking::block_on;
 /// A builder for the [`CudaProver`].
 ///
 /// The builder is used to configure the [`CudaProver`] before it is built.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct CudaProverBuilder {
     cuda_device_id: Option<u32>,
     /// Optional core options to configure the underlying CPU prover.
     core_opts: Option<SP1CoreOpts>,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+}
+
+impl Default for CudaProverBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CudaProverBuilder {
+    /// Creates a new [`CudaProverBuilder`] with default settings.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::new_with_machine(RiscvAir::machine())
+    }
+
+    /// Creates a new [`CudaProverBuilder`] with a given machine.
+    #[must_use]
+    pub const fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
+        Self { cuda_device_id: None, core_opts: None, machine }
+    }
+
     /// Sets the CUDA device id.
     ///
     /// # Details
@@ -85,7 +107,10 @@ impl CudaProverBuilder {
     #[must_use]
     pub fn build(self) -> CudaProver {
         tracing::info!("initializing cuda prover");
-        let node = block_on(SP1LightNode::with_opts(self.core_opts.unwrap_or_default()));
+        let node = block_on(SP1LightNode::with_opts_and_machine(
+            self.machine,
+            self.core_opts.unwrap_or_default(),
+        ));
         let cuda_prover = match self.cuda_device_id {
             Some(id) => crate::blocking::block_on(CudaProverImpl::new_with_id(id)),
             None => crate::blocking::block_on(CudaProverImpl::new()),

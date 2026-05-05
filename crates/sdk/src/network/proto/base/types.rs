@@ -440,6 +440,12 @@ pub struct GetFilteredProofRequestsRequest {
     /// The optional proof request error.
     #[prost(enumeration = "ProofRequestError", optional, tag = "16")]
     pub error: ::core::option::Option<i32>,
+    /// The optional boolean to filter for timed out requests.
+    #[prost(bool, optional, tag = "17")]
+    pub is_timed_out: ::core::option::Option<bool>,
+    /// The optional use mainnet flag.
+    #[prost(bool, optional, tag = "18")]
+    pub use_mainnet: ::core::option::Option<bool>,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct GetFilteredProofRequestsResponse {

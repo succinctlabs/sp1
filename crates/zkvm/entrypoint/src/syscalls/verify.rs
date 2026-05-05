@@ -3,6 +3,7 @@ use core::arch::asm;
 
 cfg_if::cfg_if! {
     if #[cfg(target_os = "zkvm")] {
+        use alloc::vec::Vec;
         use crate::syscalls::VERIFY_SP1_PROOF;
         use crate::zkvm::DEFERRED_PROOFS_DIGEST;
         use sp1_primitives::SP1Field;

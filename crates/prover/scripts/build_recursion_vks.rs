@@ -2,8 +2,8 @@ use std::{fs::File, path::PathBuf};
 
 use clap::Parser;
 use either::Either;
-use sp1_core_machine::utils::setup_logger;
-use sp1_prover::worker::{cpu_worker_builder, SP1LocalNodeBuilder};
+use sp1_core_machine::{riscv::RiscvAir, utils::setup_logger};
+use sp1_prover::worker::{cpu_worker_builder_with_machine, SP1LocalNodeBuilder};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -29,10 +29,12 @@ async fn main() {
 
     let maybe_range = start.and_then(|s| end.map(|e| (s..e).collect::<Vec<usize>>()));
     let maybe_either = maybe_range.map(Either::Left);
-    let node = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
-        .build()
-        .await
-        .unwrap();
+    let machine = RiscvAir::machine();
+    let node =
+        SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder_with_machine(machine))
+            .build()
+            .await
+            .unwrap();
     let result = node.build_vks(maybe_either, chunk_size).await.unwrap();
 
     // Create the file to store the vk map.

@@ -15,7 +15,7 @@ use sp1_hypercube::{
     air::{MachineAir, MachineProgram},
     prover::{PreprocessedData, ProverSemaphore, ProvingKey},
     septic_digest::SepticDigest,
-    MachineVerifyingKey,
+    MachineVerifyingKey, UntrustedConfig,
 };
 
 use crate::{CudaShardProver, CudaShardProverComponents, CudaShardProverInner};
@@ -42,7 +42,7 @@ where
         MachineVerifyingKey<GC>,
     ) {
         let pc_start = program.pc_start();
-        let enable_untrusted_programs = program.enable_untrusted_programs();
+        let untrusted_config = program.untrusted_config();
 
         let buffer = self.get_buffer().await;
 
@@ -64,7 +64,7 @@ where
                 pc_start,
                 initial_global_cumulative_sum,
                 preprocessed_data,
-                enable_untrusted_programs,
+                untrusted_config,
             )
         })
         .await
@@ -85,7 +85,7 @@ where
         pc_start: [GC::F; 3],
         initial_global_cumulative_sum: SepticDigest<GC::F>,
         preprocessed_traces: JaggedTraceMle<Felt, TaskScope>,
-        enable_untrusted_programs: GC::F,
+        untrusted_config: UntrustedConfig<GC::F>,
     ) -> (CudaShardProverData<GC, PC::Air>, MachineVerifyingKey<GC>) {
         // Commit to the preprocessed traces, if there are any.
         let (preprocessed_commit, preprocessed_data) = sp1_gpu_commit::commit_multilinears(
@@ -101,7 +101,7 @@ where
             pc_start,
             initial_global_cumulative_sum,
             preprocessed_commit,
-            enable_untrusted_programs,
+            untrusted_config,
         };
 
         let pk = CudaShardProverData::new(preprocessed_traces, preprocessed_data);

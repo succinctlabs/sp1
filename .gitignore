@@ -24,6 +24,7 @@ examples/fibonacci/fibonacci-plonk.bin
 
 # Benchmark
 benchmark.csv
+crates/perf/data/
 
 # Environment
 .env
@@ -65,3 +66,4 @@ examples/fibonacci/fibonacci-plonk.bin
 
 # Local agent documents
 .claude/local/**
+.claude/settings.json

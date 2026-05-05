@@ -1,3 +1,5 @@
+#![no_std]
+
 #[cfg(target_os = "zkvm")]
 use {
     cfg_if::cfg_if,
@@ -46,6 +48,16 @@ pub(crate) const EMBEDDED_RESERVED_INPUT_START: usize =
 #[cfg(all(target_os = "zkvm", not(feature = "bump")))]
 static mut EMBEDDED_RESERVED_INPUT_PTR: usize = EMBEDDED_RESERVED_INPUT_START;
 
+// While the following are not needed by bump feature, dump_elf requires them
+// to be available. We are only defining them as placeholders here, so we can
+// simplify inline assembly code for dump_elf.
+
+#[cfg(all(target_os = "zkvm", feature = "bump", feature = "may_dump_elf"))]
+pub(crate) const EMBEDDED_RESERVED_INPUT_START: usize = usize::MAX;
+
+#[cfg(all(target_os = "zkvm", feature = "bump", feature = "may_dump_elf"))]
+static mut EMBEDDED_RESERVED_INPUT_PTR: usize = usize::MAX;
+
 #[repr(C)]
 pub struct ReadVecResult {
     pub ptr: *mut u8,
@@ -77,7 +89,7 @@ pub extern "C" fn read_vec_raw() -> ReadVecResult {
 
         // If the length is u32::MAX, then the input stream is exhausted.
         if len == usize::MAX {
-            return ReadVecResult { ptr: std::ptr::null_mut(), len: 0, capacity: 0 };
+            return ReadVecResult { ptr: core::ptr::null_mut(), len: 0, capacity: 0 };
         }
 
         // Round up to multiple of 8 for whole-word alignment.
@@ -104,10 +116,10 @@ pub extern "C" fn read_vec_raw() -> ReadVecResult {
                 ReadVecResult { ptr: ptr as *mut u8, len, capacity }
             } else {
                 // Allocate a buffer of the required length that is 8 byte aligned.
-                let layout = std::alloc::Layout::from_size_align(capacity, 8).expect("vec is too large");
+                let layout = core::alloc::Layout::from_size_align(capacity, 8).expect("vec is too large");
 
                 // SAFETY: The layout was made through the checked constructor.
-                let ptr = unsafe { std::alloc::alloc(layout) };
+                let ptr = unsafe { alloc::alloc::alloc(layout) };
 
                 // Read the vec into uninitialized memory. The syscall assumes the memory is
                 // uninitialized, which is true because the bump allocator does not dealloc, so a new
@@ -132,6 +144,10 @@ mod zkvm {
 
     use cfg_if::cfg_if;
     use sha2::{Digest, Sha256};
+    use sp1_primitives::consts::{
+        NOTE_DESC_HEADER, NOTE_DESC_PADDING_SIZE, NOTE_DESC_SIZE, NOTE_NAME,
+        NOTE_NAME_PADDING_SIZE, NOTE_UNTRUSTED_PROGRAM_ENABLED,
+    };
 
     cfg_if! {
         if #[cfg(feature = "verify")] {
@@ -151,81 +167,96 @@ mod zkvm {
         }
     }
 
-    /// The ELF note values.
-    const NAME: [u8; 8] = *b"SUCCINCT";
-    const NAMESZ_LE: [u8; 4] = (NAME.len() as u32).to_le_bytes();
-    const DESC: [u8; 4] = [b'1', 0, 0, 0];
-    const DESCSZ_LE: [u8; 4] = (1u32).to_le_bytes();
-    const TYPE_LE: [u8; 4] =
-        (sp1_primitives::consts::NOTE_UNTRUSTED_PROGRAM_ENABLED as u32).to_le_bytes();
+    extern "C" {
+        // https://lld.llvm.org/ELF/linker_script.html#sections-command
+        static _end: u8;
+    }
+
+    cfg_if! {
+        if #[cfg(feature = "bump")] {
+            const HEAP_END: u64 = sp1_primitives::consts::MAXIMUM_MEMORY_SIZE;
+        } else {
+            const HEAP_END: u64 = crate::EMBEDDED_RESERVED_INPUT_START as u64;
+        }
+    }
+
+    // Note will be written in host platform outside of SP1 VM, skipping
+    // alignment is actually fine.
+    #[repr(packed)]
+    struct NoteSection {
+        namesz: [u8; 4],
+        descsz: [u8; 4],
+        type_: [u8; 4],
+        name: [u8; NOTE_NAME.len()],
+        name_padding: [u8; NOTE_NAME_PADDING_SIZE],
+        desc_header: [u8; NOTE_DESC_HEADER.len()],
+        heap_start: *const u8,
+        heap_end: [u8; 8],
+        desc_padding: [u8; NOTE_DESC_PADDING_SIZE],
+    }
+    // SAFETY: SP1 is single threaded so this is safe, in addition,
+    // we don't really access the note section from Rust. This is really
+    // to suppress errors complained by rust that `*const u8` is not Sync.
+    unsafe impl Sync for NoteSection {}
 
     #[cfg(feature = "untrusted_programs")]
     #[link_section = ".note.succinct"]
     #[used]
-    pub static ELF_NOTE: [u8; 24] = [
-        // header
-        NAMESZ_LE[0],
-        NAMESZ_LE[1],
-        NAMESZ_LE[2],
-        NAMESZ_LE[3],
-        DESCSZ_LE[0],
-        DESCSZ_LE[1],
-        DESCSZ_LE[2],
-        DESCSZ_LE[3],
-        TYPE_LE[0],
-        TYPE_LE[1],
-        TYPE_LE[2],
-        TYPE_LE[3],
-        // name (8)
-        NAME[0],
-        NAME[1],
-        NAME[2],
-        NAME[3],
-        NAME[4],
-        NAME[5],
-        NAME[6],
-        NAME[7],
-        // desc (4)
-        DESC[0],
-        DESC[1],
-        DESC[2],
-        DESC[3],
-    ];
+    pub static ELF_NOTE: NoteSection = NoteSection {
+        namesz: (NOTE_NAME.len() as u32).to_le_bytes(),
+        descsz: (NOTE_DESC_SIZE as u32).to_le_bytes(),
+        type_: (NOTE_UNTRUSTED_PROGRAM_ENABLED as u32).to_le_bytes(),
+        name: NOTE_NAME,
+        name_padding: [0u8; NOTE_NAME_PADDING_SIZE],
+        desc_header: NOTE_DESC_HEADER,
+        // The linker should use target encoding, so we should be fine here.
+        heap_start: core::ptr::addr_of!(_end) as *const u8,
+        heap_end: HEAP_END.to_le_bytes(),
+        desc_padding: [0u8; NOTE_DESC_PADDING_SIZE],
+    };
 
     #[no_mangle]
     unsafe extern "C" fn __start() {
-        {
-            #[cfg(all(target_os = "zkvm", not(feature = "bump")))]
-            crate::allocators::init();
+        #[cfg(all(target_os = "zkvm", not(feature = "bump")))]
+        crate::allocators::init();
 
-            cfg_if::cfg_if! {
-                if #[cfg(feature = "blake3")] {
-                    PUBLIC_VALUES_HASHER = Some(blake3::Hasher::new());
-                }
-                else {
-                    PUBLIC_VALUES_HASHER = Some(Sha256::new());
-                }
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "blake3")] {
+                PUBLIC_VALUES_HASHER = Some(blake3::Hasher::new());
             }
-
-            #[cfg(feature = "verify")]
-            {
-                DEFERRED_PROOFS_DIGEST = Some([SP1Field::zero(); 8]);
+            else {
+                PUBLIC_VALUES_HASHER = Some(Sha256::new());
             }
-
-            extern "C" {
-                fn main();
-            }
-            main()
         }
 
-        syscall_halt(0);
+        #[cfg(feature = "verify")]
+        {
+            DEFERRED_PROOFS_DIGEST = Some([SP1Field::zero(); 8]);
+        }
+
+        extern "C" {
+            fn main() -> i32;
+        }
+        // Forward `main`'s return value as the exit code per the
+        // eth-act standard-termination spec. The `entrypoint!` macro
+        // wraps Rust guests' `fn() -> ()` entry into a C-ABI
+        // `fn() -> i32 { ...; 0 }` so this read is well-defined for
+        // both Rust and C consumers.
+        let exit_code = main();
+        syscall_halt((exit_code & 0xff) as u8);
     }
 
     // core::arch::global_asm!(include_str!("memset.s"));
     core::arch::global_asm!(include_str!("memcpy.s"));
 
     // Alias the stack top to a static we can load easily.
+    #[cfg(not(feature = "may_dump_elf"))]
     static _STACK_TOP: u64 = sp1_primitives::consts::STACK_TOP;
+    // Programs which might dump elf has an extra stack region.
+    #[cfg(feature = "may_dump_elf")]
+    static _STACK_TOP: u64 =
+        sp1_primitives::consts::STACK_TOP + sp1_primitives::consts::DUMP_ELF_EXTRA_STACK;
+
     core::arch::global_asm!(
         r#"
     .section .text._start;
@@ -272,8 +303,14 @@ macro_rules! entrypoint {
 
         mod zkvm_generated_main {
 
+            // C ABI + `-> i32` so `__start` (in `sp1-zkvm`) can read the
+            // exit code out of `a0` and forward it to `syscall_halt`. Rust
+            // guests' user fn is `fn()` (no return value), so we always
+            // return 0 here — `panic!` already routes through
+            // `syscall_halt(1)`, so non-zero exit semantics are preserved
+            // for failure paths.
             #[no_mangle]
-            fn main() {
+            extern "C" fn main() -> i32 {
                 // Link to the actual entrypoint only when compiling for zkVM, otherwise run a
                 // simple noop. Doing this avoids compilation errors when building for the host
                 // target.
@@ -283,10 +320,9 @@ macro_rules! entrypoint {
                 // result in an error, which can happen when building a Cargo workspace containing
                 // zkVM program crates.
                 if cfg!(target_os = "zkvm") {
-                    super::ZKVM_ENTRY()
-                } else {
-                    eprintln!("Not running in zkVM, skipping entrypoint");
+                    super::ZKVM_ENTRY();
                 }
+                0
             }
         }
     };

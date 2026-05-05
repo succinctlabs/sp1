@@ -11,9 +11,15 @@ pub use columns::*;
 #[derive(Default)]
 pub struct ShaExtendChip;
 
+use std::marker::PhantomData;
+
+use crate::TrustMode;
+
 /// Implements the controller for the ShaExtendChip.
 #[derive(Default)]
-pub struct ShaExtendControlChip;
+pub struct ShaExtendControlChip<M: TrustMode> {
+    _marker: PhantomData<M>,
+}
 
 impl ShaExtendChip {
     pub const fn new() -> Self {

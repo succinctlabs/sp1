@@ -408,6 +408,7 @@ impl NetworkClient {
                                         execute_fail_cause,
                                         settlement_status,
                                         error,
+                                        ..Default::default()
                                     },
                                 )
                                 .await?
@@ -448,6 +449,7 @@ impl NetworkClient {
                                     execute_fail_cause,
                                     settlement_status,
                                     error,
+                                    ..Default::default()
                                 })
                                 .await?
                                 .into_inner();

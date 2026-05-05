@@ -1,6 +1,6 @@
 use std::mem::MaybeUninit;
 
-use crate::{septic_digest::SepticDigest, MachineRecord};
+use crate::{septic_digest::SepticDigest, MachineRecord, UntrustedConfig};
 use slop_air::BaseAir;
 use slop_algebra::Field;
 use slop_matrix::dense::RowMajorMatrix;
@@ -24,6 +24,12 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
 
     /// A unique identifier for this AIR as part of a machine.
     fn name(&self) -> &'static str;
+
+    /// A list of column names. The length should equal `self.width()`.
+    fn column_names(&self) -> Vec<String> {
+        // Default implementation returns generic column names.
+        (0..self.width()).map(|i| format!("col_{i}")).collect()
+    }
 
     /// The number of rows in the trace, if the chip is included.
     ///
@@ -113,6 +119,6 @@ pub trait MachineProgram<F>: Send + Sync {
     fn pc_start(&self) -> [F; 3];
     /// Gets the initial global cumulative sum.
     fn initial_global_cumulative_sum(&self) -> SepticDigest<F>;
-    /// Gets the flag indicating if untrusted programs are allowed.
-    fn enable_untrusted_programs(&self) -> F;
+    /// Gets the metadata on configuration regarding untrusted programs.
+    fn untrusted_config(&self) -> UntrustedConfig<F>;
 }

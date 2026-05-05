@@ -35,10 +35,12 @@ use sp1_recursion_compiler::{
     ir::{Builder, DslIrProgram},
 };
 use sp1_recursion_executor::{RecursionProgram, DIGEST_SIZE};
+#[cfg(feature = "mprotect")]
+use sp1_verifier::VerifierRecursionVks;
 
 use crate::{
     shapes::{create_all_input_shapes, SP1RecursionProofShape},
-    worker::{TaskError, DEFAULT_MAX_COMPOSE_ARITY},
+    worker::TaskError,
     CompressAir, RecursionSC,
 };
 
@@ -48,12 +50,6 @@ pub struct RecursionVks {
     map: BTreeMap<<SP1GlobalContext as IopCtx>::Digest, usize>,
     tree: MerkleTree<SP1GlobalContext>,
     vk_verification: bool,
-}
-
-impl Default for RecursionVks {
-    fn default() -> Self {
-        Self::new(None, DEFAULT_MAX_COMPOSE_ARITY, true)
-    }
 }
 
 impl RecursionVks {
@@ -67,7 +63,8 @@ impl RecursionVks {
     ) -> Self {
         // Pad the map to the expected number of shapes. This allows us to build partial vk maps
         // for development purposes.
-        let num_shapes = create_all_input_shapes(RiscvAir::machine().shape(), max_compose_arity)
+        let machine = RiscvAir::machine();
+        let num_shapes = create_all_input_shapes(machine.shape(), max_compose_arity)
             .into_iter()
             .collect::<BTreeSet<_>>()
             .len();
@@ -128,6 +125,17 @@ impl RecursionVks {
     /// Whether to verify the recursion vks.
     pub fn vk_verification(&self) -> bool {
         self.vk_verification
+    }
+
+    /// Build a [`VerifierRecursionVks`] whose `root`, `num_keys`, and
+    /// `vk_verification` match this prover-side instance.
+    #[cfg(feature = "mprotect")]
+    pub fn to_verifier_vks(&self) -> VerifierRecursionVks {
+        VerifierRecursionVks {
+            root: self.root,
+            vk_verification: self.vk_verification,
+            num_keys: self.map.len(),
+        }
     }
 
     pub fn open(

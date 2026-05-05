@@ -35,6 +35,7 @@ bump = []
 verify = ["dep:slop-algebra", "sp1-lib/verify"]
 blake3 = ["dep:blake3"]
 untrusted_programs = []
+may_dump_elf = []
 
 [lints]
 workspace = true

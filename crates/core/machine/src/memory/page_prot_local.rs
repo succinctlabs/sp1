@@ -206,6 +206,7 @@ impl<F: PrimeField32> MachineAir<F> for PageProtLocalChip {
             shape.included::<F, _>(self)
         } else {
             shard.get_local_page_prot_events().nth(0).is_some()
+                && shard.program.enable_untrusted_programs
         }
     }
 }
@@ -219,9 +220,17 @@ where
         let local = main.row_slice(0);
         let local: &PageProtLocalCols<AB::Var> = (*local).borrow();
 
+        builder.assert_eq(
+            builder.extract_public_values().is_untrusted_programs_enabled,
+            AB::Expr::one(),
+        );
+
         for local in local.page_prot_local_entries.iter() {
             // Constrain that `local.is_real` is boolean.
             builder.assert_bool(local.is_real);
+
+            #[cfg(not(feature = "mprotect"))]
+            builder.assert_zero(local.is_real);
 
             let mut values = vec![local.initial_clk_high.into(), local.initial_clk_low.into()];
             values.extend(local.page_idx.map(Into::into));

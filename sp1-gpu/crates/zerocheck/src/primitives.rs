@@ -2,8 +2,10 @@ use crate::data::{InfoBuffer, JaggedDenseInfo};
 use slop_algebra::{AbstractField, ExtensionField, Field};
 use slop_alloc::{Backend, Buffer, CpuBackend, HasBackend, Slice};
 use slop_commit::Rounds;
-use slop_multilinear::{Evaluations, MleEval, Point};
+
+use slop_multilinear::{MleEval, Point};
 use slop_tensor::{Tensor, TensorView};
+
 use sp1_gpu_cudart::sys::runtime::KernelPtr;
 use sp1_gpu_cudart::sys::v2_kernels::{
     fix_last_variable_jagged_ext, fix_last_variable_jagged_felt, fix_last_variable_jagged_info,
@@ -331,12 +333,12 @@ pub fn evaluate_jagged_mle_chunked<F: Field>(
     output_eval.into_inner()
 }
 
-/// Evaluates each chip at `stacked_point` and returns the evaluations in a `Rounds<Evaluations>` form.
+/// Evaluates each chip at `stacked_point` and returns the evaluations as `Rounds<Vec<MleEval>>`.
 /// Inserts padding for chips included in the smallest cluster, but not the actual trace.
 pub fn round_batch_evaluations(
     stacked_point: &Point<Ext>,
     jagged_trace_mle: &JaggedTraceMle<Felt, TaskScope>,
-) -> Rounds<Evaluations<Ext>> {
+) -> Rounds<Vec<MleEval<Ext>>> {
     let evaluations = evaluate_traces(jagged_trace_mle, stacked_point);
 
     fn mle_eval_from_slice<A: Backend>(slice: &Slice<Ext, A>, backend: &A) -> MleEval<Ext, A> {
@@ -372,7 +374,7 @@ pub fn round_batch_evaluations(
     }
 
     let preprocessed_host_evaluations =
-        preprocessed_host_evaluations.into_iter().collect::<Evaluations<_, _>>();
+        preprocessed_host_evaluations.into_iter().collect::<Vec<_>>();
 
     let mut main_host_evaluations = Vec::new();
     for offset in jagged_trace_mle.dense().main_table_index.values() {
@@ -392,7 +394,7 @@ pub fn round_batch_evaluations(
             evals_so_far += offset.num_polys;
         }
     }
-    let main_host_evaluations = main_host_evaluations.into_iter().collect::<Evaluations<_, _>>();
+    let main_host_evaluations = main_host_evaluations.into_iter().collect::<Vec<_>>();
 
     Rounds::from_iter([preprocessed_host_evaluations, main_host_evaluations])
 }

@@ -1,6 +1,7 @@
 mod bigint;
 mod bls12381;
 mod bn254;
+mod debug;
 mod ed25519;
 mod fptower;
 mod halt;
@@ -25,6 +26,7 @@ mod verify;
 pub use bigint::*;
 pub use bls12381::*;
 pub use bn254::*;
+pub use debug::*;
 pub use ed25519::*;
 pub use fptower::*;
 pub use halt::*;
@@ -181,3 +183,19 @@ pub const MPROTECT: u32 = 0x00_00_01_32;
 
 /// Executes the `POSEIDON2` permutation syscall.
 pub const POSEIDON2: u32 = 0x00_00_01_33;
+
+/// Executes the `SIG_RETURN` syscall.
+#[allow(clippy::mistyped_literal_suffixes)]
+pub const SIG_RETURN: u32 = 0x00_00_01_34;
+
+/// Executes the `HINT_MPROTECT_FLUSH` syscall.
+pub const HINT_MPROTECT_FLUSH: u32 = 0x00_00_00_35;
+
+/// Executes the `DUMP_ELF` syscall.
+pub const DUMP_ELF: u32 = 0x00_00_00_40;
+
+/// Executes the `INSERT_PROFILER_SYMBOLS` syscall.
+pub const INSERT_PROFILER_SYMBOLS: u32 = 0x00_00_00_41;
+
+/// Executes the `DELETE_PROFILER_SYMBOLS` syscall.
+pub const DELETE_PROFILER_SYMBOLS: u32 = 0x00_00_00_42;

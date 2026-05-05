@@ -1,3 +1,4 @@
+use slop_algebra::AbstractField;
 use sp1_primitives::{poseidon2_init, SP1Perm};
 
 /// The digest size.
@@ -55,4 +56,14 @@ pub fn next_multiple_of_32(n: usize, fixed_height: Option<usize>) -> usize {
     } else {
         n.next_multiple_of(32).max(16)
     }
+}
+
+/// Returns a 48-bit address as three u16 limbs.
+#[must_use]
+pub fn addr_to_limbs<F: AbstractField>(addr: u64) -> [F; 3] {
+    [
+        F::from_canonical_u16((addr & 0xFFFF) as u16),
+        F::from_canonical_u16(((addr >> 16) & 0xFFFF) as u16),
+        F::from_canonical_u16(((addr >> 32) & 0xFFFF) as u16),
+    ]
 }

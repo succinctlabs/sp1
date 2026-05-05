@@ -176,6 +176,7 @@ where
             gate,
             self.minimal_executor_cache.clone(),
             request.cycle_limit,
+            request.machine,
         );
 
         let mut join_set = JoinSet::<Result<(), TaskError>>::new();
@@ -322,6 +323,8 @@ where
             num_deferred_proofs,
             cycle_limit,
             context: context.clone(),
+            // TODO: is this expensive?
+            machine: self.verifier.core.machine().clone(),
         };
         let executor_task_id = self
             .worker_client
