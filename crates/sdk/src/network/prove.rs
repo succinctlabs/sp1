@@ -36,6 +36,7 @@ pub struct NetworkProveBuilder<'a> {
     pub(crate) treasury: Option<Address>,
     pub(crate) max_price_per_pgu: Option<u64>,
     pub(crate) auction_timeout: Option<Duration>,
+    pub(crate) private_stdin: bool,
 }
 
 impl NetworkProveBuilder<'_> {
@@ -273,6 +274,37 @@ impl NetworkProveBuilder<'_> {
         self
     }
 
+    /// Enable private stdin for this proof request.
+    ///
+    /// # Details
+    /// When enabled, the stdin artifact is uploaded to a private S3 prefix and
+    /// the public URI is redacted from `ProofRequest` broadcasts. Only the
+    /// requester, the network's execution oracle, and (post-settlement) the
+    /// assigned fulfiller can download it via the authenticated `GetStdinUri`
+    /// RPC.
+    ///
+    /// This can be used together with [`NetworkProveBuilder::whitelist`] to limit
+    /// which fulfillers that will be able to win the auction and download stdin.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin};
+    ///
+    /// tokio_test::block_on(async {
+    ///     let elf = Elf::Static(&[1, 2, 3]);
+    ///     let stdin = SP1Stdin::new();
+    ///
+    ///     let client = ProverClient::builder().network().build().await;
+    ///     let pk = client.setup(elf).await.unwrap();
+    ///     let proof = client.prove(&pk, stdin).private_stdin(true).await.unwrap();
+    /// });
+    /// ```
+    #[must_use]
+    pub fn private_stdin(mut self, enabled: bool) -> Self {
+        self.private_stdin = enabled;
+        self
+    }
+
     /// Set the auctioneer for the proof request.
     ///
     /// # Details
@@ -493,6 +525,7 @@ impl NetworkProveBuilder<'_> {
                 self.verifier,
                 self.treasury,
                 self.max_price_per_pgu,
+                self.private_stdin,
             )
             .await
     }
@@ -549,6 +582,7 @@ impl<'a> IntoFuture for NetworkProveBuilder<'a> {
                     self.treasury,
                     self.max_price_per_pgu,
                     self.auction_timeout,
+                    self.private_stdin,
                 )
                 .await
         })

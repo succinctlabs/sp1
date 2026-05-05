@@ -31,6 +31,7 @@ pub struct NetworkProveBuilder<'a> {
     pub(crate) treasury: Option<Address>,
     pub(crate) max_price_per_pgu: Option<u64>,
     pub(crate) auction_timeout: Option<Duration>,
+    pub(crate) private_stdin: bool,
 }
 
 impl NetworkProveBuilder<'_> {
@@ -88,6 +89,22 @@ impl NetworkProveBuilder<'_> {
     #[must_use]
     pub fn whitelist(mut self, whitelist: Option<Vec<Address>>) -> Self {
         self.whitelist = whitelist;
+        self
+    }
+
+    /// Enable private stdin for this proof request.
+    ///
+    /// When enabled, the stdin artifact is uploaded to a private S3 prefix and
+    /// the public URI is redacted from `ProofRequest` broadcasts. Only the
+    /// requester, the network's execution oracle, and (post-settlement) the
+    /// assigned fulfiller can download it via the authenticated `GetStdinUri`
+    /// RPC.
+    ///
+    /// This can be used together with [`NetworkProveBuilder::whitelist`] to limit
+    /// which fulfillers that will be able to win the auction and download stdin.
+    #[must_use]
+    pub fn private_stdin(mut self, enabled: bool) -> Self {
+        self.private_stdin = enabled;
         self
     }
 
@@ -163,6 +180,7 @@ impl NetworkProveBuilder<'_> {
             self.verifier,
             self.treasury,
             self.max_price_per_pgu,
+            self.private_stdin,
         ))
     }
 }
@@ -207,6 +225,7 @@ impl<'a> ProveRequest<'a, NetworkProver> for NetworkProveBuilder<'a> {
             self.treasury,
             self.max_price_per_pgu,
             self.auction_timeout,
+            self.private_stdin,
         ))
     }
 }
