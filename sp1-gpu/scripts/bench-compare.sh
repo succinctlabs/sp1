@@ -1,175 +1,22 @@
 #!/usr/bin/env bash
 #
-# Compare sp1-gpu criterion microbenchmarks between your current working
-# state and another git ref.
+# Compare sp1-gpu Criterion microbenchmarks between your current working
+# tree and another git ref.
 #
-# How it works:
+# Full usage docs, examples, prerequisites, GPU clock-locking notes, and
+# cache-management commands live in this folder's README:
 #
-#   - The "current" side runs `cargo bench` in your main checkout — so
-#     your uncommitted edits are benched as-is, and your already-warm
-#     target/ cache is reused (no fresh CUDA build for the current side).
+#     sp1-gpu/scripts/README.md
 #
-#   - The other ref runs in a persistent worktree under
-#     sp1-gpu/.bench-worktrees/<ref>/ which is reused across invocations,
-#     so the second-run cost on the ref side is small. Use the `clear`
-#     subcommand to delete these worktrees when you want to free disk.
-#
-#   - A small Python helper reads criterion's per-batch sample data from
-#     both target/criterion/ trees, runs Welch's t-test on the difference
-#     in mean, and prints a side-by-side table with a 95% CI on the
-#     percentage change.
-#
-# Side effects on your main checkout:
-#
-#   - target/criterion/<bench>/current-r*/ ends up with your "current"
-#     baselines after the run. Harmless and tiny; remove with
-#     `rm -rf target/criterion` whenever you want.
-#
-# ----------------------------------------------------------------------------
-# REDUCING MEASUREMENT NOISE (optional but recommended)
-#
-# GPU/memory clocks drift with temperature and power state, which shows up
-# as run-to-run variation that can mask small (1-3%) regressions. Locking
-# clocks before benching typically drops noise from ~5% to <1%.
-#
-# Requires sudo. Skip this whole section if you don't have it -- the script
-# still works, you just need more --repeat rounds to see small effects.
-#
-#   # 1) Inspect supported clocks for GPU 0:
-#   nvidia-smi -q -d SUPPORTED_CLOCKS -i 0
-#
-#   # 2) Enable persistence mode and lock to a sustainable (not max boost)
-#   #    clock. Pick a graphics clock well below the boost ceiling so the
-#   #    GPU can hold it under load without thermal throttling. Memory
-#   #    clock should be the highest supported value.
-#   sudo nvidia-smi -pm 1 -i 0
-#   sudo nvidia-smi -lgc <graphics_clock_mhz> -i 0
-#   sudo nvidia-smi -lmc <memory_clock_mhz>   -i 0
-#
-#   # 3) When done benching, restore default behavior:
-#   sudo nvidia-smi -rgc -i 0
-#   sudo nvidia-smi -rmc -i 0
-#
-# Other knobs that help, in rough order of impact:
-#   - Pin to one GPU on multi-GPU boxes:    export CUDA_VISIBLE_DEVICES=0
-#   - No other CUDA processes on the same device while benching.
-#   - No display server / compositor on the bench GPU.
-#   - CPU governor to performance:          sudo cpupower frequency-set -g performance
-#
-# ----------------------------------------------------------------------------
-# QUICK START — copy/paste these commands.
-#
-# All commands below assume you are at the repo root (the directory that
-# contains this script's parent path, "sp1-gpu/"). If you're unsure, run:
-#
-#     cd /home/user/sp1            # or wherever you cloned the repo
-#     pwd                          # should print the repo root
-#
-# ----------------------------------------------------------------------------
-# 1) ONE-TIME SETUP
-#
-# Nothing required — python3 is the only dependency.
-#
-# ----------------------------------------------------------------------------
-# 2) FIRST-RUN SANITY CHECK (recommended)
-#
-# Run a single bench against your current commit (HEAD). Deltas should be
-# near zero — that's how you confirm everything is wired up. The current
-# side reuses your main target/ (fast); the ref side has to build its
-# worktree from scratch (slow, but that worktree is then cached for reuse):
-#
-#     sp1-gpu/scripts/bench-compare.sh HEAD commit
-#
-# (The bench named "commit" is the smallest one in the suite.)
-#
-# ----------------------------------------------------------------------------
-# 3) COMMON USAGE
-#
-# Compare your current changes (committed AND uncommitted) against main,
-# running ALL benches:
-#
-#     sp1-gpu/scripts/bench-compare.sh
-#
-# Compare against main but run only ONE bench (much faster while iterating):
-#
-#     sp1-gpu/scripts/bench-compare.sh zerocheck
-#
-# Compare against a specific branch instead of main:
-#
-#     sp1-gpu/scripts/bench-compare.sh some-other-branch
-#
-# Compare against a specific commit (use a SHA, full or short):
-#
-#     sp1-gpu/scripts/bench-compare.sh 21aa2f468
-#
-# Compare against a specific branch, running just one bench:
-#
-#     sp1-gpu/scripts/bench-compare.sh main jagged
-#
-# Run multiple rounds with alternating side order to get a tighter CI and
-# de-bias against run-order effects (each extra round adds one full pass):
-#
-#     sp1-gpu/scripts/bench-compare.sh --repeat 3
-#     sp1-gpu/scripts/bench-compare.sh --repeat 3 main jagged
-#
-# Pick a trace source for the benches that support multiple ones (commit,
-# jagged, prove_trusted_evaluations, zerocheck). Default for all four:
-# random at log-area 25. zerocheck additionally synthesizes a full-cluster
-# chip_set + zero public_values for synthetic sources, so its random/JSON
-# timings are NOT directly comparable to its real-source timings (different
-# cluster sizes). Supported real programs: fibonacci, fibonacci_blake3,
-# ed25519, keccak256, sha2, ssz_withdrawals, tendermint, groth16,
-# groth16_blake3, plonk, plonk_blake3.
-#
-#     sp1-gpu/scripts/bench-compare.sh --source real/keccak256
-#     sp1-gpu/scripts/bench-compare.sh --source /tmp/layout.json main jagged
-#     sp1-gpu/scripts/bench-compare.sh --source random:24                # 2^24
-#     sp1-gpu/scripts/bench-compare.sh --source random:22,24,26          # sweep
-#
-# FULLY EXPLICIT FORMS (every option supplied; nothing left to defaults).
-# The argument order is: [flags...] [ref] [bench_name].
-#
-#   # Compare current vs `some-branch`, run only `commit`, 3 alternating
-#   # rounds, with the keccak256 real trace as the input.
-#   sp1-gpu/scripts/bench-compare.sh --repeat 3 --source real/keccak256 \
-#       some-branch commit
-#
-#   # Same flags, against an explicit SHA, against the `jagged` bench.
-#   sp1-gpu/scripts/bench-compare.sh --repeat 5 --source random \
-#       21aa2f468 jagged
-#
-#   # Random trace at a specific log-area, all benches.
-#   sp1-gpu/scripts/bench-compare.sh --repeat 1 --source random:24 \
-#       main
-#
-#   # Sweep three random sizes on `commit`. One sample baseline per size.
-#   sp1-gpu/scripts/bench-compare.sh --repeat 1 --source random:22,24,26 \
-#       main commit
-#
-#   # `zerocheck` vs `main`, 1 round (the default), with the sha2 real trace.
-#   sp1-gpu/scripts/bench-compare.sh --repeat 1 --source real/sha2 \
-#       main zerocheck
-#
-#   # JSON-layout source spelled out explicitly.
-#   sp1-gpu/scripts/bench-compare.sh --repeat 1 --source /tmp/layout.json \
-#       main jagged
-#
-# ----------------------------------------------------------------------------
-# 4) CACHE MANAGEMENT
-#
-# Each comparison creates one worktree under sp1-gpu/.bench-worktrees/
-# (one per ref you've ever compared against) and KEEPS it so re-runs are
-# fast. They can take 10s of GB of disk. To free that space:
-#
-#     sp1-gpu/scripts/bench-compare.sh clear            # remove everything
-#     sp1-gpu/scripts/bench-compare.sh clear main       # remove just one
-#
-# ----------------------------------------------------------------------------
-# 5) GETTING HELP
-#
+# Quick reference:
 #     sp1-gpu/scripts/bench-compare.sh --help
 #
-# ----------------------------------------------------------------------------
+# Quick examples:
+#     sp1-gpu/scripts/bench-compare.sh                            # current vs main, all benches
+#     sp1-gpu/scripts/bench-compare.sh main jagged                # one bench
+#     sp1-gpu/scripts/bench-compare.sh --repeat 3 some-branch     # 3 rounds vs a branch
+#     sp1-gpu/scripts/bench-compare.sh --source real/keccak256    # pick a trace input
+#     sp1-gpu/scripts/bench-compare.sh clear                      # free worktree cache
 
 set -euo pipefail
 
@@ -207,7 +54,7 @@ Options:
                 Supported real programs: fibonacci, fibonacci_blake3,
                 ed25519, keccak256, sha2, ssz_withdrawals, tendermint,
                 groth16, groth16_blake3, plonk, plonk_blake3. (Add
-                entries to `real_programs()` in sp1-gpu-jagged-tracegen
+                entries to real_programs() in sp1-gpu-jagged-tracegen
                 test_utils to extend.)
 
                 Without this flag, every source-aware bench defaults to
@@ -242,6 +89,9 @@ Available benches:
 
 Worktree cache: <repo>/sp1-gpu/.bench-worktrees/
 Requires:       python3, jq
+
+For full docs (examples, GPU clock locking, cache management) see:
+    sp1-gpu/scripts/README.md
 EOF
 }
 

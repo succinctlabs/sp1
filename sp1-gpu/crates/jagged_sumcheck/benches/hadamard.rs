@@ -11,7 +11,7 @@ use slop_multilinear::Mle;
 use slop_tensor::{Dimensions, Tensor};
 use sp1_gpu_cudart::{DeviceBuffer, DeviceCopy, TaskScope};
 use sp1_gpu_jagged_sumcheck::simple_hadamard_sumcheck;
-use sp1_gpu_jagged_tracegen::test_utils::bench_utils::{with_trace_source, NoneKind};
+use sp1_gpu_jagged_tracegen::test_utils::bench_utils::{with_trace_source, SizeOnlyKind};
 use sp1_gpu_utils::config::{Ext, Felt, TestGC};
 
 fn random_buffer<T, R>(rng: &mut R, len: usize) -> Buffer<T, CpuBackend>
@@ -29,12 +29,9 @@ fn upload_mle<T: DeviceCopy>(host: &Buffer<T, CpuBackend>, scope: &TaskScope) ->
 }
 
 fn bench_hadamard_sumcheck(c: &mut Criterion) {
-    const NUM_VARIABLES: u32 = 25;
-
     let mut rng = StdRng::seed_from_u64(42);
-    // `NoneKind` ignores any `--source` arg and just opens a `TaskScope` for us.
-    with_trace_source(c, &mut rng, NoneKind, |c, _id, scope, rng, ()| {
-        let len = 1usize << NUM_VARIABLES;
+    with_trace_source(c, &mut rng, SizeOnlyKind, |c, _id, scope, rng, log_area| {
+        let len = 1usize << log_area;
         let base_host: Buffer<Felt, CpuBackend> = random_buffer(rng, len);
         let ext_host: Buffer<Ext, CpuBackend> = random_buffer(rng, len);
 
@@ -43,7 +40,7 @@ fn bench_hadamard_sumcheck(c: &mut Criterion) {
 
         let mut group = c.benchmark_group("hadamard_sumcheck");
         group.sample_size(10);
-        group.bench_function("num_vars_25", |b| {
+        group.bench_function(format!("num_vars_{log_area}"), |b| {
             b.iter_batched(
                 || {
                     let base = upload_mle(&base_host, scope);

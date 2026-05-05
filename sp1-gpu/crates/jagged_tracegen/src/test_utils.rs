@@ -2,8 +2,8 @@
 
 /// Benchmark helpers shared across the per-crate Criterion benches. A single
 /// [`with_trace_source`] entry point dispatches based on a [`BenchKind`] marker that controls what
-/// shape of input the bench's closure receives — nothing ([`NoneKind`]), the trace MLE only
-/// ([`JaggedKind`]), or the full execution context ([`FullKind`]). The CLI source arg
+/// shape of input the bench's closure receives — a log_2 area only ([`SizeOnlyKind`]), the
+/// trace MLE ([`JaggedKind`]), or the full execution context ([`FullKind`]). The CLI source arg
 /// (`random` / `json/<path>` / `real/<program>`) is parsed once and applied uniformly.
 #[cfg(any(test, feature = "test-utils"))]
 pub mod bench_utils {
@@ -129,14 +129,14 @@ pub mod bench_utils {
     }
 
     /// Marker trait controlling the data shape `with_trace_source` invokes the bench with.
-    /// Implementors are unit structs ([`NoneKind`], [`JaggedKind`], [`FullKind`]) so the bench
-    /// declares its needs by name and the type system carries the rest.
+    /// Implementors are unit structs ([`SizeOnlyKind`], [`JaggedKind`], [`FullKind`]) so the
+    /// bench declares its needs by name and the type system carries the rest.
     ///
     /// Each Kind provides three pure data generators (one per source). The default [`run`]
     /// parses the CLI source enum, opens a [`TaskScope`], calls the right generator, then
-    /// invokes the user's closure with the resulting [`GeneratedData`]. Kinds that don't fit
-    /// the source-dispatch shape (currently [`NoneKind`]) override `run` directly; their
-    /// generator methods then become dead code, hence the trivial impls.
+    /// invokes the user's closure with the resulting [`GeneratedData`]. Kinds that don't
+    /// support every source (e.g. [`SizeOnlyKind`] only makes sense for `random`) panic from
+    /// the unsupported generators with a clear message.
     pub trait BenchKind: Sized {
         /// The owned data the helper hands to the user's closure.
         type GeneratedData;
@@ -161,8 +161,7 @@ pub mod bench_utils {
         ) -> Self::GeneratedData;
 
         /// Default: parse CLI source, open a scope, generate data via the right method, call
-        /// `f`. Sweep mode loops over sizes for random. Override only if the Kind doesn't
-        /// follow source dispatch (see [`NoneKind`]).
+        /// `f`. Sweep mode loops over sizes for random.
         fn run<R, F>(c: &mut Criterion, rng: &mut R, mut f: F)
         where
             R: Rng,
@@ -183,8 +182,7 @@ pub mod bench_utils {
                         let f: &mut F = &mut f;
                         run_sync_in_place(move |scope| {
                             let data = Self::generate_random_data(&scope, log_area, rng);
-                            let id =
-                                BenchmarkId::new("random", format!("total_area_2^{log_area}"));
+                            let id = BenchmarkId::new("random", format!("total_area_2^{log_area}"));
                             f(c, id, &scope, rng, data);
                         })
                         .unwrap();
@@ -210,10 +208,10 @@ pub mod bench_utils {
         }
     }
 
-    /// `GeneratedData = ()`. For benches whose inputs aren't a `JaggedTraceMle` (e.g. `hadamard`).
-    /// Ignores the `--source` arg entirely; overrides Criterion's filter to accept-all so a
-    /// user-passed `--source <X>` doesn't drop the bench, opens a `TaskScope`, calls `f` once.
-    pub struct NoneKind;
+    /// `GeneratedData = u32` (the log_2 area). For benches that need a size-parameterized buffer
+    /// but no trace data (e.g. `hadamard`). Only the `random` source is meaningful — `random`
+    /// runs at the default size, `random:N[,N,...]` sweeps. JSON / real arguments panic.
+    pub struct SizeOnlyKind;
 
     /// `GeneratedData = JaggedTraceMle<Felt, TaskScope>`. For benches that just need the trace.
     /// Source picked from CLI as random / JSON / real.
@@ -225,29 +223,28 @@ pub mod bench_utils {
     /// synthesized.
     pub struct FullKind;
 
-    impl BenchKind for NoneKind {
-        type GeneratedData = ();
+    impl BenchKind for SizeOnlyKind {
+        type GeneratedData = u32;
 
-        // Trivial generators — never invoked in practice because `run` is overridden, but
-        // present so the trait contract is satisfied without `unreachable!()` smell.
-        fn generate_random_data<R: Rng>(_: &TaskScope, _: u32, _: &mut R) {}
-        fn generate_json_data<R: Rng>(_: &TaskScope, _: &str, _: &mut R) {}
-        fn generate_real_data<R: Rng>(_: &TaskScope, _: &'static str, _: &'static [u8], _: &mut R) {
+        fn generate_random_data<R: Rng>(_: &TaskScope, log_area: u32, _: &mut R) -> u32 {
+            log_area
         }
 
-        /// Override: bypass source dispatch entirely. AcceptAll filter + scope + call once.
-        fn run<R, F>(c: &mut Criterion, rng: &mut R, mut f: F)
-        where
-            R: Rng,
-            F: FnMut(&mut Criterion, BenchmarkId, &TaskScope, &mut R, ()),
-        {
-            *c = std::mem::take(c).with_benchmark_filter(BenchmarkFilter::AcceptAll);
-            run_sync_in_place(move |scope| {
-                // Sentinel id; the bench typically registers its own group / bench_function.
-                let id = BenchmarkId::new("default", "default");
-                f(c, id, &scope, rng, ());
-            })
-            .unwrap();
+        fn generate_json_data<R: Rng>(_: &TaskScope, _: &str, _: &mut R) -> u32 {
+            panic!(
+                "SizeOnlyKind benches don't take a JSON source; pass `random` or `random:N[,N,...]`"
+            )
+        }
+
+        fn generate_real_data<R: Rng>(
+            _: &TaskScope,
+            _: &'static str,
+            _: &'static [u8],
+            _: &mut R,
+        ) -> u32 {
+            panic!(
+                "SizeOnlyKind benches don't take a real source; pass `random` or `random:N[,N,...]`"
+            )
         }
     }
 
@@ -304,11 +301,7 @@ pub mod bench_utils {
             RealTraceData { machine, cluster, public_values, device_mle }
         }
 
-        fn generate_json_data<R: Rng>(
-            scope: &TaskScope,
-            path: &str,
-            rng: &mut R,
-        ) -> RealTraceData {
+        fn generate_json_data<R: Rng>(scope: &TaskScope, path: &str, rng: &mut R) -> RealTraceData {
             let layout = read_layout_from_json(path).expect("failed to read JSON layout");
             let machine = RiscvAir::<Felt>::machine();
             let cluster = cluster_from_json_layout(&machine, &layout);
@@ -330,15 +323,11 @@ pub mod bench_utils {
     }
 
     /// Single entry point for source-aware benches. Routes through `K`'s [`BenchKind::run`] impl.
-    /// The `_kind` value is purely for type inference; pass the appropriate marker:
+    /// The `_kind` value is purely for type inference; pass the appropriate marker.
     ///
-    /// ```text
-    /// cargo bench --bench <name>                          # → random, default 2^25
-    /// cargo bench --bench <name> -- random:24             # → random, 2^24
-    /// cargo bench --bench <name> -- random:22,24,26       # → sweep 3 sizes
-    /// cargo bench --bench <name> -- /path/to/layout.json  # → that JSON
-    /// cargo bench --bench <name> -- real/keccak256        # → that real program
-    /// ```
+    /// For the exact CLI invocations each bench accepts (and the disclaimers about synthetic
+    /// data), see the README in the corresponding `benches/` folder:
+    /// `sp1-gpu/crates/{commit,jagged_sumcheck,shard_prover,zerocheck}/benches/README.md`.
     pub fn with_trace_source<K, R, F>(c: &mut Criterion, rng: &mut R, _kind: K, f: F)
     where
         K: BenchKind,
@@ -418,12 +407,7 @@ pub mod bench_utils {
                 .smallest_cluster(&chip_set)
                 .expect("no machine cluster contains the program's chip set")
                 .clone();
-            RealTraceData {
-                machine,
-                cluster,
-                public_values,
-                device_mle: jagged_trace_data,
-            }
+            RealTraceData { machine, cluster, public_values, device_mle: jagged_trace_data }
         })
     }
 }
