@@ -34,8 +34,9 @@ pub mod bench_utils {
     use super::tracegen_setup::{self, CORE_MAX_LOG_ROW_COUNT, LOG_STACKING_HEIGHT};
     use crate::{full_tracegen, CORE_MAX_TRACE_SIZE};
 
-    /// Total area for the synthetic random trace, in dense field elements.
-    pub const RANDOM_TOTAL_AREA: u64 = 1 << 25;
+    /// Default log_2 of the synthetic random trace area (in field elements). Used when the user
+    /// passes `random` (or no arg) without specifying sizes.
+    pub const DEFAULT_RANDOM_LOG_AREA: u32 = 25;
 
     /// zkVM sample programs available under `real/<name>`. Add entries here to make additional
     /// programs benchable.
@@ -50,20 +51,45 @@ pub mod bench_utils {
 
     /// Which trace source a bench should run against.
     pub enum TraceSource {
-        /// Synthetic trace with random column heights summing to [`RANDOM_TOTAL_AREA`].
-        Random,
+        /// Synthetic random trace(s). Each `u32` is a log_2 area in field elements; one bench is
+        /// run per entry. Empty list means use the default [`DEFAULT_RANDOM_LOG_AREA`].
+        Random(Vec<u32>),
         /// Trace built from a JSON layout file.
         Json(String),
         /// Trace from an actual zkVM execution of a sample program.
         Real { name: &'static str, elf: &'static [u8] },
     }
 
+    /// Detect a `random` / `random:N` / `random:N1,N2,...` arg. Returns the parsed list of log
+    /// areas (empty for plain `random`), or `None` if the arg isn't a random spec.
+    fn parse_random_arg(arg: &str) -> Option<Vec<u32>> {
+        if arg == "random" {
+            return Some(vec![]);
+        }
+        let rest = arg.strip_prefix("random:")?;
+        let sizes: Vec<u32> = rest
+            .split(',')
+            .map(|s| {
+                s.trim().parse::<u32>().unwrap_or_else(|_| {
+                    panic!("invalid random log-area `{s}` in `{arg}`; expected `random:N[,N,...]`")
+                })
+            })
+            .collect();
+        assert!(
+            !sizes.is_empty(),
+            "empty size list in `{arg}`; use `random` for the default",
+        );
+        Some(sizes)
+    }
+
     impl TraceSource {
         /// Pick a source from CLI args, in priority order:
         ///
         /// 1. Any positional arg ending in `.json` → [`TraceSource::Json`] with that path.
-        /// 2. Any positional arg matching (substring) a known [`real_programs`] entry → that one.
-        /// 3. Otherwise → [`TraceSource::Random`].
+        /// 2. Any positional arg matching `random` / `random:N` / `random:N1,N2,...` →
+        ///    [`TraceSource::Random`] with the parsed log-area list (empty for default size).
+        /// 3. Any positional arg matching (substring) a known [`real_programs`] entry → that one.
+        /// 4. Otherwise → [`TraceSource::Random`] with the default size.
         ///
         /// This means `cargo bench --bench <name>` (no args) defaults to random; pass an explicit
         /// arg to override.
@@ -74,13 +100,18 @@ pub mod bench_utils {
             if let Some(path) = positional.iter().find(|a| a.ends_with(".json")) {
                 return Self::Json(path.clone());
             }
+            for arg in &positional {
+                if let Some(sizes) = parse_random_arg(arg) {
+                    return Self::Random(sizes);
+                }
+            }
             for (name, elf) in real_programs() {
                 let id = format!("real/{name}");
                 if positional.iter().any(|a| id.contains(a) || a.contains(&id)) {
                     return Self::Real { name, elf };
                 }
             }
-            Self::Random
+            Self::Random(vec![])
         }
     }
 
@@ -88,30 +119,41 @@ pub mod bench_utils {
     /// `random/total_area_2^N`, `json/<path>`, or `real/<name>`. The bench ID's parameter is
     /// chosen so Criterion's substring CLI filter matches the same arg the user passed.
     ///
-    /// `rng` is shared with the trace generator (random / JSON variants don't touch it for the
-    /// real variant) and forwarded to `f` so the caller's per-iter sampling continues from the
-    /// same stream — a single seed governs the whole bench.
+    /// For the random source the user may supply a list of log-areas (e.g. `random:22,24,26`),
+    /// in which case `f` is called once per size — `f` therefore must be `FnMut`.
+    ///
+    /// `rng` is shared with the trace generator (the real variant doesn't touch it) and forwarded
+    /// to `f` so the caller's per-iter sampling continues from the same stream — a single seed
+    /// governs the whole bench.
     ///
     /// Examples:
     ///
     /// ```text
-    /// cargo bench --bench <name>                        # → random
-    /// cargo bench --bench <name> -- /path/to/layout.json # → that JSON
-    /// cargo bench --bench <name> -- real/keccak256      # → that real program
+    /// cargo bench --bench <name>                          # → random, default 2^25
+    /// cargo bench --bench <name> -- random:24             # → random, 2^24
+    /// cargo bench --bench <name> -- random:22,24,26       # → sweep 3 sizes
+    /// cargo bench --bench <name> -- /path/to/layout.json  # → that JSON
+    /// cargo bench --bench <name> -- real/keccak256        # → that real program
     /// ```
-    pub fn with_trace_source<R, F>(c: &mut Criterion, rng: &mut R, f: F)
+    pub fn with_trace_source<R, F>(c: &mut Criterion, rng: &mut R, mut f: F)
     where
         R: Rng,
-        F: FnOnce(
-            &mut Criterion,
-            BenchmarkId,
-            &TaskScope,
-            &mut R,
-            &JaggedTraceMle<Felt, TaskScope>,
-        ),
+        F: FnMut(&mut Criterion, BenchmarkId, &TaskScope, &mut R, &JaggedTraceMle<Felt, TaskScope>),
     {
         match TraceSource::from_cli_args() {
-            TraceSource::Random => with_random(c, rng, f),
+            TraceSource::Random(sizes) => {
+                let sizes = if sizes.is_empty() { vec![DEFAULT_RANDOM_LOG_AREA] } else { sizes };
+                for log_area in sizes {
+                    // Reborrow per iter so the FnOnce wrapper handed to `with_random` doesn't
+                    // permanently consume `c` / `rng` / `f`.
+                    let c: &mut Criterion = &mut *c;
+                    let rng: &mut R = &mut *rng;
+                    let f: &mut F = &mut f;
+                    with_random(c, log_area, rng, |c, id, scope, rng, mle| {
+                        f(c, id, scope, rng, mle);
+                    });
+                }
+            }
             TraceSource::Json(path) => with_json(c, &path, rng, f),
             // Adapt: the real-data path produces a `RealTraceData`; this helper's caller only
             // wants the trace itself, so unwrap `device_mle` and discard the rest.
@@ -123,7 +165,7 @@ pub mod bench_utils {
         }
     }
 
-    fn with_random<R, F>(c: &mut Criterion, rng: &mut R, f: F)
+    fn with_random<R, F>(c: &mut Criterion, log_area: u32, rng: &mut R, f: F)
     where
         R: Rng,
         F: FnOnce(
@@ -136,15 +178,15 @@ pub mod bench_utils {
     {
         run_sync_in_place(move |scope| {
             let machine = RiscvAir::<Felt>::machine();
+            let total_area = 1u64 << log_area;
             let device_mle = random_jagged_trace_mle::<Felt, _, _>(
                 rng,
                 machine.chips(),
-                RANDOM_TOTAL_AREA,
+                total_area,
                 LOG_STACKING_HEIGHT,
             )
             .into_device(&scope);
-            let id =
-                BenchmarkId::new("random", format!("total_area_2^{}", RANDOM_TOTAL_AREA.ilog2()));
+            let id = BenchmarkId::new("random", format!("total_area_2^{log_area}"));
             f(c, id, &scope, rng, &device_mle);
         })
         .unwrap();
@@ -188,9 +230,9 @@ pub mod bench_utils {
         let positional: Vec<String> =
             std::env::args().skip(1).filter(|a| !a.starts_with('-')).collect();
 
-        if let Some(unsupported) =
-            positional.iter().find(|a| a.ends_with(".json") || a.as_str() == "random")
-        {
+        if let Some(unsupported) = positional.iter().find(|a| {
+            a.ends_with(".json") || a.as_str() == "random" || a.starts_with("random:")
+        }) {
             eprintln!(
                 "skipping bench: the `{unsupported}` source isn't supported (needs real trace \
                  data). Pass `-- real/<program>` (or no arg for the default) instead."

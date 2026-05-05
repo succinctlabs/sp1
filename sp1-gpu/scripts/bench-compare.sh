@@ -83,11 +83,13 @@
 #
 # Pick a trace source for the benches that support multiple ones (commit,
 # jagged, prove_trusted_evaluations, zerocheck). Default per bench: random
-# for the any-source ones, real/fibonacci for zerocheck. Supported real
-# programs: fibonacci, ed25519, keccak256, sha2.
+# at log-area 25 for the any-source ones, real/fibonacci for zerocheck.
+# Supported real programs: fibonacci, ed25519, keccak256, sha2.
 #
 #     sp1-gpu/scripts/bench-compare.sh --source real/keccak256
 #     sp1-gpu/scripts/bench-compare.sh --source /tmp/layout.json main jagged
+#     sp1-gpu/scripts/bench-compare.sh --source random:24                # 2^24
+#     sp1-gpu/scripts/bench-compare.sh --source random:22,24,26          # sweep
 #
 # FULLY EXPLICIT FORMS (every option supplied; nothing left to defaults).
 # The argument order is: [flags...] [ref] [bench_name].
@@ -100,6 +102,14 @@
 #   # Same flags, against an explicit SHA, against the `jagged` bench.
 #   sp1-gpu/scripts/bench-compare.sh --repeat 5 --source random \
 #       21aa2f468 jagged
+#
+#   # Random trace at a specific log-area, all benches.
+#   sp1-gpu/scripts/bench-compare.sh --repeat 1 --source random:24 \
+#       main
+#
+#   # Sweep three random sizes on `commit`. One sample baseline per size.
+#   sp1-gpu/scripts/bench-compare.sh --repeat 1 --source random:22,24,26 \
+#       main commit
 #
 #   # `zerocheck` vs `main`, 1 round (the default), with the sha2 real trace.
 #   sp1-gpu/scripts/bench-compare.sh --repeat 1 --source real/sha2 \
@@ -153,7 +163,9 @@ Options:
                 zerocheck). Forwarded as the first positional arg to
                 each bench, so it doubles as Criterion's filter:
 
-                  --source random              # synthetic random trace
+                  --source random              # default size, 2^25
+                  --source random:24           # single, 2^24
+                  --source random:22,24,26     # sweep three sizes
                   --source real/<program>      # e.g. real/keccak256
                   --source /path/to/layout.json
 
@@ -162,10 +174,10 @@ Options:
                 sp1-gpu-jagged-tracegen test_utils to extend.)
 
                 Without this flag, each bench picks its own default
-                (random for the any-source benches, real/fibonacci for
-                zerocheck). hadamard ignores the flag entirely (its
-                inputs aren't a trace) and always runs its single fixed
-                config.
+                (random at 2^25 for the any-source benches,
+                real/fibonacci for zerocheck). hadamard ignores the flag
+                entirely (its inputs aren't a trace) and always runs its
+                single fixed config.
 
 Forms:
   $prog                          # current vs main, all benches
