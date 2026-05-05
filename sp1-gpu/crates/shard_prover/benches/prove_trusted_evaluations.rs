@@ -116,7 +116,6 @@ fn run_prove_trusted_evaluations<R: Rng>(
     let evaluation_claims = round_batch_evaluations(&eval_point, jagged_trace_data.as_ref());
 
     let mut group = c.benchmark_group("prove_trusted_evaluations");
-    group.sample_size(10);
     group.bench_with_input(id, &(), |b, _| {
         b.iter_batched(
             || {

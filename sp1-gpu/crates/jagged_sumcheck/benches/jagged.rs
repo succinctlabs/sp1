@@ -37,7 +37,6 @@ fn run_jagged_sumcheck<R: Rng>(
     let claim = Ext::zero();
 
     let mut group = c.benchmark_group("jagged_sumcheck");
-    group.sample_size(10);
     group.bench_with_input(id, &(), |b, _| {
         b.iter_batched(
             || {

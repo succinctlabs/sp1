@@ -39,7 +39,6 @@ fn bench_hadamard_sumcheck(c: &mut Criterion) {
         let claim = Ext::zero();
 
         let mut group = c.benchmark_group("hadamard_sumcheck");
-        group.sample_size(10);
         group.bench_function(format!("num_vars_{log_area}"), |b| {
             b.iter_batched(
                 || {

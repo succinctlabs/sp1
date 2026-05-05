@@ -43,7 +43,6 @@ fn run_commit<R: Rng>(
     );
 
     let mut group = c.benchmark_group("commit_multilinears");
-    group.sample_size(10);
     group.bench_with_input(id, &(), |b, _| {
         b.iter(|| {
             let result = commit_multilinears::<TestGC, _>(

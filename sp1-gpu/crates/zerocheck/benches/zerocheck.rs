@@ -90,7 +90,6 @@ fn run_zerocheck<R: Rng>(
     let logup_evaluations = LogUpEvaluations { point: zeta, chip_openings };
 
     let mut group = c.benchmark_group("zerocheck");
-    group.sample_size(10);
     group.bench_with_input(id, &(), |b, _| {
         b.iter_batched(
             || {
