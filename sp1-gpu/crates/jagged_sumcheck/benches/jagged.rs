@@ -10,7 +10,7 @@ use slop_challenger::IopCtx;
 use slop_multilinear::Point;
 use sp1_gpu_cudart::{DevicePoint, TaskScope};
 use sp1_gpu_jagged_sumcheck::{generate_jagged_sumcheck_poly, jagged_sumcheck};
-use sp1_gpu_jagged_tracegen::test_utils::bench_utils::with_trace_source;
+use sp1_gpu_jagged_tracegen::test_utils::bench_utils::{with_trace_source, JaggedKind};
 use sp1_gpu_jagged_tracegen::test_utils::tracegen_setup::{
     CORE_MAX_LOG_ROW_COUNT, LOG_STACKING_HEIGHT,
 };
@@ -64,7 +64,7 @@ fn run_jagged_sumcheck<R: Rng>(
 
 fn bench_jagged_sumcheck(c: &mut Criterion) {
     let mut rng = StdRng::seed_from_u64(42);
-    with_trace_source(c, &mut rng, |c, id, scope, rng, device_mle| {
+    with_trace_source(c, &mut rng, JaggedKind, |c, id, scope, rng, device_mle| {
         run_jagged_sumcheck(c, id, scope, rng, device_mle);
     });
 }

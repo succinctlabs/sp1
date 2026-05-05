@@ -1,8 +1,10 @@
 //! Common test utilities shared across test modules.
 
-/// Benchmark helpers shared across the per-crate Criterion benches. A single bench invocation
-/// runs against one trace source (random / JSON / real ELF), picked from CLI args. See
-/// [`bench_utils::with_trace_source`].
+/// Benchmark helpers shared across the per-crate Criterion benches. A single
+/// [`with_trace_source`] entry point dispatches based on a [`BenchKind`] marker that controls what
+/// shape of input the bench's closure receives — nothing ([`NoneKind`]), the trace MLE only
+/// ([`JaggedKind`]), or the full execution context ([`FullKind`]). The CLI source arg
+/// (`random` / `json/<path>` / `real/<program>`) is parsed once and applied uniformly.
 #[cfg(any(test, feature = "test-utils"))]
 pub mod bench_utils {
     use std::sync::Arc;
@@ -11,6 +13,7 @@ pub mod bench_utils {
 
     use criterion::{BenchmarkFilter, BenchmarkId, Criterion};
     use rand::Rng;
+    use slop_algebra::AbstractField;
     use slop_futures::queue::WorkerQueue;
     use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir};
     use sp1_gpu_cudart::{run_in_place, run_sync_in_place, PinnedBuffer, TaskScope};
@@ -18,12 +21,18 @@ pub mod bench_utils {
         random_jagged_trace_mle, random_jagged_trace_mle_from_json,
     };
     use sp1_gpu_utils::{Felt, JaggedTraceMle};
+    use sp1_hypercube::air::SP1_PROOF_NUM_PV_ELTS;
     use sp1_hypercube::prover::ProverSemaphore;
     use sp1_hypercube::{Chip, Machine};
 
-    /// All the artifacts a real-trace bench gets after [`with_real_trace_source`] runs setup.
-    /// Beyond `device_mle`, this exposes `machine`, the post-tracegen `chip_set`, and
-    /// `public_values` — all needed by benches like `zerocheck` that walk the chip layout.
+    /// All the artifacts a real-trace bench gets after the helper runs setup. Beyond `device_mle`,
+    /// this exposes `machine`, the post-tracegen `chip_set`, and `public_values` — all needed by
+    /// benches like `zerocheck` that walk the chip layout.
+    ///
+    /// For random / JSON sources the `chip_set` is synthesized as the full
+    /// `machine.chips()` set and `public_values` is a zero-filled vector of the right length.
+    /// Values don't need to be meaningful for timing (the prover doesn't validate them), but the
+    /// shapes have to be consistent.
     pub struct RealTraceData<'a> {
         pub machine: &'a Machine<Felt, RiscvAir<Felt>>,
         pub chip_set: &'a BTreeSet<Chip<Felt, RiscvAir<Felt>>>,
@@ -112,18 +121,91 @@ pub mod bench_utils {
         }
     }
 
-    /// Build the trace MLE for the picked source and hand it to `f`. Wires the bench under one of
-    /// `random/total_area_2^N`, `json/<path>`, or `real/<name>`. The bench ID's parameter is
-    /// chosen so Criterion's substring CLI filter matches the same arg the user passed.
-    ///
-    /// For the random source the user may supply a list of log-areas (e.g. `random:22,24,26`),
-    /// in which case `f` is called once per size — `f` therefore must be `FnMut`.
-    ///
-    /// `rng` is shared with the trace generator (the real variant doesn't touch it) and forwarded
-    /// to `f` so the caller's per-iter sampling continues from the same stream — a single seed
-    /// governs the whole bench.
-    ///
-    /// Examples:
+    /// Marker trait controlling the closure shape `with_trace_source` invokes the bench with.
+    /// Implementors are unit structs ([`NoneKind`], [`JaggedKind`], [`FullKind`]) so the bench
+    /// declares its needs by name and the type system carries the rest.
+    pub trait BenchKind: Sized {
+        /// What the helper passes into the user's closure as the last argument.
+        type Input<'a>;
+
+        /// Implementation hook. Don't call directly — go through [`with_trace_source`].
+        fn run<R, F>(c: &mut Criterion, rng: &mut R, f: F)
+        where
+            R: Rng,
+            F: FnMut(&mut Criterion, BenchmarkId, &TaskScope, &mut R, Self::Input<'_>);
+    }
+
+    /// `Input = ()`. For benches whose inputs aren't a `JaggedTraceMle` (e.g. `hadamard`).
+    /// Ignores the `--source` arg entirely; the helper just opens a `TaskScope`, overrides
+    /// Criterion's filter to accept-all so a user-passed `--source <X>` doesn't drop the bench,
+    /// and calls `f` once.
+    pub struct NoneKind;
+
+    /// `Input = &JaggedTraceMle<Felt, TaskScope>`. For benches that just need the trace.
+    /// Source picked from CLI as random / JSON / real.
+    pub struct JaggedKind;
+
+    /// `Input = RealTraceData<'_>`. For benches that need the surrounding execution context
+    /// (machine, chip_set, public_values) in addition to the trace. Source picked from CLI as
+    /// random / JSON / real; for the synthetic sources the `chip_set` and `public_values` are
+    /// synthesized so the bench timing reflects the largest-cluster workload.
+    pub struct FullKind;
+
+    impl BenchKind for NoneKind {
+        type Input<'a> = ();
+
+        fn run<R, F>(c: &mut Criterion, rng: &mut R, mut f: F)
+        where
+            R: Rng,
+            F: FnMut(&mut Criterion, BenchmarkId, &TaskScope, &mut R, ()),
+        {
+            *c = std::mem::take(c).with_benchmark_filter(BenchmarkFilter::AcceptAll);
+            run_sync_in_place(move |scope| {
+                // Sentinel id; the bench typically registers its own group / bench_function
+                // and ignores this.
+                let id = BenchmarkId::new("default", "default");
+                f(c, id, &scope, rng, ());
+            })
+            .unwrap();
+        }
+    }
+
+    impl BenchKind for JaggedKind {
+        type Input<'a> = &'a JaggedTraceMle<Felt, TaskScope>;
+
+        fn run<R, F>(c: &mut Criterion, rng: &mut R, mut f: F)
+        where
+            R: Rng,
+            F: FnMut(
+                &mut Criterion,
+                BenchmarkId,
+                &TaskScope,
+                &mut R,
+                &JaggedTraceMle<Felt, TaskScope>,
+            ),
+        {
+            // The full-data dispatcher always builds a `RealTraceData`; for `JaggedKind` we
+            // only need the MLE, so unwrap and discard the rest.
+            dispatch_full_data(c, rng, |c, id, scope, rng, data| {
+                f(c, id, scope, rng, data.device_mle);
+            });
+        }
+    }
+
+    impl BenchKind for FullKind {
+        type Input<'a> = RealTraceData<'a>;
+
+        fn run<R, F>(c: &mut Criterion, rng: &mut R, f: F)
+        where
+            R: Rng,
+            F: FnMut(&mut Criterion, BenchmarkId, &TaskScope, &mut R, RealTraceData<'_>),
+        {
+            dispatch_full_data(c, rng, f);
+        }
+    }
+
+    /// Single entry point for source-aware benches. Routes through `K`'s [`BenchKind::run`] impl.
+    /// The `_kind` value is purely for type inference; pass the appropriate marker:
     ///
     /// ```text
     /// cargo bench --bench <name>                          # → random, default 2^25
@@ -132,38 +214,64 @@ pub mod bench_utils {
     /// cargo bench --bench <name> -- /path/to/layout.json  # → that JSON
     /// cargo bench --bench <name> -- real/keccak256        # → that real program
     /// ```
-    pub fn with_trace_source<R, F>(c: &mut Criterion, rng: &mut R, mut f: F)
+    pub fn with_trace_source<K, R, F>(c: &mut Criterion, rng: &mut R, _kind: K, f: F)
+    where
+        K: BenchKind,
+        R: Rng,
+        F: FnMut(&mut Criterion, BenchmarkId, &TaskScope, &mut R, K::Input<'_>),
+    {
+        K::run(c, rng, f);
+    }
+
+    /// Inner dispatcher used by both `JaggedKind` and `FullKind`. Always produces a
+    /// `RealTraceData` for the user's closure: real sources use the actual data from
+    /// `full_tracegen`; synthetic sources synthesize `chip_set` and `public_values`.
+    fn dispatch_full_data<R, F>(c: &mut Criterion, rng: &mut R, mut f: F)
     where
         R: Rng,
-        F: FnMut(&mut Criterion, BenchmarkId, &TaskScope, &mut R, &JaggedTraceMle<Felt, TaskScope>),
+        F: FnMut(&mut Criterion, BenchmarkId, &TaskScope, &mut R, RealTraceData<'_>),
     {
         match TraceSource::from_cli_args() {
             TraceSource::Random(sizes) => {
-                // The bench IDs we register (`random/total_area_2^N`) don't contain the user's
-                // source arg verbatim (e.g. `random:24` has a colon, the ID has a slash; sweep
-                // args have commas), so Criterion's substring CLI filter would drop them. With
-                // Random as the chosen source, every bench we register here is intended to run.
+                // Bench IDs we register (`random/total_area_2^N`) don't contain the user's
+                // source arg verbatim (e.g. `random:24` has a colon; sweep args have commas), so
+                // Criterion's substring CLI filter would drop them. With Random as the chosen
+                // source, every bench we register here is intended to run.
                 *c = std::mem::take(c).with_benchmark_filter(BenchmarkFilter::AcceptAll);
                 let sizes = if sizes.is_empty() { vec![DEFAULT_RANDOM_LOG_AREA] } else { sizes };
                 for log_area in sizes {
-                    // Reborrow per iter so the FnOnce wrapper handed to `with_random` doesn't
-                    // permanently consume `c` / `rng` / `f`.
                     let c: &mut Criterion = &mut *c;
                     let rng: &mut R = &mut *rng;
                     let f: &mut F = &mut f;
                     with_random(c, log_area, rng, |c, id, scope, rng, mle| {
-                        f(c, id, scope, rng, mle);
+                        let machine = RiscvAir::<Felt>::machine();
+                        let chip_set: BTreeSet<_> = machine.chips().iter().cloned().collect();
+                        let public_values = vec![Felt::zero(); SP1_PROOF_NUM_PV_ELTS];
+                        let data = RealTraceData {
+                            machine: &machine,
+                            chip_set: &chip_set,
+                            public_values: &public_values,
+                            device_mle: mle,
+                        };
+                        f(c, id, scope, rng, data);
                     });
                 }
             }
-            TraceSource::Json(path) => with_json(c, &path, rng, f),
-            // Adapt: the real-data path produces a `RealTraceData`; this helper's caller only
-            // wants the trace itself, so unwrap `device_mle` and discard the rest.
-            TraceSource::Real { name, elf } => {
-                with_real(c, name, elf, rng, |c, id, scope, rng, data| {
-                    f(c, id, scope, rng, data.device_mle);
+            TraceSource::Json(path) => {
+                with_json(c, &path, rng, |c, id, scope, rng, mle| {
+                    let machine = RiscvAir::<Felt>::machine();
+                    let chip_set: BTreeSet<_> = machine.chips().iter().cloned().collect();
+                    let public_values = vec![Felt::zero(); SP1_PROOF_NUM_PV_ELTS];
+                    let data = RealTraceData {
+                        machine: &machine,
+                        chip_set: &chip_set,
+                        public_values: &public_values,
+                        device_mle: mle,
+                    };
+                    f(c, id, scope, rng, data);
                 });
             }
+            TraceSource::Real { name, elf } => with_real(c, name, elf, rng, f),
         }
     }
 
@@ -214,56 +322,6 @@ pub mod bench_utils {
             f(c, id, &scope, rng, &device_mle);
         })
         .unwrap();
-    }
-
-    /// Like [`with_trace_source`] but for benches that can't operate on synthetic data — for
-    /// example, anything that needs constraint-satisfying traces. If the user picks a `random`
-    /// or `.json` source from the CLI, the bench prints a one-line skip message and returns
-    /// without running. With no CLI arg, defaults to the first entry in [`real_programs`] so
-    /// `cargo bench --bench <name>` Just Works.
-    ///
-    /// The closure receives a [`RealTraceData`] with the trace plus the surrounding `machine`,
-    /// `chip_set`, and `public_values`
-    pub fn with_real_trace_source<R, F>(c: &mut Criterion, rng: &mut R, f: F)
-    where
-        R: Rng,
-        F: FnOnce(&mut Criterion, BenchmarkId, &TaskScope, &mut R, RealTraceData<'_>),
-    {
-        let positional: Vec<String> =
-            std::env::args().skip(1).filter(|a| !a.starts_with('-')).collect();
-
-        if let Some(unsupported) = positional
-            .iter()
-            .find(|a| a.ends_with(".json") || a.as_str() == "random" || a.starts_with("random:"))
-        {
-            eprintln!(
-                "skipping bench: the `{unsupported}` source isn't supported (needs real trace \
-                 data). Pass `-- real/<program>` (or no arg for the default) instead."
-            );
-            return;
-        }
-
-        let pick = real_programs().into_iter().find(|(name, _)| {
-            let id = format!("real/{name}");
-            positional.iter().any(|a| id.contains(a) || a.contains(&id))
-        });
-        let (name, elf) =
-            pick.unwrap_or_else(|| real_programs().into_iter().next().expect("no real programs"));
-
-        with_real(c, name, elf, rng, f);
-    }
-
-    /// For benches whose inputs don't fit the trace-source machinery (e.g. `hadamard`, which
-    /// runs on flat `Mle`s rather than a `JaggedTraceMle`). Overrides Criterion's CLI filter to
-    /// accept every bench in this binary so the bench runs no matter what `--source` arg the
-    /// caller passed — without this, any positional like `random` / `real/...` / `*.json` would
-    /// be applied as a filter and silently drop benches whose IDs don't contain it.
-    pub fn with_default_trace_source<F>(c: &mut Criterion, f: F)
-    where
-        F: FnOnce(&mut Criterion),
-    {
-        *c = std::mem::take(c).with_benchmark_filter(BenchmarkFilter::AcceptAll);
-        f(c);
     }
 
     fn with_real<R, F>(c: &mut Criterion, name: &'static str, elf: &'static [u8], rng: &mut R, f: F)

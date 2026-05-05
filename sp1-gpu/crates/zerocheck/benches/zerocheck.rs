@@ -1,7 +1,8 @@
-//! Bench `zerocheck` against a real zkVM trace. Constraint-satisfying data is required so the
-//! protocol's intermediate evaluations are well-defined; source selection (default fibonacci, or
-//! `-- real/<program>`) is handled by
-//! [`sp1_gpu_jagged_tracegen::test_utils::bench_utils::with_real_trace_source`].
+//! Bench `zerocheck`. The zerocheck *prover* runs on any trace data — only verification cares
+//! about constraint satisfaction — so source selection (random / JSON / real) goes through
+//! [`with_trace_source`] with [`FullKind`]. For random and JSON sources the helper synthesizes
+//! `chip_set` (= all chips) and a zero-filled `public_values` of the right length, which means
+//! synthetic-source timings reflect the largest-cluster workload rather than a per-program one.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -15,7 +16,9 @@ use slop_multilinear::{MleEval, Point};
 use slop_tensor::Tensor;
 use sp1_gpu_air::codegen_cuda_eval;
 use sp1_gpu_cudart::TaskScope;
-use sp1_gpu_jagged_tracegen::test_utils::bench_utils::{with_real_trace_source, RealTraceData};
+use sp1_gpu_jagged_tracegen::test_utils::bench_utils::{
+    with_trace_source, FullKind, RealTraceData,
+};
 use sp1_gpu_jagged_tracegen::test_utils::tracegen_setup::CORE_MAX_LOG_ROW_COUNT;
 use sp1_gpu_utils::{Ext, Felt, TestGC};
 use sp1_gpu_zerocheck::primitives::evaluate_jagged_columns;
@@ -120,7 +123,7 @@ fn run_zerocheck<R: Rng>(
 
 fn bench_zerocheck(c: &mut Criterion) {
     let mut rng = StdRng::seed_from_u64(42);
-    with_real_trace_source(c, &mut rng, |c, id, scope, rng, data| {
+    with_trace_source(c, &mut rng, FullKind, |c, id, scope, rng, data| {
         run_zerocheck(c, id, scope, rng, data);
     });
 }

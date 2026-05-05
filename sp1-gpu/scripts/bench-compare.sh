@@ -113,9 +113,12 @@
 #     sp1-gpu/scripts/bench-compare.sh --repeat 3 main jagged
 #
 # Pick a trace source for the benches that support multiple ones (commit,
-# jagged, prove_trusted_evaluations, zerocheck). Default per bench: random
-# at log-area 25 for the any-source ones, real/fibonacci for zerocheck.
-# Supported real programs: fibonacci, ed25519, keccak256, sha2.
+# jagged, prove_trusted_evaluations, zerocheck). Default for all four:
+# random at log-area 25. zerocheck additionally synthesizes a full-cluster
+# chip_set + zero public_values for synthetic sources, so its random/JSON
+# timings are NOT directly comparable to its real-source timings (different
+# cluster sizes). Supported real programs: fibonacci, ed25519, keccak256,
+# sha2.
 #
 #     sp1-gpu/scripts/bench-compare.sh --source real/keccak256
 #     sp1-gpu/scripts/bench-compare.sh --source /tmp/layout.json main jagged
@@ -204,11 +207,13 @@ Options:
                 sha2. (Add entries to `real_programs()` in
                 sp1-gpu-jagged-tracegen test_utils to extend.)
 
-                Without this flag, each bench picks its own default
-                (random at 2^25 for the any-source benches,
-                real/fibonacci for zerocheck). hadamard ignores the flag
-                entirely (its inputs aren't a trace) and always runs its
-                single fixed config.
+                Without this flag, every source-aware bench defaults to
+                random at 2^25. zerocheck synthesizes a full-cluster
+                chip_set + zero public_values for synthetic sources, so
+                its random/JSON timings reflect the largest-cluster
+                workload (apples-to-oranges vs. its real-source
+                timings). hadamard ignores the flag entirely (its inputs
+                aren't a trace) and always runs its single fixed config.
 
 Forms:
   $prog                          # current vs main, all benches

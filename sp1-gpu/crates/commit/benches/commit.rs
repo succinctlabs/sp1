@@ -10,7 +10,7 @@ use slop_jagged::JaggedPcsVerifier;
 use sp1_gpu_basefold::FriCudaProver;
 use sp1_gpu_commit::commit_multilinears;
 use sp1_gpu_cudart::TaskScope;
-use sp1_gpu_jagged_tracegen::test_utils::bench_utils::with_trace_source;
+use sp1_gpu_jagged_tracegen::test_utils::bench_utils::{with_trace_source, JaggedKind};
 use sp1_gpu_jagged_tracegen::test_utils::tracegen_setup::{
     CORE_MAX_LOG_ROW_COUNT, LOG_STACKING_HEIGHT,
 };
@@ -63,7 +63,7 @@ fn run_commit<R: Rng>(
 
 fn bench_commit(c: &mut Criterion) {
     let mut rng = StdRng::seed_from_u64(42);
-    with_trace_source(c, &mut rng, |c, id, scope, rng, device_mle| {
+    with_trace_source(c, &mut rng, JaggedKind, |c, id, scope, rng, device_mle| {
         run_commit(c, id, scope, rng, device_mle);
     });
 }
