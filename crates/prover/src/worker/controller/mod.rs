@@ -286,6 +286,14 @@ where
                     let vk =
                         artifact_client_clone.download::<SP1VerifyingKey>(&vk_artifact).await?;
                     setup_cache.lock().await.put(elf_clone, vk.clone());
+                    // The vk is now memory-cached for the lifetime of this worker;
+                    // the redis copy is unused. Without this delete it sits until
+                    // the 4 h TTL — a small (~100 B) per-unique-program leak that
+                    // accumulates with every cold-cache setup. The full-node path
+                    // already does the equivalent at `node/full/mod.rs:97`.
+                    let _ = artifact_client_clone
+                        .try_delete(&vk_artifact, ArtifactType::UnspecifiedArtifactType)
+                        .await;
                     vk
                 };
                 Ok(vk)
