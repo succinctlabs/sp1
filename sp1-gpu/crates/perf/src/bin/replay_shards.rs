@@ -2,16 +2,26 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use clap::Parser;
+use rand::{seq::SliceRandom, SeedableRng};
 use serde::Deserialize;
+use slop_algebra::AbstractField;
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_core_machine::riscv::RiscvAir;
-use sp1_gpu_prover::{
-    local_gpu_opts, new_cuda_prover, CudaProverCoreComponents, CudaShardProver,
-    SP1CudaProverComponents,
+use sp1_gpu_prover::{core_prover_and_verifier, recursion_prover_and_verifier};
+use sp1_hypercube::{
+    inner_perm,
+    prover::{shape_from_record, AirProver},
+    MachineVerifyingKey, SP1PcsProofInner, SP1VerifyingKey, DIGEST_SIZE,
 };
-use sp1_hypercube::{prover::AirProver, MachineVerifyingKey};
-use sp1_primitives::SP1GlobalContext;
-use sp1_prover::{SP1ProverComponents, CORE_LOG_STACKING_HEIGHT};
+use sp1_primitives::{SP1ExtensionField, SP1Field, SP1GlobalContext};
+use sp1_prover::{
+    recursion::recursive_verifier,
+    shapes::{SP1RecursionProofShape, DEFAULT_ARITY},
+    worker::get_normalize_program,
+};
+use sp1_recursion_circuit::{machine::SP1NormalizeWitnessValues, witness::Witnessable};
+use sp1_recursion_compiler::config::InnerConfig;
+use sp1_recursion_executor::Executor;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about = "Replay pre-dumped shard records through the GPU prover")]
@@ -22,6 +32,15 @@ struct Args {
     /// Local directory with pre-downloaded shard data
     #[arg(long)]
     pub local_dir: String,
+    /// Number of shards to replay
+    #[arg(long, default_value = "5")]
+    pub num_shards_per_run: usize,
+    /// Random seed for shuffling shards
+    #[arg(long, default_value = "42")]
+    pub seed: u64,
+    /// If set, also run the normalize phase for each shard after core proving.
+    #[arg(long, default_value_t = false)]
+    pub normalize: bool,
 }
 
 #[derive(Deserialize)]
@@ -125,7 +144,13 @@ async fn main() {
         let vk_path = program_dir.join("vk.bin");
         let elf_path = program_dir.join("program.bin");
 
-        let records = list_records_local(&record_dir);
+        let mut records = list_records_local(&record_dir);
+
+        // Shuffle and truncate records for this combo. Take at most `num_shards_per_run` records
+        // per combo.
+        records.shuffle(&mut rand::rngs::StdRng::seed_from_u64(args.seed));
+        records.truncate(args.num_shards_per_run);
+
         tracing::info!("{}: {} records found", combo.label(), records.len());
 
         for rec_file in &records {
@@ -144,27 +169,37 @@ async fn main() {
 
     tracing::info!("{} shard jobs ready, starting GPU proving", jobs.len());
 
+    let normalize = args.normalize;
+
     // Run GPU proving.
     let timings = sp1_gpu_cudart::spawn(move |t| async move {
         // let worker_builder = cuda_worker_builder(t.clone()).await;
 
         let permits = sp1_hypercube::prover::ProverSemaphore::new(1);
 
-        // Get the core options.
-        let (opts, recompute_first_layer) = local_gpu_opts();
+        let machine = RiscvAir::machine();
+        let (core_prover, core_verifier) =
+            core_prover_and_verifier(t.clone(), machine.clone()).await;
 
-        let num_elts =
-            opts.sharding_threshold.element_threshold as usize + (1 << CORE_LOG_STACKING_HEIGHT);
+        // Set up the normalize-phase resources only if requested.
+        let normalize_setup = if normalize {
+            let recursive_core_verifier = recursive_verifier::<SP1GlobalContext, _, InnerConfig>(
+                core_verifier.shard_verifier(),
+            );
+            let (normalize_prover, compress_verifier) =
+                recursion_prover_and_verifier(t.clone()).await;
+            let reduce_shape = SP1RecursionProofShape::retrieve_or_compute_reduce_shape(
+                machine.clone(),
+                DEFAULT_ARITY,
+            );
+            Some((recursive_core_verifier, compress_verifier, normalize_prover, reduce_shape))
+        } else {
+            None
+        };
 
-        let core_verifier = SP1CudaProverComponents::core_verifier(RiscvAir::machine());
-        let core_prover: Arc<CudaShardProver<_, CudaProverCoreComponents>> = Arc::new(
-            new_cuda_prover(core_verifier.clone(), num_elts, 4, recompute_first_layer, t.clone())
-                .await,
-        );
+        let mut timings: Vec<(String, f64, Option<f64>)> = Vec::new();
 
-        let mut timings: Vec<(String, f64)> = Vec::new();
-
-        for job in &jobs {
+        for (i, job) in jobs.iter().enumerate() {
             // Deserialize the record.
             let record_bytes = std::fs::read(&job.record_path).expect("failed to read record file");
             let record: ExecutionRecord =
@@ -180,14 +215,97 @@ async fn main() {
             let program =
                 Arc::new(Program::from(&elf_bytes).expect("failed to parse ELF into Program"));
 
+            if i == 0 {
+                tracing::info!("Warm up run: {}", job.label);
+                let start = Instant::now();
+                let (_vk, _proof, _) = core_prover
+                    .setup_and_prove_shard(
+                        program.clone(),
+                        record.clone(),
+                        Some(vk.clone()),
+                        permits.clone(),
+                    )
+                    .await;
+                let elapsed = start.elapsed().as_secs_f64();
+                tracing::info!("Warm up run: {} proved in {:.3}s", job.label, elapsed);
+            }
+
+            // Compute the normalize input shape from the record before it is moved into the
+            // core prover.
+            let proof_shape = normalize_setup
+                .as_ref()
+                .map(|_| shape_from_record(&core_verifier, &record).expect("shape from record"));
+
             tracing::info!("Proving shard: {}", job.label);
             let start = Instant::now();
-            let (_vk, _proof, _permit) =
-                core_prover.setup_and_prove_shard(program, record, Some(vk), permits.clone()).await;
-            let elapsed = start.elapsed().as_secs_f64();
+            let (_vk, proof, _) = core_prover
+                .setup_and_prove_shard(program, record, Some(vk.clone()), permits.clone())
+                .await;
+            let core_elapsed = start.elapsed().as_secs_f64();
+            tracing::info!("Shard {} core proved in {:.3}s", job.label, core_elapsed);
 
-            tracing::info!("Shard {} proved in {:.3}s", job.label, elapsed);
-            timings.push((job.label.clone(), elapsed));
+            let normalize_elapsed = if let (
+                Some((recursive_core_verifier, compress_verifier, normalize_prover, reduce_shape)),
+                Some(proof_shape),
+            ) = (normalize_setup.as_ref(), proof_shape)
+            {
+                let normalize_start = Instant::now();
+
+                let normalize_program = get_normalize_program(
+                    SP1VerifyingKey { vk: vk.clone() },
+                    &core_verifier,
+                    recursive_core_verifier,
+                    &proof_shape,
+                    reduce_shape,
+                    None,
+                );
+
+                // Build the witness using the real core proof. The other fields are not checked
+                // by the normalize program, so we use the same dummy values that
+                // `dummy_input` populates so the executor sees a self-consistent witness.
+                let witness: SP1NormalizeWitnessValues<SP1GlobalContext, SP1PcsProofInner> =
+                    SP1NormalizeWitnessValues {
+                        vk: vk.clone(),
+                        shard_proofs: vec![proof],
+                        is_complete: false,
+                        vk_root: [SP1Field::zero(); DIGEST_SIZE],
+                        reconstruct_deferred_digest: [SP1Field::zero(); 8],
+                        num_deferred_proofs: SP1Field::zero(),
+                    };
+                let mut witness_stream = Vec::new();
+                Witnessable::<InnerConfig>::write(&witness, &mut witness_stream);
+
+                // Execute the normalize program to produce the recursion record.
+                let mut runtime = Executor::<SP1Field, SP1ExtensionField, _>::new(
+                    normalize_program.clone(),
+                    inner_perm(),
+                );
+                runtime.witness_stream = witness_stream.into();
+                runtime.run().expect("normalize executor failed");
+                let mut recursion_record = runtime.record;
+
+                // Generate the dependencies on the recursion record.
+                compress_verifier
+                    .machine()
+                    .generate_dependencies(std::iter::once(&mut recursion_record), None);
+
+                // Setup and prove the normalize shard.
+                let (_, _, _) = normalize_prover
+                    .setup_and_prove_shard(
+                        normalize_program,
+                        recursion_record,
+                        None,
+                        permits.clone(),
+                    )
+                    .await;
+                let elapsed = normalize_start.elapsed().as_secs_f64();
+                tracing::info!("Shard {} normalize proved in {:.3}s", job.label, elapsed);
+                Some(elapsed)
+            } else {
+                None
+            };
+
+            timings.push((job.label.clone(), core_elapsed, normalize_elapsed));
         }
 
         timings
@@ -196,12 +314,36 @@ async fn main() {
     .unwrap();
 
     // Print summary.
-    println!("\n=== Shard Replay Results ===");
-    let mut total = 0.0;
-    for (label, secs) in &timings {
-        println!("  {label}: {secs:.3}s");
-        total += secs;
+    tracing::info!("\n=== Shard Replay Results ===");
+    let mut total_core = 0.0;
+    let mut total_normalize = 0.0;
+    let mut normalize_count = 0;
+    for (label, core_secs, normalize_secs) in &timings {
+        match normalize_secs {
+            Some(normalize_secs) => {
+                tracing::info!(
+                    "  {label}: core {core_secs:.3}s, normalize {normalize_secs:.3}s, total \
+                     {:.3}s",
+                    core_secs + normalize_secs
+                );
+                total_normalize += normalize_secs;
+                normalize_count += 1;
+            }
+            None => tracing::info!("  {label}: core {core_secs:.3}s"),
+        }
+        total_core += core_secs;
     }
-    println!("  Total: {total:.3}s ({} shards)", timings.len());
-    println!("  Average: {:.3}s per shard", total / timings.len() as f64);
+    let n = timings.len() as f64;
+    tracing::info!("  Core total: {total_core:.3}s ({} shards)", timings.len());
+    tracing::info!("  Core average: {:.3}s per shard", total_core / n);
+    if normalize_count > 0 {
+        let nc = normalize_count as f64;
+        tracing::info!("  Normalize total: {total_normalize:.3}s ({normalize_count} shards)");
+        tracing::info!("  Normalize average: {:.3}s per shard", total_normalize / nc);
+        tracing::info!(
+            "  Combined total: {:.3}s, combined average: {:.3}s per shard",
+            total_core + total_normalize,
+            (total_core + total_normalize) / n
+        );
+    }
 }
