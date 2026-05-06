@@ -18,6 +18,7 @@ slop-koala-bear = { workspace = true }
 sp1-primitives = { workspace = true }
 
 [dev-dependencies]
+rand = { workspace = true }
 serial_test = "3.1"
 zstd = "0.13.3"
 sp1-sdk = { workspace = true }

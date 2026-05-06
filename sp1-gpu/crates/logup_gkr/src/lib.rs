@@ -20,7 +20,7 @@ use sp1_hypercube::{
     LogupGkrRoundProof, GKR_GRINDING_BITS,
 };
 
-use crate::{execution::DeviceLogUpGkrOutput, tracegen::generate_gkr_circuit};
+use crate::execution::DeviceLogUpGkrOutput;
 use sp1_gpu_utils::traces::JaggedTraceMle;
 use sp1_gpu_utils::{Ext, Felt};
 use sp1_gpu_zerocheck::primitives::round_batch_evaluations;
@@ -32,7 +32,7 @@ mod tracegen;
 mod utils;
 
 pub use interactions::Interactions;
-pub use tracegen::CudaLogUpGkrOptions;
+pub use tracegen::{generate_gkr_circuit, CudaLogUpGkrOptions};
 pub use utils::*;
 
 pub use sumcheck::{
