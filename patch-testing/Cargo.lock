@@ -2829,7 +2829,12 @@ version = "0.37.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff76201f031d8863c38aa7f905eca4f53abbfa15f609db4277d44cd8938f33fe"
 dependencies = [
+ "crc32fast",
+ "flate2",
+ "hashbrown 0.15.5",
+ "indexmap 2.14.0",
  "memchr",
+ "ruzstd",
 ]
 
 [[package]]
@@ -4053,6 +4058,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d"
 
 [[package]]
+name = "ruzstd"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e5ff0cc5e135c8870a775d3320910cd9b564ec036b4dc0b8741629020be63f01"
+dependencies = [
+ "twox-hash",
+]
+
+[[package]]
 name = "ryu"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4450,14 +4464,14 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
 name = "slop-air"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "p3-air",
 ]
 
 [[package]]
 name = "slop-algebra"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "itertools 0.14.0",
  "p3-field",
@@ -4466,7 +4480,7 @@ dependencies = [
 
 [[package]]
 name = "slop-alloc"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "serde",
  "slop-algebra",
@@ -4475,7 +4489,7 @@ dependencies = [
 
 [[package]]
 name = "slop-baby-bear"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "lazy_static",
  "p3-baby-bear",
@@ -4488,7 +4502,7 @@ dependencies = [
 
 [[package]]
 name = "slop-basefold"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "derive-where",
  "itertools 0.14.0",
@@ -4509,7 +4523,7 @@ dependencies = [
 
 [[package]]
 name = "slop-basefold-prover"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "derive-where",
  "itertools 0.14.0",
@@ -4534,7 +4548,7 @@ dependencies = [
 
 [[package]]
 name = "slop-bn254"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "ff 0.13.1",
  "p3-bn254-fr",
@@ -4548,7 +4562,7 @@ dependencies = [
 
 [[package]]
 name = "slop-challenger"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "futures",
  "p3-challenger",
@@ -4559,7 +4573,7 @@ dependencies = [
 
 [[package]]
 name = "slop-commit"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "p3-commit",
  "serde",
@@ -4568,7 +4582,7 @@ dependencies = [
 
 [[package]]
 name = "slop-dft"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "p3-dft",
  "serde",
@@ -4580,14 +4594,14 @@ dependencies = [
 
 [[package]]
 name = "slop-fri"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "p3-fri",
 ]
 
 [[package]]
 name = "slop-futures"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "crossbeam",
  "futures",
@@ -4600,7 +4614,7 @@ dependencies = [
 
 [[package]]
 name = "slop-jagged"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "derive-where",
  "futures",
@@ -4632,14 +4646,14 @@ dependencies = [
 
 [[package]]
 name = "slop-keccak-air"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "p3-keccak-air",
 ]
 
 [[package]]
 name = "slop-koala-bear"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "lazy_static",
  "p3-koala-bear",
@@ -4652,21 +4666,21 @@ dependencies = [
 
 [[package]]
 name = "slop-matrix"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "p3-matrix",
 ]
 
 [[package]]
 name = "slop-maybe-rayon"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "p3-maybe-rayon",
 ]
 
 [[package]]
 name = "slop-merkle-tree"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "derive-where",
  "ff 0.13.1",
@@ -4692,7 +4706,7 @@ dependencies = [
 
 [[package]]
 name = "slop-multilinear"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "derive-where",
  "futures",
@@ -4711,21 +4725,21 @@ dependencies = [
 
 [[package]]
 name = "slop-poseidon2"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "p3-poseidon2",
 ]
 
 [[package]]
 name = "slop-primitives"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "slop-algebra",
 ]
 
 [[package]]
 name = "slop-stacked"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "derive-where",
  "futures",
@@ -4746,7 +4760,7 @@ dependencies = [
 
 [[package]]
 name = "slop-sumcheck"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "futures",
  "itertools 0.14.0",
@@ -4762,14 +4776,14 @@ dependencies = [
 
 [[package]]
 name = "slop-symmetric"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "p3-symmetric",
 ]
 
 [[package]]
 name = "slop-tensor"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "arrayvec",
  "derive-where",
@@ -4787,14 +4801,14 @@ dependencies = [
 
 [[package]]
 name = "slop-uni-stark"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "p3-uni-stark",
 ]
 
 [[package]]
 name = "slop-utils"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "p3-util",
  "tracing-forest",
@@ -4803,7 +4817,7 @@ dependencies = [
 
 [[package]]
 name = "slop-whir"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "derive-where",
  "futures",
@@ -4870,7 +4884,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -4882,7 +4896,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -4897,6 +4911,7 @@ dependencies = [
  "itertools 0.14.0",
  "memmap2",
  "num",
+ "object",
  "rrs-succinct",
  "serde",
  "serde_arrays",
@@ -4920,7 +4935,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor-runner"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "base64 0.22.1",
  "bincode",
@@ -4940,7 +4955,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor-runner-binary"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "bincode",
  "crash-handler",
@@ -4953,7 +4968,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-machine"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "bincode",
  "cfg-if",
@@ -4986,6 +5001,7 @@ dependencies = [
  "sp1-jit",
  "sp1-primitives",
  "static_assertions",
+ "struct-reflection",
  "strum",
  "sysinfo",
  "tempfile",
@@ -4999,7 +5015,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cuda"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "bincode",
  "bytes",
@@ -5008,6 +5024,7 @@ dependencies = [
  "serde_json",
  "sp1-core-executor",
  "sp1-core-machine",
+ "sp1-hypercube",
  "sp1-primitives",
  "sp1-prover",
  "sp1-prover-types",
@@ -5018,7 +5035,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "cfg-if",
  "dashu",
@@ -5037,7 +5054,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5046,7 +5063,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-hypercube"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "arrayref",
  "deepsize2",
@@ -5083,6 +5100,7 @@ dependencies = [
  "slop-whir",
  "sp1-derive",
  "sp1-primitives",
+ "struct-reflection",
  "strum",
  "thiserror 1.0.69",
  "thousands",
@@ -5092,7 +5110,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-jit"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "dynasmrt",
  "hashbrown 0.14.5",
@@ -5100,13 +5118,14 @@ dependencies = [
  "memfd",
  "memmap2",
  "serde",
+ "sp1-primitives",
  "tracing",
  "uuid",
 ]
 
 [[package]]
 name = "sp1-lib"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "bincode",
  "elliptic-curve",
@@ -5116,7 +5135,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "bincode",
  "blake3",
@@ -5138,7 +5157,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5200,7 +5219,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover-types"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "anyhow",
  "async-scoped",
@@ -5211,6 +5230,9 @@ dependencies = [
  "mti",
  "prost",
  "serde",
+ "sp1-core-machine",
+ "sp1-hypercube",
+ "sp1-primitives",
  "tokio",
  "tonic",
  "tonic-build",
@@ -5219,7 +5241,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "bincode",
  "itertools 0.14.0",
@@ -5257,7 +5279,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "backtrace",
  "cfg-if",
@@ -5276,7 +5298,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-executor"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "backtrace",
  "cfg-if",
@@ -5298,7 +5320,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5320,7 +5342,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-machine"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "itertools 0.14.0",
  "rand 0.8.5",
@@ -5341,7 +5363,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5404,7 +5426,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-verifier"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "bincode",
  "blake3",
@@ -5429,7 +5451,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "6.1.0"
+version = "6.2.0"
 dependencies = [
  "cfg-if",
  "critical-section",
@@ -5483,6 +5505,26 @@ name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
+
+[[package]]
+name = "struct-reflection"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "701b671d1ad68e250e05718f95dae3014a17f4e69cbe51842531c30495ff3301"
+dependencies = [
+ "struct-reflection-derive",
+]
+
+[[package]]
+name = "struct-reflection-derive"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59ab74230a0592602e361bd63c645413fa8cbe4500d10274e849179e5c72548f"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+]
 
 [[package]]
 name = "strum"
@@ -6156,6 +6198,12 @@ name = "try-lock"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
+
+[[package]]
+name = "twox-hash"
+version = "2.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ea3136b675547379c4bd395ca6b938e5ad3c3d20fad76e7fe85f9e0d011419c"
 
 [[package]]
 name = "typeid_prefix"
