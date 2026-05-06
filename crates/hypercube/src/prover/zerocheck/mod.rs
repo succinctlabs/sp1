@@ -93,7 +93,7 @@ where
     AirData: Sync + Send,
 {
     fn get_component_poly_evals(poly: &ZeroCheckPoly<K, F, EF, AirData>) -> Vec<EF> {
-        assert!(poly.num_variables() == 0);
+        assert_eq!(poly.num_variables(), 0);
 
         let prep_columns = poly.preprocessed_columns.as_ref();
         // First get the preprocessed values.
@@ -130,7 +130,7 @@ where
         alpha: EF,
         t: usize,
     ) -> Self::NextRoundPoly {
-        debug_assert!(t == 1);
+        debug_assert_eq!(t, 1);
         zerocheck_fix_last_variable(poly, alpha)
     }
 
@@ -140,7 +140,7 @@ where
         claim: Option<EF>,
         t: usize,
     ) -> UnivariatePolynomial<EF> {
-        debug_assert!(t == 1);
+        debug_assert_eq!(t, 1);
         debug_assert!(poly.num_variables() > 0);
         zerocheck_sum_as_poly_in_last_variable::<F, F, EF, A, true>(poly, claim)
     }
