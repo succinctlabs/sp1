@@ -45,7 +45,7 @@ where
     let mut gpu_challenger = cpu_challenger.to_device_sync(scope).unwrap();
 
     let block_dim: usize = 512;
-    let grid_dim: usize = (1 << (bits - SP1_PROOF_OF_WORK_BITS)).max(1).min(512);
+    let grid_dim: usize = (1 << (bits.saturating_sub(SP1_PROOF_OF_WORK_BITS))).max(512);
     let n = F::ORDER_U64;
 
     unsafe {
