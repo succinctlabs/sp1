@@ -140,12 +140,33 @@ impl DeferredEvents {
                 if index == 0 {
                     break;
                 }
-                // Otherwise remove the artifacts and handle remainder of last artifact if there is
-                // any.
                 let mut artifacts =
                     self.0.get_mut(&code).unwrap().drain(..index).collect::<Vec<_>>();
-                // For each artifact, add refs for the range needed in prove_shard, and then remove
-                // the controller ref if it's been fully split.
+                // Truncate first so per-shard refs match the indices ProveShard sees on
+                // completion. Leftover goes back to `self.0[code]` for the next split.
+                let last_has_overflow = count > threshold;
+                if last_has_overflow {
+                    let last = artifacts.last_mut().unwrap();
+                    let leftover_start = last.end_idx - (count - threshold);
+                    let leftover = PrecompileArtifactSlice {
+                        artifact: last.artifact.clone(),
+                        start_idx: leftover_start,
+                        end_idx: last.end_idx,
+                    };
+                    last.end_idx = leftover_start;
+                    debug_assert!(
+                        last.start_idx < last.end_idx,
+                        "truncated slice should be non-empty"
+                    );
+                    debug_assert!(
+                        leftover.start_idx < leftover.end_idx,
+                        "leftover slice should be non-empty"
+                    );
+                    self.0.get_mut(&code).unwrap().insert(0, leftover);
+                }
+                // Per-shard refs keyed by the final `(start_idx, end_idx)`. Drop `_controller`
+                // for fully-consumed artifacts; keep it on the overflow one so its leftover
+                // slice still has a ref before the next split iteration claims it.
                 for (i, slice) in artifacts.iter().enumerate() {
                     let PrecompileArtifactSlice { artifact, start_idx, end_idx } = slice;
                     if let Err(e) =
@@ -153,9 +174,8 @@ impl DeferredEvents {
                     {
                         tracing::error!("Failed to add ref to artifact {}: {:?}", artifact, e);
                     }
-                    // If there's a remainder, don't remove the controller ref yet.
-                    if i == artifacts.len() - 1 && count > threshold {
-                        break;
+                    if i == artifacts.len() - 1 && last_has_overflow {
+                        continue;
                     }
                     if let Err(e) = client
                         .remove_ref(
@@ -167,14 +187,6 @@ impl DeferredEvents {
                     {
                         tracing::error!("Failed to remove ref to artifact {}: {:?}", artifact, e);
                     }
-                }
-                // If there's extra in the last artifact, truncate it and leave it in the front of
-                // self.0[code].
-                if count > threshold {
-                    let mut new_range = artifacts.last().cloned().unwrap();
-                    new_range.start_idx = new_range.end_idx - (count - threshold);
-                    artifacts[index - 1].end_idx = new_range.start_idx;
-                    self.0.get_mut(&code).unwrap().insert(0, new_range);
                 }
                 shards.push(TraceData::Precompile(artifacts, code));
             }
