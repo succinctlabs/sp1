@@ -4,6 +4,7 @@
 
 extern "C" void* logup_gkr_circuit_transition();
 extern "C" void* logup_gkr_populate_last_circuit_layer();
+extern "C" void* logup_gkr_populate_first_and_second_circuit_layer();
 extern "C" void* logup_gkr_extract_output();
 
 // i is between 0 and length(colIndex). Assumes that length(colIndex) is even.

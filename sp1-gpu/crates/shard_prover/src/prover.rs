@@ -625,6 +625,7 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
                 CudaLogUpGkrOptions {
                     recompute_first_layer: self.recompute_first_layer,
                     num_row_variables: self.max_log_row_count,
+                    num_fused_transitions: 1,
                 },
                 &mut challenger,
             )

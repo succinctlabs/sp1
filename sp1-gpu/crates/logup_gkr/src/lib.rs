@@ -184,7 +184,8 @@ pub fn prove_logup_gkr<GC: IopCtx<F = Felt, EF = Ext>, A: MachineAir<Felt>>(
 where
     GC::Challenger: DeviceGrindingChallenger<Witness = GC::F>,
 {
-    let CudaLogUpGkrOptions { recompute_first_layer, num_row_variables } = options;
+    let CudaLogUpGkrOptions { recompute_first_layer, num_row_variables, num_fused_transitions: _ } =
+        options;
     let backend = jagged_trace_data.backend().clone();
 
     let max_interaction_arity = chips
@@ -595,6 +596,7 @@ mod tests {
                 CudaLogUpGkrOptions {
                     recompute_first_layer: true,
                     num_row_variables: CORE_MAX_LOG_ROW_COUNT,
+                    num_fused_transitions: 0,
                 },
                 &mut prover_challenger,
             );
