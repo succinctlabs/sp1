@@ -131,8 +131,7 @@ fn run_prove<R: Rng>(
     // num_interaction_variables is `log2(num_total_interactions).next_power_of_two()`.
     let num_interactions: usize =
         cluster.iter().map(|chip| chip.sends().len() + chip.receives().len()).sum();
-    let initial_number_of_variables =
-        num_interactions.next_power_of_two().trailing_zeros() + 1;
+    let initial_number_of_variables = num_interactions.next_power_of_two().trailing_zeros() + 1;
 
     let mut group = c.benchmark_group("prove");
     group.sample_size(10);
@@ -158,8 +157,7 @@ fn run_prove<R: Rng>(
                     scope.clone(),
                 );
 
-                let first_eval_point =
-                    challenger.sample_point::<Ext>(initial_number_of_variables);
+                let first_eval_point = challenger.sample_point::<Ext>(initial_number_of_variables);
                 let first_point =
                     DevicePoint::from_host(&first_eval_point, output.numerator.backend())
                         .unwrap()
@@ -167,11 +165,8 @@ fn run_prove<R: Rng>(
                 let first_point_eq = DevicePoint::new(first_point).partial_lagrange();
                 let first_numerator_eval =
                     output.numerator.eval_at_eq(&first_point_eq).to_host_vec().unwrap()[0];
-                let first_denominator_eval = output
-                    .denominator
-                    .eval_at_eq(&first_point_eq)
-                    .to_host_vec()
-                    .unwrap()[0];
+                let first_denominator_eval =
+                    output.denominator.eval_at_eq(&first_point_eq).to_host_vec().unwrap()[0];
 
                 scope.synchronize_blocking().unwrap();
                 (
