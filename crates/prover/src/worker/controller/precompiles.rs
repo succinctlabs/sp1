@@ -146,10 +146,7 @@ impl DeferredEvents {
                     self.0.get_mut(&code).unwrap().drain(..index).collect::<Vec<_>>();
                 // Truncate the partial-last slice BEFORE adding refs so the key we register
                 // matches the (start, end) the consumer sees in its TraceData and uses to
-                // remove_ref. Otherwise the producer's add_ref keys with the original end_idx
-                // and the consumer's remove_ref keys with the truncated end_idx — SREM is a
-                // silent no-op, the refs set never empties, and the artifact survives until
-                // the 4 h TTL.
+                // remove_ref.
                 if count > threshold {
                     let mut new_range = artifacts.last().cloned().unwrap();
                     new_range.start_idx = new_range.end_idx - (count - threshold);
