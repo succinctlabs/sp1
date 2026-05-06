@@ -45,6 +45,15 @@ optional = true
 workspace = true
 optional = true
 
+# Pulled in only by the `random` test-util module (host-side trace generators).
+[dependencies.serde]
+workspace = true
+optional = true
+
+[dependencies.serde_json]
+workspace = true
+optional = true
+
 [dev-dependencies]
 test-artifacts = { workspace = true }
 slop-stacked = { workspace = true }
@@ -61,7 +70,8 @@ sp1-gpu-tracing = { workspace = true }
 test-utils = [
     "dep:criterion",
     "dep:test-artifacts",
-    "sp1-gpu-utils/test-utils",
+    "dep:serde",
+    "dep:serde_json",
 ]
 
 [lints]

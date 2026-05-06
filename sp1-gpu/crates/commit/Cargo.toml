@@ -55,7 +55,6 @@ slop-futures = { workspace = true }
 
 # Benchmarks
 criterion = "0.5"
-sp1-gpu-utils = { workspace = true, features = ["test-utils"] }
 
 [[bench]]
 name = "commit"

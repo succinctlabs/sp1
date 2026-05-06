@@ -158,7 +158,7 @@ impl AbstractChipLayout {
         Self(entries)
     }
 
-    pub(crate) fn entries(&self) -> &[(String, usize, usize)] {
+    pub fn entries(&self) -> &[(String, usize, usize)] {
         &self.0
     }
 }
@@ -172,7 +172,7 @@ impl AbstractChipLayoutWithHeights {
         Self(entries)
     }
 
-    pub(crate) fn entries(&self) -> &[(String, usize, usize, usize)] {
+    pub fn entries(&self) -> &[(String, usize, usize, usize)] {
         &self.0
     }
 

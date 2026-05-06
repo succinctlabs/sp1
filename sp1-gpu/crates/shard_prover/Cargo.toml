@@ -64,7 +64,6 @@ sp1-primitives = { workspace = true }
 
 # misc
 rand = { workspace = true }
-sp1-gpu-utils = { workspace = true, features = ["test-utils"] }
 
 # Benchmarks
 criterion = "0.5"
