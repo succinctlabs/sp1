@@ -36,18 +36,20 @@ fn run_jagged_sumcheck<R: Rng>(
     // Correctness isn't tested here; an arbitrary claim is fine.
     let claim = Ext::zero();
 
+    let mut challenger = TestGC::default_challenger();
+
     let mut group = c.benchmark_group("jagged_sumcheck");
+    // note that setup doesn't reset the challenger so later proofs will not verify
     group.bench_with_input(id, &(), |b, _| {
         b.iter_batched(
             || {
-                let eq_z_row = DevicePoint::new(z_row_device.clone()).partial_lagrange();
-                let eq_z_col = DevicePoint::new(z_col_device.clone()).partial_lagrange();
-                let challenger = TestGC::default_challenger();
-                // Drain pending GPU work before the timer starts.
+                let out = (z_row_device.clone(), z_col_device.clone());
                 scope.synchronize_blocking().unwrap();
-                (eq_z_row, eq_z_col, challenger)
+                out
             },
-            |(eq_z_row, eq_z_col, mut challenger)| {
+            |(z_row_device, z_col_device)| {
+                let eq_z_row = DevicePoint::new(z_row_device).partial_lagrange();
+                let eq_z_col = DevicePoint::new(z_col_device).partial_lagrange();
                 let poly = generate_jagged_sumcheck_poly(device_mle, eq_z_col, eq_z_row);
                 let result =
                     jagged_sumcheck(poly, &mut challenger, claim, LOG_STACKING_HEIGHT as usize);

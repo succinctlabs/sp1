@@ -52,7 +52,7 @@ fn run_prove_trusted_evaluations<R: Rng>(
     _rng: &mut R,
     device_mle: &JaggedTraceMle<Felt, TaskScope>,
 ) {
-    let jagged_trace_data = Arc::new(device_mle);
+    let jagged_trace_data = device_mle;
 
     let verifier = BasefoldVerifier::<TestGC>::new(core_fri_config(), 2);
     let basefold_prover = FriCudaProver::<TestGC, _, Felt>::new(
@@ -62,7 +62,7 @@ fn run_prove_trusted_evaluations<R: Rng>(
     );
 
     let (_preprocessed_digest, preprocessed_prover_data) = commit_multilinears::<TestGC, _>(
-        jagged_trace_data.as_ref(),
+        jagged_trace_data,
         CORE_MAX_LOG_ROW_COUNT,
         true,
         false,
@@ -71,7 +71,7 @@ fn run_prove_trusted_evaluations<R: Rng>(
     .unwrap();
 
     let (_main_digest, main_prover_data) = commit_multilinears::<TestGC, _>(
-        jagged_trace_data.as_ref(),
+        jagged_trace_data,
         CORE_MAX_LOG_ROW_COUNT,
         false,
         false,
@@ -113,38 +113,39 @@ fn run_prove_trusted_evaluations<R: Rng>(
 
     let mut challenger = TestGC::default_challenger();
     let eval_point = challenger.sample_point(CORE_MAX_LOG_ROW_COUNT);
-    let evaluation_claims = round_batch_evaluations(&eval_point, jagged_trace_data.as_ref());
+    let evaluation_claims = round_batch_evaluations(&eval_point, jagged_trace_data);
+
+    let mut new_evaluation_claims = Vec::new();
+    for round_evals in evaluation_claims.iter() {
+        let mut round_host: Vec<Ext> = Vec::new();
+        for eval in round_evals.iter() {
+            round_host.extend_from_slice(eval.to_vec().as_slice());
+        }
+        let device_tensor =
+            DeviceTensor::from_host(&MleEval::from(round_host).into_evaluations(), scope).unwrap();
+        new_evaluation_claims.push(MleEval::new(device_tensor.into_inner()));
+    }
+    let claims: Rounds<_> = new_evaluation_claims.into_iter().collect();
+    let prover_data = Rounds::from_iter([&preprocessed_prover_data, &main_prover_data]);
+    scope.synchronize_blocking().unwrap();
 
     let mut group = c.benchmark_group("prove_trusted_evaluations");
+    // note that setup doesn't reset the challenger so later proofs will not verify
     group.bench_with_input(id, &(), |b, _| {
         b.iter_batched(
             || {
-                let mut new_evaluation_claims = Vec::new();
-                for round_evals in evaluation_claims.iter() {
-                    let mut round_host: Vec<Ext> = Vec::new();
-                    for eval in round_evals.iter() {
-                        round_host.extend_from_slice(eval.to_vec().as_slice());
-                    }
-                    let device_tensor = DeviceTensor::from_host(
-                        &MleEval::from(round_host).into_evaluations(),
-                        scope,
-                    )
-                    .unwrap();
-                    new_evaluation_claims.push(MleEval::new(device_tensor.into_inner()));
-                }
-                let claims: Rounds<_> = new_evaluation_claims.into_iter().collect();
-                let prover_data = Rounds::from_iter([&preprocessed_prover_data, &main_prover_data]);
+                let out = (eval_point.clone(), claims.clone(), prover_data.clone());
                 scope.synchronize_blocking().unwrap();
-                (eval_point.clone(), claims, prover_data, challenger.clone())
+                out
             },
-            |(pt, claims, prover_data, mut chal)| {
+            |(pt, claims, prover_data)| {
                 let proof = shard_prover
                     .prove_trusted_evaluations(
                         pt,
                         claims,
-                        jagged_trace_data.as_ref(),
+                        jagged_trace_data,
                         prover_data,
-                        &mut chal,
+                        &mut challenger,
                     )
                     .unwrap();
                 scope.synchronize_blocking().unwrap();

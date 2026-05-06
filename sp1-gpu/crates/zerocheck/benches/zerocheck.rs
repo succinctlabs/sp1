@@ -90,15 +90,15 @@ fn run_zerocheck<R: Rng>(
     let logup_evaluations = LogUpEvaluations { point: zeta, chip_openings };
 
     let mut group = c.benchmark_group("zerocheck");
+    // note that setup doesn't reset the challenger so later proofs will not verify
     group.bench_with_input(id, &(), |b, _| {
         b.iter_batched(
             || {
-                let pv = public_values.to_vec();
-                let challenger = challenger_prover.clone();
+                let pv = public_values.clone();
                 scope.synchronize_blocking().unwrap();
-                (pv, challenger)
+                pv
             },
-            |(pv, mut challenger)| {
+            |pv| {
                 let result = zerocheck(
                     chips,
                     &cache,

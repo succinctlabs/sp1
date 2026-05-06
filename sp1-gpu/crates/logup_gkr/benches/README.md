@@ -14,9 +14,7 @@ harness predates that framework and reads its own JSON workload file.
 
 The legacy layer-by-layer harness (loads `layer_workloads.json`, prints
 per-layer timings) lives at [`../examples/legacy_bench.rs`](../examples/legacy_bench.rs).
-It's an `[[example]]`, not a `[[bench]]`, so a plain `cargo bench` for this
-crate doesn't try to run it (it would fail without the JSON file at the
-expected CWD). See its own section below for how to invoke.
+It's an `[[example]]`, not a `[[bench]]`.
 
 ## `gkr` — `populate_circuit` and `prove`
 
@@ -27,10 +25,6 @@ The file registers two named bench groups that both run off the same
   the layer stack from the trace.
 - `prove` times [`prove_gkr_circuit`](../src/lib.rs) — running the
   layer-by-layer sumcheck loop and Fiat-Shamir.
-
-GKR layers halve on each transition (total work ≈ 2× first-layer work), so
-splitting the bench lets a regression land on the right side: kernel work in
-populate vs. per-round CPU/Fiat-Shamir cost in prove.
 
 ```bash
 # Default: synthetic random trace at 2^25 field elements, core cluster
