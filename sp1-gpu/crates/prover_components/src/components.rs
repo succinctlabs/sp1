@@ -57,7 +57,7 @@ impl CudaShardProverComponents<SP1OuterGlobalContext> for CudaProverWrapComponen
 }
 
 pub async fn new_cuda_prover<GC, PC>(
-    verifier: sp1_hypercube::MachineVerifier<GC, SP1SC<GC, PC::Air>>,
+    verifier: &sp1_hypercube::MachineVerifier<GC, SP1SC<GC, PC::Air>>,
     max_trace_size: usize,
     num_workers: usize,
     recompute_first_layer: bool,

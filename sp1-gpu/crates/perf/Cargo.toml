@@ -17,6 +17,9 @@ sp1-gpu-shard-prover = { workspace = true }
 sp1-core-machine = { workspace = true }
 sp1-core-executor = { workspace = true }
 sp1-prover = { workspace = true }
+sp1-recursion-circuit = { workspace = true }
+sp1-recursion-compiler = { workspace = true }
+sp1-recursion-executor = { workspace = true }
 sp1-recursion-gnark-ffi = { workspace = true }
 sp1-hypercube = { workspace = true }
 sp1-sdk = { workspace = true }
@@ -87,13 +90,13 @@ path = "src/bin/vk_gen.rs"
 required-features = ["experimental"]
 
 [[bin]]
-name = "dump-shards"
-path = "src/bin/dump_shards.rs"
-
-[[bin]]
 name = "replay-shards"
 path = "src/bin/replay_shards.rs"
 
 [[bin]]
-name = "download-shards"
-path = "src/bin/download_shards.rs"
+name = "composed-workflow"
+path = "src/bin/composed_workflow.rs"
+
+[[bin]]
+name = "recursion-bench"
+path = "src/bin/recursion_bench.rs"
