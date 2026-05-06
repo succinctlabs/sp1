@@ -2,9 +2,5 @@
     {
         "program": "local-rsp",
         "inputs": ["21000000", "20526629"]
-    },
-    {
-        "program": "v6/fibonacci-200m",
-        "inputs": []
     }
 ]
