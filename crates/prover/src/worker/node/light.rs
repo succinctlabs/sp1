@@ -10,6 +10,8 @@ use sp1_hypercube::{
 use sp1_primitives::{io::SP1PublicValues, SP1Field};
 use sp1_verifier::SP1Proof;
 
+#[cfg(not(any(feature = "mprotect", feature = "experimental")))]
+use crate::verify::VerifierRecursionVks;
 #[cfg(any(feature = "mprotect", feature = "experimental"))]
 use crate::{recursion::RecursionVks, worker::DEFAULT_MAX_COMPOSE_ARITY};
 use crate::{

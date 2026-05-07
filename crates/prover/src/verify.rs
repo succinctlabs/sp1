@@ -8,6 +8,8 @@ use num_bigint::BigUint;
 use slop_algebra::{AbstractField, PrimeField};
 use sp1_core_executor::SP1RecursionProof;
 use sp1_core_machine::riscv::{RiscvAir, MAX_LOG_NUMBER_OF_SHARDS};
+#[cfg(not(feature = "experimental"))]
+use sp1_hypercube::koalabears_to_bn254;
 use sp1_hypercube::{
     air::{PublicValues, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
     HashableKey, Machine, MachineVerifier, MachineVerifierConfigError, MachineVerifierError,
