@@ -21,7 +21,7 @@ use super::{
     SelectEvent,
 };
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct ExecutionRecord<F> {
     pub program: Arc<RecursionProgram<F>>,
     /// The index of the shard.

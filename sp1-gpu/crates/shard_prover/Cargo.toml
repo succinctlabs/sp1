@@ -62,5 +62,15 @@ slop-stacked = { workspace = true }
 sp1-core-machine = { workspace = true }
 sp1-primitives = { workspace = true }
 
+# misc
+rand = { workspace = true }
+
+# Benchmarks
+criterion = "0.5"
+
+[[bench]]
+name = "prove_trusted_evaluations"
+harness = false
+
 [lints]
 workspace = true

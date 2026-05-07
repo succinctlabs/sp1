@@ -101,3 +101,20 @@ pub fn get_program_and_input(program: String, param: String) -> (Vec<u8>, SP1Std
 
     (program, stdin)
 }
+
+#[cfg(test)]
+mod tests {
+    use sp1_hypercube::SP1PcsProofInner;
+    use sp1_recursion_circuit::machine::SP1CompressWithVKeyWitnessValues;
+
+    #[test]
+    fn test_recursion_inputs_valid() {
+        let shrink_bytes = include_bytes!("../recursion_records/shrink_input.bin");
+        let compose_bytes = include_bytes!("../recursion_records/max_arity_input.bin");
+
+        let _: SP1CompressWithVKeyWitnessValues<SP1PcsProofInner> =
+            bincode::deserialize(shrink_bytes).expect("failed to deserialize shrink_input; regenerate by running a shrink proof with `SP1_RECORD_SHRINK_INPUT=1`");
+        let _: SP1CompressWithVKeyWitnessValues<SP1PcsProofInner> =
+            bincode::deserialize(compose_bytes).expect("failed to deserialize compose_input; regenerate by running an arity-4 compose proof with `SP1_RECORD_MAX_ARITY_INPUT=1`");
+    }
+}

@@ -43,3 +43,6 @@ compile_commands.json
 
 # logging files
 *.log
+
+# Persistent worktrees created by scripts/bench-compare.sh
+.bench-worktrees/

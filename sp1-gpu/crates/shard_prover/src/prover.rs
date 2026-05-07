@@ -8,7 +8,7 @@ use slop_jagged::{
     unzip_and_prefix_sums, JaggedLittlePolynomialProverParams, JaggedPcsProof, JaggedProverData,
     JaggedProverError, PrefixSumsMaxLogRowCount,
 };
-use slop_multilinear::{Evaluations, MleEval, MultilinearPcsVerifier, Point};
+use slop_multilinear::{MleEval, MultilinearPcsVerifier, Point};
 use sp1_gpu_air::air_block::BlockAir;
 use sp1_gpu_air::SymbolicProverFolder;
 use sp1_gpu_basefold::{CudaStackedPcsProverData, DeviceGrindingChallenger, FriCudaProver};
@@ -93,6 +93,39 @@ impl<GC: IopCtx, PC: CudaShardProverComponents<GC>> CudaShardProver<GC, PC> {
                 _marker: PhantomData,
             }),
         }
+    }
+}
+
+impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>> CudaShardProver<GC, PC> {
+    /// Prove trusted evaluations for a shard.
+    #[allow(clippy::type_complexity)]
+    pub fn prove_trusted_evaluations(
+        &self,
+        eval_point: Point<Ext>,
+        evaluation_claims: Rounds<MleEval<Ext, TaskScope>>,
+        all_mles: &JaggedTraceMle<Felt, TaskScope>,
+        prover_data: Rounds<&JaggedProverData<GC, CudaStackedPcsProverData<GC>>>,
+        challenger: &mut GC::Challenger,
+    ) -> Result<
+        JaggedPcsProof<GC, <PC::C as MultilinearPcsVerifier<GC>>::Proof>,
+        JaggedProverError<CudaShardProverError>,
+    >
+    where
+        GC::Challenger: DeviceGrindingChallenger<Witness = GC::F>,
+        GC::Challenger: slop_challenger::FieldChallenger<
+            <GC::Challenger as slop_challenger::GrindingChallenger>::Witness,
+        >,
+        SP1PcsProof<GC>: Into<<PC::C as MultilinearPcsVerifier<GC>>::Proof>,
+        TaskScope:
+            sp1_gpu_jagged_assist::BranchingProgramKernel<GC::F, GC::EF, PC::DeviceChallenger>,
+    {
+        self.inner.prove_trusted_evaluations(
+            eval_point,
+            evaluation_claims,
+            all_mles,
+            prover_data,
+            challenger,
+        )
     }
 }
 
@@ -376,7 +409,7 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
     pub fn prove_trusted_evaluations(
         &self,
         eval_point: Point<Ext>,
-        evaluation_claims: Rounds<Evaluations<Ext, TaskScope>>,
+        evaluation_claims: Rounds<MleEval<Ext, TaskScope>>,
         all_mles: &JaggedTraceMle<Felt, TaskScope>,
         prover_data: Rounds<&JaggedProverData<GC, CudaStackedPcsProverData<GC>>>,
         challenger: &mut GC::Challenger,
@@ -405,13 +438,11 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
 
         let z_row = eval_point.clone();
 
-        let backend = evaluation_claims[0][0].backend().clone();
+        let backend = evaluation_claims[0].backend().clone();
 
         // First, allocate a buffer for all of the column claims on device.
-        let total_column_claims = evaluation_claims
-            .iter()
-            .map(|evals| evals.iter().map(|evals| evals.num_polynomials()).sum::<usize>())
-            .sum::<usize>();
+        let total_column_claims =
+            evaluation_claims.iter().map(|evals| evals.num_polynomials()).sum::<usize>();
 
         // Add in the dummy padding columns added during the stacked PCS commitment.
         let total_len = total_column_claims
@@ -423,10 +454,8 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
         // Then, copy the column claims from the evaluation claims into the buffer, inserting extra
         // zeros for the dummy columns.
         for (column_claim_round, data) in evaluation_claims.into_iter().zip(prover_data.iter()) {
-            for column_claim in column_claim_round.into_iter() {
-                column_claims
-                    .extend_from_device_slice(column_claim.into_evaluations().as_buffer())?;
-            }
+            column_claims
+                .extend_from_device_slice(column_claim_round.into_evaluations().as_buffer())?;
             column_claims
                 .extend_from_host_slice(vec![Ext::zero(); data.padding_column_count].as_slice())?;
         }
@@ -656,8 +685,9 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
 
         // Get the evaluation point for the trace polynomials.
         let evaluation_point = zerocheck_partial_sumcheck_proof.point_and_eval.0.clone();
-        let mut preprocessed_evaluation_claims: Option<Evaluations<GC::EF, TaskScope>> = None;
-        let mut main_evaluation_claims = Evaluations::new(vec![]);
+        let mut preprocessed_host: Vec<GC::EF> = Vec::new();
+        let mut main_host: Vec<GC::EF> = Vec::new();
+        let mut has_preprocessed = false;
 
         let alloc = self.backend.clone();
 
@@ -665,25 +695,30 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
             let prep_local = &open_values.preprocessed.local;
             let main_local = &open_values.main.local;
             if !prep_local.is_empty() {
-                let host_mle_eval = MleEval::from(prep_local.clone());
-                let device_tensor =
-                    sp1_gpu_cudart::DeviceTensor::from_host(host_mle_eval.evaluations(), &alloc)
-                        .unwrap();
-                let preprocessed_evals = MleEval::new(device_tensor.into_inner());
-                if let Some(preprocessed_claims) = preprocessed_evaluation_claims.as_mut() {
-                    preprocessed_claims.push(preprocessed_evals);
-                } else {
-                    let evals = Evaluations::new(vec![preprocessed_evals]);
-                    preprocessed_evaluation_claims = Some(evals);
-                }
+                has_preprocessed = true;
+                preprocessed_host.extend_from_slice(prep_local);
             }
-            let host_mle_eval = MleEval::from(main_local.clone());
-            let device_tensor =
-                sp1_gpu_cudart::DeviceTensor::from_host(host_mle_eval.evaluations(), &alloc)
-                    .unwrap();
-            let main_evals = MleEval::new(device_tensor.into_inner());
-            main_evaluation_claims.push(main_evals);
+            main_host.extend_from_slice(main_local);
         }
+
+        let main_evaluation_claims = MleEval::new(
+            sp1_gpu_cudart::DeviceTensor::from_host(
+                &MleEval::from(main_host).into_evaluations(),
+                &alloc,
+            )
+            .unwrap()
+            .into_inner(),
+        );
+        let preprocessed_evaluation_claims = has_preprocessed.then(|| {
+            MleEval::new(
+                sp1_gpu_cudart::DeviceTensor::from_host(
+                    &MleEval::from(preprocessed_host).into_evaluations(),
+                    &alloc,
+                )
+                .unwrap()
+                .into_inner(),
+            )
+        });
 
         let round_evaluation_claims = preprocessed_evaluation_claims
             .into_iter()
@@ -837,21 +872,21 @@ mod tests {
 
             let prover_data = Rounds::from_iter([&preprocessed_prover_data, &main_prover_data]);
 
-            // The evaluation_claims are already on host (CpuBackend).
-            // We need to convert them to device evaluations for the prover.
+            // The evaluation_claims are already on host (CpuBackend) and split per chip.
+            // Pack each round's per-chip evaluations into a single host buffer, then upload
+            // once per round to the device.
             let mut new_evaluation_claims = Vec::new();
             for round_evals in evaluation_claims.iter() {
-                let mut round_claims = Vec::new();
+                let mut round_host: Vec<Ext> = Vec::new();
                 for eval in round_evals.iter() {
-                    // Copy the host MleEval to device
-                    let device_tensor =
-                        sp1_gpu_cudart::DeviceTensor::from_host(eval.evaluations(), &scope)
-                            .unwrap();
-                    let device_eval = MleEval::new(device_tensor.into_inner());
-                    round_claims.push(device_eval);
+                    round_host.extend_from_slice(eval.to_vec().as_slice());
                 }
-                let evals = Evaluations::new(round_claims);
-                new_evaluation_claims.push(evals);
+                let device_tensor = sp1_gpu_cudart::DeviceTensor::from_host(
+                    &MleEval::from(round_host).into_evaluations(),
+                    &scope,
+                )
+                .unwrap();
+                new_evaluation_claims.push(MleEval::new(device_tensor.into_inner()));
             }
 
             let mut prover_challenger = challenger.clone();

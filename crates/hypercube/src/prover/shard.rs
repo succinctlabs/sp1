@@ -740,7 +740,7 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
 
         let alloc = self.inner.trace_generator.allocator();
 
-        for (_, open_values) in shard_open_values.chips.iter() {
+        for open_values in shard_open_values.chips.values() {
             let prep_local = &open_values.preprocessed.local;
             let main_local = &open_values.main.local;
             if !prep_local.is_empty() {

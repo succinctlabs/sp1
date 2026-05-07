@@ -4,7 +4,7 @@ use crate::{
         compose_program_from_input, deferred_program_from_input, dummy_deferred_input,
         recursive_verifier, shrink_program_from_input, wrap_program_from_input, RecursionVks,
     },
-    shapes::SP1RecursionProofShape,
+    shapes::{SP1RecursionProofShape, DEFAULT_ARITY},
     verify::WRAP_VK_BYTES,
     worker::{
         CommonProverInput, DeferredInputs, ProverMetrics, RangeProofs, RawTaskRequest, TaskContext,
@@ -12,6 +12,7 @@ use crate::{
     },
     RecursionSC, SP1CircuitWitness, SP1ProverComponents,
 };
+use core::sync::atomic::AtomicBool;
 use slop_algebra::PrimeField32;
 use slop_algebra::{AbstractField, PrimeField};
 use slop_bn254::Bn254Fr;
@@ -48,6 +49,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     sync::Arc,
 };
+use std::{io::Write, path::PathBuf};
 use tokio::sync::{oneshot, OnceCell};
 use tracing::Instrument;
 
@@ -194,7 +196,11 @@ pub struct RecursionTask {
 pub struct RecursionExecutorWorker<C: SP1ProverComponents> {
     compress_verifier: MachineVerifier<SP1GlobalContext, RecursionSC>,
     prover_data: Arc<RecursionProverData<C>>,
+    record_write_dir: Option<PathBuf>,
 }
+
+static RECORDS_WRITTEN: AtomicBool = AtomicBool::new(false);
+static SHRINK_RECORDS_WRITTEN: AtomicBool = AtomicBool::new(false);
 
 impl<C: SP1ProverComponents>
     BlockingWorker<Result<RecursionTask, TaskError>, Result<ProveRecursionTask<C>, TaskError>>
@@ -235,6 +241,17 @@ impl<C: SP1ProverComponents>
                 let (pk, vk) = self.prover_data.compose_keys.get(&arity).cloned().ok_or(
                     TaskError::Fatal(anyhow::anyhow!("Compose key not found for arity {}", arity)),
                 )?;
+                if let Some(record_write_dir) = &self.record_write_dir {
+                    if arity == DEFAULT_ARITY
+                        && !RECORDS_WRITTEN.load(std::sync::atomic::Ordering::Relaxed)
+                    {
+                        let mut file =
+                            std::fs::File::create(record_write_dir.join("max_arity_input.bin"))?;
+                        let input_bytes = bincode::serialize(&input)?;
+                        file.write_all(&input_bytes)?;
+                        RECORDS_WRITTEN.store(true, std::sync::atomic::Ordering::Relaxed);
+                    }
+                }
                 anyhow::Ok(RecursionKeys::Exists(pk, vk))
             }
             SP1CircuitWitness::Deferred(_) => {
@@ -535,11 +552,15 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
                 config.prepare_reduce_buffer_size,
             ));
 
+            let record_write_dir =
+                std::env::var("SP1_RECORD_MAX_ARITY_INPUT").ok().map(PathBuf::from);
+
             // Initialize the executor engine.
             let executor_workers = (0..config.num_recursion_executor_workers)
                 .map(|_| RecursionExecutorWorker {
                     compress_verifier: compress_verifier.clone(),
                     prover_data: prover_data.clone(),
+                    record_write_dir: record_write_dir.clone(),
                 })
                 .collect();
 
@@ -992,6 +1013,7 @@ pub struct ShrinkProver<C: SP1ProverComponents> {
     pub verifying_key: MachineVerifyingKey<SP1GlobalContext>,
     prover_data: Arc<RecursionProverData<C>>,
     pub shrink_shape: BTreeMap<String, usize>,
+    pub record_write_dir: Option<PathBuf>,
 }
 
 impl<C: SP1ProverComponents> ShrinkProver<C> {
@@ -1035,7 +1057,18 @@ impl<C: SP1ProverComponents> ShrinkProver<C> {
             });
             rx.blocking_recv().unwrap()
         };
-        Self { prover, permits, program, verifying_key: vk, prover_data, shrink_shape }
+
+        let record_write_dir = std::env::var("SP1_RECORD_SHRINK_INPUT").ok().map(PathBuf::from);
+
+        Self {
+            prover,
+            permits,
+            program,
+            verifying_key: vk,
+            prover_data,
+            shrink_shape,
+            record_write_dir,
+        }
     }
 
     pub(crate) async fn setup(
@@ -1052,15 +1085,26 @@ impl<C: SP1ProverComponents> ShrinkProver<C> {
         let execution_record = {
             let mut runtime =
                 Executor::<SP1Field, SP1ExtensionField, _>::new(self.program.clone(), inner_perm());
-            runtime.witness_stream = self.prover_data.witness_stream(&{
-                let SP1RecursionProof { vk, proof, vk_merkle_proof } = compressed_proof;
-                let input =
-                    SP1ShapedWitnessValues { vks_and_proofs: vec![(vk, proof)], is_complete: true };
-                SP1CircuitWitness::Shrink(
-                    self.prover_data
-                        .append_merkle_proofs_to_witness(input, vec![vk_merkle_proof])?,
-                )
-            })?;
+            let SP1RecursionProof { vk, proof, vk_merkle_proof } = compressed_proof;
+            let shaped_input =
+                SP1ShapedWitnessValues { vks_and_proofs: vec![(vk, proof)], is_complete: true };
+            let shrink_input = self
+                .prover_data
+                .append_merkle_proofs_to_witness(shaped_input, vec![vk_merkle_proof])?;
+
+            if let Some(record_write_dir) = &self.record_write_dir {
+                if !SHRINK_RECORDS_WRITTEN.load(std::sync::atomic::Ordering::Relaxed) {
+                    let mut file = std::fs::File::create(record_write_dir.join("shrink_input.bin"))
+                        .map_err(|e| TaskError::Fatal(e.into()))?;
+                    let input_bytes = bincode::serialize(&shrink_input)
+                        .map_err(|e| TaskError::Fatal(e.into()))?;
+                    file.write_all(&input_bytes).map_err(|e| TaskError::Fatal(e.into()))?;
+                    SHRINK_RECORDS_WRITTEN.store(true, std::sync::atomic::Ordering::Relaxed);
+                }
+            }
+
+            runtime.witness_stream =
+                self.prover_data.witness_stream(&SP1CircuitWitness::Shrink(shrink_input))?;
             runtime.run().map_err(|e| TaskError::Fatal(e.into()))?;
             runtime.record
         };

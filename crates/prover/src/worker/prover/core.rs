@@ -1,4 +1,11 @@
-use std::sync::Arc;
+use std::{
+    io::Write,
+    path::PathBuf,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+};
 
 use anyhow::anyhow;
 use slop_futures::pipeline::{AsyncEngine, AsyncWorker, Pipeline, SubmitError, SubmitHandle};
@@ -10,7 +17,7 @@ use sp1_core_machine::executor::trace_chunk;
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{
     prover::{shape_from_record, CoreProofShape, ProverSemaphore, ProvingKey},
-    Machine, MachineProof, MachineVerifier, SP1VerifyingKey,
+    InnerSC, Machine, MachineProof, MachineVerifier, SP1VerifyingKey,
 };
 use sp1_jit::TraceChunk;
 use sp1_primitives::{SP1Field, SP1GlobalContext};
@@ -18,7 +25,7 @@ use sp1_prover_types::{
     await_scoped_vec, network_base_types::ProofMode, Artifact, ArtifactClient, ArtifactType,
 };
 use sp1_recursion_circuit::shard::RecursiveShardVerifier;
-use sp1_recursion_compiler::config::InnerConfig;
+use sp1_recursion_compiler::{circuit::AsmConfig, config::InnerConfig};
 use sp1_recursion_executor::RecursionProgram;
 use tokio::sync::OnceCell;
 use tracing::Instrument;
@@ -149,23 +156,43 @@ impl NormalizeProgramCompiler {
         vk: SP1VerifyingKey,
         proof_shape: &CoreProofShape<SP1Field, RiscvAir<SP1Field>>,
     ) -> Arc<RecursionProgram<SP1Field>> {
-        let shape = SP1NormalizeInputShape {
-            proof_shapes: vec![proof_shape.clone()],
-            max_log_row_count: self.verifier.max_log_row_count(),
-            log_blowup: self.verifier.fri_config().log_blowup,
-            log_stacking_height: self.verifier.log_stacking_height() as usize,
-        };
-        if let Some(program) = self.cache.get(&shape) {
-            return program.clone();
-        }
-
-        let input = shape.dummy_input(vk);
-        let mut program = normalize_program_from_input(&self.recursive_verifier, &input);
-        program.shape = Some(self.reduce_shape.shape.clone());
-        let program = Arc::new(program);
-        self.cache.push(shape, program.clone());
-        program
+        get_normalize_program(
+            vk,
+            &self.verifier,
+            &self.recursive_verifier,
+            proof_shape,
+            &self.reduce_shape,
+            Some(&self.cache),
+        )
     }
+}
+
+pub fn get_normalize_program(
+    vk: SP1VerifyingKey,
+    verifier: &MachineVerifier<SP1GlobalContext, InnerSC<RiscvAir<SP1Field>>>,
+    recursive_verifier: &RecursiveShardVerifier<SP1GlobalContext, RiscvAir<SP1Field>, AsmConfig>,
+    proof_shape: &CoreProofShape<SP1Field, RiscvAir<SP1Field>>,
+    reduce_shape: &SP1RecursionProofShape,
+    cache: Option<&SP1NormalizeCache>,
+) -> Arc<RecursionProgram<SP1Field>> {
+    let shape = SP1NormalizeInputShape {
+        proof_shapes: vec![proof_shape.clone()],
+        max_log_row_count: verifier.max_log_row_count(),
+        log_blowup: verifier.fri_config().log_blowup,
+        log_stacking_height: verifier.log_stacking_height() as usize,
+    };
+    if let Some(program) = cache.as_ref().and_then(|c| c.get(&shape)) {
+        return program.clone();
+    }
+
+    let input = shape.dummy_input(vk);
+    let mut program = normalize_program_from_input(recursive_verifier, &input);
+    program.shape = Some(reduce_shape.shape.clone());
+    let program = Arc::new(program);
+    if let Some(c) = cache {
+        c.push(shape, program.clone());
+    }
+    program
 }
 
 /// Unified worker that combines tracing, core proving, and normalize proving.
@@ -180,7 +207,7 @@ pub struct CoreWorker<A, W, C: SP1ProverComponents> {
     /// Optional fixed PK cache shared across workers.
     pk: Option<CoreProvingKeyCache<C>>,
     verify_intermediates: bool,
-    dump_shard_dir: Option<String>,
+    record_write_dir_and_frequency: Option<(String, usize)>,
 }
 
 impl<A, W, C: SP1ProverComponents> CoreWorker<A, W, C> {
@@ -195,7 +222,7 @@ impl<A, W, C: SP1ProverComponents> CoreWorker<A, W, C> {
         permits: ProverSemaphore,
         pk: Option<CoreProvingKeyCache<C>>,
         verify_intermediates: bool,
-        dump_shard_dir: Option<String>,
+        record_write_dir_and_frequency: Option<(String, usize)>,
     ) -> Self {
         Self {
             normalize_program_compiler,
@@ -207,7 +234,7 @@ impl<A, W, C: SP1ProverComponents> CoreWorker<A, W, C> {
             permits,
             pk,
             verify_intermediates,
-            dump_shard_dir,
+            record_write_dir_and_frequency,
         }
     }
 
@@ -215,6 +242,8 @@ impl<A, W, C: SP1ProverComponents> CoreWorker<A, W, C> {
         self.normalize_program_compiler.machine()
     }
 }
+
+static SHARD_IDX: AtomicUsize = AtomicUsize::new(0);
 
 impl<A, W, C> AsyncWorker<CoreProvingTask, Result<TaskMetadata, TaskError>> for CoreWorker<A, W, C>
 where
@@ -235,6 +264,12 @@ where
             self.artifact_client.download::<TraceData>(&input.record),
         )?;
 
+        if let Some((dir, _)) = self.record_write_dir_and_frequency.as_ref() {
+            let dir = PathBuf::from(dir);
+            let mut file = std::fs::File::create(dir.join("program.bin"))
+                .expect("failed to create program.bin");
+            file.write_all(&elf).expect("failed to write program.bin");
+        }
         // Extract precompile artifacts before moving input
         let precompile_artifacts = if let TraceData::Precompile(ref artifacts, _) = record {
             Some(artifacts.clone())
@@ -490,25 +525,27 @@ where
         .map_err(|e| TaskError::Fatal(e.into()))?;
 
         // Optionally dump the shard record and vk to disk for benchmarking/replay.
-        if let Some(dir) = self.dump_shard_dir.as_ref() {
-            use std::sync::atomic::{AtomicUsize, Ordering};
-            static SHARD_IDX: AtomicUsize = AtomicUsize::new(0);
-            let idx = SHARD_IDX.fetch_add(1, Ordering::SeqCst);
+        if let Some((dir, frequency)) = self.record_write_dir_and_frequency.as_ref() {
+            let idx = SHARD_IDX.fetch_add(1, Ordering::Relaxed);
             let path = std::path::PathBuf::from(&dir);
             std::fs::create_dir_all(&path).ok();
 
-            let record_bytes = bincode::serialize(&record).expect("failed to serialize record");
-            std::fs::write(path.join(format!("record_{idx:04}.bin")), &record_bytes)
-                .expect("failed to write record");
+            if idx.is_multiple_of(*frequency) {
+                let record_bytes = bincode::serialize(&record).expect("failed to serialize record");
+                std::fs::write(path.join(format!("record_{idx:04}.bin")), &record_bytes)
+                    .expect("failed to write record");
 
-            let vk_bytes = bincode::serialize(&common_input.vk.vk).expect("failed to serialize vk");
-            std::fs::write(path.join(format!("vk_{idx:04}.bin")), &vk_bytes)
-                .expect("failed to write vk");
+                if idx == 0 {
+                    let vk_bytes =
+                        bincode::serialize(&common_input.vk.vk).expect("failed to serialize vk");
+                    std::fs::write(path.join("vk.bin"), &vk_bytes).expect("failed to write vk");
+                }
 
-            tracing::info!(
-                "Dumped shard {idx} record ({} bytes) and vk to {dir}",
-                record_bytes.len()
-            );
+                tracing::info!(
+                    "Dumped shard {idx} record ({} bytes) and vk to {dir}",
+                    record_bytes.len()
+                );
+            }
         }
 
         // If this is not a Core proof request, spawn a task to get the recursion program.
@@ -775,8 +812,6 @@ pub struct SP1CoreProverConfig {
     pub use_fixed_pk: bool,
     /// Whether to verify intermediates.
     pub verify_intermediates: bool,
-    /// Optional directory to dump shard records and vks for benchmarking/replay.
-    pub dump_shard_dir: Option<String>,
 }
 
 impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A, W, C> {
@@ -811,6 +846,12 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A
         // Create a shared fixed PK cache if enabled
         let pk_cache = if config.use_fixed_pk { Some(Arc::new(OnceCell::new())) } else { None };
 
+        let record_write_dir = std::env::var("SP1_RECORD_WRITE_DIR").ok();
+        let record_write_frequency =
+            std::env::var("SP1_RECORD_WRITE_FREQUENCY").map_or(5, |v| v.parse().unwrap_or(5));
+        let record_write_dir_and_frequency =
+            record_write_dir.map(|dir| (dir, record_write_frequency));
+
         // Initialize the unified core engine (handles both tracing and proving)
         let core_workers = (0..config.num_core_workers)
             .map(|_| {
@@ -824,7 +865,7 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A
                     permits.clone(),
                     pk_cache.clone(),
                     config.verify_intermediates,
-                    config.dump_shard_dir.clone(),
+                    record_write_dir_and_frequency.clone(),
                 )
             })
             .collect::<Vec<_>>();

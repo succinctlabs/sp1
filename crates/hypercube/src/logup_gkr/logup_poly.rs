@@ -45,7 +45,7 @@ impl<K: Field> ComponentPoly<K> for LogupRoundPolynomial<K, K> {
     fn get_component_poly_evals(&self) -> Vec<K> {
         match &self.layer {
             PolynomialLayer::InteractionLayer(layer) => {
-                assert!(layer.numerator_0.guts().as_slice().len() == 1);
+                assert_eq!(layer.numerator_0.guts().as_slice().len(), 1);
                 let numerator_0 = layer.numerator_0.guts().as_slice()[0];
                 let denominator_0 = layer.denominator_0.guts().as_slice()[0];
                 let numerator_1 = layer.numerator_1.guts().as_slice()[0];
@@ -71,7 +71,7 @@ impl<K: ExtensionField<F>, F: Field> SumcheckPolyFirstRound<K> for LogupRoundPol
     type NextRoundPoly = LogupRoundPolynomial<K, K>;
     #[allow(clippy::too_many_lines)]
     fn fix_t_variables(mut self, alpha: K, t: usize) -> Self::NextRoundPoly {
-        assert!(t == 1);
+        assert_eq!(t, 1);
         // Remove the last coordinate from the point
         let last_coordinate = self.point.remove_last_coordinate();
         let padding_adjustment = self.padding_adjustment
@@ -233,7 +233,7 @@ impl<K: ExtensionField<F>, F: Field> SumcheckPolyFirstRound<K> for LogupRoundPol
         claim: Option<K>,
         t: usize,
     ) -> UnivariatePolynomial<K> {
-        assert!(t == 1);
+        assert_eq!(t, 1);
         let claim = claim.unwrap();
 
         let (mut eval_zero, mut eval_half, eq_sum) = match &self.layer {

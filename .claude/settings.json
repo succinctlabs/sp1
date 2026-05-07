@@ -18,7 +18,8 @@
       "Bash(cargo fmt *)",
       "Bash(cargo clippy *)",
       "Bash(cargo build *)",
-      "Bash(cargo test *)"
+      "Bash(cargo test *)",
+      "Bash(cargo bench *)"
     ]
   }
 }

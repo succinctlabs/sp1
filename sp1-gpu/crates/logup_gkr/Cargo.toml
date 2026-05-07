@@ -61,9 +61,18 @@ sp1-primitives = { workspace = true }
 sp1-core-executor = { workspace = true }
 sp1-core-machine = { workspace = true }
 
-[[bin]]
-name = "logup_gkr_bench"
-path = "bin/logup_gkr_bench.rs"
+# Benchmarks
+criterion = "0.5"
+
+[[bench]]
+name = "gkr"
+harness = false
+
+# The original layer-by-layer GKR harness (loads crates/logup_gkr/layer_workloads.json
+# and prints per-layer timings) lives at `examples/legacy_bench.rs`. It is *not* a
+# bench target — keeping it out of `cargo bench` avoids a default invocation that
+# would fail without the JSON file at the expected CWD. Run it explicitly with:
+#   cargo run --release -p sp1-gpu-logup-gkr --example legacy_bench
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tokio_unstable)'] }

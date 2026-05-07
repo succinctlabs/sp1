@@ -91,12 +91,8 @@ pub fn debug_interactions<F: Field, A: MachineAir<F>>(
                     let expr: F = value.apply(preprocessed_row, &main_row);
                     values.push(expr);
                 }
-                let key = format!(
-                    "{} {} {}",
-                    &interaction.scope.to_string(),
-                    &interaction.kind.to_string(),
-                    vec_to_string(values)
-                );
+                let key =
+                    format!("{} {} {}", interaction.scope, interaction.kind, vec_to_string(values));
                 key_to_vec_data.entry(key.clone()).or_insert_with(Vec::new).push(InteractionData {
                     chip_name: chip.name().to_string(),
                     kind: interaction.kind,
@@ -170,12 +166,7 @@ where
     A::Record::eval_public_values(&mut folder);
 
     for (kind, scope, values, multiplicity) in folder.interactions.iter() {
-        let key = format!(
-            "{} {} {}",
-            &scope.to_string(),
-            &kind.to_string(),
-            vec_to_string(values.clone())
-        );
+        let key = format!("{} {} {}", scope, kind, vec_to_string(values.clone()));
         let entry = final_map.entry(key.clone()).or_insert((F::zero(), BTreeMap::new()));
         entry.0 += *multiplicity;
         total += *multiplicity;

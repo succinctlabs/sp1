@@ -91,6 +91,7 @@ pub struct SP1CompressWithVKeyWitnessVariable<C: CircuitConfig, GC: SP1FieldConf
 }
 
 /// An input layout for the verifier of the proof shape phase of the compress stage.
+#[derive(Serialize, Deserialize)]
 pub struct SP1CompressWithVKeyWitnessValues<Proof> {
     pub compress_val: SP1ShapedWitnessValues<SP1GlobalContext, Proof>,
     pub merkle_val: SP1MerkleProofWitnessValues<SP1GlobalContext>,
