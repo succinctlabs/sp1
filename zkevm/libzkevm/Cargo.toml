@@ -25,26 +25,23 @@ crate-type = ["rlib"]
 # wrappers.
 sp1-zkvm = { workspace = true, default-features = false }
 
-# SP1's patched `tiny-keccak`. The `patch-2.0.2-sp1-6.2.0-pre` tag points
-# `sp1-lib` at the `tamir/no_std_zkvm` branch on succinctlabs/sp1 (the
-# pre-merge home of the no_std refactor); when 6.2.0 ships we'll cut
-# `patch-2.0.2-sp1-6.2.0` against `sp1-lib = "6.2.0"` from crates.io and
-# repoint here.
+# SP1's patched `tiny-keccak`. The `patch-2.0.2-sp1-6.2.0` tag pins
+# `sp1-lib = "6.2.0"` from crates.io.
 #
 # At `target_os = "zkvm"`, the inner keccakf permutation routes to SP1's
 # `KECCAK_PERMUTE` syscall via `sp1_lib::syscall_keccak_permute`; on host
 # it falls back to the stock software implementation. Used by
 # `precompile::hash::zkvm_keccak256`.
-tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", tag = "patch-2.0.2-sp1-6.2.0-pre", features = ["keccak"] }
+tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", tag = "patch-2.0.2-sp1-6.2.0", features = ["keccak"] }
 
 # SP1's patched `sha2`. Unlike tiny-keccak this patch declares the
 # syscall extern symbols directly (no `sp1-lib` dep) so the
-# `-sp1-6.2.0-pre` tag is just an alias of `-sp1-6.0.0`. At
+# `-sp1-6.2.0` tag is just an alias of `-sp1-6.0.0`. At
 # `target_os = "zkvm"` the inner `compress256` calls
 # `syscall_sha256_extend` + `syscall_sha256_compress`. Used by
 # `precompile::hash::zkvm_sha256`. `default-features = false` drops the
 # `std` feature so libzkevm stays no_std-clean.
-sha2 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", tag = "patch-sha2-0.10.9-sp1-6.2.0-pre", default-features = false }
+sha2 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", tag = "patch-sha2-0.10.9-sp1-6.2.0", default-features = false }
 
 # RIPEMD-160. No SP1 syscall and not on the L1 STF hot path, so we use the
 # stock RustCrypto `ripemd` crate as a software implementation. Used by
@@ -55,30 +52,31 @@ ripemd = { version = "0.1", default-features = false }
 # SP1's patched `k256`. At `target_os = "zkvm"` ECDSA verify routes
 # scalar multiplication and decompression through SP1's `SECP256K1_ADD`,
 # `SECP256K1_DOUBLE`, and `SECP256K1_DECOMPRESS` precompiles. The
-# `-sp1-6.2.0-pre` tag points the patched crate's `sp1-lib` dep at
-# `succinctlabs/sp1#tamir/no_std_zkvm` so it lines up with the rest of
-# this workspace. Used by `precompile::secp256k1::zkvm_secp256k1_verify`.
-k256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-k256-13.4-sp1-6.2.0-pre", default-features = false, features = ["ecdsa"] }
+# `-sp1-6.2.0` tag pins `sp1-lib = "6.2.0"` from crates.io and emits
+# `sp1_lib::invalid_hint!` (exit code 3) on hint-validation failures.
+# Used by `precompile::secp256k1::zkvm_secp256k1_verify`.
+k256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-k256-13.4-sp1-6.2.0", default-features = false, features = ["ecdsa"] }
 
 # SP1's patched `p256`. Same pattern as `k256` but for the secp256r1
 # (NIST P-256) curve; routes through `SECP256R1_*` syscalls. Used by
 # `precompile::secp256r1::zkvm_secp256r1_verify` (Ethereum precompile
 # 0x100 / EIP-7212).
-p256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-p256-13.2-sp1-6.2.0-pre", default-features = false, features = ["ecdsa"] }
+p256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-p256-13.2-sp1-6.2.0", default-features = false, features = ["ecdsa"] }
 
 # SP1's patched `substrate-bn`. At `target_os = "zkvm"` BN254 curve and
 # field operations route through SP1's `BN254_*` precompile syscalls
 # (`BN254_ADD`, `BN254_DOUBLE`, `BN254_FP*`). The
-# `-sp1-6.2.0-pre-substrate-bn` tag is the substrate-bn variant of the
-# crate (lib name = `substrate-bn`) repointed at the no_std sp1 branch.
-# Used by `precompile::bn254::*` (Ethereum precompiles 0x06–0x08,
-# EIP-196 / EIP-197).
-substrate-bn = { git = "https://github.com/sp1-patches/bn", tag = "patch-0.6.0-sp1-6.2.0-pre-substrate-bn", default-features = false }
+# `-sp1-6.2.0-substrate-bn` tag is the substrate-bn variant of the
+# crate (lib name = `substrate-bn`, vs. the renamed
+# `substrate-bn-succinct-rs` published on the main 6.2.0 tag), pinned
+# at `sp1-lib = "6.2.0"`. Used by `precompile::bn254::*` (Ethereum
+# precompiles 0x06–0x08, EIP-196 / EIP-197).
+substrate-bn = { git = "https://github.com/sp1-patches/bn", tag = "patch-0.6.0-sp1-6.2.0-substrate-bn", default-features = false }
 
 # SP1's patched `bls12_381` (zkcrypto fork). At `target_os = "zkvm"` G1
 # and G2 arithmetic route through SP1's `BLS12381_*` syscalls. Used by
 # `precompile::bls12_381::*` (Ethereum precompiles 0x0b–0x11, EIP-2537).
-bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", tag = "patch-0.8.0-sp1-6.2.0-pre", default-features = false, features = ["groups", "pairings", "alloc", "experimental"] }
+bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", tag = "patch-0.8.0-sp1-6.2.0", default-features = false, features = ["groups", "pairings", "alloc", "experimental"] }
 
 # Arbitrary-precision modular exponentiation for `zkvm_modexp`
 # (Ethereum precompile 0x05). SP1 has no syscall for this; we use the
@@ -87,12 +85,12 @@ bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", tag = "patch-0.8
 num-bigint-dig = { version = "0.9", default-features = false }
 
 # `kzg-rs` for `zkvm_kzg_point_eval` (Ethereum precompile 0x0a /
-# EIP-4844). The `v0.2.8-sp1-6.2.0-pre` tag repoints kzg-rs's
-# `bls12_381` dep at `sp1-patches/bls12_381#patch-0.8.0-sp1-6.2.0-pre`
+# EIP-4844). The `v0.2.8-sp1-6.2.0` tag repoints kzg-rs's
+# `bls12_381` dep at `sp1-patches/bls12_381#patch-0.8.0-sp1-6.2.0`
 # so the KZG verifier shares the same patched curve as the rest of
 # libzkevm. The Ethereum trusted setup is baked in at build time via
 # `include_bytes!`.
-kzg-rs = { git = "https://github.com/succinctlabs/kzg-rs", tag = "v0.2.8-sp1-6.2.0-pre", default-features = false }
+kzg-rs = { git = "https://github.com/succinctlabs/kzg-rs", tag = "v0.2.8-sp1-6.2.0", default-features = false }
 
 [lints]
 workspace = true

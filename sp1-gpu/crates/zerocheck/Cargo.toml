@@ -53,5 +53,12 @@ test-artifacts = { workspace = true }
 sp1-core-machine = { workspace = true }
 slop-stacked = { workspace = true }
 
+# Benchmarks
+criterion = "0.5"
+
+[[bench]]
+name = "zerocheck"
+harness = false
+
 [lints]
 workspace = true
