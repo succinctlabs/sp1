@@ -19,6 +19,7 @@ members = [
   "panic-c/script",
   "assert-c/script",
   "exit-code-c/script",
+  "invalid-hint-c/script",
   "keccak-c/script",
   "ripemd-c/script",
   "blake2f-c/script",
@@ -49,6 +50,7 @@ libzkevm = { path = "../libzkevm" }
 sp1-zkvm = { path = "../../crates/zkvm/entrypoint", default-features = false }
 sp1-sdk = { path = "../../crates/sdk", default-features = false, features = ["cuda", "network"] }
 sp1-build = { path = "../../crates/build" }
+sp1-core-executor = { path = "../../crates/core/executor" }
 
 # Shared host-side deps.
 tokio = { version = "1.43", features = ["full"] }
@@ -56,3 +58,9 @@ tracing = "0.1"
 sha2 = "0.10"
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 ripemd = "0.1"
+
+# Until `sp1-lib 6.2.0` is published to crates.io, override the
+# patches' transitive `sp1-lib = "6.2.0"` requirement with the
+# in-tree path-dep. Remove this once 6.2.0 is on crates.io.
+[patch.crates-io]
+sp1-lib = { path = "../../crates/zkvm/lib" }

@@ -33,3 +33,9 @@ panic = "abort"
 # staticlibs) doesn't conflict with the SP1 root workspace's default
 # `panic = "unwind"`. Cargo doesn't support per-package panic strategy.
 [workspace]
+
+# Until `sp1-lib 6.2.0` is published to crates.io, override the patches'
+# transitive `sp1-lib = "6.2.0"` requirement with the in-tree path-dep.
+# Remove this once 6.2.0 is on crates.io.
+[patch.crates-io]
+sp1-lib = { path = "../../crates/zkvm/lib" }

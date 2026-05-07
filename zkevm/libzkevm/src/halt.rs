@@ -18,6 +18,16 @@ pub extern "C" fn zkvm_halt(exit_code: u8) -> ! {
     sp1_zkvm::syscalls::syscall_halt(exit_code);
 }
 
+/// `void zkvm_invalid_hint(void)` — never returns. Halts with exit code 3
+/// (`StatusCode::INVALID_HINT`) to signal a prover-supplied hint failed
+/// verification. Distinct from `zkvm_halt(1)` (regular failure) so a
+/// malicious prover cannot forge a panicked-program proof by feeding
+/// wrong hint data. Mirrors the Rust `sp1_lib::invalid_hint!` macro.
+#[no_mangle]
+pub extern "C" fn zkvm_invalid_hint() -> ! {
+    sp1_zkvm::syscalls::syscall_halt(3);
+}
+
 /// POSIX `exit` alias.
 #[no_mangle]
 pub extern "C" fn exit(status: i32) -> ! {
