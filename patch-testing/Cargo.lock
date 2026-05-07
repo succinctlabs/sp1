@@ -458,7 +458,7 @@ dependencies = [
 [[package]]
 name = "bls12_381"
 version = "0.8.0"
-source = "git+https://github.com/sp1-patches/bls12_381?tag=patch-0.8.0-sp1-6.0.0#c6a3a331f8bee02913cc2c4eae2805360f888aaa"
+source = "git+https://github.com/sp1-patches/bls12_381?tag=patch-0.8.0-sp1-6.2.0#9e4e2ae4780d3d69cecbec000f5e814df2392468"
 dependencies = [
  "cfg-if",
  "ff 0.13.1",
@@ -479,6 +479,7 @@ dependencies = [
  "rand 0.8.5",
  "sp1-build",
  "sp1-core-executor",
+ "sp1-lib",
  "sp1-sdk",
  "sp1-test",
  "sp1-zkvm",
@@ -497,7 +498,7 @@ dependencies = [
  "sp1-test",
  "sp1-zkvm",
  "substrate-bn",
- "substrate-bn-succinct-rs 0.6.0 (git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-6.0.0)",
+ "substrate-bn-succinct-rs 0.6.0 (git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-6.2.0)",
  "tokio",
 ]
 
@@ -506,20 +507,20 @@ name = "build-host"
 version = "1.1.0"
 dependencies = [
  "bls12_381 0.8.0",
- "crypto-bigint 0.5.5 (git+https://github.com/sp1-patches/RustCrypto-bigint?tag=patch-0.5.5-sp1-6.0.0)",
- "curve25519-dalek 4.1.3 (git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.0.0)",
- "curve25519-dalek-ng 4.1.1 (git+https://github.com/sp1-patches/curve25519-dalek-ng?tag=patch-4.1.1-sp1-6.0.0)",
+ "crypto-bigint 0.5.5 (git+https://github.com/sp1-patches/RustCrypto-bigint?tag=patch-0.5.5-sp1-6.2.0)",
+ "curve25519-dalek 4.1.3 (git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.2.0)",
+ "curve25519-dalek-ng 4.1.1 (git+https://github.com/sp1-patches/curve25519-dalek-ng?tag=patch-4.1.1-sp1-6.2.0)",
  "rsa 0.9.6",
  "secp256k1",
  "sha2 0.10.6",
  "sha2 0.10.8",
- "sha2 0.10.9 (git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.10.9-sp1-6.0.0)",
- "sha2 0.9.9 (git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.9.9-sp1-6.0.0)",
+ "sha2 0.10.9 (git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.10.9-sp1-6.2.0)",
+ "sha2 0.9.9 (git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.9.9-sp1-6.2.0)",
  "sha3 0.10.8",
  "sp1-lib",
  "sp1-zkvm",
- "substrate-bn-succinct-rs 0.6.0 (git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-6.0.0)",
- "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.0.0)",
+ "substrate-bn-succinct-rs 0.6.0 (git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-6.2.0)",
+ "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.2.0)",
 ]
 
 [[package]]
@@ -954,7 +955,7 @@ dependencies = [
 [[package]]
 name = "crypto-bigint"
 version = "0.5.5"
-source = "git+https://github.com/sp1-patches/RustCrypto-bigint?tag=patch-0.5.5-sp1-6.0.0#ef85da866879b5929b1da071ebe92c082b0554b9"
+source = "git+https://github.com/sp1-patches/RustCrypto-bigint?tag=patch-0.5.5-sp1-6.2.0#ef85da866879b5929b1da071ebe92c082b0554b9"
 dependencies = [
  "rand_core 0.6.4",
  "subtle",
@@ -1006,11 +1007,11 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek"
 version = "4.1.3"
-source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.0.0#ade3f90a82efc7c58c4ae1ecb4d48bbe673c2a8f"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.2.0#b251b2a155f859d00375f73bc2c937f025f7b4b4"
 dependencies = [
  "cfg-if",
  "cpufeatures 0.2.17",
- "curve25519-dalek-derive 0.1.1 (git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.0.0)",
+ "curve25519-dalek-derive 0.1.1 (git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.2.0)",
  "fiat-crypto",
  "rustc_version",
  "sp1-lib",
@@ -1032,7 +1033,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-derive"
 version = "0.1.1"
-source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.0.0#ade3f90a82efc7c58c4ae1ecb4d48bbe673c2a8f"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.2.0#b251b2a155f859d00375f73bc2c937f025f7b4b4"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1070,7 +1071,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-ng"
 version = "4.1.1"
-source = "git+https://github.com/sp1-patches/curve25519-dalek-ng?tag=patch-4.1.1-sp1-6.0.0#5854f8bab8842ff6232469b0d93ae4160e4a503d"
+source = "git+https://github.com/sp1-patches/curve25519-dalek-ng?tag=patch-4.1.1-sp1-6.2.0#3c58f6af72122ec3cb6c15731c958c541a910050"
 dependencies = [
  "byteorder",
  "cfg-if",
@@ -2270,6 +2271,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "invalid-hint-test"
+version = "1.1.0"
+dependencies = [
+ "color-eyre",
+ "sp1-build",
+ "sp1-core-executor",
+ "sp1-lib",
+ "sp1-sdk",
+ "sp1-test",
+ "sp1-zkvm",
+ "tokio",
+]
+
+[[package]]
 name = "ipnet"
 version = "2.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2368,7 +2383,7 @@ dependencies = [
 [[package]]
 name = "k256"
 version = "0.13.4"
-source = "git+https://github.com/sp1-patches/elliptic-curves?tag=patch-k256-13.4-sp1-6.0.0#476243d31d3ffd9d882d0e5da1f6adaa2a204b62"
+source = "git+https://github.com/sp1-patches/elliptic-curves?tag=patch-k256-13.4-sp1-6.2.0#41374de1febd88e67faa695a5641ae46460a8cb6"
 dependencies = [
  "cfg-if",
  "ecdsa 0.16.9 (git+https://github.com/sp1-patches/signatures?tag=sp1-skip-verify-on-recovery)",
@@ -3894,7 +3909,7 @@ dependencies = [
 [[package]]
 name = "rsa"
 version = "0.9.6"
-source = "git+https://github.com/sp1-patches/RustCrypto-RSA/?tag=patch-0.9.6-sp1-6.0.0#c38b89263da6133df656fd6916e7dd3b73a644c0"
+source = "git+https://github.com/sp1-patches/RustCrypto-RSA/?tag=patch-0.9.6-sp1-6.2.0#28de3ed21f92399f78657f24915ba3ba36a95b3c"
 dependencies = [
  "bytemuck",
  "cfg-if",
@@ -4144,10 +4159,10 @@ dependencies = [
 [[package]]
 name = "secp256k1"
 version = "0.29.1"
-source = "git+https://github.com/sp1-patches/rust-secp256k1?tag=patch-0.29.1-sp1-6.0.0#5daf12595f56cb549d1516d8139cb7935d79de7a"
+source = "git+https://github.com/sp1-patches/rust-secp256k1?tag=patch-0.29.1-sp1-6.2.0#db290c832939297c98910f7007eadbfea03b13aa"
 dependencies = [
  "cfg-if",
- "k256 0.13.4 (git+https://github.com/sp1-patches/elliptic-curves?tag=patch-k256-13.4-sp1-6.0.0)",
+ "k256 0.13.4 (git+https://github.com/sp1-patches/elliptic-curves?tag=patch-k256-13.4-sp1-6.2.0)",
  "rand 0.8.5",
  "secp256k1-sys",
  "serde",
@@ -4170,7 +4185,7 @@ dependencies = [
 [[package]]
 name = "secp256k1-sys"
 version = "0.10.0"
-source = "git+https://github.com/sp1-patches/rust-secp256k1?tag=patch-0.29.1-sp1-6.0.0#5daf12595f56cb549d1516d8139cb7935d79de7a"
+source = "git+https://github.com/sp1-patches/rust-secp256k1?tag=patch-0.29.1-sp1-6.2.0#db290c832939297c98910f7007eadbfea03b13aa"
 dependencies = [
  "cc",
 ]
@@ -4346,7 +4361,7 @@ dependencies = [
 [[package]]
 name = "sha2"
 version = "0.9.9"
-source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.9.9-sp1-6.0.0#1b29839dc1a48c4c9f744775969256830d1a9a45"
+source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.9.9-sp1-6.2.0#1b29839dc1a48c4c9f744775969256830d1a9a45"
 dependencies = [
  "block-buffer 0.9.0",
  "cfg-if",
@@ -4358,7 +4373,7 @@ dependencies = [
 [[package]]
 name = "sha2"
 version = "0.10.6"
-source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.10.6-sp1-6.0.0#9ed1af71d5ada0de44ee07a20fd1a8a3742a620e"
+source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.10.6-sp1-6.2.0#9ed1af71d5ada0de44ee07a20fd1a8a3742a620e"
 dependencies = [
  "cfg-if",
  "cpufeatures 0.2.17",
@@ -4368,7 +4383,7 @@ dependencies = [
 [[package]]
 name = "sha2"
 version = "0.10.8"
-source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.10.8-sp1-6.0.0#75b15faa7ce44d25435d0a3209285455540f0b7f"
+source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.10.8-sp1-6.2.0#75b15faa7ce44d25435d0a3209285455540f0b7f"
 dependencies = [
  "cfg-if",
  "cpufeatures 0.2.17",
@@ -4389,7 +4404,7 @@ dependencies = [
 [[package]]
 name = "sha2"
 version = "0.10.9"
-source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.10.9-sp1-6.0.0#e48b656ebc806117554bb33c2f8687e4637e37ff"
+source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.10.9-sp1-6.2.0#e48b656ebc806117554bb33c2f8687e4637e37ff"
 dependencies = [
  "cfg-if",
  "cpufeatures 0.2.17",
@@ -4409,7 +4424,7 @@ dependencies = [
 [[package]]
 name = "sha3"
 version = "0.10.8"
-source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha3-0.10.8-sp1-6.0.0#0a16ae7acd5cd5fbb432d884bd4aae2764a18cf7"
+source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha3-0.10.8-sp1-6.2.0#0a16ae7acd5cd5fbb432d884bd4aae2764a18cf7"
 dependencies = [
  "digest 0.10.7",
  "keccak",
@@ -5591,7 +5606,7 @@ dependencies = [
 [[package]]
 name = "substrate-bn-succinct-rs"
 version = "0.6.0"
-source = "git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-6.0.0#717dbe5e2270940faa46b646c6b2d639c82fb949"
+source = "git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-6.2.0#af2ee646c36ad80a44a15b91db0a2b648b517b44"
 dependencies = [
  "bytemuck",
  "byteorder",
@@ -5824,7 +5839,7 @@ dependencies = [
 [[package]]
 name = "tiny-keccak"
 version = "2.0.2"
-source = "git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.0.0#957430a459f7a2332ab5bab4a12f9b473bb95c87"
+source = "git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.2.0#c3f95bcc35b391101d0cf0abe91ea4c8423868b0"
 dependencies = [
  "cfg-if",
  "crunchy",
