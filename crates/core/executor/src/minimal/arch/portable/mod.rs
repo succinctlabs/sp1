@@ -5,7 +5,7 @@
 use sp1_jit::{
     debug::{self, DebugState},
     trace_capacity, Interrupt, MemValue, PageProtValue, RiscRegister, SyscallContext,
-    TraceChunkRaw,
+    TraceChunkRaw, PUBLIC_VALUE_DIGEST_WORDS,
 };
 use sp1_primitives::consts::{
     LOG_PAGE_SIZE, PROT_EXEC, PROT_FAILURE_EXEC, PROT_FAILURE_READ, PROT_FAILURE_WRITE, PROT_READ,
@@ -63,6 +63,7 @@ pub struct MinimalExecutor<M: ExecutionMode> {
     exit_code: u32,
     max_trace_size: Option<u64>,
     public_values_stream: Vec<u8>,
+    public_value_digest: [u32; PUBLIC_VALUE_DIGEST_WORDS],
     hints: Vec<(u64, Vec<u8>)>,
     maybe_unconstrained: Option<UnconstrainedCtx>,
     debug_sender: Option<mpsc::SyncSender<Option<debug::State>>>,
@@ -308,6 +309,15 @@ impl<M: ExecutionMode> SyscallContext for MinimalExecutor<M> {
         self.exit_code = exit_code;
     }
 
+    fn set_public_value_digest_word(&mut self, word_idx: u64, digest_word: u32) {
+        let idx = word_idx as usize;
+        debug_assert!(
+            idx < PUBLIC_VALUE_DIGEST_WORDS,
+            "public value digest word index out of bounds: {idx}"
+        );
+        self.public_value_digest[idx] = digest_word;
+    }
+
     fn is_unconstrained(&self) -> bool {
         self.maybe_unconstrained.is_some()
     }
@@ -439,6 +449,7 @@ impl<M: ExecutionMode> MinimalExecutor<M> {
             traces: None,
             max_trace_size,
             public_values_stream: Vec::new(),
+            public_value_digest: [0; PUBLIC_VALUE_DIGEST_WORDS],
             hints: Vec::new(),
             maybe_unconstrained: None,
             debug_sender: None,
@@ -584,6 +595,12 @@ impl<M: ExecutionMode> MinimalExecutor<M> {
     #[must_use]
     pub fn into_public_values_stream(self) -> Vec<u8> {
         self.public_values_stream
+    }
+
+    /// Get the public value digest words committed by the guest via `COMMIT` syscalls.
+    #[must_use]
+    pub fn public_value_digest(&self) -> [u32; PUBLIC_VALUE_DIGEST_WORDS] {
+        self.public_value_digest
     }
 
     /// Get the hints of the executor
