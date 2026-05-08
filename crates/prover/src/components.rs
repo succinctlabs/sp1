@@ -128,16 +128,15 @@ pub trait RecursionProver: AirProver<SP1GlobalContext, RecursionSC> {
 }
 
 pub trait WrapProver: AirProver<SP1OuterGlobalContext, WrapSC> {
-    fn wrap_verifier(
-        machine: &Machine<SP1Field, RiscvAir<SP1Field>>,
-    ) -> MachineVerifier<SP1OuterGlobalContext, WrapSC> {
+    fn wrap_verifier() -> MachineVerifier<SP1OuterGlobalContext, WrapSC> {
         let wrap_log_stacking_height = WRAP_LOG_STACKING_HEIGHT;
+        let wrap_max_log_row_count = RECURSION_MAX_LOG_ROW_COUNT;
 
         let wrap_machine = WrapAir::<SP1Field>::wrap_machine();
         let wrap_shard_verifier = ShardVerifier::from_basefold_parameters(
             wrap_fri_config(),
             wrap_log_stacking_height,
-            recursion_max_log_row_count(machine),
+            wrap_max_log_row_count,
             wrap_machine.clone(),
         );
 
@@ -193,29 +192,18 @@ pub trait SP1ProverComponents: Send + Sync + 'static + Sized {
         <Self::RecursionProver as RecursionProver>::shrink_verifier()
     }
 
-    fn wrap_verifier(
-        machine: &Machine<SP1Field, RiscvAir<SP1Field>>,
-    ) -> MachineVerifier<SP1OuterGlobalContext, WrapSC> {
-        <Self::WrapProver as WrapProver>::wrap_verifier(machine)
+    fn wrap_verifier() -> MachineVerifier<SP1OuterGlobalContext, WrapSC> {
+        <Self::WrapProver as WrapProver>::wrap_verifier()
     }
 }
 
 pub struct CpuSP1ProverComponents;
 
-pub struct CpuWrapProverBuilder {
-    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
-}
-
-impl CpuWrapProverBuilder {
-    #[must_use]
-    pub fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
-        Self { machine }
-    }
-}
+pub struct CpuWrapProverBuilder;
 
 impl WrapProverBuilder<CpuSP1ProverComponents> for CpuWrapProverBuilder {
     fn build(&self) -> Arc<<CpuSP1ProverComponents as SP1ProverComponents>::WrapProver> {
-        let wrap_verifier = CpuSP1ProverComponents::wrap_verifier(&self.machine);
+        let wrap_verifier = CpuSP1ProverComponents::wrap_verifier();
         Arc::new(CpuShardProver::new(wrap_verifier.shard_verifier().clone()))
     }
 }

@@ -89,7 +89,7 @@ impl SP1Verifier {
         let core = CpuSP1ProverComponents::core_verifier(&machine);
         let compress = CpuSP1ProverComponents::compress_verifier(&machine);
         let shrink = CpuSP1ProverComponents::shrink_verifier();
-        let wrap = CpuSP1ProverComponents::wrap_verifier(&machine);
+        let wrap = CpuSP1ProverComponents::wrap_verifier();
 
         // Get the wrap vk from the associated constant.
         let wrap_vk = bincode::deserialize(WRAP_VK_BYTES).unwrap();
