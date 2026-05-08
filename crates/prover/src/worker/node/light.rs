@@ -61,7 +61,7 @@ impl SP1LightNode {
         // Initializing the merkle tree is blocking, so we need to spawn in on a blocking task.
         tokio::task::spawn_blocking(move || {
             // Get a core prover for the light node to be able to do the setup step
-            let core_verifier = CpuSP1ProverComponents::core_verifier(machine.clone());
+            let core_verifier = CpuSP1ProverComponents::core_verifier(&machine);
             let core_air_prover =
                 Arc::new(CpuShardProver::new(core_verifier.shard_verifier().clone()));
             let permits = ProverSemaphore::new(1);

@@ -343,10 +343,10 @@ pub fn cpu_worker_builder_with_machine(
     // Get the core options.
     let opts = SP1CoreOpts::default();
 
-    let core_verifier = CpuSP1ProverComponents::core_verifier(machine.clone());
+    let core_verifier = CpuSP1ProverComponents::core_verifier(&machine);
     let core_air_prover = Arc::new(CpuShardProver::new(core_verifier.shard_verifier().clone()));
 
-    let recursion_verifier = CpuSP1ProverComponents::compress_verifier();
+    let recursion_verifier = CpuSP1ProverComponents::compress_verifier(&machine);
     let recursion_air_prover =
         Arc::new(CpuShardProver::new(recursion_verifier.shard_verifier().clone()));
 
@@ -356,7 +356,7 @@ pub fn cpu_worker_builder_with_machine(
     let artifact_client = InMemoryArtifactClient::new();
     let (worker_client, _) = LocalWorkerClient::init();
 
-    let wrap_prover = CpuWrapProverBuilder;
+    let wrap_prover = CpuWrapProverBuilder::new(machine.clone());
 
     let base_builder = SP1WorkerBuilder::new_with_machine(machine)
         .with_artifact_client(artifact_client)

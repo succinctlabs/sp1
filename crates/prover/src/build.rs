@@ -384,7 +384,8 @@ pub fn build_constraints_and_witness(
 fn build_outer_circuit(
     template_input: &SP1ShapedWitnessValues<SP1OuterGlobalContext, SP1PcsProofOuter>,
 ) -> Vec<Constraint> {
-    let wrap_verifier = CpuSP1ProverComponents::wrap_verifier();
+    let wrap_verifier =
+        CpuSP1ProverComponents::wrap_verifier(&sp1_core_machine::riscv::RiscvAir::machine()); // This is only reachable if the machine was vanilla
     let wrap_verifier = wrap_verifier.shard_verifier();
     let recursive_wrap_verifier =
         crate::recursion::recursive_verifier::<_, _, OuterConfig>(wrap_verifier);

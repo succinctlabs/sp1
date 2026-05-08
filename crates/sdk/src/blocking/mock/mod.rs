@@ -196,7 +196,7 @@ mod tests {
 
     /// Test that mock Plonk proof verification fails with wrong vkey.
     #[test]
-    #[ignore = "plonk verification does not work yet due to the witness being the wrong size, maybe related to having changed the recursion keys"]
+
     fn test_mock_plonk_proof_wrong_vkey_fails() {
         setup_logger();
         let prover = MockProver::new();
@@ -220,7 +220,6 @@ mod tests {
 
     /// Test that mock Groth16 proof verification fails with wrong vkey.
     #[test]
-    #[ignore = "groth16 verification does not work yet due to the witness being the wrong size, maybe related to having changed the recursion keys"]
     fn test_mock_groth16_proof_wrong_vkey_fails() {
         setup_logger();
         let prover = MockProver::new();
@@ -244,7 +243,7 @@ mod tests {
 
     /// Test that mock Plonk proof verification fails with tampered public values.
     #[test]
-    #[ignore = "plonk verification does not work yet due to the witness being the wrong size, maybe related to having changed the recursion keys"]
+
     fn test_mock_plonk_proof_tampered_public_values_fails() {
         setup_logger();
         let prover = MockProver::new();
@@ -266,7 +265,6 @@ mod tests {
 
     /// Test that mock Groth16 proof verification fails with tampered public values.
     #[test]
-    #[ignore = "groth16 verification does not work yet due to the witness being the wrong size, maybe related to having changed the recursion keys"]
     fn test_mock_groth16_proof_tampered_public_values_fails() {
         setup_logger();
         let prover = MockProver::new();

@@ -89,6 +89,10 @@ impl SP1NodeCore {
         self.inner.verifier.vk_verification()
     }
 
+    pub fn supports_snark_wrap(&self) -> bool {
+        self.inner.verifier.supports_snark_wrap()
+    }
+
     pub fn allowed_vk_height(&self) -> usize {
         let num_shapes = self.inner.verifier.recursion_vks.num_keys();
         num_shapes.next_power_of_two().ilog2() as usize

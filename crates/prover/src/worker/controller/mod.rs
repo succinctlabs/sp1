@@ -311,6 +311,13 @@ where
             num_deferred_proofs,
             nonce: proof_nonce,
         };
+        if matches!(mode, ProofMode::Groth16 | ProofMode::Plonk)
+            && !self.verifier.supports_snark_wrap()
+        {
+            return Err(TaskError::Fatal(anyhow::anyhow!(
+                "the active machine uses APCs, so SNARK wrapping is not supported"
+            )));
+        }
         let common_input_artifact = self.artifact_client.create_artifact()?;
         self.artifact_client.upload(&common_input_artifact.clone(), common_input.clone()).await?;
 

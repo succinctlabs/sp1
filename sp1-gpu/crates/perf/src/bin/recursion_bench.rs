@@ -134,7 +134,7 @@ async fn main() {
         // The compress verifier is used to build the recursive verifier inside both the compose
         // and shrink programs. The shrink program is just an arity-1 verifier of a compressed
         // proof, so it embeds a recursive verifier of the compress machine.
-        let compress_verifier = SP1CudaProverComponents::compress_verifier();
+        let compress_verifier = SP1CudaProverComponents::compress_verifier(&machine);
         let recursive_compress_verifier = recursive_verifier::<SP1GlobalContext, _, InnerConfig>(
             compress_verifier.shard_verifier(),
         );

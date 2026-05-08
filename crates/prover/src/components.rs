@@ -10,7 +10,10 @@ use sp1_primitives::{
     fri_params::{core_fri_config, recursion_fri_config, shrink_fri_config, wrap_fri_config},
     SP1Field, SP1GlobalContext, SP1OuterGlobalContext,
 };
-use sp1_verifier::compressed::{RECURSION_LOG_STACKING_HEIGHT, RECURSION_MAX_LOG_ROW_COUNT};
+use sp1_verifier::compressed::{
+    RECURSION_LOG_STACKING_HEIGHT, RECURSION_MAX_LOG_ROW_COUNT,
+    RECURSION_MAX_LOG_ROW_COUNT_WITH_APCS,
+};
 use static_assertions::const_assert;
 
 pub const CORE_LOG_STACKING_HEIGHT: u32 = 21;
@@ -49,12 +52,31 @@ pub type ShrinkSC =
 pub type WrapSC =
     ShardContextImpl<SP1OuterGlobalContext, SP1Pcs<SP1OuterGlobalContext>, WrapAir<SP1Field>>;
 
+#[must_use]
+pub fn machine_has_apcs(machine: &Machine<SP1Field, RiscvAir<SP1Field>>) -> bool {
+    !machine.chips().iter().eq(RiscvAir::<SP1Field>::machine().chips())
+}
+
+#[must_use]
+pub fn recursion_max_log_row_count(machine: &Machine<SP1Field, RiscvAir<SP1Field>>) -> usize {
+    if machine_has_apcs(machine) {
+        RECURSION_MAX_LOG_ROW_COUNT_WITH_APCS
+    } else {
+        RECURSION_MAX_LOG_ROW_COUNT
+    }
+}
+
+#[must_use]
+pub fn recursion_supports_snark_wrap(machine: &Machine<SP1Field, RiscvAir<SP1Field>>) -> bool {
+    !machine_has_apcs(machine)
+}
+
 pub trait CoreProver: AirProver<SP1GlobalContext, CoreSC> {
     /// The default verifier for the core prover.
     ///
     /// The verifier fixes the parameters of the underlying proof system.
     fn verifier(
-        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+        machine: &Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> MachineVerifier<SP1GlobalContext, CoreSC> {
         let core_log_stacking_height = CORE_LOG_STACKING_HEIGHT;
         let core_max_log_row_count = CORE_MAX_LOG_ROW_COUNT;
@@ -73,16 +95,17 @@ pub trait CoreProver: AirProver<SP1GlobalContext, CoreSC> {
 impl<C> CoreProver for C where C: AirProver<SP1GlobalContext, CoreSC> {}
 
 pub trait RecursionProver: AirProver<SP1GlobalContext, RecursionSC> {
-    fn verifier() -> MachineVerifier<SP1GlobalContext, RecursionSC> {
+    fn verifier(
+        machine: &Machine<SP1Field, RiscvAir<SP1Field>>,
+    ) -> MachineVerifier<SP1GlobalContext, RecursionSC> {
         let compress_log_stacking_height = RECURSION_LOG_STACKING_HEIGHT;
-        let compress_max_log_row_count = RECURSION_MAX_LOG_ROW_COUNT;
 
-        let machine = CompressAir::<SP1Field>::compress_machine();
+        let compress_machine = CompressAir::<SP1Field>::compress_machine();
         let recursion_shard_verifier = ShardVerifier::from_basefold_parameters(
             recursion_fri_config(),
             compress_log_stacking_height,
-            compress_max_log_row_count,
-            machine.clone(),
+            recursion_max_log_row_count(machine),
+            compress_machine.clone(),
         );
 
         MachineVerifier::new(recursion_shard_verifier)
@@ -105,16 +128,17 @@ pub trait RecursionProver: AirProver<SP1GlobalContext, RecursionSC> {
 }
 
 pub trait WrapProver: AirProver<SP1OuterGlobalContext, WrapSC> {
-    fn wrap_verifier() -> MachineVerifier<SP1OuterGlobalContext, WrapSC> {
+    fn wrap_verifier(
+        machine: &Machine<SP1Field, RiscvAir<SP1Field>>,
+    ) -> MachineVerifier<SP1OuterGlobalContext, WrapSC> {
         let wrap_log_stacking_height = WRAP_LOG_STACKING_HEIGHT;
-        let wrap_max_log_row_count = RECURSION_MAX_LOG_ROW_COUNT;
 
-        let machine = WrapAir::<SP1Field>::wrap_machine();
+        let wrap_machine = WrapAir::<SP1Field>::wrap_machine();
         let wrap_shard_verifier = ShardVerifier::from_basefold_parameters(
             wrap_fri_config(),
             wrap_log_stacking_height,
-            wrap_max_log_row_count,
-            machine.clone(),
+            recursion_max_log_row_count(machine),
+            wrap_machine.clone(),
         );
 
         MachineVerifier::new(wrap_shard_verifier)
@@ -154,31 +178,44 @@ pub trait SP1ProverComponents: Send + Sync + 'static + Sized {
     type WrapProverBuilder: WrapProverBuilder<Self>;
 
     fn core_verifier(
-        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+        machine: &Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> MachineVerifier<SP1GlobalContext, CoreSC> {
         <Self::CoreProver as CoreProver>::verifier(machine)
     }
 
-    fn compress_verifier() -> MachineVerifier<SP1GlobalContext, RecursionSC> {
-        <Self::RecursionProver as RecursionProver>::verifier()
+    fn compress_verifier(
+        machine: &Machine<SP1Field, RiscvAir<SP1Field>>,
+    ) -> MachineVerifier<SP1GlobalContext, RecursionSC> {
+        <Self::RecursionProver as RecursionProver>::verifier(machine)
     }
 
     fn shrink_verifier() -> MachineVerifier<SP1GlobalContext, ShrinkSC> {
         <Self::RecursionProver as RecursionProver>::shrink_verifier()
     }
 
-    fn wrap_verifier() -> MachineVerifier<SP1OuterGlobalContext, WrapSC> {
-        <Self::WrapProver as WrapProver>::wrap_verifier()
+    fn wrap_verifier(
+        machine: &Machine<SP1Field, RiscvAir<SP1Field>>,
+    ) -> MachineVerifier<SP1OuterGlobalContext, WrapSC> {
+        <Self::WrapProver as WrapProver>::wrap_verifier(machine)
     }
 }
 
 pub struct CpuSP1ProverComponents;
 
-pub struct CpuWrapProverBuilder;
+pub struct CpuWrapProverBuilder {
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+}
+
+impl CpuWrapProverBuilder {
+    #[must_use]
+    pub fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
+        Self { machine }
+    }
+}
 
 impl WrapProverBuilder<CpuSP1ProverComponents> for CpuWrapProverBuilder {
     fn build(&self) -> Arc<<CpuSP1ProverComponents as SP1ProverComponents>::WrapProver> {
-        let wrap_verifier = CpuSP1ProverComponents::wrap_verifier();
+        let wrap_verifier = CpuSP1ProverComponents::wrap_verifier(&self.machine);
         Arc::new(CpuShardProver::new(wrap_verifier.shard_verifier().clone()))
     }
 }
