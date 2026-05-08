@@ -356,7 +356,7 @@ pub fn cpu_worker_builder_with_machine(
     let artifact_client = InMemoryArtifactClient::new();
     let (worker_client, _) = LocalWorkerClient::init();
 
-    let wrap_prover = CpuWrapProverBuilder::new(machine.clone());
+    let wrap_prover = CpuWrapProverBuilder;
 
     let base_builder = SP1WorkerBuilder::new_with_machine(machine)
         .with_artifact_client(artifact_client)

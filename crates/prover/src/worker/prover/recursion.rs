@@ -1253,7 +1253,7 @@ impl<C: SP1ProverComponents> WrapProver<C> {
         let SP1WrapProof { vk, proof } = wrapped_proof;
         let mut challenger = SP1OuterGlobalContext::default_challenger();
         vk.observe_into(&mut challenger);
-        C::wrap_verifier(&self.prover_data.machine)
+        C::wrap_verifier()
             .verify_shard(vk, proof, &mut challenger)
             .map_err(|e| TaskError::Fatal(e.into()))
     }
