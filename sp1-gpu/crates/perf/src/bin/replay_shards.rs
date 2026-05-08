@@ -187,7 +187,7 @@ async fn main() {
                 core_verifier.shard_verifier(),
             );
             let (normalize_prover, compress_verifier) =
-                recursion_prover_and_verifier(t.clone()).await;
+                recursion_prover_and_verifier(t.clone(), &machine).await;
             let reduce_shape = SP1RecursionProofShape::retrieve_or_compute_reduce_shape(
                 machine.clone(),
                 DEFAULT_ARITY,

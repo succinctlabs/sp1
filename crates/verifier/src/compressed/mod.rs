@@ -17,7 +17,10 @@ mod internal;
 use crate::{SP1Proof, SP1ProofMode};
 
 pub use self::internal::SP1CompressedVerifier;
-pub use config::{RECURSION_LOG_STACKING_HEIGHT, RECURSION_MAX_LOG_ROW_COUNT};
+pub use config::{
+    RECURSION_LOG_STACKING_HEIGHT, RECURSION_MAX_LOG_ROW_COUNT,
+    RECURSION_MAX_LOG_ROW_COUNT_WITH_APCS,
+};
 
 /// A reason why the verifier rejects a given proof.
 #[derive(Debug, Error)]

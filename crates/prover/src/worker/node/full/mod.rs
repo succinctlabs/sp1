@@ -252,6 +252,11 @@ impl SP1LocalNode {
         &self,
         compressed_proof: &SP1Proof,
     ) -> anyhow::Result<SP1WrapProof<SP1OuterGlobalContext, SP1PcsProofOuter>> {
+        if !self.inner.core.supports_snark_wrap() {
+            return Err(anyhow::anyhow!(
+                "the active machine uses APCs, so shrink-wrap is not supported"
+            ));
+        }
         let compressed_proof = match compressed_proof {
             SP1Proof::Compressed(proof) => *proof.clone(),
             _ => return Err(anyhow::anyhow!("given proof is not a compressed proof")),
@@ -432,7 +437,6 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    #[ignore = "groth16 verification does not work yet due to the witness being the wrong size, maybe related to having changed the recursion keys"]
     async fn test_e2e_groth16_node() -> anyhow::Result<()> {
         setup_logger();
 

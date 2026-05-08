@@ -618,7 +618,7 @@ where
             tokio::task::spawn_blocking(move || {
                 let _guard = parent.enter();
                 let machine_proof = MachineProof::from(vec![proof_clone]);
-                C::core_verifier(machine)
+                C::core_verifier(&machine)
                     .verify(&vk_clone, &machine_proof)
                     .map_err(|e| TaskError::Retryable(anyhow!("shard verification failed: {e}")))
             })
@@ -828,7 +828,7 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A
         machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> Self {
         // Initialize the normalize program compiler
-        let core_verifier = C::core_verifier(machine);
+        let core_verifier = C::core_verifier(&machine);
 
         let normalize_program_cache = SP1NormalizeCache::new(config.normalize_program_cache_size);
 

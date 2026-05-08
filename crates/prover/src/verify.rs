@@ -86,10 +86,10 @@ impl SP1Verifier {
         machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> Self {
         // Get the verifiers from the components.
-        let core = CpuSP1ProverComponents::core_verifier(machine);
-        let compress = CpuSP1ProverComponents::compress_verifier();
+        let core = CpuSP1ProverComponents::core_verifier(&machine);
+        let compress = CpuSP1ProverComponents::compress_verifier(&machine);
         let shrink = CpuSP1ProverComponents::shrink_verifier();
-        let wrap = CpuSP1ProverComponents::wrap_verifier();
+        let wrap = CpuSP1ProverComponents::wrap_verifier(&machine);
 
         // Get the wrap vk from the associated constant.
         let wrap_vk = bincode::deserialize(WRAP_VK_BYTES).unwrap();
@@ -99,6 +99,10 @@ impl SP1Verifier {
 
     pub fn vk_verification(&self) -> bool {
         self.recursion_vks.vk_verification()
+    }
+
+    pub fn supports_snark_wrap(&self) -> bool {
+        crate::recursion_supports_snark_wrap(self.core.machine())
     }
 
     pub fn set_shrink_vk(&mut self, shrink_vk: MachineVerifyingKey<SP1GlobalContext>) {
