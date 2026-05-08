@@ -1,12 +1,12 @@
 {
   "shape": {
     "heights": {
-      "BaseAlu": 592384,
-      "ExtAlu": 795264,
-      "MemoryConst": 492320,
-      "MemoryVar": 661984,
-      "Poseidon2WideDeg3": 158368,
-      "PrefixSumChecks": 224608,
+      "BaseAlu": 585952,
+      "ExtAlu": 807040,
+      "MemoryConst": 494656,
+      "MemoryVar": 663168,
+      "Poseidon2WideDeg3": 158624,
+      "PrefixSumChecks": 223808,
       "PublicValues": 16,
       "Select": 1087808
     },
