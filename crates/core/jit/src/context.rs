@@ -1,6 +1,6 @@
 use crate::{debug, ElfInfo, Interrupt, MemValue, PageProtValue, RiscRegister, TraceChunkHeader};
 use memmap2::{MmapMut, MmapOptions};
-use sp1_primitives::consts::{PROT_READ, PROT_WRITE};
+use sp1_primitives::consts::{PROT_READ, PROT_WRITE, PV_DIGEST_NUM_WORDS};
 use std::{collections::VecDeque, io, os::fd::RawFd, ptr::NonNull, sync::mpsc};
 
 pub trait SyscallContext {
@@ -64,6 +64,8 @@ pub trait SyscallContext {
     fn input_buffer(&mut self) -> &mut VecDeque<Vec<u8>>;
     /// Get the public values stream.
     fn public_values_stream(&mut self) -> &mut Vec<u8>;
+    /// Commit one word of the public-value digest.
+    fn commit_public_value_digest_word(&mut self, word_idx: usize, word: u32);
     /// Enter the unconstrained context.
     fn enter_unconstrained(&mut self) -> io::Result<()>;
     /// Exit the unconstrained context.
@@ -250,6 +252,12 @@ impl SyscallContext for JitContext {
         unsafe { self.public_values_stream() }
     }
 
+    fn commit_public_value_digest_word(&mut self, word_idx: usize, word: u32) {
+        if let Some(slot) = unsafe { self.public_value_digest() }.get_mut(word_idx) {
+            *slot = word;
+        }
+    }
+
     fn enter_unconstrained(&mut self) -> io::Result<()> {
         self.enter_unconstrained()
     }
@@ -361,6 +369,8 @@ pub struct JitContext {
     pub(crate) input_buffer: NonNull<VecDeque<Vec<u8>>>,
     /// A stream of public values from the program (global to entire program).
     pub(crate) public_values_stream: NonNull<Vec<u8>>,
+    /// The public-value digest words committed by the program.
+    pub(crate) public_value_digest: NonNull<[u32; PV_DIGEST_NUM_WORDS]>,
     /// The hints read by the program, with their corresponding start address.
     pub(crate) hints: NonNull<Vec<(u64, Vec<u8>)>>,
     /// The memory file descriptor, this is used to create the COW memory at runtime.
@@ -479,6 +489,12 @@ impl JitContext {
     /// - The public values stream must be non null and valid to read from.
     pub const unsafe fn public_values_stream(&mut self) -> &mut Vec<u8> {
         self.public_values_stream.as_mut()
+    }
+
+    /// # Safety
+    /// - The public-value digest pointer must be non null and valid to write to.
+    pub const unsafe fn public_value_digest(&mut self) -> &mut [u32; PV_DIGEST_NUM_WORDS] {
+        self.public_value_digest.as_mut()
     }
 
     /// Obtain a view of the registers.

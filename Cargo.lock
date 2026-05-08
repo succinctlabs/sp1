@@ -7120,6 +7120,7 @@ dependencies = [
  "serde",
  "sp1-core-executor",
  "sp1-jit",
+ "sp1-primitives",
  "tracing-subscriber 0.3.23",
 ]
 

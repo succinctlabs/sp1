@@ -1,6 +1,8 @@
 #![allow(clippy::items_after_statements)]
 use std::sync::Arc;
 
+use sp1_primitives::consts::PV_DIGEST_NUM_WORDS;
+
 use crate::{Program, SupervisorMode, UserMode};
 pub use arch::*;
 pub use postprocess::chunked_memory_init_events;
@@ -145,6 +147,15 @@ impl MinimalExecutorEnum {
         match self {
             Self::Supervisor(e) => e.public_values_stream(),
             Self::User(e) => e.public_values_stream(),
+        }
+    }
+
+    /// Calls `public_value_digest` on the active `MinimalExecutor`.
+    #[must_use]
+    pub fn public_value_digest(&self) -> &[u32; PV_DIGEST_NUM_WORDS] {
+        match self {
+            Self::Supervisor(e) => e.public_value_digest(),
+            Self::User(e) => e.public_value_digest(),
         }
     }
 

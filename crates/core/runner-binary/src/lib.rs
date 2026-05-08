@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use sp1_core_executor::Program;
+use sp1_primitives::consts::PV_DIGEST_NUM_WORDS;
 use std::{collections::VecDeque, sync::Arc};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -17,6 +18,7 @@ pub struct Input {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Output {
     pub public_values_stream: Vec<u8>,
+    pub public_value_digest: [u32; PV_DIGEST_NUM_WORDS],
     pub hints: Vec<(u64, Vec<u8>)>,
     pub global_clk: u64,
     pub clk: u64,

@@ -168,6 +168,13 @@ pub fn ecall_handler(ctx: &mut impl SyscallContext, code: SyscallCode) -> Result
             ctx.set_exit_code(arg1 as u32);
             Ok(None)
         }
+        SyscallCode::COMMIT => {
+            // COMMIT passes the public-value digest word index in arg1 and the word in arg2.
+            if let (Ok(word_idx), Ok(digest_word)) = (usize::try_from(arg1), u32::try_from(arg2)) {
+                ctx.commit_public_value_digest_word(word_idx, digest_word);
+            }
+            Ok(None)
+        }
         SyscallCode::MPROTECT => mprotect_syscall(ctx, arg1, arg2),
         SyscallCode::HINT_MPROTECT_FLUSH => mprotect_flush_syscall(ctx, arg1, arg2),
         SyscallCode::SIG_RETURN => sig_return_syscall(ctx, arg1, arg2),
@@ -178,9 +185,7 @@ pub fn ecall_handler(ctx: &mut impl SyscallContext, code: SyscallCode) -> Result
         SyscallCode::DELETE_PROFILER_SYMBOLS => {
             Ok(delete_profile_symbols_syscall(ctx, arg1, arg2))
         }
-        SyscallCode::VERIFY_SP1_PROOF
-        | SyscallCode::COMMIT
-        | SyscallCode::COMMIT_DEFERRED_PROOFS => Ok(None),
+        SyscallCode::VERIFY_SP1_PROOF | SyscallCode::COMMIT_DEFERRED_PROOFS => Ok(None),
     }
     .map(|opt: Option<u64>| opt.unwrap_or(code as u64))
 }

@@ -4,6 +4,7 @@ use sp1_core_executor::{
     ExecutionError, MinimalExecutorEnum, Program, UnsafeMemory, DEFAULT_MEMORY_LIMIT,
 };
 use sp1_jit::{MemValue, TraceChunkRaw};
+use sp1_primitives::consts::PV_DIGEST_NUM_WORDS;
 use std::sync::Arc;
 
 /// Minimal trace portable executor that caps memory entries
@@ -152,6 +153,13 @@ impl MinimalExecutorRunner {
     #[inline]
     pub fn public_values_stream(&self) -> &Vec<u8> {
         self.inner.public_values_stream()
+    }
+
+    /// Get the public-value digest committed by the guest.
+    #[must_use]
+    #[inline]
+    pub fn public_value_digest(&self) -> &[u32; PV_DIGEST_NUM_WORDS] {
+        self.inner.public_value_digest()
     }
 
     /// Consume self, and return the public values stream.

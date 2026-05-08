@@ -9,6 +9,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use slop_algebra::{AbstractField, PrimeField32};
 use sp1_primitives::consts::split_page_idx;
+pub use sp1_primitives::consts::PV_DIGEST_NUM_WORDS;
 
 use crate::{septic_curve::SepticCurve, septic_digest::SepticDigest, PROOF_MAX_NUM_PVS};
 
@@ -17,9 +18,6 @@ use crate::addr_to_limbs;
 
 /// The number of non padded elements in the SP1 proofs public values vec.
 pub const SP1_PROOF_NUM_PV_ELTS: usize = size_of::<PublicValues<[u8; 4], [u8; 3], [u8; 4], u8>>();
-
-/// The number of 32 bit words in the SP1 proof's committed value digest.
-pub const PV_DIGEST_NUM_WORDS: usize = 8;
 
 /// The number of field elements in the poseidon2 digest.
 pub const POSEIDON_NUM_WORDS: usize = 8;

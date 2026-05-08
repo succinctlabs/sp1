@@ -106,6 +106,7 @@ fn main() {
 
     let output = Output {
         public_values_stream: compiled.public_values_stream,
+        public_value_digest: compiled.public_value_digest,
         hints: compiled.hints,
         global_clk: compiled.global_clk,
         clk: compiled.clk,

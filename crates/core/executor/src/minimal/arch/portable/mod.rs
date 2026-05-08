@@ -9,7 +9,7 @@ use sp1_jit::{
 };
 use sp1_primitives::consts::{
     LOG_PAGE_SIZE, PROT_EXEC, PROT_FAILURE_EXEC, PROT_FAILURE_READ, PROT_FAILURE_WRITE, PROT_READ,
-    PROT_WRITE,
+    PROT_WRITE, PV_DIGEST_NUM_WORDS,
 };
 
 use std::{
@@ -63,6 +63,7 @@ pub struct MinimalExecutor<M: ExecutionMode> {
     exit_code: u32,
     max_trace_size: Option<u64>,
     public_values_stream: Vec<u8>,
+    public_value_digest: [u32; PV_DIGEST_NUM_WORDS],
     hints: Vec<(u64, Vec<u8>)>,
     maybe_unconstrained: Option<UnconstrainedCtx>,
     debug_sender: Option<mpsc::SyncSender<Option<debug::State>>>,
@@ -254,6 +255,12 @@ impl<M: ExecutionMode> SyscallContext for MinimalExecutor<M> {
         &mut self.public_values_stream
     }
 
+    fn commit_public_value_digest_word(&mut self, word_idx: usize, word: u32) {
+        if let Some(slot) = self.public_value_digest.get_mut(word_idx) {
+            *slot = word;
+        }
+    }
+
     fn enter_unconstrained(&mut self) -> io::Result<()> {
         assert!(
             self.maybe_unconstrained.is_none(),
@@ -439,6 +446,7 @@ impl<M: ExecutionMode> MinimalExecutor<M> {
             traces: None,
             max_trace_size,
             public_values_stream: Vec::new(),
+            public_value_digest: [0; PV_DIGEST_NUM_WORDS],
             hints: Vec::new(),
             maybe_unconstrained: None,
             debug_sender: None,
@@ -578,6 +586,12 @@ impl<M: ExecutionMode> MinimalExecutor<M> {
     #[must_use]
     pub fn public_values_stream(&self) -> &Vec<u8> {
         &self.public_values_stream
+    }
+
+    /// Get the public-value digest committed by the guest.
+    #[must_use]
+    pub fn public_value_digest(&self) -> &[u32; PV_DIGEST_NUM_WORDS] {
+        &self.public_value_digest
     }
 
     /// Consume self, and return the public values stream.

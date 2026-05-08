@@ -14,6 +14,7 @@ pub mod shm;
 
 use dynasmrt::ExecutableBuffer;
 use hashbrown::HashMap;
+use sp1_primitives::consts::PV_DIGEST_NUM_WORDS;
 use std::{
     collections::VecDeque,
     io,
@@ -209,6 +210,8 @@ pub struct JitFunction<M> {
 
     /// A stream of public values from the program (global to entire program).
     pub public_values_stream: Vec<u8>,
+    /// The public-value digest words committed by the program.
+    pub public_value_digest: [u32; PV_DIGEST_NUM_WORDS],
 
     /// Memory structure,
     pub memory: M,
@@ -256,6 +259,7 @@ impl<M: JitMemory> JitFunction<M> {
             input_buffer: VecDeque::new(),
             hints: Vec::new(),
             public_values_stream: Vec::new(),
+            public_value_digest: [0; PV_DIGEST_NUM_WORDS],
             debug_sender: None,
             exit_code: 0,
         })
@@ -340,6 +344,7 @@ impl<M: JitMemory> JitFunction<M> {
             hints: NonNull::new_unchecked(&mut self.hints),
             maybe_unconstrained: None,
             public_values_stream: NonNull::new_unchecked(&mut self.public_values_stream),
+            public_value_digest: NonNull::new_unchecked(&mut self.public_value_digest),
             memory_fd: self.memory.as_raw_fd(),
             registers: self.registers,
             pc: self.pc,
@@ -400,6 +405,7 @@ impl<M: JitResetableMemory> JitFunction<M> {
         self.input_buffer = VecDeque::new();
         self.hints = Vec::new();
         self.public_values_stream = Vec::new();
+        self.public_value_digest = [0; PV_DIGEST_NUM_WORDS];
         self.memory.reset();
 
         self.insert_memory_image();

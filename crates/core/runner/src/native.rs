@@ -9,7 +9,7 @@ use sp1_jit::{
     shm::{ShmTraceRing, TraceResult},
     trace_capacity, MemValue, MinimalTrace, TraceChunkRaw,
 };
-use sp1_primitives::consts::MAX_JIT_LOG_ADDR;
+use sp1_primitives::consts::{MAX_JIT_LOG_ADDR, PV_DIGEST_NUM_WORDS};
 use std::{
     collections::VecDeque,
     io::{BufRead, BufReader, BufWriter, Write},
@@ -323,6 +323,12 @@ impl MinimalExecutorRunner {
     #[must_use]
     pub fn public_values_stream(&self) -> &Vec<u8> {
         &self.output().public_values_stream
+    }
+
+    /// Get the public-value digest committed by the guest.
+    #[must_use]
+    pub fn public_value_digest(&self) -> &[u32; PV_DIGEST_NUM_WORDS] {
+        &self.output().public_value_digest
     }
 
     /// Consume self, and return the public values stream.

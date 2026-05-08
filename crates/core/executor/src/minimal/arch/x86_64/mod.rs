@@ -6,6 +6,7 @@ use sp1_jit::{
     debug, memory::AnonymousMemory, trace_capacity, DebugBackend, JitFunction, JitMemory, MemValue,
     RiscOperand, RiscRegister, RiscvTranspiler, TraceChunkHeader, TraceChunkRaw, TranspilerBackend,
 };
+use sp1_primitives::consts::PV_DIGEST_NUM_WORDS;
 use std::marker::PhantomData;
 use std::{
     collections::VecDeque,
@@ -224,6 +225,12 @@ impl<M: ExecutionMode> MinimalExecutor<M> {
     #[must_use]
     pub fn public_values_stream(&self) -> &Vec<u8> {
         &self.compiled.public_values_stream
+    }
+
+    /// Get the public-value digest committed by the guest.
+    #[must_use]
+    pub fn public_value_digest(&self) -> &[u32; PV_DIGEST_NUM_WORDS] {
+        &self.compiled.public_value_digest
     }
 
     /// Consume self, and return the public values stream.

@@ -25,6 +25,9 @@ pub const WORD_BYTE_SIZE: usize = 2 * WORD_SIZE;
 /// The size of an instruction in bytes.
 pub const INSTRUCTION_WORD_SIZE: usize = 4;
 
+/// The number of 32-bit words in the SP1 proof's committed value digest.
+pub const PV_DIGEST_NUM_WORDS: usize = 8;
+
 /// The number of bytes necessary to represent a 128-bit integer.
 pub const LONG_WORD_BYTE_SIZE: usize = 2 * WORD_BYTE_SIZE;
 

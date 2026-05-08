@@ -10,6 +10,7 @@ use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
 use sp1_hypercube::{Machine, MachineVerifyingKey, SP1PcsProofInner, SP1VerifyingKey};
 use sp1_jit::TraceChunkRaw;
+use sp1_primitives::consts::PV_DIGEST_NUM_WORDS;
 use sp1_primitives::io::SP1PublicValues;
 use sp1_primitives::{SP1Field, SP1GlobalContext};
 use std::sync::Arc;
@@ -113,6 +114,16 @@ impl AsyncWorker<GasExecutingTask, Result<ExecutionReport, ExecutionError>> for 
     }
 }
 
+fn public_value_digest_from_words(words: &[u32; PV_DIGEST_NUM_WORDS]) -> [u8; 32] {
+    let mut digest = [0u8; 32];
+
+    for (word, out) in words.iter().zip(digest.chunks_exact_mut(4)) {
+        out.copy_from_slice(&word.to_le_bytes());
+    }
+
+    digest
+}
+
 fn verify_deferred_proofs(
     machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     proofs: &[DeferredProofInput],
@@ -167,6 +178,7 @@ pub async fn execute_with_options_and_machine(
         Report(ExecutionReport),
         PublicValues {
             public_values: SP1PublicValues,
+            public_value_digest_words: [u32; PV_DIGEST_NUM_WORDS],
             #[cfg(feature = "profiling")]
             cycle_tracker: hashbrown::HashMap<String, u64>,
             #[cfg(feature = "profiling")]
@@ -276,12 +288,14 @@ pub async fn execute_with_options_and_machine(
         #[cfg(feature = "profiling")]
         let invocation_tracker = minimal_executor.take_invocation_tracker();
 
+        let public_value_digest_words = *minimal_executor.public_value_digest();
         let public_value_stream = minimal_executor.into_public_values_stream();
         let public_values = SP1PublicValues::from(&public_value_stream);
 
         tracing::info!("public_value_stream: {:?}", public_value_stream);
         Ok::<_, anyhow::Error>(ExecutorOutput::PublicValues {
             public_values,
+            public_value_digest_words,
             #[cfg(feature = "profiling")]
             cycle_tracker,
             #[cfg(feature = "profiling")]
@@ -292,6 +306,7 @@ pub async fn execute_with_options_and_machine(
     // Wait for all gas calculations to complete.
     let mut final_report = ExecutionReport::default();
     let mut public_values = SP1PublicValues::default();
+    let mut public_value_digest_words = None;
     #[cfg(feature = "profiling")]
     let mut cycle_tracker_data: Option<(
         hashbrown::HashMap<String, u64>,
@@ -303,12 +318,14 @@ pub async fn execute_with_options_and_machine(
             Ok(Ok(output)) => match output {
                 ExecutorOutput::PublicValues {
                     public_values: pv,
+                    public_value_digest_words: digest_words,
                     #[cfg(feature = "profiling")]
                     cycle_tracker,
                     #[cfg(feature = "profiling")]
                     invocation_tracker,
                 } => {
                     public_values = pv;
+                    public_value_digest_words = Some(digest_words);
                     #[cfg(feature = "profiling")]
                     {
                         cycle_tracker_data = Some((cycle_tracker, invocation_tracker));
@@ -336,18 +353,18 @@ pub async fn execute_with_options_and_machine(
         final_report.invocation_tracker = invocation_tracker;
     }
 
-    // Extract the public value digest from the final VM state.
-    let public_value_digest: [u8; 32] = final_vm_state
-        .get()
-        .map(|state| {
-            let mut committed_value_digest = [0u8; 32];
-            state.public_value_digest.iter().enumerate().for_each(|(i, word)| {
-                let bytes = word.to_le_bytes();
-                committed_value_digest[i * 4..(i + 1) * 4].copy_from_slice(&bytes);
-            });
-            committed_value_digest
-        })
-        .ok_or(anyhow::anyhow!("Failed to extract public value digest"))?;
+    // Gas replay owns `FinalVmState`. When gas is disabled, use the digest words
+    // emitted by the guest's own COMMIT syscalls during minimal execution.
+    let public_value_digest = match final_vm_state.get() {
+        Some(state) => public_value_digest_from_words(&state.public_value_digest),
+        None if !calculate_gas => {
+            let words = public_value_digest_words
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("Failed to extract public value digest"))?;
+            public_value_digest_from_words(words)
+        }
+        None => return Err(anyhow::anyhow!("Failed to extract public value digest")),
+    };
 
     Ok((public_values, public_value_digest, final_report))
 }
@@ -356,25 +373,69 @@ pub async fn execute_with_options_and_machine(
 mod tests {
     use std::sync::Arc;
 
-    use sp1_core_executor::{Program, SP1Context, SP1CoreOpts};
+    use sp1_core_executor::{ExecutionReport, Program, SP1Context, SP1CoreOpts};
     use sp1_core_machine::io::SP1Stdin;
+    use sp1_primitives::io::SP1PublicValues;
 
     use super::{execute_with_options, SP1ExecutorConfig};
 
-    #[tokio::test]
-    async fn test_execute_with_optional_gas() {
-        let elf = test_artifacts::FIBONACCI_ELF;
-        let program = Arc::new(Program::from(&elf).unwrap());
+    fn fibonacci_stdin() -> SP1Stdin {
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
-        let opts = SP1CoreOpts::default();
-        let executor_config = SP1ExecutorConfig::default();
+        stdin
+    }
 
-        let context = SP1Context::default();
-        let (pv, digest, report) =
-            execute_with_options(program, stdin, context, opts, executor_config).await.unwrap();
+    async fn execute_program(
+        program: Arc<Program>,
+        calculate_gas: bool,
+    ) -> (SP1PublicValues, [u8; 32], ExecutionReport) {
+        let context = SP1Context { calculate_gas, ..SP1Context::default() };
+        execute_with_options(
+            program,
+            fibonacci_stdin(),
+            context,
+            SP1CoreOpts::default(),
+            SP1ExecutorConfig::default(),
+        )
+        .await
+        .unwrap()
+    }
 
-        assert!(pv.hash() == digest.to_vec() || pv.blake3_hash() == digest.to_vec());
-        assert_eq!(report.exit_code, 0);
+    fn assert_public_values_digest(public_values: &SP1PublicValues, digest: [u8; 32]) {
+        let digest = digest.to_vec();
+        assert!(public_values.hash() == digest || public_values.blake3_hash() == digest);
+    }
+
+    #[tokio::test]
+    async fn test_execute_with_optional_gas() {
+        let sha_program = Arc::new(Program::from(&test_artifacts::FIBONACCI_ELF).unwrap());
+        let (sha_pv, sha_digest, sha_report) = execute_program(sha_program.clone(), true).await;
+        let (sha_no_gas_pv, sha_no_gas_digest, sha_no_gas_report) =
+            execute_program(sha_program, false).await;
+
+        assert!(!sha_pv.as_slice().is_empty());
+        assert_eq!(sha_pv.as_slice(), sha_no_gas_pv.as_slice());
+        assert_eq!(sha_digest, sha_no_gas_digest);
+        assert_eq!(sha_no_gas_digest.to_vec(), sha_no_gas_pv.hash());
+        assert_public_values_digest(&sha_no_gas_pv, sha_no_gas_digest);
+        assert_eq!(sha_report.exit_code, 0);
+        assert_eq!(sha_no_gas_report.exit_code, 0);
+        assert!(sha_no_gas_report.gas().is_none());
+
+        let blake3_program =
+            Arc::new(Program::from(&test_artifacts::FIBONACCI_BLAKE3_ELF).unwrap());
+        let (blake3_pv, blake3_digest, blake3_report) =
+            execute_program(blake3_program.clone(), true).await;
+        let (blake3_no_gas_pv, blake3_no_gas_digest, blake3_no_gas_report) =
+            execute_program(blake3_program, false).await;
+
+        assert!(!blake3_pv.as_slice().is_empty());
+        assert_eq!(blake3_pv.as_slice(), blake3_no_gas_pv.as_slice());
+        assert_eq!(blake3_digest, blake3_no_gas_digest);
+        assert_eq!(blake3_no_gas_digest.to_vec(), blake3_no_gas_pv.blake3_hash());
+        assert_public_values_digest(&blake3_no_gas_pv, blake3_no_gas_digest);
+        assert_eq!(blake3_report.exit_code, 0);
+        assert_eq!(blake3_no_gas_report.exit_code, 0);
+        assert!(blake3_no_gas_report.gas().is_none());
     }
 }
