@@ -17,7 +17,7 @@ fn trap_weierstrass_mul<'a, M: ExecutionMode, RT: SyscallRuntime<'a, M>, E: Elli
     scalar_ptr: u64,
 ) -> (EllipticCurvePageProtRecords, Option<TrapError>) {
     let num_point_words = <E::BaseField as NumWords>::WordsCurvePoint::USIZE;
-    let num_scalar_words = <E::BaseField as NumWords>::WordsCurvePoint::USIZE;
+    let num_scalar_words = <E::BaseField as NumWords>::WordsFieldElement::USIZE;
 
     let mut ret = EllipticCurvePageProtRecords {
         read_page_prot_records: Vec::new(),
@@ -59,7 +59,7 @@ pub(crate) fn weierstrass_mul<'a, M: ExecutionMode, RT: SyscallRuntime<'a, M>, E
     let clk = rt.core().clk();
 
     let num_point_words = <E::BaseField as NumWords>::WordsCurvePoint::USIZE;
-    let num_scalar_words = <E::BaseField as NumWords>::WordsCurvePoint::USIZE;
+    let num_scalar_words = <E::BaseField as NumWords>::WordsFieldElement::USIZE;
 
     let (page_prot_records, is_trap) = trap_weierstrass_mul::<M, RT, E>(rt, p_ptr, scalar_ptr);
 
