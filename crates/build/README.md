@@ -11,6 +11,24 @@ use sp1_build::build_program;
 build_program(&BuildArgs::default(), Some(program_dir));
 ```
 
+## Environment Variables
+
+| Variable | Description |
+|---|---|
+| `SP1_DOCKER` | Set to `false` or `0` to disable Docker builds (default: `true`). |
+| `SP1_DOCKER_IMAGE` | Override the Docker image (default: `ghcr.io/succinctlabs/sp1:<tag>`). |
+| `SP1_DOCKER_ARGS` | Extra arguments passed to `docker run`. Useful for network configuration or forwarding environment variables into the container. |
+
+### Building behind a proxy
+
+When building behind a network proxy (e.g., Clash, mitmproxy), the Docker container may fail to
+fetch dependencies because it cannot reach the proxy running on the host. Use `SP1_DOCKER_ARGS`
+to switch to host networking and forward the proxy environment variables:
+
+```bash
+SP1_DOCKER_ARGS="--network host -e HTTPS_PROXY=http://127.0.0.1:7890" cargo build -p my-program
+```
+
 ## Potential Issues
 
 If you attempt to build a program with Docker that depends on a local crate, and the crate is not in
