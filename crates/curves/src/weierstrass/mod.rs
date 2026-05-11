@@ -7,7 +7,9 @@ use serde::{Deserialize, Serialize};
 use super::CurveType;
 use crate::{
     params::{FieldParameters, NumLimbs, NumWords},
-    utils::{biguint_to_bits_le, biguint_to_limbs},
+    utils::{
+        biguint_to_bits_le, biguint_to_dashu, biguint_to_u256, dashu_modpow, dashu_to_biguint,
+    },
     AffinePoint, EllipticCurve, EllipticCurveParameters,
 };
 
@@ -21,7 +23,7 @@ pub mod secp256r1;
 
 use k256::{
     elliptic_curve::ops::Reduce, elliptic_curve::sec1::ToEncodedPoint,
-    AffinePoint as K256AffinePoint, EncodedPoint, ProjectivePoint as K256ProjectivePoint, U256,
+    AffinePoint as K256AffinePoint, EncodedPoint, ProjectivePoint as K256ProjectivePoint,
 };
 
 /// Parameters that specify a short Weierstrass curve : y^2 = x^3 + ax + b.
@@ -154,38 +156,6 @@ impl<E: WeierstrassParameters> AffinePoint<SwCurve<E>> {
     }
 }
 
-pub fn biguint_to_dashu(integer: &BigUint) -> dashu::integer::UBig {
-    dashu::integer::UBig::from_le_bytes(integer.to_bytes_le().as_slice())
-}
-
-pub fn dashu_to_biguint(integer: &dashu::integer::UBig) -> BigUint {
-    BigUint::from_bytes_le(&integer.to_le_bytes())
-}
-
-pub fn dashu_modpow(
-    base: &dashu::integer::UBig,
-    exponent: &dashu::integer::UBig,
-    modulus: &dashu::integer::UBig,
-) -> dashu::integer::UBig {
-    if modulus == &dashu::integer::UBig::from(1u32) {
-        return dashu::integer::UBig::from(0u32);
-    }
-
-    let mut result = dashu::integer::UBig::from(1u32);
-    let mut base = base.clone() % modulus;
-    let mut exp = exponent.clone();
-
-    while exp > dashu::integer::UBig::from(0u32) {
-        if &exp % dashu::integer::UBig::from(2u32) == dashu::integer::UBig::from(1u32) {
-            result = (result * &base) % modulus;
-        }
-        exp >>= 1;
-        base = (&base * &base) % modulus;
-    }
-
-    result
-}
-
 impl EllipticCurve for SwCurve<Secp256k1Parameters> {
     fn ec_add(p: &AffinePoint<Self>, q: &AffinePoint<Self>) -> AffinePoint<Self> {
         p.sw_add_k256(q)
@@ -272,8 +242,7 @@ impl AffinePoint<SwCurve<Secp256k1Parameters>> {
 
         let this = K256ProjectivePoint::from(this);
 
-        let scalar_u256 = U256::from_le_slice(&biguint_to_limbs::<32>(scalar));
-        let scalar = k256::Scalar::reduce(scalar_u256);
+        let scalar = k256::Scalar::reduce(biguint_to_u256(scalar));
 
         let result = this * scalar;
         let result = result.to_affine();
