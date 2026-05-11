@@ -23,7 +23,7 @@ pub mod secp256k1;
 pub mod secp256r1;
 
 use k256::{
-    elliptic_curve::ops::Reduce, elliptic_curve::sec1::ToEncodedPoint,
+    elliptic_curve::{ops::Reduce, sec1::ToEncodedPoint, Field},
     AffinePoint as K256AffinePoint, EncodedPoint, ProjectivePoint as K256ProjectivePoint,
 };
 
@@ -166,6 +166,22 @@ impl EllipticCurve for SwCurve<Secp256k1Parameters> {
         p.sw_double_k256()
     }
 
+    /// Scalar multiplication via the `k256` crate's projective-coordinate path.
+    ///
+    /// # Panics
+    ///
+    /// Panics with `"Scalar multiplication failed"` when `scalar` reduces to zero mod the
+    /// secp256k1 group order `n` (the result would be the point at infinity, which has no
+    /// affine representation). This includes `scalar = 0` and any nonzero multiple of `n`.
+    ///
+    /// # Warning
+    ///
+    /// `scalar` is funneled through [`crate::utils::biguint_to_u256`], which silently truncates
+    /// inputs that don't fit in 256 bits (the `debug_assert!` in
+    /// [`crate::utils::biguint_to_limbs`] only fires in debug builds). Callers must ensure
+    /// `scalar < 2^256`, or the multiplication will silently use a different scalar than
+    /// intended. This differs from the generic [`EllipticCurve::ec_mul`] default impl, which
+    /// reduces mod `2^Self::nb_scalar_bits()` instead.
     fn ec_mul(p: &AffinePoint<Self>, scalar: &BigUint) -> AffinePoint<Self> {
         p.sw_scalar_mul_k256(scalar)
     }
@@ -235,6 +251,10 @@ impl AffinePoint<SwCurve<Secp256k1Parameters>> {
         )
     }
 
+    /// Multiplies `self` by `scalar` using the `k256` crate's projective-coordinate scalar
+    /// multiplication. This is the body of the [`EllipticCurve::ec_mul`] override for
+    /// `SwCurve<Secp256k1Parameters>`; see that impl for panic conditions and the 256-bit
+    /// truncation caveat.
     pub fn sw_scalar_mul_k256(&self, scalar: &BigUint) -> Self {
         let this_bytes = self.to_sec1_uncompressed();
         let this =
@@ -243,6 +263,13 @@ impl AffinePoint<SwCurve<Secp256k1Parameters>> {
         let this = K256ProjectivePoint::from(this);
 
         let scalar = k256::Scalar::reduce(biguint_to_u256(scalar));
+
+        // `0 · P = ∞` has no affine representation. Match the contract of the generic `ec_mul`
+        // default impl and panic. This also catches non-zero scalars that are multiples of the
+        // group order `n`, since `Scalar::reduce` brings them to zero.
+        if bool::from(scalar.is_zero()) {
+            panic!("Scalar multiplication failed");
+        }
 
         let result = this * scalar;
         let result = result.to_affine();
