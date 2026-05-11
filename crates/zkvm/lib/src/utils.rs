@@ -71,6 +71,11 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
     fn double(&mut self);
 
     /// Multiplies `self` by the given scalar.
+    ///
+    /// The default implementation is a generic double-and-add over the scalar's bits. Overwrite this
+    /// if there is a more efficient way to do scalar multiplication for the curve.
+    ///
+    /// Warning: The default implementation assumes that the scalar is less than the order of the point
     fn mul_assign(&mut self, scalar: &[u64]) {
         debug_assert_eq!(scalar.len(), N / 2);
 

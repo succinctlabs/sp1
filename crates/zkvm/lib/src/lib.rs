@@ -43,11 +43,14 @@ extern "C" {
     /// Executes an Ed25519 curve decompression on the given point.
     pub fn syscall_ed_decompress(point: &mut [u64; 8]);
 
-    /// Executes an Sepc256k1 curve addition on the given points.
+    /// Executes an Secp256k1 curve addition on the given points.
     pub fn syscall_secp256k1_add(p: *mut [u64; 8], q: *const [u64; 8]);
 
     /// Executes an Secp256k1 curve doubling on the given point.
     pub fn syscall_secp256k1_double(p: *mut [u64; 8]);
+
+    /// Executes an Secp256k1 curve scalar multiplication on the given point.
+    pub fn syscall_secp256k1_mul(p: *mut [u64; 8], scalar: *const [u64; 4]);
 
     /// Executes an Secp256k1 curve decompression on the given point.
     pub fn syscall_secp256k1_decompress(point: &mut [u64; 8], is_odd: bool);

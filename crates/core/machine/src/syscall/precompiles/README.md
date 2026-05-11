@@ -319,6 +319,25 @@ pub use custom_op::*;
 
 The `pub const CUSTOM_OP: u32 = ...` you added in step 1 lives in this same file.
 
+### Also expose the syscall through `sp1-lib`
+
+`crates/zkvm/entrypoint` is where the `extern "C" fn syscall_custom_op` is *defined* (it issues the actual `ecall`). But guest programs that depend on the higher-level `sp1-lib` crate need the symbol re-declared there so the linker can find it:
+
+1. Add an `extern "C"` declaration to the block at the top of `crates/zkvm/lib/src/lib.rs` matching the entrypoint signature exactly:
+
+   ```rust
+   extern "C" {
+       // ...existing syscalls...
+
+       /// Executes the custom op precompile.
+       pub fn syscall_custom_op(x: *mut [u64; N], y: *const [u64; N]);
+   }
+   ```
+
+   This is mandatory — without it, anything in `sp1-lib` that wants to call your syscall won't link.
+
+2. If your precompile has a natural higher-level home (e.g. it operates on a curve point), add an ergonomic wrapper in the matching module — for example, `secp256k1_mul` belongs in `crates/zkvm/lib/src/secp256k1.rs` alongside the existing `Secp256k1Point` arithmetic. This is optional but typical: most user-facing crypto crates patch through this layer rather than calling `syscall_*` directly. If your operation doesn't slot into an existing module, put a thin wrapper in a new file under `crates/zkvm/lib/src/` and re-export it from `lib.rs`.
+
 ---
 
 ## 9. Tests
@@ -367,6 +386,7 @@ For a new precompile, you should have touched roughly:
 - `crates/core/machine/src/syscall/precompiles/{name}/{mod,air}.rs` — chip + `MachineAir` + `Air`.
 - `crates/core/machine/src/riscv/mod.rs` — imports, `RiscvAir` variants, `machine()`, `precompile_clusters` (+ user variant), `get_chips_and_costs()`, `RiscvAirDiscriminants → RiscvAirId` mapping.
 - `crates/zkvm/entrypoint/src/syscalls/{name}.rs` + `mod.rs` — `extern "C"` entrypoint and `pub const` syscall id.
+- `crates/zkvm/lib/src/lib.rs` — `extern "C"` re-declaration so `sp1-lib` consumers can link against the syscall. Optional higher-level wrapper in `crates/zkvm/lib/src/{curve-or-topic}.rs` if the operation fits an existing user-facing module.
 - `crates/test-artifacts/programs/{name}-test/` + `crates/test-artifacts/src/lib.rs` — guest test program and ELF export.
 
 Run `cargo fmt --all -- --check` and `cargo clippy -p sp1-core-executor -p sp1-core-machine --all-targets --all-features -- -D warnings -A incomplete-features` before considering the work done.

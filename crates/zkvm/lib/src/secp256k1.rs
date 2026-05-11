@@ -1,5 +1,5 @@
 use crate::{
-    syscall_secp256k1_add, syscall_secp256k1_double,
+    syscall_secp256k1_add, syscall_secp256k1_double, syscall_secp256k1_mul,
     utils::{AffinePoint, WeierstrassAffinePoint, WeierstrassPoint},
 };
 
@@ -81,6 +81,25 @@ impl AffinePoint<N> for Secp256k1Point {
             WeierstrassPoint::Affine(limbs) => unsafe {
                 syscall_secp256k1_double(limbs);
             },
+        }
+    }
+
+    fn mul_assign(&mut self, scalar: &[u64]) {
+        debug_assert_eq!(scalar.len(), N / 2);
+        match &mut self.0 {
+            // k · ∞ = ∞ for any k.
+            WeierstrassPoint::Infinity => (),
+            WeierstrassPoint::Affine(limbs) => {
+                // 0 · P = ∞. The syscall operates in affine coordinates and has no representation
+                // for the result, so short-circuit here.
+                if scalar.iter().all(|&w| w == 0) {
+                    *self = Self::infinity();
+                    return;
+                }
+                unsafe {
+                    syscall_secp256k1_mul(limbs, scalar.as_ptr() as *const [u64; 4]);
+                }
+            }
         }
     }
 }
