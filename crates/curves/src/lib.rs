@@ -197,6 +197,9 @@ pub trait EllipticCurve: EllipticCurveParameters {
     /// The default implementation is a generic double-and-add over the scalar's bits. Curves
     /// that have a faster path (e.g. via a native arithmetic crate like `k256`) should
     /// override this.
+    ///
+    /// Warning: The default implementation assumes that the scalar is less than the order of the point
+    /// (see the warning for `ec_add`)
     fn ec_mul(p: &AffinePoint<Self>, scalar: &BigUint) -> AffinePoint<Self> {
         let power_two_modulus = BigUint::one() << Self::nb_scalar_bits();
         let scalar = scalar % &power_two_modulus;

@@ -7,11 +7,12 @@ use serde::{Deserialize, Serialize};
 use super::CurveType;
 use crate::{
     params::{FieldParameters, NumLimbs, NumWords},
-    utils::{
-        biguint_to_bits_le, biguint_to_dashu, biguint_to_u256, dashu_modpow, dashu_to_biguint,
-    },
+    utils::{biguint_to_bits_le, biguint_to_u256},
     AffinePoint, EllipticCurve, EllipticCurveParameters,
 };
+
+#[cfg(not(feature = "bigint-rug"))]
+use crate::utils::{biguint_to_dashu, dashu_modpow, dashu_to_biguint};
 
 #[cfg(feature = "bigint-rug")]
 use crate::utils::{biguint_to_rug, rug_to_biguint};
@@ -239,7 +240,6 @@ impl AffinePoint<SwCurve<Secp256k1Parameters>> {
         let this =
             K256AffinePoint::from_encoded_point(&EncodedPoint::from_bytes(this_bytes).unwrap())
                 .unwrap();
-
         let this = K256ProjectivePoint::from(this);
 
         let scalar = k256::Scalar::reduce(biguint_to_u256(scalar));
