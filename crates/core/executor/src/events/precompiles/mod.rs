@@ -49,6 +49,8 @@ pub enum PrecompileEvent {
     Secp256k1Add(EllipticCurveAddEvent),
     /// Secp256k1 curve double precompile event.
     Secp256k1Double(EllipticCurveDoubleEvent),
+    /// Secp256k1 curve scalar multiplication precompile event.
+    Secp256k1Mul(EllipticCurveMulEvent),
     /// Secp256k1 curve decompress precompile event.
     Secp256k1Decompress(EllipticCurveDecompressEvent),
     /// Secp256r1 curve add precompile event.
@@ -133,6 +135,9 @@ impl PrecompileLocalMemory for Vec<(SyscallEvent, PrecompileEvent)> {
                 | PrecompileEvent::Secp256r1Double(e)
                 | PrecompileEvent::Bn254Double(e)
                 | PrecompileEvent::Bls12381Double(e) => {
+                    iterators.push(e.local_mem_access.iter());
+                }
+                PrecompileEvent::Secp256k1Mul(e) => {
                     iterators.push(e.local_mem_access.iter());
                 }
                 PrecompileEvent::Secp256k1Decompress(e)
@@ -223,6 +228,9 @@ impl PrecompileLocalMemory for Vec<(SyscallEvent, PrecompileEvent)> {
                 | PrecompileEvent::Secp256r1Double(e)
                 | PrecompileEvent::Bn254Double(e)
                 | PrecompileEvent::Bls12381Double(e) => {
+                    iterators.push(e.local_page_prot_access.iter());
+                }
+                PrecompileEvent::Secp256k1Mul(e) => {
                     iterators.push(e.local_page_prot_access.iter());
                 }
                 PrecompileEvent::Secp256k1Decompress(e)

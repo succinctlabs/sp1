@@ -344,6 +344,10 @@ pub enum RiscvAirId {
     /// The trap memory chip.
     #[subenum(CoreAirId)]
     TrapMem = 121,
+    /// The secp256k1 scalar multiplication chip.
+    Secp256k1MulAssign = 122,
+    /// The secp256k1 scalar multiplication chip for user mode.
+    Secp256k1MulAssignUser = 123,
 }
 
 impl RiscvAirId {

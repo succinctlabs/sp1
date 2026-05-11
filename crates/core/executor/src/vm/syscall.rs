@@ -344,6 +344,9 @@ pub(crate) fn sp1_ecall_handler<'a, M: ExecutionMode, RT: SyscallRuntime<'a, M>>
         SyscallCode::SECP256K1_DOUBLE => {
             precompiles::weierstrass::weierstrass_double::<M, _, Secp256k1>(rt, code, args1, args2)
         }
+        SyscallCode::SECP256K1_MUL => {
+            precompiles::weierstrass::weierstrass_mul::<M, _, Secp256k1>(rt, code, args1, args2)
+        }
         SyscallCode::BLS12381_ADD => {
             precompiles::weierstrass::weierstrass_add::<M, _, Bls12381>(rt, code, args1, args2)
         }

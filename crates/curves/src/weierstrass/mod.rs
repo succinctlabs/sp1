@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use super::CurveType;
 use crate::{
     params::{FieldParameters, NumLimbs, NumWords},
-    utils::biguint_to_bits_le,
+    utils::{biguint_to_bits_le, biguint_to_limbs},
     AffinePoint, EllipticCurve, EllipticCurveParameters,
 };
 
@@ -20,8 +20,8 @@ pub mod secp256k1;
 pub mod secp256r1;
 
 use k256::{
-    elliptic_curve::sec1::ToEncodedPoint, AffinePoint as K256AffinePoint, EncodedPoint,
-    ProjectivePoint as K256ProjectivePoint,
+    elliptic_curve::ops::Reduce, elliptic_curve::sec1::ToEncodedPoint,
+    AffinePoint as K256AffinePoint, EncodedPoint, ProjectivePoint as K256ProjectivePoint, U256,
 };
 
 /// Parameters that specify a short Weierstrass curve : y^2 = x^3 + ax + b.
@@ -195,6 +195,10 @@ impl EllipticCurve for SwCurve<Secp256k1Parameters> {
         p.sw_double_k256()
     }
 
+    fn ec_mul(p: &AffinePoint<Self>, scalar: &BigUint) -> AffinePoint<Self> {
+        p.sw_scalar_mul_k256(scalar)
+    }
+
     fn ec_generator() -> AffinePoint<Self> {
         let (x, y) = Secp256k1Parameters::generator();
         AffinePoint::new(x, y)
@@ -247,6 +251,31 @@ impl AffinePoint<SwCurve<Secp256k1Parameters>> {
         let this = K256ProjectivePoint::from(this);
 
         let result = this.double();
+        let result = result.to_affine();
+
+        // Save it as a uncompressed point
+        let result_bytes = result.to_encoded_point(false);
+        let result_bytes = result_bytes.as_bytes();
+
+        // Skip the first byte which is the compression flag
+        AffinePoint::new(
+            BigUint::from_bytes_be(&result_bytes[1..33]),
+            BigUint::from_bytes_be(&result_bytes[33..65]),
+        )
+    }
+
+    pub fn sw_scalar_mul_k256(&self, scalar: &BigUint) -> Self {
+        let this_bytes = self.to_sec1_uncompressed();
+        let this =
+            K256AffinePoint::from_encoded_point(&EncodedPoint::from_bytes(this_bytes).unwrap())
+                .unwrap();
+
+        let this = K256ProjectivePoint::from(this);
+
+        let scalar_u256 = U256::from_le_slice(&biguint_to_limbs::<32>(scalar));
+        let scalar = k256::Scalar::reduce(scalar_u256);
+
+        let result = this * scalar;
         let result = result.to_affine();
 
         // Save it as a uncompressed point
@@ -385,7 +414,7 @@ mod tests {
     use num::bigint::RandBigInt;
     use rand::thread_rng;
 
-    use super::bn254;
+    use super::{bn254, secp256k1};
 
     #[test]
     fn test_weierstrass_biguint_scalar_mul() {
@@ -402,6 +431,23 @@ mod tests {
             let xy = &x * &y;
             let xy_base = base.sw_scalar_mul(&xy);
             assert_eq!(y_x_base, xy_base);
+        }
+    }
+
+    /// Cross-check the `k256`-backed scalar multiplication against the generic double-and-add
+    /// `sw_scalar_mul`. Both should produce the same `AffinePoint` for any scalar (including
+    /// scalars >= n, since `k * P = (k mod n) * P` on a prime-order curve).
+    #[test]
+    fn test_secp256k1_sw_scalar_mul_k256_matches_generic() {
+        type E = secp256k1::Secp256k1;
+        let base = E::generator();
+
+        let mut rng = thread_rng();
+        for _ in 0..10 {
+            let scalar = rng.gen_biguint(256);
+            let generic = base.sw_scalar_mul(&scalar);
+            let optimized = base.sw_scalar_mul_k256(&scalar);
+            assert_eq!(generic, optimized, "mismatch for scalar = {scalar}");
         }
     }
 }

@@ -19,7 +19,13 @@
       "Bash(cargo clippy *)",
       "Bash(cargo build *)",
       "Bash(cargo test *)",
-      "Bash(cargo bench *)"
+      "Bash(cargo bench *)",
+      "Bash(sed -n '40,75p' /Users/rdalalsuccinct/Documents/sp1/crates/core/executor/src/vm/syscall/precompiles/weierstrass/add.rs)",
+      "Bash(sed -n '167,200p' /Users/rdalalsuccinct/Documents/sp1/crates/core/machine/src/syscall/precompiles/weierstrass/weierstrass_add.rs)",
+      "Bash(*)",
+      "Bash(echo \"=== uses of Mul<BigUint> via `*` on AffinePoint ===\")",
+      "Bash(sed -n '385,410p' /Users/rdalalsuccinct/Documents/sp1/crates/curves/src/weierstrass/mod.rs)",
+      "Bash(sed -n '120,140p' /Users/rdalalsuccinct/Documents/sp1/crates/curves/src/weierstrass/secp256k1.rs)"
     ]
   }
 }

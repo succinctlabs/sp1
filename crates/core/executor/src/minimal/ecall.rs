@@ -16,7 +16,7 @@ use super::{
         uint256x2048::u256x2048_mul,
         weierstrass::{
             weierstrass_add_assign_syscall, weierstrass_decompress_syscall,
-            weierstrass_double_assign_syscall,
+            weierstrass_double_assign_syscall, weierstrass_mul_assign_syscall,
         },
     },
     write::write,
@@ -99,6 +99,9 @@ pub fn ecall_handler(ctx: &mut impl SyscallContext, code: SyscallCode) -> Result
         SyscallCode::SECP256K1_DECOMPRESS => {
             weierstrass_decompress_syscall::<Secp256k1>(ctx, arg1, arg2)
         }
+        SyscallCode::SECP256K1_MUL => unsafe {
+            weierstrass_mul_assign_syscall::<Secp256k1>(ctx, arg1, arg2)
+        },
         SyscallCode::SECP256R1_ADD => unsafe {
             weierstrass_add_assign_syscall::<Secp256r1>(ctx, arg1, arg2)
         },

@@ -90,6 +90,9 @@ pub const SECP256K1_DOUBLE: u32 = 0x00_00_01_0B;
 /// Executes `K256_DECOMPRESS`.
 pub const SECP256K1_DECOMPRESS: u32 = 0x00_00_01_0C;
 
+/// Executes `SECP256K1_MUL`.
+pub const SECP256K1_MUL: u32 = 0x00_01_01_0D;
+
 /// Executes `SECP256R1_ADD`.
 pub const SECP256R1_ADD: u32 = 0x00_01_01_2C;
 

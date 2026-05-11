@@ -1,3 +1,4 @@
+use num::BigUint;
 use sp1_curves::{params::NumWords, AffinePoint, EllipticCurve};
 use sp1_jit::{Interrupt, SyscallContext};
 use typenum::Unsigned;
@@ -67,6 +68,54 @@ pub(crate) unsafe fn ec_double<E: EllipticCurve>(
 
     let result_words = result_affine.to_words_le();
 
+    ctx.mw_slice_without_prot(p_ptr, &result_words);
+
+    Ok(())
+}
+
+/// Create an elliptic curve scalar multiplication event. It takes a pointer to a point and a
+/// pointer to a `BigUint` scalar (laid out as little-endian `u64` limbs sized to
+/// `E::BaseField::WordsFieldElement`, since the scalar field has approximately the same order
+/// as the base field), reads both from memory, multiplies the point by the scalar, and writes
+/// the result back to the point's memory location.
+pub(crate) unsafe fn ec_mul<E: EllipticCurve>(
+    ctx: &mut impl SyscallContext,
+    arg1: u64,
+    arg2: u64,
+) -> Result<(), Interrupt> {
+    let p_ptr = arg1;
+    if !p_ptr.is_multiple_of(8) {
+        panic!();
+    }
+    let scalar_ptr = arg2;
+    if !scalar_ptr.is_multiple_of(8) {
+        panic!();
+    }
+    // A point is two base-field elements; the scalar lives in a field of approximately the same
+    // order as the base field, so we use the same word count for it as well.
+    let num_words = <E::BaseField as NumWords>::WordsCurvePoint::USIZE;
+    let scalar_num_words = <E::BaseField as NumWords>::WordsFieldElement::USIZE;
+
+    let clk = ctx.get_current_clk();
+    ctx.read_slice_check(p_ptr, num_words)?;
+    ctx.bump_memory_clk();
+    ctx.read_slice_check(scalar_ptr, scalar_num_words)?;
+    ctx.bump_memory_clk();
+
+    ctx.set_clk(clk);
+    let p_affine = AffinePoint::<E>::from_words_le(ctx.mr_slice_unsafe(p_ptr, num_words));
+    let scalar = BigUint::from_slice(
+        &ctx.mr_slice_unsafe(scalar_ptr, scalar_num_words)
+            .into_iter()
+            .flat_map(|&w| [w as u32, (w >> 32) as u32])
+            .collect::<Vec<_>>(),
+    );
+    let result_affine = E::ec_mul(&p_affine, &scalar);
+
+    let result_words = result_affine.to_words_le();
+
+    // Bump the clock before writing to memory.
+    ctx.bump_memory_clk();
     ctx.mw_slice_without_prot(p_ptr, &result_words);
 
     Ok(())

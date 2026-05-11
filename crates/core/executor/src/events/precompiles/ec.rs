@@ -42,6 +42,35 @@ pub struct EllipticCurveAddEvent {
     pub local_page_prot_access: Vec<PageProtLocalEvent>,
 }
 
+/// Elliptic Curve Scalar Multiplication Event.
+///
+/// This event is emitted when an elliptic curve point is multiplied by a `BigUint` scalar.
+#[derive(Default, Debug, Clone, Serialize, PartialEq, Eq, Deserialize, DeepSizeOf)]
+pub struct EllipticCurveMulEvent {
+    /// The clock cycle.
+    pub clk: u64,
+    /// The pointer to the point.
+    pub p_ptr: u64,
+    /// The point as a list of words.
+    pub p: Vec<u64>,
+    /// The pointer to the scalar.
+    pub scalar_ptr: u64,
+    /// The scalar as a list of little-endian `u64` limbs.
+    pub scalar: Vec<u64>,
+    /// The memory records for the point (read-then-write in place).
+    pub p_memory_records: Vec<MemoryWriteRecord>,
+    /// The memory records for the scalar (read-only).
+    pub scalar_memory_records: Vec<MemoryReadRecord>,
+    /// The local memory access records.
+    pub local_mem_access: Vec<MemoryLocalEvent>,
+    /// Read slice page prot access records (for the scalar).
+    pub read_slice_page_prot_access: Vec<PageProtRecord>,
+    /// Write slice page prot access records (for the point).
+    pub write_slice_page_prot_access: Vec<PageProtRecord>,
+    /// The local page prot access records.
+    pub local_page_prot_access: Vec<PageProtLocalEvent>,
+}
+
 /// Elliptic Curve Double Event.
 ///
 /// This event is emitted when an elliptic curve doubling operation is performed.

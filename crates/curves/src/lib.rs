@@ -1,7 +1,6 @@
 pub mod edwards;
 pub mod params;
 // pub mod polynomial;
-pub mod scalar_mul;
 pub mod uint256;
 pub mod utils;
 pub mod weierstrass;
@@ -49,7 +48,7 @@ use params::{FieldParameters, NumWords};
 use sp1_primitives::consts::WORD_BYTE_SIZE;
 use std::{
     fmt::{Debug, Display, Formatter, Result},
-    ops::{Add, Neg},
+    ops::{Add, Mul, Neg},
 };
 use typenum::Unsigned;
 
@@ -193,6 +192,26 @@ pub trait EllipticCurve: EllipticCurveParameters {
     /// Doubles a point on the curve.
     fn ec_double(p: &AffinePoint<Self>) -> AffinePoint<Self>;
 
+    /// Scalar multiplication of a point on the curve by a scalar.
+    ///
+    /// The default implementation is a generic double-and-add over the scalar's bits. Curves
+    /// that have a faster path (e.g. via a native arithmetic crate like `k256`) should
+    /// override this.
+    fn ec_mul(p: &AffinePoint<Self>, scalar: &BigUint) -> AffinePoint<Self> {
+        let power_two_modulus = BigUint::one() << Self::nb_scalar_bits();
+        let scalar = scalar % &power_two_modulus;
+        let mut result = Self::ec_neutral();
+        let mut temp = p.clone();
+        let bits = crate::utils::biguint_to_bits_le(&scalar, Self::nb_scalar_bits());
+        for bit in bits {
+            if bit {
+                result = result.map_or_else(|| Some(temp.clone()), |r| Some(&r + &temp));
+            }
+            temp = &temp + &temp;
+        }
+        result.expect("Scalar multiplication failed")
+    }
+
     /// Returns the generator of the curve group for a curve/subgroup of prime order.
     fn ec_generator() -> AffinePoint<Self>;
 
@@ -246,5 +265,34 @@ impl<E: EllipticCurve> Neg for AffinePoint<E> {
 
     fn neg(self) -> AffinePoint<E> {
         -&self
+    }
+}
+
+// Operator-overload sugar for scalar multiplication. The actual algorithm lives in
+// `EllipticCurve::ec_mul` (with a generic double-and-add default impl); these `Mul` impls just
+// forward to it so callers can write `&p * &k` instead of `E::ec_mul(&p, &k)`. Curves that
+// override `ec_mul` with a faster path automatically get the speedup through the `*` operator.
+
+impl<E: EllipticCurve> Mul<&BigUint> for &AffinePoint<E> {
+    type Output = AffinePoint<E>;
+
+    fn mul(self, scalar: &BigUint) -> AffinePoint<E> {
+        E::ec_mul(self, scalar)
+    }
+}
+
+impl<E: EllipticCurve> Mul<BigUint> for &AffinePoint<E> {
+    type Output = AffinePoint<E>;
+
+    fn mul(self, scalar: BigUint) -> AffinePoint<E> {
+        E::ec_mul(self, &scalar)
+    }
+}
+
+impl<E: EllipticCurve> Mul<BigUint> for AffinePoint<E> {
+    type Output = AffinePoint<E>;
+
+    fn mul(self, scalar: BigUint) -> AffinePoint<E> {
+        E::ec_mul(&self, &scalar)
     }
 }

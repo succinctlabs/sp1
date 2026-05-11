@@ -80,6 +80,9 @@ pub enum SyscallCode {
     /// Executes the `SECP256K1_DECOMPRESS` precompile.
     SECP256K1_DECOMPRESS = 0x00_00_01_0C,
 
+    /// Executes the `SECP256K1_MUL` precompile.
+    SECP256K1_MUL = 0x00_01_01_0D,
+
     /// Executes the `BN254_ADD` precompile.
     BN254_ADD = 0x00_01_01_0E,
 
@@ -208,6 +211,7 @@ impl SyscallCode {
             0x00_01_01_0A => SyscallCode::SECP256K1_ADD,
             0x00_00_01_0B => SyscallCode::SECP256K1_DOUBLE,
             0x00_00_01_0C => SyscallCode::SECP256K1_DECOMPRESS,
+            0x00_01_01_0D => SyscallCode::SECP256K1_MUL,
             0x00_01_01_0E => SyscallCode::BN254_ADD,
             0x00_00_01_0F => SyscallCode::BN254_DOUBLE,
             0x00_01_01_1E => SyscallCode::BLS12381_ADD,
@@ -328,6 +332,7 @@ impl SyscallCode {
             SyscallCode::KECCAK_PERMUTE => RiscvAirId::KeccakPermute,
             SyscallCode::SECP256K1_ADD => RiscvAirId::Secp256k1AddAssign,
             SyscallCode::SECP256K1_DOUBLE => RiscvAirId::Secp256k1DoubleAssign,
+            SyscallCode::SECP256K1_MUL => RiscvAirId::Secp256k1MulAssign,
             SyscallCode::BN254_ADD => RiscvAirId::Bn254AddAssign,
             SyscallCode::BN254_DOUBLE => RiscvAirId::Bn254DoubleAssign,
             SyscallCode::UINT256_MUL => RiscvAirId::Uint256MulMod,
@@ -386,6 +391,7 @@ impl SyscallCode {
             SyscallCode::KECCAK_PERMUTE => RiscvAirId::KeccakPermute,
             SyscallCode::SECP256K1_ADD => RiscvAirId::Secp256k1AddAssignUser,
             SyscallCode::SECP256K1_DOUBLE => RiscvAirId::Secp256k1DoubleAssignUser,
+            SyscallCode::SECP256K1_MUL => RiscvAirId::Secp256k1MulAssignUser,
             SyscallCode::BN254_ADD => RiscvAirId::Bn254AddAssignUser,
             SyscallCode::BN254_DOUBLE => RiscvAirId::Bn254DoubleAssignUser,
             SyscallCode::UINT256_MUL => RiscvAirId::Uint256MulModUser,
@@ -469,7 +475,7 @@ impl SyscallCode {
             | SyscallCode::BN254_FP_ADD
             | SyscallCode::BN254_FP_SUB
             | SyscallCode::BN254_FP_MUL => 8,
-            SyscallCode::UINT256_MUL => 12,
+            SyscallCode::UINT256_MUL | SyscallCode::SECP256K1_MUL => 12,
             SyscallCode::UINT256_ADD_CARRY | SyscallCode::UINT256_MUL_CARRY => 20,
             SyscallCode::U256XU2048_MUL => 72,
             SyscallCode::MPROTECT => 0,
@@ -491,6 +497,7 @@ impl SyscallCode {
             SyscallCode::KECCAK_PERMUTE => 2 * 2,
             SyscallCode::BLS12381_ADD
             | SyscallCode::SECP256K1_ADD
+            | SyscallCode::SECP256K1_MUL
             | SyscallCode::SECP256R1_ADD
             | SyscallCode::BN254_ADD
             | SyscallCode::ED_ADD
