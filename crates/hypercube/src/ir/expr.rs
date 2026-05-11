@@ -92,6 +92,9 @@ impl<F: Field> ExprRef<F> {
             ExprRef::Expr(idx) => format!("E{idx}"),
             ExprRef::IrVar(IrVar::Main(idx)) => format!("Main[{idx}]"),
             ExprRef::IrVar(IrVar::Constant(idx)) => format!("{idx}"),
+            ExprRef::IrVar(IrVar::InverseConstant { base, .. }) => {
+                format!("(({base} : Fin KB)⁻¹)")
+            }
             ExprRef::IrVar(IrVar::InputArg(idx)) => input_mapping.get(idx).unwrap().clone(),
             ExprRef::IrVar(IrVar::Public(idx)) => format!("public_value () {idx}"),
             _ => todo!(),

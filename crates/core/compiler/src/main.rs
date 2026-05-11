@@ -98,7 +98,7 @@ fn compile_chip(chip_name: &str, output_format: &OutputFormat) {
             println!("-- Generated Lean code for chip {}Chip", chip_name);
 
             println!(
-                "@[irreducible] def constraints (Main : Vector (Fin KB) {}) : SP1ConstraintList :=",
+                "@[irreducible] def constraints (Main : Vector (Fin KB) {}) : SP1ConstraintList (Fin KB) :=",
                 builder.num_cols()
             );
 
