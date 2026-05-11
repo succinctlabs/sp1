@@ -63,10 +63,8 @@ pub struct EllipticCurveMulEvent {
     pub scalar_memory_records: Vec<MemoryReadRecord>,
     /// The local memory access records.
     pub local_mem_access: Vec<MemoryLocalEvent>,
-    /// Read slice page prot access records (for the scalar).
-    pub read_slice_page_prot_access: Vec<PageProtRecord>,
-    /// Write slice page prot access records (for the point).
-    pub write_slice_page_prot_access: Vec<PageProtRecord>,
+    /// The page prot records (read slice for the scalar, write slice for the point).
+    pub page_prot_records: EllipticCurvePageProtRecords,
     /// The local page prot access records.
     pub local_page_prot_access: Vec<PageProtLocalEvent>,
 }
