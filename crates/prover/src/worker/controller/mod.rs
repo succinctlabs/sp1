@@ -286,6 +286,10 @@ where
                     let vk =
                         artifact_client_clone.download::<SP1VerifyingKey>(&vk_artifact).await?;
                     setup_cache.lock().await.put(elf_clone, vk.clone());
+                    // The vk is now memory-cached for the lifetime of this worker;
+                    let _ = artifact_client_clone
+                        .try_delete(&vk_artifact, ArtifactType::UnspecifiedArtifactType)
+                        .await;
                     vk
                 };
                 Ok(vk)

@@ -17,6 +17,7 @@ cfg_if::cfg_if! {
 ///
 /// Before halting, the syscall will commit to the public values.
 #[allow(unused_variables)]
+#[no_mangle]
 pub extern "C" fn syscall_halt(exit_code: u8) -> ! {
     #[cfg(target_os = "zkvm")]
     unsafe {
