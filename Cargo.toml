@@ -222,7 +222,10 @@ rstest = "0.26.0"
 
 # misc
 aws-config = "1.5.3"
-aws-sdk-kms = "1.77.0"
+aws-sdk-kms = { version = "1.77.0", default-features = false, features = [
+  "default-https-client",
+  "rt-tokio",
+] }
 rustls = "0.23.27"
 alloy-signer = { version = "1.0", default-features = false }
 alloy-signer-aws = { version = "1.0", default-features = false }

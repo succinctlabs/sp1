@@ -62,6 +62,16 @@ jobs:
           DRAFT_FLAG=${{ inputs.dry_run && '"--draft"' || '""' }}
           GH_DEBUG=api gh release create ${{ steps.release_info.outputs.tag_name }} --target "$TARGET_BRANCH" --generate-notes --latest=false $PRERELEASE_FLAG $DRAFT_FLAG
 
+      - name: Categorize release notes by Conventional Commit prefix
+        env:
+          GH_TOKEN: ${{ secrets.SP1_RELEASE_TOKEN }}
+          TAG_NAME: ${{ steps.release_info.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          gh release view "$TAG_NAME" --json body --jq .body > /tmp/release-body.md
+          python3 .github/scripts/format-release-notes.py < /tmp/release-body.md > /tmp/release-body.formatted.md
+          gh release edit "$TAG_NAME" --notes-file /tmp/release-body.formatted.md
+
       - name: Print GH version
         run: |
           gh version
