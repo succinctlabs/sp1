@@ -8,7 +8,9 @@ use sp1_primitives::consts::fd::LOWEST_ALLOWED_FD;
 
 /// The status code of the execution.
 ///
-/// Currently the only supported status codes are `0` for success and `1` for failure.
+/// Supported codes: `0` (success), `1` (panic), and `3` (invalid prover hint).
+/// Exit code 3 is emitted by patched crates when a prover-supplied hint fails
+/// verification — this disambiguates it from a regular Rust panic.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StatusCode(u32);
 
@@ -17,7 +19,11 @@ impl StatusCode {
     pub const SUCCESS: Self = Self(0);
     /// The panic status code.
     pub const PANIC: Self = Self(1);
-    /// Accept either success or panic.
+    /// The invalid-prover-hint status code. Emitted by `sp1_lib::invalid_hint!`
+    /// (and the patched crypto crates) when a hint fails its consistency
+    /// check, so a malicious prover cannot forge a regular panic.
+    pub const INVALID_HINT: Self = Self(3);
+    /// Accept any of the supported status codes.
     pub const ANY: Self = Self(u32::MAX);
 
     /// Create a new status code from a u32.
@@ -26,13 +32,14 @@ impl StatusCode {
     /// * `code` - The status code to create.
     ///
     /// # Returns
-    /// * `Some(StatusCode)` - The status code if it is valid: {0, 1}.
+    /// * `Some(StatusCode)` - The status code if it is valid: {0, 1, 3}.
     /// * `None` - The status code is not valid.
     #[must_use]
     pub const fn new(code: u32) -> Option<Self> {
         match code {
             0 => Some(Self::SUCCESS),
             1 => Some(Self::PANIC),
+            3 => Some(Self::INVALID_HINT),
             _ => None,
         }
     }
@@ -46,7 +53,7 @@ impl StatusCode {
     /// Check if the status code is equal to the given value.
     #[must_use]
     pub const fn is_accepted_code(&self, code: u32) -> bool {
-        (code == 0 || code == 1) && (self.0 == Self::ANY.0 || self.0 == code)
+        matches!(code, 0 | 1 | 3) && (self.0 == Self::ANY.0 || self.0 == code)
     }
 }
 
