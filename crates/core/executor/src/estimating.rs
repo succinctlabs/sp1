@@ -448,22 +448,11 @@ impl<'a, M: ExecutionMode> GasEstimatingVM<'a, M> {
     pub fn execute_ecall(&mut self, instruction: &Instruction) -> Result<(), ExecutionError> {
         let code = self.core.read_code();
 
-        if code.should_send() == 1 {
-            if self.core.is_retained_syscall(code) {
-                self.gas_calculator.handle_retained_syscall(code);
-            } else {
-                self.gas_calculator.syscall_sent(code);
-            }
-        }
-
         if code == SyscallCode::HINT_LEN {
             self.hint_lens_idx += 1;
         }
 
         let result = CoreVM::execute_ecall(self, instruction, code)?;
-
-        let syscall_sent = self.gas_calculator.get_syscall_sent();
-        self.gas_calculator.set_syscall_sent(false);
 
         if let Some(error) = result.error {
             self.handle_error(error)?;
@@ -472,10 +461,17 @@ impl<'a, M: ExecutionMode> GasEstimatingVM<'a, M> {
         if let Some(record) = result.sig_return_pc_record {
             self.gas_calculator.handle_mem_event(result.b, record.prev_timestamp);
         }
-        self.gas_calculator.set_syscall_sent(syscall_sent);
 
         if code == SyscallCode::HALT {
             self.gas_calculator.set_exit_code(result.b);
+        }
+
+        if code.should_send() == 1 {
+            if self.core.is_retained_syscall(code) {
+                self.gas_calculator.handle_retained_syscall(code);
+            } else {
+                self.gas_calculator.syscall_sent(code);
+            }
         }
 
         self.gas_calculator.handle_instruction(
@@ -502,15 +498,13 @@ impl<'a, M: ExecutionMode> SyscallRuntime<'a, M> for GasEstimatingVM<'a, M> {
 
     fn rr(&mut self, register: usize) -> MemoryReadRecord {
         let record = SyscallRuntime::rr(self.core_mut(), register);
-
-        self.gas_calculator.local_mem_syscall_rr();
-
+        self.gas_calculator.handle_mem_event(register as u64, record.prev_timestamp);
         record
     }
 
     fn rw(&mut self, register: usize, value: u64) -> MemoryWriteRecord {
         let record = SyscallRuntime::rw(self.core_mut(), register, value);
-        self.gas_calculator.local_mem_syscall_rr();
+        self.gas_calculator.handle_mem_event(register as u64, record.prev_timestamp);
         record
     }
 
