@@ -322,6 +322,16 @@ jobs:
       docker-tag: ${{ needs.prepare.outputs.tag_name }}
       dry-run: ${{ inputs.dry_run }}
 
+  zkevm-sdk-release:
+    name: zkEVM SDK build and upload
+    needs: [prepare]
+    uses: ./.github/workflows/zkevm-sdk-build.yml
+    with:
+      version: ${{ needs.prepare.outputs.tag_name }}
+      release_tag: ${{ needs.prepare.outputs.tag_name }}
+      dry_run: ${{ inputs.dry_run }}
+    secrets: inherit
+
   set-latest-release:
     name: Set latest release
     runs-on: ubuntu-latest

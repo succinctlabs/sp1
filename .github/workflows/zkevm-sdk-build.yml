@@ -1,33 +1,44 @@
 name: zkevm-sdk-build
 
-# Builds the redistributable `zkevm-sdk-vX.Y.Z.tar.gz` artifact.
+# Builds the redistributable `zkevm-sdk-<version>.tar.gz` artifact.
 # Contents (host-independent — `libzkevm.a` is always built for
 # `riscv64im-succinct-zkvm-elf`):
 #
-#   zkevm-sdk-vX.Y.Z/
+#   zkevm-sdk-<version>/
 #   ├── libzkevm.a
 #   ├── zkvm.ld
 #   ├── include/zkvm_accelerators.h
 #   └── README.md
 #
-# This workflow only builds + uploads the tarball as a workflow
-# artifact. Downloading it requires opening the workflow run in the
-# Actions UI.
-#
-# Future integration: when an SP1 release is cut, this build will
-# move into the main `release.yml` as a job analogous to
-# `sp1-gpu-server-release` — same shape (one linux runner, one
-# tarball), but `gh release upload`-ing to the release tag created
-# by the `prepare` job. At that point this standalone workflow can
-# either stay (as a manual-trigger sanity check) or be removed.
+# Triggers:
+#   - workflow_dispatch: manual sanity-check build. Uploads the tarball
+#     as a workflow artifact (downloadable from the Actions UI).
+#   - workflow_call: invoked from `release.yml` as part of the SP1
+#     release process. With `release_tag` set, the tarball is
+#     `gh release upload`-ed to that tag instead of being kept as a
+#     workflow artifact.
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'SDK version (without leading "v"); used in the tarball filename'
+        description: 'SDK version (used in the tarball filename, e.g. v6.2.0 or 0.1.0-pre)'
         required: true
         default: '0.1.0-pre'
+  workflow_call:
+    inputs:
+      version:
+        description: 'SDK version (used in the tarball filename)'
+        type: string
+        required: true
+      release_tag:
+        description: 'If non-empty, gh release upload the tarball to this tag instead of saving a workflow artifact'
+        type: string
+        default: ''
+      dry_run:
+        description: 'Dry run - build but skip the release upload'
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -46,9 +57,17 @@ jobs:
       - name: Build SDK archive
         run: make -C zkevm sdk-archive SDK_VERSION=${{ inputs.version }}
 
-      - name: Upload tarball
+      - name: Upload tarball as workflow artifact
+        if: ${{ inputs.release_tag == '' }}
         uses: actions/upload-artifact@v4
         with:
           name: zkevm-sdk-${{ inputs.version }}
           path: zkevm/zkevm-sdk-${{ inputs.version }}.tar.gz
           retention-days: 30
+
+      - name: Upload tarball to release
+        if: ${{ inputs.release_tag != '' && inputs.dry_run != true }}
+        env:
+          GH_TOKEN: ${{ secrets.SP1_RELEASE_TOKEN }}
+        run: |
+          gh release upload "${{ inputs.release_tag }}" "zkevm/zkevm-sdk-${{ inputs.version }}.tar.gz"
