@@ -1,6 +1,7 @@
 #pragma once
 
 #include "config.cuh"
+#include <cstdint>
 #include <stdio.h>
 
 struct Instruction {
@@ -18,12 +19,12 @@ struct JaggedConstraintFolder {
     const K* data;
     size_t preprocessed_ptr;
     size_t main_ptr;
-    size_t height;
+    uint32_t height;
     const felt_t* publicValues;
     const ext_t* powersOfAlpha;
-    size_t constraintIndex;
+    uint32_t constraintIndex;
     ext_t accumulator;
-    size_t rowIdx;
+    uint32_t rowIdx;
     unsigned char eval_point;
 
   public:
@@ -39,24 +40,22 @@ struct JaggedConstraintFolder {
             K zeroPrepVal = K::load(data, preprocessed_ptr + idx * height + (rowIdx << 1));
             K onePrepVal = K::load(data, preprocessed_ptr + idx * height + (rowIdx << 1 | 1));
             K result = zeroPrepVal;
-            K diff;
-            K two_diff;
+            K multi_diff;
             switch (eval_point) {
                 case 0:
                     break;
                 case 2:
-                    diff = onePrepVal - zeroPrepVal;
-                    two_diff = diff + diff;
-                    result+= two_diff;
+                    multi_diff = onePrepVal - zeroPrepVal;
+                    multi_diff = multi_diff + multi_diff;
+                    result += multi_diff;
                     break;
                 case 4:
-                    diff = onePrepVal - zeroPrepVal;
-                    two_diff = diff + diff;
-                    K four_diff = two_diff + two_diff;
-                    result += four_diff;
+                    multi_diff = onePrepVal - zeroPrepVal;
+                    multi_diff = multi_diff + multi_diff;
+                    multi_diff = multi_diff + multi_diff;
+                    result += multi_diff;
                     break;
                 default:
-                    printf("eval_point: %u\n", eval_point);
                     assert(0);
                     break;
             }
@@ -69,18 +68,17 @@ struct JaggedConstraintFolder {
                 case 0:
                     break;
                 case 2:
-                    diff = oneMainVal - zeroMainVal;
-                    two_diff = diff + diff;
-                    result+= two_diff;
+                    multi_diff = oneMainVal - zeroMainVal;
+                    multi_diff = multi_diff + multi_diff;
+                    result += multi_diff;
                     break;
                 case 4:
-                    diff = oneMainVal - zeroMainVal;
-                    two_diff = diff + diff;
-                    K four_diff = two_diff + two_diff;
-                    result += four_diff;
+                    multi_diff = oneMainVal - zeroMainVal;
+                    multi_diff = multi_diff + multi_diff;
+                    multi_diff = multi_diff + multi_diff;
+                    result += multi_diff;
                     break;
                 default:
-                    printf("eval_point: %u\n", eval_point);
                     assert(0);
                     break;
             }
