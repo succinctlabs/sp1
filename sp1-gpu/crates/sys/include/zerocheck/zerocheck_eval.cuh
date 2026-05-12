@@ -24,7 +24,7 @@ struct JaggedConstraintFolder {
     size_t constraintIndex;
     ext_t accumulator;
     size_t rowIdx;
-    felt_t eval_point;
+    unsigned char eval_point;
 
   public:
     __device__ JaggedConstraintFolder() {}
@@ -38,11 +38,53 @@ struct JaggedConstraintFolder {
         case 2:
             K zeroPrepVal = K::load(data, preprocessed_ptr + idx * height + (rowIdx << 1));
             K onePrepVal = K::load(data, preprocessed_ptr + idx * height + (rowIdx << 1 | 1));
-            return zeroPrepVal + eval_point * (onePrepVal - zeroPrepVal);
+            K result = zeroPrepVal;
+            K diff;
+            K two_diff;
+            switch (eval_point) {
+                case 0:
+                    break;
+                case 2:
+                    diff = onePrepVal - zeroPrepVal;
+                    two_diff = diff + diff;
+                    result+= two_diff;
+                    break;
+                case 4:
+                    diff = onePrepVal - zeroPrepVal;
+                    two_diff = diff + diff;
+                    K four_diff = two_diff + two_diff;
+                    result += four_diff;
+                    break;
+                default:
+                    printf("eval_point: %u\n", eval_point);
+                    assert(0);
+                    break;
+            }
+            return result;
         case 4:
             K zeroMainVal = K::load(data, main_ptr + idx * height + (rowIdx << 1));
             K oneMainVal = K::load(data, main_ptr + idx * height + (rowIdx << 1 | 1));
-            return zeroMainVal + eval_point * (oneMainVal - zeroMainVal);
+            result = zeroMainVal;
+            switch (eval_point) {
+                case 0:
+                    break;
+                case 2:
+                    diff = oneMainVal - zeroMainVal;
+                    two_diff = diff + diff;
+                    result+= two_diff;
+                    break;
+                case 4:
+                    diff = oneMainVal - zeroMainVal;
+                    two_diff = diff + diff;
+                    K four_diff = two_diff + two_diff;
+                    result += four_diff;
+                    break;
+                default:
+                    printf("eval_point: %u\n", eval_point);
+                    assert(0);
+                    break;
+            }
+            return result;
         case 9:
             return K(felt_t::load(publicValues, idx));
         default:
