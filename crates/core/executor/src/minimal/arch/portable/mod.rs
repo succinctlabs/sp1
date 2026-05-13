@@ -4,6 +4,7 @@
 
 use sp1_jit::{
     debug::{self, DebugState},
+    merkle::{DirtyPage, DirtyPages, MERKLE_PAGE_WORDS},
     trace_capacity, Interrupt, MemValue, PageProtValue, RiscRegister, SyscallContext,
     TraceChunkRaw, PUBLIC_VALUE_DIGEST_WORDS,
 };
@@ -13,7 +14,7 @@ use sp1_primitives::consts::{
 };
 
 use std::{
-    collections::VecDeque,
+    collections::{HashSet, VecDeque},
     io,
     ptr::NonNull,
     sync::{mpsc, Arc},
@@ -41,6 +42,10 @@ use trace::TraceChunkBuffer;
 const CLK_INC: u64 = CLK_INC_32 as u64;
 const PC_INC: u64 = PC_INC_32 as u64;
 
+/// When `true`, `self.clk` is reset to 1 at the start of every `TraceChunk`.
+/// When `false`, `self.clk` stays continuous across chunks, the same behavior as SP1 v6.
+const CLK_RESET_PER_CHUNK: bool = true;
+
 /// A minimal trace executor.
 ///
 /// This executor runs SP1 program in current process. It does not limit the
@@ -51,6 +56,9 @@ const PC_INC: u64 = PC_INC_32 as u64;
 pub struct MinimalExecutor<M: ExecutionMode> {
     program: Arc<Program>,
     input: VecDeque<Vec<u8>>,
+    /// Cursor into `input.front()`. Advanced by `consume_hint_bytes`; reset to 0 when
+    /// the front Vec is fully drained and popped.
+    input_front_offset: usize,
     registers: [u64; 32],
     memory: Box<LimitedMemory<MemValue>>,
     page_prots: MaybeCowPageProt,
@@ -71,6 +79,8 @@ pub struct MinimalExecutor<M: ExecutionMode> {
     transpiler: InstructionTranspiler,
     /// Cache of decoded instructions (keyed by raw instruction u32).
     decoded_instruction_cache: HBHashMap<u32, Instruction>,
+    /// Tracks distinct 8-byte-aligned addresses touched (load or store) per chunk.
+    chunk_touched_addrs: HashSet<u64>,
     #[cfg(feature = "profiling")]
     profiler: Option<(crate::profiler::Profiler, std::io::BufWriter<std::fs::File>)>,
     /// Cycle tracker start times and depths, keyed by label name.
@@ -109,6 +119,7 @@ impl<M: ExecutionMode> SyscallContext for MinimalExecutor<M> {
     }
 
     fn mr_without_prot(&mut self, addr: u64) -> u64 {
+        self.chunk_touched_addrs.insert(addr);
         let mem_value = self.memory.get_mut(addr);
         if self.traces.is_some() {
             unsafe {
@@ -121,6 +132,7 @@ impl<M: ExecutionMode> SyscallContext for MinimalExecutor<M> {
     }
 
     fn mw_without_prot(&mut self, addr: u64, val: u64) {
+        self.chunk_touched_addrs.insert(addr);
         let mem_value = self.memory.get_mut(addr);
         if self.traces.is_some() {
             unsafe {
@@ -141,6 +153,7 @@ impl<M: ExecutionMode> SyscallContext for MinimalExecutor<M> {
     fn mr_slice_without_prot(&mut self, addr: u64, len: usize) -> impl IntoIterator<Item = &u64> {
         let len = len as u64;
         for i in 0..len {
+            self.chunk_touched_addrs.insert(addr + i * 8);
             let mem_value = self.memory.get_mut(addr + i * 8);
             if self.traces.is_some() {
                 unsafe {
@@ -159,6 +172,7 @@ impl<M: ExecutionMode> SyscallContext for MinimalExecutor<M> {
     fn mr_slice_unsafe(&mut self, addr: u64, len: usize) -> impl IntoIterator<Item = &u64> {
         let len = len as u64;
         for i in 0..len {
+            self.chunk_touched_addrs.insert(addr + i * 8);
             let mem_value = self.memory.get_mut(addr + i * 8);
             if self.traces.is_some() {
                 unsafe {
@@ -175,7 +189,6 @@ impl<M: ExecutionMode> SyscallContext for MinimalExecutor<M> {
 
     fn mr_slice_no_trace(&mut self, addr: u64, len: usize) -> impl IntoIterator<Item = &u64> {
         let len = len as u64;
-
         (addr..addr + len * 8).step_by(8).map(|addr| self.memory.get(addr).map_or(&0, |v| &v.value))
     }
 
@@ -251,6 +264,30 @@ impl<M: ExecutionMode> SyscallContext for MinimalExecutor<M> {
         &mut self.input
     }
 
+    fn hint_remaining_len(&self) -> Option<usize> {
+        self.input.front().map(|v| v.len() - self.input_front_offset)
+    }
+
+    fn consume_hint_bytes(&mut self, n: usize) -> Vec<u8> {
+        let (result, drained) = {
+            let front = self.input.front().expect("consume_hint_bytes: input buffer empty");
+            let start = self.input_front_offset;
+            let end = start.checked_add(n).expect("consume_hint_bytes: overflow");
+            assert!(
+                end <= front.len(),
+                "consume_hint_bytes: requested {n} bytes but only {} remain in front",
+                front.len() - start,
+            );
+            (front[start..end].to_vec(), end == front.len())
+        };
+        self.input_front_offset += n;
+        if drained {
+            self.input.pop_front();
+            self.input_front_offset = 0;
+        }
+        result
+    }
+
     fn public_values_stream(&mut self) -> &mut Vec<u8> {
         &mut self.public_values_stream
     }
@@ -298,7 +335,16 @@ impl<M: ExecutionMode> SyscallContext for MinimalExecutor<M> {
     }
 
     fn mw_hint(&mut self, addr: u64, val: u64) {
-        self.memory.insert(addr, MemValue { clk: 0, value: val });
+        // Hint writes are with `prev_clk = 0, prev_value = 0`.
+        self.chunk_touched_addrs.insert(addr);
+        let mem_value = self.memory.get_mut(addr);
+        mem_value.clk = self.clk;
+        mem_value.value = val;
+        if self.traces.is_some() {
+            unsafe {
+                self.traces.as_mut().unwrap_unchecked().extend(&[*mem_value]);
+            }
+        }
     }
 
     fn bump_memory_clk(&mut self) {
@@ -438,6 +484,7 @@ impl<M: ExecutionMode> MinimalExecutor<M> {
         let mut result = Self {
             program,
             input: VecDeque::new(),
+            input_front_offset: 0,
             registers: [0; 32],
             global_clk: 0,
             clk: 1,
@@ -455,6 +502,7 @@ impl<M: ExecutionMode> MinimalExecutor<M> {
             debug_sender: None,
             transpiler: InstructionTranspiler,
             decoded_instruction_cache: HBHashMap::new(),
+            chunk_touched_addrs: HashSet::new(),
             exit_code: 0,
             #[cfg(feature = "profiling")]
             profiler: None,
@@ -565,6 +613,40 @@ impl<M: ExecutionMode> MinimalExecutor<M> {
     #[must_use]
     pub fn global_clk(&self) -> u64 {
         self.global_clk
+    }
+
+    /// Distinct 8-byte-aligned addresses touched in the most recently produced chunk.
+    ///
+    /// This set is cleared at the start of the next `execute_chunk` call.
+    #[must_use]
+    pub fn chunk_touched_addrs(&self) -> &HashSet<u64> {
+        &self.chunk_touched_addrs
+    }
+
+    /// Snapshot the most recently produced chunk's dirty pages.
+    #[must_use]
+    pub fn emit_dirty_pages(&mut self) -> DirtyPages {
+        const PAGE_BYTES: u64 = (MERKLE_PAGE_WORDS as u64) * 8;
+        let mut seen: HashSet<u32> = HashSet::new();
+        let mut page_ids: Vec<u32> = Vec::new();
+        for &addr in self.chunk_touched_addrs.iter() {
+            let pid = (addr / PAGE_BYTES) as u32;
+            if seen.insert(pid) {
+                page_ids.push(pid);
+            }
+        }
+        let pages: Vec<DirtyPage> = page_ids
+            .into_iter()
+            .map(|page_id| {
+                let mut final_contents = [0u64; MERKLE_PAGE_WORDS];
+                let base = (page_id as u64) * PAGE_BYTES;
+                for w in 0..MERKLE_PAGE_WORDS {
+                    final_contents[w] = self.get_memory_value(base + (w as u64) * 8).value;
+                }
+                DirtyPage { page_id, final_contents }
+            })
+            .collect();
+        DirtyPages { pages }
     }
 
     /// Get the program of the executor
@@ -732,6 +814,7 @@ impl<M: ExecutionMode> MinimalExecutor<M> {
 
         let mem_value = self.memory.get_mut(aligned_addr);
         if self.traces.is_some() && self.maybe_unconstrained.is_none() {
+            self.chunk_touched_addrs.insert(aligned_addr);
             unsafe {
                 self.traces.as_mut().unwrap_unchecked().extend(&[*mem_value]);
             }
@@ -758,6 +841,7 @@ impl<M: ExecutionMode> MinimalExecutor<M> {
 
         let mem_value = self.memory.get_mut(aligned_addr);
         if self.traces.is_some() && self.maybe_unconstrained.is_none() {
+            self.chunk_touched_addrs.insert(aligned_addr);
             unsafe {
                 self.traces.as_mut().unwrap_unchecked().extend(&[*mem_value]);
             }
@@ -992,17 +1076,26 @@ macro_rules! impl_execute_chunk {
                 return Ok(None);
             }
 
+            self.chunk_touched_addrs.clear();
+
             let capacity = trace_capacity(self.max_trace_size);
             if capacity > 0 {
                 self.traces = Some(TraceChunkBuffer::new(capacity));
             }
+
+            // Reset the initial clk for the `TraceChunk` if `CLK_RESET_PER_CHUNK` is on.
+            if CLK_RESET_PER_CHUNK {
+                self.clk = 1;
+            }
+            let chunk_start_clk = self.clk;
 
             if self.traces.is_some() {
                 unsafe {
                     let traces = self.traces.as_mut().unwrap_unchecked();
                     traces.write_start_registers(&self.registers);
                     traces.write_pc_start(self.pc);
-                    traces.write_clk_start(self.clk);
+                    // `clk_start` is always relative to chunk, with starting clk 1.
+                    traces.write_clk_start(1);
                 }
             }
 
@@ -1022,7 +1115,8 @@ macro_rules! impl_execute_chunk {
             if self.traces.is_some() {
                 unsafe {
                     let traces = self.traces.as_mut().unwrap_unchecked();
-                    traces.write_clk_end(self.clk);
+                    // `clk_end` is always relative to chunk, with starting clk 1.
+                    traces.write_clk_end(self.clk - chunk_start_clk + 1);
                     traces.write_global_clk_end(self.global_clk);
                 }
             }

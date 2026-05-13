@@ -7,7 +7,7 @@ use sp1_core_executor_runner_binary::{Input, Output};
 use sp1_jit::{
     memory::SharedMemory,
     shm::{ShmTraceRing, TraceResult},
-    trace_capacity, MemValue, MinimalTrace, TraceChunkRaw,
+    trace_capacity, DirtyPages, MemValue, MinimalTrace, TraceChunkRaw,
 };
 use sp1_primitives::consts::MAX_JIT_LOG_ADDR;
 use std::{
@@ -34,6 +34,9 @@ pub struct MinimalExecutorRunner {
 
     memory: SharedMemory,
     consumer: Option<ShmTraceRing>,
+    /// Per-chunk dirty-pages ring. Set when `input.dirty_pages_slot_bytes`
+    /// is `Some(_)` and there's a trace ring (i.e. tracing is on).
+    dirty_consumer: Option<ShmTraceRing>,
 
     // The flag is set by the memory monitor when it SIGKILLs the child for exceeding its RSS
     // budget, so that kill can be told apart from an external (OOM-killer) one.
@@ -63,6 +66,30 @@ impl MinimalExecutorRunner {
         memory_limit: u64,
         shm_slot_size: usize,
     ) -> Self {
+        Self::new_with_dirty_pages(
+            program,
+            is_debug,
+            max_trace_size,
+            memory_limit,
+            shm_slot_size,
+            None,
+        )
+    }
+
+    /// Like [`Self::new`] but also opts the child into emitting per-chunk dirty
+    /// pages over a parallel ring. `dirty_pages_slot_bytes` is the per-slot size,
+    /// which must hold the worst-case chunk's payload (see
+    /// [`sp1_jit::dirty_pages_wire_bytes`]). Read both the chunk and its dirty
+    /// pages via [`Self::try_execute_chunk_with_dirty_pages`].
+    #[must_use]
+    pub fn new_with_dirty_pages(
+        program: Arc<Program>,
+        is_debug: bool,
+        max_trace_size: Option<u64>,
+        memory_limit: u64,
+        shm_slot_size: usize,
+        dirty_pages_slot_bytes: Option<usize>,
+    ) -> Self {
         let id = format!("sp1_{}", URL_SAFE.encode(uuid::Uuid::new_v4().as_bytes()));
         let input = Input {
             program,
@@ -73,10 +100,20 @@ impl MinimalExecutorRunner {
             id,
             max_memory_size: 2_u64.pow(MAX_JIT_LOG_ADDR as u32) as usize,
             memory_limit,
+            dirty_pages_slot_bytes,
         };
-        let (memory, consumer) = create(&input);
+        let (memory, consumer, dirty_consumer) = create(&input);
 
-        Self { input, consumer, memory, process: None, output: None, global_clk: 0, clk: 0 }
+        Self {
+            input,
+            consumer,
+            dirty_consumer,
+            memory,
+            process: None,
+            output: None,
+            global_clk: 0,
+            clk: 0,
+        }
     }
 
     /// Create a new minimal executor with no tracing or debugging.
@@ -251,6 +288,82 @@ impl MinimalExecutorRunner {
         }
     }
 
+    /// Like [`Self::try_execute_chunk`] but also drains the matching per-chunk
+    /// dirty-pages payload from the parallel ring opened by
+    /// [`Self::new_with_dirty_pages`].
+    ///
+    /// The child writes the trace slot first and the dirty-pages slot
+    /// immediately after, so by the time we successfully consume a trace
+    /// chunk the dirty-pages slot is either already filled or about to be.
+    /// We spin-wait the same way the trace path does.
+    ///
+    /// Returns an error if the runner was not constructed with the dirty-pages
+    /// ring enabled.
+    pub fn try_execute_chunk_with_dirty_pages(
+        &mut self,
+    ) -> Result<Option<(TraceChunkRaw, DirtyPages)>, ExecutionError> {
+        let chunk = match self.try_execute_chunk()? {
+            Some(c) => c,
+            None => return Ok(None),
+        };
+
+        let dirty_consumer = self.dirty_consumer.as_ref().ok_or_else(|| {
+            ExecutionError::Other(
+                "try_execute_chunk_with_dirty_pages called but dirty-pages ring is not enabled \
+                 (construct via new_with_dirty_pages)"
+                    .into(),
+            )
+        })?;
+
+        loop {
+            match dirty_consumer.access(Duration::from_millis(CONSUMER_TIMEOUT_MILLIS)) {
+                TraceResult::Data(guard) => {
+                    let dirty = DirtyPages::read_from_wire(&guard);
+                    return Ok(Some((chunk, dirty)));
+                }
+                TraceResult::Finished => {
+                    return Err(ExecutionError::Other(
+                        "dirty-pages ring finished before delivering the chunk's payload".into(),
+                    ));
+                }
+                TraceResult::Crashed(details) => {
+                    return Err(ExecutionError::Other(format!(
+                        "dirty-pages ring crash: {details:?}"
+                    )));
+                }
+                TraceResult::Timeout => {
+                    // The dirty ring carries no crash signal, so detect a dead child here.
+                    // Abnormal exit: dirty[k] never arrives. Clean exit: it's already queued.
+                    if let Some(status) =
+                        self.process.as_mut().unwrap().0.try_wait().expect("try wait")
+                    {
+                        if !status.success() {
+                            self.process
+                                .take()
+                                .unwrap()
+                                .1
+                                .join()
+                                .expect("wait for log thread to finish");
+                            if status.signal() == Some(libc::SIGBUS) {
+                                tracing::warn!("SIGBUS signal is received, there is a chance /dev/shm is full!");
+                            }
+                            let error = match (status.code(), status.signal()) {
+                                (_, Some(libc::SIGKILL)) => ExecutionError::TooMuchMemory(),
+                                (_, Some(libc::SIGILL)) => ExecutionError::Unimplemented(),
+                                (code, signal) => ExecutionError::Other(format!(
+                                    "Child native executor terminated early, code: {code:?}, signal: {signal:?}"
+                                )),
+                            };
+                            self.output = Some(Err(error.clone()));
+                            return Err(error);
+                        }
+                    }
+                    std::hint::spin_loop();
+                }
+            }
+        }
+    }
+
     fn wait_for_success(&mut self) -> Result<(), ExecutionError> {
         // SP1 program terminates, wait for output and terminate child process.
         let (mut child, log_thread, killed_by_monitor) = self.process.take().unwrap();
@@ -400,9 +513,10 @@ impl MinimalExecutorRunner {
         }
         self.output = None;
 
-        let (memory, consumer) = create(&self.input);
+        let (memory, consumer, dirty_consumer) = create(&self.input);
         self.memory = memory;
         self.consumer = consumer;
+        self.dirty_consumer = dirty_consumer;
 
         self.global_clk = 0;
         self.clk = 0;
@@ -411,7 +525,7 @@ impl MinimalExecutorRunner {
 
 // Create partial field variables, so the common logic can be shared
 // between `MinimalExecutor::new` and `MinimalExecutor::reset`.
-fn create(input: &Input) -> (SharedMemory, Option<ShmTraceRing>) {
+fn create(input: &Input) -> (SharedMemory, Option<ShmTraceRing>, Option<ShmTraceRing>) {
     let transpiler =
         MinimalTranspiler::new(input.max_memory_size, input.is_debug, input.max_trace_size);
     let memory_buffer_size = transpiler.memory_buffer_size();
@@ -428,7 +542,17 @@ fn create(input: &Input) -> (SharedMemory, Option<ShmTraceRing>) {
         None
     };
 
-    (memory, consumer)
+    // Dirty-pages ring: opt-in via `dirty_pages_slot_bytes`, same depth as the
+    // trace ring so the two drain in lockstep (one payload per chunk).
+    let dirty_consumer = match (input.dirty_pages_slot_bytes, &consumer) {
+        (Some(slot_bytes), Some(_)) => Some(
+            ShmTraceRing::create(&format!("{}_p", input.id), input.shm_slot_size, slot_bytes)
+                .expect("create shm file for dirty pages"),
+        ),
+        _ => None,
+    };
+
+    (memory, consumer, dirty_consumer)
 }
 
 /// Maps a dead child's exit status to a typed [`ExecutionError`] instead of panicking.

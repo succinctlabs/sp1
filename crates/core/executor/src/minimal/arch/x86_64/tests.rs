@@ -9,7 +9,7 @@ use crate::minimal::ecall::sp1_ecall_handler;
 
 // Helper function to create a new backend for testing
 fn new_backend() -> sp1_jit::backends::x86::TranspilerBackend {
-    sp1_jit::backends::x86::TranspilerBackend::new(0, 1024 * 2, 1000, 100, 100, 8).unwrap()
+    sp1_jit::backends::x86::TranspilerBackend::new(0, 1024 * 2, 1000, 100, 100).unwrap()
 }
 
 // Finalize the function and call it.

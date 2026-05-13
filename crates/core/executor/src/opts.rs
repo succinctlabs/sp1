@@ -132,6 +132,8 @@ impl Default for SP1CoreOpts {
         retained_events_presets.insert(RetainedEventsPreset::Sha256);
         retained_events_presets.insert(RetainedEventsPreset::Poseidon2);
         retained_events_presets.insert(RetainedEventsPreset::U256Ops);
+        retained_events_presets.insert(RetainedEventsPreset::Secp256k1);
+        retained_events_presets.insert(RetainedEventsPreset::Keccak);
 
         Self {
             minimal_trace_chunk_threshold,

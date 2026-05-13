@@ -1,8 +1,9 @@
 #![allow(clippy::fn_to_numeric_cast)]
 
 use crate::{
-    do_load_imm_var, do_opt_imm_var, EcallHandler, JitContext, RiscOperand, RiscRegister,
-    TraceChunkHeader, TraceCollector,
+    do_load_imm_var, do_opt_imm_var,
+    merkle::{DIRTY_LIST_SOFT_CAP, MERKLE_PAGE_SHIFT},
+    EcallHandler, JitContext, RiscOperand, RiscRegister, TraceChunkHeader, TraceCollector,
 };
 use dynasmrt::{
     dynasm,
@@ -191,8 +192,6 @@ pub struct TranspilerBackend {
     may_early_exit: bool,
     /// Indicate if a branch has been generated
     branch_generated: bool,
-    /// The amount to bump the clk by each cycle.
-    clk_bump: u64,
     /// Current pc as of transpiling.
     pc_current: u64,
     /// Register values available at transpile time.
@@ -201,6 +200,9 @@ pub struct TranspilerBackend {
     labels: HashMap<usize, DynamicLabel>,
     /// Program size, or instruction count
     program_size: usize,
+    /// Whether any RISC-V instructions emitted in the current basic block have
+    /// a `global_clk` bump that has been deferred.
+    flush_pending: bool,
 }
 
 impl TraceCollector for TranspilerBackend {
@@ -239,7 +241,7 @@ impl TraceCollector for TranspilerBackend {
 
     /// Write the value at [rs1 + imm] into the trace buffer.
     fn trace_mem_value(&mut self, rs1: RiscRegister, imm: u64) {
-        const IS_UNCONSTRAINED_OFFSET: i32 = offset_of!(JitContext, is_unconstrained) as i32;
+        const IS_CONSTRAINED_OFFSET: i32 = offset_of!(JitContext, is_constrained) as i32;
 
         // Load the value, assumed to be of a memory read, into TEMP_A.
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
@@ -248,10 +250,10 @@ impl TraceCollector for TranspilerBackend {
             self;
             .arch x64;
 
-            // Check if were in unconstrained mode.
-            mov rcx, QWORD [Rq(CONTEXT) + IS_UNCONSTRAINED_OFFSET];
-            cmp rcx, 1;
-            je >done
+            // Skip the trace write if we're in unconstrained mode (is_constrained == 0).
+            mov rcx, QWORD [Rq(CONTEXT) + IS_CONSTRAINED_OFFSET];
+            test rcx, rcx;
+            jz >done
         }
 
         // ------------------------------------
@@ -269,25 +271,15 @@ impl TraceCollector for TranspilerBackend {
             and Rq(TEMP_A), -8;
 
             // ------------------------------------
-            // Scale by the entry size. Add the
-            // physical memory pointer.
+            // Load the word from VM memory into the trace tail's value slot.
+            // The clk half of the MemValue (tail offset +0) is left as garbage;
+            // SplicingVM is expected to derive clk per-chunk and patch it.
             // ------------------------------------
-            lea Rq(TEMP_A), [Rq(MEMORY_PTR) + Rq(TEMP_A) * 2];
+            mov rcx, QWORD [Rq(MEMORY_PTR) + Rq(TEMP_A)];
+            mov QWORD [Rq(TAIL_START) + 8], rcx;
 
             // ------------------------------------
-            // Load the clk & word from the memory entry into the tail.
-            // Bump the current clk in the memory entry.
-            //
-            // The code is written to minimize split RMW
-            // ------------------------------------
-            movdqu xmm15, [Rq(TEMP_A)];
-            movdqu [Rq(TAIL_START)], xmm15;
-            mov rdx, Rq(CLOCK_OR_SAVED_STACK_PTR);
-            add rdx, 1;
-            mov [Rq(TEMP_A)], rdx;
-
-            // ------------------------------------
-            // Increment the num mem reads, since weve pushed into it.
+            // Increment the num mem reads, since we've pushed into it.
             // ------------------------------------
             add Rq(NUM_MEM_READS), 1;
             add Rq(TAIL_START), 16;
@@ -368,7 +360,10 @@ impl TranspilerBackend {
             jb >done  // Jump if below (unsigned comparison)
         }
 
-        // Set PC address before exiting
+        if self.flush_pending {
+            self.emit_runtime_n_flush_asm(self.pc_current);
+        }
+
         self.update_pc(TEMP_A, self.pc_current + 4);
         dynasm! {
             self;
@@ -708,6 +703,93 @@ impl TranspilerBackend {
         self.load_registers_from_context();
     }
 
+    /// Emit an inline dirty-page tracking check for a load/store instruction.
+    ///
+    /// Preconditions at the insertion point:
+    /// - `TEMP_A` holds the physical byte offset into the `MemValue[]` array (i.e.
+    ///   `aligned_word_addr * 16`). This must be preserved across this function.
+    /// - `rax` holds the intra-word byte offset (0-7). This must be preserved as well.
+    /// - `rcx`, `rdx`, `rdi`, and `TEMP_B` are free to clobber.
+    fn emit_dirty_page_check(&mut self) {
+        const DIRTY_BITSET_OFFSET: i32 = offset_of!(JitContext, dirty_bitset) as i32;
+        const DIRTY_LIST_ARR_OFFSET: i32 = offset_of!(JitContext, dirty_page_list_arr) as i32;
+        const DIRTY_LIST_LEN_OFFSET: i32 = offset_of!(JitContext, dirty_page_list_len) as i32;
+        const IS_CONSTRAINED_OFFSET: i32 = offset_of!(JitContext, is_constrained) as i32;
+        const PAGE_SHIFT_I8: i8 = MERKLE_PAGE_SHIFT as i8;
+        const QWORD_SHIFT_I8: i8 = (MERKLE_PAGE_SHIFT + 6) as i8;
+        const SOFT_CAP_I32: i32 = DIRTY_LIST_SOFT_CAP as i32;
+
+        dynasm! {
+            self;
+            .arch x64;
+
+            // Skip when in unconstrained mode.
+            mov rcx, QWORD [Rq(CONTEXT) + IS_CONSTRAINED_OFFSET];
+            test rcx, rcx;
+            jz >dirty_skip;
+
+            // Compute `rcx = page_id = addr >> MERKLE_PAGE_SHIFT`.
+            // The value of `rcx & 63` is the bit index inside the u64 element in the bitset.
+            mov rcx, Rq(TEMP_A);
+            shr rcx, PAGE_SHIFT_I8;
+
+            // Compute `TEMP_B = bitset_id = addr >> (MERKLE_PAGE_SHIFT + 6)`.
+            mov Rq(TEMP_B), Rq(TEMP_A);
+            shr Rq(TEMP_B), QWORD_SHIFT_I8;
+
+            // Set `rdi = bitset base pointer`.
+            mov rdi, QWORD [Rq(CONTEXT) + DIRTY_BITSET_OFFSET];
+
+            // Set `rdx = bitset word containing this bit`.
+            mov rdx, QWORD [rdi + Rq(TEMP_B) * 8];
+
+            // Test the bit (low 6 bits of `rcx` select the bit within the qword).
+            bt rdx, rcx;
+            jc >dirty_skip;
+
+            // If the bit was not set, set the bit and store the result back to the bitset.
+            bts rdx, rcx;
+            mov QWORD [rdi + Rq(TEMP_B) * 8], rdx
+        }
+
+        // Inline push to the fixed-size list.
+        dynasm! {
+            self;
+            .arch x64;
+
+            // Reuse `TEMP_B` for the list-array base.
+            mov Rq(TEMP_B), QWORD [Rq(CONTEXT) + DIRTY_LIST_ARR_OFFSET];
+            // Set `edx = current dirty page list length`.
+            mov edx, DWORD [Rq(CONTEXT) + DIRTY_LIST_LEN_OFFSET];
+            // Append `ecx = page_id` to the dirty page list.
+            mov DWORD [Rq(TEMP_B) + rdx * 4], ecx;
+            // Increment the dirty page list length.
+            add edx, 1;
+            // Put the incremented length back.
+            mov DWORD [Rq(CONTEXT) + DIRTY_LIST_LEN_OFFSET], edx;
+
+            // Soft-cap check.
+            cmp edx, SOFT_CAP_I32;
+            jb >dirty_skip
+        }
+
+        // Soft cap is reached, so end the current chunk cleanly.
+        // Mirrors `exit_if_trace_exceeds`'s tail.
+        if self.flush_pending {
+            self.emit_runtime_n_flush_asm(self.pc_current);
+        }
+        // Use TEMP_B for the pc update: TEMP_A is live here.
+        self.update_pc(TEMP_B, self.pc_current + 4);
+        dynasm! {
+            self;
+            .arch x64;
+
+            jmp ->exit;
+
+            dirty_skip:
+        }
+    }
+
     /// Load the pc from the context into the given register.
     #[inline]
     fn load_pc_into_register(&mut self, dst: u8) {
@@ -848,37 +930,56 @@ impl TranspilerBackend {
         }
     }
 
+    /// Account for one RISC-V instruction's contribution to `global_clk`.
     fn bump_clk(&mut self) {
-        let is_unconstrained_offset = offset_of!(JitContext, is_unconstrained) as i32;
-        let clk_bump = self.clk_bump as i32;
+        self.flush_pending = true;
+    }
+
+    /// Emit the deferred `global_clk += is_constrained * N` for the current
+    /// basic block, where `N` is computed as `(end_pc - ctx.pc) / 4 + 1`.
+    /// Here, `ctx.pc` is the block-entry PC for the current basic-block execution.
+    ///
+    /// Must be called:
+    ///   - At the start of `end_branch`, covering normal control flow.
+    ///   - Before `call_extern_fn_raw(ecall_handler)`, so the bump uses the
+    ///     correct pre-toggle `is_constrained` value.
+    fn emit_runtime_n_flush_asm(&mut self, end_pc: u64) {
+        let end_pc_i64 = end_pc as i64;
+        let pc_offset = offset_of!(JitContext, pc) as i32;
+        let is_constrained_offset = offset_of!(JitContext, is_constrained) as i32;
 
         dynasm! {
             self;
             .arch x64;
 
-            // ------------------------------------
-            // Add the amount to the clk field in the context.
-            // ------------------------------------
-            add Rq(CLOCK_OR_SAVED_STACK_PTR), clk_bump;
+            // Compute `rax = (end_pc - ctx.pc) / 4 + 1`.
+            mov rax, QWORD end_pc_i64;
+            sub rax, QWORD [Rq(CONTEXT) + pc_offset];
+            shr rax, 2;
+            add rax, 1;
 
-            // ------------------------------------
-            // Add to global_clk based on is_unconstrained:
-            // - If is_unconstrained == 0, add 1
-            // - If is_unconstrained == 1, add 0
-            // ------------------------------------
-
-            // Load is_unconstrained (8-bit) into TEMP_A with zero extension
-            mov Rq(TEMP_A), QWORD [Rq(CONTEXT) + is_unconstrained_offset];
-
-            // XOR with 1 to invert: 0 -> 1, 1 -> 0
-            xor Rq(TEMP_A), 1;
-
-            // Add the inverted value to global_clk
-            add Rq(GLOBAL_CLK), Rq(TEMP_A)
+            // Do `global_clk += rax * is_constrained`.
+            mov rcx, QWORD [Rq(CONTEXT) + is_constrained_offset];
+            imul rax, rcx;
+            add Rq(GLOBAL_CLK), rax
         }
     }
 
+    fn flush_clk(&mut self) {
+        if !self.flush_pending {
+            return;
+        }
+        self.flush_pending = false;
+
+        // Flush at the end of a basic block.
+        // Caller must ensure `update_pc` is emitted after this, so `ctx.pc` is correct.
+        self.emit_runtime_n_flush_asm(self.pc_current);
+    }
+
     fn end_branch(&mut self, jump_target: Option<u64>) {
+        // Control flow instruction implementations are responsible for calling
+        // `flush_clk()` themselves before any branching code is emitted.
+        assert!(!self.flush_pending, "control flow instruction must call flush_clk after bump_clk");
         self.branch_generated = true;
 
         // Branch instructions bump clock as they see fit, we don't bump

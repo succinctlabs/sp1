@@ -8,43 +8,38 @@ pub unsafe fn hint_read(
 ) -> Result<Option<u64>, Interrupt> {
     panic_if_input_exhausted(ctx);
 
-    // SAFETY: The input stream is not empty, as checked above, so the back is not None
-    let vec = unsafe { ctx.input_buffer().pop_front().unwrap_unchecked() };
+    // Consume `len` bytes from the front of the input buffer with a cursor. The guest
+    // splits a logical read into batches of at most `BATCH_HINT_LEN`, so multiple
+    // ECALL HINT_READs share one host-pushed Vec.
+    let bytes = ctx.consume_hint_bytes(len as usize);
 
-    ctx.trace_hint(ptr, vec.clone());
+    ctx.trace_hint(ptr, bytes.clone());
 
-    assert_eq!(vec.len() as u64, len, "hint input stream read length mismatch");
     assert_eq!(ptr % 8, 0, "hint read address not aligned to 8 bytes");
 
-    // Chunk the bytes into words.
-    let chunks = vec.chunks_exact(8);
-    // Get the number of chunks.
+    let chunks = bytes.chunks_exact(8);
     let chunk_count = chunks.len();
-    // Get the remainder of the bytes.
     let remainder = chunks.remainder();
 
-    // For each chunk, write the word to the memory.
     for (i, chunk) in chunks.enumerate() {
         let word = u64::from_le_bytes([
             chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6], chunk[7],
         ]);
-
         ctx.mw_hint(ptr + (i * 8) as u64, word);
     }
 
-    // Write the final word to the memory.
-    let final_word = {
+    if !remainder.is_empty() {
         let mut buf = [0u8; 8];
         buf[..remainder.len()].copy_from_slice(remainder);
-        u64::from_le_bytes(buf)
-    };
-    ctx.mw_hint(ptr + (chunk_count * 8) as u64, final_word);
+        let final_word = u64::from_le_bytes(buf);
+        ctx.mw_hint(ptr + (chunk_count * 8) as u64, final_word);
+    }
 
     Ok(None)
 }
 
 unsafe fn panic_if_input_exhausted(ctx: &mut impl SyscallContext) {
-    if ctx.input_buffer().is_empty() {
+    if ctx.hint_remaining_len().is_none() {
         panic!("hint input stream exhausted");
     }
 }
@@ -55,10 +50,7 @@ pub unsafe fn hint_len(
     _op_a: u64,
     _op_b: u64,
 ) -> Result<Option<u64>, Interrupt> {
-    let input_stream: &mut std::collections::VecDeque<Vec<u8>> = ctx.input_buffer();
-    let value = input_stream.front().map_or(u64::MAX, |data| data.len() as u64);
-
+    let value = ctx.hint_remaining_len().map_or(u64::MAX, |n| n as u64);
     ctx.trace_value(value);
-
     Ok(Some(value))
 }

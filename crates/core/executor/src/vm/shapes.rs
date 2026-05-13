@@ -3,9 +3,8 @@ use hashbrown::{HashMap, HashSet};
 use std::{marker::PhantomData, str::FromStr};
 
 use crate::{
-    events::NUM_PAGE_PROT_ENTRIES_PER_ROW_EXEC, vm::memory::CompressedMemory, ExecutionMode,
-    Instruction, Opcode, RiscvAirId, ShardingThreshold, SupervisorMode, SyscallCode, UserMode,
-    BYTE_NUM_ROWS, RANGE_NUM_ROWS,
+    events::NUM_PAGE_PROT_ENTRIES_PER_ROW_EXEC, ExecutionMode, Instruction, Opcode, RiscvAirId,
+    ShardingThreshold, SupervisorMode, SyscallCode, UserMode, BYTE_NUM_ROWS, RANGE_NUM_ROWS,
 };
 
 /// The maximum trace area from padding with next multiple of 32.
@@ -44,10 +43,6 @@ pub struct ShapeChecker<M: ExecutionMode> {
     pub(crate) local_mem_counts: u64,
     /// The number of local page prot accesses during this cycle.
     pub(crate) local_page_prot_counts: u64,
-    /// Whether the last read was external, ie: it was read from a deferred precompile.
-    is_last_read_external: CompressedMemory,
-    /// Whether the last page prot access was external, ie: it was read from a deferred precompile.
-    is_last_page_prot_access_external: HashMap<u64, bool>,
     /// The number of instruction decode events that occurred in this shard.
     shard_distinct_instructions: HashSet<u32>,
 }
@@ -77,8 +72,6 @@ impl<M: ExecutionMode> ShapeChecker<M> {
             // Assume that all registers will be touched in each shard.
             local_mem_counts: 32,
             local_page_prot_counts: 0,
-            is_last_read_external: CompressedMemory::new(),
-            is_last_page_prot_access_external: HashMap::new(),
             shard_distinct_instructions: HashSet::new(),
         }
     }
@@ -95,16 +88,9 @@ impl<M: ExecutionMode> ShapeChecker<M> {
     }
 
     #[inline]
-    pub fn handle_mem_event(&mut self, addr: u64, clk: u64) {
-        // Round down to the nearest 8-byte aligned address.
-        let addr = addr & !0b111;
-
-        let is_external = self.syscall_sent;
+    pub fn handle_mem_event(&mut self, _addr: u64, clk: u64) {
         let is_first_read_this_shard = self.shard_start_clk > clk;
-        let is_last_read_external = self.is_last_read_external.insert(addr, is_external);
-
-        self.local_mem_counts +=
-            (is_first_read_this_shard || (is_last_read_external && !is_external)) as u64;
+        self.local_mem_counts += is_first_read_this_shard as u64;
     }
 
     #[inline]
@@ -113,15 +99,9 @@ impl<M: ExecutionMode> ShapeChecker<M> {
     }
 
     #[inline]
-    pub fn handle_page_prot_event(&mut self, page_idx: u64, clk: u64) {
-        let is_external = self.syscall_sent;
+    pub fn handle_page_prot_event(&mut self, _page_idx: u64, clk: u64) {
         let is_first_read_this_shard = self.shard_start_clk > clk;
-        let is_last_page_prot_access_external =
-            self.is_last_page_prot_access_external.insert(page_idx, is_external).unwrap_or(false);
-
-        self.local_page_prot_counts += (is_first_read_this_shard
-            || (is_last_page_prot_access_external && !is_external))
-            as u64;
+        self.local_page_prot_counts += is_first_read_this_shard as u64;
     }
 
     #[inline]

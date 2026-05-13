@@ -47,11 +47,15 @@ pub use vm::{
     CoreVM,
 };
 mod splicing;
-pub use splicing::{SplicedMinimalTrace, SplicingVM, SplicingVMEnum};
+pub use splicing::{
+    MerkleProvingPayload, MerkleProvingPayloadRef, PageState, PerChunkState, ShardData,
+    SplicedMinimalTrace, SplicingVM, SplicingVMEnum, MERKLE_PAGE_BYTES, MERKLE_PAGE_WORDS,
+};
 mod estimating;
 pub use estimating::{GasEstimatingVM, GasEstimatingVMEnum};
 
-mod minimal;
+/// `MinimalExecutor` implementations.
+pub mod minimal;
 pub use minimal::*;
 
 mod memory;

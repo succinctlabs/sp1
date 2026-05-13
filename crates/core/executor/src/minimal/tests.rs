@@ -18,12 +18,11 @@ fn test_chunk_stops_correctly() {
         executor.with_input(&serialize(&vec![i; i]).unwrap());
     }
 
-    let mut lask_clk = 1;
     let mut last_pc = program.pc_start_abs;
     let mut last_registers = executor.registers();
     let mut chunk_count = 0;
     while let Some(chunk) = executor.execute_chunk() {
-        assert_eq!(chunk.clk_start(), lask_clk, "chunk {chunk_count} clk_start mismatch");
+        assert_eq!(chunk.clk_start(), 1, "chunk {chunk_count} clk_start should be 1");
         assert_eq!(chunk.pc_start(), last_pc, "chunk {chunk_count} pc_start mismatch");
         assert_eq!(
             chunk.start_registers(),
@@ -31,7 +30,6 @@ fn test_chunk_stops_correctly() {
             "chunk {chunk_count} registers mismatch"
         );
 
-        lask_clk = chunk.clk_end();
         last_pc = executor.pc();
         last_registers = executor.registers();
         chunk_count += 1;
@@ -88,12 +86,12 @@ mod differential_tests {
         let native_mhz = native_cycles as f64 / (native_time.as_micros() as f64);
         eprintln!("Native executor MHz={native_mhz} MHz");
 
+        let mut native_executor_state = native_executor.current_state();
+        native_executor_state.clk += 8 * native_executor_state.global_clk;
+
         // Compare states
-        let (is_equal, report) = compare_states(
-            &program,
-            &portable_executor.current_state(),
-            &native_executor.current_state(),
-        );
+        let (is_equal, report) =
+            compare_states(&program, &portable_executor.current_state(), &native_executor_state);
         assert!(is_equal, "state mismatch:\n{report}");
     }
 
@@ -123,11 +121,11 @@ mod differential_tests {
         }
         while native_executor.execute_chunk().is_some() {}
 
-        let (is_equal, report) = compare_states(
-            &program,
-            &portable_executor.current_state(),
-            &native_executor.current_state(),
-        );
+        let mut native_executor_state = native_executor.current_state();
+        native_executor_state.clk += 8 * native_executor_state.global_clk;
+
+        let (is_equal, report) =
+            compare_states(&program, &portable_executor.current_state(), &native_executor_state);
         assert!(is_equal, "state mismatch:\n{report}");
     }
 
@@ -252,7 +250,7 @@ mod differential_tests {
     }
 
     #[test]
-    #[ignore = "Expensive test that is very useful for debugging"]
+    #[ignore = "Expensive test that is very useful for debugging, currently does not work"]
     fn test_compare_registers_at_each_timestamp() {
         use crate::debug::render_current_instruction;
         use sp1_jit::debug;

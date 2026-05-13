@@ -2,7 +2,7 @@ use crate::shm::ConsumerGuard;
 
 use std::{marker::PhantomData, ops::Deref, sync::Arc};
 
-use memmap2::Mmap;
+use memmap2::MmapMut;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -183,7 +183,7 @@ pub struct TraceChunkHeader {
 
 #[derive(Clone)]
 pub enum TraceChunkRaw {
-    Mmap(Arc<Mmap>),
+    Mmap(Arc<MmapMut>),
     Shm(Arc<ConsumerGuard>),
 }
 
@@ -193,7 +193,7 @@ impl TraceChunkRaw {
     /// - The mmap must be a valid [`TraceChunkHeader`].
     /// - The mmap must contain valid [`MemValue`]s in after the header.
     /// - The `num_mem_reads` must be the number of [`MemValue`]s in the mmap after the header.
-    pub unsafe fn new(inner: Mmap) -> Self {
+    pub unsafe fn new(inner: MmapMut) -> Self {
         Self::Mmap(Arc::new(inner))
     }
 
@@ -320,6 +320,22 @@ impl<'a> MemReads<'a> {
     /// Get the raw pointer to the head of the slice.
     pub fn head_raw(&self) -> *const MemValue {
         self.inner
+    }
+
+    /// Get a mutable raw pointer to the head of the slice.
+    ///
+    /// # Safety
+    ///
+    /// - The underlying memory must be writable (e.g. an `MmapMut` not mprotect'd to
+    ///   `PROT_READ`, or an `Arc<[MemValue]>` that the caller uniquely owns). If not, the write
+    ///   will either segfault due to permissions, or cause a data race.
+    /// - The standard pointer aliasing rules apply: no `&` or `&mut` to the same
+    ///   `MemValue` may exist while the caller is writing through this pointer.
+    ///
+    /// Used by `SplicingVM` to fill in the dummy `clk` field of each `MemValue` with the
+    /// per-address last-access timestamp it derives.
+    pub unsafe fn head_raw_mut(&self) -> *mut MemValue {
+        self.inner.cast_mut()
     }
 
     /// The remaining length of the slice from our current position.

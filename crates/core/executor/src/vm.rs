@@ -107,10 +107,6 @@ impl<'a, M: ExecutionMode> CoreVM<'a, M> {
         tracing::trace!("trace.num_mem_reads(): {}", trace.num_mem_reads());
         tracing::trace!("trace.start_registers(): {:?}", trace.start_registers());
 
-        if trace.clk_start() == 1 {
-            assert_eq!(trace.pc_start(), program.pc_start_abs);
-        }
-
         Self {
             registers,
             global_clk: 0,
@@ -187,7 +183,8 @@ impl<'a, M: ExecutionMode> CoreVM<'a, M> {
     }
 
     /// Execute an ALU instruction.
-    #[inline]
+    #[allow(clippy::inline_always)]
+    #[inline(always)]
     #[allow(clippy::too_many_lines)]
     pub fn execute_alu(&mut self, instruction: &Instruction) -> AluResult {
         let mut result = MaybeUninit::<AluResult>::uninit();
@@ -630,7 +627,8 @@ impl CoreVM<'_, SupervisorMode> {
     }
 
     /// Execute a load instruction.
-    #[inline]
+    #[allow(clippy::inline_always)]
+    #[inline(always)]
     pub fn execute_load(
         &mut self,
         instruction: &Instruction,
@@ -652,7 +650,8 @@ impl CoreVM<'_, SupervisorMode> {
     }
 
     /// Execute a store instruction.
-    #[inline]
+    #[allow(clippy::inline_always)]
+    #[inline(always)]
     pub fn execute_store(
         &mut self,
         instruction: &Instruction,
@@ -729,7 +728,8 @@ impl CoreVM<'_, UserMode> {
     }
 
     /// Execute a load instruction.
-    #[inline]
+    #[allow(clippy::inline_always)]
+    #[inline(always)]
     pub fn execute_load(
         &mut self,
         instruction: &Instruction,
@@ -757,7 +757,8 @@ impl CoreVM<'_, UserMode> {
     }
 
     /// Execute a store instruction.
-    #[inline]
+    #[allow(clippy::inline_always)]
+    #[inline(always)]
     pub fn execute_store(
         &mut self,
         instruction: &Instruction,

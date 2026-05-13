@@ -3,7 +3,7 @@ use hashbrown::HashMap;
 use sp1_core_executor::{
     ExecutionError, MinimalExecutorEnum, Program, UnsafeMemory, DEFAULT_MEMORY_LIMIT,
 };
-use sp1_jit::{MemValue, TraceChunkRaw};
+use sp1_jit::{DirtyPages, MemValue, TraceChunkRaw};
 use std::sync::Arc;
 
 /// Minimal trace portable executor that caps memory entries
@@ -40,6 +40,24 @@ impl MinimalExecutorRunner {
                 Some(memory_limit),
             ),
         }
+    }
+
+    /// API-compatible stub matching [`super::native::MinimalExecutorRunner::new_with_dirty_pages`].
+    /// The portable executor does not produce a [`DirtyPages`] payload per chunk; the
+    /// `_dirty_pages_slot_bytes` argument is accepted and ignored so callers
+    /// (e.g. the prover controller) can use the same construction shape on
+    /// either backend.
+    #[must_use]
+    #[inline]
+    pub fn new_with_dirty_pages(
+        program: Arc<Program>,
+        is_debug: bool,
+        max_trace_size: Option<u64>,
+        memory_limit: u64,
+        shm_slot_size: usize,
+        _dirty_pages_slot_bytes: Option<usize>,
+    ) -> Self {
+        Self::new(program, is_debug, max_trace_size, memory_limit, shm_slot_size)
     }
 
     /// Create a new minimal executor with no tracing or debugging.
@@ -85,6 +103,20 @@ impl MinimalExecutorRunner {
     #[inline]
     pub fn try_execute_chunk(&mut self) -> Result<Option<TraceChunkRaw>, ExecutionError> {
         self.inner.try_execute_chunk()
+    }
+
+    /// API-compatible stub matching `try_execute_chunk_with_dirty_pages` on the
+    /// native runner. Always pairs each trace chunk with an empty
+    /// [`DirtyPages`] — the portable executor doesn't expose per-chunk dirty
+    /// page info in this shape. Callers (e.g. the prover controller) get a
+    /// uniform API on both backends; consumers that care about leaf hashing
+    /// will see no dirty pages on portable and simply not update their
+    /// running leaf state.
+    #[inline]
+    pub fn try_execute_chunk_with_dirty_pages(
+        &mut self,
+    ) -> Result<Option<(TraceChunkRaw, DirtyPages)>, ExecutionError> {
+        Ok(self.try_execute_chunk()?.map(|c| (c, DirtyPages::default())))
     }
 
     /// Get the registers of the JIT function.

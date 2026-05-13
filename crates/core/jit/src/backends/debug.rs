@@ -22,10 +22,8 @@ impl<B: RiscvTranspiler + Debuggable> RiscvTranspiler for DebugBackend<B> {
         max_trace_size: u64,
         pc_start: u64,
         pc_base: u64,
-        clk_bump: u64,
     ) -> Result<Self, std::io::Error> {
-        let backend =
-            B::new(program_size, memory_size, max_trace_size, pc_start, pc_base, clk_bump)?;
+        let backend = B::new(program_size, memory_size, max_trace_size, pc_start, pc_base)?;
 
         Ok(Self::new(backend))
     }

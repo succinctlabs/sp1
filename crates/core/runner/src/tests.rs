@@ -57,32 +57,57 @@ fn test_using_too_much_memory() {
 }
 
 #[test]
-fn test_clks_should_be_available_while_running() {
+#[cfg(sp1_use_native_executor)]
+fn test_dirty_pages_emitted_per_chunk() {
     use bincode::serialize;
+    use sp1_jit::dirty_pages_wire_bytes;
 
-    let program = Program::from(&KECCAK256_ELF).unwrap();
-    let program = Arc::new(program);
+    setup_logger();
 
-    let mut executor =
-        MinimalExecutorRunner::new(program.clone(), true, Some(10), DEFAULT_MEMORY_LIMIT, 1);
-    executor.with_input(&serialize(&5_usize).unwrap());
-    for i in 0..5 {
-        executor.with_input(&serialize(&vec![i; i]).unwrap());
+    // Use the small fibonacci program with a few iterations — enough to
+    // produce a couple of dirty pages but small enough to keep the test
+    // quick.
+    let program = Arc::new(Program::from(&test_artifacts::FIBONACCI_ELF).expect("parse program"));
+
+    // Slot large enough for ~2000 dirty pages (more than fibonacci ever
+    // produces). Plenty of headroom for safety.
+    let slot_bytes = dirty_pages_wire_bytes(2000);
+
+    let mut runner = MinimalExecutorRunner::new_with_dirty_pages(
+        program,
+        false,
+        Some(100_000), // chunk threshold
+        DEFAULT_MEMORY_LIMIT,
+        4, // shm slots
+        Some(slot_bytes),
+    );
+    runner.with_input(&serialize(&100u32).unwrap());
+
+    let mut chunk_count = 0usize;
+    let mut total_dirty_pages = 0usize;
+    let mut all_page_ids = std::collections::HashSet::<u32>::new();
+
+    loop {
+        match runner.try_execute_chunk_with_dirty_pages() {
+            Ok(Some((chunk, dirty))) => {
+                chunk_count += 1;
+                total_dirty_pages += dirty.pages.len();
+                // Every dirty page must have a u32 page_id and 256 u64 final-contents
+                // (the wire roundtrip path).
+                for page in &dirty.pages {
+                    assert_eq!(page.final_contents.len(), 256);
+                    all_page_ids.insert(page.page_id);
+                }
+                let _ = chunk; // chunk is fine; we just dropped the consumer guard
+            }
+            Ok(None) => break,
+            Err(e) => panic!("execute failed: {e:?}"),
+        }
     }
 
-    let mut last_global_clk = 0;
-    let mut last_clk = 0;
-    let mut chunk_count = 0;
-    while let Some(_chunk) = executor.execute_chunk() {
-        assert!(executor.global_clk() > last_global_clk);
-        assert!(executor.clk() > last_clk);
-
-        last_global_clk = executor.global_clk();
-        last_clk = executor.clk();
-        chunk_count += 1;
-    }
-
-    assert!(chunk_count > 5, "no chunks were executed");
+    assert!(chunk_count >= 1, "expected at least one chunk");
+    assert!(total_dirty_pages >= 1, "expected at least one dirty page across all chunks");
+    assert!(!all_page_ids.is_empty(), "page id set should be non-empty");
 }
 
 /// Demonstrates that the gas estimate depends on `minimal_trace_chunk_threshold`.

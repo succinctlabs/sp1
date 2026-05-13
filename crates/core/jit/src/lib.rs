@@ -9,6 +9,7 @@ pub mod debug;
 pub mod instructions;
 mod macros;
 pub mod memory;
+pub mod merkle;
 pub mod risc;
 pub mod shm;
 
@@ -26,6 +27,11 @@ use std::{
 pub use backends::*;
 pub use context::*;
 pub use instructions::*;
+pub use merkle::{
+    dirty_pages_wire_bytes, DirtyPage, DirtyPageTracker, DirtyPages, DIRTY_BITSET_WORDS,
+    DIRTY_LIST_CAPACITY, DIRTY_LIST_SOFT_CAP, DIRTY_PAGE_WIRE_BYTES, MERKLE_PAGE_SHIFT,
+    MERKLE_PAGE_WORDS,
+};
 pub use risc::*;
 
 /// A function that accepts the memory pointer.
@@ -99,7 +105,6 @@ pub trait RiscvTranspiler:
         max_trace_size: u64,
         pc_start: u64,
         pc_base: u64,
-        clk_bump: u64,
     ) -> Result<Self, std::io::Error>;
 
     /// Register a rust function of the form [`EcallHandler`] that will be used as the ECALL.
@@ -206,6 +211,8 @@ pub struct JitFunction<M> {
     initial_memory_image: Arc<HashMap<u64, u64>>,
     pc_start: u64,
     input_buffer: VecDeque<Vec<u8>>,
+    /// Cursor into `input_buffer.front()`. See `SyscallContext::consume_hint_bytes`.
+    input_front_offset: usize,
 
     /// A stream of public values from the program (global to entire program).
     pub public_values_stream: Vec<u8>,
@@ -227,6 +234,9 @@ pub struct JitFunction<M> {
     pub public_value_digest: [u32; context::PUBLIC_VALUE_DIGEST_WORDS],
 
     pub debug_sender: Option<mpsc::SyncSender<Option<debug::State>>>,
+
+    /// Per-chunk dirty page tracking state for merkle-memory proving.
+    pub dirty: DirtyPageTracker,
 }
 
 unsafe impl<M: Send> Send for JitFunction<M> {}
@@ -257,11 +267,13 @@ impl<M: JitMemory> JitFunction<M> {
             initial_memory_image: Arc::new(HashMap::new()),
             pc_start,
             input_buffer: VecDeque::new(),
+            input_front_offset: 0,
             hints: Vec::new(),
             public_values_stream: Vec::new(),
             debug_sender: None,
             exit_code: 0,
             public_value_digest: [0; context::PUBLIC_VALUE_DIGEST_WORDS],
+            dirty: DirtyPageTracker::new(),
         })
     }
 
@@ -310,6 +322,7 @@ impl<M: JitMemory> JitFunction<M> {
         // Reserve the space for the hints.
         self.hints.reserve(input.len());
         self.input_buffer = input;
+        self.input_front_offset = 0;
     }
 
     /// Call the function, returning the trace buffer, starting at the starting PC of the program.
@@ -336,11 +349,15 @@ impl<M: JitMemory> JitFunction<M> {
         // - The memory is valid for the duration of the function call, its owned by self.
         // - The trace buf is valid for the duration of the function call, we just allocated it
         // - The input buffer is valid for the duration of the function call, its owned by self.
+        let dirty_bitset_ptr = self.dirty.bitset.as_mut_ptr();
+        let dirty_list_arr_ptr = self.dirty.list.as_mut_ptr();
+
         let mut ctx = JitContext {
             jump_table: NonNull::new_unchecked(self.jump_table.as_mut_ptr()),
             memory: NonNull::new_unchecked(mem_ptr),
             trace_buf: trace_buf_ptr,
             input_buffer: NonNull::new_unchecked(&mut self.input_buffer),
+            input_front_offset: NonNull::new_unchecked(&mut self.input_front_offset),
             hints: NonNull::new_unchecked(&mut self.hints),
             maybe_unconstrained: None,
             public_values_stream: NonNull::new_unchecked(&mut self.public_values_stream),
@@ -349,11 +366,14 @@ impl<M: JitMemory> JitFunction<M> {
             pc: self.pc,
             clk: self.clk,
             global_clk: self.global_clk,
-            is_unconstrained: 0,
+            is_constrained: 1,
             tracing,
             debug_sender: self.debug_sender.clone(),
             exit_code: self.exit_code,
             public_value_digest: self.public_value_digest,
+            dirty_bitset: dirty_bitset_ptr,
+            dirty_page_list_arr: dirty_list_arr_ptr,
+            dirty_page_list_len: self.dirty.list_len,
         };
 
         tracing::debug_span!("JIT function", pc = ctx.pc, clk = ctx.clk).in_scope(|| {
@@ -367,6 +387,56 @@ impl<M: JitMemory> JitFunction<M> {
         self.global_clk = ctx.global_clk;
         self.exit_code = ctx.exit_code;
         self.public_value_digest = ctx.public_value_digest;
+        self.dirty.list_len = ctx.dirty_page_list_len;
+    }
+
+    /// Drain the per-chunk dirty-page tracking state into a `DirtyPages`, reading the
+    /// final contents of each unique touched page from the JIT's `MemValue[]` memory.
+    pub fn emit_dirty_pages(&mut self) -> merkle::DirtyPages {
+        let align_offset = self.memory.as_ptr().align_offset(std::mem::align_of::<u64>());
+        let mem_ptr = unsafe { self.memory.as_ptr().add(align_offset) } as *const u64;
+
+        let list_len = self.dirty.list_len as usize;
+        let list_slice = &self.dirty.list[..list_len];
+
+        // TODO(rkm): double check whether this number is good.
+        const PARALLEL_THRESHOLD: usize = 1024;
+
+        // Capture the JIT memory base as `usize` so the closure stays auto-Send/Sync.
+        // SAFETY: `mem_ptr` points into self.memory which is borrowed exclusively
+        // (`&mut self`). All reads are read-only; the underlying mmap is stable for this call.
+        let mem_addr = mem_ptr as usize;
+
+        let pages: Vec<merkle::DirtyPage> = if list_len < PARALLEL_THRESHOLD {
+            list_slice
+                .iter()
+                .map(|&page_id| merkle::DirtyPage {
+                    page_id,
+                    final_contents: unsafe {
+                        context::read_page_contents_raw(mem_addr as *const u64, page_id)
+                    },
+                })
+                .collect()
+        } else {
+            use rayon::prelude::*;
+            list_slice
+                .par_iter()
+                .map(|&page_id| merkle::DirtyPage {
+                    page_id,
+                    final_contents: unsafe {
+                        context::read_page_contents_raw(mem_addr as *const u64, page_id)
+                    },
+                })
+                .collect()
+        };
+
+        self.dirty.reset();
+        merkle::DirtyPages { pages }
+    }
+
+    /// Reset the per-chunk dirty-page tracker without reading any page contents.
+    pub fn reset_dirty(&mut self) {
+        self.dirty.reset();
     }
 
     fn insert_memory_image(&mut self) {
@@ -380,7 +450,7 @@ impl<M: JitMemory> JitFunction<M> {
                 panic!("Address {addr} is not aligned to 8");
             }
 
-            let actual_addr = 2 * addr + 8;
+            let actual_addr = *addr;
             unsafe {
                 std::ptr::copy_nonoverlapping(
                     bytes.as_ptr(),
@@ -404,6 +474,7 @@ impl<M: JitResetableMemory> JitFunction<M> {
         self.clk = 1;
         self.global_clk = 0;
         self.input_buffer = VecDeque::new();
+        self.input_front_offset = 0;
         self.hints = Vec::new();
         self.public_values_stream = Vec::new();
         self.public_value_digest = [0; context::PUBLIC_VALUE_DIGEST_WORDS];

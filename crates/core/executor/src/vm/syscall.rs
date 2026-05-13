@@ -288,6 +288,24 @@ pub trait SyscallRuntime<'a, M: ExecutionMode> {
             .collect()
     }
 
+    fn mw_hint_slice(&mut self, _addr: u64, len_words: usize) -> Vec<MemoryWriteRecord> {
+        let current_clk = self.core().clk();
+        let mem_reads = self.core_mut().mem_reads();
+
+        let records: Vec<MemoryWriteRecord> = mem_reads
+            .take(len_words)
+            .map(|value| MemoryWriteRecord {
+                prev_timestamp: 0,
+                prev_value: 0,
+                value: value.value,
+                timestamp: current_clk,
+                prev_page_prot_record: None,
+            })
+            .collect();
+
+        records
+    }
+
     fn mr_slice_unsafe(&mut self, len: usize) -> Vec<u64> {
         let mem_reads = self.core_mut().mem_reads();
 
@@ -401,11 +419,11 @@ pub(crate) fn sp1_ecall_handler<'a, M: ExecutionMode, RT: SyscallRuntime<'a, M>>
         SyscallCode::MPROTECT => Ok(mprotect::mprotect(rt, code, args1, args2)),
         SyscallCode::SIG_RETURN => Ok(sig_return::sig_return(rt, code, args1, args2)),
         SyscallCode::POSEIDON2 => poseidon2::poseidon2(rt, code, args1, args2),
+        SyscallCode::HINT_READ => Ok(hint::hint_read_syscall(rt, code, args1, args2)),
         SyscallCode::VERIFY_SP1_PROOF
         | SyscallCode::WRITE
         | SyscallCode::ENTER_UNCONSTRAINED
         | SyscallCode::EXIT_UNCONSTRAINED
-        | SyscallCode::HINT_READ
         | SyscallCode::HINT_MPROTECT_FLUSH
         | SyscallCode::DUMP_ELF
         | SyscallCode::INSERT_PROFILER_SYMBOLS

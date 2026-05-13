@@ -1,12 +1,12 @@
 use std::{marker::PhantomData, sync::Arc};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
 use sp1_jit::{MemReads, MemValue, MinimalTrace, TraceChunk};
 use sp1_primitives::consts::LOG_PAGE_SIZE;
 
 use crate::{
-    events::{MemoryReadRecord, MemoryRecord, MemoryWriteRecord, PageProtRecord},
+    events::{MemoryLocalEvent, MemoryReadRecord, MemoryRecord, MemoryWriteRecord, PageProtRecord},
     vm::{
         memory::{CompressedMemory, CompressedPages},
         results::{
@@ -21,6 +21,10 @@ use crate::{
     SupervisorMode, SyscallCode, TrapError, UserMode,
 };
 
+pub use sp1_jit::merkle::MERKLE_PAGE_WORDS;
+/// Bytes per merkle page.
+pub const MERKLE_PAGE_BYTES: u64 = (MERKLE_PAGE_WORDS as u64) * 8;
+
 /// A RISC-V VM that uses a [`MinimalTrace`] to create multiple [`SplicedMinimalTrace`]s.
 ///
 /// These new [`SplicedMinimalTrace`]s correspond to exactly 1 execuction shard to be proved.
@@ -34,11 +38,437 @@ pub struct SplicingVM<'a, M: ExecutionMode> {
     /// The shape checker, responsible for cutting the execution when a shard limit is reached.
     pub shape_checker: ShapeChecker<M>,
     /// The addresses that have been touched.
+    /// TODO(rkm): remove this, as it is deprecated. will require changes in crates/prover.
     pub touched_addresses: &'a mut CompressedMemory,
     /// The page indices that have been touched (for page protection tracking).
     pub touched_pages: &'a mut CompressedPages,
+    /// Per-chunk workspace tracking initial page contents + per-address `last_clk` for the
+    /// merkle-memory reconstruction. Empty until [`SplicingVM::set_dirty_pages`] is called.
+    pub per_chunk: PerChunkState,
     /// Phantom data for the execution mode.
     _mode: PhantomData<M>,
+}
+
+/// Per-chunk state for merkle-memory reconstruction.
+///
+/// The set of pages touched in the chunk is supplied up-front via [`SplicingVM::set_dirty_pages`],
+/// so we use a flat open-addressed `page_id -> page_idx` table backed by a dense `Vec<PageState>`.
+///
+/// Also, we track the initial/final clk and values of the touched addresses for each shard.
+pub struct PerChunkState {
+    /// Open-addressed `page_id -> page_idx` table.
+    lookup: Box<[u64]>,
+    /// The cached value of `lookup.len() - 1` as a `u32`.
+    lookup_mask: u32,
+    /// Dense per-page state, indexed by `page_idx`.
+    pages: Vec<PageState>,
+    /// `page_id` for each `page_idx` (parallel to `pages`).
+    page_ids: Vec<u32>,
+    /// The `page_id` of the most recently accessed page (or `u32::MAX` if none).
+    cache_last_page_id: u32,
+    /// The dense `page_idx` paired with `cache_last_ptr`.
+    cache_last_page_idx: u32,
+    /// The pointer into `pages` for `cache_last_page_id` (null when no cache).
+    cache_last_ptr: *mut PageState,
+    /// List of addresses and their initial clk, value touched in the current shard.
+    shard_touched: Vec<ShardTouch>,
+    /// Snapshot of `core.registers()` at the start of the current shard.
+    shard_initial_registers: [MemoryRecord; 32],
+    /// The [`ShardData`] for the most recently cut shard. This should be drained for
+    /// each shard via [`PerChunkState::take_pending_shard`].
+    pending_shard: Option<ShardData>,
+}
+
+/// A snapshot of the initial state of an address at the start of a shard.
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct ShardTouch {
+    /// `(page_idx as u64) << 32 | (word_idx as u64)`.
+    location: u64,
+    /// The initial memory record at `addr`.
+    initial: MemoryRecord,
+}
+
+/// Per-shard view of memory and register state.
+#[derive(Default, Clone, Serialize, Deserialize)]
+pub struct ShardData {
+    /// The memory addresses touched in the shard and their initial / final states.
+    pub entries: Vec<MemoryLocalEvent>,
+    /// The initial state of every register at shard start.
+    pub register_initial: [MemoryRecord; 32],
+    /// The final state of every register at shard end.
+    pub register_final: [MemoryRecord; 32],
+}
+
+/// Per-chunk merkle reconstruction payload.
+#[derive(Default, Serialize, Deserialize)]
+pub struct MerkleProvingPayload {
+    /// The `page_id` of the touched pages in the `TraceChunk`.
+    pub page_ids: Vec<u32>,
+    /// The state of each touched pages in the `TraceChunk`.
+    pub pages: Vec<PageState>,
+}
+
+/// Borrowed view of [`MerkleProvingPayload`] for in-place serialization without an
+/// intermediate allocation. Same byte layout as the owned variant.
+#[derive(Serialize)]
+pub struct MerkleProvingPayloadRef<'a> {
+    /// The `page_id` of the touched pages in the `TraceChunk`.
+    pub page_ids: &'a [u32],
+    /// The state of each touched pages in the `TraceChunk`.
+    pub pages: &'a [PageState],
+}
+
+/// Per-page bookkeeping captured by [`SplicingVM`] during a chunk pass.
+/// The mapping `page_id -> page_idx` lives in the parent [`PerChunkState`].
+#[repr(C)]
+#[derive(Serialize, Deserialize)]
+pub struct PageState {
+    /// Value at `addr` at chunk start. Initialized in `set_dirty_pages` from the page's chunk's
+    /// final contents. For words that are not accessed in this chunk, chunk-end value
+    /// equals chunk-start value, so the initialization is the correct answer. For words
+    /// that are accessed in this chunk, `on_access` overwrites this slot on first
+    /// touch with the pre-value from the trace, which is the chunk-start value.
+    #[serde(with = "serde_arrays")]
+    pub initial_contents: [u64; MERKLE_PAGE_WORDS],
+    /// Timestamp of the most recent access to `addr` in this chunk. `0` if never accessed.
+    #[serde(with = "serde_arrays")]
+    pub last_clk: [u64; MERKLE_PAGE_WORDS],
+    /// Running value, updated on every traced access. Equal to chunk-end value at chunk close.
+    #[serde(with = "serde_arrays")]
+    pub final_values: [u64; MERKLE_PAGE_WORDS],
+    /// 256-bit bitmap: bit `w` is set if word `w` has been touched in the current shard.
+    pub shard_touched_bits: [u64; MERKLE_PAGE_WORDS / 64],
+}
+
+impl PerChunkState {
+    /// Create an empty per-chunk state. No pages are tracked until
+    /// [`SplicingVM::set_dirty_pages`] is called.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            lookup: Box::new([]),
+            lookup_mask: 0,
+            pages: Vec::new(),
+            page_ids: Vec::new(),
+            cache_last_page_id: u32::MAX,
+            cache_last_page_idx: 0,
+            cache_last_ptr: std::ptr::null_mut(),
+            shard_touched: Vec::new(),
+            shard_initial_registers: [MemoryRecord::default(); 32],
+            pending_shard: None,
+        }
+    }
+
+    /// Build the `page_id -> page_idx` lookup and allocate the dense `Vec<PageState>`.
+    pub fn set_dirty_pages(
+        &mut self,
+        page_ids: &[u32],
+        final_contents: &[[u64; MERKLE_PAGE_WORDS]],
+    ) {
+        assert_eq!(page_ids.len(), final_contents.len());
+
+        let num_pages = page_ids.len();
+        self.pages = (0..num_pages)
+            .map(|i| PageState {
+                initial_contents: final_contents[i],
+                last_clk: [0; MERKLE_PAGE_WORDS],
+                final_values: final_contents[i],
+                shard_touched_bits: [0; MERKLE_PAGE_WORDS / 64],
+            })
+            .collect();
+        self.page_ids = page_ids.to_vec();
+        self.shard_touched = Vec::with_capacity(num_pages.saturating_mul(16));
+        self.pending_shard = None;
+
+        // Build the open-addressed lookup.
+        let cap = (num_pages.saturating_mul(2)).max(1).next_power_of_two();
+        let mut lookup = vec![u64::MAX; cap].into_boxed_slice();
+        let mask = (cap - 1) as u32;
+        for (idx, &pid) in page_ids.iter().enumerate() {
+            let mut slot = (hash_u32(pid) & mask) as usize;
+            while lookup[slot] != u64::MAX {
+                debug_assert!(
+                    (lookup[slot] as u32) != pid,
+                    "duplicate page_id {pid} in set_dirty_pages",
+                );
+                slot = (slot + 1) & (mask as usize);
+            }
+            lookup[slot] = (pid as u64) | ((idx as u64) << 32);
+        }
+
+        self.lookup = lookup;
+        self.lookup_mask = mask;
+        self.cache_last_page_id = u32::MAX;
+        self.cache_last_page_idx = 0;
+        self.cache_last_ptr = std::ptr::null_mut();
+    }
+
+    /// Look up the `page_idx` for a given `page_id`.
+    #[inline]
+    fn page_idx_of(&self, pid: u32) -> u32 {
+        let mut slot = (hash_u32(pid) & self.lookup_mask) as usize;
+        let mask = self.lookup_mask as usize;
+        loop {
+            let e = unsafe { *self.lookup.get_unchecked(slot) };
+            debug_assert!(e != u64::MAX, "page_id {pid} not in dirty_pages — invariant violation");
+            if (e as u32) == pid {
+                return (e >> 32) as u32;
+            }
+            slot = (slot + 1) & mask;
+        }
+    }
+
+    /// Record an access at byte address `addr` (must be 8-byte aligned).
+    #[allow(clippy::inline_always)]
+    #[inline(always)]
+    pub fn on_access(
+        &mut self,
+        addr: u64,
+        pre_value: u64,
+        post_value: u64,
+        current_clk: u64,
+    ) -> u64 {
+        let page_id = (addr / MERKLE_PAGE_BYTES) as u32;
+        let word_idx = ((addr / 8) as usize) & (MERKLE_PAGE_WORDS - 1);
+
+        let (page_ptr, page_idx): (*mut PageState, u32) = if page_id == self.cache_last_page_id {
+            (self.cache_last_ptr, self.cache_last_page_idx)
+        } else {
+            let idx = self.page_idx_of(page_id);
+            // SAFETY: `set_dirty_pages` allocated `pages` with `num_pages` entries and
+            // assigned each index to an entry of the lookup. We never reallocate `pages` after.
+            let p = unsafe { self.pages.as_mut_ptr().add(idx as usize) };
+            self.cache_last_page_id = page_id;
+            self.cache_last_page_idx = idx;
+            self.cache_last_ptr = p;
+            (p, idx)
+        };
+
+        // SAFETY: page_ptr is in-bounds of `self.pages` and aliases nothing else.
+        let (prev_clk, first_in_shard) = unsafe {
+            let page = &mut *page_ptr;
+            let prev_clk = *page.last_clk.get_unchecked(word_idx);
+            if prev_clk == 0 {
+                *page.initial_contents.get_unchecked_mut(word_idx) = pre_value;
+            }
+            let qword = word_idx >> 6;
+            let bit = 1u64 << (word_idx & 63);
+            let bits_slot = page.shard_touched_bits.get_unchecked_mut(qword);
+            let first = (*bits_slot & bit) == 0;
+            if first {
+                *bits_slot |= bit;
+            }
+            *page.last_clk.get_unchecked_mut(word_idx) = current_clk;
+            *page.final_values.get_unchecked_mut(word_idx) = post_value;
+            (prev_clk, first)
+        };
+
+        if first_in_shard {
+            let location = ((page_idx as u64) << 32) | (word_idx as u64);
+            self.shard_touched.push(ShardTouch {
+                location,
+                initial: MemoryRecord { value: pre_value, timestamp: prev_clk },
+            });
+        }
+        prev_clk
+    }
+
+    /// Finalize the current shard. Projects `shard_touched` + the register-file snapshots
+    /// into a [`ShardData`], stores it in `pending_shard` for the consumer to drain via
+    /// [`take_pending_shard`], advances `shard_initial_registers` to `current_registers`
+    /// for the next shard, and (unless `is_final`) clears the per-word bitmap on every
+    /// touched page. Panics if a previously pending shard has not been drained.
+    pub fn finish_shard(&mut self, is_final: bool, current_registers: &[MemoryRecord; 32]) {
+        assert!(
+            self.pending_shard.is_none(),
+            "finish_shard called before previous pending_shard was taken",
+        );
+        let n = self.shard_touched.len();
+        let mut data = ShardData {
+            entries: Vec::with_capacity(n),
+            register_initial: self.shard_initial_registers,
+            register_final: *current_registers,
+        };
+        for &touch in &self.shard_touched {
+            let page_idx = (touch.location >> 32) as u32;
+            let word_idx = (touch.location as u32) as usize;
+            let page = &self.pages[page_idx as usize];
+            let page_id = self.page_ids[page_idx as usize];
+            data.entries.push(MemoryLocalEvent {
+                addr: (page_id as u64) * MERKLE_PAGE_BYTES + (word_idx as u64) * 8,
+                initial_mem_access: touch.initial,
+                final_mem_access: MemoryRecord {
+                    value: page.final_values[word_idx],
+                    timestamp: page.last_clk[word_idx],
+                },
+            });
+        }
+        if !is_final {
+            for &touch in &self.shard_touched {
+                let page_idx = (touch.location >> 32) as u32;
+                let word_idx = (touch.location as u32) as usize;
+                let qword = word_idx >> 6;
+                self.pages[page_idx as usize].shard_touched_bits[qword] = 0;
+            }
+        }
+        self.shard_touched.clear();
+        self.shard_initial_registers = *current_registers;
+        self.pending_shard = Some(data);
+    }
+
+    /// Move the just-finalized shard out for the consumer to forward downstream.
+    /// Returns `None` if no shard has been finalized since the last call.
+    pub fn take_pending_shard(&mut self) -> Option<ShardData> {
+        self.pending_shard.take()
+    }
+
+    /// Number of pages currently tracked. `0` until `set_dirty_pages` is called.
+    #[must_use]
+    pub fn num_pages(&self) -> usize {
+        self.pages.len()
+    }
+
+    /// Per-page state, dense slice indexed by `page_idx`.
+    #[must_use]
+    pub fn pages(&self) -> &[PageState] {
+        &self.pages
+    }
+
+    /// Borrowed view of this chunk's merkle reconstruction payload.
+    #[must_use]
+    pub fn as_merkle_proving_payload(&self) -> MerkleProvingPayloadRef<'_> {
+        MerkleProvingPayloadRef { page_ids: &self.page_ids, pages: &self.pages }
+    }
+
+    /// Consume this chunk's per-chunk state into the owned [`MerkleProvingPayload`].
+    #[must_use]
+    pub fn into_merkle_proving_payload(mut self) -> MerkleProvingPayload {
+        MerkleProvingPayload {
+            page_ids: std::mem::take(&mut self.page_ids),
+            pages: std::mem::take(&mut self.pages),
+        }
+    }
+
+    /// Look up the dense `page_idx` for a merkle `page_id`, returning `None` if the page
+    /// isn't in the tracked set. Public counterpart of the internal `page_idx_of`.
+    #[must_use]
+    pub fn page_idx_of_pub(&self, pid: u32) -> Option<u32> {
+        if self.lookup.is_empty() {
+            return None;
+        }
+        let mut slot = (hash_u32(pid) & self.lookup_mask) as usize;
+        let mask = self.lookup_mask as usize;
+        for _ in 0..self.lookup.len() {
+            let e = unsafe { *self.lookup.get_unchecked(slot) };
+            if e == u64::MAX {
+                return None;
+            }
+            if (e as u32) == pid {
+                return Some((e >> 32) as u32);
+            }
+            slot = (slot + 1) & mask;
+        }
+        None
+    }
+
+    /// Iterate the merkle `page_id`s tracked in this chunk, in lookup-table-bucket order.
+    pub fn iter_page_ids(&self) -> impl Iterator<Item = u32> + '_ {
+        self.lookup.iter().filter_map(|&e| if e == u64::MAX { None } else { Some(e as u32) })
+    }
+
+    /// Verify per-shard invariants given the externally collected sequence of `ShardData`.
+    pub fn verify_shard_invariants(&self, shards: &[ShardData]) {
+        use std::collections::{HashMap, HashSet};
+
+        for s in shards {
+            let mut seen = HashSet::new();
+            // Check that `entries` have no duplicates, and the memory addresses are touched.
+            for e in &s.entries {
+                assert!(seen.insert(e.addr));
+                assert!(e.final_mem_access.timestamp > e.initial_mem_access.timestamp);
+            }
+            // Check that register timestamps are monotonic.
+            for r in 0..32 {
+                assert!(s.register_final[r].timestamp >= s.register_initial[r].timestamp);
+            }
+        }
+
+        let mut last_final_per_addr: HashMap<u64, MemoryRecord> = HashMap::new();
+        for s in shards {
+            for e in &s.entries {
+                // Check that the per-shard `MemoryLocalEvent` are contiguous.
+                if let Some(&prev) = last_final_per_addr.get(&e.addr) {
+                    assert_eq!(e.initial_mem_access, prev);
+                }
+                last_final_per_addr.insert(e.addr, e.final_mem_access);
+            }
+        }
+
+        // Check that the final memory state is correctly derived.
+        for (&addr, &last) in last_final_per_addr.iter() {
+            let pid = (addr / MERKLE_PAGE_BYTES) as u32;
+            let word_idx = ((addr / 8) as usize) & (MERKLE_PAGE_WORDS - 1);
+            let idx = self.page_idx_of_pub(pid).unwrap() as usize;
+            let page = &self.pages[idx];
+            assert_eq!(page.last_clk[word_idx], last.timestamp);
+            assert_eq!(page.final_values[word_idx], last.value);
+        }
+
+        let mut chunk_touched: HashSet<u64> = HashSet::new();
+        for pid in self.iter_page_ids() {
+            let idx = self.page_idx_of_pub(pid).unwrap() as usize;
+            let page = &self.pages[idx];
+            for word_idx in 0..MERKLE_PAGE_WORDS {
+                if page.last_clk[word_idx] != 0 {
+                    chunk_touched.insert((pid as u64) * MERKLE_PAGE_BYTES + (word_idx as u64) * 8);
+                }
+            }
+        }
+
+        // Check that the initial state is correctly derived.
+        let mut shard_first_touches: HashSet<u64> = HashSet::new();
+        for s in shards {
+            for e in &s.entries {
+                if e.initial_mem_access.timestamp == 0 {
+                    assert!(shard_first_touches.insert(e.addr));
+                    let pid = (e.addr / MERKLE_PAGE_BYTES) as u32;
+                    let word_idx = ((e.addr / 8) as usize) & (MERKLE_PAGE_WORDS - 1);
+                    let idx = self.page_idx_of_pub(pid).unwrap() as usize;
+                    let chunk_initial = self.pages[idx].initial_contents[word_idx];
+                    assert_eq!(chunk_initial, e.initial_mem_access.value);
+                }
+            }
+        }
+
+        // Check that the set of touched memory addresses agree.
+        assert_eq!(chunk_touched, shard_first_touches);
+
+        // Check that the register states are contiguous across shards.
+        for k in 1..shards.len() {
+            let prev = &shards[k - 1];
+            let cur = &shards[k];
+            assert_eq!(cur.register_initial, prev.register_final);
+        }
+    }
+}
+
+impl Default for PerChunkState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// SAFETY: `cache_last_ptr` is derived from `self.pages` (which `Self` owns). It is only
+// dereferenced from inside `on_access` while we hold `&mut self`, so there is no aliasing.
+// We do not share `PerChunkState` across threads.
+unsafe impl Send for PerChunkState {}
+
+/// Cheap multiplicative hash for `u32`.
+#[allow(clippy::inline_always)]
+#[inline(always)]
+fn hash_u32(x: u32) -> u32 {
+    x.wrapping_mul(0x9E37_79B9)
 }
 
 impl SplicingVM<'_, SupervisorMode> {
@@ -59,10 +489,15 @@ impl SplicingVM<'_, SupervisorMode> {
             match result {
                 CycleResult::Done(false) => {}
                 CycleResult::ShardBoundary | CycleResult::TraceEnd => {
+                    let is_final = self.core.is_trace_end();
+                    let registers = *self.core.registers();
+                    self.per_chunk.finish_shard(is_final, &registers);
                     self.start_new_shard();
                     return Ok(CycleResult::ShardBoundary);
                 }
                 CycleResult::Done(true) => {
+                    let registers = *self.core.registers();
+                    self.per_chunk.finish_shard(true, &registers);
                     return Ok(CycleResult::Done(true));
                 }
             }
@@ -149,12 +584,23 @@ impl SplicingVM<'_, SupervisorMode> {
     /// and the register write.
     ///
     /// It will also emit the memory instruction event and the events for the load instruction.
-    #[inline]
+    #[allow(clippy::inline_always)]
+    #[inline(always)]
     pub fn execute_load(&mut self, instruction: &Instruction) -> Result<(), ExecutionError> {
-        let LoadResultSupervisor { addr, mr_record, .. } = self.core.execute_load(instruction)?;
+        let slot_ptr = unsafe { self.core.mem_reads().head_raw_mut() };
 
-        self.touched_addresses.insert(addr & !0b111, true);
-        self.shape_checker.handle_mem_event(addr, mr_record.prev_timestamp);
+        let LoadResultSupervisor { addr, mr_record, .. } = self.core.execute_load(instruction)?;
+        let aligned = addr & !0b111;
+
+        let prev_clk = self.per_chunk.on_access(
+            aligned,
+            mr_record.value,
+            mr_record.value,
+            mr_record.timestamp,
+        );
+
+        unsafe { (*slot_ptr).clk = prev_clk };
+        self.shape_checker.handle_mem_event(addr, prev_clk);
 
         Ok(())
     }
@@ -165,12 +611,23 @@ impl SplicingVM<'_, SupervisorMode> {
     /// and the register write.
     ///
     /// It will also emit the memory instruction event and the events for the store instruction.
-    #[inline]
+    #[allow(clippy::inline_always)]
+    #[inline(always)]
     pub fn execute_store(&mut self, instruction: &Instruction) -> Result<(), ExecutionError> {
-        let StoreResultSupervisor { addr, mw_record, .. } = self.core.execute_store(instruction)?;
+        let slot_ptr = unsafe { self.core.mem_reads().head_raw_mut() };
 
-        self.touched_addresses.insert(addr & !0b111, true);
-        self.shape_checker.handle_mem_event(addr, mw_record.prev_timestamp);
+        let StoreResultSupervisor { addr, mw_record, .. } = self.core.execute_store(instruction)?;
+        let aligned = addr & !0b111;
+
+        let prev_clk = self.per_chunk.on_access(
+            aligned,
+            mw_record.prev_value,
+            mw_record.value,
+            mw_record.timestamp,
+        );
+
+        unsafe { (*slot_ptr).clk = prev_clk };
+        self.shape_checker.handle_mem_event(addr, prev_clk);
 
         Ok(())
     }
@@ -336,6 +793,7 @@ impl SplicingVM<'_, UserMode> {
         } else {
             self.touched_addresses.insert(addr & !0b111, true);
             self.shape_checker.handle_mem_event(addr, mr_record.prev_timestamp);
+            // TODO(rkm): re-derive clk for the read memory event.
         }
 
         if let Some(record) = mr_record.prev_page_prot_record {
@@ -362,6 +820,7 @@ impl SplicingVM<'_, UserMode> {
         } else {
             self.touched_addresses.insert(addr & !0b111, true);
             self.shape_checker.handle_mem_event(addr, mw_record.prev_timestamp);
+            // TODO(rkm): re-derive clk for the write memory event.
         }
 
         if let Some(record) = mw_record.prev_page_prot_record {
@@ -429,6 +888,7 @@ impl<'a, M: ExecutionMode> SplicingVM<'a, M> {
                 },
             ),
             _mode: PhantomData,
+            per_chunk: PerChunkState::new(),
         }
     }
 
@@ -448,8 +908,32 @@ impl<'a, M: ExecutionMode> SplicingVM<'a, M> {
         Ok(())
     }
 
+    /// Provide the list of merkle pages the chunk can touch and each page's
+    /// chunk-end contents. See [`PerChunkState::set_dirty_pages`] for details. The
+    /// chunk-start register snapshot is taken from `self.core.registers()`.
+    pub fn set_dirty_pages(
+        &mut self,
+        page_ids: &[u32],
+        final_contents: &[[u64; MERKLE_PAGE_WORDS]],
+    ) {
+        self.per_chunk.set_dirty_pages(page_ids, final_contents);
+        self.per_chunk.shard_initial_registers = *self.core.registers();
+    }
+
+    /// Pull the most recently finalized [`ShardData`] out, if any. Callers should drain
+    /// after each `execute()` call that returned `ShardBoundary` or `Done(true)`.
+    pub fn take_pending_shard(&mut self) -> Option<ShardData> {
+        self.per_chunk.take_pending_shard()
+    }
+
+    /// Move the per-chunk merkle bookkeeping state out of the `SplicingVM`.
+    pub fn take_per_chunk_state(&mut self) -> PerChunkState {
+        std::mem::take(&mut self.per_chunk)
+    }
+
     /// Execute an ALU instruction and emit the events.
-    #[inline]
+    #[allow(clippy::inline_always)]
+    #[inline(always)]
     pub fn execute_alu(&mut self, instruction: &Instruction) {
         let _ = self.core.execute_alu(instruction);
     }
@@ -556,30 +1040,92 @@ impl<'a, M: ExecutionMode> SyscallRuntime<'a, M> for SplicingVM<'a, M> {
     }
 
     fn mr_without_prot(&mut self, addr: u64) -> MemoryReadRecord {
+        let slot_ptr = unsafe { self.core.mem_reads().head_raw_mut() };
         let record = self.core_mut().mr_without_prot(addr);
-        self.shape_checker.handle_mem_event(addr, record.prev_timestamp);
+
+        let prev_clk = self.per_chunk.on_access(addr, record.value, record.value, record.timestamp);
+        unsafe { (*slot_ptr).clk = prev_clk };
+        self.shape_checker.handle_mem_event(addr, prev_clk);
+
         record
     }
 
     fn mw_without_prot(&mut self, addr: u64) -> MemoryWriteRecord {
+        let slot_ptr = unsafe { self.core.mem_reads().head_raw_mut() };
         let record = self.core_mut().mw_without_prot(addr);
-        self.shape_checker.handle_mem_event(addr, record.prev_timestamp);
+
+        let prev_clk =
+            self.per_chunk.on_access(addr, record.prev_value, record.value, record.timestamp);
+        unsafe {
+            (*slot_ptr).clk = prev_clk;
+            (*slot_ptr.add(1)).clk = record.timestamp;
+        }
+        self.shape_checker.handle_mem_event(addr, prev_clk);
+
         record
     }
 
     fn mr_slice_without_prot(&mut self, addr: u64, len: usize) -> Vec<MemoryReadRecord> {
+        let slot_ptr = unsafe { self.core.mem_reads().head_raw_mut() };
         let records = self.core_mut().mr_slice_without_prot(addr, len);
+
         for (i, record) in records.iter().enumerate() {
-            self.shape_checker.handle_mem_event(addr + i as u64 * 8, record.prev_timestamp);
+            let entry_addr = addr + (i as u64) * 8;
+            let prev_clk =
+                self.per_chunk.on_access(entry_addr, record.value, record.value, record.timestamp);
+            unsafe { (*slot_ptr.add(i)).clk = prev_clk };
+            self.shape_checker.handle_mem_event(entry_addr, prev_clk);
         }
 
         records
     }
 
     fn mw_slice_without_prot(&mut self, addr: u64, len: usize) -> Vec<MemoryWriteRecord> {
+        // Use the `CoreVM`'s current clk as the memory access clk.
+        let current_clk = self.core.clk();
+        let slot_ptr = unsafe { self.core.mem_reads().head_raw_mut() };
         let records = self.core_mut().mw_slice_without_prot(addr, len);
+
         for (i, record) in records.iter().enumerate() {
-            self.shape_checker.handle_mem_event(addr + i as u64 * 8, record.prev_timestamp);
+            let entry_addr = addr + (i as u64) * 8;
+            let prev_clk =
+                self.per_chunk.on_access(entry_addr, record.prev_value, record.value, current_clk);
+            unsafe {
+                (*slot_ptr.add(2 * i)).clk = prev_clk;
+                (*slot_ptr.add(2 * i + 1)).clk = current_clk;
+            }
+            self.shape_checker.handle_mem_event(entry_addr, prev_clk);
+        }
+
+        records
+    }
+
+    fn mw_hint_slice(&mut self, addr: u64, len_words: usize) -> Vec<MemoryWriteRecord> {
+        // For hints, the previous clk and value are considered to be zero.
+        let current_clk = self.core.clk();
+        let slot_ptr = unsafe { self.core.mem_reads().head_raw_mut() };
+
+        let mem_reads = self.core_mut().mem_reads();
+
+        let records: Vec<MemoryWriteRecord> = mem_reads
+            .take(len_words)
+            .map(|value| MemoryWriteRecord {
+                prev_timestamp: 0,
+                prev_value: 0,
+                value: value.value,
+                timestamp: current_clk,
+                prev_page_prot_record: None,
+            })
+            .collect();
+
+        for i in 0..len_words {
+            let word_addr = addr + (i as u64) * 8;
+            let post_value = unsafe { (*slot_ptr.add(i)).value };
+            let prev_clk = self.per_chunk.on_access(word_addr, 0, post_value, current_clk);
+            unsafe {
+                (*slot_ptr.add(i)).clk = current_clk;
+            }
+            self.shape_checker.handle_mem_event(word_addr, prev_clk);
         }
 
         records
@@ -849,6 +1395,7 @@ impl<'a> SplicingVMEnum<'a> {
 #[cfg(test)]
 mod tests {
     use sp1_jit::MemValue;
+    use test_artifacts::SSZ_WITHDRAWALS_ELF;
 
     use super::*;
 
@@ -878,5 +1425,201 @@ mod tests {
         };
 
         assert_eq!(deserialized, expected);
+    }
+
+    /// Correctness check for the per-chunk `SplicingVM` clk re-derivation.
+    #[test]
+    fn test_splicing_vm_clk_derivation() {
+        use crate::{
+            minimal::arch::portable::MinimalExecutor,
+            vm::memory::{CompressedMemory, CompressedPages},
+        };
+        use sp1_jit::TraceChunkRaw;
+
+        let program = Arc::new(Program::from(&SSZ_WITHDRAWALS_ELF).expect("parse fibonacci elf"));
+        let mut executor =
+            MinimalExecutor::<SupervisorMode>::new(program.clone(), false, Some(100_000_000));
+        let raw: TraceChunkRaw = executor.execute_chunk().expect("expected at least one chunk");
+
+        let mut chunk: TraceChunk = TraceChunk::from(raw);
+        let expected: Vec<MemValue> = chunk.mem_reads.iter().copied().collect();
+
+        // Dirty-page list and chunk-end page contents, straight from the executor.
+        let dirty = executor.emit_dirty_pages();
+        let pages: Vec<u32> = dirty.pages.iter().map(|p| p.page_id).collect();
+        let final_contents: Vec<[u64; MERKLE_PAGE_WORDS]> =
+            dirty.pages.iter().map(|p| p.final_contents).collect();
+
+        // Zero out the clks. These will be re-derived in the `SplicingVM`.
+        let mem_reads_mut = Arc::get_mut(&mut chunk.mem_reads)
+            .expect("unique Arc ownership of mem_reads (we just constructed the chunk)");
+        for mv in mem_reads_mut.iter_mut() {
+            mv.clk = 0;
+        }
+        assert!(chunk.mem_reads.iter().any(|mv| expected.iter().any(|e| e.clk != mv.clk)));
+
+        // Run the `SplicingVM` to re-derive the clk information.
+        let mut touched_addresses = CompressedMemory::new();
+        let mut touched_pages = CompressedPages::new();
+        {
+            let mut vm: SplicingVM<'_, SupervisorMode> = SplicingVM::new(
+                &chunk,
+                program.clone(),
+                &mut touched_addresses,
+                &mut touched_pages,
+                [0u32; PROOF_NONCE_NUM_WORDS],
+                SP1CoreOpts::default(),
+            );
+            vm.set_dirty_pages(&pages, &final_contents);
+            let _shards = run_to_end(&mut vm);
+
+            // Check every dirty page has at least one traced access in the chunk.
+            for page in vm.per_chunk.pages().iter() {
+                assert!(page.last_clk.iter().any(|&c| c != 0));
+            }
+        }
+
+        let actual: &[MemValue] = &chunk.mem_reads;
+        assert_eq!(actual, expected);
+    }
+
+    /// Drive a `SplicingVM` through its trace until the program halts or trace boundary is
+    /// reached, collecting `ShardData` as each shard finalizes.
+    fn run_to_end(vm: &mut SplicingVM<'_, SupervisorMode>) -> Vec<ShardData> {
+        let mut shards: Vec<ShardData> = Vec::new();
+        loop {
+            let res = vm.execute().expect("SplicingVM::execute");
+            if let Some(d) = vm.take_pending_shard() {
+                shards.push(d);
+            }
+            match res {
+                CycleResult::Done(true) => break,
+                CycleResult::ShardBoundary => {
+                    if vm.core.is_trace_end() {
+                        break;
+                    }
+                }
+                CycleResult::Done(false) | CycleResult::TraceEnd => {
+                    unreachable!("execute() should never return these directly");
+                }
+            }
+        }
+        shards
+    }
+
+    #[test]
+    fn test_splicing_vm_shard_data() {
+        use crate::{
+            minimal::arch::portable::MinimalExecutor,
+            vm::memory::{CompressedMemory, CompressedPages},
+        };
+        use sp1_jit::TraceChunkRaw;
+
+        let program = Arc::new(Program::from(&SSZ_WITHDRAWALS_ELF).unwrap());
+        let mut executor =
+            MinimalExecutor::<SupervisorMode>::new(program.clone(), false, Some(10_000_000));
+        let raw: TraceChunkRaw = executor.execute_chunk().unwrap();
+        let chunk: TraceChunk = TraceChunk::from(raw);
+
+        let dirty = executor.emit_dirty_pages();
+        let pages: Vec<u32> = dirty.pages.iter().map(|p| p.page_id).collect();
+        let final_contents: Vec<[u64; MERKLE_PAGE_WORDS]> =
+            dirty.pages.iter().map(|p| p.final_contents).collect();
+
+        let mut touched_addresses = CompressedMemory::new();
+        let mut touched_pages = CompressedPages::new();
+        let mut opts = SP1CoreOpts::default();
+        opts.sharding_threshold.element_threshold = 1 << 24;
+        let mut vm: SplicingVM<'_, SupervisorMode> = SplicingVM::new(
+            &chunk,
+            program.clone(),
+            &mut touched_addresses,
+            &mut touched_pages,
+            [0u32; PROOF_NONCE_NUM_WORDS],
+            opts,
+        );
+        vm.set_dirty_pages(&pages, &final_contents);
+
+        let shards = run_to_end(&mut vm);
+        assert!(!shards.is_empty());
+        assert!(vm.per_chunk.take_pending_shard().is_none(),);
+
+        vm.per_chunk.verify_shard_invariants(&shards);
+
+        for r in 0..32 {
+            assert_eq!(shards[0].register_initial[r].timestamp, 0);
+        }
+    }
+
+    /// `MerkleProvingPayload` and the borrowed `MerkleProvingPayloadRef` must produce
+    /// identical bincode bytes, serialization/deserialization should work correctly.
+    #[test]
+    fn test_merkle_payload_serde_roundtrip() {
+        let mut state = PerChunkState::new();
+        let final_contents = vec![[0u64; MERKLE_PAGE_WORDS]; 3];
+        let page_ids = vec![10u32, 20, 30];
+        state.set_dirty_pages(&page_ids, &final_contents);
+        state.pages[0].initial_contents[5] = 0xdead_beef;
+        state.pages[1].last_clk[0] = 42;
+        state.pages[2].final_values[100] = 0xfeed_face;
+        state.pages[1].shard_touched_bits[0] = 1u64 << 5;
+
+        let ref_bytes = bincode::serialize(&state.as_merkle_proving_payload())
+            .expect("borrowed payload serialize");
+
+        let owned = state.into_merkle_proving_payload();
+        let owned_bytes = bincode::serialize(&owned).expect("owned payload serialize");
+
+        assert_eq!(ref_bytes, owned_bytes, "expected equal serialization result");
+
+        let restored: MerkleProvingPayload =
+            bincode::deserialize(&owned_bytes).expect("merkle payload deserialize");
+        assert_eq!(restored.page_ids, vec![10, 20, 30]);
+        assert_eq!(restored.pages.len(), 3);
+        assert_eq!(restored.pages[0].initial_contents[5], 0xdead_beef);
+        assert_eq!(restored.pages[1].last_clk[0], 42);
+        assert_eq!(restored.pages[2].final_values[100], 0xfeed_face);
+        assert_eq!(restored.pages[1].shard_touched_bits[0], 1u64 << 5);
+    }
+
+    // The serialization and deserialization should work correctly for `ShardData`.
+    #[test]
+    fn test_shard_data_serde_roundtrip() {
+        let mk = |v: u64, t: u64| MemoryRecord { value: v, timestamp: t };
+        let mut sd = ShardData {
+            entries: vec![
+                MemoryLocalEvent {
+                    addr: 1,
+                    initial_mem_access: mk(10, 100),
+                    final_mem_access: mk(11, 101),
+                },
+                MemoryLocalEvent {
+                    addr: 2,
+                    initial_mem_access: mk(20, 200),
+                    final_mem_access: mk(22, 202),
+                },
+                MemoryLocalEvent {
+                    addr: 3,
+                    initial_mem_access: mk(30, 300),
+                    final_mem_access: mk(33, 303),
+                },
+            ],
+            register_initial: [MemoryRecord::default(); 32],
+            register_final: [MemoryRecord::default(); 32],
+        };
+        sd.register_initial[0].value = 0xdead_beef;
+        sd.register_final[31].timestamp = 0xfeed_face;
+
+        let bytes = bincode::serialize(&sd).expect("ShardData serialize");
+        let restored: ShardData = bincode::deserialize(&bytes).expect("ShardData deserialize");
+
+        assert_eq!(restored.entries.len(), sd.entries.len());
+        for (a, b) in restored.entries.iter().zip(sd.entries.iter()) {
+            assert_eq!(a.addr, b.addr);
+            assert_eq!(a.initial_mem_access, b.initial_mem_access);
+            assert_eq!(a.final_mem_access, b.final_mem_access);
+        }
+        assert_eq!(restored.register_initial[0].value, 0xdead_beef);
+        assert_eq!(restored.register_final[31].timestamp, 0xfeed_face);
     }
 }

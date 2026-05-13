@@ -12,6 +12,13 @@ pub struct Input {
     pub id: String,
     pub max_memory_size: usize,
     pub memory_limit: u64,
+    /// Per-slot byte size of the parallel dirty-pages ring. `None` (default)
+    /// disables it: no ring, no per-chunk dirty pages (legacy behavior).
+    /// `Some(slot_bytes)` opts in — the child writes a [`sp1_jit::DirtyPages`]
+    /// payload per chunk, so `slot_bytes` must be ≥ `dirty_pages_wire_bytes(N)`
+    /// for the worst-case N pages a chunk can emit.
+    #[serde(default)]
+    pub dirty_pages_slot_bytes: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
