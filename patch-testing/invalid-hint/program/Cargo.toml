@@ -1,0 +1,24 @@
+[workspace]
+[package]
+name = "invalid-hint-test-program"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "invalid_hint_macro"
+path = "bin/invalid_hint_macro.rs"
+
+[[bin]]
+name = "invalid_hint_no_message"
+path = "bin/invalid_hint_no_message.rs"
+
+[[bin]]
+name = "invalid_hint_empty_input"
+path = "bin/invalid_hint_empty_input.rs"
+
+[dependencies]
+sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
+sp1-lib = { path = "../../../crates/zkvm/lib" }
+
+[patch.crates-io]
+sp1-lib = { path = "../../../crates/zkvm/lib" }
