@@ -157,6 +157,15 @@ impl MinimalExecutorEnum {
         }
     }
 
+    /// Calls `public_value_digest` to respective `MinimalExecutor`.
+    #[must_use]
+    pub fn public_value_digest(&self) -> [u32; sp1_jit::PUBLIC_VALUE_DIGEST_WORDS] {
+        match self {
+            Self::Supervisor(e) => e.public_value_digest(),
+            Self::User(e) => e.public_value_digest(),
+        }
+    }
+
     /// Calls `hints` to respective `MinimalExecutor`.
     #[must_use]
     pub fn hints(&self) -> &[(u64, Vec<u8>)] {
