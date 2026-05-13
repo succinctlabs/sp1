@@ -139,7 +139,6 @@ mod tests {
         ir::{Builder, Ext, SymbolicExt},
     };
     use sp1_recursion_executor::Executor;
-    use zkhash::ark_ff::UniformRand;
 
     use sp1_primitives::{SP1Field, SP1Perm};
     type F = SP1Field;
@@ -253,8 +252,8 @@ mod tests {
         let mut compiler = AsmCompiler::default();
         let program = Arc::new(compiler.compile_inner(block).validate().unwrap());
         let mut executor = Executor::<F, EF, SP1DiffusionMatrix>::new(program, inner_perm());
-        let coeffs = (0..3).map(|_| F::rand(&mut rng)).collect::<Vec<_>>();
-        let point = F::rand(&mut rng);
+        let coeffs = (0..3).map(|_| rand::Rng::gen::<F>(&mut rng)).collect::<Vec<_>>();
+        let point: F = rand::Rng::gen(&mut rng);
         executor.witness_stream =
             [vec![coeffs[0].into(), coeffs[1].into(), coeffs[2].into()], vec![point.into()]]
                 .concat()
