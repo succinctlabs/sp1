@@ -21,4 +21,5 @@ pub struct Output {
     pub global_clk: u64,
     pub clk: u64,
     pub exit_code: u32,
+    pub public_value_digest: [u32; sp1_jit::PUBLIC_VALUE_DIGEST_WORDS],
 }
