@@ -5,6 +5,7 @@ use memmap2::MmapMut;
 use sp1_jit::{
     debug, memory::AnonymousMemory, trace_capacity, DebugBackend, JitFunction, JitMemory, MemValue,
     RiscOperand, RiscRegister, RiscvTranspiler, TraceChunkHeader, TraceChunkRaw, TranspilerBackend,
+    PUBLIC_VALUE_DIGEST_WORDS,
 };
 use std::marker::PhantomData;
 use std::{
@@ -230,6 +231,12 @@ impl<M: ExecutionMode> MinimalExecutor<M> {
     #[must_use]
     pub fn into_public_values_stream(self) -> Vec<u8> {
         self.compiled.public_values_stream
+    }
+
+    /// Get the public value digest words committed by the guest via `COMMIT` syscalls.
+    #[must_use]
+    pub fn public_value_digest(&self) -> [u32; PUBLIC_VALUE_DIGEST_WORDS] {
+        self.compiled.public_value_digest
     }
 
     /// Get the hints of the JIT function.
