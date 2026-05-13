@@ -239,7 +239,6 @@ pub mod random {
 /// (`random` / `json/<path>` / `real/<program>`) is parsed once and applied uniformly.
 #[cfg(any(test, feature = "test-utils"))]
 pub mod bench_utils {
-    use std::ops::Add;
     use std::sync::Arc;
 
     use std::collections::BTreeSet;
