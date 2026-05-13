@@ -1,6 +1,6 @@
 [package]
 name = "bls12-c-script"
-description = "Host driver for bls12-c. Cross-checks the guest's BLS12-381 G1/G2 add and pairing-check outputs against host-side bls12_381 computations."
+description = "Host driver for bls12-c. Cross-checks the guest's BLS12-381 G1/G2 add, MSM, pairing-check, and map-to-curve outputs against host-side bls12_381 computations."
 version = { workspace = true }
 edition = { workspace = true }
 publish = false
@@ -21,6 +21,7 @@ group = { version = "0.13", default-features = false }
 rand = "0.8"
 tokio = { workspace = true }
 tracing = { workspace = true }
+zkevm-fixtures = { path = "../../fixtures" }
 
 [build-dependencies]
 zkevm-c-build = { path = "../../c-build" }

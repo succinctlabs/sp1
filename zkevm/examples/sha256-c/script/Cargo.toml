@@ -1,25 +1,23 @@
 [package]
-name = "modexp-c-script"
-description = "Host driver for modexp-c. Cross-checks the guest's `zkvm_modexp` output against host-side modexp on EIP-198 test vectors."
+name = "sha256-c-script"
+description = "Host driver for sha256-c. Same shape as sha256-script but loads a C-built ELF."
 version = { workspace = true }
 edition = { workspace = true }
 publish = false
 
 [[bin]]
-name = "modexp-c-execute"
+name = "sha256-c-execute"
 path = "src/execute.rs"
 
 [[bin]]
-name = "modexp-c-prove"
+name = "sha256-c-prove"
 path = "src/prove.rs"
 
 [dependencies]
 sp1-sdk = { workspace = true }
-num-bigint = "0.4"
-hex = "0.4"
+sha2 = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
-zkevm-fixtures = { path = "../../fixtures" }
 
 [build-dependencies]
 zkevm-c-build = { path = "../../c-build" }

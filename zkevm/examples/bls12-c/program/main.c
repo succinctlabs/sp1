@@ -7,6 +7,10 @@
  *          byte, output 1 byte (verified).
  * Mode 3: map_fp_to_g1 — input 48 bytes Fp, output 96 bytes G1.
  * Mode 4: map_fp2_to_g2 — input 96 bytes Fp2, output 192 bytes G2.
+ * Mode 5: g1_msm — input num_pairs * (96 + 32) bytes (point||scalar),
+ *          output 96 bytes G1.
+ * Mode 6: g2_msm — input num_pairs * (192 + 32) bytes (point||scalar),
+ *          output 192 bytes G2.
  */
 
 #include <stdbool.h>
@@ -81,6 +85,34 @@ int main(void) {
     if (status != ZKVM_EOK) return 1;
     uint8_t out = verified ? 1u : 0u;
     write_output(&out, 1);
+  } else if (mode == 5) {
+    if (payload_size % (96 + 32) != 0) return 1;
+    size_t num_pairs = payload_size / (96 + 32);
+    if (num_pairs > 16) return 1;
+    zkvm_bls12_381_g1_msm_pair pairs[16];
+    for (size_t i = 0; i < num_pairs; ++i) {
+      const uint8_t *p = payload + i * (96 + 32);
+      for (size_t j = 0; j < 96; ++j) pairs[i].point.data[j] = p[j];
+      for (size_t j = 0; j < 32; ++j) pairs[i].scalar.data[j] = p[96 + j];
+    }
+    zkvm_bls12_381_g1_point result = {0};
+    status = zkvm_bls12_g1_msm(pairs, num_pairs, &result);
+    if (status != ZKVM_EOK) return 1;
+    write_output(result.data, sizeof result.data);
+  } else if (mode == 6) {
+    if (payload_size % (192 + 32) != 0) return 1;
+    size_t num_pairs = payload_size / (192 + 32);
+    if (num_pairs > 16) return 1;
+    zkvm_bls12_381_g2_msm_pair pairs[16];
+    for (size_t i = 0; i < num_pairs; ++i) {
+      const uint8_t *p = payload + i * (192 + 32);
+      for (size_t j = 0; j < 192; ++j) pairs[i].point.data[j] = p[j];
+      for (size_t j = 0; j < 32; ++j) pairs[i].scalar.data[j] = p[192 + j];
+    }
+    zkvm_bls12_381_g2_point result = {0};
+    status = zkvm_bls12_g2_msm(pairs, num_pairs, &result);
+    if (status != ZKVM_EOK) return 1;
+    write_output(result.data, sizeof result.data);
   } else {
     return 1;
   }

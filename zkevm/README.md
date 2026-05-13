@@ -97,7 +97,7 @@ example's program + script is a member.
 | `hello-{rust,c}` | IO round-trip + termination |
 | `fibonacci{,-c}` | arithmetic + IO |
 | `panic{,-c}`, `assert-c`, `exit-code-c` | failed-termination paths |
-| `keccak{,-c}`, `sha256`, `ripemd-c` | hash precompiles |
+| `keccak{,-c}`, `sha256{,-c}`, `ripemd-c` | hash precompiles |
 | `secp256k1-c`, `secp256r1-c`, `ecrecover-c` | ECDSA + ecrecover |
 | `bn254-c`, `bls12-c` | elliptic-curve precompiles + pairings |
 | `modexp-c`, `blake2f-c`, `kzg-c` | remaining EVM precompiles |
@@ -162,11 +162,14 @@ when needed.
   propagation handles success/failure correctly, but more nuanced
   termination metadata (e.g., distinct "verification failed" vs "proof
   malformed") requires extending sp1-zkvm.
-- **Patches are pinned to a pre-release SP1 branch.** All
-  `sp1-patches/*` patch tags currently point at
-  `succinctlabs/sp1#tamir/no_std_zkvm`. When that branch lands in 6.2.0
-  the tags get repointed to `sp1-lib = "6.2.0"` from crates.io and
-  libzkevm bumps each git ref. Tracked separately.
+- **Software-only accelerators.** `zkvm_ripemd160`, `zkvm_modexp`, and
+  `zkvm_blake2f` have no corresponding SP1 syscall and run as pure RV64
+  software. The wrappers can switch to a syscall path without an ABI
+  change if one is added later.
+- **`bls12_381` map-to-curve uses the upstream `experimental` feature.**
+  The patched `bls12_381` crate gates `MapToCurve` behind its
+  `experimental` feature flag, which we enable. Tracks any future
+  stabilisation of that API.
 
 ## References
 

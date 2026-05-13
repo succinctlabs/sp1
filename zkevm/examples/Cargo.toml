@@ -21,6 +21,7 @@ members = [
   "exit-code-c/script",
   "invalid-hint-c/script",
   "keccak-c/script",
+  "sha256-c/script",
   "ripemd-c/script",
   "blake2f-c/script",
   "secp256k1-c/script",
@@ -58,9 +59,3 @@ tracing = "0.1"
 sha2 = "0.10"
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 ripemd = "0.1"
-
-# Until `sp1-lib 6.2.0` is published to crates.io, override the
-# patches' transitive `sp1-lib = "6.2.0"` requirement with the
-# in-tree path-dep. Remove this once 6.2.0 is on crates.io.
-[patch.crates-io]
-sp1-lib = { path = "../../crates/zkvm/lib" }

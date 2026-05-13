@@ -1,24 +1,20 @@
 //! `libzkevm` — SP1 platform SDK implementing the eth-act/zkvm-standards C ABI.
 //!
-//! This crate is **scaffolding**. Every `#[no_mangle] extern "C"` export
-//! has the exact signature of the corresponding C declaration in
-//! `standards/c-interface-accelerators/zkvm_accelerators.h`,
-//! `standards/io-interface/README.md`, and the standard-termination spec,
-//! but the precompile bodies are stubs that return `ZKVM_EFAIL`. A human
-//! will replace each stub with a real implementation, typically by:
+//! Every `#[no_mangle] extern "C"` export has the exact signature of the
+//! corresponding C declaration in `standards/c-interface-accelerators/zkvm_accelerators.h`,
+//! `standards/io-interface/README.md`, and the standard-termination spec.
+//! Each accelerator body is one of:
 //!
-//!   1. dispatching to an existing SP1 precompile syscall
-//!      (e.g. `KECCAK_PERMUTE`, `SECP256K1_ADD`, ...) with input/output
-//!      marshalling, or
-//!   2. calling into one of SP1's patched no-std crypto crates
-//!      (`sha2`, `sha3`, `crypto-bigint`, ...) which already wrap the
-//!      precompiles, or
-//!   3. introducing a new SP1 syscall number and runtime handler.
+//!   1. a thin wrapper around an existing SP1 precompile syscall
+//!      (`KECCAK_PERMUTE`, `SECP256K1_*`, `BN254_*`, `BLS12381_*`, ...)
+//!      via a patched no-std crypto crate from `sp1-patches/*`, or
+//!   2. a pure-software implementation for primitives without a
+//!      corresponding SP1 syscall (`ripemd160`, `modexp`, `blake2f`).
+//!
+//! See `precompile/mod.rs` for the per-function dispatch table.
 //!
 //! This crate is the **rlib**. The matching staticlib (`libzkevm.a` for
 //! C/Go/Zig consumers) is produced by the sibling `libzkevm-cabi` crate.
-//!
-//! See `README.md` for the human TODO list.
 
 #![no_std]
 #![allow(clippy::missing_safety_doc)]

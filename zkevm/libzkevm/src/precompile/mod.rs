@@ -1,8 +1,7 @@
 //! Precompile bodies implementing the eth-act `zkvm_accelerators.h` ABI.
 //!
 //! Layout: one module per accelerator family. Each export has a signature
-//! *exactly* matching the C header. **A wrong precompile is worse than no
-//! precompile** — do not "fix" a stub by inventing crypto here.
+//! *exactly* matching the C header.
 //!
 //! | C function                       | SP1 path                                                                    |
 //! |----------------------------------|------------------------------------------------------------------------------|

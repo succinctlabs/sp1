@@ -16,8 +16,7 @@
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
-const RAW_JSON: &str =
-    include_str!("../data/wycheproof/ecdsa_secp256k1_sha256_p1363_test.json");
+const RAW_JSON: &str = include_str!("../data/wycheproof/ecdsa_secp256k1_sha256_p1363_test.json");
 
 #[derive(Debug, Deserialize)]
 struct TopLevel {

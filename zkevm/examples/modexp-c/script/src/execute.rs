@@ -86,4 +86,26 @@ async fn main() {
     }
 
     info!("all modexp-c outputs match host-computed values");
+
+    // ---- EIP-198 golden vectors (explicit known-answer pairs). Catches
+    //      regressions in the I/O contract (output length = mod_len,
+    //      left zero-padding, modulus == 0 behavior) that random
+    //      differential checks against `BigUint::modpow` would silently
+    //      satisfy if both sides shared the same bug.
+    for v in zkevm_fixtures::eip198::vectors() {
+        let input = build_input(&v.base, &v.exp, &v.modulus);
+        let mut stdin = SP1Stdin::new();
+        stdin.write_slice(&input);
+        let (public_values, report) = client.execute(ELF, stdin).await.unwrap();
+        let out = public_values.as_slice();
+        info!(
+            name = v.name.as_str(),
+            mod_len = v.modulus.len(),
+            cycles = report.total_instruction_count() + report.total_syscall_count(),
+            "executed modexp-c (eip-198 vector)",
+        );
+        assert_eq!(out, v.expected.as_slice(), "{}: guest output != expected", v.name);
+    }
+
+    info!("all eip-198 golden vectors match the guest output");
 }

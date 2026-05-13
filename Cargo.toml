@@ -370,9 +370,3 @@ unexpected_cfgs = { level = "warn", check-cfg = [
   'cfg(sp1_use_portable_executor)',
   'cfg(sp1_native_executor_available)',
 ] }
-
-# Until `sp1-lib 6.2.0` is published to crates.io, override the patches'
-# transitive `sp1-lib = "6.2.0"` requirement with the in-tree path-dep.
-# Remove this once 6.2.0 is on crates.io.
-[patch.crates-io]
-sp1-lib = { path = "crates/zkvm/lib" }
