@@ -2,14 +2,18 @@ use crate::data::{InfoBuffer, JaggedDenseInfo};
 use slop_algebra::{AbstractField, ExtensionField, Field};
 use slop_alloc::{Backend, Buffer, CpuBackend, HasBackend, Slice};
 use slop_commit::Rounds;
+
 use slop_multilinear::{MleEval, Point};
-use slop_tensor::Tensor;
+use slop_tensor::{Tensor, TensorView};
+
 use sp1_gpu_cudart::sys::runtime::KernelPtr;
 use sp1_gpu_cudart::sys::v2_kernels::{
     fix_last_variable_jagged_ext, fix_last_variable_jagged_felt, fix_last_variable_jagged_info,
     initialize_jagged_info,
 };
-use sp1_gpu_cudart::{args, DeviceBuffer, DevicePoint, DeviceTensor, TaskScope};
+use sp1_gpu_cudart::{
+    args, dot_along_dim_view, DeviceBuffer, DevicePoint, DeviceTensor, TaskScope,
+};
 use sp1_gpu_utils::{Ext, Felt, JaggedMle, JaggedTraceMle, TraceDenseData, TraceOffset};
 use std::collections::BTreeMap;
 use std::iter::once;
@@ -123,20 +127,39 @@ where
 
 #[inline(always)]
 pub fn evaluate_traces(traces: &JaggedTraceMle<Felt, TaskScope>, point: &Point<Ext>) -> Vec<Ext> {
-    let mut next_input_jagged_trace_mle =
-        evaluate_jagged_fix_last_variable(traces, *point.last().unwrap());
-    for alpha in point.iter().rev().skip(1) {
-        next_input_jagged_trace_mle =
-            evaluate_jagged_fix_last_variable(&next_input_jagged_trace_mle, *alpha);
+    let trace_data = traces.dense();
+    let backend = traces.backend();
+    let device_point = DevicePoint::from_host(point, backend).unwrap();
+    let partial_lagrange = device_point.partial_lagrange();
+    let total_cols = trace_data
+        .preprocessed_table_index
+        .values()
+        .chain(trace_data.main_table_index.values())
+        .map(|index| index.num_polys)
+        .sum::<usize>();
+    let mut result_buffer =
+        DeviceBuffer::with_capacity_in(total_cols, backend.clone()).into_inner();
+
+    let trace_ptr = trace_data.dense.as_ptr();
+    let chip_indices =
+        trace_data.preprocessed_table_index.values().chain(trace_data.main_table_index.values());
+    for index in chip_indices {
+        if index.dense_offset.start == index.dense_offset.end {
+            continue;
+        }
+        let chip_ptr = unsafe { trace_ptr.add(index.dense_offset.start) };
+        let chip_view = unsafe {
+            TensorView::from_raw_parts(
+                chip_ptr,
+                [index.num_polys, index.poly_size].try_into().unwrap(),
+                backend.clone(),
+            )
+        };
+        let result = dot_along_dim_view(chip_view, partial_lagrange.guts().as_view(), 1);
+        result_buffer.extend_from_device_slice(result.as_buffer()).unwrap();
     }
 
-    let host_dense = DeviceBuffer::from_raw(next_input_jagged_trace_mle.dense_data.dense.clone())
-        .to_host()
-        .unwrap()
-        .to_vec();
-
-    // Only every four elements is not padding.
-    host_dense.into_iter().step_by(4).collect::<Vec<_>>()
+    DeviceBuffer::from_raw(result_buffer).to_host().unwrap()
 }
 
 pub fn evaluate_jagged_columns(
@@ -353,8 +376,6 @@ pub fn round_batch_evaluations(
     let preprocessed_host_evaluations =
         preprocessed_host_evaluations.into_iter().collect::<Vec<_>>();
 
-    // Skip the padding column, if it exists.
-    evals_so_far = jagged_trace_mle.dense().preprocessed_cols;
     let mut main_host_evaluations = Vec::new();
     for offset in jagged_trace_mle.dense().main_table_index.values() {
         if offset.poly_size == 0 {
