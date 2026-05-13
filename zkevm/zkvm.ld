@@ -80,7 +80,6 @@ SECTIONS
      */
     . = ALIGN(16);
     _end = .;
-    __heap_start = .;
 
     /*
      * Stack grows DOWN from `__stack_top` (== STACK_TOP) toward 0;
@@ -98,6 +97,15 @@ SECTIONS
      */
     __input_start = __sp1_max_memory - __sp1_input_region;
     __input_end   = __sp1_max_memory;
+
+    /*
+     * Heap boundary symbols — standardized names from the eth-act
+     * "Static Library and Linker Script" standard. `_heap_start` is the
+     * first byte of the heap region; `_heap_end` is one past the last
+     * byte. Application-supplied allocators may consume these symbols.
+     */
+    _heap_start = _end;
+    _heap_end   = __input_start;
 
     /DISCARD/ :
     {
