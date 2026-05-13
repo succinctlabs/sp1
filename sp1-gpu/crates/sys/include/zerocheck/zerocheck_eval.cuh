@@ -1,7 +1,6 @@
 #pragma once
 
 #include "config.cuh"
-#include <cstdint>
 #include <stdio.h>
 
 struct Instruction {
