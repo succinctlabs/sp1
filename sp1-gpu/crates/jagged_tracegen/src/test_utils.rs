@@ -284,19 +284,8 @@ pub mod bench_utils {
     /// zkVM sample programs available under `real/<name>`. Add entries here to make additional
     /// programs benchable.
     pub fn real_programs() -> Vec<(&'static str, &'static [u8])> {
-        vec![
-            ("fibonacci", &test_artifacts::FIBONACCI_ELF),
-            ("fibonacci_blake3", &test_artifacts::FIBONACCI_BLAKE3_ELF),
-            ("ed25519", &test_artifacts::ED25519_ELF),
-            ("keccak256", &test_artifacts::KECCAK256_ELF),
-            ("sha2", &test_artifacts::SHA2_ELF),
-            ("ssz_withdrawals", &test_artifacts::SSZ_WITHDRAWALS_ELF),
-            ("tendermint", &test_artifacts::TENDERMINT_BENCHMARK_ELF),
-            ("groth16", &test_artifacts::GROTH16_ELF),
-            ("groth16_blake3", &test_artifacts::GROTH16_BLAKE3_ELF),
-            ("plonk", &test_artifacts::PLONK_ELF),
-            ("plonk_blake3", &test_artifacts::PLONK_BLAKE3_ELF),
-        ]
+        // TODO: fix real program workflow to use either S3 or local (similar to other scripts)
+        vec![]
     }
 
     /// Which chip set a synthetic random trace should populate. The choice matters because

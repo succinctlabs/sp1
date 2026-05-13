@@ -2253,7 +2253,7 @@ dependencies = [
 [[package]]
 name = "substrate-bn-succinct-rs"
 version = "0.6.0"
-source = "git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-6.0.0#717dbe5e2270940faa46b646c6b2d639c82fb949"
+source = "git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-6.2.0#af2ee646c36ad80a44a15b91db0a2b648b517b44"
 dependencies = [
  "bytemuck",
  "byteorder",
