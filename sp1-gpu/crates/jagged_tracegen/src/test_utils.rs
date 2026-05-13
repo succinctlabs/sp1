@@ -247,6 +247,8 @@ pub mod bench_utils {
     use rand::Rng;
     use slop_algebra::AbstractField;
     use slop_futures::queue::WorkerQueue;
+    use sp1_core_machine::riscv::AddChip;
+    use sp1_core_machine::SupervisorMode;
     use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir};
     use sp1_gpu_cudart::{run_sync_in_place, PinnedBuffer, TaskScope};
     use sp1_gpu_utils::{Felt, JaggedTraceMle};
@@ -639,16 +641,22 @@ pub mod bench_utils {
     /// type and its alphabetical iteration order — synthetic chip layout has to match for
     /// per-chip slicing to land on the right columns.
     ///
-    /// `Core` returns the smallest cluster the machine knows about. This relies on a structural
-    /// assumption about how `RiscvAir::machine()` builds clusters: extension and precompile
-    /// clusters all stack chips on top of the base core cluster, so the smallest is the base.
+    /// `Core` returns the smallest cluster the machine knows about containing the Add chip.
+    /// This relies on a structural assumption about how `RiscvAir::machine()` builds clusters:
+    /// clusters with Add all stack chips on top of the base core cluster, so the smallest is the base.
     fn cluster_chip_set(
         machine: &Machine<Felt, RiscvAir<Felt>>,
         cluster: ChipCluster,
     ) -> BTreeSet<Chip<Felt, RiscvAir<Felt>>> {
         match cluster {
             ChipCluster::Core => {
-                machine.smallest_cluster(&BTreeSet::new()).expect("machine has no clusters").clone()
+                let add_chip = AddChip::<SupervisorMode> { _phantom: Default::default() };
+                let add_chip = RiscvAir::<Felt>::Add(add_chip);
+                let add_chip = Chip::new(add_chip);
+                machine
+                    .smallest_cluster(&BTreeSet::from_iter([add_chip]))
+                    .expect("machine has no clusters")
+                    .clone()
             }
             ChipCluster::AllChips => machine.chips().iter().cloned().collect(),
         }

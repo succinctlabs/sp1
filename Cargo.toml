@@ -338,7 +338,6 @@ uuid = "1.17.0"
 vec_map = "0.8.2"
 vergen = { version = "8", default-features = false }
 yansi = "1.0.1"
-zkhash = "0.2.0"
 zstd = "0.13"
 
 # sp1-gpu additional deps
