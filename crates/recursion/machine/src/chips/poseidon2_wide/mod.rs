@@ -39,7 +39,6 @@ pub(crate) mod tests {
     use sp1_hypercube::{inner_perm, operations::poseidon2::WIDTH};
     use sp1_primitives::SP1Field;
     use sp1_recursion_executor::{instruction as instr, MemAccessKind};
-    use zkhash::ark_ff::UniformRand;
 
     use crate::test::test_recursion_linear_program;
 
@@ -52,7 +51,7 @@ pub(crate) mod tests {
             .map(|x| SP1Field::as_canonical_u32(&x));
 
         let rng = &mut rand::thread_rng();
-        let input_1: [SP1Field; WIDTH] = std::array::from_fn(|_| SP1Field::rand(rng));
+        let input_1: [SP1Field; WIDTH] = std::array::from_fn(|_| rand::Rng::gen(rng));
         let output_1 = inner_perm().permute(input_1).map(|x| SP1Field::as_canonical_u32(&x));
         let input_1 = input_1.map(|x| SP1Field::as_canonical_u32(&x));
 
