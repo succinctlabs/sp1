@@ -34,6 +34,8 @@
   "Global": 241,
   "Secp256k1AddAssign": 1599,
   "Secp256k1AddAssignUser": 1647,
+  "Secp256k1MulAssign": 1599,
+  "Secp256k1MulAssignUser": 1647,
   "StoreDouble": 39,
   "Bn254DoubleAssignUser": 1615,
   "BitwiseUser": 52,

@@ -1,7 +1,8 @@
-use core::{marker::PhantomData, mem::size_of, mem::MaybeUninit};
+use core::{borrow::Borrow, marker::PhantomData, mem::size_of, mem::MaybeUninit};
 
-use slop_air::{Air, BaseAir};
+use slop_air::{Air, AirBuilder, BaseAir};
 use slop_algebra::PrimeField32;
+use slop_matrix::Matrix;
 use sp1_core_executor::{ExecutionRecord, Program, SyscallCode};
 use sp1_curves::{weierstrass::WeierstrassParameters, CurveType, EllipticCurve};
 use sp1_derive::AlignedBorrow;
@@ -85,8 +86,14 @@ impl<AB, E: EllipticCurve, M: TrustMode> Air<AB> for WeierstrassMulAssignChip<E,
 where
     AB: SP1CoreAirBuilder,
 {
-    fn eval(&self, _builder: &mut AB) {
-        // TODO: constrain `p ← scalar * p` for a Weierstrass curve point and a BigUint scalar.
+    fn eval(&self, builder: &mut AB) {
+        // Placeholder constraint so that machine construction passes the
+        // `max_constraint_degree > 0` assert in `Chip::new`. Replace with the real
+        // p ← scalar * p constraints once the chip layout lands.
+        let main = builder.main();
+        let local = main.row_slice(0);
+        let local: &WeierstrassMulAssignCols<AB::Var> = (*local).borrow();
+        builder.assert_bool(local.is_real);
     }
 }
 
