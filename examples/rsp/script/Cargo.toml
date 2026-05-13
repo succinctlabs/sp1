@@ -22,3 +22,7 @@ default = []
 [[bin]]
 name = "core_u64"
 path = "bin/core_u64.rs"
+
+[[bin]]
+name = "dump_core_u64"
+path = "bin/dump_core_u64.rs"

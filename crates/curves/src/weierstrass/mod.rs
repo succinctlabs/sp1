@@ -23,7 +23,7 @@ pub mod secp256k1;
 pub mod secp256r1;
 
 use k256::{
-    elliptic_curve::{ops::Reduce, sec1::ToEncodedPoint, Field},
+    elliptic_curve::{ops::Reduce, sec1::ToEncodedPoint},
     AffinePoint as K256AffinePoint, EncodedPoint, ProjectivePoint as K256ProjectivePoint,
 };
 

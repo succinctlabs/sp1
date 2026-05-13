@@ -3,9 +3,13 @@ use std::sync::Arc;
 use clap::Parser;
 
 use slop_algebra::AbstractField;
-use sp1_core_executor::{MinimalExecutor, Program, SP1CoreOpts, SupervisorMode};
+use sp1_core_executor::{
+    ExecutionReport, GasEstimatingVMEnum, MinimalExecutor, Program, SP1CoreOpts, SupervisorMode,
+};
 use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir};
-use sp1_hypercube::{septic_digest::SepticDigest, MachineVerifyingKey, UntrustedConfig};
+use sp1_hypercube::{
+    air::PROOF_NONCE_NUM_WORDS, septic_digest::SepticDigest, MachineVerifyingKey, UntrustedConfig,
+};
 use sp1_primitives::{Elf, SP1Field};
 use sp1_prover::{
     worker::{
@@ -188,7 +192,9 @@ fn execute_minimal(elf: Vec<u8>, stdin: SP1Stdin, trace: bool) {
 
     let now = std::time::Instant::now();
     let program = Arc::new(Program::from(&elf).expect("parse elf"));
-    let mut executor = MinimalExecutor::<SupervisorMode>::new(program, false, max_trace_size);
+    let opts = SP1CoreOpts::default();
+    let mut executor =
+        MinimalExecutor::<SupervisorMode>::new(program.clone(), false, max_trace_size);
     for buf in stdin.buffer {
         executor.with_input(&buf);
     }
@@ -196,12 +202,27 @@ fn execute_minimal(elf: Vec<u8>, stdin: SP1Stdin, trace: bool) {
     println!("MinimalExecutor creation time: {:?}", time);
 
     let now = std::time::Instant::now();
-    while executor.execute_chunk().is_some() {}
+    let mut chunks = Vec::new();
+    while let Some(chunk) = executor.execute_chunk() {
+        if trace {
+            chunks.push(chunk);
+        }
+    }
     let time = now.elapsed();
 
     println!("exit code: {}, cycles: {}", executor.exit_code(), executor.global_clk());
     println!("execution time: {:?}", time);
     println!("mhz: {}", executor.global_clk() as f64 / (time.as_secs_f64() * 1_000_000.0));
+
+    if trace {
+        let nonce = [0u32; PROOF_NONCE_NUM_WORDS];
+        let mut report = ExecutionReport::default();
+        for chunk in &chunks {
+            let mut vm = GasEstimatingVMEnum::new(chunk, program.clone(), nonce, opts.clone());
+            report += vm.execute().expect("gas-estimating replay failed");
+        }
+        println!("=== ExecutionReport ===\n{report}=== end ExecutionReport ===");
+    }
 }
 
 pub fn get_program_and_input(program: String, param: String, local: bool) -> (Vec<u8>, SP1Stdin) {

@@ -102,4 +102,27 @@ impl AffinePoint<N> for Secp256k1Point {
             }
         }
     }
+
+    fn multi_scalar_multiplication(
+        a_bits_le: &[bool],
+        a: Self,
+        b_bits_le: &[bool],
+        b: Self,
+    ) -> Self {
+        fn pack_bits_le(bits: &[bool]) -> [u64; 4] {
+            core::array::from_fn(|w| {
+                bits[w * 64..(w + 1) * 64]
+                    .iter()
+                    .enumerate()
+                    .fold(0u64, |acc, (i, &b)| acc | ((b as u64) << i))
+            })
+        }
+
+        let mut ax = a;
+        ax.mul_assign(&pack_bits_le(a_bits_le));
+        let mut bx = b;
+        bx.mul_assign(&pack_bits_le(b_bits_le));
+        ax.complete_add_assign(&bx);
+        ax
+    }
 }

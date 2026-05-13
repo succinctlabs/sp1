@@ -25,7 +25,13 @@
       "Bash(*)",
       "Bash(echo \"=== uses of Mul<BigUint> via `*` on AffinePoint ===\")",
       "Bash(sed -n '385,410p' /Users/rdalalsuccinct/Documents/sp1/crates/curves/src/weierstrass/mod.rs)",
-      "Bash(sed -n '120,140p' /Users/rdalalsuccinct/Documents/sp1/crates/curves/src/weierstrass/secp256k1.rs)"
+      "Bash(sed -n '120,140p' /Users/rdalalsuccinct/Documents/sp1/crates/curves/src/weierstrass/secp256k1.rs)",
+      "Read(//Users/rdalalsuccinct/Documents/sp1-bench-main/examples/rsp/script/**)",
+      "Read(//Users/rdalalsuccinct/Documents/sp1-bench-main/crates/perf/src/bin/**)"
+    ],
+    "additionalDirectories": [
+      "/Users/rdalalsuccinct/Documents/sp1-bench-main/examples/rsp/script",
+      "/Users/rdalalsuccinct/Documents/sp1-bench-main/crates/perf/src/bin"
     ]
   }
 }
