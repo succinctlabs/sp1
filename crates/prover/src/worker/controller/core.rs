@@ -63,6 +63,8 @@ struct CoreExecuteMetadata {
     num_deferred_proofs: usize,
     cycle_limit: Option<u64>,
     machine: SerializableRiscvMachine,
+    #[serde(default)]
+    stdin_private: bool,
 }
 
 pub struct CoreExecuteTaskRequest {
@@ -74,6 +76,7 @@ pub struct CoreExecuteTaskRequest {
     pub cycle_limit: Option<u64>,
     pub context: TaskContext,
     pub machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+    pub stdin_private: bool,
 }
 
 impl CoreExecuteTaskRequest {
@@ -85,20 +88,20 @@ impl CoreExecuteTaskRequest {
         let [execution_output] = outputs
             .try_into()
             .map_err(|e| TaskError::Fatal(anyhow::anyhow!("invalid task outputs: {e:?}")))?;
-        let metadata: CoreExecuteMetadata =
+        let CoreExecuteMetadata { num_deferred_proofs, cycle_limit, machine, stdin_private } =
             serde_json::from_str(&metadata.to_id()).map_err(|e| {
                 TaskError::Fatal(anyhow::anyhow!("failed to deserialize CoreExecuteMetadata: {e}"))
             })?;
-        let machine = metadata.machine.into();
         Ok(CoreExecuteTaskRequest {
             elf,
             stdin,
             common_input,
             execution_output,
-            num_deferred_proofs: metadata.num_deferred_proofs,
-            cycle_limit: metadata.cycle_limit,
+            num_deferred_proofs,
+            cycle_limit,
             context,
-            machine,
+            machine: machine.into(),
+            stdin_private,
         })
     }
 
@@ -107,6 +110,7 @@ impl CoreExecuteTaskRequest {
             num_deferred_proofs: self.num_deferred_proofs,
             cycle_limit: self.cycle_limit,
             machine: self.machine.into(),
+            stdin_private: self.stdin_private,
         };
         let metadata_str = serde_json::to_string(&metadata).map_err(|e| {
             TaskError::Fatal(anyhow::anyhow!("failed to serialize CoreExecuteMetadata: {e}"))
