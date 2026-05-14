@@ -13,12 +13,11 @@ rust-version = { workspace = true }
 [dependencies]
 prost = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
-twirp = { workspace = true, optional = true }
 async-trait = { workspace = true }
 reqwest-middleware = { workspace = true, optional = true }
 reqwest = { workspace = true, features = [
-  "rustls-tls",
-  "trust-dns",
+  "rustls",
+  "hickory-dns",
   "stream",
   "json",
 ], optional = true }
@@ -102,7 +101,6 @@ network = [
   "dep:alloy-signer-local",
   "dep:alloy-primitives",
   "dep:reqwest",
-  "dep:twirp",
   "dep:reqwest-middleware",
   "dep:tonic",
   "dep:backoff",

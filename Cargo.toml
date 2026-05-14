@@ -285,8 +285,8 @@ rand_chacha = "0.3.1"
 range-set-blaze = "0.1.16"
 rayon = "1.10.0"
 rayon-scan = "0.1.1"
-reqwest = { version = "0.12.12", default-features = false }
-reqwest-middleware = "0.3.2"
+reqwest = { version = "0.13.3", default-features = false }
+reqwest-middleware = "0.5.1"
 rrs-lib = { version = "0.2.0", package = "rrs-succinct" }
 rug = "1.26.1"
 rustc-demangle = "0.1.18"
@@ -317,7 +317,6 @@ opentelemetry = "0.23.0"
 thousands = "0.2.0"
 tracing-opentelemetry = "0.24.0"
 transpose = "0.2.3"
-twirp = { package = "twirp-rs", version = "0.13.0-succinct" }
 mti = "1.0.7-beta.1"
 typenum = "1.17.0"
 uuid = "1.17.0"
