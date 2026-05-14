@@ -7039,16 +7039,13 @@ name = "sp1-core-executor"
 version = "6.2.0"
 dependencies = [
  "bincode",
- "bytemuck",
  "cfg-if",
- "clap",
  "deepsize2",
  "elf",
  "enum-map",
  "eyre",
  "gecko_profile",
  "hashbrown 0.14.5",
- "hex",
  "indicatif",
  "itertools 0.14.0",
  "memmap2",
@@ -7119,8 +7116,6 @@ version = "6.2.0"
 dependencies = [
  "bincode",
  "cfg-if",
- "enum-map",
- "futures",
  "generic-array 1.1.0",
  "hashbrown 0.14.5",
  "itertools 0.14.0",
@@ -7137,14 +7132,12 @@ dependencies = [
  "slop-alloc",
  "slop-basefold",
  "slop-challenger",
- "slop-futures",
  "slop-keccak-air",
  "slop-matrix",
  "slop-maybe-rayon",
  "slop-multilinear",
  "slop-sumcheck",
  "slop-uni-stark",
- "snowbridge-amcl",
  "sp1-core-executor",
  "sp1-core-executor-runner",
  "sp1-curves",
@@ -7156,7 +7149,6 @@ dependencies = [
  "struct-reflection",
  "strum",
  "sysinfo 0.30.13",
- "tempfile",
  "test-artifacts",
  "thiserror 1.0.69",
  "tiny-keccak",
@@ -7175,7 +7167,6 @@ dependencies = [
  "bytes",
  "reqwest",
  "serde",
- "serde_json",
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-hypercube",
@@ -7809,7 +7800,6 @@ dependencies = [
  "arrayref",
  "deepsize2",
  "derive-where",
- "futures",
  "hashbrown 0.14.5",
  "itertools 0.14.0",
  "num-bigint 0.4.6",
@@ -7823,7 +7813,6 @@ dependencies = [
  "slop-algebra",
  "slop-alloc",
  "slop-basefold",
- "slop-basefold-prover",
  "slop-bn254",
  "slop-challenger",
  "slop-commit",
@@ -7887,7 +7876,6 @@ dependencies = [
  "chrono",
  "clap",
  "dotenv",
- "rand 0.8.6",
  "rustyline",
  "slop-algebra",
  "sp1-core-executor",
@@ -7935,7 +7923,6 @@ dependencies = [
  "clap",
  "dirs",
  "either",
- "enum-map",
  "eyre",
  "futures",
  "hashbrown 0.14.5",
@@ -7946,7 +7933,6 @@ dependencies = [
  "mti",
  "num-bigint 0.4.6",
  "opentelemetry",
- "pin-project",
  "rand 0.8.6",
  "reqwest",
  "serde",
@@ -7959,14 +7945,10 @@ dependencies = [
  "slop-bn254",
  "slop-challenger",
  "slop-futures",
- "slop-jagged",
- "slop-multilinear",
- "slop-stacked",
  "slop-symmetric",
  "sp1-core-executor",
  "sp1-core-executor-runner",
  "sp1-core-machine",
- "sp1-derive",
  "sp1-hypercube",
  "sp1-jit",
  "sp1-primitives",
@@ -7978,14 +7960,12 @@ dependencies = [
  "sp1-recursion-machine",
  "sp1-verifier",
  "static_assertions",
- "sysinfo 0.30.13",
  "tempfile",
  "test-artifacts",
  "thiserror 1.0.69",
  "tokio",
  "tonic 0.12.3",
  "tracing",
- "tracing-appender",
  "tracing-subscriber 0.3.23",
 ]
 
@@ -8113,7 +8093,6 @@ dependencies = [
  "bincode",
  "bindgen",
  "cfg-if",
- "hex",
  "num-bigint 0.4.6",
  "serde",
  "serde_json",
@@ -8166,11 +8145,9 @@ dependencies = [
  "backoff",
  "bincode",
  "cfg-if",
- "dirs",
  "eventsource-stream",
  "futures",
  "hex",
- "indicatif",
  "itertools 0.14.0",
  "k256",
  "num-bigint 0.4.6",
@@ -8180,7 +8157,6 @@ dependencies = [
  "rstest 0.26.1",
  "rustls",
  "serde",
- "sha2 0.10.9",
  "sp1-build",
  "sp1-core-executor",
  "sp1-core-executor-runner",
@@ -8193,7 +8169,6 @@ dependencies = [
  "sp1-recursion-executor",
  "sp1-recursion-gnark-ffi",
  "sp1-verifier",
- "strum",
  "tempfile",
  "test-artifacts",
  "thiserror 1.0.69",
@@ -8225,7 +8200,6 @@ dependencies = [
  "sha2 0.10.9",
  "slop-algebra",
  "slop-challenger",
- "slop-primitives",
  "slop-symmetric",
  "sp1-hypercube",
  "sp1-primitives",
@@ -8249,7 +8223,6 @@ dependencies = [
  "embedded-alloc",
  "getrandom 0.2.17",
  "getrandom 0.3.4",
- "lazy_static",
  "libm",
  "rand 0.8.6",
  "sha2 0.10.9",
@@ -8385,12 +8358,6 @@ dependencies = [
  "syn 1.0.109",
  "unicode-width 0.1.14",
 ]
-
-[[package]]
-name = "symlink"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7973cce6668464ea31f176d85b13c7ab3bba2cb3b77a2ed26abd7801688010a"
 
 [[package]]
 name = "syn"
@@ -9017,19 +8984,6 @@ dependencies = [
  "pin-project-lite",
  "tracing-attributes",
  "tracing-core",
-]
-
-[[package]]
-name = "tracing-appender"
-version = "0.2.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "050686193eb999b4bb3bc2acfa891a13da00f79734704c4b8b4ef1a10b368a3c"
-dependencies = [
- "crossbeam-channel",
- "symlink",
- "thiserror 2.0.18",
- "time",
- "tracing-subscriber 0.3.23",
 ]
 
 [[package]]

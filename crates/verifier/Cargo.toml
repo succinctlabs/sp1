@@ -32,7 +32,6 @@ sp1-recursion-machine = { workspace = true, default-features = false }
 sp1-recursion-executor = { workspace = true, default-features = false }
 slop-algebra = { workspace = true }
 slop-challenger = { workspace = true }
-slop-primitives = { workspace = true }
 slop-symmetric = { workspace = true }
 
 # arkworks

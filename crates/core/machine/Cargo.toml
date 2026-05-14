@@ -30,21 +30,16 @@ sp1-jit = { workspace = true }
 
 struct-reflection = { workspace = true }
 
-slop-futures = { workspace = true }
-futures = { workspace = true }
 
 rayon = { workspace = true }
 rayon-scan = { workspace = true }
 sysinfo = { workspace = true }
 
-amcl = { workspace = true, features = ["bls381"] }
 cfg-if = { workspace = true }
 generic-array = { workspace = true, features = ["alloc", "serde"] }
 typenum = { workspace = true }
-enum-map = { workspace = true, features = ["serde"] }
 
 num_cpus = { workspace = true }
-tempfile = { workspace = true }
 tracing = { workspace = true }
 tracing-forest = { workspace = true, features = ["ansi", "smallvec"] }
 tracing-subscriber = { workspace = true, features = ["std", "env-filter"] }
