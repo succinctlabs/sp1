@@ -3,7 +3,7 @@
 // Defined before the include of zerocheck_eval.cuh so var_f can branch on it.
 // See the comment above the dependent ABL_* macros below for the per-mode meaning.
 #ifndef ABLATION_MODE
-#define ABLATION_MODE 7
+#define ABLATION_MODE 8
 #endif
 
 #include "zerocheck/jagged_mle.cuh"
@@ -34,6 +34,9 @@ namespace cg = cooperative_groups;
 //   6: replace all loads (var_f, evalConstantsF, expr_f, powersOfAlpha) in field-op opcodes.
 //   7: replace the K::load() calls inside var_f cases 2 and 4 with K::from_ind,
 //      keeping the eval_point switch and multi_diff arithmetic intact.
+//   8: same as mode 7, but the is_first_air_block reduction loops do real K::load
+//      (inlined, bypassing var_f's synth path) — isolates whether that section is
+//      the source of mode 7's savings.
 // ABLATION_MODE is defined before the includes at the top of this file.
 
 #if (ABLATION_MODE == 1) || (ABLATION_MODE == 2)
@@ -428,12 +431,49 @@ __global__ void jaggedConstraintPolyEval(
         ext_t geq_correction = ext_t::zero();
 
         if (is_first_air_block) {
+#if ABLATION_MODE == 8
+            // Same as mode 7 inside the program loop, but force real K::load + eval_point
+            // arithmetic here, bypassing var_f's synth path.
+            for (size_t i = 0; i < num_main_columns; i++) {
+                K zeroVal = K::load(folder.data, folder.main_ptr + i * folder.height + (folder.rowIdx << 1));
+                K oneVal  = K::load(folder.data, folder.main_ptr + i * folder.height + (folder.rowIdx << 1 | 1));
+                K v = zeroVal;
+                if (folder.eval_point == 2) {
+                    K diff = oneVal - zeroVal;
+                    diff = diff + diff;
+                    v += diff;
+                } else if (folder.eval_point == 4) {
+                    K diff = oneVal - zeroVal;
+                    diff = diff + diff;
+                    diff = diff + diff;
+                    v += diff;
+                }
+                gkr_correction += batchingPowers[i] * v;
+            }
+            for (size_t i = 0; i < num_preprocessed_columns; i++) {
+                K zeroVal = K::load(folder.data, folder.preprocessed_ptr + i * folder.height + (folder.rowIdx << 1));
+                K oneVal  = K::load(folder.data, folder.preprocessed_ptr + i * folder.height + (folder.rowIdx << 1 | 1));
+                K v = zeroVal;
+                if (folder.eval_point == 2) {
+                    K diff = oneVal - zeroVal;
+                    diff = diff + diff;
+                    v += diff;
+                } else if (folder.eval_point == 4) {
+                    K diff = oneVal - zeroVal;
+                    diff = diff + diff;
+                    diff = diff + diff;
+                    v += diff;
+                }
+                gkr_correction += batchingPowers[num_main_columns + i] * v;
+            }
+#else
             for (size_t i = 0; i < num_main_columns; i++) {
                 gkr_correction += batchingPowers[i] * folder.var_f(4, i);
             }
             for (size_t i = 0; i < num_preprocessed_columns ; i++) {
                 gkr_correction += batchingPowers[num_main_columns + i] * folder.var_f(2, i);
             }
+#endif
             ext_t zeroVal = geq_eval(rowIdx << 1, geq_thresholds[chip_idx], eq_coefficients[chip_idx]);
             ext_t oneVal = geq_eval(rowIdx << 1 | 1, geq_thresholds[chip_idx], eq_coefficients[chip_idx]);
             geq_correction = (zeroVal + eval_point * (oneVal - zeroVal)) * paddedRowAdjustment[chip_idx];

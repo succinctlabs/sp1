@@ -36,7 +36,7 @@ struct JaggedConstraintFolder {
         case 1:
             return K(idx);
         case 2:
-#if defined(ABLATION_MODE) && (ABLATION_MODE == 7)
+#if defined(ABLATION_MODE) && (ABLATION_MODE == 7 || ABLATION_MODE == 8)
             K zeroPrepVal = K::from_ind((idx ^ threadIdx.x));
             K onePrepVal  = K::from_ind((idx ^ threadIdx.x) ^ 1);
 #else
@@ -65,7 +65,7 @@ struct JaggedConstraintFolder {
             }
             return result;
         case 4:
-#if defined(ABLATION_MODE) && (ABLATION_MODE == 7)
+#if defined(ABLATION_MODE) && (ABLATION_MODE == 7 || ABLATION_MODE == 8)
             K zeroMainVal = K::from_ind((idx ^ threadIdx.x));
             K oneMainVal  = K::from_ind((idx ^ threadIdx.x) ^ 1);
 #else
