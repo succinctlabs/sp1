@@ -20,6 +20,7 @@ use lru::LruCache;
 
 use slop_algebra::PrimeField32;
 
+use serde::{Deserialize, Serialize};
 use sp1_core_executor::SP1CoreOpts;
 use sp1_core_executor_runner::MinimalExecutorRunner;
 use sp1_core_machine::{executor::ExecutionOutput, io::SP1Stdin};
@@ -144,7 +145,12 @@ where
         task_id: TaskId,
         request: CoreExecuteTaskRequest,
     ) -> Result<ExecutionOutput, TaskError> {
-        let stdin = self.artifact_client.download_stdin::<SP1Stdin>(&request.stdin).await?;
+        let stdin_artifact_type =
+            if request.stdin_private { ArtifactType::PrivateStdin } else { ArtifactType::Stdin };
+        let stdin = self
+            .artifact_client
+            .download_with_type::<SP1Stdin>(&request.stdin, stdin_artifact_type)
+            .await?;
 
         let deferred_proofs = stdin.proofs.iter().map(|(proof, _)| proof.clone());
         let deferred_inputs = DeferredInputs::new(deferred_proofs);
@@ -225,25 +231,16 @@ where
 
     pub async fn run(&self, request: RawTaskRequest) -> Result<ExecutionOutput, TaskError> {
         let RawTaskRequest { inputs, outputs, context } = request;
-        let elf = inputs[0].clone();
-        let stdin_artifact = inputs[1].clone();
-        let mode_artifact = inputs[2].clone();
-        let cycle_limit = inputs.get(3).and_then(|a| a.clone().to_id().parse::<u64>().ok());
-        let proof_nonce = inputs.get(4);
         let [output] = outputs.try_into().unwrap();
-        let mode = {
-            let parsed =
-                mode_artifact.to_id().parse::<i32>().map_err(|e| TaskError::Fatal(e.into()))?;
-            ProofMode::try_from(parsed).map_err(|e| TaskError::Fatal(e.into()))?
-        };
+        let ControllerInputs { elf, stdin_artifact, mode, cycle_limit, proof_nonce, metadata } =
+            ControllerInputs::try_from(inputs.as_slice())?;
 
-        let stdin_download_handle =
-            self.artifact_client.download_stdin::<SP1Stdin>(&stdin_artifact);
+        let stdin_download_handle = self
+            .artifact_client
+            .download_with_type::<SP1Stdin>(&stdin_artifact, metadata.stdin_artifact_type());
 
         let proof_nonce = match proof_nonce {
-            Some(artifact) => {
-                self.artifact_client.download::<[u32; PROOF_NONCE_NUM_WORDS]>(artifact).await?
-            }
+            Some(artifact) => self.artifact_client.download(&artifact).await?,
             None => [0u32; PROOF_NONCE_NUM_WORDS],
         };
 
@@ -329,6 +326,7 @@ where
             context: context.clone(),
             // TODO: is this expensive?
             machine: self.verifier.core.machine().clone(),
+            stdin_private: metadata.stdin_private,
         };
         let executor_task_id = self
             .worker_client
@@ -565,4 +563,73 @@ async fn collect_core_proofs(
     artifact_client.upload(&result_artifact, shard_proofs).await?;
 
     Ok(())
+}
+
+#[derive(Clone)]
+pub struct ControllerInputs {
+    pub elf: Artifact,
+    pub stdin_artifact: Artifact,
+    pub mode: ProofMode,
+    pub cycle_limit: Option<u64>,
+    pub proof_nonce: Option<Artifact>,
+    pub metadata: ControllerInputMetadata,
+}
+
+impl TryFrom<&[String]> for ControllerInputs {
+    type Error = TaskError;
+
+    fn try_from(inputs: &[String]) -> Result<Self, Self::Error> {
+        let inputs = inputs.iter().map(|x| Artifact(x.clone())).collect::<Vec<_>>();
+        Self::try_from(inputs.as_slice())
+    }
+}
+
+impl TryFrom<&[Artifact]> for ControllerInputs {
+    type Error = TaskError;
+
+    fn try_from(inputs: &[Artifact]) -> Result<Self, Self::Error> {
+        #[allow(clippy::get_first)]
+        let elf = inputs.get(0).cloned().ok_or_else(|| {
+            TaskError::Fatal(anyhow::anyhow!("ControllerInputs inputs[0] (elf) is required"))
+        })?;
+        let stdin_artifact = inputs.get(1).cloned().ok_or_else(|| {
+            TaskError::Fatal(anyhow::anyhow!("ControllerInputs inputs[1] (stdin) is required"))
+        })?;
+        let mode = {
+            let input = inputs.get(2).cloned().ok_or_else(|| {
+                TaskError::Fatal(anyhow::anyhow!("ControllerInputs inputs[2] (mode) is required"))
+            })?;
+            let parsed = input.to_id().parse::<i32>().map_err(|e| TaskError::Fatal(e.into()))?;
+            ProofMode::try_from(parsed).map_err(|e| TaskError::Fatal(e.into()))?
+        };
+        let cycle_limit = inputs.get(3).and_then(|a| a.clone().to_id().parse::<u64>().ok());
+        let proof_nonce = inputs.get(4).cloned();
+        let metadata = match inputs.get(5) {
+            Some(Artifact(s)) if !s.is_empty() => serde_json::from_str(s),
+            _ => Ok(Default::default()),
+        }
+        .map_err(|e| {
+            TaskError::Fatal(anyhow::anyhow!(
+                "failed to deserialize ControllerTaskMetadata from inputs[5]: {e}"
+            ))
+        })?;
+        Ok(Self { elf, stdin_artifact, mode, cycle_limit, proof_nonce, metadata })
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ControllerInputMetadata {
+    #[serde(default)]
+    pub stdin_private: bool,
+    // TODO: Consider moving cycle_limit and other fields in here in the future
+}
+
+impl ControllerInputMetadata {
+    pub fn stdin_artifact_type(&self) -> ArtifactType {
+        if self.stdin_private {
+            ArtifactType::PrivateStdin
+        } else {
+            ArtifactType::Stdin
+        }
+    }
 }
