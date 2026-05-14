@@ -30,6 +30,8 @@ pub mod random {
     use sp1_gpu_utils::{AbstractChipLayout, AbstractChipLayoutWithHeights, JaggedTraceMle};
     use sp1_hypercube::{air::MachineAir, Chip};
 
+    use crate::test_utils::tracegen_setup::CORE_MAX_LOG_ROW_COUNT;
+
     /// Build an [`AbstractChipLayout`] from a slice of [`Chip`]s, reading each chip's
     /// name and preprocessed/main widths.
     ///
@@ -125,7 +127,8 @@ pub mod random {
             }
             let i = candidates[rng.gen_range(0..candidates.len())];
             let max_blocks = remaining / (row_costs[i] * ALIGN as u64);
-            let blocks = rng.gen_range(1..=max_blocks);
+            let remaining_height = (1 << CORE_MAX_LOG_ROW_COUNT) as u64 - heights[i] as u64;
+            let blocks = rng.gen_range(1..=max_blocks).min(remaining_height.div_ceil(ALIGN as u64));
             heights[i] += blocks as usize * ALIGN;
             remaining -= blocks * row_costs[i] * ALIGN as u64;
         }

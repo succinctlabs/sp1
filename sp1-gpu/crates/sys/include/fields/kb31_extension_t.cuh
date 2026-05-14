@@ -40,6 +40,12 @@ class kb31_extension_t {
         }
     }
 
+
+    static inline const kb31_extension_t from_ind(uint32_t i) {
+        return kb31_extension_t(i, i + 1, i + 2, i + 3);
+    }
+
+
     // Load from a pointer using a vectorized load.
     static __device__ __forceinline__ kb31_extension_t load(kb31_extension_t* ptr, int i) {
         int4 b_int4 = *reinterpret_cast<int4*>(&ptr[i]);

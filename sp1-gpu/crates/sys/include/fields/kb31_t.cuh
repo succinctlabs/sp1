@@ -113,6 +113,8 @@ class kb31_t {
 
     static inline const kb31_t two() { return from_canonical_u32(2); }
 
+    static inline const kb31_t from_ind(uint32_t i) { return kb31_t(i); }
+
     static inline constexpr uint32_t to_monty(uint32_t x) {
         return (((uint64_t)x << MONTY_BITS) % MOD);
     }
