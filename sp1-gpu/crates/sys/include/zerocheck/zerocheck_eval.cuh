@@ -36,8 +36,13 @@ struct JaggedConstraintFolder {
         case 1:
             return K(idx);
         case 2:
+#if defined(ABLATION_MODE) && (ABLATION_MODE == 7)
+            K zeroPrepVal = K::from_ind((idx ^ threadIdx.x));
+            K onePrepVal  = K::from_ind((idx ^ threadIdx.x) ^ 1);
+#else
             K zeroPrepVal = K::load(data, preprocessed_ptr + idx * height + (rowIdx << 1));
             K onePrepVal = K::load(data, preprocessed_ptr + idx * height + (rowIdx << 1 | 1));
+#endif
             K result = zeroPrepVal;
             K multi_diff;
             switch (eval_point) {
@@ -60,8 +65,13 @@ struct JaggedConstraintFolder {
             }
             return result;
         case 4:
+#if defined(ABLATION_MODE) && (ABLATION_MODE == 7)
+            K zeroMainVal = K::from_ind((idx ^ threadIdx.x));
+            K oneMainVal  = K::from_ind((idx ^ threadIdx.x) ^ 1);
+#else
             K zeroMainVal = K::load(data, main_ptr + idx * height + (rowIdx << 1));
             K oneMainVal = K::load(data, main_ptr + idx * height + (rowIdx << 1 | 1));
+#endif
             result = zeroMainVal;
             switch (eval_point) {
                 case 0:

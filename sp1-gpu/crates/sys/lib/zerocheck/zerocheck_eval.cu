@@ -1,5 +1,11 @@
 #include <type_traits>
 
+// Defined before the include of zerocheck_eval.cuh so var_f can branch on it.
+// See the comment above the dependent ABL_* macros below for the per-mode meaning.
+#ifndef ABLATION_MODE
+#define ABLATION_MODE 7
+#endif
+
 #include "zerocheck/jagged_mle.cuh"
 #include "zerocheck/zerocheck_eval.cuh"
 #include "config.cuh"
@@ -26,9 +32,9 @@ namespace cg = cooperative_groups;
 //   4: skip side effects in field-op opcodes (4..25, 59).
 //   5: replace var_f calls in field-op opcodes with K::from_ind(idx ^ threadIdx.x).
 //   6: replace all loads (var_f, evalConstantsF, expr_f, powersOfAlpha) in field-op opcodes.
-#ifndef ABLATION_MODE
-#define ABLATION_MODE 6
-#endif
+//   7: replace the K::load() calls inside var_f cases 2 and 4 with K::from_ind,
+//      keeping the eval_point switch and multi_diff arithmetic intact.
+// ABLATION_MODE is defined before the includes at the top of this file.
 
 #if (ABLATION_MODE == 1) || (ABLATION_MODE == 2)
 #define ABL_SKIP_FASSIGN 1
