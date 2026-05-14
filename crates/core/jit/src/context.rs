@@ -3,6 +3,12 @@ use memmap2::{MmapMut, MmapOptions};
 use sp1_primitives::consts::{PROT_READ, PROT_WRITE};
 use std::{collections::VecDeque, io, os::fd::RawFd, ptr::NonNull, sync::mpsc};
 
+/// Number of u32 words in the public value digest emitted by `COMMIT` syscalls.
+///
+/// Mirrors `sp1_hypercube::air::PV_DIGEST_NUM_WORDS`. Kept here as a local constant to avoid
+/// pulling `sp1-hypercube` into the JIT crate's dependency graph.
+pub const PUBLIC_VALUE_DIGEST_WORDS: usize = 8;
+
 pub trait SyscallContext {
     /// Read a value from a register.
     fn rr(&self, reg: RiscRegister) -> u64;
@@ -85,6 +91,10 @@ pub trait SyscallContext {
     fn set_clk(&mut self, clk: u64);
     /// Set the exit code of the program.
     fn set_exit_code(&mut self, exit_code: u32);
+    /// Record one word of the public value digest emitted by a `COMMIT` syscall.
+    ///
+    /// `word_idx` must be `< PUBLIC_VALUE_DIGEST_WORDS`.
+    fn set_public_value_digest_word(&mut self, word_idx: u64, digest_word: u32);
     /// Returns if were in unconstrained mode.
     fn is_unconstrained(&self) -> bool;
     /// Get the global clock (total cycles executed).
@@ -282,6 +292,15 @@ impl SyscallContext for JitContext {
         self.exit_code = exit_code;
     }
 
+    fn set_public_value_digest_word(&mut self, word_idx: u64, digest_word: u32) {
+        let idx = word_idx as usize;
+        debug_assert!(
+            idx < PUBLIC_VALUE_DIGEST_WORDS,
+            "public value digest word index out of bounds: {idx}"
+        );
+        self.public_value_digest[idx] = digest_word;
+    }
+
     fn is_unconstrained(&self) -> bool {
         self.is_unconstrained == 1
     }
@@ -373,6 +392,8 @@ pub struct JitContext {
     pub(crate) debug_sender: Option<mpsc::SyncSender<Option<debug::State>>>,
     /// The exit code of the program.
     pub(crate) exit_code: u32,
+    /// The public value digest words emitted by `COMMIT` syscalls.
+    pub public_value_digest: [u32; PUBLIC_VALUE_DIGEST_WORDS],
 }
 
 impl JitContext {

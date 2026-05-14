@@ -161,6 +161,13 @@ impl MinimalExecutorRunner {
         self.inner.into_public_values_stream()
     }
 
+    /// Get the public value digest words committed by the guest via `COMMIT` syscalls.
+    #[must_use]
+    #[inline]
+    pub fn public_value_digest(&self) -> [u32; sp1_jit::PUBLIC_VALUE_DIGEST_WORDS] {
+        self.inner.public_value_digest()
+    }
+
     /// Get the hints of the JIT function.
     #[must_use]
     #[inline]
