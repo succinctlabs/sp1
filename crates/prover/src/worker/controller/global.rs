@@ -153,10 +153,116 @@ impl GlobalMemoryHandler {
                     .blocking_recv()
                     .map_err(|_| anyhow::anyhow!("failed to receive final state"))?;
 
-                // Now emit memory init/finalize events with addresses in ascending order.
-                // Source A: the global touched bitmap (8-byte-aligned memory addresses).
-                // Source B: register addresses 0..32 whose timestamp != 0 (registers use the
-                // raw index as address and override any colliding bitmap entry).
+                // Get the split opts (needed up front to size shard buffers).
+                let split_opts = SplitOpts::new(
+                    &opts,
+                    program.instructions.len(),
+                    program.enable_untrusted_programs,
+                );
+                let threshold = split_opts.memory;
+
+                let mut previous_init_addr = 0u64;
+                let mut previous_finalize_addr = 0u64;
+                let mut previous_init_page_idx = 0u64;
+                let mut previous_finalize_page_idx = 0u64;
+                let mut shard_counter = 0usize;
+
+                // Streaming shard emission: instead of materializing the full
+                // `memory_initialize_events` and `memory_finalize_events` Vecs and then
+                // `.chunks(threshold)`-ing them, we accumulate per-shard buffers and emit
+                // a shard as soon as either buffer fills.
+                //
+                // Since `finalize_buffer` grows >= `init_buffer` at every step (program-image
+                // addresses push to finalize but not init), `finalize_buffer` always reaches
+                // `threshold` first or at the same time. The total shard count is therefore
+                // `ceil(N_finalize / threshold)`, matching what
+                // `max(ceil(N_init/threshold), ceil(N_finalize/threshold))` produced before.
+                let mut init_buffer: Vec<MemoryInitializeFinalizeEvent> =
+                    Vec::with_capacity(threshold);
+                let mut final_buffer: Vec<MemoryInitializeFinalizeEvent> =
+                    Vec::with_capacity(threshold);
+
+                // Macro to flush the current buffers as one global memory shard. Implemented
+                // as a macro (not a closure) so the borrow checker doesn't have to reason
+                // about simultaneous &mut borrows of the many surrounding locals.
+                macro_rules! flush_memory_shard {
+                    () => {{
+                        if !init_buffer.is_empty() || !final_buffer.is_empty() {
+                            let last_init_addr =
+                                init_buffer.last().map(|e| e.addr).unwrap_or(previous_init_addr);
+                            let last_finalize_addr = final_buffer
+                                .last()
+                                .map(|e| e.addr)
+                                .unwrap_or(previous_finalize_addr);
+                            let last_init_page_idx = previous_init_page_idx;
+                            let last_finalize_page_idx = previous_finalize_page_idx;
+                            tracing::debug!(
+                                shard_counter,
+                                init_len = init_buffer.len(),
+                                final_len = final_buffer.len(),
+                                last_init_addr,
+                                last_finalize_addr,
+                                "emit global memory shard"
+                            );
+                            let range = ShardRange {
+                                timestamp_range: (final_state.timestamp, final_state.timestamp),
+                                initialized_address_range: (previous_init_addr, last_init_addr),
+                                finalized_address_range: (
+                                    previous_finalize_addr,
+                                    last_finalize_addr,
+                                ),
+                                initialized_page_index_range: (
+                                    previous_init_page_idx,
+                                    last_init_page_idx,
+                                ),
+                                finalized_page_index_range: (
+                                    previous_finalize_page_idx,
+                                    last_finalize_page_idx,
+                                ),
+                                deferred_proof_range: (
+                                    num_deferred_proofs as u64,
+                                    num_deferred_proofs as u64,
+                                ),
+                            };
+                            // Swap the filled buffers out for fresh pre-allocated ones so we
+                            // don't reallocate on every flush.
+                            let initialize_events =
+                                std::mem::replace(&mut init_buffer, Vec::with_capacity(threshold));
+                            let finalize_events =
+                                std::mem::replace(&mut final_buffer, Vec::with_capacity(threshold));
+                            let mem_global_shard = GlobalMemoryShard {
+                                final_state,
+                                initialize_events,
+                                finalize_events,
+                                page_prot_initialize_events: vec![],
+                                page_prot_finalize_events: vec![],
+                                previous_init_addr,
+                                previous_finalize_addr,
+                                previous_init_page_idx,
+                                previous_finalize_page_idx,
+                                last_init_addr,
+                                last_finalize_addr,
+                                last_init_page_idx,
+                                last_finalize_page_idx,
+                            };
+                            let data = TraceData::Memory(Box::new(mem_global_shard));
+                            shard_data_tx
+                                .send((range, data))
+                                .map_err(|e| anyhow::anyhow!("failed to send shard data: {}", e))?;
+                            previous_init_addr = last_init_addr;
+                            previous_finalize_addr = last_finalize_addr;
+                            previous_init_page_idx = last_init_page_idx;
+                            previous_finalize_page_idx = last_finalize_page_idx;
+                            shard_counter += 1;
+                        }
+                    }};
+                }
+
+                // Now stream-merge the global touched bitmap and register addresses in
+                // ascending order, pushing init/finalize events into the buffers.
+                // Source A: the bitmap (8-byte-aligned memory addresses).
+                // Source B: register addresses 0..32 with timestamp != 0 — registers use the
+                // raw index as address and override any colliding bitmap entry.
                 let bitmap_addrs = touched_global.is_set();
                 let register_addrs: Vec<u64> = final_state
                     .registers
@@ -165,18 +271,11 @@ impl GlobalMemoryHandler {
                     .filter(|(_, e)| e.timestamp != 0)
                     .map(|(i, _)| i as u64)
                     .collect();
-                // register_addrs is already sorted ascending by construction (iter().enumerate()).
-
-                let capacity_hint = bitmap_addrs.len() + register_addrs.len();
-                let mut memory_initialize_events: Vec<MemoryInitializeFinalizeEvent> =
-                    Vec::with_capacity(capacity_hint);
-                let mut memory_finalize_events: Vec<MemoryInitializeFinalizeEvent> =
-                    Vec::with_capacity(capacity_hint);
+                // register_addrs is already sorted ascending (iter().enumerate()).
 
                 let mut bit_i = 0usize;
                 let mut reg_i = 0usize;
                 while bit_i < bitmap_addrs.len() || reg_i < register_addrs.len() {
-                    // Peek at the next address from each stream.
                     let (use_reg, addr) = match (
                         bitmap_addrs.get(bit_i).copied(),
                         register_addrs.get(reg_i).copied(),
@@ -194,37 +293,37 @@ impl GlobalMemoryHandler {
                     };
                     if use_reg {
                         let entry = &final_state.registers[addr as usize];
-                        // Registers always get init=0 and finalize from final_state.
-                        memory_initialize_events
-                            .push(MemoryInitializeFinalizeEvent::initialize(addr, 0));
-                        memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize(
+                        init_buffer.push(MemoryInitializeFinalizeEvent::initialize(addr, 0));
+                        final_buffer.push(MemoryInitializeFinalizeEvent::finalize(
                             addr,
                             entry.value,
                             entry.timestamp,
                         ));
                         reg_i += 1;
-                        // If the bitmap also has this exact address, skip it — register overrides.
                         if bitmap_addrs.get(bit_i).copied() == Some(addr) {
                             bit_i += 1;
                         }
                     } else {
                         bit_i += 1;
-                        // Init event: skip for program-memory-image; use hint value if present;
-                        // otherwise default to 0.
                         if !program.memory_image.contains_key(&addr) {
                             let init_value = hint_init_values.get(&addr).copied().unwrap_or(0);
-                            memory_initialize_events.push(
-                                MemoryInitializeFinalizeEvent::initialize(addr, init_value),
-                            );
+                            init_buffer
+                                .push(MemoryInitializeFinalizeEvent::initialize(addr, init_value));
                         }
-                        // Finalize event: read the final value from live SHM. Safe because the
-                        // minimal executor is still alive (we awaited it above).
                         let v = unsafe { memory.get(addr) };
-                        memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize(
-                            addr, v.value, v.clk,
-                        ));
+                        final_buffer
+                            .push(MemoryInitializeFinalizeEvent::finalize(addr, v.value, v.clk));
+                    }
+                    if init_buffer.len() >= threshold || final_buffer.len() >= threshold {
+                        flush_memory_shard!();
                     }
                 }
+                // Emit any trailing partial shard.
+                flush_memory_shard!();
+                tracing::debug!(
+                    total_memory_shards = shard_counter,
+                    "memory shard emission complete"
+                );
 
                 // Collect page prot events if untrusted programs are enabled.
                 let (page_prot_initialize_events, page_prot_finalize_events) =
@@ -239,8 +338,7 @@ impl GlobalMemoryHandler {
                         let mut finalize_events = Vec::with_capacity(pages_sorted.len());
 
                         for &page_idx in &pages_sorted {
-                            let record =
-                                minimal_executor.get_page_prot_record(page_idx).unwrap();
+                            let record = minimal_executor.get_page_prot_record(page_idx).unwrap();
 
                             if !program.page_prot_image.contains_key(&page_idx) {
                                 init_events.push(PageProtInitializeFinalizeEvent::initialize(
@@ -263,96 +361,6 @@ impl GlobalMemoryHandler {
                         (vec![], vec![])
                     };
 
-                // Get the split opts.
-                let split_opts = SplitOpts::new(
-                    &opts,
-                    program.instructions.len(),
-                    program.enable_untrusted_programs,
-                );
-                let threshold = split_opts.memory;
-
-                let mut previous_init_addr = 0;
-                let mut previous_finalize_addr = 0;
-                let mut previous_init_page_idx = 0;
-                let mut previous_finalize_page_idx = 0;
-                for (i, chunks) in memory_initialize_events
-                    .chunks(threshold)
-                    .zip_longest(memory_finalize_events.chunks(threshold))
-                    .enumerate()
-                {
-                    let (initialize_events, finalize_events) = match chunks {
-                        itertools::EitherOrBoth::Left(initialize_events) => {
-                            let mut init_events = Vec::with_capacity(threshold);
-                            init_events.extend_from_slice(initialize_events);
-                            (init_events, vec![])
-                        }
-                        itertools::EitherOrBoth::Right(finalize_events) => {
-                            let mut final_events = Vec::with_capacity(threshold);
-                            final_events.extend_from_slice(finalize_events);
-                            (vec![], final_events)
-                        }
-                        itertools::EitherOrBoth::Both(initialize_events, finalize_events) => {
-                            let mut init_events = Vec::with_capacity(threshold);
-                            init_events.extend_from_slice(initialize_events);
-                            let mut final_events = Vec::with_capacity(threshold);
-                            final_events.extend_from_slice(finalize_events);
-                            (init_events, final_events)
-                        }
-                    };
-                    tracing::debug!("Got global memory shard number {i}");
-                    let last_init_addr = initialize_events
-                        .last()
-                        .map(|event| event.addr)
-                        .unwrap_or(previous_init_addr);
-                    let last_finalize_addr = finalize_events
-                        .last()
-                        .map(|event| event.addr)
-                        .unwrap_or(previous_finalize_addr);
-                    tracing::debug!("last_init_addr: {last_init_addr}, last_finalize_addr: {last_finalize_addr}");
-                    let last_init_page_idx = previous_init_page_idx;
-                    let last_finalize_page_idx = previous_finalize_page_idx;
-                    // Calculate the range of the shard.
-                    let range = ShardRange {
-                        timestamp_range: (final_state.timestamp, final_state.timestamp),
-                        initialized_address_range: (previous_init_addr, last_init_addr),
-                        finalized_address_range: (previous_finalize_addr, last_finalize_addr),
-                        initialized_page_index_range: (previous_init_page_idx, last_init_page_idx),
-                        finalized_page_index_range: (
-                            previous_finalize_page_idx,
-                            last_finalize_page_idx,
-                        ),
-                        deferred_proof_range: (
-                            num_deferred_proofs as u64,
-                            num_deferred_proofs as u64,
-                        ),
-                    };
-                    let mem_global_shard = GlobalMemoryShard {
-                        final_state,
-                        initialize_events,
-                        finalize_events,
-                        page_prot_initialize_events: vec![],
-                        page_prot_finalize_events: vec![],
-                        previous_init_addr,
-                        previous_finalize_addr,
-                        previous_init_page_idx,
-                        previous_finalize_page_idx,
-                        last_init_addr,
-                        last_finalize_addr,
-                        last_init_page_idx,
-                        last_finalize_page_idx,
-                    };
-
-                    let data = TraceData::Memory(Box::new(mem_global_shard));
-                    shard_data_tx
-                        .send((range, data))
-                        .map_err(|e| anyhow::anyhow!("failed to send shard data: {}", e))?;
-
-                    previous_init_addr = last_init_addr;
-                    previous_finalize_addr = last_finalize_addr;
-                    previous_init_page_idx = last_init_page_idx;
-                    previous_finalize_page_idx = last_finalize_page_idx;
-                }
-
                 // Emit page prot shards (separate from memory shards).
                 let page_prot_threshold = split_opts.page_prot;
                 if page_prot_threshold > 0 {
@@ -361,12 +369,8 @@ impl GlobalMemoryHandler {
                         .zip_longest(page_prot_finalize_events.chunks(page_prot_threshold))
                     {
                         let (pp_init_events, pp_finalize_events) = match chunks {
-                            itertools::EitherOrBoth::Left(init) => {
-                                (init.to_vec(), vec![])
-                            }
-                            itertools::EitherOrBoth::Right(fin) => {
-                                (vec![], fin.to_vec())
-                            }
+                            itertools::EitherOrBoth::Left(init) => (init.to_vec(), vec![]),
+                            itertools::EitherOrBoth::Right(fin) => (vec![], fin.to_vec()),
                             itertools::EitherOrBoth::Both(init, fin) => {
                                 (init.to_vec(), fin.to_vec())
                             }
