@@ -19,6 +19,63 @@ namespace cg = cooperative_groups;
 #define DEBUG(...) // Do nothing
 #endif
 
+// Ablation experiments for jaggedConstraintPolyEval. 0 = baseline.
+//   1: skip all instruction side effects.
+//   2: skip side effects in FAssign opcodes (1..3) only.
+//   3: replace loads in FAssign opcodes with K::from_ind(instr.b ^ threadIdx.x).
+//   4: skip side effects in field-op opcodes (4..25, 59).
+//   5: replace var_f calls in field-op opcodes with K::from_ind(idx ^ threadIdx.x).
+//   6: replace all loads (var_f, evalConstantsF, expr_f, powersOfAlpha) in field-op opcodes.
+#ifndef ABLATION_MODE
+#define ABLATION_MODE 0
+#endif
+
+#if (ABLATION_MODE == 1) || (ABLATION_MODE == 2)
+#define ABL_SKIP_FASSIGN 1
+#else
+#define ABL_SKIP_FASSIGN 0
+#endif
+
+#if (ABLATION_MODE == 1) || (ABLATION_MODE == 4)
+#define ABL_SKIP_FIELDOP 1
+#else
+#define ABL_SKIP_FIELDOP 0
+#endif
+
+#if (ABLATION_MODE == 3)
+#define ABL_SYNTH_FASSIGN 1
+#else
+#define ABL_SYNTH_FASSIGN 0
+#endif
+
+#if (ABLATION_MODE == 5) || (ABLATION_MODE == 6)
+#define ABL_SYNTH_FIELDOP_VARF 1
+#else
+#define ABL_SYNTH_FIELDOP_VARF 0
+#endif
+
+#if (ABLATION_MODE == 6)
+#define ABL_SYNTH_FIELDOP_ALL 1
+#else
+#define ABL_SYNTH_FIELDOP_ALL 0
+#endif
+
+#if ABL_SYNTH_FIELDOP_VARF
+#define ABL_VARF(variant, idx) K::from_ind((idx) ^ threadIdx.x)
+#else
+#define ABL_VARF(variant, idx) folder.var_f((variant), (idx))
+#endif
+
+#if ABL_SYNTH_FIELDOP_ALL
+#define ABL_CONST_F(off, idx) K::from_ind((idx) ^ threadIdx.x)
+#define ABL_EXPR_F(idx)       K::from_ind((idx) ^ threadIdx.x)
+#define ABL_POW_ALPHA(idx)    ext_t::from_ind((idx) ^ threadIdx.x)
+#else
+#define ABL_CONST_F(off, idx) evalConstantsF[(off) + (idx)]
+#define ABL_EXPR_F(idx)       expr_f[idx]
+#define ABL_POW_ALPHA(idx)    folder.powersOfAlpha[idx]
+#endif
+
 __device__ inline unsigned char get_input_point(size_t idx) {
     return (unsigned char)(2 * idx);
 }
@@ -114,20 +171,40 @@ __global__ void jaggedConstraintPolyEval(
 
             case 1:
                 DEBUG("FAssignC: %d <- %d\n", instr.a, instr.b);
+#if !ABL_SKIP_FASSIGN
+#if ABL_SYNTH_FASSIGN
+                expr_f[instr.a] = K::from_ind(instr.b ^ threadIdx.x);
+#else
                 expr_f[instr.a] = evalConstantsF[f_constant_offset + instr.b];
+#endif
+#endif
                 break;
             case 2:
                 DEBUG("FAssignV: %d <- (%d, %d)\n", instr.a, instr.b_variant, instr.b);
+#if !ABL_SKIP_FASSIGN
+#if ABL_SYNTH_FASSIGN
+                expr_f[instr.a] = K::from_ind(instr.b ^ threadIdx.x);
+#else
                 expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b);
+#endif
+#endif
                 break;
             case 3:
                 DEBUG("FAssignE: %d <- %d\n", instr.a, instr.b);
+#if !ABL_SKIP_FASSIGN
+#if ABL_SYNTH_FASSIGN
+                expr_f[instr.a] = K::from_ind(instr.b ^ threadIdx.x);
+#else
                 expr_f[instr.a] = expr_f[instr.b];
+#endif
+#endif
                 break;
             case 4:
                 DEBUG("FAddVC: %d <- %d + %d\n", instr.a, instr.b_variant, instr.b);
-                expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b) +
-                                    evalConstantsF[f_constant_offset + instr.c];
+#if !ABL_SKIP_FIELDOP
+                expr_f[instr.a] = ABL_VARF(instr.b_variant, instr.b) +
+                                    ABL_CONST_F(f_constant_offset, instr.c);
+#endif
                 break;
             case 5:
                 DEBUG(
@@ -137,8 +214,10 @@ __global__ void jaggedConstraintPolyEval(
                     instr.b,
                     instr.c_variant,
                     instr.c);
-                expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b) +
-                                    folder.var_f(instr.c_variant, instr.c);
+#if !ABL_SKIP_FIELDOP
+                expr_f[instr.a] = ABL_VARF(instr.b_variant, instr.b) +
+                                    ABL_VARF(instr.c_variant, instr.c);
+#endif
                 break;
             case 6:
                 DEBUG(
@@ -147,12 +226,16 @@ __global__ void jaggedConstraintPolyEval(
                     instr.b_variant,
                     instr.b,
                     instr.c);
-                expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b) + expr_f[instr.c];
+#if !ABL_SKIP_FIELDOP
+                expr_f[instr.a] = ABL_VARF(instr.b_variant, instr.b) + ABL_EXPR_F(instr.c);
+#endif
                 break;
 
             case 7:
                 DEBUG("FAddEC: %d <- %d + %d\n", instr.a, instr.b_variant, instr.b);
-                expr_f[instr.a] = expr_f[instr.b] + evalConstantsF[f_constant_offset + instr.c];
+#if !ABL_SKIP_FIELDOP
+                expr_f[instr.a] = ABL_EXPR_F(instr.b) + ABL_CONST_F(f_constant_offset, instr.c);
+#endif
                 break;
             case 8:
                 DEBUG(
@@ -161,21 +244,33 @@ __global__ void jaggedConstraintPolyEval(
                     instr.b,
                     instr.c_variant,
                     instr.c);
-                expr_f[instr.a] = expr_f[instr.b] + folder.var_f(instr.c_variant, instr.c);
+#if !ABL_SKIP_FIELDOP
+                expr_f[instr.a] = ABL_EXPR_F(instr.b) + ABL_VARF(instr.c_variant, instr.c);
+#endif
                 break;
             case 9:
                 DEBUG("FAddEE: %d <- %d + %d\n", instr.a, instr.b, instr.c);
-                expr_f[instr.a] = expr_f[instr.b] + expr_f[instr.c];
+#if !ABL_SKIP_FIELDOP
+                expr_f[instr.a] = ABL_EXPR_F(instr.b) + ABL_EXPR_F(instr.c);
+#endif
                 break;
             case 10:
                 DEBUG("FAddAssignE: %d <- %d\n", instr.a, instr.b);
+#if !ABL_SKIP_FIELDOP
+#if ABL_SYNTH_FIELDOP_ALL
+                expr_f[instr.a] = ABL_EXPR_F(instr.a) + ABL_EXPR_F(instr.b);
+#else
                 expr_f[instr.a] += expr_f[instr.b];
+#endif
+#endif
                 break;
 
             case 11:
                 DEBUG("FSubVC: %d <- %d - %d\n", instr.a, instr.b_variant, instr.b);
-                expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b) -
-                                    evalConstantsF[f_constant_offset + instr.c];
+#if !ABL_SKIP_FIELDOP
+                expr_f[instr.a] = ABL_VARF(instr.b_variant, instr.b) -
+                                    ABL_CONST_F(f_constant_offset, instr.c);
+#endif
                 break;
             case 12:
                 DEBUG(
@@ -185,8 +280,10 @@ __global__ void jaggedConstraintPolyEval(
                     instr.b,
                     instr.c_variant,
                     instr.c);
-                expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b) -
-                                    folder.var_f(instr.c_variant, instr.c);
+#if !ABL_SKIP_FIELDOP
+                expr_f[instr.a] = ABL_VARF(instr.b_variant, instr.b) -
+                                    ABL_VARF(instr.c_variant, instr.c);
+#endif
                 break;
             case 13:
                 DEBUG(
@@ -195,12 +292,16 @@ __global__ void jaggedConstraintPolyEval(
                     instr.b_variant,
                     instr.b,
                     instr.c);
-                expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b) - expr_f[instr.c];
+#if !ABL_SKIP_FIELDOP
+                expr_f[instr.a] = ABL_VARF(instr.b_variant, instr.b) - ABL_EXPR_F(instr.c);
+#endif
                 break;
 
             case 14:
                 DEBUG("FSubEC: %d <- %d - %d\n", instr.a, instr.b, instr.c);
-                expr_f[instr.a] = expr_f[instr.b] - evalConstantsF[f_constant_offset + instr.c];
+#if !ABL_SKIP_FIELDOP
+                expr_f[instr.a] = ABL_EXPR_F(instr.b) - ABL_CONST_F(f_constant_offset, instr.c);
+#endif
                 break;
             case 15:
                 DEBUG(
@@ -209,21 +310,33 @@ __global__ void jaggedConstraintPolyEval(
                     instr.b,
                     instr.c_variant,
                     instr.c);
-                expr_f[instr.a] = expr_f[instr.b] - folder.var_f(instr.c_variant, instr.c);
+#if !ABL_SKIP_FIELDOP
+                expr_f[instr.a] = ABL_EXPR_F(instr.b) - ABL_VARF(instr.c_variant, instr.c);
+#endif
                 break;
             case 16:
                 DEBUG("FSubEE: %d <- %d - %d\n", instr.a, instr.b, instr.c);
-                expr_f[instr.a] = expr_f[instr.b] - expr_f[instr.c];
+#if !ABL_SKIP_FIELDOP
+                expr_f[instr.a] = ABL_EXPR_F(instr.b) - ABL_EXPR_F(instr.c);
+#endif
                 break;
             case 17:
                 DEBUG("FSubAssignE: %d <- %d\n", instr.a, instr.b);
+#if !ABL_SKIP_FIELDOP
+#if ABL_SYNTH_FIELDOP_ALL
+                expr_f[instr.a] = ABL_EXPR_F(instr.a) - ABL_EXPR_F(instr.b);
+#else
                 expr_f[instr.a] -= expr_f[instr.b];
+#endif
+#endif
                 break;
 
             case 18:
                 DEBUG("FMulVC: %d <- %d * %d\n", instr.a, instr.b_variant, instr.b);
-                expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b) *
-                                    evalConstantsF[f_constant_offset + instr.c];
+#if !ABL_SKIP_FIELDOP
+                expr_f[instr.a] = ABL_VARF(instr.b_variant, instr.b) *
+                                    ABL_CONST_F(f_constant_offset, instr.c);
+#endif
                 break;
             case 19:
                 DEBUG(
@@ -233,8 +346,10 @@ __global__ void jaggedConstraintPolyEval(
                     instr.b,
                     instr.c_variant,
                     instr.c);
-                expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b) *
-                                    folder.var_f(instr.c_variant, instr.c);
+#if !ABL_SKIP_FIELDOP
+                expr_f[instr.a] = ABL_VARF(instr.b_variant, instr.b) *
+                                    ABL_VARF(instr.c_variant, instr.c);
+#endif
                 break;
             case 20:
                 DEBUG(
@@ -243,12 +358,16 @@ __global__ void jaggedConstraintPolyEval(
                     instr.b_variant,
                     instr.b,
                     instr.c);
-                expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b) * expr_f[instr.c];
+#if !ABL_SKIP_FIELDOP
+                expr_f[instr.a] = ABL_VARF(instr.b_variant, instr.b) * ABL_EXPR_F(instr.c);
+#endif
                 break;
 
             case 21:
                 DEBUG("FMulEC: %d <- %d * %d\n", instr.a, instr.b_variant, instr.b);
-                expr_f[instr.a] = expr_f[instr.b] * evalConstantsF[f_constant_offset + instr.c];
+#if !ABL_SKIP_FIELDOP
+                expr_f[instr.a] = ABL_EXPR_F(instr.b) * ABL_CONST_F(f_constant_offset, instr.c);
+#endif
                 break;
             case 22:
                 DEBUG(
@@ -257,30 +376,44 @@ __global__ void jaggedConstraintPolyEval(
                     instr.b,
                     instr.c_variant,
                     instr.c);
-                expr_f[instr.a] = expr_f[instr.b] * folder.var_f(instr.c_variant, instr.c);
+#if !ABL_SKIP_FIELDOP
+                expr_f[instr.a] = ABL_EXPR_F(instr.b) * ABL_VARF(instr.c_variant, instr.c);
+#endif
                 break;
             case 23:
                 DEBUG("FMulEE: %d <- %d * %d\n", instr.a, instr.b, instr.c);
                 DEBUG("FMulEE Input: %d, %d\n", expr_f[instr.b], expr_f[instr.c]);
-                expr_f[instr.a] = expr_f[instr.b] * expr_f[instr.c];
+#if !ABL_SKIP_FIELDOP
+                expr_f[instr.a] = ABL_EXPR_F(instr.b) * ABL_EXPR_F(instr.c);
+#endif
                 DEBUG("FMulEE Output: %d\n", expr_f[instr.a]);
                 break;
             case 24:
                 DEBUG("FMulAssignE: %d <- %d\n", instr.a, instr.b);
+#if !ABL_SKIP_FIELDOP
+#if ABL_SYNTH_FIELDOP_ALL
+                expr_f[instr.a] = ABL_EXPR_F(instr.a) * ABL_EXPR_F(instr.b);
+#else
                 expr_f[instr.a] *= expr_f[instr.b];
+#endif
+#endif
                 break;
 
             case 25:
                 DEBUG("FNegE: %d <- -%d\n", instr.a, instr.b);
-                expr_f[instr.a] = -expr_f[instr.b];
+#if !ABL_SKIP_FIELDOP
+                expr_f[instr.a] = -ABL_EXPR_F(instr.b);
+#endif
                 break;
 
             case 59:
                 DEBUG("FAssertZero: %d\n", instr.a);
+#if !ABL_SKIP_FIELDOP
                 folder.accumulator +=
-                    (folder.powersOfAlpha[folder.constraintIndex] *
-                        expr_f[instr.a]);
+                    (ABL_POW_ALPHA(folder.constraintIndex) *
+                        ABL_EXPR_F(instr.a));
                 folder.constraintIndex++;
+#endif
                 break;
             }
         }
