@@ -41,7 +41,7 @@ class kb31_extension_t {
     }
 
 
-    static inline const kb31_extension_t from_ind(uint32_t i) {
+    static __device__ __forceinline__ const kb31_extension_t from_ind(uint32_t i) {
         return kb31_extension_t(i, i + 1, i + 2, i + 3);
     }
 
