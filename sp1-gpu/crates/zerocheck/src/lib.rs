@@ -648,7 +648,7 @@ where
     univariate_polys.push(result);
     jagged_point.add_dimension(point);
     let mut next_poly = zerocheck_fix_last_variable(main_poly, point, next_claim);
-    for _ in 0..max_log_row_count - 1 {
+    for _ in 0..2 {
         result = evaluate_zerocheck(&next_poly);
         (point, next_claim) = challenger_update(&result, challenger);
         univariate_polys.push(result);
@@ -656,37 +656,33 @@ where
         next_poly = zerocheck_fix_last_variable(next_poly, point, next_claim);
     }
 
-    let final_jagged_data =
-        unsafe { next_poly.data.as_ref().dense_data.dense.copy_into_host_vec() };
+    // let final_jagged_data =
+    //     unsafe { next_poly.data.as_ref().dense_data.dense.copy_into_host_vec() };
 
-    let mut idx = 0;
-    let mut individual_column_evals = vec![Ext::zero(); data_input_heights.len()];
-    for i in 0..data_input_heights.len() {
-        if data_input_heights[i] != 0 {
-            individual_column_evals[i] = final_jagged_data[idx];
-            idx += 4;
-        }
-    }
+    // let mut idx = 0;
+    // let mut individual_column_evals = vec![Ext::zero(); data_input_heights.len()];
+    // for i in 0..data_input_heights.len() {
+    //     if data_input_heights[i] != 0 {
+    //         individual_column_evals[i] = final_jagged_data[idx];
+    //         idx += 4;
+    //     }
+    // }
 
-    let mut preprocessed_ptr = 0;
-    let mut main_ptr = total_preprocessed_columns;
+    // let mut preprocessed_ptr = 0;
+    // let mut main_ptr = total_preprocessed_columns;
     let mut opened_values: BTreeMap<String, ChipOpenedValues<Felt, Ext>> = BTreeMap::new();
-    challenger.observe(Felt::from_canonical_usize(chips.len()));
+    // challenger.observe(Felt::from_canonical_usize(chips.len()));
     for (i, chip) in chips.iter().enumerate() {
         let preprocessed_width = chip.preprocessed_width();
-        let preprocessed = AirOpenedValues {
-            local: individual_column_evals[preprocessed_ptr..preprocessed_ptr + preprocessed_width]
-                .to_vec(),
-        };
+        let preprocessed = AirOpenedValues { local: vec![Ext::zero(); preprocessed_width] };
         challenger.observe_variable_length_extension_slice(&preprocessed.local);
-        preprocessed_ptr += preprocessed_width;
+        // preprocessed_ptr += preprocessed_width;
 
         let width = chip.width();
 
-        let main =
-            AirOpenedValues { local: individual_column_evals[main_ptr..main_ptr + width].to_vec() };
+        let main = AirOpenedValues { local: vec![Ext::zero(); width] };
         challenger.observe_variable_length_extension_slice(&main.local);
-        main_ptr += width;
+        // main_ptr += width;
 
         opened_values.insert(
             chip.air.name().to_string(),
