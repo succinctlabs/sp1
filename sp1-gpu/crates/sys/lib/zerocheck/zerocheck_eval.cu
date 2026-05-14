@@ -27,7 +27,7 @@ namespace cg = cooperative_groups;
 //   5: replace var_f calls in field-op opcodes with K::from_ind(idx ^ threadIdx.x).
 //   6: replace all loads (var_f, evalConstantsF, expr_f, powersOfAlpha) in field-op opcodes.
 #ifndef ABLATION_MODE
-#define ABLATION_MODE 3
+#define ABLATION_MODE 4
 #endif
 
 #if (ABLATION_MODE == 1) || (ABLATION_MODE == 2)
