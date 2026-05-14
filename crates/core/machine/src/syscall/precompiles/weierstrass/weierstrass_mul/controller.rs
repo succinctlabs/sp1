@@ -1,6 +1,6 @@
 use core::{borrow::Borrow, marker::PhantomData, mem::size_of, mem::MaybeUninit};
 
-use slop_air::{Air, AirBuilder, BaseAir};
+use slop_air::{Air, BaseAir};
 use slop_algebra::PrimeField32;
 use slop_matrix::Matrix;
 use sp1_core_executor::{ExecutionRecord, Program, SyscallCode};
@@ -11,6 +11,7 @@ use sp1_hypercube::air::MachineAir;
 use crate::{air::SP1CoreAirBuilder, TrustMode};
 
 /// Columns for a Weierstrass scalar-multiplication chip.
+/// This is implemented as a controller chip that calls some internal chips.
 ///
 /// TODO: lay out the columns required to constrain `p ← scalar * p`.
 #[derive(Debug, Clone, AlignedBorrow)]
@@ -155,26 +156,21 @@ mod tests {
                 GasEstimatingVMEnum::new(chunk, program.clone(), proof_nonce, opts.clone());
             report += vm.execute().expect("gas-estimating replay failed");
         }
-        println!("\n=== ExecutionReport ===\n{report}=== end ===");
+        eprintln!("\n=== ExecutionReport ===\n{report}=== end ===");
 
         // Phase 2b: tracing replay → ExecutionRecord with PrecompileEvents.
         let mut total_mul_events = 0usize;
         for chunk in &chunks {
             let mut record =
                 ExecutionRecord::new(program.clone(), proof_nonce, opts.global_dependencies_opt);
-            let mut vm = TracingVMEnum::new(
-                chunk,
-                program.clone(),
-                opts.clone(),
-                proof_nonce,
-                &mut record,
-            );
+            let mut vm =
+                TracingVMEnum::new(chunk, program.clone(), opts.clone(), proof_nonce, &mut record);
             vm.execute().expect("tracing replay failed");
             drop(vm);
 
             total_mul_events += record.get_precompile_events(SyscallCode::SECP256K1_MUL).len();
         }
-        println!("tracing executor emitted {total_mul_events} Secp256k1Mul events");
+        eprintln!("tracing executor emitted {total_mul_events} Secp256k1Mul events");
 
         // The guest program issues `mul_assign` four times. Both the report's syscall counter
         // and the tracing record's event count should agree on that number.

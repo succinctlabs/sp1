@@ -27,7 +27,8 @@
       "Bash(sed -n '385,410p' /Users/rdalalsuccinct/Documents/sp1/crates/curves/src/weierstrass/mod.rs)",
       "Bash(sed -n '120,140p' /Users/rdalalsuccinct/Documents/sp1/crates/curves/src/weierstrass/secp256k1.rs)",
       "Read(//Users/rdalalsuccinct/Documents/sp1-bench-main/examples/rsp/script/**)",
-      "Read(//Users/rdalalsuccinct/Documents/sp1-bench-main/crates/perf/src/bin/**)"
+      "Read(//Users/rdalalsuccinct/Documents/sp1-bench-main/crates/perf/src/bin/**)",
+      "mcp__notion__notion-fetch"
     ],
     "additionalDirectories": [
       "/Users/rdalalsuccinct/Documents/sp1-bench-main/examples/rsp/script",

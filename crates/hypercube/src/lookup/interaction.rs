@@ -77,6 +77,12 @@ pub enum InteractionKind {
 
     /// Interaction with the `PageProtGlobalFinalize` chip.
     PageProtGlobalFinalizeControl = 21,
+
+    /// Memory Interaction within the `EC_MUL` chip.
+    EcMulMemory = 22,
+
+    /// Opcode Interaction within the `EC_MUL` chip.
+    EcMulOpcode = 23,
 }
 
 impl InteractionKind {
@@ -102,11 +108,14 @@ impl InteractionKind {
             InteractionKind::PageProtGlobalInitControl,
             InteractionKind::PageProtGlobalFinalizeControl,
             InteractionKind::PageProt,
+            InteractionKind::EcMulMemory,
+            InteractionKind::EcMulOpcode,
         ]
     }
 
     #[must_use]
     /// The number of `values` sent and received for each interaction kind.
+    /// (not counting the value determining the kind)
     pub fn num_values(&self) -> usize {
         match self {
             InteractionKind::Memory => 9,
@@ -132,6 +141,11 @@ impl InteractionKind {
             | InteractionKind::PageProtGlobalFinalizeControl
             | InteractionKind::MemoryGlobalInitControl
             | InteractionKind::MemoryGlobalFinalizeControl => 5,
+            // (clk_high, clk_low, c) plus two EC points each carrying x and y as
+            // `NB_LIMBS = 32` 8-bit limbs for secp256k1, so 3 + 4 * 32 = 131.
+            InteractionKind::EcMulMemory => 131,
+            // (clk_high, clk_low, c, op, first_add_marker).
+            InteractionKind::EcMulOpcode => 5,
         }
     }
 
@@ -241,6 +255,8 @@ impl Display for InteractionKind {
             InteractionKind::PageProtGlobalFinalizeControl => {
                 write!(f, "PageProtGlobalFinalizeControl")
             }
+            InteractionKind::EcMulMemory => write!(f, "EcMulMemory"),
+            InteractionKind::EcMulOpcode => write!(f, "EcMulOpcode"),
         }
     }
 }
