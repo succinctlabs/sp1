@@ -1,13 +1,10 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
+use std::sync::Arc;
 
 use itertools::Itertools;
 use sp1_core_executor::{
     chunked_memory_init_events,
     events::{MemoryInitializeFinalizeEvent, PageProtInitializeFinalizeEvent},
-    Program, SP1CoreOpts, SplitOpts, UnsafeMemory,
+    CompressedMemory, CompressedPages, Program, SP1CoreOpts, SplitOpts, UnsafeMemory,
 };
 use sp1_core_executor_runner::MinimalExecutorRunner;
 use sp1_hypercube::air::ShardRange;
@@ -25,15 +22,9 @@ use crate::worker::{
     WorkerClient,
 };
 
-pub struct SpliceAddresses {
-    start_clk: u64,
-    end_clk: u64,
-    addresses: Vec<u64>,
-}
-
 #[derive(Clone)]
 pub struct TouchedAddresses {
-    inner: mpsc::Sender<SpliceAddresses>,
+    inner: mpsc::Sender<CompressedMemory>,
 }
 
 impl std::fmt::Debug for TouchedAddresses {
@@ -43,34 +34,20 @@ impl std::fmt::Debug for TouchedAddresses {
 }
 
 impl TouchedAddresses {
-    pub fn blocking_extend(
-        &self,
-        start_clk: u64,
-        end_clk: u64,
-        addresses: Vec<u64>,
-    ) -> anyhow::Result<()> {
-        self.inner.blocking_send(SpliceAddresses { start_clk, end_clk, addresses })?;
+    pub fn blocking_extend(&self, addresses: CompressedMemory) -> anyhow::Result<()> {
+        self.inner.blocking_send(addresses)?;
         Ok(())
     }
 
-    pub async fn extend(
-        &self,
-        start_clk: u64,
-        end_clk: u64,
-        addresses: Vec<u64>,
-    ) -> anyhow::Result<()> {
-        self.inner.send(SpliceAddresses { start_clk, end_clk, addresses }).await?;
+    pub async fn extend(&self, addresses: CompressedMemory) -> anyhow::Result<()> {
+        self.inner.send(addresses).await?;
         Ok(())
     }
-}
-
-pub struct SplicePages {
-    pub pages: Vec<u64>,
 }
 
 #[derive(Clone)]
 pub struct TouchedPages {
-    inner: mpsc::UnboundedSender<SplicePages>,
+    inner: mpsc::UnboundedSender<CompressedPages>,
 }
 
 impl std::fmt::Debug for TouchedPages {
@@ -80,20 +57,20 @@ impl std::fmt::Debug for TouchedPages {
 }
 
 impl TouchedPages {
-    pub fn blocking_extend(&self, pages: Vec<u64>) -> anyhow::Result<()> {
-        self.inner.send(SplicePages { pages })?;
+    pub fn blocking_extend(&self, pages: CompressedPages) -> anyhow::Result<()> {
+        self.inner.send(pages)?;
         Ok(())
     }
 
-    pub async fn extend(&self, pages: Vec<u64>) -> anyhow::Result<()> {
-        self.inner.send(SplicePages { pages })?;
+    pub async fn extend(&self, pages: CompressedPages) -> anyhow::Result<()> {
+        self.inner.send(pages)?;
         Ok(())
     }
 }
 
 pub struct GlobalMemoryHandler {
-    addresses_rx: mpsc::Receiver<SpliceAddresses>,
-    pages_rx: mpsc::UnboundedReceiver<SplicePages>,
+    addresses_rx: mpsc::Receiver<CompressedMemory>,
+    pages_rx: mpsc::UnboundedReceiver<CompressedPages>,
 }
 
 pub fn global_memory(capacity: usize) -> (TouchedAddresses, TouchedPages, GlobalMemoryHandler) {
@@ -134,190 +111,155 @@ impl GlobalMemoryHandler {
             let program = program.clone();
             move || {
                 let _guard = span.enter();
-                let mut initialized_events = BTreeMap::<u64, MemoryInitializeFinalizeEvent>::new();
-                let mut finalized_events = BTreeMap::<u64, MemoryInitializeFinalizeEvent>::new();
-                let mut dirty_addresses = BTreeSet::<u64>::new();
-                #[cfg(sp1_debug_global_memory)]
-                let mut touched_addresses = hashbrown::HashSet::<u64>::new();
 
-                // Collect the addresses
-                while let Some(addresses) = self.addresses_rx.blocking_recv() {
-                    let SpliceAddresses { start_clk, end_clk, addresses } = addresses;
-                    for addr in addresses {
-                        #[cfg(sp1_debug_global_memory)]
-                        touched_addresses.insert(addr);
-                        // Add the address to the initialized events map if it was not already initialized.
-                        initialized_events
-                            .entry(addr)
-                            .or_insert_with(|| MemoryInitializeFinalizeEvent::initialize(addr, 0));
-
-                        // Get the memory value
-                        // # Safety: since we are waiting for the minimal executor to finish, we assume that
-                        // it is still alive. However, if it did panic, the whole proof flow should fail
-                        // but the potential for undefined behavior is still there.
-                        let value = unsafe { memory.get(addr) };
-                        // If the value was touched after this splice has finished, add it to the 
-                        // dirty addresses set and skip the finalization.
-                        if value.clk > end_clk || value.clk < start_clk {
-                            dirty_addresses.insert(addr);
-                            continue;
-                        }
-                        // Add the address to the finalized events map. If it was already seen, 
-                        // update the value, timestamp and clk. Otherwise, create a new event and 
-                        // add it to the map.
-                        finalized_events
-                            .entry(addr)
-                            .and_modify(|entry| {
-                                if entry.timestamp < value.clk {
-                                   entry.value = value.value;
-                                   entry.timestamp = value.clk;
-                                }
-                            })
-                            .or_insert_with(|| {
-                                MemoryInitializeFinalizeEvent::finalize(
-                                    addr,
-                                    value.value,
-                                    value.clk,
-                                )
-                            });
-                        // If the address was previously dirty, remove it from the dirty addresses
-                        // set.
-                        dirty_addresses.remove(&addr);
-                    }
+                // Union the per-chunk touched-address bitmaps into a single global bitmap.
+                // Each merge OR's the per-chunk pages into the global pages — addresses are
+                // already 8-byte-aligned by construction (CompressedMemory's ALIGNMENT is 8).
+                let mut touched_global = CompressedMemory::new();
+                while let Some(chunk_mem) = self.addresses_rx.blocking_recv() {
+                    touched_global.merge(&chunk_mem);
                 }
 
-                // Collect the pages
-                let mut touched_pages = BTreeSet::<u64>::new();
-                while let Some(pages) = self.pages_rx.blocking_recv() {
-                    touched_pages.extend(pages.pages);
+                // Same for touched pages.
+                let mut touched_pages = CompressedPages::new();
+                while let Some(chunk_pages) = self.pages_rx.blocking_recv() {
+                    touched_pages.merge(&chunk_pages);
                 }
 
-                // Collect the hints
+                // Get the minimal executor (now done with execution) so we can look up final
+                // memory values via SHM-backed UnsafeMemory at drain time.
                 let minimal_executor = executor_rx
                     .blocking_recv()
                     .map_err(|_| anyhow::anyhow!("failed to receive minimal executor"))?;
-                let hint_init_events = minimal_executor
-                    .hints()
-                    .iter()
-                    .flat_map(|(addr, value)| chunked_memory_init_events(*addr, value));
-                for event in hint_init_events {
-                    #[cfg(sp1_debug_global_memory)]
-                    touched_addresses.insert(event.addr);
-                    // Initialize the hint address to the value of the hint
-                    initialized_events.insert(event.addr, event);
-                    // Finalize the addresses of hints.
-                    let value = minimal_executor.get_memory_value(event.addr);
-                    finalized_events.insert(
-                        event.addr,
-                        MemoryInitializeFinalizeEvent::finalize(event.addr, value.value, value.clk),
-                    );
-                }
-                // Finalize the dirty addresses.
-                for addr in dirty_addresses {
-                    let value = minimal_executor.get_memory_value(addr);
-                    finalized_events.insert(
-                        addr,
-                        MemoryInitializeFinalizeEvent::finalize(addr, value.value, value.clk),
-                    );
+
+                // Add hint init addresses to the global bitmap and stash their init values
+                // (hints get init events whose value is the hint chunk, not 0).
+                let mut hint_init_values: hashbrown::HashMap<u64, u64> = hashbrown::HashMap::new();
+                for (addr, value) in minimal_executor.hints().iter() {
+                    for event in chunked_memory_init_events(*addr, value) {
+                        touched_global.insert(event.addr, true);
+                        hint_init_values.insert(event.addr, event.value);
+                    }
                 }
 
-                // Wait for the final state
+                // Add program-memory-image addresses to the bitmap; they DO get finalize events,
+                // but NOT init events (initialization is folded into the program cumulative sum).
+                for &addr in program.memory_image.keys() {
+                    touched_global.insert(addr, true);
+                }
+
+                // Wait for the final VM state (registers).
                 let final_state = final_state_rx
                     .blocking_recv()
                     .map_err(|_| anyhow::anyhow!("failed to receive final state"))?;
 
-                for (i, entry) in
-                    final_state.registers.iter().enumerate().filter(|(_, e)| e.timestamp != 0)
-                {
-                    initialized_events
-                        .insert(i as u64, MemoryInitializeFinalizeEvent::initialize(i as u64, 0));
-                    finalized_events.insert(
-                        i as u64,
-                        MemoryInitializeFinalizeEvent::finalize(
-                            i as u64,
+                // Now emit memory init/finalize events with addresses in ascending order.
+                // Source A: the global touched bitmap (8-byte-aligned memory addresses).
+                // Source B: register addresses 0..32 whose timestamp != 0 (registers use the
+                // raw index as address and override any colliding bitmap entry).
+                let bitmap_addrs = touched_global.is_set();
+                let register_addrs: Vec<u64> = final_state
+                    .registers
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, e)| e.timestamp != 0)
+                    .map(|(i, _)| i as u64)
+                    .collect();
+                // register_addrs is already sorted ascending by construction (iter().enumerate()).
+
+                let capacity_hint = bitmap_addrs.len() + register_addrs.len();
+                let mut memory_initialize_events: Vec<MemoryInitializeFinalizeEvent> =
+                    Vec::with_capacity(capacity_hint);
+                let mut memory_finalize_events: Vec<MemoryInitializeFinalizeEvent> =
+                    Vec::with_capacity(capacity_hint);
+
+                let mut bit_i = 0usize;
+                let mut reg_i = 0usize;
+                while bit_i < bitmap_addrs.len() || reg_i < register_addrs.len() {
+                    // Peek at the next address from each stream.
+                    let (use_reg, addr) = match (
+                        bitmap_addrs.get(bit_i).copied(),
+                        register_addrs.get(reg_i).copied(),
+                    ) {
+                        (Some(b), Some(r)) => {
+                            if r <= b {
+                                (true, r)
+                            } else {
+                                (false, b)
+                            }
+                        }
+                        (None, Some(r)) => (true, r),
+                        (Some(b), None) => (false, b),
+                        (None, None) => break,
+                    };
+                    if use_reg {
+                        let entry = &final_state.registers[addr as usize];
+                        // Registers always get init=0 and finalize from final_state.
+                        memory_initialize_events
+                            .push(MemoryInitializeFinalizeEvent::initialize(addr, 0));
+                        memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize(
+                            addr,
                             entry.value,
                             entry.timestamp,
-                        ),
-                    );
-                }
-
-                // Remove initialized events for addresses in the program memory image.
-                for addr in program.memory_image.keys() {
-                    initialized_events.remove(addr);
-                }
-
-                // Handle the program memory image addresses.
-                for addr in program.memory_image.keys() {
-                    #[cfg(sp1_debug_global_memory)]
-                    touched_addresses.insert(*addr);
-                    // Remove the address from the initialized events map. This is because the 
-                    // program memory image is already initialized as part of the program initial 
-                    // cumulative sum.
-                    initialized_events.remove(addr);
-                    // Finalize the address.
-                    let value = minimal_executor.get_memory_value(*addr);
-                    let event =
-                        MemoryInitializeFinalizeEvent::finalize(*addr, value.value, value.clk);
-                    finalized_events.insert(*addr, event);
-                }
-
-                #[cfg(sp1_debug_global_memory)]
-                for (i, addr) in touched_addresses.into_iter().enumerate() {
-                    if i % 100_000 == 0 {
-                        tracing::debug!("checked {i} addresses");
+                        ));
+                        reg_i += 1;
+                        // If the bitmap also has this exact address, skip it — register overrides.
+                        if bitmap_addrs.get(bit_i).copied() == Some(addr) {
+                            bit_i += 1;
+                        }
+                    } else {
+                        bit_i += 1;
+                        // Init event: skip for program-memory-image; use hint value if present;
+                        // otherwise default to 0.
+                        if !program.memory_image.contains_key(&addr) {
+                            let init_value = hint_init_values.get(&addr).copied().unwrap_or(0);
+                            memory_initialize_events.push(
+                                MemoryInitializeFinalizeEvent::initialize(addr, init_value),
+                            );
+                        }
+                        // Finalize event: read the final value from live SHM. Safe because the
+                        // minimal executor is still alive (we awaited it above).
+                        let v = unsafe { memory.get(addr) };
+                        memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize(
+                            addr, v.value, v.clk,
+                        ));
                     }
-                    let value = minimal_executor.get_memory_value(addr);
-                    let event = finalized_events.get(&addr).unwrap();
-
-                    let expected_value = value.value;
-                    let expected_clk = value.clk;
-                    let seen_value = event.value;
-                    let seen_clk = event.timestamp;
-                    if expected_value != seen_value || expected_clk != seen_clk {
-                        panic!("Address {addr} wrong value\n
-                            Expected value: {expected_value}, expected clk: {expected_clk}/ 
-                            seen value: {seen_value}, seen clk: {seen_clk}");
-                    }
-
                 }
-
-                let mut memory_initialize_events = Vec::with_capacity(initialized_events.len());
-                memory_initialize_events.extend(initialized_events.into_values());
-                let mut memory_finalize_events = Vec::with_capacity(finalized_events.len());
-                memory_finalize_events.extend(finalized_events.into_values());
 
                 // Collect page prot events if untrusted programs are enabled.
                 let (page_prot_initialize_events, page_prot_finalize_events) =
                     if program.enable_untrusted_programs {
-                        touched_pages.extend(program.page_prot_image.keys().copied());
+                        // Union the program's page_prot_image keys into the touched-pages bitmap.
+                        for &page_idx in program.page_prot_image.keys() {
+                            touched_pages.insert(page_idx, true);
+                        }
 
-                        let mut init_events = Vec::with_capacity(touched_pages.len());
-                        let mut finalize_events = Vec::with_capacity(touched_pages.len());
+                        let pages_sorted = touched_pages.is_set();
+                        let mut init_events = Vec::with_capacity(pages_sorted.len());
+                        let mut finalize_events = Vec::with_capacity(pages_sorted.len());
 
-                        for page_idx in &touched_pages {
+                        for &page_idx in &pages_sorted {
                             let record =
-                                minimal_executor.get_page_prot_record(*page_idx).unwrap();
+                                minimal_executor.get_page_prot_record(page_idx).unwrap();
 
-                            if !program.page_prot_image.contains_key(page_idx) {
+                            if !program.page_prot_image.contains_key(&page_idx) {
                                 init_events.push(PageProtInitializeFinalizeEvent::initialize(
-                                    *page_idx,
+                                    page_idx,
                                     DEFAULT_PAGE_PROT,
                                 ));
                             }
 
                             finalize_events.push(PageProtInitializeFinalizeEvent {
-                                page_idx: *page_idx,
+                                page_idx,
                                 page_prot: record.value,
                                 timestamp: record.timestamp,
                             });
                         }
 
-                        init_events.sort_by_key(|e| e.page_idx);
-                        finalize_events.sort_by_key(|e| e.page_idx);
-
+                        // `pages_sorted` is already ascending; no need to re-sort.
                         (init_events, finalize_events)
                     } else {
-                        assert!(touched_pages.is_empty());
+                        assert_eq!(touched_pages.count_set(), 0);
                         (vec![], vec![])
                     };
 
