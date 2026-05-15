@@ -1415,7 +1415,7 @@ mod tests {
     async fn test_find_recursion_shape() {
         setup_logger();
         let machine = RiscvAir::machine();
-        let shape = SP1RecursionProofShape::compute_compress_shape(machine).await;
+        let shape = SP1RecursionProofShape::compute_compress_shape(&machine).await;
 
         let mut file = std::fs::File::create("compress_shape.json").unwrap();
         serde_json::to_writer_pretty(&mut file, &shape).unwrap();
