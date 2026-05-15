@@ -69,13 +69,19 @@ pub mod random {
     ///   {"name": "Memory", "preprocessed_width": 0, "main_width": 32, "height": 512}
     /// ]
     /// ```
+    ///
+    /// Entries are sorted by `name` on load. The downstream cluster is a
+    /// `BTreeSet<Chip>` (chip-name order) and the prover's per-chip trace
+    /// offset computation walks it in that order; the synthesized trace must
+    /// match. Sorting here makes the loader robust to any input array order.
     pub fn read_layout_from_json(
         path: impl AsRef<Path>,
     ) -> std::io::Result<AbstractChipLayoutWithHeights> {
         let file = std::fs::File::open(path)?;
         let reader = std::io::BufReader::new(file);
-        let entries: Vec<ChipEntry> = serde_json::from_reader(reader)
+        let mut entries: Vec<ChipEntry> = serde_json::from_reader(reader)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        entries.sort_by(|a, b| a.name.cmp(&b.name));
         Ok(AbstractChipLayoutWithHeights::new(
             entries
                 .into_iter()
