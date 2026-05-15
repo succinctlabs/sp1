@@ -98,8 +98,11 @@ mod tests {
     use sp1_core_machine::riscv::RiscvAir;
     use sp1_primitives::{io::SP1PublicValues, Elf};
     use sp1_verifier::SP1ProofMode;
-    use test_artifacts::{FIBONACCI_ELF, KECCAK256_ELF};
+    use test_artifacts::FIBONACCI_ELF;
+    #[cfg(feature = "apc")]
+    use test_artifacts::KECCAK256_ELF;
 
+    #[cfg(feature = "apc")]
     fn seeded_random_preimages_with_bounded_len(
         count: usize,
         len: usize,
@@ -116,6 +119,7 @@ mod tests {
             .collect()
     }
 
+    #[cfg(feature = "apc")]
     fn keccak256_software_stdin(
         // Number of Keccak hashes to compute
         count: usize,
@@ -411,11 +415,13 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(feature = "apc")]
     async fn test_apc_core_fibonacci() {
         test_e2e(FIBONACCI_ELF, fibonacci_stdin(), 10, SP1ProofMode::Core).await.unwrap();
     }
 
     #[tokio::test]
+    #[cfg(feature = "apc")]
     async fn test_apc_core_keccak_100() {
         test_e2e(KECCAK256_ELF, keccak256_software_stdin(100, 10), 10, SP1ProofMode::Core)
             .await
@@ -423,6 +429,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(feature = "apc")]
     async fn test_apc_core_keccak_200() {
         test_e2e(KECCAK256_ELF, keccak256_software_stdin(200, 10), 10, SP1ProofMode::Core)
             .await
@@ -430,11 +437,13 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(feature = "apc")]
     async fn test_apc_compressed_fibonacci() {
         test_e2e(FIBONACCI_ELF, SP1Stdin::default(), 10, SP1ProofMode::Compressed).await.unwrap();
     }
 
     #[tokio::test]
+    #[cfg(feature = "apc")]
     async fn test_apc_groth16_fibonacci() {
         test_e2e(FIBONACCI_ELF, SP1Stdin::default(), 10, SP1ProofMode::Groth16).await.unwrap();
     }
