@@ -2537,59 +2537,98 @@ pub mod tests {
             );
             let v1_uni = evaluate_zerocheck(&v1_poly);
 
-            // Build machine bytecode from the WHOLE machine, then pad it to
-            // ~5000 chips with distinct-named clones — simulating the
-            // auto-generated many-chip machine. The shard cluster is a tiny
-            // subset selected by name; this validates that v2 stays correct
-            // when the machine has thousands of (mostly-unused) chips.
+            // Build two machine bytecodes from the SAME shard cluster: one
+            // sized to the machine's real chip set, and one padded to 5000
+            // chips with distinct-named clones (simulating an auto-generated
+            // many-chip machine). The shard cluster is selected by name from
+            // each; proving the SAME cluster against both must (a) give
+            // identical, v1-matching results and (b) cost the same — i.e.
+            // per-shard work is pay-per-use, independent of machine size.
             let machine_chip_set: BTreeSet<_> = machine.chips().iter().cloned().collect();
-            let mut machine_compiled =
-                compile_chips_v2(&machine_chip_set, ChunkBudget::default_v1());
-            let real_n = machine_compiled.len();
+            let base_compiled = compile_chips_v2(&machine_chip_set, ChunkBudget::default_v1());
+            let real_n = base_compiled.len();
+            let mut padded = base_compiled.clone();
             let mut k = 0;
-            while machine_compiled.len() < 5000 {
-                let mut c = machine_compiled[k % real_n].clone();
-                c.name = format!("{}__pad{}", c.name, machine_compiled.len());
-                machine_compiled.push(c);
+            while padded.len() < 5000 {
+                let mut c = padded[k % real_n].clone();
+                c.name = format!("{}__pad{}", c.name, padded.len());
+                padded.push(c);
                 k += 1;
             }
-            let machine_bytecode = Arc::new(upload_compiled_bytecode(machine_compiled, &t));
-            let compiled_dev: Vec<_> = chips
-                .iter()
-                .enumerate()
-                .map(|(s, chip)| {
-                    let m = machine_bytecode.chip_index[chip.name()];
-                    let mut v = machine_bytecode.chips[m].clone();
-                    v.chip_idx = s as u32;
-                    v
-                })
-                .collect();
-            let v2_poly = initialize_zerocheck_poly_v2(
-                trace_mle.as_ref(),
-                chips,
-                compiled_dev,
-                machine_bytecode,
-                initial_heights,
-                public_values,
-                powers_of_challenge,
-                gkr_powers,
-                powers_of_lambda,
-                padded_row_adjustment,
-                zeta,
-                claim,
-            );
-            let v2_uni = evaluate_zerocheck_v2(&v2_poly);
 
-            assert_eq!(
-                v1_uni.coefficients.len(),
-                v2_uni.coefficients.len(),
-                "round0 degree differs"
+            let active = initial_heights.iter().filter(|&&h| h > 0).count();
+            println!(
+                "5000-chip pay-per-use test: cluster={} chips ({} active/non-empty), \
+                 machine sizes {} and {}",
+                chips.len(),
+                active,
+                real_n,
+                padded.len(),
             );
-            for (i, (a, b)) in
-                v1_uni.coefficients.iter().zip(v2_uni.coefficients.iter()).enumerate()
-            {
-                assert_eq!(a, b, "round0 coeff {i} differs (v1 vs v2)");
+
+            // Evaluate round 0 against a given machine bytecode; returns the
+            // univariate poly and the wall time of `evaluate_zerocheck_v2`
+            // (which syncs the GPU internally), averaged over a few runs.
+            let run = |machine_compiled: Vec<crate::v2::CompiledChip>| {
+                let mb = Arc::new(upload_compiled_bytecode(machine_compiled, &t));
+                let compiled_dev: Vec<_> = chips
+                    .iter()
+                    .enumerate()
+                    .map(|(s, chip)| {
+                        let m = mb.chip_index[chip.name()];
+                        let mut v = mb.chips[m].clone();
+                        v.chip_idx = s as u32;
+                        v
+                    })
+                    .collect();
+                let poly = initialize_zerocheck_poly_v2(
+                    trace_mle.as_ref(),
+                    chips,
+                    compiled_dev,
+                    mb,
+                    initial_heights.clone(),
+                    public_values.clone(),
+                    powers_of_challenge.clone(),
+                    gkr_powers.clone(),
+                    powers_of_lambda.clone(),
+                    padded_row_adjustment.clone(),
+                    zeta.clone(),
+                    claim,
+                );
+                let uni = evaluate_zerocheck_v2(&poly); // warm up
+                let iters = 10;
+                let start = std::time::Instant::now();
+                for _ in 0..iters {
+                    let _ = evaluate_zerocheck_v2(&poly);
+                }
+                (uni, start.elapsed() / iters)
+            };
+
+            let (uni_small, t_small) = run(base_compiled);
+            let (uni_5000, t_5000) = run(padded);
+            println!(
+                "  evaluate_zerocheck_v2: {}-chip machine = {:?}/round, \
+                 5000-chip machine = {:?}/round",
+                real_n, t_small, t_5000,
+            );
+
+            // (a) Both v2 results match v1, regardless of machine size.
+            for (label, uni) in [("small-machine", &uni_small), ("5000-machine", &uni_5000)] {
+                assert_eq!(uni.coefficients.len(), v1_uni.coefficients.len(), "{label} degree");
+                for (i, (a, b)) in
+                    v1_uni.coefficients.iter().zip(uni.coefficients.iter()).enumerate()
+                {
+                    assert_eq!(a, b, "round0 coeff {i} differs (v1 vs v2, {label})");
+                }
             }
+
+            // (b) Pay-per-use: the 5000-chip machine must not slow the
+            // per-shard round down meaningfully vs the small machine.
+            let slower = t_5000.as_secs_f64() / t_small.as_secs_f64();
+            assert!(
+                slower < 1.5,
+                "per-round work scaled with machine size ({slower:.2}x) — not pay-per-use",
+            );
         })
         .await;
     }

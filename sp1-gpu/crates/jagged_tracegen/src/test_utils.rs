@@ -604,6 +604,16 @@ pub mod bench_utils {
             let layout = read_layout_from_json(path).expect("failed to read JSON layout");
             let machine = RiscvAir::<Felt>::machine();
             let cluster = cluster_from_json_layout(&machine, &layout);
+            // The synthesized trace lays columns out in `layout` order, while
+            // the prover walks the cluster (`BTreeSet<Chip>`) order. They must
+            // agree or per-chip trace offsets are wrong. `read_layout_from_json`
+            // sorts by name to match `BTreeSet` iteration; assert it here so a
+            // future change to `Chip`'s ordering fails loudly instead of
+            // silently corrupting the trace.
+            assert!(
+                cluster.iter().map(|c| c.name()).eq(layout.chip_names()),
+                "JSON layout column order must match cluster (BTreeSet) iteration order",
+            );
             let device_mle =
                 random_jagged_trace_mle_from_layout::<Felt, _>(rng, &layout, LOG_STACKING_HEIGHT)
                     .into_device(scope);
