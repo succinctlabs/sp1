@@ -183,7 +183,7 @@ pub struct SP1RecursionProofShape {
 
 impl SP1RecursionProofShape {
     pub fn retrieve_or_compute_reduce_shape(
-        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+        machine: &Machine<SP1Field, RiscvAir<SP1Field>>,
         max_arity: usize,
     ) -> SP1RecursionProofShape {
         match machine.chips().iter().eq(RiscvAir::<SP1Field>::machine().chips()) {
@@ -209,7 +209,7 @@ impl SP1RecursionProofShape {
 
     /// Dynamically computes the appropriate compress shape based on the machine configuration
     async fn compute_compress_shape(
-        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+        machine: &Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> SP1RecursionProofShape {
         use crate::{worker::SP1LightNode, CpuSP1ProverComponents};
         let elf = test_artifacts::FIBONACCI_ELF;
@@ -220,12 +220,12 @@ impl SP1RecursionProofShape {
         let allowed_vk_height = client.inner().allowed_vk_height();
         let vk_verification = client.inner().vk_verification();
 
-        let verifier = CpuSP1ProverComponents::compress_verifier(&machine);
+        let verifier = CpuSP1ProverComponents::compress_verifier(machine);
         let dummy_input =
         |current_shape: &SP1RecursionProofShape| -> SP1CompressWithVKeyWitnessValues<SP1PcsProofInner> {
             dummy_compose_input(&verifier, current_shape, DEFAULT_ARITY, allowed_vk_height)
         };
-        let core_verifier = CpuSP1ProverComponents::core_verifier(&machine);
+        let core_verifier = CpuSP1ProverComponents::core_verifier(machine);
         let recursive_core_verifier =
             recursive_verifier::<SP1GlobalContext, _, InnerConfig>(core_verifier.shard_verifier());
 
@@ -545,7 +545,7 @@ pub async fn build_vk_map<A: ArtifactClient, C: SP1ProverComponents + 'static>(
                 let machine = machine.clone();
                 let program_thread = tokio::spawn(async move {
                     let reduce_shape = SP1RecursionProofShape::retrieve_or_compute_reduce_shape(
-                        machine.clone(),
+                        &machine,
                         max_arity,
                     );
                     match shape {
