@@ -223,24 +223,23 @@ where
 
         builder.assert_bool(local.is_real);
 
-        // Promote the column-valued limbs to `Expr` so both the EC double constraints
-        // and the bus tuples read them from a single source.
-        let to_expr = |l: &Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs>| {
-            let v: Vec<AB::Expr> = l.0.iter().map(|&x| x.into()).collect();
-            Limbs(v.try_into().expect("limb count"))
-        };
-        let p_x: Limbs<AB::Expr, <E::BaseField as NumLimbs>::Limbs> = to_expr(&local.ird_x);
-        let p_y: Limbs<AB::Expr, <E::BaseField as NumLimbs>::Limbs> = to_expr(&local.ird_y);
-        let irt_x: Limbs<AB::Expr, <E::BaseField as NumLimbs>::Limbs> = to_expr(&local.irt_x);
-        let irt_y: Limbs<AB::Expr, <E::BaseField as NumLimbs>::Limbs> = to_expr(&local.irt_y);
-
         // EC double formula (mirrors `WeierstrassDoubleAssignChip::eval`):
         //   slope = (a + 3 * p.x^2) / (2 * p.y)
         //   x3    = slope^2 - 2 * p.x
         //   y3    = slope * (p.x - x3) - p.y
+        //
+        // `FieldOpCols::eval` accepts `&(impl Into<Polynomial<AB::Expr>>)` and
+        // `Limbs<AB::Var, _>: Into<Polynomial<AB::Expr>>`, so we pass the `ird` /
+        // `irt` columns directly without a `to_expr` step.
         let a = E::BaseField::to_limbs_field::<AB::Expr, _>(&E::a_int());
         let slope = {
-            local.p_x_squared.eval(builder, &p_x, &p_x, FieldOperation::Mul, local.is_real);
+            local.p_x_squared.eval(
+                builder,
+                &local.ird_x,
+                &local.ird_x,
+                FieldOperation::Mul,
+                local.is_real,
+            );
             local.p_x_squared_times_3.eval(
                 builder,
                 &local.p_x_squared.result,
@@ -258,7 +257,7 @@ where
             local.slope_denominator.eval(
                 builder,
                 &E::BaseField::to_limbs_field::<AB::Expr, _>(&BigUint::from(2u32)),
-                &p_y,
+                &local.ird_y,
                 FieldOperation::Mul,
                 local.is_real,
             );
@@ -274,7 +273,13 @@ where
 
         let x = {
             local.slope_squared.eval(builder, slope, slope, FieldOperation::Mul, local.is_real);
-            local.p_x_plus_p_x.eval(builder, &p_x, &p_x, FieldOperation::Add, local.is_real);
+            local.p_x_plus_p_x.eval(
+                builder,
+                &local.ird_x,
+                &local.ird_x,
+                FieldOperation::Add,
+                local.is_real,
+            );
             local.x3_ins.eval(
                 builder,
                 &local.slope_squared.result,
@@ -286,7 +291,7 @@ where
         };
 
         {
-            local.p_x_minus_x.eval(builder, &p_x, x, FieldOperation::Sub, local.is_real);
+            local.p_x_minus_x.eval(builder, &local.ird_x, x, FieldOperation::Sub, local.is_real);
             local.slope_times_p_x_minus_x.eval(
                 builder,
                 slope,
@@ -297,7 +302,7 @@ where
             local.y3_ins.eval(
                 builder,
                 &local.slope_times_p_x_minus_x.result,
-                &p_y,
+                &local.ird_y,
                 FieldOperation::Sub,
                 local.is_real,
             );
@@ -307,47 +312,39 @@ where
         local.x3_range.eval(builder, &local.x3_ins.result, &modulus, local.is_real);
         local.y3_range.eval(builder, &local.y3_ins.result, &modulus, local.is_real);
 
-        // `ord = (x3, y3)` for the bus send.
-        let ord_x = to_expr(&local.x3_ins.result);
-        let ord_y = to_expr(&local.y3_ins.result);
-
-        // Internal memory bus: receive the input state `(clock, c, ird, irt)` and send
-        // the output state `(clock, c + 1, ord, irt)` with `irt` forwarded unchanged.
+        // Internal memory bus: receive `(clock, c, ird, irt)`, send `(clock, c+1,
+        // ord = (x3, y3), irt)` with `irt` forwarded unchanged. Columns are passed
+        // straight in; the helper handles `Var → Expr`.
         builder.receive(
             internal_memory_rw::<AB, E::BaseField>(
-                local.clk_high.into(),
-                local.clk_low.into(),
-                local.c.into(),
-                p_x.clone(),
-                p_y.clone(),
-                irt_x.clone(),
-                irt_y.clone(),
-                local.is_real.into(),
+                local.clk_high,
+                local.clk_low,
+                local.c,
+                local.ird_x,
+                local.ird_y,
+                local.irt_x,
+                local.irt_y,
+                local.is_real,
             ),
             InteractionScope::Local,
         );
         builder.send(
             internal_memory_rw::<AB, E::BaseField>(
-                local.clk_high.into(),
-                local.clk_low.into(),
+                local.clk_high,
+                local.clk_low,
                 local.c.into() + AB::Expr::one(),
-                ord_x,
-                ord_y,
-                irt_x,
-                irt_y,
-                local.is_real.into(),
+                local.x3_ins.result,
+                local.y3_ins.result,
+                local.irt_x,
+                local.irt_y,
+                local.is_real,
             ),
             InteractionScope::Local,
         );
 
         // Internal opcode bus: receive a `Double` dispatch tuple from the controller.
         builder.receive(
-            internal_double_call::<AB>(
-                local.clk_high.into(),
-                local.clk_low.into(),
-                local.c.into(),
-                local.is_real.into(),
-            ),
+            internal_double_call::<AB>(local.clk_high, local.clk_low, local.c, local.is_real),
             InteractionScope::Local,
         );
     }

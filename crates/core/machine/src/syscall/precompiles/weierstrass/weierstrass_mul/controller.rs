@@ -2,12 +2,12 @@ use core::{borrow::Borrow, marker::PhantomData, mem::size_of, mem::MaybeUninit};
 
 use generic_array::GenericArray;
 use itertools::Itertools;
-use slop_air::{Air, BaseAir};
+use slop_air::{Air, AirBuilder, BaseAir};
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_matrix::Matrix;
 use sp1_core_executor::{ExecutionRecord, Program, SupervisorMode, SyscallCode, UserMode};
 use sp1_curves::{
-    params::{FieldParameters, Limbs, NumBits, NumLimbs, NumWords},
+    params::{FieldParameters, Limbs, NumBits, NumLimbs, NumWords, NB_BITS_PER_LIMB},
     weierstrass::WeierstrassParameters,
     CurveType, EllipticCurve,
 };
@@ -17,11 +17,15 @@ use sp1_hypercube::{
     Word,
 };
 use sp1_primitives::consts::{PROT_READ, PROT_WRITE};
+use typenum::Unsigned;
 
 use crate::{
     air::SP1CoreAirBuilder,
     memory::MemoryAccessColsU8,
     operations::{AddrAddOperation, AddressSlicePageProtOperation, SyscallAddrOperation},
+    syscall::precompiles::weierstrass::weierstrass_mul::interactions::{
+        ec_identity, internal_add_call, internal_double_call, internal_memory_rw,
+    },
     utils::limbs_to_words,
     TrustMode,
 };
@@ -137,6 +141,7 @@ impl<AB, E: EllipticCurve + WeierstrassParameters, M: TrustMode> Air<AB>
     for WeierstrassMulAssignChip<E, M>
 where
     AB: SP1CoreAirBuilder,
+    Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs>: Copy,
 {
     fn eval(&self, builder: &mut AB) {
         //setup
@@ -148,6 +153,8 @@ where
         builder.assert_bool(local.is_real);
         let mut is_not_trap = local.is_real.into();
         let mut trap_code = AB::Expr::zero();
+        let num_words_field_element = <E::BaseField as NumLimbs>::Limbs::USIZE / 8;
+        let exp_num_bits = <E::BaseField as NumBits>::BitsFieldElement::USIZE;
 
         //Mprotect handling
         if !M::IS_TRUSTED {
@@ -226,6 +233,7 @@ where
             &local.exp_access.iter().map(|access| access.memory_access).collect_vec(),
             is_not_trap.clone(),
         );
+        // Note that the result is range-checked in the internal operations
         let x_result_words = limbs_to_words::<AB>(local.ort_x.0.to_vec());
         let y_result_words = limbs_to_words::<AB>(local.ort_y.0.to_vec());
         let result_words = x_result_words.into_iter().chain(y_result_words).collect_vec();
@@ -238,7 +246,7 @@ where
             is_not_trap.clone(),
         );
 
-        // Fetch the syscall id for the curve type and receive the call
+        // Syscall handling
         let syscall_id_felt = match E::CURVE_TYPE {
             CurveType::Secp256k1 => {
                 AB::F::from_canonical_u32(SyscallCode::SECP256K1_MUL.syscall_id())
@@ -254,6 +262,146 @@ where
             p_ptr.map(Into::into),
             exp_ptr.map(Into::into),
             local.is_real,
+            InteractionScope::Local,
+        );
+
+        // Exponent bits
+        local.exp_bits.iter().for_each(|bit| {
+            builder.assert_bool(*bit);
+        });
+        // Check that they match the exponent limbs
+        let two_powers =
+            AB::Expr::from_canonical_u8(2).powers().take(NB_BITS_PER_LIMB).collect_vec();
+        let words_from_exp_bits = local.exp_bits.chunks(NB_BITS_PER_LIMB).map(|chunk| {
+            chunk
+                .iter()
+                .zip(&two_powers)
+                .fold(AB::Expr::zero(), |acc, (bit, power)| acc + (*bit).into() * power.clone())
+        });
+        let exp_limbs = builder
+            .generate_limbs(&local.exp_access[0..num_words_field_element], is_not_trap.clone());
+        // Assert only for real rows so that all can be set to zero otherwise
+        exp_limbs.into_iter().zip_eq(words_from_exp_bits).for_each(|(limb, word_from_bits)| {
+            builder.when(is_not_trap.clone()).assert_eq(limb, word_from_bits);
+        });
+
+        // Internal interactions
+        let bit_totals = local
+            .exp_bits
+            .iter()
+            .scan(AB::Expr::zero(), |acc, bit| {
+                *acc = acc.clone() + *bit;
+                Some(acc.clone())
+            })
+            .collect_vec();
+        // Initial memory send: `(clk, c=0, ird, ec_identity)`.
+        let ird_x_limbs = builder
+            .generate_limbs(&local.p_access[0..num_words_field_element], is_not_trap.clone());
+        let ird_x: Limbs<AB::Expr, <E::BaseField as NumLimbs>::Limbs> =
+            Limbs(ird_x_limbs.try_into().expect("failed to convert limbs"));
+        let ird_y_limbs =
+            builder.generate_limbs(&local.p_access[num_words_field_element..], is_not_trap.clone());
+        let ird_y: Limbs<AB::Expr, <E::BaseField as NumLimbs>::Limbs> =
+            Limbs(ird_y_limbs.try_into().expect("failed to convert limbs"));
+        let [zero_x, zero_y] = ec_identity::<E, AB>();
+        builder.send(
+            internal_memory_rw::<AB, E::BaseField>(
+                local.clk_high,
+                local.clk_low,
+                AB::Expr::zero(), // c = 0 for initial send
+                ird_x,
+                ird_y,
+                zero_x,
+                zero_y,
+                local.is_real,
+            ),
+            InteractionScope::Local,
+        );
+        // Final memory receive: `(clk, c = 255 + Σ b_j, ord, ort)`.
+        builder.receive(
+            internal_memory_rw::<AB, E::BaseField>(
+                local.clk_high,
+                local.clk_low,
+                AB::Expr::from_canonical_usize(exp_num_bits - 1)
+                    + bit_totals.last().unwrap().clone(),
+                local.ord_x,
+                local.ord_y,
+                local.ort_x,
+                local.ort_y,
+                is_not_trap.clone(),
+            ),
+            InteractionScope::Local,
+        );
+
+        // Internal OpCalls: Order: sum(0), double(0), sum(1), double(1), ..., double(n-2), sum(n-1)
+        // sums are skipped if the corresponding bit is zero, the last double is always skipped.
+        // Internal sum OpCalls.
+        local.exp_bits.iter().zip_eq(bit_totals.iter()).enumerate().for_each(
+            |(i, (bit, bit_total))| {
+                builder.send(
+                    internal_add_call::<AB>(
+                        local.clk_high,
+                        local.clk_low,
+                        AB::Expr::from_canonical_usize(i - 1) + bit_total.clone(),
+                        bit_total.clone(), // marker if add should actually be first add
+                        *bit, // skips when bit is zero, this should always be zero when row is fake
+                    ),
+                    InteractionScope::Local,
+                );
+            },
+        );
+        // Internal mul OpCalls.
+        bit_totals.iter().take(exp_num_bits - 1).enumerate().for_each(|(i, bit_total)| {
+            builder.send(
+                internal_double_call::<AB>(
+                    local.clk_high,
+                    local.clk_low,
+                    AB::Expr::from_canonical_usize(i) + bit_total.clone(),
+                    is_not_trap.clone(),
+                ),
+                InteractionScope::Local,
+            );
+        });
+
+        // First add interactions
+        // Memory read
+        let [zero_x, zero_y] = ec_identity::<E, AB>();
+        builder.receive(
+            internal_memory_rw::<AB, E::BaseField>(
+                local.clk_high,
+                local.clk_low,
+                local.c_at_first_add,
+                local.ird_at_first_add_x,
+                local.ird_at_first_add_y,
+                zero_x,
+                zero_y,
+                is_not_trap.clone(),
+            ),
+            InteractionScope::Local,
+        );
+        // Memory write
+        builder.send(
+            internal_memory_rw::<AB, E::BaseField>(
+                local.clk_high,
+                local.clk_low,
+                local.c_at_first_add + AB::Expr::one(),
+                local.ird_at_first_add_x, // doubler
+                local.ird_at_first_add_y,
+                local.ird_at_first_add_x, // running total set to doubler
+                local.ird_at_first_add_y,
+                is_not_trap.clone(),
+            ),
+            InteractionScope::Local,
+        );
+        // OpCall receive
+        builder.receive(
+            internal_add_call::<AB>(
+                local.clk_high,
+                local.clk_low,
+                local.c_at_first_add,
+                AB::Expr::zero(), // marker if add should actually be first add is zero
+                AB::Expr::one(),  // bit should be one at first add
+            ),
             InteractionScope::Local,
         );
     }

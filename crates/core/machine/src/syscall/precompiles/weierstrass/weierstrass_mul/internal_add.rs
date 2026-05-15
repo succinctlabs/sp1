@@ -230,30 +230,31 @@ where
         let inv_fam: AB::Expr = local.inverse_fam.into();
         builder.when(local.is_real).assert_eq(marker * inv_fam, AB::Expr::one());
 
-        // Promote the column-valued limbs to `Expr` so both the EC add constraints and
-        // the bus tuples read them from a single source.
-        let to_expr = |l: &Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs>| {
-            let v: Vec<AB::Expr> = l.0.iter().map(|&x| x.into()).collect();
-            Limbs(v.try_into().expect("limb count"))
-        };
-        let p_x: Limbs<AB::Expr, <E::BaseField as NumLimbs>::Limbs> = to_expr(&local.ird_x);
-        let p_y: Limbs<AB::Expr, <E::BaseField as NumLimbs>::Limbs> = to_expr(&local.ird_y);
-        let q_x: Limbs<AB::Expr, <E::BaseField as NumLimbs>::Limbs> = to_expr(&local.irt_x);
-        let q_y: Limbs<AB::Expr, <E::BaseField as NumLimbs>::Limbs> = to_expr(&local.irt_y);
-
         // EC add formula (mirrors `WeierstrassAddAssignChip::eval`), with `p = ird` and
-        // `q = irt`. The result `(x3, y3)` is `ort = ird + irt`.
+        // `q = irt`. The result `(x3, y3)` is `ort = ird + irt`. `inverse_check` proves
+        // `(q.x - p.x)` is invertible (i.e. non-zero), so the chip rejects the
+        // `ird = ±irt` degeneracies on which the affine add formula would otherwise
+        // compute garbage. `FieldOpCols::eval` accepts column references directly via
+        // `Limbs<AB::Var, _>: Into<Polynomial<AB::Expr>>`, so no `to_expr` step is needed.
         //
         //   slope = (q.y - p.y) / (q.x - p.x)
         //   x3    = slope^2 - (p.x + q.x)
         //   y3    = slope * (p.x - x3) - p.y
-        //
-        // `inverse_check` proves `(q.x - p.x)` is invertible (i.e. non-zero), so the
-        // chip rejects the `ird = ±irt` degeneracies on which the affine add formula
-        // would otherwise compute garbage.
         let slope = {
-            local.slope_numerator.eval(builder, &q_y, &p_y, FieldOperation::Sub, local.is_real);
-            local.slope_denominator.eval(builder, &q_x, &p_x, FieldOperation::Sub, local.is_real);
+            local.slope_numerator.eval(
+                builder,
+                &local.irt_y,
+                &local.ird_y,
+                FieldOperation::Sub,
+                local.is_real,
+            );
+            local.slope_denominator.eval(
+                builder,
+                &local.irt_x,
+                &local.ird_x,
+                FieldOperation::Sub,
+                local.is_real,
+            );
 
             let mut coeff_1 = Vec::new();
             coeff_1.resize(<E::BaseField as NumLimbs>::Limbs::USIZE, AB::Expr::zero());
@@ -281,7 +282,13 @@ where
 
         let x = {
             local.slope_squared.eval(builder, slope, slope, FieldOperation::Mul, local.is_real);
-            local.p_x_plus_q_x.eval(builder, &p_x, &q_x, FieldOperation::Add, local.is_real);
+            local.p_x_plus_q_x.eval(
+                builder,
+                &local.ird_x,
+                &local.irt_x,
+                FieldOperation::Add,
+                local.is_real,
+            );
             local.x3_ins.eval(
                 builder,
                 &local.slope_squared.result,
@@ -293,7 +300,7 @@ where
         };
 
         {
-            local.p_x_minus_x.eval(builder, &p_x, x, FieldOperation::Sub, local.is_real);
+            local.p_x_minus_x.eval(builder, &local.ird_x, x, FieldOperation::Sub, local.is_real);
             local.slope_times_p_x_minus_x.eval(
                 builder,
                 slope,
@@ -304,7 +311,7 @@ where
             local.y3_ins.eval(
                 builder,
                 &local.slope_times_p_x_minus_x.result,
-                &p_y,
+                &local.ird_y,
                 FieldOperation::Sub,
                 local.is_real,
             );
@@ -314,36 +321,31 @@ where
         local.x3_range.eval(builder, &local.x3_ins.result, &modulus, local.is_real);
         local.y3_range.eval(builder, &local.y3_ins.result, &modulus, local.is_real);
 
-        // `ord = ird` (forwarded), `ort = (x3, y3)` for the bus send.
-        let ord_x = p_x.clone();
-        let ord_y = p_y.clone();
-        let ort_x = to_expr(&local.x3_ins.result);
-        let ort_y = to_expr(&local.y3_ins.result);
-
-        // Internal memory bus: receive `(clock, c, ird, irt)` and send `(clock, c + 1, ord, ort)`.
+        // Internal memory bus: receive `(clock, c, ird, irt)` and send
+        // `(clock, c+1, ord = ird, ort = (x3, y3))` with `ord` forwarded unchanged.
         builder.receive(
             internal_memory_rw::<AB, E::BaseField>(
-                local.clk_high.into(),
-                local.clk_low.into(),
-                local.c.into(),
-                p_x,
-                p_y,
-                q_x,
-                q_y,
-                local.is_real.into(),
+                local.clk_high,
+                local.clk_low,
+                local.c,
+                local.ird_x,
+                local.ird_y,
+                local.irt_x,
+                local.irt_y,
+                local.is_real,
             ),
             InteractionScope::Local,
         );
         builder.send(
             internal_memory_rw::<AB, E::BaseField>(
-                local.clk_high.into(),
-                local.clk_low.into(),
+                local.clk_high,
+                local.clk_low,
                 local.c.into() + AB::Expr::one(),
-                ord_x,
-                ord_y,
-                ort_x,
-                ort_y,
-                local.is_real.into(),
+                local.ird_x,
+                local.ird_y,
+                local.x3_ins.result,
+                local.y3_ins.result,
+                local.is_real,
             ),
             InteractionScope::Local,
         );
@@ -351,11 +353,11 @@ where
         // Internal opcode bus: receive an `Add` dispatch tuple from the controller.
         builder.receive(
             internal_add_call::<AB>(
-                local.clk_high.into(),
-                local.clk_low.into(),
-                local.c.into(),
-                local.first_add_marker.into(),
-                local.is_real.into(),
+                local.clk_high,
+                local.clk_low,
+                local.c,
+                local.first_add_marker,
+                local.is_real,
             ),
             InteractionScope::Local,
         );
