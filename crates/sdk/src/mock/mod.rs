@@ -216,7 +216,6 @@ mod tests {
 
     /// Test that mock Plonk proof verification fails with wrong vkey.
     #[tokio::test]
-
     async fn test_mock_plonk_proof_wrong_vkey_fails() {
         setup_logger();
         let prover = MockProver::new().await;
@@ -271,7 +270,6 @@ mod tests {
 
     /// Test that mock Plonk proof verification fails with tampered public values.
     #[tokio::test]
-
     async fn test_mock_plonk_proof_tampered_public_values_fails() {
         setup_logger();
         let prover = MockProver::new().await;

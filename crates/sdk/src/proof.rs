@@ -305,7 +305,6 @@ mod tests {
     use super::*;
 
     #[test]
-
     fn test_plonk_proof_bytes() {
         let plonk_proof = SP1ProofWithPublicValues {
             proof: SP1Proof::Plonk(PlonkBn254Proof {
@@ -352,7 +351,6 @@ mod tests {
     }
 
     #[test]
-
     fn test_mock_plonk_proof_bytes() {
         let mock_plonk_proof = SP1ProofWithPublicValues {
             proof: SP1Proof::Plonk(PlonkBn254Proof {
