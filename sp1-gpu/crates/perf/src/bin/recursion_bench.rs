@@ -144,7 +144,7 @@ async fn main() {
         let program = match mode.compose_arity() {
             Some(_) => {
                 let reduce_shape = SP1RecursionProofShape::retrieve_or_compute_reduce_shape(
-                    machine,
+                    &machine,
                     original_arity,
                 );
                 let mut program = compose_program_from_input(

@@ -189,7 +189,7 @@ async fn main() {
             let (normalize_prover, compress_verifier) =
                 recursion_prover_and_verifier(t.clone(), &machine).await;
             let reduce_shape = SP1RecursionProofShape::retrieve_or_compute_reduce_shape(
-                machine.clone(),
+                &machine,
                 DEFAULT_ARITY,
             );
             Some((recursive_core_verifier, compress_verifier, normalize_prover, reduce_shape))

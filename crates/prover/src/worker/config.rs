@@ -142,7 +142,7 @@ impl SP1WorkerConfig {
             .and_then(|s| s.parse::<usize>().ok())
             .unwrap_or(DEFAULT_MAX_COMPOSE_ARITY);
         let reduce_shape = SP1RecursionProofShape::retrieve_or_compute_reduce_shape(
-            machine.clone(),
+            &machine,
             max_compose_arity,
         );
 
