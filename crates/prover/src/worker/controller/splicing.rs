@@ -301,11 +301,14 @@ where
                     }
                 }
             }
-            // Append the touched addresses and pages from this chunk to the globally tracked sets.
+            // Release the &mut borrows on touched_addresses/touched_pages so we can move them.
+            drop(vm);
+            // Send per-chunk bitmaps to the global memory handler; it will OR them together
+            // and resolve final memory values from the live SHM at drain time.
             tracing::debug_span!("collecting touched addresses and sending to global memory").in_scope(|| {
-            all_touched_addresses.blocking_extend(start_clk, end_clk, touched_addresses.is_set())
+            all_touched_addresses.blocking_extend(touched_addresses)
                 .map_err(|e| ExecutionError::Other(e.to_string()))})?;
-            all_touched_pages.blocking_extend(touched_pages.is_set())
+            all_touched_pages.blocking_extend(touched_pages)
                 .map_err(|e| ExecutionError::Other(e.to_string()))?;
             Ok(())
            });

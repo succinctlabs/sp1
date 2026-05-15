@@ -18,19 +18,18 @@ use std::sync::Arc;
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use slop_challenger::{FieldChallenger, IopCtx};
-use slop_multilinear::{MultilinearPcsChallenger, Point};
+use slop_multilinear::Point;
 use sp1_core_machine::riscv::RiscvAir;
-use sp1_gpu_cudart::{DevicePoint, TaskScope};
+use sp1_gpu_cudart::TaskScope;
 use sp1_gpu_jagged_tracegen::test_utils::bench_utils::{
     with_trace_source, FullKind, RealTraceData,
 };
 use sp1_gpu_jagged_tracegen::test_utils::tracegen_setup::CORE_MAX_LOG_ROW_COUNT;
-use sp1_gpu_logup_gkr::{
-    generate_gkr_circuit, prove_gkr_circuit, CudaLogUpGkrOptions, Interactions,
-};
+use sp1_gpu_logup_gkr::{generate_gkr_circuit, prove_logup_gkr, CudaLogUpGkrOptions, Interactions};
 use sp1_gpu_utils::{Ext, Felt, TestGC};
 use sp1_hypercube::air::MachineAir;
 use sp1_hypercube::Chip;
+use sp1_primitives::SP1GlobalContext;
 
 /// `prove_gkr_circuit` flag: when true, the prover recomputes the first layer on demand from
 /// the raw trace each time it walks back to the leaves; when false, it caches the materialized
@@ -125,66 +124,23 @@ fn run_prove<R: Rng>(
 ) {
     let RealTraceData { machine: _, cluster, public_values: _, device_mle } = data;
     let interactions = build_interactions(&cluster, scope);
-    let beta_dim = beta_seed_dim(&cluster);
-
-    // initial_number_of_variables = num_interaction_variables + 1, where
-    // num_interaction_variables is `log2(num_total_interactions).next_power_of_two()`.
-    let num_interactions: usize =
-        cluster.iter().map(|chip| chip.sends().len() + chip.receives().len()).sum();
-    let initial_number_of_variables = num_interactions.next_power_of_two().trailing_zeros() + 1;
 
     let mut group = c.benchmark_group("prove");
     group.sample_size(10);
     group.bench_with_input(id, &(), |b, _| {
         b.iter_batched(
             || {
-                // Per-iteration setup. Mirrors `prove_logup_gkr` lines 198-244 but skips the
-                // observe-output-claims step (which only affects challenger state, not the
-                // prove call's runtime). We still build the circuit and compute the initial
-                // numerator/denominator evaluations because `prove_gkr_circuit` consumes both.
-                let mut challenger = TestGC::default_challenger();
-                let alpha: Ext = challenger.sample_ext_element();
-                let beta_seed: Point<Ext> =
-                    (0..beta_dim).map(|_| challenger.sample_ext_element::<Ext>()).collect();
-
-                let (output, circuit) = generate_gkr_circuit(
-                    &cluster,
-                    interactions.clone(),
-                    &device_mle,
-                    alpha,
-                    beta_seed,
-                    GKR_OPTIONS,
-                    scope.clone(),
-                );
-
-                let first_eval_point = challenger.sample_point::<Ext>(initial_number_of_variables);
-                let first_point =
-                    DevicePoint::from_host(&first_eval_point, output.numerator.backend())
-                        .unwrap()
-                        .into_inner();
-                let first_point_eq = DevicePoint::new(first_point).partial_lagrange();
-                let first_numerator_eval =
-                    output.numerator.eval_at_eq(&first_point_eq).to_host_vec().unwrap()[0];
-                let first_denominator_eval =
-                    output.denominator.eval_at_eq(&first_point_eq).to_host_vec().unwrap()[0];
-
+                let challenger = TestGC::default_challenger();
                 scope.synchronize_blocking().unwrap();
-                (
-                    first_numerator_eval,
-                    first_denominator_eval,
-                    first_eval_point,
-                    circuit,
-                    challenger,
-                )
+                (interactions.clone(), challenger)
             },
-            |(num_eval, den_eval, eval_point, circuit, mut challenger)| {
-                let result = prove_gkr_circuit(
-                    num_eval,
-                    den_eval,
-                    eval_point,
-                    circuit,
+            |(interactions, mut challenger)| {
+                let result = prove_logup_gkr::<SP1GlobalContext, _>(
+                    &cluster,
+                    interactions,
+                    &device_mle,
+                    GKR_OPTIONS,
                     &mut challenger,
-                    RECOMPUTE_FIRST_LAYER,
                 );
                 scope.synchronize_blocking().unwrap();
                 black_box(result)
