@@ -1,8 +1,12 @@
 use std::time::Duration;
 
 use clap::Parser;
+#[cfg(feature = "apc")]
 use powdr_autoprecompiles::{adapter::ApcWithStats, PgoConfig};
-use sp1_core_executor::{Program, SP1Context};
+#[cfg(feature = "apc")]
+use sp1_core_executor::Program;
+use sp1_core_executor::SP1Context;
+#[cfg(feature = "apc")]
 use sp1_core_machine::autoprecompiles::{
     execution_profile_from_program, sp1_powdr_config, CompiledProgram,
 };
@@ -11,6 +15,7 @@ use sp1_gpu_prover::cuda_worker_builder_with_machine;
 use sp1_prover::worker::{SP1LocalNodeBuilder, SP1Proof};
 use sp1_prover_types::network_base_types::ProofMode;
 use sp1_sdk::RiscvAir;
+#[cfg(feature = "apc")]
 use std::sync::Arc;
 
 #[derive(Parser, Debug)]
@@ -26,6 +31,7 @@ struct Args {
     pub mode: String,
     #[arg(long, short, default_value = "1")]
     pub num_iterations: usize,
+    #[cfg(feature = "apc")]
     #[arg(long, default_value_t = 0)]
     pub autoprecompiles: u64,
 }
@@ -80,6 +86,7 @@ async fn main() {
 
     // Get the program and input.
     let (elf, stdin) = get_program_and_input(args.program.clone(), args.param);
+    #[cfg(feature = "apc")]
     let machine = if args.autoprecompiles > 0 {
         let program = Arc::new(Program::from(elf.as_slice()).expect("failed to parse elf"));
         // Use the exact same proving input for APC PGO.
@@ -102,6 +109,8 @@ async fn main() {
     } else {
         RiscvAir::machine()
     };
+    #[cfg(not(feature = "apc"))]
+    let machine = RiscvAir::machine();
 
     // Initialize the AirProver and permits
     let measurements = sp1_gpu_cudart::spawn(move |t| async move {
