@@ -48,10 +48,12 @@ impl<C: SP1ProverComponents> SP1WorkerBuilder<C> {
         #[allow(unused_mut)]
         let mut config = SP1WorkerConfig::new(machine.clone());
 
-        // Disable VK verification.
+        // APC machines use a modified vk that the production vk_root constant doesn't cover, so
+        // vk verification is skipped. Non-APC machines keep the standard vk_root check, which the
+        // downloaded gnark artifacts depend on.
         // TODO: Change this once vk verification is implemented for the modified vk.
         #[cfg(feature = "experimental")]
-        {
+        if crate::components::machine_has_apcs(&machine) {
             config.prover_config.recursion_prover_config =
                 config.prover_config.recursion_prover_config.without_vk_verification();
         }
