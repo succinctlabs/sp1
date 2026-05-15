@@ -66,9 +66,20 @@ impl SP1LightNode {
                 Arc::new(CpuShardProver::new(core_verifier.shard_verifier().clone()));
             let permits = ProverSemaphore::new(1);
 
+            // Mirror the prover-side vk_verification logic in worker/builder.rs (auto-disable
+            // under APC machines) and cpu_worker_builder_with_machine (auto-disable under
+            // mprotect). Keeping these in sync lets the light node's verifier_vks match the
+            // full node's recursion_vks (see `test_light_node`). When vk_verification is
+            // false, RecursionVks::new returns a dummy tree whose root differs from the real
+            // bundled vk_map.bin, so the light verifier must compute the real tree whenever
+            // the prover side keeps vk_verification on.
             #[cfg(any(feature = "mprotect", feature = "experimental"))]
-            let verifier_vks =
-                RecursionVks::new(None, DEFAULT_MAX_COMPOSE_ARITY, false).to_verifier_vks();
+            let verifier_vks = {
+                let vk_verification =
+                    !cfg!(feature = "mprotect") && !crate::components::machine_has_apcs(&machine);
+                RecursionVks::new(None, DEFAULT_MAX_COMPOSE_ARITY, vk_verification)
+                    .to_verifier_vks()
+            };
             #[cfg(not(any(feature = "mprotect", feature = "experimental")))]
             let verifier_vks = VerifierRecursionVks::default();
             let verifier = SP1Verifier::new_with_machine(verifier_vks, machine);
