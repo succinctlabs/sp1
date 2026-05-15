@@ -83,6 +83,32 @@ impl CompressedMemory {
         }
         out
     }
+
+    /// Count of set bits across all pages.
+    #[must_use]
+    pub fn count_set(&self) -> usize {
+        self.bits.iter().map(Page::count_ones).sum()
+    }
+
+    /// Union `other` into `self` by bitwise-OR of each page that is non-empty in `other`.
+    pub fn merge(&mut self, other: &CompressedMemory) {
+        for (upper, &other_pid) in other.index.iter().enumerate() {
+            if other_pid == u32::MAX {
+                continue;
+            }
+            let other_page = &other.bits[other_pid as usize];
+            let self_pid = match self.index[upper] {
+                u32::MAX => {
+                    let id = self.bits.len() as u32;
+                    self.bits.push(Page::new());
+                    self.index[upper] = id;
+                    id
+                }
+                id => id,
+            };
+            self.bits[self_pid as usize].or_with(other_page);
+        }
+    }
 }
 
 /// A structure that stores a single bit for each page index.
@@ -169,6 +195,32 @@ impl CompressedPages {
         }
         out
     }
+
+    /// Count of set bits across all pages.
+    #[must_use]
+    pub fn count_set(&self) -> usize {
+        self.bits.iter().map(PageBits::count_ones).sum()
+    }
+
+    /// Union `other` into `self` by bitwise-OR of each bitset page that is non-empty in `other`.
+    pub fn merge(&mut self, other: &CompressedPages) {
+        for (upper, &other_pid) in other.index.iter().enumerate() {
+            if other_pid == u32::MAX {
+                continue;
+            }
+            let other_page = &other.bits[other_pid as usize];
+            let self_pid = match self.index[upper] {
+                u32::MAX => {
+                    let id = self.bits.len() as u32;
+                    self.bits.push(PageBits::new());
+                    self.index[upper] = id;
+                    id
+                }
+                id => id,
+            };
+            self.bits[self_pid as usize].or_with(other_page);
+        }
+    }
 }
 
 /// A bitset page for `CompressedPages`.
@@ -220,6 +272,18 @@ impl PageBits {
                 Some(idx)
             })
         })
+    }
+
+    #[inline]
+    fn count_ones(&self) -> usize {
+        self.bits.iter().map(|w| w.count_ones() as usize).sum()
+    }
+
+    #[inline]
+    fn or_with(&mut self, other: &PageBits) {
+        for (a, b) in self.bits.iter_mut().zip(other.bits.iter()) {
+            *a |= b;
+        }
     }
 }
 
@@ -274,6 +338,18 @@ impl Page {
                 Some(idx)
             })
         })
+    }
+
+    #[inline]
+    fn count_ones(&self) -> usize {
+        self.bits.iter().map(|w| w.count_ones() as usize).sum()
+    }
+
+    #[inline]
+    fn or_with(&mut self, other: &Page) {
+        for (a, b) in self.bits.iter_mut().zip(other.bits.iter()) {
+            *a |= b;
+        }
     }
 }
 

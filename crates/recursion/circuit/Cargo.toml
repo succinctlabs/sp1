@@ -51,7 +51,6 @@ sp1-hypercube = { workspace = true, features = ["test-proof"] }
 sp1-recursion-machine = { workspace = true }
 sp1-recursion-gnark-ffi = { workspace = true }
 slop-dft = { workspace = true }
-zkhash = { workspace = true }
 rand = { workspace = true }
 futures = { workspace = true }
 test-artifacts = { path = "../../test-artifacts" }
