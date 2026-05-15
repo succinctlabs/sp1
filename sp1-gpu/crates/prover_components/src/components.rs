@@ -1,5 +1,6 @@
 use std::{collections::BTreeMap, sync::Arc};
 
+use sp1_gpu_air::v2::DagBuilder;
 use sp1_gpu_air::{air_block::BlockAir, codegen_cuda_eval, SymbolicProverFolder};
 use sp1_gpu_challenger::{DuplexChallenger, MultiField32Challenger};
 use sp1_gpu_cudart::{PinnedBuffer, TaskScope};
@@ -69,6 +70,7 @@ where
     PC::P: CudaTcsProver<GC>,
     PC::Air: CudaTracegenAir<GC::F>
         + for<'a> BlockAir<SymbolicProverFolder<'a>>
+        + for<'a> slop_air::Air<DagBuilder<'a>>
         + ZerocheckAir<GC::F, GC::EF>
         + std::fmt::Debug,
 {

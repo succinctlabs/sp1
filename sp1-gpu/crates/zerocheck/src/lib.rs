@@ -45,6 +45,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub mod data;
 pub mod primitives;
+pub mod v2;
 
 pub struct EvalProgramInfo<B: Backend = CpuBackend> {
     pub constraint_indices: Buffer<u32, B>,
@@ -2017,6 +2018,308 @@ pub mod tests {
         .unwrap();
     }
 
+    #[test]
+    #[serial]
+    fn test_v2_round0_matches_v1() {
+        use crate::v2::{
+            evaluate_zerocheck_v2, initialize_zerocheck_poly_v2, upload_machine_bytecode,
+        };
+        use crate::{evaluate_zerocheck, initialize_zerocheck_poly};
+        use sp1_gpu_air::v2::ChunkBudget;
+
+        let mut chips: BTreeSet<Chip<Felt, _>> = BTreeSet::new();
+        chips.insert(Chip::new(ZerocheckTestChip::Chip1(ZerocheckTestChip1)));
+        chips.insert(Chip::new(ZerocheckTestChip::Chip2(ZerocheckTestChip2)));
+        chips.insert(Chip::new(ZerocheckTestChip::Chip3(ZerocheckTestChip3)));
+
+        let mut cache = BTreeMap::new();
+        for chip in chips.iter() {
+            cache.insert(chip.name().to_string(), codegen_cuda_eval(chip.air.as_ref()));
+        }
+        let chips_vec = chips.iter().cloned().collect::<Vec<_>>();
+        let max_num_constraints =
+            itertools::max(chips_vec.iter().map(|c| c.num_constraints)).unwrap();
+
+        let row_variables = 22u32;
+        run_sync_in_place(move |t| {
+            let input_size = get_input_sizes();
+            let mut rng = rand::thread_rng();
+            let public_values = vec![random_felt(&mut rng), random_felt(&mut rng)];
+
+            let trace_mle = get_input(&input_size, &chips_vec, &public_values);
+            let trace_mle = Arc::new(trace_mle.into_device(&t));
+
+            let initial_heights = trace_mle
+                .dense_data
+                .main_table_index
+                .values()
+                .map(|to| to.poly_size as u32)
+                .collect::<Vec<u32>>();
+
+            // Build the same scalar inputs both paths expect.
+            let mut challenger = TestGC::default_challenger();
+            challenger.observe(Felt::from_canonical_u32(0x2013));
+            let mut cp = challenger.clone();
+            let batching = cp.sample_ext_element::<Ext>();
+            let gkr_open = cp.sample_ext_element::<Ext>();
+            let lambda = cp.sample_ext_element::<Ext>();
+
+            let max_columns =
+                chips_vec.iter().map(|c| c.preprocessed_width() + c.width()).max().unwrap();
+            let mut powers_of_challenge =
+                batching.powers().take(max_num_constraints).collect::<Vec<_>>();
+            powers_of_challenge.reverse();
+            let gkr_powers = gkr_open.powers().skip(1).take(max_columns).collect::<Vec<_>>();
+            let num_chips = chips.len();
+            let powers_of_lambda = lambda
+                .powers()
+                .take(num_chips)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect::<Vec<_>>();
+
+            let mut padded_row_adjustment = vec![Ext::zero(); num_chips];
+            for (i, chip) in chips.iter().enumerate() {
+                let prep_zero = vec![Felt::zero(); chip.preprocessed_width()];
+                let main_zero = vec![Felt::zero(); chip.width()];
+                let mut folder = ConstraintSumcheckFolder {
+                    preprocessed: RowMajorMatrixView::new_row(&prep_zero),
+                    main: RowMajorMatrixView::new_row(&main_zero),
+                    accumulator: Ext::zero(),
+                    public_values: &public_values,
+                    constraint_index: 0,
+                    powers_of_alpha: &powers_of_challenge
+                        [powers_of_challenge.len() - chip.num_constraints..],
+                };
+                chip.air.eval(&mut folder);
+                padded_row_adjustment[i] = folder.accumulator;
+            }
+
+            let zeta = Point::<Ext>::rand(&mut rng, row_variables);
+            let claim = Ext::zero();
+
+            // v1 round 0
+            let v1_poly = initialize_zerocheck_poly(
+                trace_mle.as_ref(),
+                &chips,
+                &cache,
+                initial_heights.clone(),
+                public_values.clone(),
+                powers_of_challenge.clone(),
+                gkr_powers.clone(),
+                powers_of_lambda.clone(),
+                padded_row_adjustment.clone(),
+                zeta.clone(),
+                claim,
+            );
+            let v1_uni = evaluate_zerocheck(&v1_poly);
+
+            // v2 round 0
+            let machine_bytecode =
+                Arc::new(upload_machine_bytecode(&chips, ChunkBudget::default_v1(), &t));
+            let compiled_dev: Vec<_> = chips
+                .iter()
+                .enumerate()
+                .map(|(s, chip)| {
+                    let m = machine_bytecode.chip_index[chip.name()];
+                    let mut v = machine_bytecode.chips[m].clone();
+                    v.chip_idx = s as u32;
+                    v
+                })
+                .collect();
+            let v2_poly = initialize_zerocheck_poly_v2(
+                trace_mle.as_ref(),
+                &chips,
+                compiled_dev,
+                machine_bytecode,
+                initial_heights,
+                public_values,
+                powers_of_challenge,
+                gkr_powers,
+                powers_of_lambda,
+                padded_row_adjustment,
+                zeta,
+                claim,
+            );
+            let v2_uni = evaluate_zerocheck_v2(&v2_poly);
+
+            println!("v1 round0 coeffs: {:?}", v1_uni.coefficients);
+            println!("v2 round0 coeffs: {:?}", v2_uni.coefficients);
+            assert_eq!(v1_uni.coefficients.len(), v2_uni.coefficients.len(), "deg differs");
+            for (i, (a, b)) in
+                v1_uni.coefficients.iter().zip(v2_uni.coefficients.iter()).enumerate()
+            {
+                assert_eq!(a, b, "round0 coeff {} differs", i);
+            }
+
+            // Verify round 1 also matches.
+            let r1_point = Ext::from_canonical_u32(1234567);
+            let r1_claim = v1_uni.eval_at_point(r1_point);
+            let v1_poly_r1 = crate::zerocheck_fix_last_variable(v1_poly, r1_point, r1_claim);
+            let v2_poly_r1 = crate::v2::zerocheck_fix_last_variable_v2(v2_poly, r1_point, r1_claim);
+            let v1_r1_uni = evaluate_zerocheck(&v1_poly_r1);
+            let v2_r1_uni = evaluate_zerocheck_v2(&v2_poly_r1);
+            println!("v1 round1 coeffs: {:?}", v1_r1_uni.coefficients);
+            println!("v2 round1 coeffs: {:?}", v2_r1_uni.coefficients);
+            for (i, (a, b)) in
+                v1_r1_uni.coefficients.iter().zip(v2_r1_uni.coefficients.iter()).enumerate()
+            {
+                assert_eq!(a, b, "round1 coeff {} differs", i);
+            }
+        })
+        .unwrap();
+    }
+
+    /// Scaling sanity check for the future "machine with thousands of chips"
+    /// goal: replicate the compiled test chips up to 5000 and confirm the
+    /// once-per-machine flat upload (`upload_compiled_bytecode`) handles it.
+    #[test]
+    #[serial]
+    fn test_v2_machine_bytecode_scaling() {
+        use crate::v2::{compile_chips_v2, upload_compiled_bytecode, CompiledChip};
+        use sp1_gpu_air::v2::ChunkBudget;
+
+        let mut chips: BTreeSet<Chip<Felt, _>> = BTreeSet::new();
+        chips.insert(Chip::new(ZerocheckTestChip::Chip1(ZerocheckTestChip1)));
+        chips.insert(Chip::new(ZerocheckTestChip::Chip2(ZerocheckTestChip2)));
+        chips.insert(Chip::new(ZerocheckTestChip::Chip3(ZerocheckTestChip3)));
+        let base = compile_chips_v2(&chips, ChunkBudget::default_v1());
+
+        // Replicate the compiled chips to a machine-sized chip count, each
+        // with a distinct name (the chunker output is identical — we only
+        // exercise the flatten + upload path at scale).
+        const TARGET: usize = 5000;
+        let mut big: Vec<CompiledChip> = Vec::with_capacity(TARGET);
+        for i in 0..TARGET {
+            let mut c = base[i % base.len()].clone();
+            c.chip_idx = i as u32;
+            c.name = format!("{}_{}", c.name, i);
+            big.push(c);
+        }
+
+        run_sync_in_place(move |t| {
+            let start = std::time::Instant::now();
+            let mb = upload_compiled_bytecode(big, &t);
+            println!(
+                "upload_compiled_bytecode: {} chips uploaded in {:?}",
+                mb.chips.len(),
+                start.elapsed(),
+            );
+            assert_eq!(mb.chips.len(), TARGET);
+            assert_eq!(mb.chip_index.len(), TARGET);
+        })
+        .unwrap();
+    }
+
+    #[test]
+    #[serial]
+    fn test_zerocheck_v2_function_verify() {
+        use crate::v2::{compile_chips_v2, upload_compiled_bytecode, zerocheck_v2};
+        use sp1_gpu_air::v2::ChunkBudget;
+
+        let mut chips: BTreeSet<Chip<Felt, _>> = BTreeSet::new();
+        chips.insert(Chip::new(ZerocheckTestChip::Chip1(ZerocheckTestChip1)));
+        chips.insert(Chip::new(ZerocheckTestChip::Chip2(ZerocheckTestChip2)));
+        chips.insert(Chip::new(ZerocheckTestChip::Chip3(ZerocheckTestChip3)));
+
+        let chips_vec = chips.iter().cloned().collect::<Vec<_>>();
+        let row_variables = 22;
+
+        run_sync_in_place(move |t| {
+            // Build machine bytecode as a strict SUPERSET of the shard: a
+            // fake extra chip is prepended so the real chips sit at machine
+            // indices 1,2,3 while the shard sees them at 0,1,2. Exercises
+            // the machine-⊋-shard selection path that e2e proving hits.
+            let mut machine_compiled = compile_chips_v2(&chips, ChunkBudget::default_v1());
+            let mut fake = machine_compiled[0].clone();
+            fake.name = "ZZZ_fake_extra_chip".to_string();
+            let mut superset = vec![fake];
+            superset.append(&mut machine_compiled);
+            let machine_bytecode = Arc::new(upload_compiled_bytecode(superset, &t));
+            let input_size = get_input_sizes();
+            let mut rng = rand::thread_rng();
+            let public_values = vec![random_felt(&mut rng), random_felt(&mut rng)];
+
+            let trace_mle = get_input(&input_size, &chips_vec, &public_values);
+            let trace_mle = Arc::new(trace_mle.into_device(&t));
+
+            let mut challenger = TestGC::default_challenger();
+            challenger.observe(Felt::from_canonical_u32(0x2013));
+            challenger.observe(Felt::from_canonical_u32(0x2015));
+            challenger.observe(Felt::from_canonical_u32(0x2016));
+            challenger.observe(Felt::from_canonical_u32(0x2023));
+            challenger.observe(Felt::from_canonical_u32(0x2024));
+
+            let _lambda: Ext = challenger.sample();
+
+            let mut challenger_prover = challenger.clone();
+            let batching_challenge = challenger_prover.sample_ext_element();
+            let gkr_opening_batch_randomness = challenger_prover.sample_ext_element();
+            let max_log_row_count = row_variables as usize;
+
+            let zeta = Point::<Ext>::rand(&mut rng, row_variables);
+            let individual_column_evals = evaluate_jagged_columns(&trace_mle, zeta.clone());
+
+            let mut preprocessed_ptr: usize = 0;
+            let mut main_ptr = chips_vec.iter().map(|x| x.preprocessed_width()).sum::<usize>() + 1;
+
+            let mut chip_openings: BTreeMap<String, ChipEvaluation<Ext>> = BTreeMap::new();
+            for chip in chips_vec.iter() {
+                let preprocessed_width = chip.preprocessed_width();
+                let main_width = chip.width();
+                let chip_eval = ChipEvaluation {
+                    preprocessed_trace_evaluations: match preprocessed_width {
+                        0 => None,
+                        _ => Some(MleEval::new(Tensor::from(
+                            individual_column_evals
+                                [preprocessed_ptr..preprocessed_ptr + preprocessed_width]
+                                .to_vec(),
+                        ))),
+                    },
+                    main_trace_evaluations: MleEval::new(Tensor::from(
+                        individual_column_evals[main_ptr..main_ptr + main_width].to_vec(),
+                    )),
+                };
+                chip_openings.insert(
+                    <ZerocheckTestChip as sp1_hypercube::air::MachineAir<SP1Field>>::name(
+                        &chip.air,
+                    )
+                    .to_string(),
+                    chip_eval,
+                );
+                preprocessed_ptr += preprocessed_width;
+                main_ptr += main_width;
+            }
+
+            let logup_evaluations = LogUpEvaluations { point: zeta, chip_openings };
+
+            let (opened_values, zerocheck_proof) = zerocheck_v2(
+                &chips,
+                &machine_bytecode,
+                trace_mle.as_ref(),
+                batching_challenge,
+                gkr_opening_batch_randomness,
+                &logup_evaluations,
+                public_values.clone(),
+                &mut challenger_prover,
+                max_log_row_count as u32,
+            );
+
+            let mut challenger_verifier = challenger.clone();
+            crate::tests::verify_zerocheck(
+                &chips,
+                &opened_values,
+                &logup_evaluations,
+                zerocheck_proof,
+                &public_values,
+                &mut challenger_verifier,
+                max_log_row_count,
+            );
+        })
+        .unwrap();
+    }
+
     #[tokio::test]
     #[serial]
     async fn test_zerocheck_real_traces() {
@@ -2121,6 +2424,172 @@ pub mod tests {
                 &mut challenger_verifier,
                 max_log_row_count as usize,
             );
+        })
+        .await;
+    }
+
+    /// v2 zerocheck on real RISC-V traces, with the machine bytecode built
+    /// from the WHOLE machine (machine ⊋ shard cluster) — mirrors what the
+    /// e2e prover does. Proves and verifies.
+    #[tokio::test]
+    #[serial]
+    async fn test_zerocheck_v2_real_traces() {
+        use crate::v2::{
+            compile_chips_v2, evaluate_zerocheck_v2, initialize_zerocheck_poly_v2,
+            upload_compiled_bytecode,
+        };
+        use sp1_gpu_air::v2::ChunkBudget;
+
+        let (machine, record, program) =
+            tracegen_setup::setup(&test_artifacts::FIBONACCI_ELF, SP1Stdin::new()).await;
+
+        run_in_place(|t| async move {
+            let mut rng = rand::thread_rng();
+
+            let capacity = CORE_MAX_TRACE_SIZE as usize;
+            let buffer = PinnedBuffer::<Felt>::with_capacity(capacity);
+            let queue = Arc::new(WorkerQueue::new(vec![buffer]));
+            let buffer = queue.pop().await.unwrap();
+
+            let (public_values, trace_mle, chips, _permit) = full_tracegen(
+                &machine,
+                program.clone(),
+                Arc::new(record),
+                &buffer,
+                CORE_MAX_TRACE_SIZE as usize,
+                LOG_STACKING_HEIGHT,
+                CORE_MAX_LOG_ROW_COUNT,
+                &t,
+                ProverSemaphore::new(1),
+                true,
+            )
+            .await;
+            let chips = machine.smallest_cluster(&chips).unwrap();
+
+            let mut cache = BTreeMap::new();
+            for chip in chips.iter() {
+                cache.insert(chip.name().to_string(), codegen_cuda_eval(chip.air.as_ref()));
+            }
+
+            let trace_mle = Arc::new(trace_mle);
+            let initial_heights = trace_mle
+                .dense_data
+                .main_table_index
+                .values()
+                .map(|o| o.poly_size as u32)
+                .collect::<Vec<u32>>();
+
+            let mut challenger = TestGC::default_challenger();
+            challenger.observe(Felt::from_canonical_u32(0x2013));
+            let mut cp = challenger.clone();
+            let batching = cp.sample_ext_element::<Ext>();
+            let gkr_open = cp.sample_ext_element::<Ext>();
+            let lambda = cp.sample_ext_element::<Ext>();
+
+            let max_num_constraints = chips.iter().map(|c| c.num_constraints).max().unwrap();
+            let max_columns =
+                chips.iter().map(|c| c.preprocessed_width() + c.width()).max().unwrap();
+            let mut powers_of_challenge =
+                batching.powers().take(max_num_constraints).collect::<Vec<_>>();
+            powers_of_challenge.reverse();
+            let gkr_powers = gkr_open.powers().skip(1).take(max_columns).collect::<Vec<_>>();
+            let num_chips = chips.len();
+            let powers_of_lambda = lambda
+                .powers()
+                .take(num_chips)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect::<Vec<_>>();
+
+            let mut padded_row_adjustment = vec![Ext::zero(); num_chips];
+            for (i, chip) in chips.iter().enumerate() {
+                let prep_zero = vec![Felt::zero(); chip.preprocessed_width()];
+                let main_zero = vec![Felt::zero(); chip.width()];
+                let mut folder = ConstraintSumcheckFolder {
+                    preprocessed: RowMajorMatrixView::new_row(&prep_zero),
+                    main: RowMajorMatrixView::new_row(&main_zero),
+                    accumulator: Ext::zero(),
+                    public_values: &public_values,
+                    constraint_index: 0,
+                    powers_of_alpha: &powers_of_challenge
+                        [powers_of_challenge.len() - chip.num_constraints..],
+                };
+                chip.air.eval(&mut folder);
+                padded_row_adjustment[i] = folder.accumulator;
+            }
+
+            let zeta = Point::<Ext>::rand(&mut rng, CORE_MAX_LOG_ROW_COUNT);
+            let claim = Ext::zero();
+
+            let v1_poly = initialize_zerocheck_poly(
+                trace_mle.as_ref(),
+                chips,
+                &cache,
+                initial_heights.clone(),
+                public_values.clone(),
+                powers_of_challenge.clone(),
+                gkr_powers.clone(),
+                powers_of_lambda.clone(),
+                padded_row_adjustment.clone(),
+                zeta.clone(),
+                claim,
+            );
+            let v1_uni = evaluate_zerocheck(&v1_poly);
+
+            // Build machine bytecode from the WHOLE machine, then pad it to
+            // ~5000 chips with distinct-named clones — simulating the
+            // auto-generated many-chip machine. The shard cluster is a tiny
+            // subset selected by name; this validates that v2 stays correct
+            // when the machine has thousands of (mostly-unused) chips.
+            let machine_chip_set: BTreeSet<_> = machine.chips().iter().cloned().collect();
+            let mut machine_compiled =
+                compile_chips_v2(&machine_chip_set, ChunkBudget::default_v1());
+            let real_n = machine_compiled.len();
+            let mut k = 0;
+            while machine_compiled.len() < 5000 {
+                let mut c = machine_compiled[k % real_n].clone();
+                c.name = format!("{}__pad{}", c.name, machine_compiled.len());
+                machine_compiled.push(c);
+                k += 1;
+            }
+            let machine_bytecode = Arc::new(upload_compiled_bytecode(machine_compiled, &t));
+            let compiled_dev: Vec<_> = chips
+                .iter()
+                .enumerate()
+                .map(|(s, chip)| {
+                    let m = machine_bytecode.chip_index[chip.name()];
+                    let mut v = machine_bytecode.chips[m].clone();
+                    v.chip_idx = s as u32;
+                    v
+                })
+                .collect();
+            let v2_poly = initialize_zerocheck_poly_v2(
+                trace_mle.as_ref(),
+                chips,
+                compiled_dev,
+                machine_bytecode,
+                initial_heights,
+                public_values,
+                powers_of_challenge,
+                gkr_powers,
+                powers_of_lambda,
+                padded_row_adjustment,
+                zeta,
+                claim,
+            );
+            let v2_uni = evaluate_zerocheck_v2(&v2_poly);
+
+            assert_eq!(
+                v1_uni.coefficients.len(),
+                v2_uni.coefficients.len(),
+                "round0 degree differs"
+            );
+            for (i, (a, b)) in
+                v1_uni.coefficients.iter().zip(v2_uni.coefficients.iter()).enumerate()
+            {
+                assert_eq!(a, b, "round0 coeff {i} differs (v1 vs v2)");
+            }
         })
         .await;
     }

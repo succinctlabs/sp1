@@ -7,6 +7,7 @@ pub mod symbolic_expr_ef;
 pub mod symbolic_expr_f;
 pub mod symbolic_var_ef;
 pub mod symbolic_var_f;
+pub mod v2;
 use std::sync::Mutex;
 
 use air_block::BlockAir;

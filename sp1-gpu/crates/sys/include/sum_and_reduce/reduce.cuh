@@ -18,8 +18,32 @@ partialBlockReduce(const TyBlock& block, const TyTile& tile, F val, F* shared) {
     // Synchronize after warp-level reduction
     block.sync();
 
+    // Tree-based reduction over the N = block.size() / tile.size() warp partials.
+    //
+    // The simple `for (stride = N/2; stride > 0; stride /= 2)` loop is only
+    // correct when N is a power of 2; for e.g. N = 3 it folds slot 1 into 0 and
+    // then exits with `shared[2]` never added in (silent undercount).
+    //
+    // Fix (smallest blast radius — does not change the caller-visible shmem
+    // contract of N slots): on the first pass fold the "tail" elements
+    // `[pow2, N)` into `[0, N - pow2)`, leaving `pow2` valid partials, then run
+    // the regular power-of-2 tree reduction. Since pow2 is the largest
+    // power-of-2 <= N we have N - pow2 < pow2, so the writes don't overlap.
+    const int n = block.size() / tile.size();
+    int pow2 = 1;
+    while ((pow2 << 1) <= n) {
+        pow2 <<= 1;
+    }
+    if (pow2 < n) {
+        const int tail = n - pow2;
+        if (block.thread_rank() < tail) {
+            shared[block.thread_rank()] += shared[block.thread_rank() + pow2];
+        }
+        block.sync();
+    }
+
     // Perform tree-based reduction on shared memory
-    for (int stride = (block.size() / tile.size()) / 2; stride > 0; stride /= 2) {
+    for (int stride = pow2 / 2; stride > 0; stride /= 2) {
         if (block.thread_rank() < stride) {
             shared[block.thread_rank()] += shared[block.thread_rank() + stride];
         }
@@ -33,3 +57,8 @@ partialBlockReduce(const TyBlock& block, const TyTile& tile, F val, F* shared) {
 extern "C" void* reduce_kernel_felt();
 // A reduction kernel for Ext
 extern "C" void* reduce_kernel_ext();
+
+// Test-only kernel exercising `partialBlockReduce` with one block. Each thread
+// contributes `input[threadIdx.x]` and the per-block sum is written to
+// `output[0]`. Used to verify correctness for non-power-of-2 warp counts.
+extern "C" void* partial_block_reduce_test_kernel_felt();

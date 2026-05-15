@@ -31,6 +31,42 @@ extern "C" {
     pub fn fix_last_variable_jagged_felt() -> KernelPtr;
     pub fn fix_last_variable_jagged_ext() -> KernelPtr;
 
+    // zerocheck_v2 (DAG-native): Sequential lowering kernels.
+    //   _kb:  K = felt_t  (base-field trace, sumcheck round 0)
+    //   _ext: K = ext_t   (extension-field trace, sumcheck rounds 1+)
+    pub fn zerocheck_v2_sequential_kb_kernel() -> KernelPtr;
+    pub fn zerocheck_v2_sequential_ext_kernel() -> KernelPtr;
+    // Tiered by per-chunk MAX_REGS (kernel selection by max_reg).
+    pub fn zerocheck_v2_sequential_kb_32_kernel() -> KernelPtr;
+    pub fn zerocheck_v2_sequential_kb_64_kernel() -> KernelPtr;
+    pub fn zerocheck_v2_sequential_kb_128_kernel() -> KernelPtr;
+    pub fn zerocheck_v2_sequential_kb_256_kernel() -> KernelPtr;
+    pub fn zerocheck_v2_sequential_ext_32_kernel() -> KernelPtr;
+    pub fn zerocheck_v2_sequential_ext_64_kernel() -> KernelPtr;
+    pub fn zerocheck_v2_sequential_ext_128_kernel() -> KernelPtr;
+    pub fn zerocheck_v2_sequential_ext_256_kernel() -> KernelPtr;
+
+    // Fused dispatch: one launch handles every Sequential chunk in a round.
+    // Per-thread idx → chunk_idx via binary search on `row_starts`.
+    pub fn zerocheck_v2_fused_sequential_kb_kernel() -> KernelPtr;
+    pub fn zerocheck_v2_fused_sequential_ext_kernel() -> KernelPtr;
+    pub fn zerocheck_v2_fused_sequential_kb_32_kernel() -> KernelPtr;
+    pub fn zerocheck_v2_fused_sequential_kb_64_kernel() -> KernelPtr;
+    pub fn zerocheck_v2_fused_sequential_kb_128_kernel() -> KernelPtr;
+    pub fn zerocheck_v2_fused_sequential_kb_256_kernel() -> KernelPtr;
+    pub fn zerocheck_v2_fused_sequential_kb_512_kernel() -> KernelPtr;
+    pub fn zerocheck_v2_fused_sequential_kb_1024_kernel() -> KernelPtr;
+    pub fn zerocheck_v2_fused_sequential_ext_32_kernel() -> KernelPtr;
+    pub fn zerocheck_v2_fused_sequential_ext_64_kernel() -> KernelPtr;
+    pub fn zerocheck_v2_fused_sequential_ext_128_kernel() -> KernelPtr;
+    pub fn zerocheck_v2_fused_sequential_ext_256_kernel() -> KernelPtr;
+    pub fn zerocheck_v2_fused_sequential_ext_512_kernel() -> KernelPtr;
+    pub fn zerocheck_v2_fused_sequential_ext_1024_kernel() -> KernelPtr;
+
+    // zerocheck_v2 (DAG-native): ColumnTile lowering kernels.
+    pub fn zerocheck_v2_column_tile_kb_kernel() -> KernelPtr;
+    pub fn zerocheck_v2_column_tile_ext_kernel() -> KernelPtr;
+
     // Jagged Zerocheck Kernels
     pub fn jagged_constraint_poly_eval_32_koala_bear_kernel() -> KernelPtr;
     pub fn jagged_constraint_poly_eval_64_koala_bear_kernel() -> KernelPtr;

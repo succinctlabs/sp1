@@ -7417,6 +7417,7 @@ version = "6.2.0"
 dependencies = [
  "clap",
  "serde",
+ "slop-air",
  "slop-algebra",
  "slop-basefold",
  "slop-bn254",
@@ -7472,7 +7473,9 @@ version = "6.2.0"
 dependencies = [
  "criterion",
  "rand 0.8.6",
+ "serde_json",
  "serial_test",
+ "slop-air",
  "slop-algebra",
  "slop-alloc",
  "slop-basefold",

@@ -1,0 +1,1557 @@
+//! Parallel zerocheck path built on the v2 DAG-native IR.
+//!
+//! This module mirrors the v1 entry points in this crate (`zerocheck`,
+//! `evaluate_zerocheck`, `zerocheck_fix_last_variable`, `initialize_zerocheck_poly`)
+//! but routes constraint evaluation through the DAG-native kernels in
+//! `sp1-gpu-air::v2` + `sp1-gpu-sys::v2_kernels`.
+//!
+//! The v1 path stays in place for A/B comparison; this is intentionally a
+//! parallel implementation, not a refactor.
+
+use std::borrow::Cow;
+use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
+
+use itertools::Itertools;
+use slop_air::{Air, BaseAir};
+use slop_algebra::{
+    interpolate_univariate_polynomial, AbstractField, ExtensionField, Field, UnivariatePolynomial,
+};
+use slop_alloc::{Buffer, HasBackend};
+use slop_challenger::{FieldChallenger, VariableLengthChallenger};
+use slop_matrix::dense::RowMajorMatrixView;
+use slop_multilinear::{Point, VirtualGeq};
+use slop_sumcheck::PartialSumcheckProof;
+use slop_tensor::Tensor;
+
+use sp1_gpu_air::v2::{
+    analyze_constraints, build_dag, chunk_dag, enumerate_lowerings, lower_column_tile,
+    lower_sequential, synthesize_gkr_chunk, ChunkBudget, ChunkBytecode, ColumnTileBytecode,
+    DagBuilder, Lowering,
+};
+use sp1_gpu_cudart::sys::runtime::KernelPtr;
+use sp1_gpu_cudart::sys::v2_kernels::{
+    zerocheck_v2_column_tile_ext_kernel, zerocheck_v2_column_tile_kb_kernel,
+    zerocheck_v2_fused_sequential_ext_1024_kernel, zerocheck_v2_fused_sequential_ext_128_kernel,
+    zerocheck_v2_fused_sequential_ext_256_kernel, zerocheck_v2_fused_sequential_ext_32_kernel,
+    zerocheck_v2_fused_sequential_ext_512_kernel, zerocheck_v2_fused_sequential_ext_64_kernel,
+    zerocheck_v2_fused_sequential_ext_kernel, zerocheck_v2_fused_sequential_kb_1024_kernel,
+    zerocheck_v2_fused_sequential_kb_128_kernel, zerocheck_v2_fused_sequential_kb_256_kernel,
+    zerocheck_v2_fused_sequential_kb_32_kernel, zerocheck_v2_fused_sequential_kb_512_kernel,
+    zerocheck_v2_fused_sequential_kb_64_kernel, zerocheck_v2_fused_sequential_kb_kernel,
+    zerocheck_v2_sequential_ext_128_kernel, zerocheck_v2_sequential_ext_256_kernel,
+    zerocheck_v2_sequential_ext_32_kernel, zerocheck_v2_sequential_ext_64_kernel,
+    zerocheck_v2_sequential_ext_kernel, zerocheck_v2_sequential_kb_128_kernel,
+    zerocheck_v2_sequential_kb_256_kernel, zerocheck_v2_sequential_kb_32_kernel,
+    zerocheck_v2_sequential_kb_64_kernel, zerocheck_v2_sequential_kb_kernel,
+};
+use sp1_gpu_cudart::{args, DeviceBuffer, DevicePoint, TaskScope};
+use sp1_gpu_utils::{Ext, Felt, JaggedTraceMle};
+use sp1_hypercube::air::MachineAir;
+use sp1_hypercube::prover::ZerocheckAir;
+use sp1_hypercube::{
+    AirOpenedValues, Chip, ChipEvaluation, ChipOpenedValues, ConstraintSumcheckFolder,
+    LogUpEvaluations, ShardOpenedValues,
+};
+
+use crate::challenger_update;
+use crate::primitives::{evaluate_jagged_fix_last_variable, JaggedFixLastVariableKernel};
+
+// ============================================================================
+// Compiled per-chip data — built once per session, reused across all rounds
+// and shards.
+// ============================================================================
+
+/// One chunk's bytecode + a discriminator for which kernel runs it.
+#[derive(Debug, Clone)]
+pub enum CompiledChunk {
+    Sequential(ChunkBytecode),
+    ColumnTile(ColumnTileBytecode),
+}
+
+/// Per-chip compiled program: a list of chunks (Sequential + ColumnTile)
+/// plus a final synthesized GKR-correction chunk.
+#[derive(Debug, Clone)]
+pub struct CompiledChip {
+    pub chip_idx: u32,
+    pub name: String,
+    pub main_width: u32,
+    pub prep_width: u32,
+    pub chunks: Vec<CompiledChunk>,
+}
+
+/// Index of the synthesized GKR chunk inside `chunks`. Used by the launcher
+/// to wire `runtime_coeffs` only to that one chunk's launch.
+pub fn gkr_chunk_idx(chip: &CompiledChip) -> usize {
+    // GKR is always the last chunk we append in `compile_chip`.
+    chip.chunks.len() - 1
+}
+
+/// Compile a chip set to per-chip v2 chunks.
+///
+/// The emitted bytecode is **machine-stable**: it depends only on each chip's
+/// AIR, not on the cluster it lands in. In particular, assertion alpha
+/// indices are stored *chip-relative* (`0 .. chip.num_constraints`), NOT
+/// shifted into the cluster's `powers_of_alpha` table. The cluster-dependent
+/// shift (`max_num_constraints - chip.num_constraints`) is instead applied at
+/// kernel-launch time via `ChunkMetaC::chip_alpha_offset` (fused Sequential
+/// kernel) or by offsetting the `powers_of_alpha` pointer (ColumnTile). This
+/// lets the compiled+uploaded bytecode be cached once per machine and reused
+/// across every shard and cluster.
+///
+/// The synthesized GKR chunk (only for chips with no Sequential carrier)
+/// stores the chip-relative index `num_constraints - 1`, which the same
+/// runtime shift maps onto the `powers_of_alpha` slot holding `EF::one()`.
+pub fn compile_chips_v2<A>(
+    chips: &BTreeSet<Chip<Felt, A>>,
+    budget: ChunkBudget,
+) -> Vec<CompiledChip>
+where
+    A: MachineAir<Felt> + for<'a> Air<DagBuilder<'a>>,
+{
+    let t_compile = std::time::Instant::now();
+
+    let mut out = Vec::with_capacity(chips.len());
+    for (i, chip) in chips.iter().enumerate() {
+        let air: &A = chip.air.as_ref();
+        let dag = build_dag(air);
+        let infos = analyze_constraints(&dag);
+        let chunks_meta = chunk_dag(&infos, &budget);
+
+        let mut compiled_chunks: Vec<CompiledChunk> = Vec::new();
+        for chunk in &chunks_meta {
+            let lowerings = enumerate_lowerings(chunk, &infos, &dag);
+            // Prefer ColumnTile if it applies; fall back to Sequential.
+            let mut placed = false;
+            if let Some(plan) = lowerings.iter().find_map(|l| match l {
+                Lowering::ColumnTile(p) => Some(p),
+                _ => None,
+            }) {
+                if let Some(bc) = lower_column_tile(chunk, &infos, &dag, plan) {
+                    // `bc.terms[*].alpha_idx` stays chip-relative; the
+                    // cluster shift is applied at launch.
+                    compiled_chunks.push(CompiledChunk::ColumnTile(bc));
+                    placed = true;
+                }
+            }
+            if !placed {
+                let plan = lowerings
+                    .iter()
+                    .find_map(|l| match l {
+                        Lowering::Sequential(p) => Some(p),
+                        _ => None,
+                    })
+                    .expect("every chunk must have a Sequential lowering");
+                let bc = lower_sequential(chunk, &infos, &dag, plan);
+                // `bc.asserts[*].1` (alpha index) stays chip-relative; the
+                // cluster shift is applied at launch.
+                if std::env::var("V2_DEBUG_MAXREG").is_ok() {
+                    eprintln!(
+                        "compile chip={} max_reg={} n_instrs={} n_asserts={}",
+                        air.name(),
+                        bc.max_reg,
+                        bc.instrs.len(),
+                        bc.asserts.len()
+                    );
+                }
+                compiled_chunks.push(CompiledChunk::Sequential(bc));
+            }
+        }
+
+        // GKR carrier selection: the synthesized GKR sweep is
+        // `Σ_i bp_i · col_i` over all main + prep cols. We bake it into the
+        // FIRST Sequential chunk of the chip (it then does the column sweep
+        // after its bytecode + asserts, sharing column reads with the
+        // constraint pass in L1 — same memory pattern as v1).
+        //
+        // Chips with no Sequential chunk (would be ColumnTile-only — rare in
+        // practice for SP1 today) fall back to the legacy synthesized
+        // ColumnTile GKR chunk so they still get GKR.
+        let main_width = air.width() as u32;
+        let prep_width = air.preprocessed_width() as u32;
+        let carrier = compiled_chunks.iter_mut().find_map(|c| match c {
+            CompiledChunk::Sequential(bc) => Some(bc),
+            _ => None,
+        });
+        if let Some(carrier_bc) = carrier {
+            carrier_bc.gkr_main_width = main_width;
+            carrier_bc.gkr_prep_width = prep_width;
+        } else {
+            // No Sequential carrier — synthesize a ColumnTile GKR chunk. It
+            // is flagged `is_gkr_carrier`; the launcher weights it by the
+            // `powers_of_alpha` slot holding `1` directly (see
+            // `synthesize_gkr_chunk` / `launch_chunk_into`).
+            let gkr_bc = synthesize_gkr_chunk(main_width, prep_width);
+            compiled_chunks.push(CompiledChunk::ColumnTile(gkr_bc));
+        }
+
+        out.push(CompiledChip {
+            chip_idx: i as u32,
+            name: air.name().to_string(),
+            main_width,
+            prep_width,
+            chunks: compiled_chunks,
+        });
+    }
+    if std::env::var("SP1_GPU_V2_TIMING").is_ok() {
+        tracing::info!("compile_chips_v2: {} chips in {:?}", out.len(), t_compile.elapsed());
+    }
+    out
+}
+
+// ============================================================================
+// Device-uploaded per-chunk buffers — built once per shard.
+// ============================================================================
+
+/// Device-side per-chunk metadata for the fused dispatch kernel. Layout
+/// must match `struct ChunkMeta` in `include/zerocheck_v2/sequential.cuh`.
+///
+/// The "carrier" chunk (one per chip, gkr_main_width > 0) also carries the
+/// chip's per-round geq parameters (`padded_row_adjustment`, `geq_threshold`,
+/// `geq_eq_coefficient`). The kernel subtracts the geq correction
+/// in-thread, eliminating the per-round host loop that used to dominate
+/// runtime for chips with large row counts.
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct ChunkMetaC {
+    pub instrs: *const sp1_gpu_air::v2::DagInstr,
+    pub leaves: *const sp1_gpu_air::v2::LeafRef,
+    pub consts: *const Felt,
+    pub publics: *const u32,
+    pub assert_regs: *const u16,
+    pub assert_alphas: *const u32,
+    pub preprocessed_ptr: u64,
+    pub main_ptr: u64,
+    pub n_instrs: u32,
+    pub n_asserts: u32,
+    pub chip_idx: u32,
+    pub gkr_main_width: u32,
+    pub gkr_prep_width: u32,
+    pub height: u32,
+    pub row_count: u32,
+    /// Cluster-dependent shift added to every chip-relative alpha index in
+    /// this chunk's bytecode before indexing `powers_of_alpha`.
+    pub chip_alpha_offset: u32,
+    pub geq_threshold: u32,
+    pub geq_eq_coefficient: Ext,
+    pub padded_row_adjustment: Ext,
+}
+
+// SAFETY: ChunkMetaC contains raw device pointers but the kernel will only
+// dereference them on the GPU after we copy the struct over. Send/Sync is
+// fine for our usage — we never share these across threads on the host.
+unsafe impl Send for ChunkMetaC {}
+unsafe impl Sync for ChunkMetaC {}
+
+/// A per-chunk view into the flat machine-wide bytecode buffers
+/// (`MachineBytecodeV2`). Holds raw device pointers, not owned allocations —
+/// the backing memory lives in the `MachineBytecodeV2` that contains this
+/// struct, so a view is valid exactly as long as that machine bytecode is.
+#[derive(Clone, Copy)]
+pub struct ChunkDeviceBufs {
+    pub kind: ChunkKind,
+    // Common
+    pub leaves: *const sp1_gpu_air::v2::LeafRef,
+    pub consts: *const Felt,
+    pub publics: *const u32,
+    // Sequential-only (dummy-but-valid pointer + zero counts for ColumnTile)
+    pub instrs: *const sp1_gpu_air::v2::DagInstr,
+    pub assert_regs: *const u16,
+    pub assert_alphas: *const u32,
+    pub max_reg: u16,
+    pub n_instrs: u32,
+    pub n_asserts: u32,
+    /// Sequential chunks that carry the chip's GKR sweep. When > 0, the
+    /// kernel appends `Σ_i gkr_powers[i] · col_i` over (main_w main cols,
+    /// then prep_w prep cols) after the bytecode + asserts pass, sharing
+    /// column reads with the constraint bytecode.
+    pub gkr_main_width: u32,
+    pub gkr_prep_width: u32,
+    // ColumnTile-only (dummy-but-valid pointer + zero count for Sequential)
+    pub terms: *const sp1_gpu_air::v2::ColumnTermEntry,
+    pub n_terms: u32,
+    // Marker for GKR (uses the per-shard runtime_coeffs buffer)
+    pub is_gkr: bool,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum ChunkKind {
+    Sequential,
+    ColumnTile,
+}
+
+/// Per-chip device views into the flat machine bytecode.
+#[derive(Clone)]
+pub struct CompiledChipDevice {
+    pub chip_idx: u32,
+    pub name: String,
+    pub main_width: u32,
+    pub prep_width: u32,
+    pub chunks: Vec<ChunkDeviceBufs>,
+}
+
+/// The whole machine's compiled v2 bytecode, uploaded once (at prover
+/// construction) into a small fixed number of flat device buffers.
+///
+/// Every chunk of every chip is concatenated, per array type, into one of
+/// the seven `flat_*` buffers; each chunk records pointers into them via
+/// `ChunkDeviceBufs`. This replaces the old per-shard, per-chunk upload
+/// (~7 tiny allocations × every chunk × every shard) with 7 allocations
+/// uploaded exactly once per machine.
+pub struct MachineBytecodeV2 {
+    // Flat buffers — own the device memory the `ChunkDeviceBufs` views point
+    // into. Never read directly; kept alive for the views' sake.
+    _flat_instrs: Buffer<sp1_gpu_air::v2::DagInstr, TaskScope>,
+    _flat_leaves: Buffer<sp1_gpu_air::v2::LeafRef, TaskScope>,
+    _flat_consts: Buffer<Felt, TaskScope>,
+    _flat_publics: Buffer<u32, TaskScope>,
+    _flat_assert_regs: Buffer<u16, TaskScope>,
+    _flat_assert_alphas: Buffer<u32, TaskScope>,
+    _flat_terms: Buffer<sp1_gpu_air::v2::ColumnTermEntry, TaskScope>,
+    /// One entry per machine chip, in machine chip order.
+    pub chips: Vec<CompiledChipDevice>,
+    /// Chip name → index into `chips`, for per-shard subset selection.
+    pub chip_index: BTreeMap<String, usize>,
+}
+
+// SAFETY: `ChunkDeviceBufs`/`CompiledChipDevice` hold raw device pointers
+// into the `_flat_*` buffers owned by the same `MachineBytecodeV2`. They are
+// only ever dereferenced on the GPU after being copied across, and the
+// backing buffers share this struct's lifetime. We never mutate through the
+// pointers on the host.
+unsafe impl Send for MachineBytecodeV2 {}
+unsafe impl Sync for MachineBytecodeV2 {}
+
+/// Compile + upload the entire machine's bytecode once. Call at prover
+/// construction; the result is reused for every shard and every cluster.
+pub fn upload_machine_bytecode<A>(
+    chips: &BTreeSet<Chip<Felt, A>>,
+    budget: ChunkBudget,
+    scope: &TaskScope,
+) -> MachineBytecodeV2
+where
+    A: MachineAir<Felt> + for<'a> Air<DagBuilder<'a>>,
+{
+    upload_compiled_bytecode(compile_chips_v2(chips, budget), scope)
+}
+
+/// Flatten + upload an already-compiled set of chips. Split out of
+/// `upload_machine_bytecode` so scaling tests can feed a synthetically large
+/// chip list without paying repeated AIR compilation.
+pub fn upload_compiled_bytecode(
+    compiled: Vec<CompiledChip>,
+    scope: &TaskScope,
+) -> MachineBytecodeV2 {
+    // ---- Pass 1: concatenate every chunk's arrays into flat host vecs. ----
+    let mut flat_instrs: Vec<sp1_gpu_air::v2::DagInstr> = Vec::new();
+    let mut flat_leaves: Vec<sp1_gpu_air::v2::LeafRef> = Vec::new();
+    let mut flat_consts: Vec<Felt> = Vec::new();
+    let mut flat_publics: Vec<u32> = Vec::new();
+    let mut flat_assert_regs: Vec<u16> = Vec::new();
+    let mut flat_assert_alphas: Vec<u32> = Vec::new();
+    let mut flat_terms: Vec<sp1_gpu_air::v2::ColumnTermEntry> = Vec::new();
+
+    // Per-chunk (offset, len) into each flat vec, recorded in pass 1 and
+    // resolved to pointers in pass 2 (after the flat buffers are uploaded).
+    struct ChunkOffsets {
+        kind: ChunkKind,
+        leaves: (usize, usize),
+        consts: (usize, usize),
+        publics: (usize, usize),
+        instrs: (usize, usize),
+        assert_regs: (usize, usize),
+        assert_alphas: (usize, usize),
+        terms: (usize, usize),
+        max_reg: u16,
+        gkr_main_width: u32,
+        gkr_prep_width: u32,
+        is_gkr: bool,
+    }
+    let mut chip_offsets: Vec<Vec<ChunkOffsets>> = Vec::with_capacity(compiled.len());
+
+    // Append `src` to `dst`, returning the (offset, len) of the appended run.
+    fn extend_flat<T: Copy>(dst: &mut Vec<T>, src: &[T]) -> (usize, usize) {
+        let off = dst.len();
+        dst.extend_from_slice(src);
+        (off, src.len())
+    }
+
+    for chip in &compiled {
+        let mut chunks = Vec::with_capacity(chip.chunks.len());
+        for c in chip.chunks.iter() {
+            chunks.push(match c {
+                CompiledChunk::Sequential(bc) => {
+                    let regs: Vec<u16> = bc.asserts.iter().map(|&(r, _)| r).collect();
+                    let alphas: Vec<u32> = bc.asserts.iter().map(|&(_, a)| a).collect();
+                    ChunkOffsets {
+                        kind: ChunkKind::Sequential,
+                        leaves: extend_flat(&mut flat_leaves, &bc.leaves),
+                        consts: extend_flat(&mut flat_consts, &bc.consts),
+                        publics: extend_flat(&mut flat_publics, &bc.publics),
+                        instrs: extend_flat(&mut flat_instrs, &bc.instrs),
+                        assert_regs: extend_flat(&mut flat_assert_regs, &regs),
+                        assert_alphas: extend_flat(&mut flat_assert_alphas, &alphas),
+                        terms: (flat_terms.len(), 0),
+                        max_reg: bc.max_reg,
+                        gkr_main_width: bc.gkr_main_width,
+                        gkr_prep_width: bc.gkr_prep_width,
+                        is_gkr: false,
+                    }
+                }
+                CompiledChunk::ColumnTile(bc) => ChunkOffsets {
+                    kind: ChunkKind::ColumnTile,
+                    leaves: extend_flat(&mut flat_leaves, &bc.leaves),
+                    consts: extend_flat(&mut flat_consts, &bc.consts),
+                    publics: extend_flat(&mut flat_publics, &bc.publics),
+                    instrs: (flat_instrs.len(), 0),
+                    assert_regs: (flat_assert_regs.len(), 0),
+                    assert_alphas: (flat_assert_alphas.len(), 0),
+                    terms: extend_flat(&mut flat_terms, &bc.terms),
+                    max_reg: 0,
+                    gkr_main_width: 0,
+                    gkr_prep_width: 0,
+                    is_gkr: bc.is_gkr_carrier,
+                },
+            });
+        }
+        chip_offsets.push(chunks);
+    }
+
+    // ---- Upload the seven flat buffers (≥1 element so the base pointer is
+    // never null even for an array type no chunk uses). ----
+    fn upload_flat<T: Copy + 'static>(v: &mut Vec<T>, scope: &TaskScope) -> Buffer<T, TaskScope> {
+        if v.is_empty() {
+            // POD `#[repr(C)]` bytecode structs — an all-zero element is a
+            // valid (never-dereferenced) placeholder so the base pointer of
+            // an unused array type is non-null.
+            v.push(unsafe { std::mem::zeroed() });
+        }
+        DeviceBuffer::from_host_slice(v, scope).unwrap().into_inner()
+    }
+    if std::env::var("SP1_GPU_V2_TIMING").is_ok() {
+        let mb = |n: usize, sz: usize| (n * sz) as f64 / (1024.0 * 1024.0);
+        tracing::info!(
+            "upload_compiled_bytecode: {} chips, flat bytes — instrs={:.1}M leaves={:.1}M \
+             consts={:.1}M publics={:.1}M assert_regs={:.1}M assert_alphas={:.1}M terms={:.1}M",
+            compiled.len(),
+            mb(flat_instrs.len(), std::mem::size_of::<sp1_gpu_air::v2::DagInstr>()),
+            mb(flat_leaves.len(), std::mem::size_of::<sp1_gpu_air::v2::LeafRef>()),
+            mb(flat_consts.len(), std::mem::size_of::<Felt>()),
+            mb(flat_publics.len(), 4),
+            mb(flat_assert_regs.len(), 2),
+            mb(flat_assert_alphas.len(), 4),
+            mb(flat_terms.len(), std::mem::size_of::<sp1_gpu_air::v2::ColumnTermEntry>()),
+        );
+    }
+    let flat_instrs_buf = upload_flat(&mut flat_instrs, scope);
+    let flat_leaves_buf = upload_flat(&mut flat_leaves, scope);
+    let flat_consts_buf = upload_flat(&mut flat_consts, scope);
+    let flat_publics_buf = upload_flat(&mut flat_publics, scope);
+    let flat_assert_regs_buf = upload_flat(&mut flat_assert_regs, scope);
+    let flat_assert_alphas_buf = upload_flat(&mut flat_assert_alphas, scope);
+    let flat_terms_buf = upload_flat(&mut flat_terms, scope);
+
+    // ---- Pass 2: resolve offsets to device pointers. ----
+    let instrs_base = flat_instrs_buf.as_ptr();
+    let leaves_base = flat_leaves_buf.as_ptr();
+    let consts_base = flat_consts_buf.as_ptr();
+    let publics_base = flat_publics_buf.as_ptr();
+    let assert_regs_base = flat_assert_regs_buf.as_ptr();
+    let assert_alphas_base = flat_assert_alphas_buf.as_ptr();
+    let terms_base = flat_terms_buf.as_ptr();
+
+    let mut device_chips = Vec::with_capacity(compiled.len());
+    let mut chip_index = BTreeMap::new();
+    for (chip, offsets) in compiled.iter().zip(chip_offsets.iter()) {
+        let chunks = offsets
+            .iter()
+            .map(|o| ChunkDeviceBufs {
+                kind: o.kind,
+                leaves: unsafe { leaves_base.add(o.leaves.0) },
+                consts: unsafe { consts_base.add(o.consts.0) },
+                publics: unsafe { publics_base.add(o.publics.0) },
+                instrs: unsafe { instrs_base.add(o.instrs.0) },
+                assert_regs: unsafe { assert_regs_base.add(o.assert_regs.0) },
+                assert_alphas: unsafe { assert_alphas_base.add(o.assert_alphas.0) },
+                terms: unsafe { terms_base.add(o.terms.0) },
+                max_reg: o.max_reg,
+                n_instrs: o.instrs.1 as u32,
+                n_asserts: o.assert_regs.1 as u32,
+                gkr_main_width: o.gkr_main_width,
+                gkr_prep_width: o.gkr_prep_width,
+                n_terms: o.terms.1 as u32,
+                is_gkr: o.is_gkr,
+            })
+            .collect();
+        chip_index.insert(chip.name.clone(), device_chips.len());
+        device_chips.push(CompiledChipDevice {
+            chip_idx: chip.chip_idx,
+            name: chip.name.clone(),
+            main_width: chip.main_width,
+            prep_width: chip.prep_width,
+            chunks,
+        });
+    }
+
+    MachineBytecodeV2 {
+        _flat_instrs: flat_instrs_buf,
+        _flat_leaves: flat_leaves_buf,
+        _flat_consts: flat_consts_buf,
+        _flat_publics: flat_publics_buf,
+        _flat_assert_regs: flat_assert_regs_buf,
+        _flat_assert_alphas: flat_assert_alphas_buf,
+        _flat_terms: flat_terms_buf,
+        chips: device_chips,
+        chip_index,
+    }
+}
+
+// ============================================================================
+// Per-round poly state (parallel to v1's ZeroCheckJaggedPoly).
+// ============================================================================
+
+pub struct ZeroCheckJaggedPolyV2<'b, K: Field> {
+    pub data: Cow<'b, JaggedTraceMle<K, TaskScope>>,
+    /// This shard's chips, as pointer-views into `machine_bytecode`.
+    pub compiled: Vec<CompiledChipDevice>,
+    /// The machine-wide flat bytecode the `compiled` views point into. Held
+    /// here so the device buffers outlive every round of this shard.
+    pub machine_bytecode: Arc<MachineBytecodeV2>,
+    pub virtual_geq: Vec<VirtualGeq<Ext>>,
+    pub eq_adjustment: Ext,
+    pub zeta: Point<Ext>,
+    pub claim: Ext,
+    pub initial_heights: Vec<u32>,
+    pub padded_row_adjustment_host: Vec<Ext>,
+    pub public_values: Buffer<Felt, TaskScope>,
+    pub powers_of_alpha: Buffer<Ext, TaskScope>,
+    pub gkr_powers: Buffer<Ext, TaskScope>,
+    pub powers_of_lambda: Buffer<Ext, TaskScope>,
+    pub powers_of_lambda_host: Vec<Ext>,
+    pub chip_main_ptrs: Vec<u64>,
+    pub chip_preprocessed_ptrs: Vec<u64>,
+    pub chip_heights: Vec<u32>,
+    /// Per-chip shift into the cluster's reversed `powers_of_alpha` table:
+    /// `max_num_constraints - chip.num_constraints`. The compiled bytecode
+    /// stores chip-relative alpha indices; this shift is applied at launch
+    /// (see `compile_chips_v2`). Indexed by `chip_idx`.
+    pub chip_alpha_offset: Vec<u32>,
+}
+
+/// Per-trace-element-type kernel selection. Round 0 uses `K = Felt`; rounds
+/// 1+ use `K = Ext` after the trace is folded into the extension field.
+pub trait EvalKernelsV2<K: Field> {
+    fn sequential_kernel() -> KernelPtr;
+    /// Smallest tier whose MAX_REGS >= `max_reg`. `K regs[MAX_REGS][3]` is
+    /// a per-thread stack array that spills to local memory, so tight
+    /// sizing avoids paying for unused slots on every row.
+    fn sequential_kernel_for(max_reg: u16) -> KernelPtr;
+    fn column_tile_kernel() -> KernelPtr;
+    /// Fused dispatch kernel — one launch handles every Sequential chunk
+    /// across every chip in a round.
+    fn fused_sequential_kernel() -> KernelPtr;
+    /// Tiered fused dispatch kernel. The launcher partitions chunks into
+    /// tiers by their `max_reg` and launches one kernel per non-empty
+    /// tier so each kernel's local register array is sized to its tier's
+    /// worst case.
+    fn fused_sequential_kernel_for(max_reg_in_tier: u16) -> KernelPtr;
+}
+
+impl EvalKernelsV2<Felt> for TaskScope {
+    fn sequential_kernel() -> KernelPtr {
+        unsafe { zerocheck_v2_sequential_kb_kernel() }
+    }
+    fn sequential_kernel_for(max_reg: u16) -> KernelPtr {
+        unsafe {
+            if max_reg <= 32 {
+                zerocheck_v2_sequential_kb_32_kernel()
+            } else if max_reg <= 64 {
+                zerocheck_v2_sequential_kb_64_kernel()
+            } else if max_reg <= 128 {
+                zerocheck_v2_sequential_kb_128_kernel()
+            } else {
+                zerocheck_v2_sequential_kb_256_kernel()
+            }
+        }
+    }
+    fn column_tile_kernel() -> KernelPtr {
+        unsafe { zerocheck_v2_column_tile_kb_kernel() }
+    }
+    fn fused_sequential_kernel() -> KernelPtr {
+        unsafe { zerocheck_v2_fused_sequential_kb_kernel() }
+    }
+    fn fused_sequential_kernel_for(max_reg_in_tier: u16) -> KernelPtr {
+        unsafe {
+            if max_reg_in_tier <= 32 {
+                zerocheck_v2_fused_sequential_kb_32_kernel()
+            } else if max_reg_in_tier <= 64 {
+                zerocheck_v2_fused_sequential_kb_64_kernel()
+            } else if max_reg_in_tier <= 128 {
+                zerocheck_v2_fused_sequential_kb_128_kernel()
+            } else if max_reg_in_tier <= 256 {
+                zerocheck_v2_fused_sequential_kb_256_kernel()
+            } else if max_reg_in_tier <= 512 {
+                zerocheck_v2_fused_sequential_kb_512_kernel()
+            } else {
+                zerocheck_v2_fused_sequential_kb_1024_kernel()
+            }
+        }
+    }
+}
+
+impl EvalKernelsV2<Ext> for TaskScope {
+    fn sequential_kernel() -> KernelPtr {
+        unsafe { zerocheck_v2_sequential_ext_kernel() }
+    }
+    fn sequential_kernel_for(max_reg: u16) -> KernelPtr {
+        unsafe {
+            if max_reg <= 32 {
+                zerocheck_v2_sequential_ext_32_kernel()
+            } else if max_reg <= 64 {
+                zerocheck_v2_sequential_ext_64_kernel()
+            } else if max_reg <= 128 {
+                zerocheck_v2_sequential_ext_128_kernel()
+            } else {
+                zerocheck_v2_sequential_ext_256_kernel()
+            }
+        }
+    }
+    fn column_tile_kernel() -> KernelPtr {
+        unsafe { zerocheck_v2_column_tile_ext_kernel() }
+    }
+    fn fused_sequential_kernel() -> KernelPtr {
+        unsafe { zerocheck_v2_fused_sequential_ext_kernel() }
+    }
+    fn fused_sequential_kernel_for(max_reg_in_tier: u16) -> KernelPtr {
+        unsafe {
+            if max_reg_in_tier <= 32 {
+                zerocheck_v2_fused_sequential_ext_32_kernel()
+            } else if max_reg_in_tier <= 64 {
+                zerocheck_v2_fused_sequential_ext_64_kernel()
+            } else if max_reg_in_tier <= 128 {
+                zerocheck_v2_fused_sequential_ext_128_kernel()
+            } else if max_reg_in_tier <= 256 {
+                zerocheck_v2_fused_sequential_ext_256_kernel()
+            } else if max_reg_in_tier <= 512 {
+                zerocheck_v2_fused_sequential_ext_512_kernel()
+            } else {
+                zerocheck_v2_fused_sequential_ext_1024_kernel()
+            }
+        }
+    }
+}
+
+// ============================================================================
+// Build the initial poly state for round 0.
+// ============================================================================
+
+#[allow(clippy::too_many_arguments)]
+pub fn initialize_zerocheck_poly_v2<'b, A>(
+    data: &'b JaggedTraceMle<Felt, TaskScope>,
+    chips: &BTreeSet<Chip<Felt, A>>,
+    compiled_chips_dev: Vec<CompiledChipDevice>,
+    machine_bytecode: Arc<MachineBytecodeV2>,
+    initial_heights: Vec<u32>,
+    public_values: Vec<Felt>,
+    powers_of_alpha: Vec<Ext>,
+    gkr_powers: Vec<Ext>,
+    powers_of_lambda: Vec<Ext>,
+    padded_row_adjustment: Vec<Ext>,
+    zeta: Point<Ext>,
+    claim: Ext,
+) -> ZeroCheckJaggedPolyV2<'b, Felt>
+where
+    A: MachineAir<Felt>,
+{
+    let scope = data.dense().backend();
+
+    let mut virtual_geq: Vec<VirtualGeq<Ext>> = vec![];
+    for (chip, height) in chips.iter().zip_eq(initial_heights.iter()) {
+        virtual_geq.push(VirtualGeq::new(
+            *height,
+            Ext::one(),
+            Ext::zero(),
+            zeta.dimension() as u32,
+        ));
+        let _ = chip;
+    }
+
+    let (chip_main_ptrs, chip_preprocessed_ptrs, chip_heights) = compute_chip_offsets(data, chips);
+
+    // Per-chip launch-time shift into the reversed `powers_of_alpha` table.
+    let max_num_constraints =
+        chips.iter().map(|c| c.num_constraints).max().unwrap_or(1).max(1) as u32;
+    let chip_alpha_offset: Vec<u32> =
+        chips.iter().map(|c| max_num_constraints - c.num_constraints as u32).collect();
+
+    let public_values_device =
+        DeviceBuffer::from_host(&Buffer::from(public_values), scope).unwrap().into_inner();
+    let powers_of_alpha_device =
+        DeviceBuffer::from_host(&Buffer::from(powers_of_alpha), scope).unwrap().into_inner();
+    let gkr_powers_device =
+        DeviceBuffer::from_host(&Buffer::from(gkr_powers), scope).unwrap().into_inner();
+    let powers_of_lambda_host = powers_of_lambda.clone();
+    let powers_of_lambda_device =
+        DeviceBuffer::from_host(&Buffer::from(powers_of_lambda), scope).unwrap().into_inner();
+
+    ZeroCheckJaggedPolyV2 {
+        data: Cow::Borrowed(data),
+        compiled: compiled_chips_dev,
+        machine_bytecode,
+        virtual_geq,
+        eq_adjustment: Ext::one(),
+        zeta,
+        claim,
+        initial_heights,
+        padded_row_adjustment_host: padded_row_adjustment,
+        public_values: public_values_device,
+        powers_of_alpha: powers_of_alpha_device,
+        gkr_powers: gkr_powers_device,
+        powers_of_lambda: powers_of_lambda_device,
+        powers_of_lambda_host,
+        chip_main_ptrs,
+        chip_preprocessed_ptrs,
+        chip_heights,
+        chip_alpha_offset,
+    }
+}
+
+/// Compute the per-chip main/preprocessed trace pointers within the jagged
+/// dense buffer, using the jagged structure's `start_indices` and
+/// `column_heights` (in pair units) as the source of truth. This matches v1's
+/// kernel:
+///   main_ptr = startIndices[total_prep_cols + has_prep_padding + main_idx] << 1
+///
+/// The dense_offset values from `update_offset` (used by JaggedTraceMle's
+/// table indices after a fold) silently drift from the actual jagged layout
+/// when fold padding introduces extra elements at column ends — using
+/// start_indices avoids that whole class of bugs.
+///
+/// Returns (main_ptrs, preprocessed_ptrs, heights), all in element units of
+/// the underlying buffer type (Felt before round 0, Ext after).
+fn compute_chip_offsets<A, K: Field>(
+    data: &JaggedTraceMle<K, TaskScope>,
+    chips: &BTreeSet<Chip<Felt, A>>,
+) -> (Vec<u64>, Vec<u64>, Vec<u32>)
+where
+    A: MachineAir<Felt>,
+{
+    let column_heights = &data.0.column_heights;
+    // start_indices in pair units derived from column_heights (cumulative).
+    let mut starts: Vec<u64> = Vec::with_capacity(column_heights.len() + 1);
+    starts.push(0);
+    let mut acc: u64 = 0;
+    for &h in column_heights.iter() {
+        acc += h as u64;
+        starts.push(acc);
+    }
+
+    let total_prep_widths: usize = chips.iter().map(|c| c.preprocessed_width()).sum();
+    // Match v1's kernel convention: always assume a single prep-padding
+    // column sits between prep cols and main cols. v1's evaluate_zerocheck
+    // hardcodes `total_num_preprocessed_column + 1 + main_idx` for the same
+    // reason. In practice padded prep is always rounded up so this column
+    // exists.
+    let main_section_start_col: usize = total_prep_widths + 1;
+
+    let mut prep_ptrs = Vec::with_capacity(chips.len());
+    let mut main_ptrs = Vec::with_capacity(chips.len());
+    let mut heights = Vec::with_capacity(chips.len());
+
+    let mut cum_prep: usize = 0;
+    let mut cum_main: usize = 0;
+    for chip in chips.iter() {
+        let prep_w = chip.preprocessed_width();
+        let main_w = chip.width();
+
+        let prep_col_idx = cum_prep;
+        let main_col_idx = main_section_start_col + cum_main;
+
+        let prep_ptr = if prep_w > 0 { starts[prep_col_idx] * 2 } else { 0 };
+        let main_ptr = if main_w > 0 { starts[main_col_idx] * 2 } else { 0 };
+
+        // Column stride in element units. Prefer main if present (chip has
+        // main cols), else prep. Chips with neither shouldn't reach here.
+        let height = if main_w > 0 {
+            (column_heights[main_col_idx] as u32) * 2
+        } else if prep_w > 0 {
+            (column_heights[prep_col_idx] as u32) * 2
+        } else {
+            0
+        };
+
+        prep_ptrs.push(prep_ptr);
+        main_ptrs.push(main_ptr);
+        heights.push(height);
+
+        cum_prep += prep_w;
+        cum_main += main_w;
+    }
+
+    (main_ptrs, prep_ptrs, heights)
+}
+
+// ============================================================================
+// Per-round kernel launcher.
+// ============================================================================
+
+pub fn evaluate_zerocheck_v2<'b, K: Field>(
+    poly: &ZeroCheckJaggedPolyV2<'b, K>,
+) -> UnivariatePolynomial<Ext>
+where
+    TaskScope: EvalKernelsV2<K>,
+{
+    let backend = poly.data.backend();
+    // Three evaluation points per univariate round (degree-2 polynomial
+    // recovered by Lagrange interpolation downstream).
+    const NUM_EVAL_POINT: usize = 3;
+    // Cap on grid x-dim. Beyond this, blocks oversubscribe SMs and the per-
+    // block reduce overhead dominates the actual per-row work. Measured: 4096
+    // saturates an SM-rich GPU (Ada/Hopper); higher values are flat or worse.
+    const MAX_GRID: u32 = 4096;
+    // Two-tier launch threshold. Sequential chunks with `max_reg > TIER_SPLIT`
+    // run in a separate larger-template kernel so the bulk of chunks (which
+    // sit at `max_reg ≤ 128`) don't pay for the bigger `regs[]` array. We
+    // only actually tier-split when the high-`max_reg` chunks are a small
+    // minority (see `do_tier_split` below); otherwise the launch
+    // fragmentation cost outweighs the per-thread footprint win.
+    const TIER_SPLIT: u16 = 256;
+
+    let (rest, last) = poly.zeta.split_at(poly.zeta.dimension() - 1);
+    let last = *last[0];
+    let rest_point = DevicePoint::from_host(&rest, backend).unwrap();
+    let partial_lagrange = rest_point.partial_lagrange();
+    let rest_point_dim = rest.dimension() as u32;
+
+    let trace_ptr = poly.data.as_ref().dense_data.dense.as_ptr();
+
+    // ---- Pass 1: partition Sequential chunks into 2 tiers by max_reg ----
+    //
+    // We tier-split ONLY when tier 1 (the large-register-pressure tier) has
+    // a SMALL number of chunks relative to tier 0 — i.e. when there are a
+    // few outliers forcing the whole kernel into a large MAX_REGS template.
+    // This catches real RSP shards (1-2 outliers at max_reg=340 force
+    // MAX_REGS=512 for the entire kernel; tiering them out lets ~95% of
+    // chunks run at MAX_REGS=128 with much less spill) without hurting
+    // all-chips, where many chunks have moderately high max_reg and the
+    // unified kernel is actually more efficient than 2 launches.
+    //
+    // Decide the tier assignment in two passes: first pre-scan to count
+    // chunks per tier; if tier 1's count is non-trivial, collapse everything
+    // into tier 0 (the unified single-launch path).
+    //
+    // ColumnTile chunks (only when a chip had no Sequential chunk to carry
+    // GKR — empty for current SP1 workloads) launch individually.
+    let mut tier1_candidate_count = 0usize;
+    let mut total_seq_count = 0usize;
+    for chip in poly.compiled.iter() {
+        // Skip empty chips — they aren't launched, so they must not skew the
+        // tier-split ratio below.
+        if poly.chip_heights[chip.chip_idx as usize] / 2 == 0 {
+            continue;
+        }
+        for chunk in chip.chunks.iter() {
+            if matches!(chunk.kind, ChunkKind::Sequential) {
+                total_seq_count += 1;
+                if chunk.max_reg > TIER_SPLIT {
+                    tier1_candidate_count += 1;
+                }
+            }
+        }
+    }
+    // Heuristic: tier-split only when tier 1 is a small minority. The
+    // exact ratio comes from measurement — real RSP has ≤1/30 chunks in
+    // tier 1 and benefits hugely; all-chips has ~1/3 and regresses.
+    let do_tier_split = total_seq_count > 0
+        && tier1_candidate_count > 0
+        && tier1_candidate_count * 10 <= total_seq_count;
+    let mut seq_meta_tiers: [Vec<ChunkMetaC>; 2] = [Vec::new(), Vec::new()];
+    let mut row_starts_tiers: [Vec<u32>; 2] = [vec![0], vec![0]];
+    let mut max_reg_tiers: [u16; 2] = [0, 0];
+    let mut ct_launches: Vec<(u32, &ChunkDeviceBufs, u64, u64, u32, u32)> = Vec::new();
+
+    for chip in poly.compiled.iter() {
+        let chip_idx = chip.chip_idx;
+        let height = poly.chip_heights[chip_idx as usize];
+        let row_count = height / 2;
+        // An empty chip (0 rows) contributes nothing to the zerocheck sum:
+        // its constraint pass and GKR sweep both run over 0 rows. Skip it
+        // entirely so the per-round `ChunkMetaC` array and `row_starts` table
+        // stay O(non-empty chips) rather than O(total chips) — this matters
+        // when the machine has thousands of chips most of which are empty in
+        // any given shard.
+        if row_count == 0 {
+            continue;
+        }
+        let main_ptr = poly.chip_main_ptrs[chip_idx as usize];
+        let preprocessed_ptr = poly.chip_preprocessed_ptrs[chip_idx as usize];
+
+        for chunk in chip.chunks.iter() {
+            match chunk.kind {
+                ChunkKind::Sequential => {
+                    let geq = &poly.virtual_geq[chip_idx as usize];
+                    let pad_adj = poly.padded_row_adjustment_host[chip_idx as usize];
+                    let tier: usize =
+                        if do_tier_split && chunk.max_reg > TIER_SPLIT { 1 } else { 0 };
+                    max_reg_tiers[tier] = max_reg_tiers[tier].max(chunk.max_reg);
+                    seq_meta_tiers[tier].push(ChunkMetaC {
+                        instrs: chunk.instrs,
+                        leaves: chunk.leaves,
+                        consts: chunk.consts,
+                        publics: chunk.publics,
+                        assert_regs: chunk.assert_regs,
+                        assert_alphas: chunk.assert_alphas,
+                        preprocessed_ptr,
+                        main_ptr,
+                        n_instrs: chunk.n_instrs,
+                        n_asserts: chunk.n_asserts,
+                        chip_idx,
+                        gkr_main_width: chunk.gkr_main_width,
+                        gkr_prep_width: chunk.gkr_prep_width,
+                        height,
+                        row_count,
+                        chip_alpha_offset: poly.chip_alpha_offset[chip_idx as usize],
+                        geq_threshold: geq.threshold,
+                        geq_eq_coefficient: geq.eq_coefficient,
+                        padded_row_adjustment: pad_adj,
+                    });
+                    let last = *row_starts_tiers[tier].last().unwrap();
+                    row_starts_tiers[tier].push(last + row_count);
+                }
+                ChunkKind::ColumnTile => {
+                    ct_launches.push((
+                        chip_idx,
+                        chunk,
+                        preprocessed_ptr,
+                        main_ptr,
+                        height,
+                        row_count,
+                    ));
+                }
+            }
+        }
+    }
+
+    // Block size per tier, keyed off the tier's worst-case `max_reg`: above
+    // 128 the per-thread `regs[]` array crosses into a bigger MAX_REGS
+    // template and we need a smaller block so enough warps still fit per SM
+    // for latency hiding.
+    const BLOCK_SIZE_LOW_REG: u32 = 256;
+    const BLOCK_SIZE_HIGH_REG: u32 = 64;
+    let block_size_for = |tier: usize| -> u32 {
+        if max_reg_tiers[tier] > 128 {
+            BLOCK_SIZE_HIGH_REG
+        } else {
+            BLOCK_SIZE_LOW_REG
+        }
+    };
+
+    // Target a few grid-stride iterations per thread so per-block reduce
+    // overhead is amortised by real work. Larger values under-saturate SMs;
+    // smaller values over-saturate and spill local memory under the per-block
+    // reduce. Measured plateau in [2, 8]; 4 sits comfortably in the middle.
+    const GRID_STRIDE_ROWS_PER_THREAD: u64 = 4;
+    let mut tier_n_blocks: [u32; 2] = [0, 0];
+    let mut tier_slot: [usize; 2] = [0, 0];
+    let mut total_slots: usize = 0;
+    for t in 0..2 {
+        let bs = block_size_for(t);
+        let total_rows = *row_starts_tiers[t].last().unwrap();
+        if !seq_meta_tiers[t].is_empty() && total_rows > 0 {
+            let target_threads =
+                (total_rows as u64).div_ceil(GRID_STRIDE_ROWS_PER_THREAD).max(bs as u64);
+            let blocks = target_threads.div_ceil(bs as u64);
+            tier_n_blocks[t] = blocks.min(MAX_GRID as u64).max(1) as u32;
+        }
+        tier_slot[t] = total_slots;
+        total_slots += (tier_n_blocks[t] as usize) * NUM_EVAL_POINT;
+    }
+
+    let mut ct_slots: Vec<(usize, u32)> = Vec::with_capacity(ct_launches.len());
+    let ct_block_size: u32 = 128; // unchanged for ColumnTile fallback
+    for &(_, chunk, _, _, _, row_count) in &ct_launches {
+        let total = chunk.n_terms as u64 * row_count as u64;
+        let n_blocks = if total == 0 {
+            0
+        } else {
+            ((total + ct_block_size as u64 - 1) / ct_block_size as u64).min(MAX_GRID as u64).max(1)
+                as u32
+        };
+        ct_slots.push((total_slots, n_blocks));
+        total_slots += (n_blocks as usize) * NUM_EVAL_POINT;
+    }
+
+    let mut shared_output: Tensor<Ext, TaskScope> =
+        Tensor::with_sizes_in([total_slots.max(1)], backend.clone());
+    unsafe {
+        shared_output.assume_init();
+    }
+    let shared_output_ptr = shared_output.as_mut_ptr();
+
+    // Launch one fused kernel per non-empty tier.
+    let mut _seq_keepalive: Vec<(Buffer<ChunkMetaC, TaskScope>, Buffer<u32, TaskScope>)> =
+        Vec::with_capacity(2);
+    for t in 0..2 {
+        if tier_n_blocks[t] == 0 {
+            continue;
+        }
+        let bs = block_size_for(t);
+        let total_rows = *row_starts_tiers[t].last().unwrap();
+        let chunk_meta_buf =
+            DeviceBuffer::from_host_slice(&seq_meta_tiers[t], backend).unwrap().into_inner();
+        let row_starts_buf =
+            DeviceBuffer::from_host_slice(&row_starts_tiers[t], backend).unwrap().into_inner();
+        let out_ptr = unsafe { shared_output_ptr.add(tier_slot[t]) };
+        let shmem_bytes = (bs as usize / 32).max(1) * std::mem::size_of::<Ext>();
+        unsafe {
+            let args = args!(
+                chunk_meta_buf.as_ptr(),
+                row_starts_buf.as_ptr(),
+                (seq_meta_tiers[t].len() as u32),
+                total_rows,
+                trace_ptr,
+                poly.public_values.as_ptr(),
+                poly.powers_of_alpha.as_ptr(),
+                partial_lagrange.as_ptr(),
+                poly.powers_of_lambda.as_ptr(),
+                poly.gkr_powers.as_ptr(),
+                rest_point_dim,
+                out_ptr
+            );
+            backend
+                .launch_kernel(
+                    <TaskScope as EvalKernelsV2<K>>::fused_sequential_kernel_for(max_reg_tiers[t]),
+                    (tier_n_blocks[t], 1, 3),
+                    (bs, 1, 1),
+                    &args,
+                    shmem_bytes,
+                )
+                .unwrap();
+        }
+        _seq_keepalive.push((chunk_meta_buf, row_starts_buf));
+    }
+
+    // Launch any remaining ColumnTile chunks individually (typically zero
+    // for current SP1 workloads).
+    for (i, &(chip_idx, chunk, preprocessed_ptr, main_ptr, height, row_count)) in
+        ct_launches.iter().enumerate()
+    {
+        let (slot, n_blocks) = ct_slots[i];
+        if n_blocks == 0 {
+            continue;
+        }
+        let out_slot = unsafe { shared_output_ptr.add(slot) };
+        launch_chunk_into::<K>(
+            backend,
+            chunk,
+            trace_ptr,
+            preprocessed_ptr,
+            main_ptr,
+            height,
+            &poly.public_values,
+            &poly.powers_of_alpha,
+            poly.chip_alpha_offset[chip_idx as usize],
+            &poly.gkr_powers,
+            partial_lagrange.as_ptr(),
+            &poly.powers_of_lambda,
+            chip_idx,
+            rest_point_dim,
+            0,
+            row_count,
+            n_blocks,
+            ct_block_size,
+            out_slot,
+        );
+    }
+
+    // ---- Single host sync + copy ----
+    let host_partials: Vec<Ext> = unsafe { shared_output.into_buffer().copy_into_host_vec() };
+
+    // ---- Pass 3: aggregate ----
+    let mut totals: [Ext; NUM_EVAL_POINT] = [Ext::zero(); NUM_EVAL_POINT];
+
+    // Fused Sequential output: cross-tier, cross-chunk sum (λ applied per-row).
+    for t in 0..2 {
+        for b in 0..(tier_n_blocks[t] as usize) {
+            for e in 0..NUM_EVAL_POINT {
+                totals[e] += host_partials[tier_slot[t] + b * NUM_EVAL_POINT + e];
+            }
+        }
+    }
+    for (i, &(_chip_idx, _chunk, _, _, _, _)) in ct_launches.iter().enumerate() {
+        let (slot, n_blocks) = ct_slots[i];
+        for b in 0..(n_blocks as usize) {
+            for e in 0..NUM_EVAL_POINT {
+                totals[e] += host_partials[slot + b * NUM_EVAL_POINT + e];
+            }
+        }
+    }
+
+    // Geq correction is applied INSIDE the fused kernel (per-row, on the
+    // carrier chunk for each chip). Nothing to do here — it was the dominant
+    // host cost before being pushed into the kernel.
+
+    // Apply last_var_eq and eq_adjustment (mirror v1's evaluate_zerocheck).
+    let mut xs =
+        vec![Ext::from_canonical_u32(0), Ext::from_canonical_u32(2), Ext::from_canonical_u32(4)];
+    let mut ys: Vec<Ext> = xs
+        .iter()
+        .zip(totals.iter())
+        .map(|(&x, &t)| {
+            let last_var_eq = (Ext::one() - x) * (Ext::one() - last) + x * last;
+            t * last_var_eq * poly.eq_adjustment
+        })
+        .collect();
+
+    xs.push(Ext::from_canonical_u32(1));
+    ys.push(poly.claim - ys[0]);
+
+    xs.push((last - Ext::one()) / (last + last - Ext::one()));
+    ys.push(Ext::zero());
+
+    interpolate_univariate_polynomial(&xs, &ys)
+}
+
+/// Launch a chunk against a caller-provided device output pointer.
+/// All launches in a round write into one shared buffer; the caller does a
+/// single sync + copy_into_host at the end.
+#[allow(clippy::too_many_arguments)]
+fn launch_chunk_into<K: Field>(
+    scope: &TaskScope,
+    chunk: &ChunkDeviceBufs,
+    trace_ptr: *const K,
+    preprocessed_ptr: u64,
+    main_ptr: u64,
+    height: u32,
+    public_values: &Buffer<Felt, TaskScope>,
+    powers_of_alpha: &Buffer<Ext, TaskScope>,
+    chip_alpha_offset: u32,
+    gkr_powers: &Buffer<Ext, TaskScope>,
+    partial_lagrange_ptr: *const Ext,
+    powers_of_lambda: &Buffer<Ext, TaskScope>,
+    chip_idx: u32,
+    rest_point_dim: u32,
+    row_start: u32,
+    row_count: u32,
+    n_blocks: u32,
+    block_size: u32,
+    output_ptr: *mut Ext,
+) where
+    TaskScope: EvalKernelsV2<K>,
+{
+    let shmem_bytes = (block_size as usize / 32) * std::mem::size_of::<Ext>();
+    match chunk.kind {
+        ChunkKind::Sequential => unsafe {
+            let args = args!(
+                chunk.instrs,
+                chunk.n_instrs,
+                chunk.leaves,
+                chunk.consts,
+                chunk.publics,
+                chunk.assert_regs,
+                chunk.assert_alphas,
+                chunk.n_asserts,
+                trace_ptr,
+                preprocessed_ptr,
+                main_ptr,
+                height,
+                public_values.as_ptr(),
+                powers_of_alpha.as_ptr(),
+                partial_lagrange_ptr,
+                powers_of_lambda.as_ptr(),
+                chip_idx,
+                rest_point_dim,
+                row_start,
+                row_count,
+                gkr_powers.as_ptr(),
+                chunk.gkr_main_width,
+                chunk.gkr_prep_width,
+                output_ptr
+            );
+            scope
+                .launch_kernel(
+                    <TaskScope as EvalKernelsV2<K>>::sequential_kernel_for(chunk.max_reg),
+                    (n_blocks, 1, 1),
+                    (block_size, 1, 1),
+                    &args,
+                    shmem_bytes,
+                )
+                .unwrap();
+        },
+        ChunkKind::ColumnTile => unsafe {
+            // Regular ColumnTile chunks store chip-relative `alpha_idx`; shift
+            // the `powers_of_alpha` base by the per-chip offset. The
+            // synthesized GKR carrier (`is_gkr`) instead wants weight `1`:
+            // its terms store `alpha_idx = 0`, so we point the base at the
+            // last slot (which holds `1` in the reversed table). The per-chip
+            // offset can't express this for a 0-constraint chip.
+            let shift = if chunk.is_gkr {
+                powers_of_alpha.len().saturating_sub(1)
+            } else {
+                chip_alpha_offset as usize
+            };
+            let powers_of_alpha_shifted = powers_of_alpha.as_ptr().add(shift);
+            let args = args!(
+                chunk.terms,
+                chunk.n_terms,
+                chunk.leaves,
+                chunk.consts,
+                chunk.publics,
+                gkr_powers.as_ptr(),
+                trace_ptr,
+                preprocessed_ptr,
+                main_ptr,
+                height,
+                public_values.as_ptr(),
+                powers_of_alpha_shifted,
+                partial_lagrange_ptr,
+                powers_of_lambda.as_ptr(),
+                chip_idx,
+                rest_point_dim,
+                row_start,
+                row_count,
+                output_ptr
+            );
+            scope
+                .launch_kernel(
+                    <TaskScope as EvalKernelsV2<K>>::column_tile_kernel(),
+                    (n_blocks, 1, 1),
+                    (block_size, 1, 1),
+                    &args,
+                    shmem_bytes,
+                )
+                .unwrap();
+        },
+    }
+}
+
+// ============================================================================
+// Fix-last-variable: fold trace data (reused from v1 path), update eq_adjustment.
+// ============================================================================
+
+pub fn zerocheck_fix_last_variable_v2<'b, K: Field>(
+    input: ZeroCheckJaggedPolyV2<'b, K>,
+    point: Ext,
+    claim: Ext,
+) -> ZeroCheckJaggedPolyV2<'b, Ext>
+where
+    TaskScope: JaggedFixLastVariableKernel<K>,
+    Ext: ExtensionField<K>,
+{
+    let (rest, last) = input.zeta.split_at(input.zeta.dimension() - 1);
+    let last = *last[0];
+
+    let new_data = evaluate_jagged_fix_last_variable(&input.data, point);
+    let virtual_geq =
+        input.virtual_geq.iter().map(|geq| geq.fix_last_variable(point)).collect::<Vec<_>>();
+    let eq = (Ext::one() - last) * (Ext::one() - point) + last * point;
+    let eq_adjustment = input.eq_adjustment * eq;
+
+    // After fold, the jagged layout may pad some columns (fold kernel adds 2
+    // ext slots when `column_height_pairs % 4 != 0`). The `update_offset`
+    // path used by `evaluate_jagged_fix_last_variable` to rewrite the
+    // `dense_offset` ranges silently DRIFTS from the real column stride in
+    // those cases — `update_offset` uses `poly_size.div_ceil(4) * 2`, the
+    // actual stride uses `column_height_pairs.div_ceil(4) * 4`. Compute
+    // ptrs/heights from the new jagged structure's `column_heights` instead.
+    let column_heights = &new_data.0.column_heights;
+    let mut starts: Vec<u64> = Vec::with_capacity(column_heights.len() + 1);
+    starts.push(0);
+    let mut acc: u64 = 0;
+    for &h in column_heights.iter() {
+        acc += h as u64;
+        starts.push(acc);
+    }
+
+    let total_prep_widths: usize = input.compiled.iter().map(|c| c.prep_width as usize).sum();
+    // See `compute_chip_offsets`: match v1's `+1` convention.
+    let main_section_start_col: usize = total_prep_widths + 1;
+
+    let mut chip_main_ptrs = Vec::with_capacity(input.compiled.len());
+    let mut chip_preprocessed_ptrs = Vec::with_capacity(input.compiled.len());
+    let mut chip_heights: Vec<u32> = Vec::with_capacity(input.compiled.len());
+
+    let mut cum_prep: usize = 0;
+    let mut cum_main: usize = 0;
+    for c in input.compiled.iter() {
+        let prep_w = c.prep_width as usize;
+        let main_w = c.main_width as usize;
+        let prep_col_idx = cum_prep;
+        let main_col_idx = main_section_start_col + cum_main;
+        let prep_ptr = if prep_w > 0 { starts[prep_col_idx] * 2 } else { 0 };
+        let main_ptr = if main_w > 0 { starts[main_col_idx] * 2 } else { 0 };
+        let height = if main_w > 0 {
+            (column_heights[main_col_idx]) * 2
+        } else if prep_w > 0 {
+            (column_heights[prep_col_idx]) * 2
+        } else {
+            0
+        };
+        chip_preprocessed_ptrs.push(prep_ptr);
+        chip_main_ptrs.push(main_ptr);
+        chip_heights.push(height);
+        cum_prep += prep_w;
+        cum_main += main_w;
+    }
+    let initial_heights = chip_heights.clone();
+
+    ZeroCheckJaggedPolyV2 {
+        data: Cow::Owned(new_data),
+        compiled: input.compiled,
+        machine_bytecode: input.machine_bytecode,
+        virtual_geq,
+        eq_adjustment,
+        zeta: rest,
+        claim,
+        initial_heights,
+        padded_row_adjustment_host: input.padded_row_adjustment_host,
+        public_values: input.public_values,
+        powers_of_alpha: input.powers_of_alpha,
+        gkr_powers: input.gkr_powers,
+        powers_of_lambda: input.powers_of_lambda,
+        powers_of_lambda_host: input.powers_of_lambda_host,
+        chip_main_ptrs,
+        chip_preprocessed_ptrs,
+        chip_heights,
+        chip_alpha_offset: input.chip_alpha_offset,
+    }
+}
+
+// ============================================================================
+// Outer driver — parallel to v1's `zerocheck`.
+// ============================================================================
+
+#[allow(clippy::too_many_arguments)]
+pub fn zerocheck_v2<A, C>(
+    chips: &BTreeSet<Chip<Felt, A>>,
+    machine_bytecode: &Arc<MachineBytecodeV2>,
+    trace_mle: &JaggedTraceMle<Felt, TaskScope>,
+    batching_challenge: Ext,
+    gkr_opening_batch_randomness: Ext,
+    logup_evaluations: &LogUpEvaluations<Ext>,
+    public_values: Vec<Felt>,
+    challenger: &mut C,
+    max_log_row_count: u32,
+) -> (ShardOpenedValues<Felt, Ext>, PartialSumcheckProof<Ext>)
+where
+    A: ZerocheckAir<Felt, Ext>,
+    C: FieldChallenger<Felt>,
+{
+    let data_input_heights = &trace_mle.column_heights;
+    let initial_heights = trace_mle
+        .dense_data
+        .main_table_index
+        .values()
+        .map(|trace_offset| trace_offset.poly_size as u32)
+        .collect::<Vec<u32>>();
+
+    let max_num_constraints =
+        itertools::max(chips.iter().map(|chip| chip.num_constraints)).unwrap();
+    let max_columns =
+        itertools::max(chips.iter().map(|chip| chip.preprocessed_width() + chip.width())).unwrap();
+    let total_preprocessed_columns = trace_mle.dense().preprocessed_cols;
+    let mut powers_of_challenge =
+        batching_challenge.powers().take(max_num_constraints).collect::<Vec<_>>();
+    powers_of_challenge.reverse();
+    let num_chips = chips.len();
+    let debug_timing = std::env::var("SP1_GPU_V2_TIMING").is_ok();
+
+    // padded_row_adjustment (CPU per-chip folder accumulator at all-zero trace).
+    let t_setup = std::time::Instant::now();
+    let mut padded_row_adjustment = vec![Ext::zero(); num_chips];
+    for (i, chip) in chips.iter().enumerate() {
+        let prep_len = chip.preprocessed_width();
+        let main_len = chip.width();
+        let prep_zero = vec![Felt::zero(); prep_len];
+        let main_zero = vec![Felt::zero(); main_len];
+        let mut folder = ConstraintSumcheckFolder {
+            preprocessed: RowMajorMatrixView::new_row(&prep_zero),
+            main: RowMajorMatrixView::new_row(&main_zero),
+            accumulator: Ext::zero(),
+            public_values: &public_values,
+            constraint_index: 0,
+            powers_of_alpha: &powers_of_challenge
+                [powers_of_challenge.len() - chip.num_constraints..],
+        };
+        chip.air.eval(&mut folder);
+        padded_row_adjustment[i] = folder.accumulator;
+    }
+
+    let gkr_powers =
+        gkr_opening_batch_randomness.powers().skip(1).take(max_columns).collect::<Vec<_>>();
+
+    let lambda: Ext = challenger.sample_ext_element();
+    let powers_of_lambda =
+        lambda.powers().take(num_chips).collect_vec().into_iter().rev().collect::<Vec<_>>();
+
+    let mut claim = Ext::zero();
+    let LogUpEvaluations { point: gkr_point, chip_openings } = logup_evaluations;
+    for chip in chips.iter() {
+        let ChipEvaluation {
+            main_trace_evaluations: main_opening,
+            preprocessed_trace_evaluations: prep_opening,
+        } = chip_openings.get(chip.name()).unwrap();
+        claim *= lambda;
+        let addend = main_opening
+            .evaluations()
+            .as_slice()
+            .iter()
+            .chain(
+                prep_opening
+                    .as_ref()
+                    .map_or_else(Vec::new, |mle| mle.evaluations().as_slice().to_vec())
+                    .iter(),
+            )
+            .zip(gkr_powers.iter())
+            .map(|(opening, power)| *opening * *power)
+            .sum::<Ext>();
+        claim += addend;
+    }
+
+    let t_pra_and_claim = t_setup.elapsed();
+
+    // Select this shard's chips from the machine-wide bytecode (uploaded once
+    // at prover construction). Cheap pointer-view clones — no device upload.
+    let t_select = std::time::Instant::now();
+    let compiled_dev: Vec<CompiledChipDevice> = chips
+        .iter()
+        .enumerate()
+        .map(|(shard_idx, chip)| {
+            let m = *machine_bytecode
+                .chip_index
+                .get(chip.name())
+                .expect("shard chip not present in machine bytecode");
+            let mut view = machine_bytecode.chips[m].clone();
+            // Re-stamp to the shard-relative index used by the per-shard
+            // arrays (`chip_heights`, `chip_alpha_offset`, …).
+            view.chip_idx = shard_idx as u32;
+            view
+        })
+        .collect();
+    let t_select = t_select.elapsed();
+    if debug_timing {
+        tracing::info!(
+            "zerocheck_v2 setup: num_chips={} pra+claim={:?} select={:?}",
+            num_chips,
+            t_pra_and_claim,
+            t_select,
+        );
+    }
+
+    let main_poly = initialize_zerocheck_poly_v2(
+        trace_mle,
+        chips,
+        compiled_dev,
+        machine_bytecode.clone(),
+        initial_heights.clone(),
+        public_values,
+        powers_of_challenge,
+        gkr_powers,
+        powers_of_lambda,
+        padded_row_adjustment,
+        gkr_point.clone(),
+        claim,
+    );
+
+    let mut univariate_polys = vec![];
+    let mut jagged_point: Point<Ext> = Point::from(vec![]);
+    let t_eval_total = std::time::Instant::now();
+    let mut total_fold = std::time::Duration::ZERO;
+    let mut total_eval = std::time::Duration::ZERO;
+    let mut total_chal = std::time::Duration::ZERO;
+    let t = std::time::Instant::now();
+    let mut result = evaluate_zerocheck_v2(&main_poly);
+    if debug_timing {
+        total_eval += t.elapsed();
+    }
+    let t = std::time::Instant::now();
+    let (mut point, mut next_claim) = challenger_update(&result, challenger);
+    if debug_timing {
+        total_chal += t.elapsed();
+    }
+    univariate_polys.push(result);
+    jagged_point.add_dimension(point);
+    let t = std::time::Instant::now();
+    let mut next_poly = zerocheck_fix_last_variable_v2(main_poly, point, next_claim);
+    if debug_timing {
+        total_fold += t.elapsed();
+    }
+    for _ in 0..max_log_row_count - 1 {
+        let t = std::time::Instant::now();
+        result = evaluate_zerocheck_v2(&next_poly);
+        if debug_timing {
+            total_eval += t.elapsed();
+        }
+        let t = std::time::Instant::now();
+        (point, next_claim) = challenger_update(&result, challenger);
+        if debug_timing {
+            total_chal += t.elapsed();
+        }
+        univariate_polys.push(result);
+        jagged_point.add_dimension(point);
+        let t = std::time::Instant::now();
+        next_poly = zerocheck_fix_last_variable_v2(next_poly, point, next_claim);
+        if debug_timing {
+            total_fold += t.elapsed();
+        }
+    }
+    if debug_timing {
+        tracing::info!(
+            "zerocheck_v2: total={:?} eval={:?} fold={:?} chal={:?}",
+            t_eval_total.elapsed(),
+            total_eval,
+            total_fold,
+            total_chal
+        );
+    }
+
+    let final_jagged_data =
+        unsafe { next_poly.data.as_ref().dense_data.dense.copy_into_host_vec() };
+
+    let mut idx = 0;
+    let mut individual_column_evals = vec![Ext::zero(); data_input_heights.len()];
+    for i in 0..data_input_heights.len() {
+        if data_input_heights[i] != 0 {
+            individual_column_evals[i] = final_jagged_data[idx];
+            idx += 4;
+        }
+    }
+
+    let mut preprocessed_ptr = 0;
+    let mut main_ptr = total_preprocessed_columns;
+    let mut opened_values: BTreeMap<String, ChipOpenedValues<Felt, Ext>> = BTreeMap::new();
+    challenger.observe(Felt::from_canonical_usize(chips.len()));
+    for (i, chip) in chips.iter().enumerate() {
+        let preprocessed_width = chip.preprocessed_width();
+        let preprocessed = AirOpenedValues {
+            local: individual_column_evals[preprocessed_ptr..preprocessed_ptr + preprocessed_width]
+                .to_vec(),
+        };
+        challenger.observe_variable_length_extension_slice(&preprocessed.local);
+        preprocessed_ptr += preprocessed_width;
+        let width = chip.width();
+        let main =
+            AirOpenedValues { local: individual_column_evals[main_ptr..main_ptr + width].to_vec() };
+        challenger.observe_variable_length_extension_slice(&main.local);
+        main_ptr += width;
+        opened_values.insert(
+            chip.air.name().to_string(),
+            ChipOpenedValues {
+                preprocessed,
+                main,
+                degree: Point::from_usize(
+                    initial_heights[i] as usize,
+                    (max_log_row_count + 1) as usize,
+                ),
+            },
+        );
+    }
+
+    let partial_sumcheck_proof = PartialSumcheckProof {
+        univariate_polys,
+        claimed_sum: claim,
+        point_and_eval: (jagged_point, next_claim),
+    };
+    let shard_open_values = ShardOpenedValues { chips: opened_values };
+    (shard_open_values, partial_sumcheck_proof)
+}
