@@ -141,10 +141,8 @@ impl SP1WorkerConfig {
             .ok()
             .and_then(|s| s.parse::<usize>().ok())
             .unwrap_or(DEFAULT_MAX_COMPOSE_ARITY);
-        let reduce_shape = SP1RecursionProofShape::retrieve_or_compute_reduce_shape(
-            &machine,
-            max_compose_arity,
-        );
+        let reduce_shape =
+            SP1RecursionProofShape::retrieve_or_compute_reduce_shape(&machine, max_compose_arity);
 
         let recursion_prover_config = SP1RecursionProverConfig::new(
             num_prepare_reduce_workers,

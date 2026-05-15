@@ -264,7 +264,7 @@ impl SP1RecursionProofShape {
             let preprocessed_traces = trace_generator
                 .generate_preprocessed_traces(
                     program,
-                    recursion_max_log_row_count(&machine),
+                    recursion_max_log_row_count(machine),
                     setup_permits,
                 )
                 .await;
@@ -545,8 +545,7 @@ pub async fn build_vk_map<A: ArtifactClient, C: SP1ProverComponents + 'static>(
                 let machine = machine.clone();
                 let program_thread = tokio::spawn(async move {
                     let reduce_shape = SP1RecursionProofShape::retrieve_or_compute_reduce_shape(
-                        &machine,
-                        max_arity,
+                        &machine, max_arity,
                     );
                     match shape {
                         SP1RecursionProgramShape::Normalize(shape_clone) => {
