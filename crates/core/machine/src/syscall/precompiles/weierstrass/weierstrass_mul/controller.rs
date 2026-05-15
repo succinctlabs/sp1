@@ -1,14 +1,30 @@
 use core::{borrow::Borrow, marker::PhantomData, mem::size_of, mem::MaybeUninit};
 
+use generic_array::GenericArray;
+use itertools::Itertools;
 use slop_air::{Air, BaseAir};
-use slop_algebra::PrimeField32;
+use slop_algebra::{AbstractField, PrimeField32};
 use slop_matrix::Matrix;
-use sp1_core_executor::{ExecutionRecord, Program, SyscallCode};
-use sp1_curves::{weierstrass::WeierstrassParameters, CurveType, EllipticCurve};
+use sp1_core_executor::{ExecutionRecord, Program, SupervisorMode, SyscallCode, UserMode};
+use sp1_curves::{
+    params::{FieldParameters, Limbs, NumBits, NumLimbs, NumWords},
+    weierstrass::WeierstrassParameters,
+    CurveType, EllipticCurve,
+};
 use sp1_derive::AlignedBorrow;
-use sp1_hypercube::air::MachineAir;
+use sp1_hypercube::{
+    air::{InteractionScope, MachineAir},
+    Word,
+};
+use sp1_primitives::consts::{PROT_READ, PROT_WRITE};
 
-use crate::{air::SP1CoreAirBuilder, TrustMode};
+use crate::{
+    air::SP1CoreAirBuilder,
+    memory::MemoryAccessColsU8,
+    operations::{AddrAddOperation, AddressSlicePageProtOperation, SyscallAddrOperation},
+    utils::limbs_to_words,
+    TrustMode,
+};
 
 /// Columns for a Weierstrass scalar-multiplication chip.
 /// This is implemented as a controller chip that calls some internal chips.
@@ -16,13 +32,41 @@ use crate::{air::SP1CoreAirBuilder, TrustMode};
 /// TODO: lay out the columns required to constrain `p ← scalar * p`.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct WeierstrassMulAssignCols<T> {
+pub struct WeierstrassMulAssignCols<T, P: FieldParameters + NumWords + NumBits, M: TrustMode> {
     /// Whether this row corresponds to a real syscall invocation.
     pub is_real: T,
+    // Clock
+    pub clk_high: T,
+    pub clk_low: T,
+    // Memory rw handling (note that the access columns contain the read values)
+    pub exp_ptr: SyscallAddrOperation<T>,
+    pub p_ptr: SyscallAddrOperation<T>,
+    pub exp_addrs: GenericArray<AddrAddOperation<T>, P::WordsFieldElement>,
+    pub p_addrs: GenericArray<AddrAddOperation<T>, P::WordsCurvePoint>,
+    pub exp_access: GenericArray<MemoryAccessColsU8<T>, P::WordsFieldElement>,
+    pub p_access: GenericArray<MemoryAccessColsU8<T>, P::WordsCurvePoint>,
+    pub read_slice_page_prot_access: M::SliceProtCols<T>,
+    pub write_slice_page_prot_access: M::SliceProtCols<T>,
+    // Final output state
+    pub ord_x: Limbs<T, <P as NumLimbs>::Limbs>,
+    pub ord_y: Limbs<T, <P as NumLimbs>::Limbs>,
+    pub ort_x: Limbs<T, <P as NumLimbs>::Limbs>,
+    pub ort_y: Limbs<T, <P as NumLimbs>::Limbs>,
+    // For internal dispatch to the Add / Double chips.
+    pub exp_bits: GenericArray<T, P::BitsFieldElement>,
+    // Columns for first add chip merged into controller
+    pub c_at_first_add: T,
+    pub ird_at_first_add_x: Limbs<T, <P as NumLimbs>::Limbs>,
+    pub ird_at_first_add_y: Limbs<T, <P as NumLimbs>::Limbs>,
 }
 
-pub const fn num_weierstrass_mul_cols() -> usize {
-    size_of::<WeierstrassMulAssignCols<u8>>()
+pub const fn num_weierstrass_mul_cols_supervisor<P: FieldParameters + NumWords + NumBits>() -> usize
+{
+    size_of::<WeierstrassMulAssignCols<u8, P, SupervisorMode>>()
+}
+
+pub const fn num_weierstrass_mul_cols_user<P: FieldParameters + NumWords + NumBits>() -> usize {
+    size_of::<WeierstrassMulAssignCols<u8, P, UserMode>>()
 }
 
 /// A chip that constrains scalar multiplication of a Weierstrass curve point by a `u32` scalar.
@@ -77,24 +121,141 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters, M: TrustMode> Ma
     }
 }
 
-impl<F, E: EllipticCurve, M: TrustMode> BaseAir<F> for WeierstrassMulAssignChip<E, M> {
+impl<F, E: EllipticCurve + WeierstrassParameters, M: TrustMode> BaseAir<F>
+    for WeierstrassMulAssignChip<E, M>
+{
     fn width(&self) -> usize {
-        num_weierstrass_mul_cols()
+        if M::IS_TRUSTED {
+            num_weierstrass_mul_cols_supervisor::<E::BaseField>()
+        } else {
+            num_weierstrass_mul_cols_user::<E::BaseField>()
+        }
     }
 }
 
-impl<AB, E: EllipticCurve, M: TrustMode> Air<AB> for WeierstrassMulAssignChip<E, M>
+impl<AB, E: EllipticCurve + WeierstrassParameters, M: TrustMode> Air<AB>
+    for WeierstrassMulAssignChip<E, M>
 where
     AB: SP1CoreAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
-        // Placeholder constraint so that machine construction passes the
-        // `max_constraint_degree > 0` assert in `Chip::new`. Replace with the real
-        // p ← scalar * p constraints once the chip layout lands.
+        //setup
         let main = builder.main();
         let local = main.row_slice(0);
-        let local: &WeierstrassMulAssignCols<AB::Var> = (*local).borrow();
+        let local: &WeierstrassMulAssignCols<AB::Var, E::BaseField, M> = (*local).borrow();
+
+        // is_real and trap setup
         builder.assert_bool(local.is_real);
+        let mut is_not_trap = local.is_real.into();
+        let mut trap_code = AB::Expr::zero();
+
+        //Mprotect handling
+        if !M::IS_TRUSTED {
+            // Reborrow with concrete trust mode
+            let local = main.row_slice(0);
+            let local: &WeierstrassMulAssignCols<AB::Var, E::BaseField, UserMode> =
+                (*local).borrow();
+
+            #[cfg(not(feature = "mprotect"))]
+            builder.assert_zero(local.is_real);
+
+            AddressSlicePageProtOperation::<AB::F>::eval(
+                builder,
+                local.clk_high.into(),
+                local.clk_low.into(),
+                &local.exp_ptr.addr.map(Into::into),
+                &local.exp_addrs[local.exp_addrs.len() - 1].value.map(Into::into),
+                PROT_READ,
+                &local.read_slice_page_prot_access,
+                &mut is_not_trap,
+                &mut trap_code,
+            );
+
+            AddressSlicePageProtOperation::<AB::F>::eval(
+                builder,
+                local.clk_high.into(),
+                local.clk_low.into() + AB::Expr::one(),
+                &local.p_ptr.addr.map(Into::into),
+                &local.p_addrs[local.p_addrs.len() - 1].value.map(Into::into),
+                PROT_READ | PROT_WRITE,
+                &local.write_slice_page_prot_access,
+                &mut is_not_trap,
+                &mut trap_code,
+            );
+        }
+
+        // Array indexing of input/output pointers
+        let exp_ptr = SyscallAddrOperation::<AB::F>::eval(
+            builder,
+            E::NB_LIMBS as u32 * 2,
+            local.exp_ptr,
+            local.is_real.into(),
+        );
+        let p_ptr = SyscallAddrOperation::<AB::F>::eval(
+            builder,
+            E::NB_LIMBS as u32 * 2,
+            local.p_ptr,
+            local.is_real.into(),
+        );
+        // exp_addrs[i] = exp_ptr + 8 * i
+        for i in 0..local.exp_addrs.len() {
+            AddrAddOperation::<AB::F>::eval(
+                builder,
+                Word([exp_ptr[0].into(), exp_ptr[1].into(), exp_ptr[2].into(), AB::Expr::zero()]),
+                Word::from(8 * i as u64),
+                local.exp_addrs[i],
+                local.is_real.into(),
+            );
+        }
+        // p_addrs[i] = p_ptr + 8 * i
+        for i in 0..local.p_addrs.len() {
+            AddrAddOperation::<AB::F>::eval(
+                builder,
+                Word([p_ptr[0].into(), p_ptr[1].into(), p_ptr[2].into(), AB::Expr::zero()]),
+                Word::from(8 * i as u64),
+                local.p_addrs[i],
+                local.is_real.into(),
+            );
+        }
+
+        // Memory rw handling
+        builder.eval_memory_access_slice_read(
+            local.clk_high,
+            local.clk_low.into(),
+            &local.exp_addrs.iter().map(|addr| addr.value.map(Into::into)).collect_vec(),
+            &local.exp_access.iter().map(|access| access.memory_access).collect_vec(),
+            is_not_trap.clone(),
+        );
+        let x_result_words = limbs_to_words::<AB>(local.ort_x.0.to_vec());
+        let y_result_words = limbs_to_words::<AB>(local.ort_y.0.to_vec());
+        let result_words = x_result_words.into_iter().chain(y_result_words).collect_vec();
+        builder.eval_memory_access_slice_write(
+            local.clk_high,
+            local.clk_low + AB::Expr::one(),
+            &local.p_addrs.iter().map(|addr| addr.value.map(Into::into)).collect::<Vec<_>>(),
+            &local.p_access.iter().map(|access| access.memory_access).collect_vec(),
+            result_words,
+            is_not_trap.clone(),
+        );
+
+        // Fetch the syscall id for the curve type and receive the call
+        let syscall_id_felt = match E::CURVE_TYPE {
+            CurveType::Secp256k1 => {
+                AB::F::from_canonical_u32(SyscallCode::SECP256K1_MUL.syscall_id())
+            }
+
+            _ => panic!("Unsupported curve"),
+        };
+        builder.receive_syscall(
+            local.clk_high,
+            local.clk_low.into(),
+            syscall_id_felt,
+            trap_code.clone(),
+            p_ptr.map(Into::into),
+            exp_ptr.map(Into::into),
+            local.is_real,
+            InteractionScope::Local,
+        );
     }
 }
 

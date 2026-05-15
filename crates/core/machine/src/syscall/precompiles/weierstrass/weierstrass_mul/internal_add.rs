@@ -1,61 +1,185 @@
-use core::{borrow::Borrow, marker::PhantomData, mem::size_of, mem::MaybeUninit};
-
-use slop_air::{Air, BaseAir};
-use slop_algebra::PrimeField32;
+use super::interactions::{internal_add_call, internal_memory_rw};
+use crate::{
+    air::SP1CoreAirBuilder,
+    operations::field::{field_op::FieldOpCols, range::FieldLtCols},
+};
+use core::{borrow::Borrow, mem::size_of};
+use num::{BigUint, One};
+use slop_air::{Air, AirBuilder, BaseAir};
+use slop_algebra::{AbstractField, PrimeField32};
 use slop_matrix::Matrix;
-use sp1_core_executor::{ExecutionRecord, Program, SyscallCode};
-use sp1_curves::{weierstrass::WeierstrassParameters, CurveType, EllipticCurve};
+use sp1_core_executor::{
+    events::{ByteLookupEvent, FieldOperation},
+    ExecutionRecord, Program, SyscallCode,
+};
+use sp1_curves::{
+    params::{FieldParameters, Limbs, NumLimbs, NumWords},
+    weierstrass::WeierstrassParameters,
+    CurveType, EllipticCurve,
+};
 use sp1_derive::AlignedBorrow;
-use sp1_hypercube::air::MachineAir;
+use sp1_hypercube::air::{InteractionScope, MachineAir};
+use sp1_primitives::polynomial::Polynomial;
+use std::{fmt::Debug, marker::PhantomData, mem::MaybeUninit};
+use typenum::Unsigned;
 
-use crate::{air::SP1CoreAirBuilder, TrustMode};
-
-/// Columns for the internal Add chip used by the EC scalar-multiplication controller.
-///
-/// TODO: lay out the columns required to constrain the internal `add` step:
-/// `ort = ird + irt`, plus `(clock, c, first_add_marker, inverse_fam)` and the EC
-/// add formula's intermediate columns, wired to the internal memory and syscall buses.
-#[derive(Debug, Clone, AlignedBorrow)]
-#[repr(C)]
-pub struct WeierstrassMulInternalAddCols<T> {
-    /// Whether this row corresponds to a real internal add step.
-    pub is_real: T,
+pub const fn num_weierstrass_mul_internal_add_cols<P: FieldParameters + NumWords>() -> usize {
+    size_of::<WeierstrassMulInternalAddCols<u8, P>>()
 }
 
-pub const fn num_weierstrass_mul_internal_add_cols() -> usize {
-    size_of::<WeierstrassMulInternalAddCols<u8>>()
+/// Columns for the Internal Add chip used inside the EC scalar-multiplication chain.
+///
+/// Mirrors [`crate::syscall::precompiles::weierstrass::weierstrass_add::WeierstrassAddAssignCols`]
+/// minus the main-memory access, syscall-receive, and mprotect machinery, which are
+/// replaced by the internal memory and syscall bus interactions defined in
+/// [`super::interactions`]. The output coordinates `ort_x = x3_ins.result` and
+/// `ort_y = y3_ins.result` already live in the field-op cols; `ird` is forwarded
+/// unchanged from the receive to the send (i.e., `ord = ird`, no extra column).
+///
+/// This chip handles every add *except* the very first one — the first add lives on
+/// the controller, since the running total is the EC identity at that point and the
+/// affine add formula doesn't apply. The `first_add_marker * inverse_fam = 1` check
+/// below forces `first_add_marker != 0`, so the controller's `(clock, c, Add, 0)`
+/// receive can't be aliased onto this chip.
+#[derive(Debug, Clone, AlignedBorrow)]
+#[repr(C)]
+pub struct WeierstrassMulInternalAddCols<T, P: FieldParameters + NumWords> {
+    pub is_real: T,
+    pub clk_high: T,
+    pub clk_low: T,
+    /// The internal step counter for this add's *receive*. The corresponding send
+    /// is at `c + 1` on the memory bus.
+    pub c: T,
+    /// Prefix bit-sum `S_{i-1}` carried on the opcode bus. The constraint
+    /// `first_add_marker * inverse_fam = 1` forces this non-zero, so this chip can
+    /// only consume non-first adds.
+    pub first_add_marker: T,
+    /// Multiplicative inverse of `first_add_marker`, used to prove non-zeroness.
+    pub inverse_fam: T,
+    /// Input doubler (x-coordinate). Forwarded unchanged on the send tuple.
+    pub ird_x: Limbs<T, <P as NumLimbs>::Limbs>,
+    /// Input doubler (y-coordinate). Forwarded unchanged on the send tuple.
+    pub ird_y: Limbs<T, <P as NumLimbs>::Limbs>,
+    /// Input running total (x-coordinate). Replaced by `ort = x3_ins.result` on the send.
+    pub irt_x: Limbs<T, <P as NumLimbs>::Limbs>,
+    /// Input running total (y-coordinate). Replaced by `ort = y3_ins.result` on the send.
+    pub irt_y: Limbs<T, <P as NumLimbs>::Limbs>,
+    pub slope_numerator: FieldOpCols<T, P>,
+    pub slope_denominator: FieldOpCols<T, P>,
+    pub inverse_check: FieldOpCols<T, P>,
+    pub slope: FieldOpCols<T, P>,
+    pub slope_squared: FieldOpCols<T, P>,
+    pub p_x_plus_q_x: FieldOpCols<T, P>,
+    pub x3_ins: FieldOpCols<T, P>,
+    pub p_x_minus_x: FieldOpCols<T, P>,
+    pub y3_ins: FieldOpCols<T, P>,
+    pub slope_times_p_x_minus_x: FieldOpCols<T, P>,
+    pub x3_range: FieldLtCols<T, P>,
+    pub y3_range: FieldLtCols<T, P>,
 }
 
 /// A chip that constrains a single non-first `add` step inside the EC scalar-multiplication
-/// chain. The first add is folded into the controller chip; this chip handles every subsequent
-/// add (i.e., those with `first_add_marker != 0`).
+/// chain. The first add is folded into the controller chip; this chip handles every
+/// subsequent add (those with `first_add_marker != 0`).
 #[derive(Default)]
-pub struct WeierstrassMulInternalAddChip<E, M: TrustMode> {
-    _marker: PhantomData<(E, M)>,
+pub struct WeierstrassMulInternalAddChip<E> {
+    _marker: PhantomData<E>,
 }
 
-impl<E: EllipticCurve + WeierstrassParameters, M: TrustMode> WeierstrassMulInternalAddChip<E, M> {
+impl<E: EllipticCurve + WeierstrassParameters> WeierstrassMulInternalAddChip<E> {
     pub const fn new() -> Self {
         Self { _marker: PhantomData }
     }
+
+    /// Populates the field-operation columns for one internal-add step:
+    /// `ort = ird + irt` (with `ord = ird` forwarded unchanged elsewhere). Mirrors
+    /// [`WeierstrassAddAssignChip::populate_field_ops`] verbatim, with `p = ird` and
+    /// `q = irt`.
+    fn populate_field_ops<F: PrimeField32>(
+        blu_events: &mut Vec<ByteLookupEvent>,
+        cols: &mut WeierstrassMulInternalAddCols<F, E::BaseField>,
+        p_x: BigUint,
+        p_y: BigUint,
+        q_x: BigUint,
+        q_y: BigUint,
+    ) {
+        // slope = (q.y - p.y) / (q.x - p.x).
+        let slope = {
+            let slope_numerator =
+                cols.slope_numerator.populate(blu_events, &q_y, &p_y, FieldOperation::Sub);
+            let slope_denominator =
+                cols.slope_denominator.populate(blu_events, &q_x, &p_x, FieldOperation::Sub);
+            cols.inverse_check.populate(
+                blu_events,
+                &BigUint::one(),
+                &slope_denominator,
+                FieldOperation::Div,
+            );
+            cols.slope.populate(
+                blu_events,
+                &slope_numerator,
+                &slope_denominator,
+                FieldOperation::Div,
+            )
+        };
+
+        // x = slope * slope - (p.x + q.x).
+        let x = {
+            let slope_squared =
+                cols.slope_squared.populate(blu_events, &slope, &slope, FieldOperation::Mul);
+            let p_x_plus_q_x =
+                cols.p_x_plus_q_x.populate(blu_events, &p_x, &q_x, FieldOperation::Add);
+            let x3 = cols.x3_ins.populate(
+                blu_events,
+                &slope_squared,
+                &p_x_plus_q_x,
+                FieldOperation::Sub,
+            );
+            cols.x3_range.populate(blu_events, &x3, &E::BaseField::modulus());
+            x3
+        };
+
+        // y = slope * (p.x - x) - p.y.
+        {
+            let p_x_minus_x = cols.p_x_minus_x.populate(blu_events, &p_x, &x, FieldOperation::Sub);
+            let slope_times_p_x_minus_x = cols.slope_times_p_x_minus_x.populate(
+                blu_events,
+                &slope,
+                &p_x_minus_x,
+                FieldOperation::Mul,
+            );
+            let y3 = cols.y3_ins.populate(
+                blu_events,
+                &slope_times_p_x_minus_x,
+                &p_y,
+                FieldOperation::Sub,
+            );
+            cols.y3_range.populate(blu_events, &y3, &E::BaseField::modulus());
+        }
+    }
 }
 
-impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters, M: TrustMode> MachineAir<F>
-    for WeierstrassMulInternalAddChip<E, M>
+impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
+    for WeierstrassMulInternalAddChip<E>
 {
     type Record = ExecutionRecord;
     type Program = Program;
 
     fn name(&self) -> &'static str {
-        match (E::CURVE_TYPE, M::IS_TRUSTED) {
-            (CurveType::Secp256k1, true) => "Secp256k1MulInternalAdd",
-            (CurveType::Secp256k1, false) => "Secp256k1MulInternalAddUser",
+        match E::CURVE_TYPE {
+            CurveType::Secp256k1 => "Secp256k1MulInternalAdd",
             _ => panic!("Unsupported curve for WeierstrassMulInternalAddChip"),
         }
     }
 
     fn num_rows(&self, _input: &Self::Record) -> Option<usize> {
+        // TODO: at most 255 rows per `SECP256K1_MUL` event (one per non-first add step).
         todo!()
+    }
+
+    fn generate_dependencies(&self, _input: &Self::Record, _output: &mut Self::Record) {
+        // TODO: iterate the non-first adds inside each `Secp256k1Mul` precompile event
+        // and call `populate_field_ops` per step to harvest the byte-lookup events.
     }
 
     fn generate_trace_into(
@@ -68,36 +192,172 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters, M: TrustMode> Ma
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        // Skeleton: only include the chip variant that matches the program's trust mode, and
-        // only when there are scalar-mul events. The real implementation should also honor
-        // shard.shape.
-        let has_events = match E::CURVE_TYPE {
-            CurveType::Secp256k1 => {
-                !shard.get_precompile_events(SyscallCode::SECP256K1_MUL).is_empty()
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            match E::CURVE_TYPE {
+                CurveType::Secp256k1 => {
+                    !shard.get_precompile_events(SyscallCode::SECP256K1_MUL).is_empty()
+                }
+                _ => false,
             }
-            _ => false,
-        };
-        has_events && (M::IS_TRUSTED != shard.program.enable_untrusted_programs)
+        }
     }
 }
 
-impl<F, E: EllipticCurve, M: TrustMode> BaseAir<F> for WeierstrassMulInternalAddChip<E, M> {
+impl<F, E: EllipticCurve + WeierstrassParameters> BaseAir<F> for WeierstrassMulInternalAddChip<E> {
     fn width(&self) -> usize {
-        num_weierstrass_mul_internal_add_cols()
+        num_weierstrass_mul_internal_add_cols::<E::BaseField>()
     }
 }
 
-impl<AB, E: EllipticCurve, M: TrustMode> Air<AB> for WeierstrassMulInternalAddChip<E, M>
+impl<AB, E: EllipticCurve + WeierstrassParameters> Air<AB> for WeierstrassMulInternalAddChip<E>
 where
     AB: SP1CoreAirBuilder,
+    Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs>: Copy,
 {
     fn eval(&self, builder: &mut AB) {
-        // Placeholder constraint so that machine construction passes the
-        // `max_constraint_degree > 0` assert in `Chip::new`. Replace with the real
-        // internal-add constraints once the chip layout lands.
         let main = builder.main();
         let local = main.row_slice(0);
-        let local: &WeierstrassMulInternalAddCols<AB::Var> = (*local).borrow();
+        let local: &WeierstrassMulInternalAddCols<AB::Var, E::BaseField> = (*local).borrow();
+
         builder.assert_bool(local.is_real);
+
+        // Non-first-add discriminator: `first_add_marker * inverse_fam = 1`, gated by
+        // `is_real`. The first-add receive on the controller hardcodes a marker of `0`,
+        // so this constraint is exactly what stops it from being aliased onto this chip.
+        let marker: AB::Expr = local.first_add_marker.into();
+        let inv_fam: AB::Expr = local.inverse_fam.into();
+        builder.when(local.is_real).assert_eq(marker * inv_fam, AB::Expr::one());
+
+        // Promote the column-valued limbs to `Expr` so both the EC add constraints and
+        // the bus tuples read them from a single source.
+        let to_expr = |l: &Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs>| {
+            let v: Vec<AB::Expr> = l.0.iter().map(|&x| x.into()).collect();
+            Limbs(v.try_into().expect("limb count"))
+        };
+        let p_x: Limbs<AB::Expr, <E::BaseField as NumLimbs>::Limbs> = to_expr(&local.ird_x);
+        let p_y: Limbs<AB::Expr, <E::BaseField as NumLimbs>::Limbs> = to_expr(&local.ird_y);
+        let q_x: Limbs<AB::Expr, <E::BaseField as NumLimbs>::Limbs> = to_expr(&local.irt_x);
+        let q_y: Limbs<AB::Expr, <E::BaseField as NumLimbs>::Limbs> = to_expr(&local.irt_y);
+
+        // EC add formula (mirrors `WeierstrassAddAssignChip::eval`), with `p = ird` and
+        // `q = irt`. The result `(x3, y3)` is `ort = ird + irt`.
+        //
+        //   slope = (q.y - p.y) / (q.x - p.x)
+        //   x3    = slope^2 - (p.x + q.x)
+        //   y3    = slope * (p.x - x3) - p.y
+        //
+        // `inverse_check` proves `(q.x - p.x)` is invertible (i.e. non-zero), so the
+        // chip rejects the `ird = ±irt` degeneracies on which the affine add formula
+        // would otherwise compute garbage.
+        let slope = {
+            local.slope_numerator.eval(builder, &q_y, &p_y, FieldOperation::Sub, local.is_real);
+            local.slope_denominator.eval(builder, &q_x, &p_x, FieldOperation::Sub, local.is_real);
+
+            let mut coeff_1 = Vec::new();
+            coeff_1.resize(<E::BaseField as NumLimbs>::Limbs::USIZE, AB::Expr::zero());
+            coeff_1[0] = AB::Expr::one();
+            let one_polynomial = Polynomial::from_coefficients(&coeff_1);
+
+            local.inverse_check.eval(
+                builder,
+                &one_polynomial,
+                &local.slope_denominator.result,
+                FieldOperation::Div,
+                local.is_real,
+            );
+
+            local.slope.eval(
+                builder,
+                &local.slope_numerator.result,
+                &local.slope_denominator.result,
+                FieldOperation::Div,
+                local.is_real,
+            );
+
+            &local.slope.result
+        };
+
+        let x = {
+            local.slope_squared.eval(builder, slope, slope, FieldOperation::Mul, local.is_real);
+            local.p_x_plus_q_x.eval(builder, &p_x, &q_x, FieldOperation::Add, local.is_real);
+            local.x3_ins.eval(
+                builder,
+                &local.slope_squared.result,
+                &local.p_x_plus_q_x.result,
+                FieldOperation::Sub,
+                local.is_real,
+            );
+            &local.x3_ins.result
+        };
+
+        {
+            local.p_x_minus_x.eval(builder, &p_x, x, FieldOperation::Sub, local.is_real);
+            local.slope_times_p_x_minus_x.eval(
+                builder,
+                slope,
+                &local.p_x_minus_x.result,
+                FieldOperation::Mul,
+                local.is_real,
+            );
+            local.y3_ins.eval(
+                builder,
+                &local.slope_times_p_x_minus_x.result,
+                &p_y,
+                FieldOperation::Sub,
+                local.is_real,
+            );
+        }
+
+        let modulus = E::BaseField::to_limbs_field::<AB::Expr, AB::F>(&E::BaseField::modulus());
+        local.x3_range.eval(builder, &local.x3_ins.result, &modulus, local.is_real);
+        local.y3_range.eval(builder, &local.y3_ins.result, &modulus, local.is_real);
+
+        // `ord = ird` (forwarded), `ort = (x3, y3)` for the bus send.
+        let ord_x = p_x.clone();
+        let ord_y = p_y.clone();
+        let ort_x = to_expr(&local.x3_ins.result);
+        let ort_y = to_expr(&local.y3_ins.result);
+
+        // Internal memory bus: receive `(clock, c, ird, irt)` and send `(clock, c + 1, ord, ort)`.
+        builder.receive(
+            internal_memory_rw::<AB, E::BaseField>(
+                local.clk_high.into(),
+                local.clk_low.into(),
+                local.c.into(),
+                p_x,
+                p_y,
+                q_x,
+                q_y,
+                local.is_real.into(),
+            ),
+            InteractionScope::Local,
+        );
+        builder.send(
+            internal_memory_rw::<AB, E::BaseField>(
+                local.clk_high.into(),
+                local.clk_low.into(),
+                local.c.into() + AB::Expr::one(),
+                ord_x,
+                ord_y,
+                ort_x,
+                ort_y,
+                local.is_real.into(),
+            ),
+            InteractionScope::Local,
+        );
+
+        // Internal opcode bus: receive an `Add` dispatch tuple from the controller.
+        builder.receive(
+            internal_add_call::<AB>(
+                local.clk_high.into(),
+                local.clk_low.into(),
+                local.c.into(),
+                local.first_add_marker.into(),
+                local.is_real.into(),
+            ),
+            InteractionScope::Local,
+        );
     }
 }

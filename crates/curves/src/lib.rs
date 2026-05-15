@@ -44,7 +44,7 @@ pub mod curve25519_dalek {
 pub use k256;
 pub use p256;
 
-use params::{FieldParameters, NumWords};
+use params::{FieldParameters, NumBits, NumWords};
 use sp1_primitives::consts::WORD_BYTE_SIZE;
 use std::{
     fmt::{Debug, Display, Formatter, Result},
@@ -174,7 +174,7 @@ impl<E: EllipticCurveParameters> AffinePoint<E> {
 pub trait EllipticCurveParameters:
     Debug + Send + Sync + Copy + Serialize + DeserializeOwned + 'static
 {
-    type BaseField: FieldParameters + NumWords;
+    type BaseField: FieldParameters + NumWords + NumBits;
 
     const CURVE_TYPE: CurveType;
 }

@@ -1,8 +1,8 @@
 mod controller;
 mod interactions;
 mod internal_add;
-mod internal_mul;
+mod internal_double;
 
 pub use controller::*;
 pub use internal_add::*;
-pub use internal_mul::*;
+pub use internal_double::*;

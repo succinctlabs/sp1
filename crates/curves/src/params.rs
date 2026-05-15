@@ -1,6 +1,6 @@
 use std::{
     fmt::Debug,
-    ops::{Div, Index, IndexMut},
+    ops::{Div, Index, IndexMut, Mul},
     slice::Iter,
 };
 
@@ -16,7 +16,8 @@ use slop_algebra::Field;
 
 use crate::utils::biguint_from_limbs;
 
-pub const NB_BITS_PER_LIMB: usize = 8;
+pub type BitsPerLimb = U8;
+pub const NB_BITS_PER_LIMB: usize = BitsPerLimb::USIZE;
 
 /// An array representing N limbs of T.
 ///
@@ -94,6 +95,11 @@ pub trait NumWords: Clone + Debug {
     type WordsCurvePoint: ArrayLength + Debug;
 }
 
+pub trait NumBits: Clone + Debug {
+    type BitsFieldElement: ArrayLength + Debug;
+    type BitsCurvePoint: ArrayLength + Debug;
+}
+
 /// Implement NumWords for NumLimbs where # Limbs is divisible by 4.
 ///
 /// Using typenum we can do N/4 and N/2 in type-level arithmetic. Having it as a separate trait
@@ -109,6 +115,21 @@ where
     type WordsFieldElement = <N::Limbs as Div<U8>>::Output;
     /// Curve point has 2 field elements so we divide by 4.
     type WordsCurvePoint = <N::Limbs as Div<U4>>::Output;
+}
+
+/// Implement NumBits for NumLimbs.
+///
+/// Using typenum we can do N*8 in type-level arithmetic. Having it as a separate trait
+/// avoids needing the Mul where clauses everywhere.
+impl<N: NumLimbs> NumBits for N
+where
+    N::Limbs: Mul<BitsPerLimb>,
+    <N::Limbs as Mul<BitsPerLimb>>::Output: ArrayLength + Debug,
+{
+    /// Each word has 8 bytes so we divide by 8.
+    type BitsFieldElement = <N::Limbs as Mul<BitsPerLimb>>::Output;
+    /// Curve point has 2 field elements so we divide by 4.
+    type BitsCurvePoint = <N::Limbs as Mul<BitsPerLimb>>::Output;
 }
 
 impl<T: Copy, N: ArrayLength> Copy for Limbs<T, N> where N::ArrayType<T>: Copy {}
