@@ -155,7 +155,7 @@ impl SP1WorkerConfig {
             recursion_prover_buffer_size,
             max_compose_arity,
             verify_intermediates,
-            machine.clone(),
+            machine,
             reduce_shape,
         );
 
