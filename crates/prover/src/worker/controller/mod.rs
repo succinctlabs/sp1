@@ -603,7 +603,10 @@ impl TryFrom<&[Artifact]> for ControllerInputs {
             ProofMode::try_from(parsed).map_err(|e| TaskError::Fatal(e.into()))?
         };
         let cycle_limit = inputs.get(3).and_then(|a| a.clone().to_id().parse::<u64>().ok());
-        let proof_nonce = inputs.get(4).cloned();
+        let proof_nonce = match inputs.get(4) {
+            Some(Artifact(s)) if !s.is_empty() => Some(Artifact(s.clone())),
+            _ => None,
+        };
         let metadata = match inputs.get(5) {
             Some(Artifact(s)) if !s.is_empty() => serde_json::from_str(s),
             _ => Ok(Default::default()),
