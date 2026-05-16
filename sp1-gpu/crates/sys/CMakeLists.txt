@@ -98,7 +98,6 @@ add_subdirectory(lib/sum_and_reduce)
 add_subdirectory(lib/tracegen)
 add_subdirectory(lib/transpose)
 add_subdirectory(lib/zerocheck)
-add_subdirectory(lib/zerocheck_v2)
 
 # Sppark sources (external library, kept separate)
 # These are C++ files that need CUDA headers
@@ -126,7 +125,6 @@ set(ALL_CUDA_OBJECTS
     $<TARGET_OBJECTS:tracegen_objs>
     $<TARGET_OBJECTS:transpose_objs>
     $<TARGET_OBJECTS:zerocheck_objs>
-    $<TARGET_OBJECTS:zerocheck_v2_objs>
     $<TARGET_OBJECTS:sppark_objs>
 )
 

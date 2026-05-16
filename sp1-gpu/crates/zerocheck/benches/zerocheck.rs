@@ -1,8 +1,6 @@
-//! Bench `zerocheck`. The zerocheck *prover* runs on any trace data — only verification cares
-//! about constraint satisfaction — so source selection (random / JSON / real) goes through
-//! [`with_trace_source`] with [`FullKind`]. For random and JSON sources the helper synthesizes
-//! `cluster` (default: the machine's `core` cluster; override with `random:N,cluster=all-chips`)
-//! and a zero-filled `public_values` of the right length. See [`benches/README.md`] for details.
+//! Bench `zerocheck` — the DAG-native lowering path. Trace source selection
+//! (random / JSON / real) goes through [`with_trace_source`] with
+//! [`FullKind`]; see [`benches/README.md`] for details.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -14,14 +12,14 @@ use slop_algebra::AbstractField;
 use slop_challenger::{CanObserve, CanSample, FieldChallenger, IopCtx};
 use slop_multilinear::{MleEval, Point};
 use slop_tensor::Tensor;
-use sp1_gpu_air::codegen_cuda_eval;
+use sp1_gpu_air::ir::ChunkBudget;
 use sp1_gpu_cudart::TaskScope;
 use sp1_gpu_jagged_tracegen::test_utils::bench_utils::{
     with_trace_source, FullKind, RealTraceData,
 };
 use sp1_gpu_utils::{Ext, Felt, TestGC};
 use sp1_gpu_zerocheck::primitives::evaluate_jagged_columns;
-use sp1_gpu_zerocheck::zerocheck;
+use sp1_gpu_zerocheck::prover::{upload_machine_bytecode, zerocheck};
 use sp1_hypercube::air::MachineAir;
 use sp1_hypercube::log2_ceil_usize;
 use sp1_hypercube::{ChipEvaluation, LogUpEvaluations};
@@ -36,11 +34,9 @@ fn run_zerocheck<R: Rng>(
     let RealTraceData { machine: _, cluster, public_values, device_mle } = data;
     let chips = &cluster;
 
-    let mut cache = BTreeMap::new();
-    for chip in chips.iter() {
-        let result = codegen_cuda_eval(chip.air.as_ref());
-        cache.insert(chip.name().to_string(), result);
-    }
+    // Compile + upload the machine's v2 bytecode once.
+    let machine_bytecode =
+        Arc::new(upload_machine_bytecode(chips, ChunkBudget::recommended(), scope));
 
     let trace_mle = Arc::new(device_mle);
 
@@ -55,6 +51,10 @@ fn run_zerocheck<R: Rng>(
     let mut challenger_prover = challenger.clone();
     let batching_challenge = challenger_prover.sample_ext_element();
     let gkr_opening_batch_randomness = challenger_prover.sample_ext_element();
+    // Derive max_log_row_count from the actual chip heights. The bench's old
+    // `CORE_MAX_LOG_ROW_COUNT = 22` only covers `core_2^25`-sized random
+    // traces — bigger areas can put more than 2^22 rows in a single chip and
+    // trip `VirtualGeq::new`'s assert.
     let max_chip_height =
         trace_mle.dense_data.main_table_index.values().map(|o| o.poly_size).max().unwrap_or(1);
     let max_log_row_count = log2_ceil_usize(max_chip_height).max(1);
@@ -103,7 +103,7 @@ fn run_zerocheck<R: Rng>(
             |pv| {
                 let result = zerocheck(
                     chips,
-                    &cache,
+                    &machine_bytecode,
                     trace_mle.as_ref(),
                     batching_challenge,
                     gkr_opening_batch_randomness,

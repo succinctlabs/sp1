@@ -6,11 +6,11 @@ use slop_commit::Rounds;
 use slop_multilinear::{MleEval, Point};
 use slop_tensor::{Tensor, TensorView};
 
-use sp1_gpu_cudart::sys::runtime::KernelPtr;
-use sp1_gpu_cudart::sys::v2_kernels::{
+use sp1_gpu_cudart::sys::kernels::{
     fix_last_variable_jagged_ext, fix_last_variable_jagged_felt, fix_last_variable_jagged_info,
     initialize_jagged_info,
 };
+use sp1_gpu_cudart::sys::runtime::KernelPtr;
 use sp1_gpu_cudart::{
     args, dot_along_dim_view, DeviceBuffer, DevicePoint, DeviceTensor, TaskScope,
 };
@@ -411,7 +411,7 @@ mod tests {
     use slop_multilinear::Mle;
     use slop_multilinear::Point;
     use sp1_gpu_cudart::run_sync_in_place;
-    use sp1_gpu_cudart::sys::v2_kernels::jagged_eval_kernel_chunked_felt;
+    use sp1_gpu_cudart::sys::kernels::jagged_eval_kernel_chunked_felt;
     use sp1_gpu_cudart::{DeviceBuffer, DevicePoint};
     use sp1_hypercube::log2_ceil_usize;
     use sp1_primitives::SP1Field;

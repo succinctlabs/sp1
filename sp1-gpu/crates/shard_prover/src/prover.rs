@@ -1,5 +1,4 @@
 use crate::{MainTraceData, ShardData};
-use slop_air::BaseAir;
 use slop_algebra::AbstractField;
 use slop_alloc::{Buffer, HasBackend};
 use slop_challenger::{CanObserve, FieldChallenger, FromChallenger, IopCtx};
@@ -10,9 +9,7 @@ use slop_jagged::{
     JaggedProverError, PrefixSumsMaxLogRowCount,
 };
 use slop_multilinear::{MleEval, MultilinearPcsVerifier, Point};
-use sp1_gpu_air::air_block::BlockAir;
-use sp1_gpu_air::v2::{ChunkBudget, DagBuilder};
-use sp1_gpu_air::SymbolicProverFolder;
+use sp1_gpu_air::ir::{ChunkBudget, DagBuilder};
 use sp1_gpu_basefold::{CudaStackedPcsProverData, DeviceGrindingChallenger, FriCudaProver};
 use sp1_gpu_challenger::FromHostChallengerSync;
 use sp1_gpu_cudart::PinnedBuffer;
@@ -24,9 +21,7 @@ use sp1_gpu_logup_gkr::{prove_logup_gkr, CudaLogUpGkrOptions, Interactions};
 use sp1_gpu_merkle_tree::{CudaTcsProver, SingleLayerMerkleTreeProverError};
 use sp1_gpu_tracegen::CudaTracegenAir;
 use sp1_gpu_utils::{Ext, Felt, JaggedTraceMle};
-use sp1_gpu_zerocheck::v2::{upload_machine_bytecode, zerocheck_v2, MachineBytecodeV2};
-use sp1_gpu_zerocheck::zerocheck;
-use sp1_gpu_zerocheck::CudaEvalResult;
+use sp1_gpu_zerocheck::prover::{upload_machine_bytecode, zerocheck, MachineBytecode};
 use sp1_hypercube::prover::ZerocheckAir;
 use sp1_hypercube::{
     air::{MachineAir, MachineProgram},
@@ -46,7 +41,6 @@ pub trait CudaShardProverComponents<GC: IopCtx>: Send + Sync + 'static {
     type P: CudaTcsProver<GC>;
     type Air: CudaTracegenAir<GC::F>
         + ZerocheckAir<Felt, Ext>
-        + for<'a> BlockAir<SymbolicProverFolder<'a>>
         + for<'a> slop_air::Air<DagBuilder<'a>>;
     type C: MultilinearPcsVerifier<GC> + Send + Sync;
     /// The device challenger type used for GPU-based challenger operations.
@@ -78,15 +72,14 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>> CudaShar
         max_trace_size: usize,
         backend: TaskScope,
         all_interactions: BTreeMap<String, Arc<Interactions<GC::F, TaskScope>>>,
-        all_zerocheck_programs: BTreeMap<String, CudaEvalResult>,
         recompute_first_layer: bool,
         drop_ldes: bool,
     ) -> Self {
-        // Compile + upload the whole machine's v2 zerocheck bytecode once.
+        // Compile + upload the whole machine's zerocheck bytecode once.
         // It's machine-stable, so every shard reuses this single upload.
-        let v2_machine_bytecode = {
+        let machine_bytecode = {
             let chip_set: BTreeSet<_> = machine.chips().iter().cloned().collect();
-            Arc::new(upload_machine_bytecode(&chip_set, ChunkBudget::default_v1(), &backend))
+            Arc::new(upload_machine_bytecode(&chip_set, ChunkBudget::recommended(), &backend))
         };
         Self {
             inner: Arc::new(CudaShardProverInner {
@@ -97,8 +90,7 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>> CudaShar
                 max_trace_size,
                 backend,
                 all_interactions,
-                all_zerocheck_programs,
-                v2_machine_bytecode,
+                machine_bytecode,
                 recompute_first_layer,
                 drop_ldes,
                 _marker: PhantomData,
@@ -150,12 +142,11 @@ pub(crate) struct CudaShardProverInner<GC: IopCtx, PC: CudaShardProverComponents
     pub max_trace_size: usize,
     pub backend: TaskScope,
     pub all_interactions: BTreeMap<String, Arc<Interactions<GC::F, TaskScope>>>,
-    pub all_zerocheck_programs: BTreeMap<String, CudaEvalResult>,
-    /// The whole machine's v2 DAG-native bytecode, compiled and uploaded to
+    /// The whole machine's DAG-native bytecode, compiled and uploaded to
     /// the GPU once at prover construction. The bytecode is machine-stable
-    /// (cluster-independent — see `compile_chips_v2`), so every shard reuses
+    /// (cluster-independent — see `compile_chips`), so every shard reuses
     /// this single upload instead of re-compiling + re-uploading per shard.
-    pub v2_machine_bytecode: Arc<MachineBytecodeV2>,
+    pub machine_bytecode: Arc<MachineBytecode>,
     pub recompute_first_layer: bool,
     pub drop_ldes: bool,
     pub _marker: PhantomData<GC>,
@@ -683,98 +674,23 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
         // Get the challenge for batching the evaluations from the GKR proof.
         let gkr_opening_batch_challenge = challenger.sample_ext_element::<GC::EF>();
 
-        // Generate the zerocheck proof. v2 is the DAG-native fused-kernel
-        // path (see sp1-gpu-zerocheck::v2). It's a drop-in replacement for
-        // the legacy `zerocheck` and is faster everywhere we've measured —
-        // 1.7–13× depending on cluster size on synthetic random traces.
-        // Disable with `SP1_GPU_ZEROCHECK_V1=1` to fall back to the legacy
-        // path for A/B comparison or debugging.
-        let use_v1 = std::env::var("SP1_GPU_ZEROCHECK_V1").is_ok();
+        // Generate the zerocheck proof via the DAG-native fused-kernel path.
+        // The bytecode is compiled + uploaded once per machine at prover
+        // construction (see `machine_bytecode`); `zerocheck` just selects
+        // this shard's chips from it.
         let (shard_open_values, zerocheck_partial_sumcheck_proof) =
             tracing::debug_span!("zerocheck").in_scope(|| {
-                if use_v1 {
-                    zerocheck(
-                        shard_chips,
-                        &self.all_zerocheck_programs,
-                        traces,
-                        batching_challenge,
-                        gkr_opening_batch_challenge,
-                        &logup_gkr_proof.logup_evaluations,
-                        public_values.clone(),
-                        &mut challenger,
-                        self.max_log_row_count,
-                    )
-                } else {
-                    // The v2 bytecode is compiled + uploaded once per machine
-                    // at prover construction (see `v2_machine_bytecode`);
-                    // `zerocheck_v2` just selects this shard's chips from it.
-                    let cache_key: Vec<String> =
-                        shard_chips.iter().map(|c| c.name().to_string()).collect();
-
-                    // SP1_GPU_V2_DUMP_LAYOUT=path/to/dir → write each shard's
-                    // chip layout as JSON (compatible with the bench's
-                    // `random:N.json` input) so the bench can replay real
-                    // shard shapes. Files are written once per unique
-                    // layout (by cache key) to avoid duplicates.
-                    if let Ok(dir) = std::env::var("SP1_GPU_V2_DUMP_LAYOUT") {
-                        let key_str = cache_key.join(",");
-                        use std::collections::hash_map::DefaultHasher;
-                        use std::hash::{Hash, Hasher};
-                        let mut h = DefaultHasher::new();
-                        key_str.hash(&mut h);
-                        traces
-                            .dense_data
-                            .main_table_index
-                            .iter()
-                            .for_each(|(n, t)| (n.clone(), t.poly_size).hash(&mut h));
-                        let fp = h.finish();
-                        let path = format!("{}/shard_layout_{:016x}.json", dir, fp);
-                        if !std::path::Path::new(&path).exists() {
-                            let _ = std::fs::create_dir_all(&dir);
-                            let entries: Vec<_> = shard_chips
-                                .iter()
-                                .map(|c| {
-                                    let h = traces
-                                        .dense_data
-                                        .main_table_index
-                                        .get(c.name())
-                                        .map(|t| t.poly_size)
-                                        .or_else(|| {
-                                            traces
-                                                .dense_data
-                                                .preprocessed_table_index
-                                                .get(c.name())
-                                                .map(|t| t.poly_size)
-                                        })
-                                        .unwrap_or(0);
-                                    serde_json::json!({
-                                        "name": c.name(),
-                                        "preprocessed_width": c.preprocessed_width(),
-                                        "main_width": c.width(),
-                                        "height": h,
-                                    })
-                                })
-                                .collect();
-                            let _ = std::fs::write(
-                                &path,
-                                serde_json::to_string_pretty(&entries).unwrap(),
-                            );
-                            tracing::info!("v2 dumped layout: {}", path);
-                        }
-                    }
-
-                    zerocheck_v2(
-                        shard_chips,
-                        &self.v2_machine_bytecode,
-                        traces,
-                        batching_challenge,
-                        gkr_opening_batch_challenge,
-                        &logup_gkr_proof.logup_evaluations,
-                        public_values.clone(),
-                        &mut challenger,
-                        self.max_log_row_count,
-                    )
-                }
+                zerocheck(
+                    shard_chips,
+                    &self.machine_bytecode,
+                    traces,
+                    batching_challenge,
+                    gkr_opening_batch_challenge,
+                    &logup_gkr_proof.logup_evaluations,
+                    public_values.clone(),
+                    &mut challenger,
+                    self.max_log_row_count,
+                )
             });
 
         // Get the evaluation point for the trace polynomials.
@@ -857,7 +773,6 @@ mod tests {
     use slop_tensor::Tensor;
     use sp1_core_machine::io::SP1Stdin;
     use sp1_core_machine::riscv::RiscvAir;
-    use sp1_gpu_air::codegen_cuda_eval;
     use sp1_gpu_cudart::run_in_place;
     use sp1_gpu_jagged_tracegen::test_utils::tracegen_setup::{
         self, CORE_MAX_LOG_ROW_COUNT, LOG_STACKING_HEIGHT,
@@ -921,12 +836,6 @@ mod tests {
                 all_interactions.insert(chip.name().to_string(), Arc::new(device_interactions));
             }
 
-            let mut cache = BTreeMap::new();
-            for chip in machine.chips().iter() {
-                let result = codegen_cuda_eval(chip.air.as_ref());
-                cache.insert(chip.name().to_string(), result);
-            }
-
             let num_workers = 1;
             let mut trace_buffers = Vec::with_capacity(num_workers);
             for _ in 0..num_workers {
@@ -934,16 +843,15 @@ mod tests {
                 trace_buffers.push(buffer);
             }
 
-            let v2_machine_bytecode = {
+            let machine_bytecode = {
                 let chip_set: BTreeSet<_> = machine.chips().iter().cloned().collect();
-                Arc::new(upload_machine_bytecode(&chip_set, ChunkBudget::default_v1(), &scope))
+                Arc::new(upload_machine_bytecode(&chip_set, ChunkBudget::recommended(), &scope))
             };
             let shard_prover_inner: CudaShardProverInner<TestGC, TestProverComponentsImpl> =
                 CudaShardProverInner {
                     trace_buffers: Arc::new(WorkerQueue::new(trace_buffers)),
                     all_interactions,
-                    all_zerocheck_programs: cache,
-                    v2_machine_bytecode,
+                    machine_bytecode,
                     max_log_row_count: CORE_MAX_LOG_ROW_COUNT,
                     basefold_prover,
                     max_trace_size: CORE_MAX_TRACE_SIZE as usize,

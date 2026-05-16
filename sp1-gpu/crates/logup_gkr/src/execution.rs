@@ -1,7 +1,7 @@
 use slop_alloc::{Buffer, HasBackend};
 use sp1_gpu_cudart::{
     args,
-    sys::v2_kernels::{
+    sys::kernels::{
         logup_gkr_circuit_transition, logup_gkr_extract_output, logup_gkr_first_layer_transition,
     },
     DeviceBuffer, DeviceMle,

@@ -60,9 +60,5 @@ criterion = "0.5"
 name = "zerocheck"
 harness = false
 
-[[bench]]
-name = "zerocheck_v2"
-harness = false
-
 [lints]
 workspace = true

@@ -1,3 +1,13 @@
+#![allow(
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::too_many_arguments,
+    clippy::needless_range_loop,
+    clippy::vec_init_then_push,
+    clippy::useless_vec,
+    clippy::manual_div_ceil,
+    clippy::doc_lazy_continuation
+)]
 //! Dump every `RiscvAir` chip as a JSON layout entry (height 0). Feed the
 //! output into the zerocheck bench's JSON layout source, with heights edited
 //! to whatever distribution you want to test.

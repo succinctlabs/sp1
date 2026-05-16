@@ -13,7 +13,7 @@ use slop_tensor::Tensor;
 use sp1_gpu_cudart::DevicePoint;
 use sp1_gpu_cudart::{
     args,
-    sys::v2_kernels::{
+    sys::kernels::{
         logup_gkr_first_sum_as_poly_circuit_layer as first_sum_as_poly_layer_circuit_layer_kernel,
         logup_gkr_fix_and_sum_circuit_layer as fix_and_sum_circuit_layer_kernel,
         logup_gkr_fix_and_sum_first_layer as fix_and_sum_first_layer_kernel,
