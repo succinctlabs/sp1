@@ -286,6 +286,7 @@ where
         });
 
         // Internal interactions
+        // compute S_i = \sum_{j < i} b_j for bits b_j
         let bit_totals = local
             .exp_bits
             .iter()
@@ -311,9 +312,9 @@ where
                 AB::Expr::zero(), // c = 0 for initial send
                 ird_x,
                 ird_y,
-                zero_x,
-                zero_y,
-                local.is_real,
+                zero_x.clone(),
+                zero_y.clone(),
+                is_not_trap.clone(),
             ),
             InteractionScope::Local,
         );
@@ -335,23 +336,26 @@ where
 
         // Internal OpCalls: Order: sum(0), double(0), sum(1), double(1), ..., double(n-2), sum(n-1)
         // sums are skipped if the corresponding bit is zero, the last double is always skipped.
-        // Internal sum OpCalls.
-        local.exp_bits.iter().zip_eq(bit_totals.iter()).enumerate().for_each(
-            |(i, (bit, bit_total))| {
+        // Internal add OpCalls.
+        local
+            .exp_bits
+            .iter()
+            .zip(std::iter::once(&AB::Expr::zero()).chain(bit_totals.iter()))
+            .enumerate()
+            .for_each(|(i, (bit, bit_total))| {
                 builder.send(
                     internal_add_call::<AB>(
                         local.clk_high,
                         local.clk_low,
-                        AB::Expr::from_canonical_usize(i - 1) + bit_total.clone(),
+                        AB::Expr::from_canonical_usize(i) + bit_total.clone(),
                         bit_total.clone(), // marker if add should actually be first add
                         *bit, // skips when bit is zero, this should always be zero when row is fake
                     ),
                     InteractionScope::Local,
                 );
-            },
-        );
+            });
         // Internal mul OpCalls.
-        bit_totals.iter().take(exp_num_bits - 1).enumerate().for_each(|(i, bit_total)| {
+        bit_totals[1..exp_num_bits - 1].iter().enumerate().for_each(|(i, bit_total)| {
             builder.send(
                 internal_double_call::<AB>(
                     local.clk_high,
@@ -365,7 +369,6 @@ where
 
         // First add interactions
         // Memory read
-        let [zero_x, zero_y] = ec_identity::<E, AB>();
         builder.receive(
             internal_memory_rw::<AB, E::BaseField>(
                 local.clk_high,
@@ -399,8 +402,8 @@ where
                 local.clk_high,
                 local.clk_low,
                 local.c_at_first_add,
-                AB::Expr::zero(), // marker if add should actually be first add is zero
-                AB::Expr::one(),  // bit should be one at first add
+                AB::Expr::zero(), // first add marker is zero => this is the first add
+                is_not_trap,      // bit should be one at first add
             ),
             InteractionScope::Local,
         );
