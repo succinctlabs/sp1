@@ -1,5 +1,5 @@
 #![allow(unused_unsafe)]
-use crate::{read_vec_raw, syscall_write, ReadVecResult};
+use crate::{halt_invalid_hint, read_vec_raw, syscall_write, ReadVecResult};
 use serde::{de::DeserializeOwned, Serialize};
 use std::io::{Result, Write};
 
@@ -43,14 +43,31 @@ pub fn read_vec() -> Vec<u8> {
     let ReadVecResult { ptr, len, capacity } = unsafe { read_vec_raw() };
 
     if ptr.is_null() {
-        panic!(
-            "Tried to read from the input stream, but it was empty @ {} \n
-            Was the correct data written into SP1Stdin?",
-            std::panic::Location::caller()
-        )
+        empty_input_stream_halt();
     }
 
     unsafe { Vec::from_raw_parts(ptr, len, capacity) }
+}
+
+/// The input stream is prover-controlled, so an empty read is an invalid-hint
+/// condition rather than a regular panic. We print the same diagnostic message
+/// to stderr (FD 2) that `panic!` would have, then halt with exit code 3 so a
+/// malicious prover cannot forge a regular panic (exit code 1) by withholding
+/// hint data.
+#[track_caller]
+#[cold]
+#[inline(never)]
+fn empty_input_stream_halt() -> ! {
+    let msg = std::format!(
+        "Tried to read from the input stream, but it was empty @ {}\n\
+         Was the correct data written into SP1Stdin?\n\
+         Halting with exit code 3 (invalid prover hint).\n",
+        std::panic::Location::caller()
+    );
+    unsafe {
+        syscall_write(2, msg.as_ptr(), msg.len());
+    }
+    halt_invalid_hint()
 }
 
 /// Read a deserializable object from the input stream.
@@ -72,11 +89,7 @@ pub fn read<T: DeserializeOwned>() -> T {
     let ReadVecResult { ptr, len, capacity } = unsafe { read_vec_raw() };
 
     if ptr.is_null() {
-        panic!(
-            "Tried to read from the input stream, but it was empty @ {} \n
-            Was the correct data written into SP1Stdin?",
-            std::panic::Location::caller()
-        )
+        empty_input_stream_halt();
     }
 
     // 1. `ptr` was allocated using alloc
@@ -84,7 +97,12 @@ pub fn read<T: DeserializeOwned>() -> T {
     // 3. Size and length are correct from above. Length is <= capacity.
     let vec = unsafe { Vec::from_raw_parts(ptr, len, capacity) };
 
-    bincode::deserialize(&vec).expect("deserialization failed")
+    // bincode bytes are also prover-controlled — a corrupt encoding is an
+    // invalid hint, not a regular panic.
+    match bincode::deserialize(&vec) {
+        Ok(v) => v,
+        Err(_) => halt_invalid_hint(),
+    }
 }
 
 /// Commit a serializable object to the public values stream.

@@ -7,7 +7,7 @@ use sp1_core_executor::{
 use sp1_core_executor_runner::MinimalExecutorRunner;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_core_machine::riscv::RiscvAir;
-use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
+use sp1_hypercube::air::{PROOF_NONCE_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use sp1_hypercube::{Machine, MachineVerifyingKey, SP1PcsProofInner, SP1VerifyingKey};
 use sp1_jit::TraceChunkRaw;
 use sp1_primitives::io::SP1PublicValues;
@@ -167,6 +167,7 @@ pub async fn execute_with_options_and_machine(
         Report(ExecutionReport),
         PublicValues {
             public_values: SP1PublicValues,
+            public_value_digest: [u32; PV_DIGEST_NUM_WORDS],
             #[cfg(feature = "profiling")]
             cycle_tracker: hashbrown::HashMap<String, u64>,
             #[cfg(feature = "profiling")]
@@ -276,12 +277,14 @@ pub async fn execute_with_options_and_machine(
         #[cfg(feature = "profiling")]
         let invocation_tracker = minimal_executor.take_invocation_tracker();
 
+        let public_value_digest = minimal_executor.public_value_digest();
         let public_value_stream = minimal_executor.into_public_values_stream();
         let public_values = SP1PublicValues::from(&public_value_stream);
 
         tracing::info!("public_value_stream: {:?}", public_value_stream);
         Ok::<_, anyhow::Error>(ExecutorOutput::PublicValues {
             public_values,
+            public_value_digest,
             #[cfg(feature = "profiling")]
             cycle_tracker,
             #[cfg(feature = "profiling")]
@@ -292,6 +295,7 @@ pub async fn execute_with_options_and_machine(
     // Wait for all gas calculations to complete.
     let mut final_report = ExecutionReport::default();
     let mut public_values = SP1PublicValues::default();
+    let mut minimal_executor_digest: Option<[u32; PV_DIGEST_NUM_WORDS]> = None;
     #[cfg(feature = "profiling")]
     let mut cycle_tracker_data: Option<(
         hashbrown::HashMap<String, u64>,
@@ -303,12 +307,14 @@ pub async fn execute_with_options_and_machine(
             Ok(Ok(output)) => match output {
                 ExecutorOutput::PublicValues {
                     public_values: pv,
+                    public_value_digest: pvd,
                     #[cfg(feature = "profiling")]
                     cycle_tracker,
                     #[cfg(feature = "profiling")]
                     invocation_tracker,
                 } => {
                     public_values = pv;
+                    minimal_executor_digest = Some(pvd);
                     #[cfg(feature = "profiling")]
                     {
                         cycle_tracker_data = Some((cycle_tracker, invocation_tracker));
@@ -336,18 +342,19 @@ pub async fn execute_with_options_and_machine(
         final_report.invocation_tracker = invocation_tracker;
     }
 
-    // Extract the public value digest from the final VM state.
-    let public_value_digest: [u8; 32] = final_vm_state
+    // Extract the public value digest. Prefer the value tracked by the gas-estimating VM (set when
+    // `calculate_gas` is enabled), and fall back to the digest captured by the minimal executor
+    // when gas estimation is disabled and `final_vm_state` is therefore never populated.
+    let digest_words: [u32; PV_DIGEST_NUM_WORDS] = final_vm_state
         .get()
-        .map(|state| {
-            let mut committed_value_digest = [0u8; 32];
-            state.public_value_digest.iter().enumerate().for_each(|(i, word)| {
-                let bytes = word.to_le_bytes();
-                committed_value_digest[i * 4..(i + 1) * 4].copy_from_slice(&bytes);
-            });
-            committed_value_digest
-        })
+        .map(|state| state.public_value_digest)
+        .or(minimal_executor_digest)
         .ok_or(anyhow::anyhow!("Failed to extract public value digest"))?;
+    let mut public_value_digest = [0u8; 32];
+    digest_words.iter().enumerate().for_each(|(i, word)| {
+        let bytes = word.to_le_bytes();
+        public_value_digest[i * 4..(i + 1) * 4].copy_from_slice(&bytes);
+    });
 
     Ok((public_values, public_value_digest, final_report))
 }
@@ -356,25 +363,62 @@ pub async fn execute_with_options_and_machine(
 mod tests {
     use std::sync::Arc;
 
-    use sp1_core_executor::{Program, SP1Context, SP1CoreOpts};
+    use sp1_core_executor::{Program, SP1ContextBuilder, SP1CoreOpts};
     use sp1_core_machine::io::SP1Stdin;
+    use sp1_primitives::{io::SP1PublicValues, Elf};
 
     use super::{execute_with_options, SP1ExecutorConfig};
 
-    #[tokio::test]
-    async fn test_execute_with_optional_gas() {
-        let elf = test_artifacts::FIBONACCI_ELF;
-        let program = Arc::new(Program::from(&elf).unwrap());
+    async fn run(elf: &Elf, calculate_gas: bool) -> (SP1PublicValues, [u8; 32]) {
+        let program = Arc::new(Program::from(elf).unwrap());
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
         let opts = SP1CoreOpts::default();
         let executor_config = SP1ExecutorConfig::default();
 
-        let context = SP1Context::default();
+        let mut context_builder = SP1ContextBuilder::new();
+        context_builder.calculate_gas(calculate_gas);
+        let context = context_builder.build();
+
         let (pv, digest, report) =
             execute_with_options(program, stdin, context, opts, executor_config).await.unwrap();
-
-        assert!(pv.hash() == digest.to_vec() || pv.blake3_hash() == digest.to_vec());
         assert_eq!(report.exit_code, 0);
+        (pv, digest)
+    }
+
+    #[tokio::test]
+    async fn test_execute_with_optional_gas() {
+        // SHA-256 guest, gas estimation enabled (final_vm_state path).
+        let (pv, digest) = run(&test_artifacts::FIBONACCI_ELF, true).await;
+        assert_eq!(pv.hash(), digest.to_vec(), "sha guest digest must match pv.hash() (gas=on)");
+
+        // SHA-256 guest, gas estimation disabled — regression for "Failed to extract public value
+        // digest". The digest must come from the minimal executor's COMMIT tracking, since
+        // `final_vm_state` is never populated when `calculate_gas` is false.
+        let (pv, digest) = run(&test_artifacts::FIBONACCI_ELF, false).await;
+        assert_eq!(pv.hash(), digest.to_vec(), "sha guest digest must match pv.hash() (gas=off)");
+
+        // BLAKE3 guest, gas estimation disabled — guards against the tempting-but-wrong
+        // "always fall back to SP1PublicValues::hash()" shortcut, which would silently use sha256
+        // for a blake3-built guest.
+        let (pv, digest) = run(&test_artifacts::FIBONACCI_BLAKE3_ELF, false).await;
+        assert_eq!(
+            pv.blake3_hash(),
+            digest.to_vec(),
+            "blake3 guest digest must match pv.blake3_hash() (gas=off)",
+        );
+        assert_ne!(
+            pv.hash(),
+            digest.to_vec(),
+            "blake3 guest digest must NOT match pv.hash() (sha256)",
+        );
+
+        // BLAKE3 guest, gas estimation enabled — both paths must agree on the same digest.
+        let (pv, digest) = run(&test_artifacts::FIBONACCI_BLAKE3_ELF, true).await;
+        assert_eq!(
+            pv.blake3_hash(),
+            digest.to_vec(),
+            "blake3 guest digest must match pv.blake3_hash() (gas=on)",
+        );
     }
 }

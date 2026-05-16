@@ -331,6 +331,12 @@ impl MinimalExecutorRunner {
         self.take_output().public_values_stream
     }
 
+    /// Get the public value digest words committed by the guest via `COMMIT` syscalls.
+    #[must_use]
+    pub fn public_value_digest(&self) -> [u32; sp1_jit::PUBLIC_VALUE_DIGEST_WORDS] {
+        self.output().public_value_digest
+    }
+
     /// Get the hints of the JIT function.
     #[must_use]
     pub fn hints(&self) -> &[(u64, Vec<u8>)] {

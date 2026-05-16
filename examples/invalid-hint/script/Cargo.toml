@@ -1,0 +1,15 @@
+[package]
+name = "invalid-hint-script"
+version = { workspace = true }
+edition = { workspace = true }
+default-run = "invalid-hint-script"
+publish = false
+
+[dependencies]
+sp1-sdk = { workspace = true }
+sp1-core-executor = { workspace = true }
+tokio = { workspace = true }
+tracing = "0.1"
+
+[build-dependencies]
+sp1-build = { workspace = true }

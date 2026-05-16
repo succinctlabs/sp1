@@ -9,6 +9,7 @@ use slop_symmetric::CryptographicPermutation;
 use sp1_gpu_cudart::sys::challenger::{grind_koala_bear, grind_multi_field32};
 use sp1_gpu_cudart::sys::runtime::KernelPtr;
 use sp1_gpu_cudart::{args, DeviceBuffer, TaskScope};
+use sp1_primitives::fri_params::SP1_PROOF_OF_WORK_BITS;
 use sp1_primitives::SP1DiffusionMatrix;
 
 /// Poseidon2 permutation type for KoalaBear grinding.
@@ -44,7 +45,7 @@ where
     let mut gpu_challenger = cpu_challenger.to_device_sync(scope).unwrap();
 
     let block_dim: usize = 512;
-    let grid_dim: usize = 1;
+    let grid_dim: usize = (1 << (bits.saturating_sub(SP1_PROOF_OF_WORK_BITS))).max(512);
     let n = F::ORDER_U64;
 
     unsafe {

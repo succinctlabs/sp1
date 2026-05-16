@@ -32,10 +32,6 @@ serde = { workspace = true }
 itertools = { workspace = true }
 derive-where = { workspace = true }
 
-# For Bn254 setup
-zkhash = { workspace = true }
-ff = { workspace = true, features = ["derive", "derive_bits"] }
-
 
 [dev-dependencies]
 rand = { workspace = true }
