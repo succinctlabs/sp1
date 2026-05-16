@@ -97,8 +97,12 @@ fn compile_chip(chip_name: &str, output_format: &OutputFormat) {
             println!();
             println!("-- Generated Lean code for chip {}Chip", chip_name);
 
+            // Chip bodies transitively invoke reader-level `constraints` (R/I/J/ALU-type)
+            // that pass `Opcode.ofNat <var>` into a Program interaction, so they always
+            // need `[CoeHead F ℕ]`. Universe is always `Type` because chip rows are
+            // `Vector F N` (a `Word`-bearing structure transitively).
             println!(
-                "@[irreducible] def constraints (Main : Vector (Fin KB) {}) : SP1ConstraintList (Fin KB) :=",
+                "@[irreducible] def constraints {{F : Type}} [Field F] [CoeHead F ℕ] (Main : Vector F {}) : SP1ConstraintList F :=",
                 builder.num_cols()
             );
 
@@ -167,9 +171,17 @@ fn compile_operation(chip_name: &str, operation_name: &str, output_format: &Outp
             let input_mapping = operation.decl.input_mapping();
             let (steps, constraints, num_calls) = operation.body.to_lean_components(&input_mapping);
 
+            // Always emit `[CoeHead F ℕ]` (matching chip-level emission above),
+            // even when the body doesn't strictly need it. A redundant instance
+            // binder is harmless: concrete callers (`Fin n` / `ZMod p`) discharge
+            // it from the global instances in `SP1Foundations.Field`, and abstract
+            // callers (chips) already declare it themselves.
+            // Universe is always `Type`: `Word T` requires `T : Type 0`.
             println!();
 
-            println!("@[irreducible] def constraints");
+            println!(
+                "@[irreducible] def constraints {{F : Type}} [Field F] [CoeHead F ℕ]"
+            );
             for (param_name, _, param) in &operation.decl.input {
                 println!(
                     "  ({} : {})",
