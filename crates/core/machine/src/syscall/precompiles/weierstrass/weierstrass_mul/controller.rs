@@ -286,7 +286,7 @@ where
         });
 
         // Internal interactions
-        // compute S_i = \sum_{j < i} b_j for bits b_j
+        // compute S_i = \sum_{j < i + 1} b_j for bits b_j
         let bit_totals = local
             .exp_bits
             .iter()
@@ -340,21 +340,21 @@ where
         local
             .exp_bits
             .iter()
-            .zip(std::iter::once(&AB::Expr::zero()).chain(bit_totals.iter()))
+            .zip(std::iter::once(&AB::Expr::zero()).chain(bit_totals.iter())) // shift: ith coor is now sum(i-1)
             .enumerate()
-            .for_each(|(i, (bit, bit_total))| {
+            .for_each(|(i, (bit, shifted_bit_total))| {
                 builder.send(
                     internal_add_call::<AB>(
                         local.clk_high,
                         local.clk_low,
-                        AB::Expr::from_canonical_usize(i) + bit_total.clone(),
-                        bit_total.clone(), // marker if add should actually be first add
+                        AB::Expr::from_canonical_usize(i) + shifted_bit_total.clone(),
+                        shifted_bit_total.clone(), // marker if add should actually be first add
                         *bit, // skips when bit is zero, this should always be zero when row is fake
                     ),
                     InteractionScope::Local,
                 );
             });
-        // Internal mul OpCalls.
+        // Internal mul OpCalls. Note we skip the last double
         bit_totals[1..exp_num_bits - 1].iter().enumerate().for_each(|(i, bit_total)| {
             builder.send(
                 internal_double_call::<AB>(
