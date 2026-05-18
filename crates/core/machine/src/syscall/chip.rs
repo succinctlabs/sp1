@@ -1,4 +1,4 @@
-use crate::utils::pad_core_rows;
+use crate::utils::pad_rows_core;
 use crate::{air::WordAirBuilder, TrustMode};
 use core::fmt;
 use itertools::Itertools;
@@ -178,7 +178,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for SyscallChip<M> {
                 .collect::<Vec<_>>(),
         };
         let nb_rows = events.len();
-        let padded_nb_rows = pad_core_rows(nb_rows);
+        let padded_nb_rows = pad_rows_core(nb_rows);
         Some(padded_nb_rows)
     }
 

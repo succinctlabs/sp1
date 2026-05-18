@@ -1,4 +1,4 @@
-use crate::utils::pad_core_rows;
+use crate::utils::pad_rows_core;
 use core::{
     borrow::{Borrow, BorrowMut},
     mem::{size_of, MaybeUninit},
@@ -82,7 +82,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for AddiChip<M> {
         if input.program.enable_untrusted_programs == M::IS_TRUSTED {
             return Some(0);
         }
-        let nb_rows = pad_core_rows(input.addi_events.len());
+        let nb_rows = pad_rows_core(input.addi_events.len());
         Some(nb_rows)
     }
 

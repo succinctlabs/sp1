@@ -1,4 +1,4 @@
-use crate::utils::pad_core_rows;
+use crate::utils::pad_rows_core;
 use std::{borrow::BorrowMut, mem::MaybeUninit};
 
 use hashbrown::HashMap;
@@ -31,7 +31,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
         // Each compress syscall takes 80 rows.
         let nb_rows = input.get_precompile_events(SyscallCode::SHA_COMPRESS).len() * 80;
-        let padded_nb_rows = pad_core_rows(nb_rows);
+        let padded_nb_rows = pad_rows_core(nb_rows);
         Some(padded_nb_rows)
     }
 

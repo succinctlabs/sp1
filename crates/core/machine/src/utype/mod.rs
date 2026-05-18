@@ -1,4 +1,4 @@
-use crate::utils::pad_core_rows;
+use crate::utils::pad_rows_core;
 use hashbrown::HashMap;
 use itertools::Itertools;
 use rayon::iter::{ParallelBridge, ParallelIterator};
@@ -218,7 +218,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for UTypeChip<M> {
         if input.program.enable_untrusted_programs == M::IS_TRUSTED {
             return Some(0);
         }
-        let nb_rows = pad_core_rows(input.utype_events.len());
+        let nb_rows = pad_rows_core(input.utype_events.len());
         Some(nb_rows)
     }
 

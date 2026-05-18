@@ -1,4 +1,4 @@
-use crate::utils::pad_core_rows;
+use crate::utils::pad_rows_core;
 use hashbrown::HashMap;
 use itertools::Itertools;
 use slop_air::{Air, BaseAir};
@@ -98,7 +98,7 @@ impl<F: PrimeField32> MachineAir<F> for PageProtChip {
         }
 
         let nb_rows = nb_rows(count);
-        Some(pad_core_rows(nb_rows))
+        Some(pad_rows_core(nb_rows))
     }
 
     fn generate_trace_into(

@@ -1,5 +1,5 @@
 use super::MemoryChipType;
-use crate::utils::pad_core_rows;
+use crate::utils::pad_rows_core;
 use crate::{
     air::{SP1CoreAirBuilder, SP1Operation, WordAirBuilder},
     operations::{
@@ -147,7 +147,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
             MemoryChipType::Finalize => &input.global_memory_finalize_events,
         };
         let nb_rows = events.len();
-        let padded_nb_rows = pad_core_rows(nb_rows);
+        let padded_nb_rows = pad_rows_core(nb_rows);
         Some(padded_nb_rows)
     }
 

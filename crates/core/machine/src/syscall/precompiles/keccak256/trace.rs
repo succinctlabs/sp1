@@ -1,4 +1,4 @@
-use crate::utils::pad_core_rows;
+use crate::utils::pad_rows_core;
 use std::{borrow::BorrowMut, mem::MaybeUninit};
 
 use slop_algebra::PrimeField32;
@@ -56,7 +56,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
         let nb_rows = input.get_precompile_events(SyscallCode::KECCAK_PERMUTE).len() * NUM_ROUNDS;
-        let padded_nb_rows = pad_core_rows(nb_rows);
+        let padded_nb_rows = pad_rows_core(nb_rows);
         Some(padded_nb_rows)
     }
 

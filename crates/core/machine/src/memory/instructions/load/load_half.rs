@@ -1,4 +1,4 @@
-use crate::utils::pad_core_rows;
+use crate::utils::pad_rows_core;
 use crate::{
     adapter::{
         register::i_type::{ITypeReader, ITypeReaderInput},
@@ -103,7 +103,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for LoadHalfChip<M> {
         if input.program.enable_untrusted_programs == M::IS_TRUSTED {
             return Some(0);
         }
-        let nb_rows = pad_core_rows(input.memory_load_half_events.len());
+        let nb_rows = pad_rows_core(input.memory_load_half_events.len());
         Some(nb_rows)
     }
 

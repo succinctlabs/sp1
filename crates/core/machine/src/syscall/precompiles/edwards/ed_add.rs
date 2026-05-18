@@ -1,4 +1,4 @@
-use crate::utils::pad_core_rows;
+use crate::utils::pad_rows_core;
 use core::{
     borrow::{Borrow, BorrowMut},
     mem::{size_of, MaybeUninit},
@@ -141,7 +141,7 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters, M: TrustMode> Machin
             return Some(0);
         }
         let nb_rows = input.get_precompile_events(SyscallCode::ED_ADD).len();
-        let padded_nb_rows = pad_core_rows(nb_rows);
+        let padded_nb_rows = pad_rows_core(nb_rows);
         Some(padded_nb_rows)
     }
 

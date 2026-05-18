@@ -1,4 +1,4 @@
-use crate::utils::pad_core_rows;
+use crate::utils::pad_rows_core;
 use crate::{
     adapter::{
         register::i_type::{ITypeReader, ITypeReaderImmutable, ITypeReaderImmutableInput},
@@ -108,7 +108,7 @@ impl<F: PrimeField32> MachineAir<F> for TrapMemChip {
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
-        let nb_rows = pad_core_rows(input.trap_load_store_events.len());
+        let nb_rows = pad_rows_core(input.trap_load_store_events.len());
         Some(nb_rows)
     }
 

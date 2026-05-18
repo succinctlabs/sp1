@@ -1,6 +1,6 @@
 mod air;
 
-use crate::utils::pad_core_rows;
+use crate::utils::pad_rows_core;
 use num::{BigUint, One, Zero};
 use slop_air::BaseAir;
 use slop_algebra::PrimeField32;
@@ -45,7 +45,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for Uint256OpsChip<M> {
         }
         let nb_rows = input.get_precompile_events(SyscallCode::UINT256_ADD_CARRY).len()
             + input.get_precompile_events(SyscallCode::UINT256_MUL_CARRY).len();
-        let padded_nb_rows = pad_core_rows(nb_rows);
+        let padded_nb_rows = pad_rows_core(nb_rows);
         Some(padded_nb_rows)
     }
 

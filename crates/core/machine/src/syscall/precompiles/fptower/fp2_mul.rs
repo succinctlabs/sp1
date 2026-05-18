@@ -1,4 +1,4 @@
-use crate::utils::pad_core_rows;
+use crate::utils::pad_rows_core;
 use std::{
     borrow::{Borrow, BorrowMut},
     marker::PhantomData,
@@ -165,7 +165,7 @@ impl<F: PrimeField32, P: FpOpField, M: TrustMode> MachineAir<F> for Fp2MulAssign
             FieldType::Bn254 => input.get_precompile_events(SyscallCode::BN254_FP2_MUL).len(),
             FieldType::Bls12381 => input.get_precompile_events(SyscallCode::BLS12381_FP2_MUL).len(),
         };
-        let padded_nb_rows = pad_core_rows(nb_rows);
+        let padded_nb_rows = pad_rows_core(nb_rows);
         Some(padded_nb_rows)
     }
 

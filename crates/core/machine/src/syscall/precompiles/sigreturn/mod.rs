@@ -1,5 +1,5 @@
 use crate::memory::MemoryAccessCols;
-use crate::utils::pad_core_rows;
+use crate::utils::pad_rows_core;
 use core::borrow::Borrow;
 use slop_air::{Air, BaseAir};
 use slop_algebra::{AbstractField, PrimeField32};
@@ -64,7 +64,7 @@ impl<F: PrimeField32> MachineAir<F> for SigReturnChip {
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
         let nb_rows = input.get_precompile_events(SyscallCode::SIG_RETURN).len();
-        let padded_nb_rows = pad_core_rows(nb_rows);
+        let padded_nb_rows = pad_rows_core(nb_rows);
         Some(padded_nb_rows)
     }
 

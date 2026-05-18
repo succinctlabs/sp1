@@ -1,4 +1,4 @@
-use crate::utils::pad_core_rows;
+use crate::utils::pad_rows_core;
 use std::{borrow::BorrowMut, mem::MaybeUninit};
 
 use hashbrown::HashMap;
@@ -36,7 +36,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for SyscallInstrsChip<M> {
             return Some(0);
         }
         let nb_rows = input.syscall_events.len();
-        let padded_nb_rows = pad_core_rows(nb_rows);
+        let padded_nb_rows = pad_rows_core(nb_rows);
         Some(padded_nb_rows)
     }
 

@@ -1,4 +1,4 @@
-use crate::utils::pad_core_rows;
+use crate::utils::pad_rows_core;
 use core::{
     borrow::{Borrow, BorrowMut},
     mem::{size_of, MaybeUninit},
@@ -186,7 +186,7 @@ impl<F: PrimeField32> MachineAir<F> for InstructionDecodeChip {
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
-        let nb_rows = pad_core_rows(input.instruction_decode_events.len());
+        let nb_rows = pad_rows_core(input.instruction_decode_events.len());
         Some(nb_rows)
     }
 }
