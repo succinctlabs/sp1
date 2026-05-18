@@ -1,3 +1,4 @@
+use crate::utils::pad_core_rows;
 use hashbrown::HashMap;
 use itertools::Itertools;
 use rayon::iter::{ParallelBridge, ParallelIterator};
@@ -72,7 +73,7 @@ impl<F: PrimeField32> MachineAir<F> for TrapExecChip {
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
-        let nb_rows = input.trap_exec_events.len().next_multiple_of(32).max(16);
+        let nb_rows = pad_core_rows(input.trap_exec_events.len());
         Some(nb_rows)
     }
 

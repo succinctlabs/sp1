@@ -1,3 +1,4 @@
+use crate::utils::pad_core_rows;
 use std::{borrow::BorrowMut, mem::MaybeUninit};
 
 use hashbrown::HashMap;
@@ -35,7 +36,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for SyscallInstrsChip<M> {
             return Some(0);
         }
         let nb_rows = input.syscall_events.len();
-        let padded_nb_rows = nb_rows.next_multiple_of(32).max(16);
+        let padded_nb_rows = pad_core_rows(nb_rows);
         Some(padded_nb_rows)
     }
 

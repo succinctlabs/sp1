@@ -54,8 +54,15 @@ pub fn next_multiple_of_32(n: usize, fixed_height: Option<usize>) -> usize {
         }
         height
     } else {
-        n.next_multiple_of(32).max(16)
+        pad_core_rows(n)
     }
+}
+
+/// Pad a core chip's row count up to the next multiple of 32, with a minimum of 16.
+#[inline]
+#[must_use]
+pub fn pad_core_rows(n: usize) -> usize {
+    n.next_multiple_of(32).max(16)
 }
 
 /// Returns a 48-bit address as three u16 limbs.

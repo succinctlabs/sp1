@@ -1,3 +1,4 @@
+use crate::utils::pad_core_rows;
 use std::{
     borrow::{Borrow, BorrowMut},
     mem::{size_of, MaybeUninit},
@@ -159,7 +160,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
         let count = input.get_local_mem_events().count();
         let nb_rows = nb_rows(count);
-        Some(nb_rows.next_multiple_of(32).max(16))
+        Some(pad_core_rows(nb_rows))
     }
 
     fn generate_trace_into(

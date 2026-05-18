@@ -1,3 +1,4 @@
+use crate::utils::pad_core_rows;
 use core::{
     borrow::{Borrow, BorrowMut},
     mem::{size_of, MaybeUninit},
@@ -217,7 +218,7 @@ impl<F: PrimeField32> MachineAir<F> for InstructionFetchChip {
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
-        let nb_rows = input.instruction_fetch_events.len().next_multiple_of(32).max(16);
+        let nb_rows = pad_core_rows(input.instruction_fetch_events.len());
 
         Some(nb_rows)
     }

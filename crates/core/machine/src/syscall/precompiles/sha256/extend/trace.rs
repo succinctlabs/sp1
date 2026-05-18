@@ -1,3 +1,4 @@
+use crate::utils::pad_core_rows;
 use hashbrown::HashMap;
 use itertools::Itertools;
 use slop_algebra::PrimeField32;
@@ -25,7 +26,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaExtendChip {
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
         // Each extend syscall takes 48 rows.
         let nb_rows = input.get_precompile_events(SyscallCode::SHA_EXTEND).len() * 48;
-        let padded_nb_rows = nb_rows.next_multiple_of(32).max(16);
+        let padded_nb_rows = pad_core_rows(nb_rows);
         Some(padded_nb_rows)
     }
 

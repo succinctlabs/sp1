@@ -1,4 +1,5 @@
 use super::MemoryChipType;
+use crate::utils::pad_core_rows;
 use crate::{
     air::{SP1CoreAirBuilder, SP1Operation},
     operations::{
@@ -159,7 +160,7 @@ impl<F: PrimeField32> MachineAir<F> for PageProtGlobalChip {
         }
         let nb_rows = events.len();
 
-        let padded_nb_rows = nb_rows.next_multiple_of(32).max(16);
+        let padded_nb_rows = pad_core_rows(nb_rows);
         Some(padded_nb_rows)
     }
 

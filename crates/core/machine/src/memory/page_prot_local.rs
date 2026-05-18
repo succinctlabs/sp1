@@ -1,3 +1,4 @@
+use crate::utils::pad_core_rows;
 use std::{
     borrow::{Borrow, BorrowMut},
     mem::{size_of, MaybeUninit},
@@ -87,7 +88,7 @@ impl<F: PrimeField32> MachineAir<F> for PageProtLocalChip {
             assert!(count == 0);
         }
         let nb_rows = nb_rows(count);
-        Some(nb_rows.next_multiple_of(32).max(16))
+        Some(pad_core_rows(nb_rows))
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {

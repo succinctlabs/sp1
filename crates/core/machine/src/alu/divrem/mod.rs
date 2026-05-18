@@ -1,3 +1,4 @@
+use crate::utils::pad_core_rows;
 use core::{
     borrow::{Borrow, BorrowMut},
     mem::{size_of, MaybeUninit},
@@ -222,7 +223,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for DivRemChip<M> {
         if input.program.enable_untrusted_programs == M::IS_TRUSTED {
             return Some(0);
         }
-        let nb_rows = input.divrem_events.len().next_multiple_of(32).max(16);
+        let nb_rows = pad_core_rows(input.divrem_events.len());
         Some(nb_rows)
     }
 

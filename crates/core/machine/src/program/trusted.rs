@@ -1,3 +1,4 @@
+use crate::utils::pad_core_rows;
 use core::{
     borrow::{Borrow, BorrowMut},
     mem::{size_of, MaybeUninit},
@@ -59,13 +60,13 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
         let nb_rows = input.program.instructions.len();
-        let padded_nb_rows = nb_rows.next_multiple_of(32).max(16);
+        let padded_nb_rows = pad_core_rows(nb_rows);
         Some(padded_nb_rows)
     }
 
     fn preprocessed_num_rows(&self, program: &Self::Program) -> Option<usize> {
         let instrs_len = program.instructions.len();
-        Some(instrs_len.next_multiple_of(32).max(16))
+        Some(pad_core_rows(instrs_len))
     }
 
     fn preprocessed_num_rows_with_instrs_len(
@@ -73,7 +74,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
         _program: &Self::Program,
         instrs_len: usize,
     ) -> Option<usize> {
-        Some(instrs_len.next_multiple_of(32).max(16))
+        Some(pad_core_rows(instrs_len))
     }
 
     fn generate_preprocessed_trace_into(

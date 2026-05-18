@@ -1,3 +1,4 @@
+use crate::utils::pad_core_rows;
 use crate::{
     adapter::{
         register::i_type::{ITypeReader, ITypeReaderImmutable, ITypeReaderImmutableInput},
@@ -108,7 +109,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for StoreByteChip<M> {
         if input.program.enable_untrusted_programs == M::IS_TRUSTED {
             return Some(0);
         }
-        let nb_rows = input.memory_store_byte_events.len().next_multiple_of(32).max(16);
+        let nb_rows = pad_core_rows(input.memory_store_byte_events.len());
         Some(nb_rows)
     }
 

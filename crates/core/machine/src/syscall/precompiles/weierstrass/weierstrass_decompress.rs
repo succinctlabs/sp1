@@ -1,3 +1,4 @@
+use crate::utils::pad_core_rows;
 use crate::{
     air::SP1CoreAirBuilder,
     memory::{MemoryAccessCols, MemoryAccessColsU8},
@@ -189,7 +190,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters, M: TrustMode> Ma
             }
             _ => panic!("Unsupported curve"),
         };
-        let padded_nb_rows = nb_rows.next_multiple_of(32).max(16);
+        let padded_nb_rows = pad_core_rows(nb_rows);
         Some(padded_nb_rows)
     }
 
