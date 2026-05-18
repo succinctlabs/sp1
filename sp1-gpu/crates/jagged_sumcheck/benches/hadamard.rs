@@ -39,36 +39,37 @@ fn bench_hadamard_sumcheck(c: &mut Criterion) {
         SizeOnlyKind,
         CORE_MAX_LOG_ROW_COUNT,
         |c, _id, scope, rng, log_area| {
-        let len = 1usize << log_area;
-        let base_host: Buffer<Felt, CpuBackend> = random_buffer(rng, len);
-        let ext_host: Buffer<Ext, CpuBackend> = random_buffer(rng, len);
-        let base = upload_mle(&base_host, scope);
-        let ext = upload_mle(&ext_host, scope);
+            let len = 1usize << log_area;
+            let base_host: Buffer<Felt, CpuBackend> = random_buffer(rng, len);
+            let ext_host: Buffer<Ext, CpuBackend> = random_buffer(rng, len);
+            let base = upload_mle(&base_host, scope);
+            let ext = upload_mle(&ext_host, scope);
 
-        // Correctness isn't tested here; an arbitrary claim is fine.
-        let claim = Ext::zero();
+            // Correctness isn't tested here; an arbitrary claim is fine.
+            let claim = Ext::zero();
 
-        let mut challenger = TestGC::default_challenger();
+            let mut challenger = TestGC::default_challenger();
 
-        let mut group = c.benchmark_group("hadamard_sumcheck");
-        group.bench_function(format!("num_vars_{log_area}"), |b| {
-            b.iter_batched(
-                || {
-                    let out = (base.clone(), ext.clone());
-                    scope.synchronize_blocking().unwrap();
-                    out
-                },
-                |(base, ext)| {
-                    let result = simple_hadamard_sumcheck(base, ext, &mut challenger, claim);
-                    // Wait for any GPU work left enqueued before stopping the timer.
-                    scope.synchronize_blocking().unwrap();
-                    black_box(result)
-                },
-                BatchSize::PerIteration,
-            );
-        });
-        group.finish();
-    });
+            let mut group = c.benchmark_group("hadamard_sumcheck");
+            group.bench_function(format!("num_vars_{log_area}"), |b| {
+                b.iter_batched(
+                    || {
+                        let out = (base.clone(), ext.clone());
+                        scope.synchronize_blocking().unwrap();
+                        out
+                    },
+                    |(base, ext)| {
+                        let result = simple_hadamard_sumcheck(base, ext, &mut challenger, claim);
+                        // Wait for any GPU work left enqueued before stopping the timer.
+                        scope.synchronize_blocking().unwrap();
+                        black_box(result)
+                    },
+                    BatchSize::PerIteration,
+                );
+            });
+            group.finish();
+        },
+    );
 }
 
 criterion_group!(benches, bench_hadamard_sumcheck);

@@ -153,28 +153,16 @@ fn run_prove<R: Rng>(
 
 fn bench_populate_circuit(c: &mut Criterion) {
     let mut rng = StdRng::seed_from_u64(42);
-    with_trace_source(
-        c,
-        &mut rng,
-        FullKind,
-        CORE_MAX_LOG_ROW_COUNT,
-        |c, id, scope, rng, data| {
-            run_populate_circuit(c, id, scope, rng, data);
-        },
-    );
+    with_trace_source(c, &mut rng, FullKind, CORE_MAX_LOG_ROW_COUNT, |c, id, scope, rng, data| {
+        run_populate_circuit(c, id, scope, rng, data);
+    });
 }
 
 fn bench_prove(c: &mut Criterion) {
     let mut rng = StdRng::seed_from_u64(42);
-    with_trace_source(
-        c,
-        &mut rng,
-        FullKind,
-        CORE_MAX_LOG_ROW_COUNT,
-        |c, id, scope, rng, data| {
-            run_prove(c, id, scope, rng, data);
-        },
-    );
+    with_trace_source(c, &mut rng, FullKind, CORE_MAX_LOG_ROW_COUNT, |c, id, scope, rng, data| {
+        run_prove(c, id, scope, rng, data);
+    });
 }
 
 criterion_group!(benches, bench_populate_circuit, bench_prove);
