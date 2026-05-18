@@ -173,7 +173,7 @@ impl<'a> LogUpCudaCircuit<'a, TaskScope> {
                 if self.num_virtual_layers == 0 {
                     return None;
                 }
-                assert!(self.num_virtual_layers == 1);
+                assert_eq!(self.num_virtual_layers, 1);
                 // We need to generate the virtual layers and store them in the circuit.
                 let layer = generate_first_layer(&self.input_data, self.backend());
                 self.num_virtual_layers = 0;

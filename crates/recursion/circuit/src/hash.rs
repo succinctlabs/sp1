@@ -194,8 +194,8 @@ impl<C: CircuitConfig<N = Bn254Fr, Bit = Var<Bn254Fr>>> FieldHasherVariable<C>
     type DigestVariable = [Var<Bn254Fr>; BN254_DIGEST_SIZE];
 
     fn hash(builder: &mut Builder<C>, input: &[Felt<SP1Field>]) -> Self::DigestVariable {
-        assert!(C::N::bits() == slop_bn254::Bn254Fr::bits());
-        assert!(SP1Field::bits() == sp1_primitives::SP1Field::bits());
+        assert_eq!(C::N::bits(), slop_bn254::Bn254Fr::bits());
+        assert_eq!(SP1Field::bits(), sp1_primitives::SP1Field::bits());
         let num_f_elms = C::N::bits() / SP1Field::bits();
         let mut state: [Var<C::N>; OUTER_CHALLENGER_STATE_WIDTH] =
             [builder.eval(C::N::zero()), builder.eval(C::N::zero()), builder.eval(C::N::zero())];

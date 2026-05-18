@@ -75,7 +75,7 @@ pub async fn run_test_recursion<const DEGREE: usize, const VAR_EVENTS_PER_ROW: u
         shard_proofs.push(proof);
     }
 
-    assert!(shard_proofs.len() == 1);
+    assert_eq!(shard_proofs.len(), 1);
 
     let proof = MachineProof { shard_proofs };
 

@@ -402,7 +402,7 @@ impl<F: PrimeField32> AddressSlicePageProtOperation<F> {
         self.page_is_equal_or_adjacent.populate(start_page_idx, end_page_idx);
 
         if end_page_idx == start_page_idx + 1 {
-            assert!(page_prot_access.len() == 2);
+            assert_eq!(page_prot_access.len(), 2);
             self.trap_page_operations[1].populate(
                 record,
                 clk,

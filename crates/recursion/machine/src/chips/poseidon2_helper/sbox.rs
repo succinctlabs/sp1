@@ -136,7 +136,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for Poseidon2SBoxC
                 let Poseidon2SBoxInstr { addrs, mults, external } = instr;
                 let access: &mut Poseidon2SBoxAccessCols<_> = row.borrow_mut();
                 access.addrs = addrs.to_owned();
-                assert!(*mults == F::one());
+                assert_eq!(*mults, F::one());
                 if *external {
                     access.external = mults.to_owned();
                     access.internal = F::zero();

@@ -119,7 +119,7 @@ where
 
     let merged_prefix_sums_len = merged_prefix_sums.len();
     let num_variables = merged_prefix_sums[0].dimension();
-    assert!(merged_prefix_sums_len == z_col_eq_vals.len());
+    assert_eq!(merged_prefix_sums_len, z_col_eq_vals.len());
 
     let merged_prefix_sums = Arc::new(merged_prefix_sums);
 

@@ -175,9 +175,9 @@ mod tests {
                 assert!(original_challenger_2.check_witness(bits, result_2));
 
                 // Checks to make sure the pow witness was properly observed in `grind_on_device`.
-                assert!(original_challenger_2.sponge_state == challenger_2.sponge_state);
-                assert!(original_challenger_2.input_buffer == challenger_2.input_buffer);
-                assert!(original_challenger_2.output_buffer == challenger_2.output_buffer);
+                assert_eq!(original_challenger_2.sponge_state, challenger_2.sponge_state);
+                assert_eq!(original_challenger_2.input_buffer, challenger_2.input_buffer);
+                assert_eq!(original_challenger_2.output_buffer, challenger_2.output_buffer);
             }
         })
         .unwrap();

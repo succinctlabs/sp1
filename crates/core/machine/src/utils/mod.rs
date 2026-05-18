@@ -55,7 +55,7 @@ pub fn log2_strict_usize(n: usize) -> usize {
 ///
 /// This function is safe to use only for fields that can be transmuted from 0u32.
 pub fn zeroed_f_vec<F: Field>(len: usize) -> Vec<F> {
-    debug_assert!(std::mem::size_of::<F>() == 4);
+    debug_assert_eq!(std::mem::size_of::<F>(), 4);
 
     let vec = vec![0u32; len];
     unsafe { std::mem::transmute::<Vec<u32>, Vec<F>>(vec) }

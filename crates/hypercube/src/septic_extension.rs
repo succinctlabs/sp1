@@ -874,7 +874,7 @@ mod tests {
         for i in 1..256 {
             b *= a;
             let (_, c) = b.is_square();
-            assert!(c == (i % 2 == 0));
+            assert_eq!(c, i % 2 == 0);
         }
     }
 

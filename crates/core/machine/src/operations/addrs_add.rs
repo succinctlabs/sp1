@@ -32,7 +32,7 @@ pub struct AddrAddOperation<T> {
 impl<F: Field> AddrAddOperation<F> {
     pub fn populate(&mut self, record: &mut impl ByteRecord, a_u64: u64, b_u64: u64) -> u64 {
         let expected = a_u64.wrapping_add(b_u64);
-        assert!(expected >> 48 == 0);
+        assert_eq!(expected >> 48, 0);
         self.value = [
             F::from_canonical_u16((expected & 0xFFFF) as u16),
             F::from_canonical_u16((expected >> 16) as u16),

@@ -134,7 +134,7 @@ where
         for (name, height) in &heights {
             let mut acc = SymbolicFelt::zero();
             // Assert max height to avoid overflow during prefix-sum-checks.
-            assert!(height.len() == self.pcs_verifier.max_log_row_count + 1);
+            assert_eq!(height.len(), self.pcs_verifier.max_log_row_count + 1);
             height.iter().for_each(|x| {
                 acc = *x + two * acc;
             });

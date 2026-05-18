@@ -155,7 +155,7 @@ where
     TaskScope: BranchingProgramKernel<F, EF, Challenger> + DeviceSumKernel<EF>,
 {
     // Right now, we assume there are two points.
-    assert!(lambdas_device.total_len() == 2);
+    assert_eq!(lambdas_device.total_len(), 2);
 
     let backend = curr_prefix_sums_device.backend();
 
@@ -760,7 +760,7 @@ mod tests {
                         bp_prefix_sum.add_dimension_back(*lambda);
                         bp_prefix_sum.extend(&rhos);
                         let num_dimensions = bp_prefix_sum.dimension();
-                        assert!(bp_prefix_sum.dimension() == PREFIX_SUM_LENGTH * 2);
+                        assert_eq!(bp_prefix_sum.dimension(), PREFIX_SUM_LENGTH * 2);
                         let (curr_prefix_sum, next_prefix_sum) =
                             bp_prefix_sum.split_at(num_dimensions / 2);
 

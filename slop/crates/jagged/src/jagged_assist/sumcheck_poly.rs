@@ -104,7 +104,7 @@ impl<F: Field, EF: ExtensionField<F>, Challenger: FieldChallenger<F> + Send + Sy
 
         let merged_prefix_sums_len = merged_prefix_sums.len();
         let num_variables = merged_prefix_sums[0].dimension();
-        assert!(merged_prefix_sums_len == z_col_eq_vals.len());
+        assert_eq!(merged_prefix_sums_len, z_col_eq_vals.len());
 
         let merged_prefix_sums = Arc::new(merged_prefix_sums);
 
@@ -175,7 +175,7 @@ impl<F: Field, EF: ExtensionField<F>, Challenger: FieldChallenger<F> + Send + Sy
         challenger: &mut Challenger,
         t: usize,
     ) -> EF {
-        assert!(t == 1);
+        assert_eq!(t, 1);
         self.sum_as_poly_in_last_variable_observe_and_sample(claim, sum_values, challenger)
     }
 

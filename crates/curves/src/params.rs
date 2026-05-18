@@ -48,7 +48,7 @@ pub trait FieldParameters:
     }
 
     fn modulus_field_iter<F: Field>() -> impl Iterator<Item = F> {
-        assert!(Self::NB_LIMBS == Self::MODULUS_LIMBS);
+        assert_eq!(Self::NB_LIMBS, Self::MODULUS_LIMBS);
         Self::MODULUS.iter().map(|x| F::from_canonical_u8(*x)).take(Self::NB_LIMBS)
     }
 

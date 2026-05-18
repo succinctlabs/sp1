@@ -161,7 +161,7 @@ mod tests {
         let virtually_padded_trace =
             MinimalAddChip::generate_trace(&MinimalAddChip, &shard, &mut Vec::new());
 
-        assert!(<MinimalAddChip as MachineAir<F>>::preprocessed_width(&air) == 0);
+        assert_eq!(<MinimalAddChip as MachineAir<F>>::preprocessed_width(&air), 0);
 
         let alpha = rng.gen::<EF>();
         let gkr_power = rng.gen::<EF>();

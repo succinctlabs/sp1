@@ -85,7 +85,7 @@ impl<F: PrimeField32> MachineAir<F> for PageProtLocalChip {
         let count = input.get_local_page_prot_events().count();
 
         if input.public_values.is_untrusted_programs_enabled == 0 {
-            assert!(count == 0);
+            assert_eq!(count, 0);
         }
         let nb_rows = nb_rows(count);
         let size_log2 = input.fixed_log2_rows::<F, _>(self);

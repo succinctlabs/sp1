@@ -137,7 +137,7 @@ mod tests {
         );
         println!("Proof generation took: {:?}", now.elapsed().as_secs_f32());
 
-        assert!(sc_proof.claimed_sum == expected_sum);
+        assert_eq!(sc_proof.claimed_sum, expected_sum);
 
         let mut challenger = DuplexChallenger::<BabyBear, Perm, 16, 8>::new(default_perm);
         partially_verify_sumcheck_proof(&sc_proof, &mut challenger, 2 * (log_m + 1), 2).unwrap();
@@ -156,6 +156,6 @@ mod tests {
             })
             .sum::<EF>();
 
-        assert!(expected_eval == sc_proof.point_and_eval.1);
+        assert_eq!(expected_eval, sc_proof.point_and_eval.1);
     }
 }

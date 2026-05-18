@@ -147,7 +147,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for Poseidon2Linea
                 access.addrs = addrs.to_owned();
                 #[allow(clippy::needless_range_loop)]
                 for i in 0..PERMUTATION_WIDTH / D {
-                    assert!(mults[i] == F::one());
+                    assert_eq!(mults[i], F::one());
                 }
                 if *external {
                     access.external = F::one();

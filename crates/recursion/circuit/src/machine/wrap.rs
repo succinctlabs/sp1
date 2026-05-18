@@ -42,7 +42,7 @@ where
         input: SP1ShapedWitnessVariable<C, GC>,
     ) {
         // Assert the the proof is not malformed.
-        assert!(input.vks_and_proofs.len() == 1);
+        assert_eq!(input.vks_and_proofs.len(), 1);
         // Take the proof from the input.
         let (vk, proof) = &input.vks_and_proofs[0];
 

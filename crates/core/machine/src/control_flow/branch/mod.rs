@@ -233,7 +233,7 @@ mod tests {
                     if *chip_name == branch_chip_name {
                         let first_row = trace.row_mut(0);
                         let first_row: &mut BranchColumns<SP1Field> = first_row.borrow_mut();
-                        assert!(first_row.is_beq == SP1Field::one());
+                        assert_eq!(first_row.is_beq, SP1Field::one());
                         first_row.is_bne = SP1Field::one();
                     }
                 }

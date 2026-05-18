@@ -128,7 +128,7 @@ impl<F: PrimeField32> MachineAir<F> for MProtectChip {
 
             let cols: &mut MProtectCols<F> = row.borrow_mut();
             // Set clock
-            assert!(event.local_page_prot_access.len() == 1);
+            assert_eq!(event.local_page_prot_access.len(), 1);
             let clk = event.local_page_prot_access[0].final_page_prot_access.timestamp;
             cols.clk_high = F::from_canonical_u32((clk >> 24) as u32);
             cols.clk_low = F::from_canonical_u32((clk & 0xFFFFFF) as u32);

@@ -31,7 +31,7 @@ impl<
         assert!(output_buffer_size <= WIDTH);
         output_buffer.resize(WIDTH, F::zero());
         let sponge_state = challenger.sponge_state;
-        assert!(sponge_state.len() == WIDTH);
+        assert_eq!(sponge_state.len(), WIDTH);
 
         let input_buffer = Buffer::from(input_buffer);
         let output_buffer = Buffer::from(output_buffer);

@@ -171,7 +171,7 @@ mod tests {
         let column_counts =
             column_counts_rounds.clone().into_iter().collect::<Rounds<Vec<usize>>>();
 
-        assert!(row_counts.len() == column_counts.len());
+        assert_eq!(row_counts.len(), column_counts.len());
 
         let mut rng = thread_rng();
 

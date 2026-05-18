@@ -202,7 +202,7 @@ impl<F: PrimeField32> MachineAir<F> for InstructionFetchChip {
                     let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
                     let (mem_access, encoded) = memory_access.untrusted_instruction.unwrap();
                     assert_eq!(encoded, event.encoded_instruction);
-                    assert!(mem_access.current_record().timestamp == event.clk);
+                    assert_eq!(mem_access.current_record().timestamp, event.clk);
 
                     cols.memory_access.populate(mem_access, &mut blu);
                     self.event_to_row(event, memory_access, cols);

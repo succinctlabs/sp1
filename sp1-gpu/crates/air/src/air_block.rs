@@ -51,7 +51,7 @@ pub trait BlockAir<AB: AirBuilder>: Air<AB> + MachineAir<F> + 'static + Send + S
     }
 
     fn eval_block(&self, builder: &mut AB, index: usize) {
-        assert!(index == 0);
+        assert_eq!(index, 0);
         self.eval(builder);
     }
 }
@@ -80,7 +80,7 @@ impl<'a> BlockAir<SymbolicProverFolder<'a>> for RiscvAir<F> {
                 secp256k1_double.eval_block(builder, index)
             }
             _ => {
-                assert!(index == 0);
+                assert_eq!(index, 0);
                 self.eval(builder);
             }
         }
@@ -103,7 +103,7 @@ impl<'a, const DEGREE: usize, const VAR_EVENTS_PER_ROW: usize> BlockAir<Symbolic
                 poseidon2_wide.eval_block(builder, index)
             }
             _ => {
-                assert!(index == 0);
+                assert_eq!(index, 0);
                 self.eval(builder);
             }
         }

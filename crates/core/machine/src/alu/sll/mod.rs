@@ -446,7 +446,7 @@ where
         let sllw_imm = sllw_imm.expect("SLLW immediate opcode not found");
 
         let imm_base_difference = sll_base.checked_sub(sll_imm).unwrap();
-        assert!(imm_base_difference == sllw_base.checked_sub(sllw_imm).unwrap());
+        assert_eq!(imm_base_difference, sllw_base.checked_sub(sllw_imm).unwrap());
 
         let sll_base_expr = AB::Expr::from_canonical_u32(sll_base);
         let sllw_base_expr = AB::Expr::from_canonical_u32(sllw_base);

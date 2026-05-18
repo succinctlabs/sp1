@@ -115,7 +115,7 @@ where
         } = input;
 
         // Assert that the number of proofs is one.
-        assert!(shard_proofs.len() == 1);
+        assert_eq!(shard_proofs.len(), 1);
         let shard_proof = &shard_proofs[0];
 
         // Initialize the cumulative sum.

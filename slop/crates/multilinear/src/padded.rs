@@ -212,7 +212,7 @@ impl<T: Field> PaddedMle<T, CpuBackend> {
                         .collect::<Vec<_>>()
                         .into()
                 } else {
-                    assert!(num_real_entries == 1 << self.num_variables);
+                    assert_eq!(num_real_entries, 1 << self.num_variables);
                     vec![ET::zero(); self.num_polynomials()].into()
                 };
 
@@ -233,7 +233,7 @@ impl<T: Field> PaddedMle<T, CpuBackend> {
                             point,
                         ) * *padding_value
                     } else {
-                        assert!(num_real_entries == 1 << self.num_variables);
+                        assert_eq!(num_real_entries, 1 << self.num_variables);
                         ET::zero()
                     }
                 } else {

@@ -26,15 +26,15 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
     ///
     /// The bytes are the concatenated little endian representations of the coordinates.
     fn from(x: &[u8], y: &[u8]) -> Self {
-        debug_assert!(x.len() == N * 4);
-        debug_assert!(y.len() == N * 4);
+        debug_assert_eq!(x.len(), N * 4);
+        debug_assert_eq!(y.len(), N * 4);
 
         let mut limbs = [0u64; N];
         let x = bytes_to_words_le(x);
         let y = bytes_to_words_le(y);
 
-        debug_assert!(x.len() == N / 2);
-        debug_assert!(y.len() == N / 2);
+        debug_assert_eq!(x.len(), N / 2);
+        debug_assert_eq!(y.len(), N / 2);
 
         limbs[..(N / 2)].copy_from_slice(&x);
         limbs[(N / 2)..].copy_from_slice(&y);
@@ -46,14 +46,14 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
     /// when the input is either trusted or previously validated.
     fn from_le_bytes(bytes: &[u8]) -> Self {
         let limbs = bytes_to_words_le(bytes);
-        debug_assert!(limbs.len() == N);
+        debug_assert_eq!(limbs.len(), N);
         Self::new(limbs.try_into().unwrap())
     }
 
     /// Creates a new [`AffinePoint`] from the given bytes in big endian.
     fn to_le_bytes(&self) -> Vec<u8> {
         let le_bytes = words_to_bytes_le(self.limbs_ref());
-        debug_assert!(le_bytes.len() == N * 8);
+        debug_assert_eq!(le_bytes.len(), N * 8);
         le_bytes
     }
 
@@ -98,7 +98,7 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
         b: Self,
     ) -> Self {
         // The length of the bit vectors must be the same.
-        debug_assert!(a_bits_le.len() == b_bits_le.len());
+        debug_assert_eq!(a_bits_le.len(), b_bits_le.len());
 
         let mut res: Self = Self::identity();
         let mut temp_a = a.clone();

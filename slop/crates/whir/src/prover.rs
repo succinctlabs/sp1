@@ -408,7 +408,7 @@ where
                 .map(|(proof, opening)| MerkleTreeOpeningAndProof { values: opening, proof })
                 .collect::<Vec<_>>();
             let merkle_read_values: Vec<Mle<GC::EF>> = if round_index != 0 {
-                assert!(merkle_proof.len() == 1);
+                assert_eq!(merkle_proof.len(), 1);
                 merkle_proof[0]
                     .values
                     .clone()
@@ -499,7 +499,7 @@ where
             &final_id_indices,
         );
 
-        assert!(prev_prover_data.len() == 1);
+        assert_eq!(prev_prover_data.len(), 1);
         let final_merkle_proof = self
             .merkle_prover
             .prove_openings_at_indices(prev_prover_data[0].clone(), &final_id_indices)
@@ -1345,7 +1345,7 @@ mod tests {
         let row_counts = row_counts_rounds.into_iter().collect::<Rounds<Vec<usize>>>();
         let column_counts = column_counts_rounds.into_iter().collect::<Rounds<Vec<usize>>>();
 
-        assert!(row_counts.len() == column_counts.len());
+        assert_eq!(row_counts.len(), column_counts.len());
 
         let mut rng = thread_rng();
 
