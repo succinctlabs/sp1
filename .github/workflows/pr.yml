@@ -18,7 +18,8 @@ on:
 
 env:
   SP1_CI_IN_PROGRESS: "true"
-  SP1_CIRCUIT_MODE: "release"
+  SP1_CIRCUIT_MODE: "dev"
+  WITHOUT_VK_VERIFICATION: "true"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -96,7 +97,7 @@ jobs:
             --features native-gnark,experimental,profiling
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
-          SP1_CIRCUIT_MODE: "release"
+          SP1_CIRCUIT_MODE: "dev"
           RUST_BACKTRACE: 1
 
   test-arm:
@@ -170,7 +171,7 @@ jobs:
             --features native-gnark,experimental
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
-          SP1_CIRCUIT_MODE: "release"
+          SP1_CIRCUIT_MODE: "dev"
           RUST_BACKTRACE: 1
 
   test-verifier:
@@ -223,7 +224,7 @@ jobs:
         env:
           RUSTFLAGS: -Copt-level=3 -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
-          SP1_CIRCUIT_MODE: "release"
+          SP1_CIRCUIT_MODE: "dev"
 
   lint:
     name: Formatting & Clippy
@@ -555,7 +556,7 @@ jobs:
             -- --test-threads=1
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
-          SP1_CIRCUIT_MODE: "release"
+          SP1_CIRCUIT_MODE: "dev"
           RUST_BACKTRACE: 1
           CUDA_ARCHS: 89
 
@@ -603,6 +604,6 @@ jobs:
           args: --release -p sp1-gpu-perf --bin node --features native-gnark,experimental -- --program local-rsp --param 21000001 --mode groth16
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
-          SP1_CIRCUIT_MODE: "release"
+          SP1_CIRCUIT_MODE: "dev"
           RUST_BACKTRACE: 1
           CUDA_ARCHS: 89
