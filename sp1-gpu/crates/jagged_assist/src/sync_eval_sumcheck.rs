@@ -74,16 +74,14 @@ impl<F: Field, EF: ExtensionField<F>, DeviceChallenger>
 }
 
 /// Construct a `JaggedEvalSumcheckPolyGPU` from jagged params, with all data on device.
-/// Returns `(poly, expected_sum)` where `expected_sum` is the full jagged little polynomial
-/// evaluation, computed on the GPU during prefix state precomputation.
-#[allow(clippy::type_complexity)]
 pub fn new_jagged_eval_sumcheck_poly_sync<F, EF, DeviceChallenger>(
     z_row: Point<EF>,
     z_col: Point<EF>,
     z_index: Point<EF>,
     prefix_sums: Vec<usize>,
+    expected_sum: EF,
     backend: &TaskScope,
-) -> (JaggedEvalSumcheckPolyGPU<F, EF, DeviceChallenger>, EF)
+) -> JaggedEvalSumcheckPolyGPU<F, EF, DeviceChallenger>
 where
     F: Field,
     EF: ExtensionField<F>,
@@ -132,12 +130,12 @@ where
 
     let half = EF::two().inverse();
 
-    // Create the GPU implementation sync (also computes expected_sum from prefix states)
-    let (bp_batch_eval, expected_sum) = JaggedAssistSumAsPolyGPUImpl::new(
+    // Create the GPU implementation sync
+    let bp_batch_eval = JaggedAssistSumAsPolyGPUImpl::new(
         z_row,
         z_index,
         &merged_prefix_sums,
-        &z_col_eq_vals,
+        expected_sum,
         backend,
     );
 
@@ -156,20 +154,17 @@ where
     let intermediate_eq_full_evals_device =
         DeviceBuffer::from_host(&intermediate_eq_full_evals_buffer, backend).unwrap().into_inner();
 
-    (
-        JaggedEvalSumcheckPolyGPU {
-            bp_batch_eval,
-            rho: Point::new(Buffer::with_capacity_in(0, backend.clone())),
-            z_col: z_col_device,
-            merged_prefix_sums: merged_prefix_sums_device,
-            z_col_eq_vals: z_col_eq_vals_device,
-            round_num: 0,
-            intermediate_eq_full_evals: intermediate_eq_full_evals_device,
-            half,
-            prefix_sum_dimension: num_variables as u32,
-        },
-        expected_sum,
-    )
+    JaggedEvalSumcheckPolyGPU {
+        bp_batch_eval,
+        rho: Point::new(Buffer::with_capacity_in(0, backend.clone())),
+        z_col: z_col_device,
+        merged_prefix_sums: merged_prefix_sums_device,
+        z_col_eq_vals: z_col_eq_vals_device,
+        round_num: 0,
+        intermediate_eq_full_evals: intermediate_eq_full_evals_device,
+        half,
+        prefix_sum_dimension: num_variables as u32,
+    }
 }
 
 /// Sync version of prove_jagged_eval_sumcheck for TaskScope.
@@ -238,6 +233,7 @@ pub fn prove_jagged_evaluation_sync<F, EF, HostChallenger, DeviceChallenger>(
     z_col: &Point<EF>,
     z_trace: &Point<EF>,
     challenger: &mut HostChallenger,
+    expected_sum: EF,
     backend: &TaskScope,
 ) -> JaggedSumcheckEvalProof<EF>
 where
@@ -250,15 +246,14 @@ where
         + DeviceSumKernel<EF>
         + DeviceTransposeKernel<F>,
 {
-    // Create sumcheck poly sync (also computes expected_sum from GPU prefix states)
-    let (jagged_eval_sc_poly, expected_sum) =
-        new_jagged_eval_sumcheck_poly_sync::<F, EF, DeviceChallenger>(
-            z_row.clone(),
-            z_col.clone(),
-            z_trace.clone(),
-            params.col_prefix_sums_usize.clone(),
-            backend,
-        );
+    let jagged_eval_sc_poly = new_jagged_eval_sumcheck_poly_sync::<F, EF, DeviceChallenger>(
+        z_row.clone(),
+        z_col.clone(),
+        z_trace.clone(),
+        params.col_prefix_sums_usize.clone(),
+        expected_sum,
+        backend,
+    );
 
     let log_m = log2_ceil_usize(*params.col_prefix_sums_usize.last().unwrap());
 
@@ -365,6 +360,7 @@ mod tests {
                 &z_col,
                 &z_index,
                 &mut gpu_host_challenger,
+                expected_sum,
                 &backend,
             )
         })
