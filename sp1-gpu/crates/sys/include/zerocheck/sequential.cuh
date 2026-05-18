@@ -41,26 +41,6 @@ enum BcOp : uint8_t {
     BC_ASSERT_F    = 7,
 };
 
-// Entry points used by Rust via `KernelPtr`. Returns the device function
-// pointer; the actual kernels are `zerocheck_sequential<K, MAX_REGS>`.
-//   - kb_kernel:  K = felt_t  (base-field trace, round 0 of sumcheck)
-//   - ext_kernel: K = ext_t   (extension-field trace, rounds 1+)
-extern "C" void* zerocheck_sequential_kb_kernel();
-extern "C" void* zerocheck_sequential_ext_kernel();
-
-// Tiered variants by per-chunk MAX_REGS. The chunk's `max_reg` selects the
-// smallest tier whose MAX_REGS >= max_reg. Tight sizing matters for perf:
-// `K regs[MAX_REGS][3]` is a per-thread stack array that spills to local
-// memory, so an over-sized MAX_REGS pays a real load/store cost per row.
-extern "C" void* zerocheck_sequential_kb_32_kernel();
-extern "C" void* zerocheck_sequential_kb_64_kernel();
-extern "C" void* zerocheck_sequential_kb_128_kernel();
-extern "C" void* zerocheck_sequential_kb_256_kernel();
-extern "C" void* zerocheck_sequential_ext_32_kernel();
-extern "C" void* zerocheck_sequential_ext_64_kernel();
-extern "C" void* zerocheck_sequential_ext_128_kernel();
-extern "C" void* zerocheck_sequential_ext_256_kernel();
-
 // Per-chunk metadata for the fused dispatch kernel. One ChunkMeta entry per
 // Sequential chunk that the round wants to evaluate. Must match
 // `ChunkMetaC` in v2.rs (layout-compat).

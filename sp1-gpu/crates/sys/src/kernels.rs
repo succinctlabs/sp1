@@ -31,21 +31,6 @@ extern "C" {
     pub fn fix_last_variable_jagged_felt() -> KernelPtr;
     pub fn fix_last_variable_jagged_ext() -> KernelPtr;
 
-    // zerocheck (DAG-native): Sequential lowering kernels.
-    //   _kb:  K = felt_t  (base-field trace, sumcheck round 0)
-    //   _ext: K = ext_t   (extension-field trace, sumcheck rounds 1+)
-    pub fn zerocheck_sequential_kb_kernel() -> KernelPtr;
-    pub fn zerocheck_sequential_ext_kernel() -> KernelPtr;
-    // Tiered by per-chunk MAX_REGS (kernel selection by max_reg).
-    pub fn zerocheck_sequential_kb_32_kernel() -> KernelPtr;
-    pub fn zerocheck_sequential_kb_64_kernel() -> KernelPtr;
-    pub fn zerocheck_sequential_kb_128_kernel() -> KernelPtr;
-    pub fn zerocheck_sequential_kb_256_kernel() -> KernelPtr;
-    pub fn zerocheck_sequential_ext_32_kernel() -> KernelPtr;
-    pub fn zerocheck_sequential_ext_64_kernel() -> KernelPtr;
-    pub fn zerocheck_sequential_ext_128_kernel() -> KernelPtr;
-    pub fn zerocheck_sequential_ext_256_kernel() -> KernelPtr;
-
     // Fused dispatch: one launch handles every Sequential chunk in a round.
     // Per-thread idx → chunk_idx via binary search on `row_starts`.
     pub fn zerocheck_fused_sequential_kb_kernel() -> KernelPtr;

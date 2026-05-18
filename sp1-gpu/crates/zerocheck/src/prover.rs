@@ -36,11 +36,6 @@ use sp1_gpu_cudart::sys::kernels::{
     zerocheck_fused_sequential_kb_128_kernel, zerocheck_fused_sequential_kb_256_kernel,
     zerocheck_fused_sequential_kb_32_kernel, zerocheck_fused_sequential_kb_512_kernel,
     zerocheck_fused_sequential_kb_64_kernel, zerocheck_fused_sequential_kb_kernel,
-    zerocheck_sequential_ext_128_kernel, zerocheck_sequential_ext_256_kernel,
-    zerocheck_sequential_ext_32_kernel, zerocheck_sequential_ext_64_kernel,
-    zerocheck_sequential_ext_kernel, zerocheck_sequential_kb_128_kernel,
-    zerocheck_sequential_kb_256_kernel, zerocheck_sequential_kb_32_kernel,
-    zerocheck_sequential_kb_64_kernel, zerocheck_sequential_kb_kernel,
 };
 use sp1_gpu_cudart::sys::runtime::KernelPtr;
 use sp1_gpu_cudart::{args, DeviceBuffer, DevicePoint, TaskScope};
@@ -533,11 +528,6 @@ pub struct ZeroCheckJaggedPoly<'b, K: Field> {
 /// Per-trace-element-type kernel selection. Round 0 uses `K = Felt`; rounds
 /// 1+ use `K = Ext` after the trace is folded into the extension field.
 pub trait EvalKernels<K: Field> {
-    fn sequential_kernel() -> KernelPtr;
-    /// Smallest tier whose MAX_REGS >= `max_reg`. `K regs[MAX_REGS][3]` is
-    /// a per-thread stack array that spills to local memory, so tight
-    /// sizing avoids paying for unused slots on every row.
-    fn sequential_kernel_for(max_reg: u16) -> KernelPtr;
     fn column_tile_kernel() -> KernelPtr;
     /// Fused dispatch kernel — one launch handles every Sequential chunk
     /// across every chip in a round.
@@ -550,22 +540,6 @@ pub trait EvalKernels<K: Field> {
 }
 
 impl EvalKernels<Felt> for TaskScope {
-    fn sequential_kernel() -> KernelPtr {
-        unsafe { zerocheck_sequential_kb_kernel() }
-    }
-    fn sequential_kernel_for(max_reg: u16) -> KernelPtr {
-        unsafe {
-            if max_reg <= 32 {
-                zerocheck_sequential_kb_32_kernel()
-            } else if max_reg <= 64 {
-                zerocheck_sequential_kb_64_kernel()
-            } else if max_reg <= 128 {
-                zerocheck_sequential_kb_128_kernel()
-            } else {
-                zerocheck_sequential_kb_256_kernel()
-            }
-        }
-    }
     fn column_tile_kernel() -> KernelPtr {
         unsafe { zerocheck_column_tile_kb_kernel() }
     }
@@ -592,22 +566,6 @@ impl EvalKernels<Felt> for TaskScope {
 }
 
 impl EvalKernels<Ext> for TaskScope {
-    fn sequential_kernel() -> KernelPtr {
-        unsafe { zerocheck_sequential_ext_kernel() }
-    }
-    fn sequential_kernel_for(max_reg: u16) -> KernelPtr {
-        unsafe {
-            if max_reg <= 32 {
-                zerocheck_sequential_ext_32_kernel()
-            } else if max_reg <= 64 {
-                zerocheck_sequential_ext_64_kernel()
-            } else if max_reg <= 128 {
-                zerocheck_sequential_ext_128_kernel()
-            } else {
-                zerocheck_sequential_ext_256_kernel()
-            }
-        }
-    }
     fn column_tile_kernel() -> KernelPtr {
         unsafe { zerocheck_column_tile_ext_kernel() }
     }
@@ -1131,43 +1089,11 @@ fn launch_chunk_into<K: Field>(
 {
     let shmem_bytes = (block_size as usize / 32) * std::mem::size_of::<Ext>();
     match chunk.kind {
-        ChunkKind::Sequential => unsafe {
-            let args = args!(
-                chunk.instrs,
-                chunk.n_instrs,
-                chunk.leaves,
-                chunk.consts,
-                chunk.publics,
-                chunk.assert_regs,
-                chunk.assert_alphas,
-                chunk.n_asserts,
-                trace_ptr,
-                preprocessed_ptr,
-                main_ptr,
-                height,
-                public_values.as_ptr(),
-                powers_of_alpha.as_ptr(),
-                partial_lagrange_ptr,
-                powers_of_lambda.as_ptr(),
-                chip_idx,
-                rest_point_dim,
-                row_start,
-                row_count,
-                gkr_powers.as_ptr(),
-                chunk.gkr_main_width,
-                chunk.gkr_prep_width,
-                output_ptr
-            );
-            scope
-                .launch_kernel(
-                    <TaskScope as EvalKernels<K>>::sequential_kernel_for(chunk.max_reg),
-                    (n_blocks, 1, 1),
-                    (block_size, 1, 1),
-                    &args,
-                    shmem_bytes,
-                )
-                .unwrap();
-        },
+        // Sequential chunks are dispatched through the fused kernel
+        // (`evaluate_zerocheck`); `launch_chunk_into` only ever sees ColumnTile.
+        ChunkKind::Sequential => unreachable!(
+            "Sequential chunks go through the fused kernel, not launch_chunk_into"
+        ),
         ChunkKind::ColumnTile => unsafe {
             // Regular ColumnTile chunks store chip-relative `alpha_idx`; shift
             // the `powers_of_alpha` base by the per-chip offset. The
