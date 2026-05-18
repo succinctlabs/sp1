@@ -6,7 +6,7 @@ use sp1_gpu_perf::{get_program_and_input, Measurement};
 use sp1_gpu_prover::cuda_worker_builder_with_machine;
 use sp1_prover::worker::{SP1LocalNodeBuilder, SP1Proof};
 use sp1_prover_types::network_base_types::ProofMode;
-use sp1_sdk::RiscvAir;
+use sp1_sdk::{HashableKey, RiscvAir, SP1Stdin, SP1VerifyingKey};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -72,8 +72,14 @@ async fn main() {
     }
 
     // Get the program and input.
-    let (elf, stdin) = get_program_and_input(args.program.clone(), args.param);
+    // let (elf, stdin) = get_program_and_input(args.program.clone(), args.param);
+    println!("Current directory: {}", std::env::current_dir().unwrap().display());
+    let elf = std::fs::read("program.elf").unwrap();
+    let stdin_raw = std::fs::read("stdin.bin").unwrap();
+    let stdin: SP1Stdin = bincode::deserialize(&stdin_raw).unwrap();
     let machine = RiscvAir::machine();
+
+    let proofs = stdin.proofs.clone();
 
     // Initialize the AirProver and permits
     let measurements = sp1_gpu_cudart::spawn(move |t| async move {
@@ -85,6 +91,18 @@ async fn main() {
         let client =
             SP1LocalNodeBuilder::from_worker_client_builder(worker_builder).build().await.unwrap();
 
+        for (i, proof) in proofs.iter().enumerate() {
+            let (proof, vk) = proof;
+            let vk = SP1VerifyingKey { vk: vk.clone() };
+
+            let vk_digest = vk.hash_koalabear();
+
+            println!("vk_digest: {:?}", vk_digest);
+            let proof = SP1Proof::Compressed(Box::new(proof.clone()));
+            let result = client.verify(&vk, &proof);
+            tracing::info!("proof {}: {:?}", i, result);
+        }
+
         let time = tokio::time::Instant::now();
         let context = SP1Context::default();
         tracing::info!("executing the program");
@@ -92,6 +110,7 @@ async fn main() {
         let execute_time = time.elapsed();
         let cycles = report.total_instruction_count() as usize;
         tracing::info!("execute time: {:?}", execute_time);
+        tracing::info!("Report summary: {:?}", report);
 
         let time = tokio::time::Instant::now();
         let vk = client.setup(&elf).await.unwrap();

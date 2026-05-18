@@ -551,7 +551,8 @@ async fn collect_core_proofs(
         }
         let proof = artifact_client
             .download::<ShardProof<SP1GlobalContext, SP1PcsProofInner>>(&proof)
-            .await?;
+            .await
+            .expect("Error downloading core proof");
         shard_proofs.push(proof);
     }
     shard_proofs.sort_by_key(|shard_proof| {

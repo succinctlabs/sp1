@@ -183,7 +183,16 @@ pub fn ecall_handler(ctx: &mut impl SyscallContext, code: SyscallCode) -> Result
             ctx.set_public_value_digest_word(arg1, digest_word);
             Ok(None)
         }
-        SyscallCode::VERIFY_SP1_PROOF | SyscallCode::COMMIT_DEFERRED_PROOFS => Ok(None),
+        SyscallCode::VERIFY_SP1_PROOF => {
+            // let state_values = ctx.mr_slice_without_prot(arg1, 4).into_iter().collect::<Vec<_>>();
+            // let LOW_MASK: u64 = 0xFFFF_FFFF_0000_0000;
+            // let HIGH_MASK: u64 = 0x0000_0000_FFFF_FFFF;
+            // let masked_values = state_values.iter().flat_map(|v| vec![(**v & LOW_MASK) as u32, (**v & HIGH_MASK) as u32]).collect::<Vec<_>>();
+            // println!("state_values: {:?}", masked_values);
+
+            Ok(None)
+        }
+        SyscallCode::COMMIT_DEFERRED_PROOFS => Ok(None),
     }
     .map(|opt: Option<u64>| opt.unwrap_or(code as u64))
 }

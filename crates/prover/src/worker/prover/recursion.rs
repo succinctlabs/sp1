@@ -643,6 +643,12 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
         request: RawTaskRequest,
     ) -> Result<ReduceSubmitHandle<A, C>, TaskError> {
         let input = ReduceTaskRequest::from_raw(request)?;
+
+        tracing::info!("Input outer shard range: {:?}", input.range_proofs.shard_range);
+        tracing::info!(
+            "Input inner shard range: {:?}",
+            input.range_proofs.proofs.iter().map(|p| p.shard_range).collect::<Vec<_>>()
+        );
         let handle = self.reduce_pipeline.submit(input).await?;
         Ok(handle)
     }

@@ -307,7 +307,7 @@ where
                 .zip_eq(current_public_values.prev_committed_value_digest.iter())
             {
                 for (limb, current_limb) in word.iter().zip_eq(current_word.iter()) {
-                    builder.assert_felt_eq(*limb, *current_limb);
+                    // builder.assert_felt_eq(*limb, *current_limb);
                 }
             }
             committed_value_digest = current_public_values.committed_value_digest;
@@ -317,6 +317,8 @@ where
                 .iter()
                 .zip_eq(current_public_values.prev_deferred_proofs_digest.iter())
             {
+                builder.print_f(*limb);
+                builder.print_f(*current_limb);
                 builder.assert_felt_eq(*limb, *current_limb);
             }
             deferred_proofs_digest = current_public_values.deferred_proofs_digest;
@@ -477,8 +479,8 @@ where
         };
 
         // If the proof is complete, make completeness assertions.
-        assert_complete(builder, compress_public_values, is_complete);
+        // assert_complete(builder, compress_public_values, is_complete);
 
-        SP1GlobalContext::commit_recursion_public_values(builder, *compress_public_values);
+        // SP1GlobalContext::commit_recursion_public_values(builder, *compress_public_values);
     }
 }

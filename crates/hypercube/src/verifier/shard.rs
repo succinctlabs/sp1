@@ -199,6 +199,15 @@ impl<GC: IopCtx, SC: ShardContext<GC>> ShardVerifier<GC, SC> {
             .map(|cc| cc[cc.len() - 2].1 + 1)
             .collect();
 
+        tracing::warn!(
+            "shard_chips: {:?}",
+            shard_chips.iter().map(|c| c.name()).collect::<Vec<_>>()
+        );
+        tracing::warn!("Preprocessed area: {}", preprocessed_area);
+        tracing::warn!("Main area: {}", main_area);
+        tracing::warn!("Preprocessed padding cols: {}", added_columns[0]);
+        tracing::warn!("Main padding cols: {}", added_columns[1]);
+
         CoreProofShape {
             shard_chips,
             preprocessed_area,
