@@ -21,7 +21,7 @@ use std::{
     mem::MaybeUninit,
 };
 
-use crate::{air::SP1CoreAirBuilder, operations::PageProtOperation, utils::next_multiple_of_32};
+use crate::{air::SP1CoreAirBuilder, operations::PageProtOperation};
 
 // Used to ensure address is aligned to page, clears out lowest 3 bits
 const BITMASK_CLEAR_LOWEST_THREE_BITS: u64 = 0xFFFFFFFFFFFFFFF8;
@@ -97,8 +97,7 @@ impl<F: PrimeField32> MachineAir<F> for PageProtChip {
         }
 
         let nb_rows = nb_rows(count);
-        let size_log2 = input.fixed_log2_rows::<F, _>(self);
-        Some(next_multiple_of_32(nb_rows, size_log2))
+        Some(nb_rows.next_multiple_of(32).max(16))
     }
 
     fn generate_trace_into(

@@ -16,7 +16,7 @@ use super::{
     columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS},
     ShaCompressChip, SHA_COMPRESS_K,
 };
-use crate::utils::{next_multiple_of_32, u32_to_half_word};
+use crate::utils::u32_to_half_word;
 
 impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
     type Record = ExecutionRecord;
@@ -30,8 +30,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
         // Each compress syscall takes 80 rows.
         let nb_rows = input.get_precompile_events(SyscallCode::SHA_COMPRESS).len() * 80;
-        let size_log2 = input.fixed_log2_rows::<F, _>(self);
-        let padded_nb_rows = next_multiple_of_32(nb_rows, size_log2);
+        let padded_nb_rows = nb_rows.next_multiple_of(32).max(16);
         Some(padded_nb_rows)
     }
 

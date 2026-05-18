@@ -5,7 +5,7 @@ use crate::{
         field::field_op::FieldOpCols, AddrAddOperation, AddressSlicePageProtOperation,
         SyscallAddrOperation,
     },
-    utils::{limbs_to_words, next_multiple_of_32, words_to_bytes_le},
+    utils::{limbs_to_words, words_to_bytes_le},
     SupervisorMode, TrustMode, UserMode,
 };
 use itertools::Itertools;
@@ -132,8 +132,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for U256x2048MulChip<M> {
             return Some(0);
         }
         let nb_rows = input.get_precompile_events(SyscallCode::U256XU2048_MUL).len();
-        let size_log2 = input.fixed_log2_rows::<F, _>(self);
-        let padded_nb_rows = next_multiple_of_32(nb_rows, size_log2);
+        let padded_nb_rows = nb_rows.next_multiple_of(32).max(16);
         Some(padded_nb_rows)
     }
 

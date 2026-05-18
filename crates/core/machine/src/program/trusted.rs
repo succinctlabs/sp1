@@ -59,14 +59,13 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
         let nb_rows = input.program.instructions.len();
-        let size_log2 = input.fixed_log2_rows::<F, _>(self);
-        let padded_nb_rows = next_multiple_of_32(nb_rows, size_log2);
+        let padded_nb_rows = nb_rows.next_multiple_of(32).max(16);
         Some(padded_nb_rows)
     }
 
     fn preprocessed_num_rows(&self, program: &Self::Program) -> Option<usize> {
         let instrs_len = program.instructions.len();
-        Some(next_multiple_of_32(instrs_len, None))
+        Some(instrs_len.next_multiple_of(32).max(16))
     }
 
     fn preprocessed_num_rows_with_instrs_len(
@@ -74,7 +73,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
         _program: &Self::Program,
         instrs_len: usize,
     ) -> Option<usize> {
-        Some(next_multiple_of_32(instrs_len, None))
+        Some(instrs_len.next_multiple_of(32).max(16))
     }
 
     fn generate_preprocessed_trace_into(

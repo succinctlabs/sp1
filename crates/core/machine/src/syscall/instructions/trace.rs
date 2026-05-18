@@ -13,10 +13,7 @@ use sp1_hypercube::{addr_to_limbs, air::MachineAir, Word};
 use sp1_primitives::consts::u64_to_u16_limbs;
 use struct_reflection::StructReflectionHelper;
 
-use crate::{
-    operations::SP1FieldWordRangeChecker, utils::next_multiple_of_32, TrustMode, UserMode,
-    UserModeSyscallInstrCols,
-};
+use crate::{operations::SP1FieldWordRangeChecker, TrustMode, UserMode, UserModeSyscallInstrCols};
 
 use super::{columns::SyscallInstrColumns, SyscallInstrsChip};
 
@@ -38,8 +35,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for SyscallInstrsChip<M> {
             return Some(0);
         }
         let nb_rows = input.syscall_events.len();
-        let size_log2 = input.fixed_log2_rows::<F, _>(self);
-        let padded_nb_rows = next_multiple_of_32(nb_rows, size_log2);
+        let padded_nb_rows = nb_rows.next_multiple_of(32).max(16);
         Some(padded_nb_rows)
     }
 

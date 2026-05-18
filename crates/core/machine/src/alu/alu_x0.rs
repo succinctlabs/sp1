@@ -23,9 +23,8 @@ use crate::{
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
-    eval_alu_x0_selectors, eval_untrusted_program,
-    utils::next_multiple_of_32,
-    AluX0OpcodeSelectors, SupervisorMode, TrustMode, UserMode,
+    eval_alu_x0_selectors, eval_untrusted_program, AluX0OpcodeSelectors, SupervisorMode, TrustMode,
+    UserMode,
 };
 
 /// The number of main trace columns for `AluX0Chip` in Supervisor mode.
@@ -92,8 +91,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for AluX0Chip<M> {
         if input.program.enable_untrusted_programs == M::IS_TRUSTED {
             return Some(0);
         }
-        let nb_rows =
-            next_multiple_of_32(input.alu_x0_events.len(), input.fixed_log2_rows::<F, _>(self));
+        let nb_rows = input.alu_x0_events.len().next_multiple_of(32).max(16);
         Some(nb_rows)
     }
 

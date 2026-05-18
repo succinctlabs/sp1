@@ -3,7 +3,7 @@ use std::{
     mem::{size_of, MaybeUninit},
 };
 
-use crate::{air::WordAirBuilder, utils::next_multiple_of_32};
+use crate::air::WordAirBuilder;
 use slop_air::{Air, BaseAir};
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_matrix::Matrix;
@@ -159,8 +159,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
         let count = input.get_local_mem_events().count();
         let nb_rows = nb_rows(count);
-        let size_log2 = input.fixed_log2_rows::<F, _>(self);
-        Some(next_multiple_of_32(nb_rows, size_log2))
+        Some(nb_rows.next_multiple_of(32).max(16))
     }
 
     fn generate_trace_into(

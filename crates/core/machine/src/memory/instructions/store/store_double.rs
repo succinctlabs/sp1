@@ -7,7 +7,6 @@ use crate::{
     eval_untrusted_program,
     memory::MemoryAccessCols,
     operations::{AddressOperation, AddressOperationInput},
-    utils::next_multiple_of_32,
     SupervisorMode, TrustMode, UserMode,
 };
 use hashbrown::HashMap;
@@ -89,10 +88,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for StoreDoubleChip<M> {
         if input.program.enable_untrusted_programs == M::IS_TRUSTED {
             return Some(0);
         }
-        let nb_rows = next_multiple_of_32(
-            input.memory_store_double_events.len(),
-            input.fixed_log2_rows::<F, _>(self),
-        );
+        let nb_rows = input.memory_store_double_events.len().next_multiple_of(32).max(16);
         Some(nb_rows)
     }
 

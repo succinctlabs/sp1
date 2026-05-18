@@ -2,7 +2,7 @@ use super::ShaCompressControlChip;
 use crate::{
     air::SP1CoreAirBuilder,
     operations::{AddrAddOperation, AddressSlicePageProtOperation, SyscallAddrOperation},
-    utils::{next_multiple_of_32, u32_to_half_word},
+    utils::u32_to_half_word,
     SupervisorMode, TrustMode, UserMode,
 };
 use core::borrow::Borrow;
@@ -84,8 +84,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for ShaCompressControlChip<M> 
             return Some(0);
         }
         let nb_rows = input.get_precompile_events(SyscallCode::SHA_COMPRESS).len();
-        let size_log2 = input.fixed_log2_rows::<F, _>(self);
-        let padded_nb_rows = next_multiple_of_32(nb_rows, size_log2);
+        let padded_nb_rows = nb_rows.next_multiple_of(32).max(16);
         Some(padded_nb_rows)
     }
 

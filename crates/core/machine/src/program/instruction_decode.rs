@@ -7,7 +7,6 @@ use crate::{
     air::{SP1CoreAirBuilder, SP1Operation, WordAirBuilder},
     operations::{IsZeroOperation, IsZeroOperationInput},
     program::InstructionCols,
-    utils::next_multiple_of_32,
 };
 use slop_air::{Air, AirBuilder, BaseAir};
 use slop_algebra::{AbstractField, PrimeField32};
@@ -186,10 +185,7 @@ impl<F: PrimeField32> MachineAir<F> for InstructionDecodeChip {
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
-        let nb_rows = next_multiple_of_32(
-            input.instruction_decode_events.len(),
-            input.fixed_log2_rows::<F, _>(self),
-        );
+        let nb_rows = input.instruction_decode_events.len().next_multiple_of(32).max(16);
         Some(nb_rows)
     }
 }

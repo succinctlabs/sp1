@@ -27,7 +27,6 @@ use crate::{
     air::{SP1CoreAirBuilder, SP1Operation},
     eval_untrusted_program,
     operations::{U16MSBOperation, U16MSBOperationInput},
-    utils::next_multiple_of_32,
     SupervisorMode, TrustMode, UserMode,
 };
 
@@ -128,10 +127,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for ShiftRightChip<M> {
         if input.program.enable_untrusted_programs == M::IS_TRUSTED {
             return Some(0);
         }
-        let nb_rows = next_multiple_of_32(
-            input.shift_right_events.len(),
-            input.fixed_log2_rows::<F, _>(self),
-        );
+        let nb_rows = input.shift_right_events.len().next_multiple_of(32).max(16);
         Some(nb_rows)
     }
 

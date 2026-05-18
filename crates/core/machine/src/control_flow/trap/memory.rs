@@ -6,7 +6,6 @@ use crate::{
     air::{SP1CoreAirBuilder, SP1Operation},
     eval_untrusted_program,
     operations::{AddrAddOperation, AddrAddOperationInput, PageProtOperation, TrapOperation},
-    utils::next_multiple_of_32,
     UserModeReaderCols,
 };
 use hashbrown::HashMap;
@@ -108,10 +107,7 @@ impl<F: PrimeField32> MachineAir<F> for TrapMemChip {
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
-        let nb_rows = next_multiple_of_32(
-            input.trap_load_store_events.len(),
-            input.fixed_log2_rows::<F, _>(self),
-        );
+        let nb_rows = input.trap_load_store_events.len().next_multiple_of(32).max(16);
         Some(nb_rows)
     }
 

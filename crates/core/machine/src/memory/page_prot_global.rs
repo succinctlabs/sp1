@@ -4,7 +4,6 @@ use crate::{
     operations::{
         IsZeroOperation, IsZeroOperationInput, LtOperationUnsigned, LtOperationUnsignedInput,
     },
-    utils::next_multiple_of_32,
 };
 use core::{
     borrow::{Borrow, BorrowMut},
@@ -160,8 +159,7 @@ impl<F: PrimeField32> MachineAir<F> for PageProtGlobalChip {
         }
         let nb_rows = events.len();
 
-        let size_log2 = input.fixed_log2_rows::<F, Self>(self);
-        let padded_nb_rows = next_multiple_of_32(nb_rows, size_log2);
+        let padded_nb_rows = nb_rows.next_multiple_of(32).max(16);
         Some(padded_nb_rows)
     }
 

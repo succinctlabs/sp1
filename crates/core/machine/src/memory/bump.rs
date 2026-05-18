@@ -3,7 +3,7 @@ use std::{
     mem::{size_of, MaybeUninit},
 };
 
-use crate::{air::SP1CoreAirBuilder, utils::next_multiple_of_32};
+use crate::air::SP1CoreAirBuilder;
 
 use super::MemoryAccessCols;
 use hashbrown::HashMap;
@@ -104,8 +104,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryBumpChip {
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
         let nb_rows = input.bump_memory_events.len();
-        let size_log2 = input.fixed_log2_rows::<F, _>(self);
-        Some(next_multiple_of_32(nb_rows, size_log2))
+        Some(nb_rows.next_multiple_of(32).max(16))
     }
 
     fn generate_trace_into(

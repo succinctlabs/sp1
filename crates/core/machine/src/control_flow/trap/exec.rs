@@ -15,7 +15,6 @@ use crate::{
     adapter::state::{CPUState, CPUStateInput},
     air::{SP1CoreAirBuilder, SP1Operation},
     operations::{PageProtOperation, TrapOperation},
-    utils::next_multiple_of_32,
 };
 use slop_air::{Air, AirBuilder, BaseAir};
 use slop_algebra::{AbstractField, PrimeField32};
@@ -73,8 +72,7 @@ impl<F: PrimeField32> MachineAir<F> for TrapExecChip {
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
-        let nb_rows =
-            next_multiple_of_32(input.trap_exec_events.len(), input.fixed_log2_rows::<F, _>(self));
+        let nb_rows = input.trap_exec_events.len().next_multiple_of(32).max(16);
         Some(nb_rows)
     }
 
