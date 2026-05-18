@@ -180,7 +180,9 @@ impl SP1WorkerConfig {
 // Default values for the controller config.
 pub(crate) const DEFAULT_NUM_SPLICING_WORKERS: usize = 2;
 pub(crate) const DEFAULT_SPLICING_BUFFER_SIZE: usize = 2;
-pub(crate) const DEFAULT_MAX_REDUCE_ARITY: usize = 4;
+// Derived from the single arity source of truth (`shapes::DEFAULT_ARITY`) so
+// the compose / reduce arities cannot drift apart.
+pub(crate) const DEFAULT_MAX_REDUCE_ARITY: usize = crate::shapes::DEFAULT_ARITY;
 pub(crate) const DEFAULT_NUMBER_OF_SEND_SPLICE_WORKERS_PER_SPLICE: usize = 2;
 pub(crate) const DEFAULT_SEND_SPLICE_INPUT_BUFFER_SIZE_PER_SPLICE: usize = 2;
 
@@ -190,7 +192,7 @@ pub(crate) const DEFAULT_CORE_BUFFER_SIZE: usize = 4;
 pub(crate) const DEFAULT_NUM_SETUP_WORKERS: usize = 2;
 pub(crate) const DEFAULT_SETUP_BUFFER_SIZE: usize = 2;
 pub(crate) const DEFAULT_NORMALIZE_PROGRAM_CACHE_SIZE: usize = 5;
-pub(crate) const DEFAULT_MAX_COMPOSE_ARITY: usize = 4;
+pub(crate) const DEFAULT_MAX_COMPOSE_ARITY: usize = crate::shapes::DEFAULT_ARITY;
 
 // Default values for the recursion prover config.
 pub(crate) const DEFAULT_NUM_PREPARE_REDUCE_WORKERS: usize = DEFAULT_NUM_RECURSION_EXECUTOR_WORKERS;

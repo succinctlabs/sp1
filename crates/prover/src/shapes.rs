@@ -68,7 +68,12 @@ use crate::{
     CompressAir, CORE_MAX_LOG_ROW_COUNT,
 };
 
-pub const DEFAULT_ARITY: usize = 4;
+/// The recursion compose arity — how many proofs each compose program
+/// verifies. Single source of truth: the worker config's
+/// `DEFAULT_MAX_COMPOSE_ARITY` and `DEFAULT_MAX_REDUCE_ARITY` both derive from
+/// this, so the three cannot drift (a mismatch panics with "Compress program
+/// not found for arity N").
+pub const DEFAULT_ARITY: usize = 2;
 
 /// The shape of the "normalize" program, which proves the correct execution for the verifier of a
 /// single core shard proof.
