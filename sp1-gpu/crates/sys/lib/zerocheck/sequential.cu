@@ -21,6 +21,15 @@
 
 namespace cg = cooperative_groups;
 
+// Decode-cost ablation. When set to 1, the bytecode loop keeps the per-instr
+// fetch + opcode switch but replaces every case body with a single cheap
+// regs[] write — no trace loads, no field arithmetic. The gap vs mode 0 is
+// the bytecode loop's loads+arithmetic; mode-1 wall time is the interpreter
+// floor (fetch + dispatch). Default 0; flip to measure, do not ship as 1.
+#ifndef ZC_DECODE_ONLY
+#define ZC_DECODE_ONLY 0
+#endif
+
 namespace {
 
 // ============================================================================
@@ -89,7 +98,34 @@ __global__ void zerocheck_fused_sequential(
         ext_t acc = ext_t::zero();
 
         for (uint32_t i = 0; i < cm.n_instrs; i++) {
+#if ZC_DECODE_ONLY == 3 || ZC_DECODE_ONLY == 4
+            // Mode 3/4 — empty bytecode loop: no fetch, no body. regs[] left
+            // uninitialized; asserts read garbage — timing only. Mode 4 also
+            // skips the GKR sweep, so mode 3 − mode 4 = the GKR column sweep
+            // and mode 4 = asserts + reduce + setup.
+            (void)i;
+#else
             DagInstr instr = cm.instrs[i];
+#if ZC_DECODE_ONLY == 1
+            // Mode 1 — decode + dispatch: keep the fetch + opcode switch,
+            // replace every body with one cheap regs[] write. No trace loads,
+            // no field arithmetic.
+            switch (instr.opcode) {
+            case BC_LOAD_LEAF:   regs[instr.out] = K(felt_t::from_canonical_u32(instr.a)); break;
+            case BC_LOAD_CONST:  regs[instr.out] = K(felt_t::from_canonical_u32(instr.b)); break;
+            case BC_LOAD_PUBLIC: regs[instr.out] = K(felt_t::from_canonical_u32(instr.a ^ instr.b)); break;
+            case BC_ADD_F:       regs[instr.out] = regs[instr.a]; break;
+            case BC_SUB_F:       regs[instr.out] = regs[instr.b]; break;
+            case BC_MUL_F:       regs[instr.out] = regs[instr.a]; break;
+            case BC_NEG_F:       regs[instr.out] = regs[instr.b]; break;
+            default: break;
+            }
+#elif ZC_DECODE_ONLY == 2
+            // Mode 2 — no dispatch: keep the fetch, drop the switch entirely,
+            // one cheap regs[] write. (mode 1 − mode 2 = the switch dispatch;
+            // mode 2 itself = fetch + asserts + gkr + reduce.)
+            regs[instr.out] = K::zero();
+#else
             switch (instr.opcode) {
             case BC_LOAD_LEAF: {
                 LeafRef leaf = cm.leaves[instr.a];
@@ -134,6 +170,8 @@ __global__ void zerocheck_fused_sequential(
             default:
                 break;
             }
+#endif
+#endif
         }
 
         for (uint32_t i = 0; i < cm.n_asserts; i++) {
@@ -145,6 +183,7 @@ __global__ void zerocheck_fused_sequential(
             acc += alpha * regs[reg];
         }
 
+#if ZC_DECODE_ONLY != 4
         if (cm.gkr_main_width != 0 || cm.gkr_prep_width != 0) {
             for (uint32_t i = 0; i < cm.gkr_main_width; i++) {
                 K z = K::load(trace_data, cm.main_ptr + i * cm.height + (row_idx << 1));
@@ -198,6 +237,7 @@ __global__ void zerocheck_fused_sequential(
             ext_t geq_v = (e == 0) ? geq_z : (geq_z + ep_v * (geq_o - geq_z));
             acc -= geq_v * cm.padded_row_adjustment;
         }
+#endif
 
         if (row_idx < row_limit) {
             ext_t eq = ext_t::load(partial_lagrange, row_idx);
