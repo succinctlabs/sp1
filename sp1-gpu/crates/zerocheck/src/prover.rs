@@ -1091,9 +1091,9 @@ fn launch_chunk_into<K: Field>(
     match chunk.kind {
         // Sequential chunks are dispatched through the fused kernel
         // (`evaluate_zerocheck`); `launch_chunk_into` only ever sees ColumnTile.
-        ChunkKind::Sequential => unreachable!(
-            "Sequential chunks go through the fused kernel, not launch_chunk_into"
-        ),
+        ChunkKind::Sequential => {
+            unreachable!("Sequential chunks go through the fused kernel, not launch_chunk_into")
+        }
         ChunkKind::ColumnTile => unsafe {
             // Regular ColumnTile chunks store chip-relative `alpha_idx`; shift
             // the `powers_of_alpha` base by the per-chip offset. The
