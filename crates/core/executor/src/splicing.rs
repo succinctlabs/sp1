@@ -1390,6 +1390,38 @@ impl<'a> SplicingVMEnum<'a> {
             Self::User(vm) => vm.core.proof_nonce,
         }
     }
+
+    /// Provide the chunk's dirty-page set + each page's chunk-end contents to the
+    /// inner VM. Must be called before `execute()` for merkle bookkeeping to track
+    /// page state.
+    pub fn set_dirty_pages(
+        &mut self,
+        page_ids: &[u32],
+        final_contents: &[[u64; MERKLE_PAGE_WORDS]],
+    ) {
+        match self {
+            Self::Supervisor(vm) => vm.set_dirty_pages(page_ids, final_contents),
+            Self::User(vm) => vm.set_dirty_pages(page_ids, final_contents),
+        }
+    }
+
+    /// Pull the most recently finalized `ShardData`. Drain after every `execute()`
+    /// that returned `ShardBoundary` or `Done(true)`.
+    pub fn take_pending_shard(&mut self) -> Option<ShardData> {
+        match self {
+            Self::Supervisor(vm) => vm.take_pending_shard(),
+            Self::User(vm) => vm.take_pending_shard(),
+        }
+    }
+
+    /// Move the per-chunk merkle bookkeeping state out of the VM. Call after the
+    /// chunk has finished executing (post-`Done(true)`).
+    pub fn take_per_chunk_state(&mut self) -> PerChunkState {
+        match self {
+            Self::Supervisor(vm) => vm.take_per_chunk_state(),
+            Self::User(vm) => vm.take_per_chunk_state(),
+        }
+    }
 }
 
 #[cfg(test)]

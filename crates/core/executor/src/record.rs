@@ -239,6 +239,30 @@ impl ExecutionRecord {
         result
     }
 
+    /// TODO(rkm): a stub constructor.
+    #[must_use]
+    pub fn from_shard_data(
+        program: Arc<Program>,
+        proof_nonce: [u32; PROOF_NONCE_NUM_WORDS],
+        global_dependencies_opt: bool,
+        _shard_data: crate::splicing::ShardData,
+    ) -> Self {
+        Self::new(program, proof_nonce, global_dependencies_opt)
+    }
+
+    /// TODO(rkm): a stub constructor.
+    /// The input payload should be the batch merkle proof alongside the
+    /// initial and final state of the touched pages for the chunk.
+    #[must_use]
+    pub fn from_merkle_payload(
+        program: Arc<Program>,
+        proof_nonce: [u32; PROOF_NONCE_NUM_WORDS],
+        global_dependencies_opt: bool,
+        _payload: crate::splicing::MerkleProvingPayload,
+    ) -> Self {
+        Self::new(program, proof_nonce, global_dependencies_opt)
+    }
+
     /// Take out events from the [`ExecutionRecord`] that should be deferred to a separate shard.
     ///
     /// Note: we usually defer events that would increase the recursion cost significantly if

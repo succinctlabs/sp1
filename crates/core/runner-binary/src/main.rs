@@ -121,10 +121,19 @@ fn main() {
         while compiled.pc != HALT_PC {
             let mut guard = producer.acquire();
             let ptr = guard.deref_mut().as_mut_ptr();
+            compiled.clk = 1;
+            let global_clk_before = compiled.global_clk;
             unsafe {
                 // Slots are reused, so zero the header (the rest is overwritten by call()).
                 std::ptr::write_bytes(ptr as *mut TraceChunkHeader, 0, 1);
                 compiled.call(ptr);
+            }
+            let cycles_in_chunk = compiled.global_clk - global_clk_before;
+            let clk_end = 8u64.wrapping_mul(cycles_in_chunk).wrapping_add(compiled.clk);
+            unsafe {
+                let header = ptr.cast::<TraceChunkHeader>();
+                (*header).clk_start = 1;
+                (*header).clk_end = clk_end;
             }
             // Publish the trace early so the parent isn't blocked by dirty-page emission.
             drop(guard);

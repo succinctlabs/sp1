@@ -17,8 +17,8 @@ use tracing::Instrument;
 
 use crate::{
     worker::{
-        MessageReceiver, ProofData, RecursionProverData, ReduceTaskRequest, TaskContext, TaskError,
-        TaskId, WorkerClient,
+        ProofData, RecursionProverData, ReduceTaskRequest, TaskContext, TaskError, TaskId,
+        WorkerClient,
     },
     SP1CircuitWitness, SP1CompressWitness, SP1ProverComponents,
 };
@@ -323,7 +323,7 @@ impl CompressTree {
         &mut self,
         context: TaskContext,
         output: Artifact,
-        mut core_proofs_rx: MessageReceiver<ProofData>,
+        mut core_proofs_rx: mpsc::UnboundedReceiver<ProofData>,
         artifact_client: &impl ArtifactClient,
         worker_client: &impl WorkerClient,
     ) -> Result<(), TaskError> {
@@ -355,13 +355,23 @@ impl CompressTree {
             async move {
                 let mut num_core_proofs = 0;
                 while let Some(proof_data) = core_proofs_rx.recv().await {
-                    core_proofs_subscriber
-                        .subscribe(proof_data.task_id.clone())
-                        .map_err(|e| TaskError::Fatal(e.into()))?;
-                    let proof =
-                        RecursionProof { shard_range: proof_data.range, proof: proof_data.proof };
-                    core_proof_map.lock().unwrap().insert(proof_data.task_id, proof);
-                    num_core_proofs += 1;
+                    match proof_data {
+                        ProofData::Artifact { task_id, range, proof } => {
+                            core_proofs_subscriber
+                                .subscribe(task_id.clone())
+                                .map_err(|e| TaskError::Fatal(e.into()))?;
+                            let recursion_proof = RecursionProof { shard_range: range, proof };
+                            core_proof_map.lock().unwrap().insert(task_id, recursion_proof);
+                            num_core_proofs += 1;
+                        }
+                        // TODO(rkm): handle recursion correctly.
+                        ProofData::InMemory { .. } => {
+                            return Err(TaskError::Fatal(anyhow::anyhow!(
+                                "in-memory shard proofs are not yet wired into the recursion \
+                                 / compressed path; this fill-in lands with normalize"
+                            )));
+                        }
+                    }
                 }
                 tracing::debug!(
                     "All core proofs received: number of core proofs: {:?}",
@@ -547,39 +557,35 @@ mod test_utils {
 
     use crate::{
         shapes::DEFAULT_ARITY,
-        worker::{test_utils::mock_worker_client, ProofId, ProveShardTaskRequest, RequesterId},
+        worker::{
+            test_utils::mock_worker_client, ProofId, RecursionDeferredTaskRequest, RequesterId,
+        },
     };
 
     use super::*;
 
-    async fn create_dummy_prove_shard_task(
+    async fn create_dummy_deferred_proof_data(
         range: ShardRange,
-        elf_artifact: Artifact,
         common_input_artifact: Artifact,
         context: TaskContext,
-        core_proofs_tx: &mpsc::UnboundedSender<Vec<u8>>,
+        core_proofs_tx: &mpsc::UnboundedSender<ProofData>,
         worker_client: &impl WorkerClient,
         artifact_client: &impl ArtifactClient,
     ) {
-        let record_artifact = artifact_client.create_artifact().unwrap();
+        let deferred_data = artifact_client.create_artifact().unwrap();
         let proof_artifact = artifact_client.create_artifact().unwrap();
 
-        let request = ProveShardTaskRequest {
-            elf: elf_artifact.clone(),
-            common_input: common_input_artifact.clone(),
-            record: record_artifact,
+        let request = RecursionDeferredTaskRequest {
+            common_input: common_input_artifact,
+            deferred_data,
             output: proof_artifact.clone(),
-            deferred_marker_task: Artifact::from("dummy marker task".to_string()),
-            deferred_output: None,
-            context: context.clone(),
+            context,
         };
 
         let task = request.into_raw().unwrap();
-
-        let task_id = worker_client.submit_task(TaskType::ProveShard, task).await.unwrap();
-        let proof_data = ProofData { task_id, range, proof: proof_artifact };
-        let payload = bincode::serialize(&proof_data).unwrap();
-        core_proofs_tx.send(payload).unwrap();
+        let task_id = worker_client.submit_task(TaskType::RecursionDeferred, task).await.unwrap();
+        let proof_data = ProofData::Artifact { task_id, range, proof: proof_artifact };
+        core_proofs_tx.send(proof_data).unwrap();
     }
 
     #[tokio::test]
@@ -587,10 +593,6 @@ mod test_utils {
         setup_logger();
         let num_core_shards = 200;
         let core_start_delay = Duration::from_millis(10);
-        let num_memory_shards = 40;
-        let memory_start_delay = Duration::from_millis(500);
-        let num_precompile_shards = 20;
-        let precompile_start_delay = Duration::from_millis(500);
         let num_deferred_shards = 100;
         let deferred_start_delay = Duration::from_millis(1);
         let num_iterations = 1;
@@ -598,9 +600,7 @@ mod test_utils {
             (TaskType::Controller, Duration::from_millis(20)..Duration::from_millis(100)),
             (TaskType::SetupVkey, Duration::from_millis(20)..Duration::from_millis(100)),
             (TaskType::RecursionReduce, Duration::from_millis(100)..Duration::from_millis(200)),
-            (TaskType::ProveShard, Duration::from_millis(200)..Duration::from_millis(500)),
-            (TaskType::MarkerDeferredRecord, Duration::from_millis(20)..Duration::from_millis(100)),
-            (TaskType::RecursionDeferred, Duration::from_millis(20)..Duration::from_millis(100)),
+            (TaskType::RecursionDeferred, Duration::from_millis(200)..Duration::from_millis(500)),
             (TaskType::ShrinkWrap, Duration::from_millis(20)..Duration::from_millis(100)),
             (TaskType::PlonkWrap, Duration::from_millis(20)..Duration::from_millis(100)),
             (TaskType::Groth16Wrap, Duration::from_millis(20)..Duration::from_millis(100)),
@@ -622,16 +622,13 @@ mod test_utils {
                 requester_id: RequesterId::new("test_compress_tree"),
             };
 
-            let (core_proofs_tx, core_proofs_rx_inner) = mpsc::unbounded_channel::<Vec<u8>>();
-            let core_proofs_rx = MessageReceiver::<ProofData>::new(core_proofs_rx_inner);
+            let (core_proofs_tx, core_proofs_rx) = mpsc::unbounded_channel::<ProofData>();
 
-            let elf_artifact = artifact_client.create_artifact().unwrap();
             let common_input_artifact = artifact_client.create_artifact().unwrap();
 
             tokio::task::spawn({
                 let worker_client = worker_client.clone();
                 let artifact_client = artifact_client.clone();
-                let elf_artifact = elf_artifact.clone();
                 let common_input_artifact = common_input_artifact.clone();
                 let context = context.clone();
                 let core_proofs_tx = core_proofs_tx.clone();
@@ -646,9 +643,8 @@ mod test_utils {
                             finalized_page_index_range: (0, 0),
                             deferred_proof_range: (num_deferred_shards, num_deferred_shards),
                         };
-                        create_dummy_prove_shard_task(
+                        create_dummy_deferred_proof_data(
                             range,
-                            elf_artifact.clone(),
                             common_input_artifact.clone(),
                             context.clone(),
                             &core_proofs_tx,
@@ -663,73 +659,15 @@ mod test_utils {
             tokio::task::spawn({
                 let worker_client = worker_client.clone();
                 let artifact_client = artifact_client.clone();
-                let elf_artifact = elf_artifact.clone();
                 let common_input_artifact = common_input_artifact.clone();
                 let context = context.clone();
                 let core_proofs_tx = core_proofs_tx.clone();
-                async move {
-                    tokio::time::sleep(memory_start_delay).await;
-                    for i in 0..num_memory_shards {
-                        let range = ShardRange {
-                            timestamp_range: (num_core_shards + 1, num_core_shards + 1),
-                            initialized_address_range: (i, i + 1),
-                            finalized_address_range: (i, i + 1),
-                            initialized_page_index_range: (0, 0),
-                            finalized_page_index_range: (0, 0),
-                            deferred_proof_range: (num_deferred_shards, num_deferred_shards),
-                        };
-                        create_dummy_prove_shard_task(
-                            range,
-                            elf_artifact.clone(),
-                            common_input_artifact.clone(),
-                            context.clone(),
-                            &core_proofs_tx,
-                            &worker_client,
-                            &artifact_client,
-                        )
-                        .await;
-                    }
-                }
-            });
-
-            tokio::task::spawn({
-                let worker_client = worker_client.clone();
-                let artifact_client = artifact_client.clone();
-                let elf_artifact = elf_artifact.clone();
-                let common_input_artifact = common_input_artifact.clone();
-                let context = context.clone();
-                let core_proofs_tx = core_proofs_tx.clone();
-                async move {
-                    tokio::time::sleep(precompile_start_delay).await;
-                    for _ in 1..=num_precompile_shards {
-                        let range = ShardRange::precompile();
-                        create_dummy_prove_shard_task(
-                            range,
-                            elf_artifact.clone(),
-                            common_input_artifact.clone(),
-                            context.clone(),
-                            &core_proofs_tx,
-                            &worker_client,
-                            &artifact_client,
-                        )
-                        .await;
-                    }
-                }
-            });
-
-            tokio::task::spawn({
-                let worker_client = worker_client.clone();
-                let artifact_client = artifact_client.clone();
-                let elf_artifact = elf_artifact.clone();
-                let common_input_artifact = common_input_artifact.clone();
-                let context = context.clone();
                 async move {
                     tokio::time::sleep(deferred_start_delay).await;
                     for i in 0..num_deferred_shards {
                         let range = ShardRange::deferred(i, i + 1);
-                        create_dummy_prove_shard_task(
+                        create_dummy_deferred_proof_data(
                             range,
-                            elf_artifact.clone(),
                             common_input_artifact.clone(),
                             context.clone(),
                             &core_proofs_tx,
@@ -741,9 +679,9 @@ mod test_utils {
                 }
             });
 
-            let output = artifact_client.create_artifact().unwrap();
+            drop(core_proofs_tx);
 
-            let worker_client = worker_client.clone();
+            let output = artifact_client.create_artifact().unwrap();
 
             compress_tree
                 .reduce_proofs(context, output, core_proofs_rx, &artifact_client, &worker_client)

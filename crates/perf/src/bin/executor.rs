@@ -8,20 +8,22 @@ use sp1_core_executor::{
     SplicedMinimalTrace, SplicingVM, SupervisorMode, MERKLE_PAGE_BYTES, MERKLE_PAGE_WORDS,
 };
 use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir};
-use sp1_hypercube::{septic_digest::SepticDigest, MachineVerifyingKey, UntrustedConfig};
+use sp1_hypercube::{
+    prover::ProverSemaphore, septic_digest::SepticDigest, MachineVerifyingKey, UntrustedConfig,
+};
 use sp1_jit::{risc::MinimalTrace, MemValue};
 use sp1_primitives::{Elf, SP1Field};
 use sp1_prover::{
     worker::{
-        CommonProverInput, MessageReceiver, MessageSender, ProofData, ProofId, ProveShardGate,
-        RequesterId, SP1CoreExecutor, SplicingEngine, SplicingWorker, TaskContext, TaskId,
+        CommonProverInput, MessageReceiver, MessageSender, ProofData, SP1CoreExecutor, TaskId,
         TrivialWorkerClient, WorkerClient,
     },
-    SP1VerifyingKey,
+    CpuSP1ProverComponents, SP1ProverComponents, SP1VerifyingKey,
 };
 use sp1_prover_types::{network_base_types::ProofMode, ArtifactClient, InMemoryArtifactClient};
 use sp1_sdk::{setup_logger, MockProver, Prover};
 use std::collections::HashSet;
+use tokio::sync::mpsc;
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
@@ -34,10 +36,6 @@ struct Args {
     pub splice_workers: usize,
     #[arg(long, default_value = "10")]
     pub splice_buffer: usize,
-    #[arg(long, default_value = "2")]
-    pub send_workers: usize,
-    #[arg(long, default_value = "2")]
-    pub send_buffer_size: usize,
     #[arg(long, default_value = None)]
     pub chunk_size: Option<u64>,
     #[arg(long, default_value = "10")]
@@ -58,6 +56,26 @@ struct Args {
     /// snapshot allocation is gated so non-`--verify` runs incur zero added overhead.
     #[arg(long, default_value = "false")]
     pub verify: bool,
+    #[arg(long, default_value = "false")]
+    pub bench_stub: bool,
+    /// Bench-stub `generate_global_commitment` sleep (ms).
+    #[arg(long, default_value = "10")]
+    pub bench_commit_ms: u64,
+    /// Bench-stub `prepare_merkle_proof` sleep (ms).
+    #[arg(long, default_value = "20")]
+    pub bench_merkle_prep_ms: u64,
+    /// Bench-stub `prove_shard` sleep (ms).
+    #[arg(long, default_value = "50")]
+    pub bench_prove_ms: u64,
+    /// Bench-stub `ProverSemaphore` permit count.
+    #[arg(long, default_value = "8")]
+    pub bench_permits: usize,
+    /// Bench-stub timeout (s).
+    #[arg(long, default_value = "300")]
+    pub bench_timeout_s: u64,
+    /// Bench-stub summary output path.
+    #[arg(long, default_value = "bench-summary.md")]
+    pub bench_summary_path: String,
 }
 
 // Executes a program similarly to the cluster controller.
@@ -66,29 +84,29 @@ async fn execute_node(args: Args, elf: Vec<u8>, stdin: SP1Stdin) {
     let artifact_client = InMemoryArtifactClient::new();
     let worker_client = TrivialWorkerClient::new(args.task_capacity, artifact_client.clone());
 
-    let proof_id = ProofId::new("bench_pure_execution");
-    let gate =
-        ProveShardGate::new(artifact_client.clone(), worker_client.clone(), proof_id.clone())
-            .await
-            .expect("failed to create gate");
-
-    let splicing_workers = (0..args.splice_workers)
+    // The node body now proves in-process, so the splice pipeline needs a core
+    // prover + the shared GPU permits. The bench uses a CPU prover; proofs are
+    // still discarded by the `TrivialWorkerClient`, so this only satisfies the
+    // in-process commit/prove plumbing (not a real proving benchmark).
+    let core_prover = Arc::new(sp1_hypercube::prover::CpuShardProver::new(
+        <CpuSP1ProverComponents as SP1ProverComponents>::core_verifier(RiscvAir::machine())
+            .shard_verifier()
+            .clone(),
+    ));
+    let permits = ProverSemaphore::new(4);
+    let splice_chunk_workers = (0..args.splice_workers)
         .map(|_| {
-            SplicingWorker::new(
+            sp1_prover::worker::SpliceChunkWorker::<_, _, CpuSP1ProverComponents>::new(
                 artifact_client.clone(),
-                worker_client.clone(),
-                gate.clone(),
-                args.send_workers,
-                args.send_buffer_size,
+                core_prover.clone(),
+                permits.clone(),
             )
         })
         .collect::<Vec<_>>();
-
-    let splicing_engine = Arc::new(SplicingEngine::new(splicing_workers, args.splice_buffer));
-
-    let parent_id = None;
-    let parent_context = None;
-    let requester_id = RequesterId::new("bench_pure_execution");
+    let splice_chunk_engine = Arc::new(sp1_prover::worker::SpliceChunkEngine::new(
+        splice_chunk_workers,
+        args.splice_buffer,
+    ));
 
     let dummy_vk = MachineVerifyingKey {
         pc_start: [SP1Field::zero(); 3],
@@ -117,6 +135,8 @@ async fn execute_node(args: Args, elf: Vec<u8>, stdin: SP1Stdin) {
         worker_client.clone(),
         dummy_task_id.clone(),
     );
+    // The perf executor doesn't run a `SP1Controller::run` outer loop, so it
+    // subscribes to the cluster proof stream directly and counts proof events.
     let mut receiver = MessageReceiver::<ProofData>::new(
         worker_client.subscribe_task_messages(&dummy_task_id).await.unwrap(),
     );
@@ -131,21 +151,16 @@ async fn execute_node(args: Args, elf: Vec<u8>, stdin: SP1Stdin) {
     if let Some(chunk_size) = args.chunk_size {
         opts.minimal_trace_chunk_threshold = chunk_size;
     }
-    let task_context = TaskContext { proof_id, parent_id, parent_context, requester_id };
-    let global_memory_buffer_size = 2 * args.splice_workers;
+    let (chunk_tx, chunk_rx) = mpsc::channel(args.splice_buffer);
     let executor = SP1CoreExecutor::new(
-        splicing_engine,
-        global_memory_buffer_size,
+        chunk_tx,
         elf_artifact,
         stdin,
         common_input_artifact,
         opts,
         0,
-        task_context,
         sender,
         artifact_client,
-        worker_client,
-        gate,
         None,
         args.cycle_limit,
         RiscvAir::machine(),
@@ -153,15 +168,21 @@ async fn execute_node(args: Args, elf: Vec<u8>, stdin: SP1Stdin) {
 
     let counter_handle = tokio::task::spawn(async move {
         let mut shard_counter = 0;
-        while receiver.recv().await.is_some() {
+        while let Some(_msg) = receiver.recv().await {
             shard_counter += 1;
         }
         println!("num shards: {shard_counter}");
     });
 
-    // Execute and see the result
+    // Execute and see the result. The controller (JIT → chunk_tx) and the node
+    // consumer (chunk_rx → prove → drain) run concurrently.
     let time = tokio::time::Instant::now();
-    let result = executor.execute().await.expect("failed to execute");
+    let (result, consumer_result) = tokio::join!(
+        executor.execute(),
+        sp1_prover::worker::drive_chunk_consumer(splice_chunk_engine, chunk_rx),
+    );
+    let result = result.expect("failed to execute");
+    consumer_result.expect("chunk consumer failed");
     let time = time.elapsed();
     println!(
         "cycles: {}, execution time: {:?}, mhz: {}",
@@ -172,6 +193,256 @@ async fn execute_node(args: Args, elf: Vec<u8>, stdin: SP1Stdin) {
 
     // Make sure the counter is finished before exiting
     counter_handle.await.expect("counter task panicked");
+}
+
+/// Stub-proving bench harness
+#[cfg(feature = "bench-stub")]
+async fn execute_bench_stub(args: Args, elf: Vec<u8>, stdin: SP1Stdin) {
+    use std::sync::Mutex;
+    use std::time::Duration;
+
+    use sp1_prover::worker::bench_stub::{install, BenchStubConfig};
+
+    install(BenchStubConfig::with_core_stub_proof(
+        args.bench_commit_ms,
+        args.bench_merkle_prep_ms,
+        args.bench_prove_ms,
+    ))
+    .expect("bench_stub config already installed");
+
+    let artifact_client = InMemoryArtifactClient::new();
+    let worker_client = TrivialWorkerClient::new(args.task_capacity, artifact_client.clone());
+
+    let core_prover = Arc::new(sp1_hypercube::prover::CpuShardProver::new(
+        <CpuSP1ProverComponents as SP1ProverComponents>::core_verifier(RiscvAir::machine())
+            .shard_verifier()
+            .clone(),
+    ));
+    let permits = ProverSemaphore::new(args.bench_permits);
+    let splice_chunk_workers = (0..args.splice_workers)
+        .map(|_| {
+            sp1_prover::worker::SpliceChunkWorker::<_, _, CpuSP1ProverComponents>::new(
+                artifact_client.clone(),
+                core_prover.clone(),
+                permits.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let splice_chunk_engine = Arc::new(sp1_prover::worker::SpliceChunkEngine::new(
+        splice_chunk_workers,
+        args.splice_buffer,
+    ));
+
+    let dummy_vk = MachineVerifyingKey {
+        pc_start: [SP1Field::zero(); 3],
+        initial_global_cumulative_sum: SepticDigest::zero(),
+        preprocessed_commit: [SP1Field::zero(); 8],
+        untrusted_config: UntrustedConfig::zero(),
+    };
+    let dummy_vk = SP1VerifyingKey { vk: dummy_vk };
+
+    let common_input = CommonProverInput {
+        vk: dummy_vk,
+        deferred_digest: [0; 8],
+        mode: ProofMode::Core,
+        num_deferred_proofs: 0,
+        nonce: [0; 4],
+    };
+    let common_input_artifact =
+        artifact_client.create_artifact().expect("failed to create artifact");
+    artifact_client
+        .upload(&common_input_artifact, common_input)
+        .await
+        .expect("failed to upload common input");
+
+    let dummy_task_id = TaskId::new("perf-executor-bench-stub".to_string());
+    let sender = MessageSender::<TrivialWorkerClient, ProofData>::new(
+        worker_client.clone(),
+        dummy_task_id.clone(),
+    );
+    let mut receiver = MessageReceiver::<ProofData>::new(
+        worker_client.subscribe_task_messages(&dummy_task_id).await.unwrap(),
+    );
+
+    let elf_artifact = artifact_client.create_artifact().expect("failed to create artifact");
+    let elf_bytes = elf.to_vec();
+    artifact_client.upload(&elf_artifact, elf_bytes).await.expect("failed to upload elf");
+
+    let stdin = Arc::new(stdin);
+
+    let (opts, _) = build_opts(args.chunk_size, args.gpu_5090);
+    let chunk_size_used = opts.minimal_trace_chunk_threshold;
+
+    let (chunk_tx, chunk_rx) = mpsc::channel(args.splice_buffer);
+    let executor = SP1CoreExecutor::new(
+        chunk_tx,
+        elf_artifact,
+        stdin,
+        common_input_artifact,
+        opts,
+        0,
+        sender,
+        artifact_client,
+        None,
+        args.cycle_limit,
+        RiscvAir::machine(),
+    );
+
+    let collected: Arc<Mutex<Vec<CollectedProof>>> = Arc::new(Mutex::new(Vec::new()));
+    let bench_start = tokio::time::Instant::now();
+    let collector_handle = tokio::task::spawn({
+        let collected = collected.clone();
+        async move {
+            while let Some(msg) = receiver.recv().await {
+                let arrival_ms = bench_start.elapsed().as_secs_f64() * 1000.0;
+                collected.lock().unwrap().push(CollectedProof::from_proof_data(&msg, arrival_ms));
+            }
+        }
+    });
+
+    let pipeline = async {
+        tokio::join!(
+            executor.execute(),
+            sp1_prover::worker::drive_chunk_consumer(splice_chunk_engine, chunk_rx),
+        )
+    };
+
+    let timeout = Duration::from_secs(args.bench_timeout_s);
+    let (exec_result, consumer_result) = match tokio::time::timeout(timeout, pipeline).await {
+        Ok(joined) => joined,
+        Err(_) => panic!(
+            "bench-stub: pipeline timed out after {}s — likely deadlock or unbounded backpressure",
+            args.bench_timeout_s
+        ),
+    };
+    let pipeline_result = exec_result.expect("executor.execute() failed");
+    consumer_result.expect("chunk consumer failed");
+    let elapsed = bench_start.elapsed();
+    drop(worker_client);
+    collector_handle.await.expect("collector task panicked");
+
+    let collected = Arc::try_unwrap(collected).unwrap().into_inner().unwrap();
+    write_bench_summary(&args, chunk_size_used, &pipeline_result, elapsed, &collected);
+}
+
+#[cfg(feature = "bench-stub")]
+#[derive(Debug)]
+struct CollectedProof {
+    kind: &'static str,
+    range_start: u64,
+    range_end: u64,
+    arrival_ms: f64,
+}
+
+#[cfg(feature = "bench-stub")]
+impl CollectedProof {
+    fn from_proof_data(data: &ProofData, arrival_ms: f64) -> Self {
+        match data {
+            ProofData::Artifact { range, .. } => Self {
+                kind: "Artifact",
+                range_start: range.timestamp_range.0,
+                range_end: range.timestamp_range.1,
+                arrival_ms,
+            },
+            ProofData::InMemory { kind, range, .. } => {
+                use sp1_prover::worker::ProofKind;
+                let kind_label = match kind {
+                    ProofKind::Execution => "Execution",
+                    ProofKind::Merkle => "Merkle",
+                };
+                Self {
+                    kind: kind_label,
+                    range_start: range.timestamp_range.0,
+                    range_end: range.timestamp_range.1,
+                    arrival_ms,
+                }
+            }
+        }
+    }
+}
+
+#[cfg(feature = "bench-stub")]
+fn write_bench_summary(
+    args: &Args,
+    chunk_size_used: u64,
+    output: &sp1_core_machine::executor::ExecutionOutput,
+    elapsed: std::time::Duration,
+    collected: &[CollectedProof],
+) {
+    use std::fmt::Write;
+
+    let total = collected.len();
+    let mut execution = 0usize;
+    let mut merkle = 0usize;
+    let mut artifact = 0usize;
+    for c in collected {
+        match c.kind {
+            "Execution" => execution += 1,
+            "Merkle" => merkle += 1,
+            "Artifact" => artifact += 1,
+            _ => {}
+        }
+    }
+
+    let mut sorted: Vec<&CollectedProof> = collected.iter().collect();
+    sorted.sort_by_key(|c| (c.range_start, c.kind != "Merkle"));
+
+    let mut out = String::new();
+    writeln!(out, "# bench-stub summary\n").unwrap();
+    writeln!(out, "## Configuration").unwrap();
+    writeln!(out, "- program: `{}`", args.program).unwrap();
+    writeln!(out, "- splice_workers: {}", args.splice_workers).unwrap();
+    writeln!(out, "- splice_buffer: {}", args.splice_buffer).unwrap();
+    writeln!(out, "- chunk_size (minimal_trace_chunk_threshold): {chunk_size_used}").unwrap();
+    writeln!(out, "- bench_commit_ms: {}", args.bench_commit_ms).unwrap();
+    writeln!(out, "- bench_merkle_prep_ms: {}", args.bench_merkle_prep_ms).unwrap();
+    writeln!(out, "- bench_prove_ms: {}", args.bench_prove_ms).unwrap();
+    writeln!(out, "- bench_permits: {}", args.bench_permits).unwrap();
+    writeln!(out, "- bench_timeout_s: {}\n", args.bench_timeout_s).unwrap();
+
+    writeln!(out, "## Totals").unwrap();
+    writeln!(out, "- wall_clock_ms: {:.1}", elapsed.as_secs_f64() * 1000.0).unwrap();
+    writeln!(out, "- cycles: {}", output.cycles).unwrap();
+    writeln!(out, "- mhz: {:.3}", output.cycles as f64 / (elapsed.as_secs_f64() * 1_000_000.0))
+        .unwrap();
+    writeln!(out, "- total_proofs: {total}\n").unwrap();
+
+    writeln!(out, "## Per-kind breakdown").unwrap();
+    writeln!(out, "- Execution (InMemory): {execution}").unwrap();
+    writeln!(out, "- Merkle (InMemory): {merkle}").unwrap();
+    writeln!(out, "- Artifact: {artifact}\n").unwrap();
+
+    writeln!(
+        out,
+        "Expected total = sum over chunks of (M_N + K_chunk). With the current Merkle stub M_N=1,"
+    )
+    .unwrap();
+    writeln!(
+        out,
+        "so total = num_chunks + sum(K_chunk). Cross-check against the program's cycles / chunk_size"
+    )
+    .unwrap();
+    writeln!(
+        out,
+        "and the SplicingVM's per-chunk cut count to confirm no proof is dropped or duplicated.\n"
+    )
+    .unwrap();
+
+    writeln!(out, "## Sorted by (range_start, Merkle-first)").unwrap();
+    writeln!(out, "| arrival_ms | kind | range_start | range_end |").unwrap();
+    writeln!(out, "|------------|------|-------------|-----------|").unwrap();
+    for c in &sorted {
+        writeln!(
+            out,
+            "| {:>10.1} | {} | {} | {} |",
+            c.arrival_ms, c.kind, c.range_start, c.range_end
+        )
+        .unwrap();
+    }
+
+    std::fs::write(&args.bench_summary_path, out).expect("failed to write bench-summary.md");
+    println!("bench summary written to {}", args.bench_summary_path);
+    println!("total proofs: {total} (Execution={execution}, Merkle={merkle}, Artifact={artifact})");
 }
 
 // Executes a program while measuring gas and prints the gas report.
@@ -839,6 +1110,16 @@ async fn main() {
     // Get the program and input.
     let (elf, stdin) = get_program_and_input(args.program, args.param, args.local);
 
+    if args_clone.bench_stub {
+        #[cfg(feature = "bench-stub")]
+        {
+            execute_bench_stub(args_clone, elf, stdin).await;
+            return;
+        }
+        #[cfg(not(feature = "bench-stub"))]
+        panic!();
+    }
+
     match args.mode.as_str() {
         "node" => execute_node(args_clone, elf, stdin).await,
         "gas" => execute_gas(elf, stdin).await,
@@ -861,6 +1142,269 @@ async fn main() {
         ),
         #[cfg(all(target_arch = "x86_64", target_os = "linux", not(feature = "mprotect")))]
         "minimal_merkle" => execute_minimal_merkle(elf, stdin, args_clone.chunk_size),
+        "minimal_runner_leaves" => execute_minimal_runner_leaves(elf, stdin, args_clone.chunk_size),
         _ => panic!("invalid mode"),
     }
+}
+
+/// Drive the same chunk loop the prover controller uses with the cross-process
+/// `MinimalExecutorRunner` + `LeafState`. Goes through the cross-process
+/// boundary (child runner-binary emits per-chunk dirty pages over a
+/// shared-memory ring) and hashes them on the parent side via
+/// `LeafState::ingest_chunk`.
+///
+/// Hashing runs on a dedicated worker thread concurrently with the main
+/// thread's chunk receive loop. The two communicate via a small bounded
+/// mpsc channel so that, while the main thread is blocked waiting for the
+/// JIT to produce the next chunk, the worker is hashing the previous one.
+///
+/// Requires the runner to be built with `sp1_use_native_executor` on (gated
+/// by `SP1_RUNNER_NATIVE_EXEC=1` in the outer build env).
+#[allow(clippy::cast_precision_loss)]
+fn execute_minimal_runner_leaves(elf: Vec<u8>, stdin: SP1Stdin, chunk_threshold: Option<u64>) {
+    use sp1_core_executor::DEFAULT_MEMORY_LIMIT;
+    use sp1_core_executor_runner::MinimalExecutorRunner;
+    use sp1_jit::DirtyPages;
+    use sp1_prover::worker::LeafState;
+
+    let chunk_threshold_val = chunk_threshold.unwrap_or(10_000_000);
+    let dirty_pages_slot_bytes: usize = 256 * 1024 * 1024;
+
+    let program = Arc::new(Program::from(&elf).expect("parse elf"));
+    let mut runner = MinimalExecutorRunner::new_with_dirty_pages(
+        program,
+        false,
+        Some(chunk_threshold_val),
+        DEFAULT_MEMORY_LIMIT,
+        4,
+        Some(dirty_pages_slot_bytes),
+    );
+    for buf in stdin.buffer {
+        runner.with_input(&buf);
+    }
+
+    // When set, skip the work of hashing the leaves.
+    let skip_hash = std::env::var("LEAVES_SKIP_HASH").is_ok();
+
+    // When set, pin the JIT child to CPU 0 and the parent's recv thread to
+    // CPU 1, and run the hash work on a rayon pool restricted to CPUs 2..N.
+    let pin_cores = std::env::var("LEAVES_PIN_CORES").is_ok();
+
+    // Snapshot hardware CPU counts before pinning the parent — `num_cpus`
+    // queries `sched_getaffinity`, so after we pin to one CPU it returns 1.
+    let hw_logical = num_cpus::get();
+    let hw_physical = num_cpus::get_physical();
+    if pin_cores {
+        // Child reads this on startup and binds itself via `sched_setaffinity`.
+        std::env::set_var("SP1_RUNNER_PIN_CORE", "0");
+        // Pin this thread (the recv loop) to CPU 1.
+        unsafe {
+            let mut set: libc::cpu_set_t = std::mem::zeroed();
+            libc::CPU_ZERO(&mut set);
+            libc::CPU_SET(1, &mut set);
+            let rc = libc::sched_setaffinity(0, std::mem::size_of_val(&set), &set);
+            if rc != 0 {
+                eprintln!(
+                    "[bench] sched_setaffinity(parent, 1) failed: errno={}",
+                    std::io::Error::last_os_error()
+                );
+            }
+        }
+    }
+
+    println!("=== minimal_runner_leaves (async pipeline) ===");
+    println!("chunk_threshold: {chunk_threshold_val}");
+    println!("dirty_pages_slot_bytes: {dirty_pages_slot_bytes}");
+    println!("skip_hash (baseline-A mode): {skip_hash}");
+    println!("pin_cores: {pin_cores}");
+    println!();
+
+    // Bounded channel for the dirty pages.
+    let (tx, rx) = std::sync::mpsc::sync_channel::<DirtyPages>(4);
+
+    // Build a custom rayon pool that excludes CPU 0 (JIT) and CPU 1 (parent
+    // recv). Each worker thread pins itself to its assigned CPU on startup.
+    let pinned_pool: Option<Arc<rayon::ThreadPool>> = if pin_cores {
+        // Restrict to one logical CPU per physical core.
+        let upper = hw_physical.min(hw_logical);
+        let cpus: Vec<usize> = (2..upper).collect();
+        let n = cpus.len();
+        println!("pinned rayon pool: {n} threads on CPUs {cpus:?}");
+        let cpus_arc = Arc::new(cpus);
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(n)
+            .start_handler({
+                let cpus = cpus_arc.clone();
+                move |idx| {
+                    let cpu = cpus[idx];
+                    unsafe {
+                        let mut set: libc::cpu_set_t = std::mem::zeroed();
+                        libc::CPU_ZERO(&mut set);
+                        libc::CPU_SET(cpu, &mut set);
+                        libc::sched_setaffinity(0, std::mem::size_of_val(&set), &set);
+                    }
+                }
+            })
+            .build()
+            .expect("build pinned rayon pool");
+        Some(Arc::new(pool))
+    } else {
+        None
+    };
+
+    let hash_handle = (!skip_hash).then(|| {
+        let pool_for_worker = pinned_pool.clone();
+        std::thread::Builder::new()
+            .name("leaf-hash".into())
+            .spawn(move || {
+                let mut leaf_state = LeafState::new();
+                let mut total_hash_ms = 0.0f64;
+                let mut max_hash_ms = 0.0f64;
+                let mut per_chunk_hash_ms: Vec<f64> = Vec::new();
+                let mut first_msg_t: Option<std::time::Instant> = None;
+                let mut last_done_t: Option<std::time::Instant> = None;
+                while let Ok(dirty) = rx.recv() {
+                    if first_msg_t.is_none() {
+                        first_msg_t = Some(std::time::Instant::now());
+                    }
+                    let s = std::time::Instant::now();
+                    if let Some(pool) = pool_for_worker.as_ref() {
+                        pool.install(|| {
+                            leaf_state.ingest_chunk(&dirty.pages);
+                        });
+                    } else {
+                        leaf_state.ingest_chunk(&dirty.pages);
+                    }
+                    let e = s.elapsed().as_secs_f64() * 1000.0;
+                    total_hash_ms += e;
+                    if e > max_hash_ms {
+                        max_hash_ms = e;
+                    }
+                    per_chunk_hash_ms.push(e);
+                    last_done_t = Some(std::time::Instant::now());
+                }
+                (
+                    leaf_state,
+                    total_hash_ms,
+                    max_hash_ms,
+                    per_chunk_hash_ms,
+                    first_msg_t,
+                    last_done_t,
+                )
+            })
+            .expect("spawn hash worker")
+    });
+
+    let wall_start = std::time::Instant::now();
+    let mut chunk_count: u32 = 0;
+    let mut total_dirty_pages: usize = 0;
+    let mut max_dirty_pages: usize = 0;
+    let mut total_recv_ms = 0.0f64;
+    let mut total_send_ms = 0.0f64;
+    let mut max_recv_ms = 0.0f64;
+    let mut max_send_ms = 0.0f64;
+
+    loop {
+        let recv_start = std::time::Instant::now();
+        match runner.try_execute_chunk_with_dirty_pages() {
+            Ok(Some((chunk, dirty))) => {
+                let recv_ms = recv_start.elapsed().as_secs_f64() * 1000.0;
+                let n = dirty.pages.len();
+                let num_mem_reads = chunk.num_mem_reads();
+                drop(chunk);
+
+                let send_start = std::time::Instant::now();
+                if skip_hash {
+                    drop(dirty);
+                } else {
+                    tx.send(dirty).expect("hash worker died");
+                }
+                let send_ms = send_start.elapsed().as_secs_f64() * 1000.0;
+
+                eprintln!(
+                    "CHUNK {chunk_count}: dirty_pages={n} recv_ms={recv_ms:.2} \
+                     send_ms={send_ms:.2} num_mem_reads={num_mem_reads}"
+                );
+
+                chunk_count += 1;
+                total_dirty_pages += n;
+                total_recv_ms += recv_ms;
+                total_send_ms += send_ms;
+                if n > max_dirty_pages {
+                    max_dirty_pages = n;
+                }
+                if recv_ms > max_recv_ms {
+                    max_recv_ms = recv_ms;
+                }
+                if send_ms > max_send_ms {
+                    max_send_ms = send_ms;
+                }
+            }
+            Ok(None) => break,
+            Err(e) => panic!("execute failed: {e:?}"),
+        }
+    }
+    let wall_recv_done = wall_start.elapsed();
+    drop(tx);
+    let (touched_pages, total_hash_ms, max_hash_ms, first_msg_t, last_done_t) = if let Some(h) =
+        hash_handle
+    {
+        let (leaf_state, total, max_ms, _per, first, last) = h.join().expect("join hash worker");
+        (leaf_state.touched_pages(), total, max_ms, first, last)
+    } else {
+        (0usize, 0.0, 0.0, None, None)
+    };
+    let wall_total = wall_start.elapsed();
+
+    let recv_mean = if chunk_count == 0 { 0.0 } else { total_recv_ms / chunk_count as f64 };
+    let send_mean = if chunk_count == 0 { 0.0 } else { total_send_ms / chunk_count as f64 };
+    let hash_mean = if chunk_count == 0 { 0.0 } else { total_hash_ms / chunk_count as f64 };
+    let dirty_mean =
+        if chunk_count == 0 { 0.0 } else { total_dirty_pages as f64 / chunk_count as f64 };
+    let wall_total_ms = wall_total.as_secs_f64() * 1000.0;
+    let wall_recv_done_ms = wall_recv_done.as_secs_f64() * 1000.0;
+    let hash_drain_tail_ms = wall_total_ms - wall_recv_done_ms;
+
+    // Hash-worker active span: from first message arrived to last ingest finished.
+    let hash_active_span_ms = match (first_msg_t, last_done_t) {
+        (Some(a), Some(b)) => (b - a).as_secs_f64() * 1000.0,
+        _ => 0.0,
+    };
+
+    let sync_equivalent_ms = total_recv_ms + total_hash_ms;
+    let speedup_pct = if sync_equivalent_ms > 0.0 {
+        (sync_equivalent_ms - wall_total_ms) / sync_equivalent_ms * 100.0
+    } else {
+        0.0
+    };
+
+    println!();
+    println!("=== SUMMARY (async) ===");
+    println!("total_chunks: {chunk_count}");
+    println!("wall_total_ms: {wall_total_ms:.2}");
+    println!("wall_recv_done_ms: {wall_recv_done_ms:.2}  (main thread saw Ok(None))");
+    println!(
+        "hash_drain_tail_ms: {hash_drain_tail_ms:.2}  (time hashing the last queued chunks \
+         after JIT done)"
+    );
+    println!("hash_worker_active_span_ms: {hash_active_span_ms:.2}");
+    println!(
+        "dirty_pages_per_chunk: mean={dirty_mean:.0} max={max_dirty_pages} \
+         total={total_dirty_pages}"
+    );
+    println!(
+        "recv_ms_per_chunk: mean={recv_mean:.2} max={max_recv_ms:.2} total={total_recv_ms:.2}"
+    );
+    println!(
+        "send_ms_per_chunk: mean={send_mean:.2} max={max_send_ms:.2} total={total_send_ms:.2}  \
+         (high values = main thread blocked on full channel = hash worker behind)"
+    );
+    println!(
+        "hash_ms_per_chunk:   mean={hash_mean:.2} max={max_hash_ms:.2} total={total_hash_ms:.2}"
+    );
+    println!("cumulative_touched_pages: {touched_pages}");
+    println!();
+    println!("sync_equivalent_ms (recv+hash totals, no overlap): {sync_equivalent_ms:.2}");
+    println!("actual wall_total_ms (with async overlap):        {wall_total_ms:.2}");
+    println!("async_speedup_vs_sync_equivalent: {speedup_pct:.2}%");
 }

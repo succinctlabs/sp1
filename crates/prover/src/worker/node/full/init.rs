@@ -163,25 +163,62 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                 while let Some((task_id, request)) = execute_rx.recv().await {
                     let span = tracing::debug_span!("CoreExecute", proof_id = %request.context.proof_id, task_id = %task_id);
                     let proof_id = request.context.proof_id.clone();
-                    match crate::worker::CoreExecuteTaskRequest::from_raw(request.clone()) {
+
+                    let succeeded = match crate::worker::CoreExecuteTaskRequest::from_raw(request.clone()) {
                         Ok(req) => {
-                            if let Err(e) =
-                                worker.controller().execute(task_id.clone(), req).instrument(span).await
-                            {
-                                tracing::error!("CoreExecute: task failed: {e:?}");
+                            let core_prover = worker.prover_engine().core_prover.air_prover();
+                            let permits = worker.prover_engine().core_prover.permits();
+                            let controller = worker.controller();
+                            let engine = controller
+                                .initialize_splice_chunk_engine::<C>(core_prover, permits);
+                            // Bounded at `splicing_buffer_size` — the
+                            // leaf-hash thread blocks here when the prover
+                            // is behind (backpressure preserved).
+                            let (chunk_tx, chunk_rx) =
+                                mpsc::channel(controller.splicing_buffer_size());
+                            // Run the controller (JIT → chunk_tx) and the
+                            // node consumer (chunk_rx → prove → drain)
+                            // concurrently; the consumer's drain joins
+                            // every in-flight chunk before we complete.
+                            let (exec_result, consumer_result) = tokio::join!(
+                                controller
+                                    .execute(task_id.clone(), req, chunk_tx)
+                                    .instrument(span),
+                                crate::worker::drive_chunk_consumer(engine, chunk_rx),
+                            );
+                            match (exec_result, consumer_result) {
+                                (Ok(_), Ok(())) => true,
+                                (Err(e), _) => {
+                                    tracing::error!("CoreExecute: task failed: {e:?}");
+                                    false
+                                }
+                                (_, Err(e)) => {
+                                    tracing::error!(
+                                        "CoreExecute: chunk consumer failed: {e:?}"
+                                    );
+                                    false
+                                }
                             }
                         }
                         Err(e) => {
                             tracing::error!("CoreExecute: failed to parse request: {e:?}");
+                            false
                         }
-                    }
+                    };
 
-                    if let Err(e) = worker
-                        .worker_client()
-                        .complete_task(proof_id, task_id, TaskMetadata { gpu_ms: None })
-                        .await
-                    {
-                        tracing::error!("CoreExecute: marking task as complete failed: {e:?}");
+                    let result = if succeeded {
+                        worker
+                            .worker_client()
+                            .complete_task(proof_id, task_id, TaskMetadata { gpu_ms: None })
+                            .await
+                    } else {
+                        worker
+                            .worker_client()
+                            .fail_task(proof_id, task_id, TaskMetadata { gpu_ms: None })
+                            .await
+                    };
+                    if let Err(e) = result {
+                        tracing::error!("CoreExecute: marking task status failed: {e:?}");
                     }
                 }
             }
@@ -315,57 +352,6 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
             }
         });
 
-        // Spawn the prove shard handler
-        join_set.spawn({
-            let mut core_prover_rx = channels.task_receivers.remove(&TaskType::ProveShard).unwrap();
-            let worker = worker.clone();
-            let worker_client = worker.worker_client().clone();
-            async move {
-                let mut task_set = JoinSet::new();
-                let (task_tx, mut task_rx) = mpsc::unbounded_channel();
-
-                loop {
-                    tokio::select! {
-                        Some((id, request)) = core_prover_rx.recv() => {
-                            let span = tracing::debug_span!("ProveShard", proof_id = %request.context.proof_id, task_id = %id);
-                            let proof_id = request.context.proof_id.clone();
-                            let handle = worker
-                                .prover_engine()
-                                .submit_prove_core_shard(
-                                    request.clone(),
-                                )
-                                .instrument(span.clone())
-                                .await
-                                .unwrap();
-                            let tx = task_tx.clone();
-                            let artifact_client = worker.artifact_client().clone();
-                            task_set.spawn(
-                                async move {
-                                    // Outer `Err` = panicked/aborted task (pass through);
-                                    // recover the task's result if a prior delivery already
-                                    // completed it (all outputs exist).
-                                    let result = match handle.await {
-                                        Ok(task_result) => Ok(request
-                                            .recover_if_complete(task_result, &artifact_client)
-                                            .await),
-                                        join_err => join_err,
-                                    };
-                                    TaskOutput::handle_worker_result(result, &tx, proof_id, id, request, TaskType::ProveShard);
-                                }.instrument(span)
-                           );
-                        }
-
-                        Some(output) = task_rx.recv() => {
-                            output.handle_task_output(&worker_client).await;
-                        }
-                        else => {
-                            break;
-                        }
-                    }
-                }
-            }
-        });
-
         // Spawn the recursion reduce handler
         join_set.spawn({
             let mut recursion_reduce_rx =
@@ -450,14 +436,6 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                     }
                 }
             }
-        });
-
-        // Spawn the deferred marker task handler.
-        // Marker deferred tasks are completed by the [TaskType::ProveShard] task, but we still need to consume the receiver here.
-        join_set.spawn({
-            let mut marker_deferred_task_rx =
-                channels.task_receivers.remove(&TaskType::MarkerDeferredRecord).unwrap();
-            async move { while let Some((_task_id, _request)) = marker_deferred_task_rx.recv().await {} }
         });
 
         // Spawn the shrink wrap handler
@@ -642,6 +620,15 @@ impl TaskOutput {
             }
             Err(e) => {
                 tracing::error!("task panicked: {:?}", e);
+                let task_output = TaskOutput {
+                    proof_id,
+                    task_id,
+                    status: TaskStatus::FailedFatal,
+                    task_metadata: TaskMetadata::default(),
+                    task_data: None,
+                    task_type,
+                };
+                tx.send(task_output).ok();
             }
         }
     }

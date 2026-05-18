@@ -63,6 +63,9 @@ sysinfo = { workspace = true }
 lru = { workspace = true }
 eyre = { workspace = true }
 hashbrown = { workspace = true, features = ["inline-more"] }
+rayon = { workspace = true }
+num_cpus = { workspace = true }
+libc = { workspace = true }
 enum-map = { workspace = true }
 either = { workspace = true }
 static_assertions = { workspace = true }
@@ -108,6 +111,7 @@ debug = ["sp1-core-machine/debug"]
 bigint-rug = ["sp1-core-machine/bigint-rug"]
 experimental = []
 profiling = ["sp1-core-executor/profiling", "sp1-jit/profiling"]
+bench-stub = []
 mprotect = [
   "experimental",
   "sp1-core-executor/mprotect",

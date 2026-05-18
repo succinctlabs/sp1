@@ -31,13 +31,12 @@ impl WorkerType {
             | TaskType::UtilVkeyMapController
             | TaskType::ExecuteOnly
             | TaskType::CoreExecute => WorkerType::Cpu,
-            TaskType::ProveShard
-            | TaskType::RecursionReduce
+            TaskType::RecursionReduce
             | TaskType::RecursionDeferred
             | TaskType::ShrinkWrap
             | TaskType::SetupVkey
             | TaskType::UtilVkeyMapChunk => WorkerType::Gpu,
-            TaskType::MarkerDeferredRecord | TaskType::UnspecifiedTaskType => WorkerType::None,
+            TaskType::UnspecifiedTaskType => WorkerType::None,
         }
     }
 }

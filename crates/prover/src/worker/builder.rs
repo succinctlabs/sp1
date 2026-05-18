@@ -227,12 +227,10 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
             config.prover_config,
             opts,
             artifact_client.clone(),
-            worker_client.clone(),
             core_air_prover_and_permits,
             compress_air_prover_and_permits,
             shrink_air_prover_and_permits,
             wrap_air_prover_and_permits,
-            machine.clone(),
         )
         .await;
 

@@ -76,12 +76,10 @@ enum WorkerType {
 enum TaskType {
     UNSPECIFIED_TASK_TYPE = 0;
     CONTROLLER = 1;
-    PROVE_SHARD = 2;
     RECURSION_REDUCE = 3;
     RECURSION_DEFERRED = 4;
     SHRINK_WRAP = 5;
     SETUP_VKEY = 6;
-    MARKER_DEFERRED_RECORD = 7;
     PLONK_WRAP = 8;
     GROTH16_WRAP = 9;
     EXECUTE_ONLY = 10;
