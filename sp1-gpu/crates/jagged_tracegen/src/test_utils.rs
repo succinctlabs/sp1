@@ -94,12 +94,17 @@ pub mod random {
     /// floor allocation, the remaining budget is distributed greedily: pick a random
     /// fitting chip and give it a random number of 32-row blocks until no chip fits in
     /// the leftover.
+    ///
+    /// Each chip's height is also capped at `1 << max_log_row_count` to match the
+    /// shard prover's per-chip row-count assertion.
     pub fn generate_random_heights<R: Rng>(
         rng: &mut R,
         layout: &AbstractChipLayout,
         total_area: u64,
+        max_log_row_count: u32,
     ) -> AbstractChipLayoutWithHeights {
         const ALIGN: usize = 32;
+        let max_height: usize = 1usize << max_log_row_count;
 
         let entries = layout.entries();
 
@@ -118,13 +123,18 @@ pub mod random {
         let mut heights = vec![ALIGN; entries.len()];
         let mut remaining = total_area - min_total;
         loop {
-            let candidates: Vec<usize> =
-                (0..entries.len()).filter(|&i| row_costs[i] * ALIGN as u64 <= remaining).collect();
+            let candidates: Vec<usize> = (0..entries.len())
+                .filter(|&i| {
+                    row_costs[i] * ALIGN as u64 <= remaining && heights[i] + ALIGN <= max_height
+                })
+                .collect();
             if candidates.is_empty() {
                 break;
             }
             let i = candidates[rng.gen_range(0..candidates.len())];
-            let max_blocks = remaining / (row_costs[i] * ALIGN as u64);
+            let max_blocks_by_area = remaining / (row_costs[i] * ALIGN as u64);
+            let max_blocks_by_height = ((max_height - heights[i]) / ALIGN) as u64;
+            let max_blocks = max_blocks_by_area.min(max_blocks_by_height);
             let blocks = rng.gen_range(1..=max_blocks);
             heights[i] += blocks as usize * ALIGN;
             remaining -= blocks * row_costs[i] * ALIGN as u64;
@@ -197,6 +207,7 @@ pub mod random {
         chips: &[Chip<F, A>],
         total_area: u64,
         log_stacking_height: u32,
+        max_log_row_count: u32,
     ) -> JaggedTraceMle<F, CpuBackend>
     where
         F: Field,
@@ -207,7 +218,8 @@ pub mod random {
         assert!(!chips.is_empty(), "must have at least one chip");
 
         let layout = chip_layout_from_chips(chips);
-        let layout_with_heights = generate_random_heights(rng, &layout, total_area);
+        let layout_with_heights =
+            generate_random_heights(rng, &layout, total_area, max_log_row_count);
         random_jagged_trace_mle_from_layout(rng, &layout_with_heights, log_stacking_height)
     }
 
@@ -428,6 +440,7 @@ pub mod bench_utils {
             scope: &TaskScope,
             log_area: u32,
             cluster: ChipCluster,
+            max_log_row_count: u32,
             rng: &mut R,
         ) -> Self::GeneratedData;
 
@@ -446,7 +459,10 @@ pub mod bench_utils {
 
         /// Default: parse CLI source, open a scope, generate data via the right method, call
         /// `f`. Sweep mode loops over sizes for random.
-        fn run<R, F>(c: &mut Criterion, rng: &mut R, mut f: F)
+        ///
+        /// `max_log_row_count` caps the per-chip row count when synthesizing a random trace,
+        /// so generated heights match the shard prover's per-chip assertion.
+        fn run<R, F>(c: &mut Criterion, rng: &mut R, max_log_row_count: u32, mut f: F)
         where
             R: Rng,
             F: FnMut(&mut Criterion, BenchmarkId, &TaskScope, &mut R, Self::GeneratedData),
@@ -465,7 +481,13 @@ pub mod bench_utils {
                         let rng: &mut R = &mut *rng;
                         let f: &mut F = &mut f;
                         run_sync_in_place(move |scope| {
-                            let data = Self::generate_random_data(&scope, log_area, cluster, rng);
+                            let data = Self::generate_random_data(
+                                &scope,
+                                log_area,
+                                cluster,
+                                max_log_row_count,
+                                rng,
+                            );
                             let id = BenchmarkId::new(
                                 "random",
                                 format!("{}_2^{log_area}", cluster.name()),
@@ -517,6 +539,7 @@ pub mod bench_utils {
             _: &TaskScope,
             log_area: u32,
             _: ChipCluster,
+            _: u32,
             _: &mut R,
         ) -> u32 {
             log_area
@@ -547,13 +570,20 @@ pub mod bench_utils {
             scope: &TaskScope,
             log_area: u32,
             cluster: ChipCluster,
+            max_log_row_count: u32,
             rng: &mut R,
         ) -> JaggedTraceMle<Felt, TaskScope> {
             let machine = RiscvAir::<Felt>::machine();
             let chips: Vec<_> = cluster_chip_set(&machine, cluster).into_iter().collect();
             let total_area = 1u64 << log_area;
-            random_jagged_trace_mle::<Felt, _, _>(rng, &chips, total_area, LOG_STACKING_HEIGHT)
-                .into_device(scope)
+            random_jagged_trace_mle::<Felt, _, _>(
+                rng,
+                &chips,
+                total_area,
+                LOG_STACKING_HEIGHT,
+                max_log_row_count,
+            )
+            .into_device(scope)
         }
 
         fn generate_json_data<R: Rng>(
@@ -583,15 +613,21 @@ pub mod bench_utils {
             scope: &TaskScope,
             log_area: u32,
             cluster: ChipCluster,
+            max_log_row_count: u32,
             rng: &mut R,
         ) -> RealTraceData {
             let machine = RiscvAir::<Felt>::machine();
             let cluster_set = cluster_chip_set(&machine, cluster);
             let chips: Vec<_> = cluster_set.iter().cloned().collect();
             let total_area = 1u64 << log_area;
-            let device_mle =
-                random_jagged_trace_mle::<Felt, _, _>(rng, &chips, total_area, LOG_STACKING_HEIGHT)
-                    .into_device(scope);
+            let device_mle = random_jagged_trace_mle::<Felt, _, _>(
+                rng,
+                &chips,
+                total_area,
+                LOG_STACKING_HEIGHT,
+                max_log_row_count,
+            )
+            .into_device(scope);
             let public_values = vec![Felt::zero(); SP1_PROOF_NUM_PV_ELTS];
             RealTraceData { machine, cluster: cluster_set, public_values, device_mle }
         }
@@ -623,13 +659,18 @@ pub mod bench_utils {
     /// For the exact CLI invocations each bench accepts (and the disclaimers about synthetic
     /// data), see the README in the corresponding `benches/` folder:
     /// `sp1-gpu/crates/{commit,jagged_sumcheck,shard_prover,zerocheck}/benches/README.md`.
-    pub fn with_trace_source<K, R, F>(c: &mut Criterion, rng: &mut R, _kind: K, f: F)
-    where
+    pub fn with_trace_source<K, R, F>(
+        c: &mut Criterion,
+        rng: &mut R,
+        _kind: K,
+        max_log_row_count: u32,
+        f: F,
+    ) where
         K: BenchKind,
         R: Rng,
         F: FnMut(&mut Criterion, BenchmarkId, &TaskScope, &mut R, K::GeneratedData),
     {
-        K::run(c, rng, f);
+        K::run(c, rng, max_log_row_count, f);
     }
 
     //

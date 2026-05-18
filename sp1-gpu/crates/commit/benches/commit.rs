@@ -62,9 +62,15 @@ fn run_commit<R: Rng>(
 
 fn bench_commit(c: &mut Criterion) {
     let mut rng = StdRng::seed_from_u64(42);
-    with_trace_source(c, &mut rng, JaggedKind, |c, id, scope, rng, device_mle| {
-        run_commit(c, id, scope, rng, &device_mle);
-    });
+    with_trace_source(
+        c,
+        &mut rng,
+        JaggedKind,
+        CORE_MAX_LOG_ROW_COUNT,
+        |c, id, scope, rng, device_mle| {
+            run_commit(c, id, scope, rng, &device_mle);
+        },
+    );
 }
 
 criterion_group!(benches, bench_commit);

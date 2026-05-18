@@ -65,9 +65,15 @@ fn run_jagged_sumcheck<R: Rng>(
 
 fn bench_jagged_sumcheck(c: &mut Criterion) {
     let mut rng = StdRng::seed_from_u64(42);
-    with_trace_source(c, &mut rng, JaggedKind, |c, id, scope, rng, device_mle| {
-        run_jagged_sumcheck(c, id, scope, rng, &device_mle);
-    });
+    with_trace_source(
+        c,
+        &mut rng,
+        JaggedKind,
+        CORE_MAX_LOG_ROW_COUNT,
+        |c, id, scope, rng, device_mle| {
+            run_jagged_sumcheck(c, id, scope, rng, &device_mle);
+        },
+    );
 }
 
 criterion_group!(benches, bench_jagged_sumcheck);

@@ -11,7 +11,10 @@ use slop_multilinear::Mle;
 use slop_tensor::{Dimensions, Tensor};
 use sp1_gpu_cudart::{DeviceBuffer, DeviceCopy, TaskScope};
 use sp1_gpu_jagged_sumcheck::simple_hadamard_sumcheck;
-use sp1_gpu_jagged_tracegen::test_utils::bench_utils::{with_trace_source, SizeOnlyKind};
+use sp1_gpu_jagged_tracegen::test_utils::{
+    bench_utils::{with_trace_source, SizeOnlyKind},
+    tracegen_setup::CORE_MAX_LOG_ROW_COUNT,
+};
 use sp1_gpu_utils::config::{Ext, Felt, TestGC};
 
 fn random_buffer<T, R>(rng: &mut R, len: usize) -> Buffer<T, CpuBackend>
@@ -30,7 +33,12 @@ fn upload_mle<T: DeviceCopy>(host: &Buffer<T, CpuBackend>, scope: &TaskScope) ->
 
 fn bench_hadamard_sumcheck(c: &mut Criterion) {
     let mut rng = StdRng::seed_from_u64(42);
-    with_trace_source(c, &mut rng, SizeOnlyKind, |c, _id, scope, rng, log_area| {
+    with_trace_source(
+        c,
+        &mut rng,
+        SizeOnlyKind,
+        CORE_MAX_LOG_ROW_COUNT,
+        |c, _id, scope, rng, log_area| {
         let len = 1usize << log_area;
         let base_host: Buffer<Felt, CpuBackend> = random_buffer(rng, len);
         let ext_host: Buffer<Ext, CpuBackend> = random_buffer(rng, len);
