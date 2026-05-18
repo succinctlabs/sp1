@@ -21,11 +21,21 @@
 
 namespace cg = cooperative_groups;
 
-// Decode-cost ablation. When set to 1, the bytecode loop keeps the per-instr
-// fetch + opcode switch but replaces every case body with a single cheap
-// regs[] write — no trace loads, no field arithmetic. The gap vs mode 0 is
-// the bytecode loop's loads+arithmetic; mode-1 wall time is the interpreter
-// floor (fetch + dispatch). Default 0; flip to measure, do not ship as 1.
+// Cost-decomposition ablation for zerocheck_fused_sequential. Each mode strips
+// one more component; a component's cost is the wall-time gap between two
+// adjacent modes. Default 0 (kernel byte-identical to production).
+//
+//   0  full kernel
+//   1  bytecode loop = fetch + opcode switch only (bodies → cheap regs[] write)
+//   2  + drop the opcode switch (fetch only)
+//   3  + drop the bytecode loop entirely
+//   4  + drop the GKR column sweep
+//   5  + drop the asserts loop
+//   6  + drop the block reduction (every thread stores racily — timing only)
+//   7  + drop the per-row chunk binary search (chunk_idx forced to 0)
+//
+// Modes 3-7 leave regs[]/acc partly undefined: results are garbage, timing
+// only. Do not ship as anything but 0.
 #ifndef ZC_DECODE_ONLY
 #define ZC_DECODE_ONLY 0
 #endif
@@ -90,7 +100,12 @@ __global__ void zerocheck_fused_sequential(
          idx += stride)
     {
         // Find chunk index for this idx.
+#if ZC_DECODE_ONLY >= 7
+        uint32_t chunk_idx = 0;  // mode >=7: skip the per-row chunk binary search
+        (void)n_chunks;
+#else
         uint32_t chunk_idx = upper_bound_u32_local(row_starts, n_chunks + 1, idx) - 1;
+#endif
         uint32_t row_idx = idx - row_starts[chunk_idx];
         ChunkMeta cm = chunk_meta[chunk_idx];
         const felt_t* consts = reinterpret_cast<const felt_t*>(cm.consts);
@@ -98,11 +113,9 @@ __global__ void zerocheck_fused_sequential(
         ext_t acc = ext_t::zero();
 
         for (uint32_t i = 0; i < cm.n_instrs; i++) {
-#if ZC_DECODE_ONLY == 3 || ZC_DECODE_ONLY == 4
-            // Mode 3/4 — empty bytecode loop: no fetch, no body. regs[] left
-            // uninitialized; asserts read garbage — timing only. Mode 4 also
-            // skips the GKR sweep, so mode 3 − mode 4 = the GKR column sweep
-            // and mode 4 = asserts + reduce + setup.
+#if ZC_DECODE_ONLY >= 3
+            // Mode >=3 — empty bytecode loop: no fetch, no body. regs[] left
+            // uninitialized; downstream reads are garbage — timing only.
             (void)i;
 #else
             DagInstr instr = cm.instrs[i];
@@ -174,6 +187,7 @@ __global__ void zerocheck_fused_sequential(
 #endif
         }
 
+#if ZC_DECODE_ONLY < 5
         for (uint32_t i = 0; i < cm.n_asserts; i++) {
             uint16_t reg = cm.assert_regs[i];
             // Bytecode stores chip-relative alpha indices; shift into the
@@ -182,8 +196,9 @@ __global__ void zerocheck_fused_sequential(
             ext_t alpha = ext_t::load(powers_of_alpha, alpha_idx);
             acc += alpha * regs[reg];
         }
+#endif
 
-#if ZC_DECODE_ONLY != 4
+#if ZC_DECODE_ONLY < 4
         if (cm.gkr_main_width != 0 || cm.gkr_prep_width != 0) {
             for (uint32_t i = 0; i < cm.gkr_main_width; i++) {
                 K z = K::load(trace_data, cm.main_ptr + i * cm.height + (row_idx << 1));
@@ -246,6 +261,7 @@ __global__ void zerocheck_fused_sequential(
         }
     }
 
+#if ZC_DECODE_ONLY < 6
     extern __shared__ unsigned char smem[];
     ext_t* shared = reinterpret_cast<ext_t*>(smem);
 
@@ -258,6 +274,12 @@ __global__ void zerocheck_fused_sequential(
         // the existing host aggregation that sums 3 ext per block.
         ext_t::store(partials, blockIdx.x * 3 + (uint32_t)e, block_sum);
     }
+#else
+    // Mode >=6: drop the block reduction. Every thread stores its own
+    // thread_acc racily — garbage result, timing only — so all threads'
+    // per-row accumulation stays live (no DCE).
+    ext_t::store(partials, blockIdx.x * 3 + (uint32_t)e, thread_acc);
+#endif
 }
 
 } // namespace
