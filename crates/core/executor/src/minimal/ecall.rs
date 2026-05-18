@@ -184,11 +184,39 @@ pub fn ecall_handler(ctx: &mut impl SyscallContext, code: SyscallCode) -> Result
             Ok(None)
         }
         SyscallCode::VERIFY_SP1_PROOF => {
-            // let state_values = ctx.mr_slice_without_prot(arg1, 4).into_iter().collect::<Vec<_>>();
-            // let LOW_MASK: u64 = 0xFFFF_FFFF_0000_0000;
-            // let HIGH_MASK: u64 = 0x0000_0000_FFFF_FFFF;
-            // let masked_values = state_values.iter().flat_map(|v| vec![(**v & LOW_MASK) as u32, (**v & HIGH_MASK) as u32]).collect::<Vec<_>>();
-            // println!("state_values: {:?}", masked_values);
+            // Reproduce the guest layout exactly.
+            //
+            // The guest passes `vk_digest: &[u64; 4]` (transmuted from `&[u32; 8]`) in a0=X10
+            // and `pv_digest: &[u64; 4]` (transmuted from `&[u8; 32]`) in a1=X11.
+            // Both arrays are 8-byte aligned and little-endian on the zkvm target, so we read
+            // four u64 words from each pointer and re-split them the way the guest does.
+            let vk_words: Vec<u64> =
+                ctx.mr_slice_without_prot(arg1, 4).into_iter().copied().collect();
+            let pv_words: Vec<u64> =
+                ctx.mr_slice_without_prot(arg2, 4).into_iter().copied().collect();
+
+            let mut vk_8_arr = [0u32; 8];
+            for (i, w) in vk_words.iter().enumerate() {
+                vk_8_arr[2 * i] = (*w & 0xFFFF_FFFF) as u32;
+                vk_8_arr[2 * i + 1] = (*w >> 32) as u32;
+            }
+            let mut pv_32_arr = [0u8; 32];
+            for (i, w) in pv_words.iter().enumerate() {
+                pv_32_arr[8 * i..8 * (i + 1)].copy_from_slice(&w.to_le_bytes());
+            }
+            tracing::warn!("vk_8_arr  : {:?}", vk_8_arr);
+            tracing::warn!("pv_32_arr : {:?}", pv_32_arr);
+
+            // Compute `digest_B` — the value the core side will accumulate into
+            // `deferred_proofs_digest` for this single verify call, starting from a zero chain.
+            //   digest_B = poseidon( zeros[8] || kb(vk_8_arr)[8] || kb(pv_32_arr)[32] )
+            use slop_algebra::AbstractField;
+            use sp1_primitives::{hash_deferred_proof, SP1Field};
+            let zeros = [SP1Field::zero(); 8];
+            let vk_kb = vk_8_arr.map(SP1Field::from_canonical_u32);
+            let pv_kb = pv_32_arr.map(SP1Field::from_canonical_u8);
+            let digest_b = hash_deferred_proof(&zeros, &vk_kb, &pv_kb);
+            tracing::warn!("digest_B (core side, this call only): {:?}", digest_b);
 
             Ok(None)
         }

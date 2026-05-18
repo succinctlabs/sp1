@@ -1,6 +1,6 @@
-use std::sync::Arc;
+use std::{io::Write, sync::Arc};
 
-use sp1_core_executor::{ExecutionReport, Program, SP1Context, SP1CoreOpts};
+use sp1_core_executor::{ExecutionReport, Opcode, Program, SP1Context, SP1CoreOpts};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{Machine, SP1VerifyingKey};
@@ -48,6 +48,13 @@ impl SP1NodeCore {
         let program = Program::from(elf)
             .map_err(|e| anyhow::anyhow!("failed to dissassemble program: {}", e))?;
         let program = Arc::new(program);
+
+        let mut file = std::fs::File::create("program.txt").unwrap();
+
+        for (i, instr) in program.as_ref().instructions.iter().enumerate() {
+            writeln!(file, "Instruction {}, {:?}", i, instr).unwrap();
+        }
+
         let (public_values, public_value_digest, report) = execute_with_options_and_machine(
             program,
             stdin,

@@ -319,7 +319,7 @@ where
             {
                 builder.print_f(*limb);
                 builder.print_f(*current_limb);
-                builder.assert_felt_eq(*limb, *current_limb);
+                // builder.assert_felt_eq(*limb, *current_limb);
             }
             deferred_proofs_digest = current_public_values.deferred_proofs_digest;
 

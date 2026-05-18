@@ -1,11 +1,14 @@
-use std::time::Duration;
+use std::{borrow::Borrow, time::Duration};
 
 use clap::Parser;
+use slop_algebra::AbstractField;
 use sp1_core_executor::SP1Context;
 use sp1_gpu_perf::{get_program_and_input, Measurement};
 use sp1_gpu_prover::cuda_worker_builder_with_machine;
+use sp1_primitives::{hash_deferred_proof, SP1Field};
 use sp1_prover::worker::{SP1LocalNodeBuilder, SP1Proof};
 use sp1_prover_types::network_base_types::ProofMode;
+use sp1_recursion_executor::RecursionPublicValues;
 use sp1_sdk::{HashableKey, RiscvAir, SP1Stdin, SP1VerifyingKey};
 
 #[derive(Parser, Debug)]
@@ -91,17 +94,61 @@ async fn main() {
         let client =
             SP1LocalNodeBuilder::from_worker_client_builder(worker_builder).build().await.unwrap();
 
-        for (i, proof) in proofs.iter().enumerate() {
-            let (proof, vk) = proof;
-            let vk = SP1VerifyingKey { vk: vk.clone() };
+        // Diagnostic: what the GUEST will eventually receive at the VERIFY_SP1_PROOF syscall site
+        // is whatever `[u32; 8]` value it reads from stdin (typically the first read). Print every
+        // candidate `[u32; 8]` blob in stdin.buffer so we can spot the one the guest is using.
+        for (i, blob) in stdin.buffer.iter().enumerate() {
+            match bincode::deserialize::<[u32; 8]>(blob) {
+                Ok(v) => println!("stdin.buffer[{i}] decodes as [u32;8] = {v:?}"),
+                Err(_) => println!(
+                    "stdin.buffer[{i}] is not a [u32;8] ({} bytes, first ≤16: {:?})",
+                    blob.len(),
+                    &blob[..blob.len().min(16)]
+                ),
+            }
+        }
 
-            let vk_digest = vk.hash_koalabear();
+        // Compute `digest_A` — the value the DEFERRED recursion verifier will accumulate into
+        // `reconstruct_deferred_digest` starting from the all-zero chain. Mirrors
+        // `hash_deferred_proofs` in `crates/prover/src/worker/controller/deferred.rs` and the
+        // circuit logic in `SP1DeferredVerifier::verify` (deferred.rs:196-208).
+        let mut digest_a = [SP1Field::zero(); 8];
+        for (i, (recursion_proof, vk)) in proofs.iter().enumerate() {
+            let vk_outer = SP1VerifyingKey { vk: vk.clone() };
 
-            println!("vk_digest: {:?}", vk_digest);
-            let proof = SP1Proof::Compressed(Box::new(proof.clone()));
-            let result = client.verify(&vk, &proof);
+            // Use hash_u32 so the format matches the `[u32; 8]` we observe in the child's ecall
+            // log (the guest passes `&[u32; 8]` to verify_sp1_proof, which the ecall handler
+            // reinterprets from 4 u64 words; both end up canonical u32).
+            let vk_digest_u32 = vk_outer.hash_u32();
+            let vk_digest_kb = vk_outer.hash_koalabear();
+
+            println!("proof[{i}] vk.hash_u32()       = {:?}", vk_digest_u32);
+            println!("proof[{i}] vk.hash_koalabear() = {:?}", vk_digest_kb);
+
+            // The deferred recursion verifier hashes against the INNER program's vk_digest and
+            // its committed_value_digest, both pulled from the wrapped recursion proof's public
+            // values (not from the outer `vk` attached in stdin.proofs).
+            let pv: &RecursionPublicValues<SP1Field> =
+                recursion_proof.proof.public_values.as_slice().borrow();
+            let pv_sp1_vk_digest = pv.sp1_vk_digest;
+            // `committed_value_digest: [[F; 4]; 8]` of byte-valued felts; flatten to [F; 32].
+            let mut pv_bytes_kb = [SP1Field::zero(); 32];
+            for (j, word) in pv.committed_value_digest.iter().enumerate() {
+                for (k, b) in word.iter().enumerate() {
+                    pv_bytes_kb[j * 4 + k] = *b;
+                }
+            }
+            println!("proof[{i}] pv.sp1_vk_digest    = {:?}", pv_sp1_vk_digest);
+            println!("proof[{i}] pv.committed_value_digest (bytes) = {:?}", pv_bytes_kb);
+
+            digest_a = hash_deferred_proof(&digest_a, &pv_sp1_vk_digest, &pv_bytes_kb);
+            println!("proof[{i}] digest_A so far     = {:?}", digest_a);
+
+            let proof_proof = SP1Proof::Compressed(Box::new(recursion_proof.clone()));
+            let result = client.verify(&vk_outer, &proof_proof);
             tracing::info!("proof {}: {:?}", i, result);
         }
+        println!("FINAL digest_A (deferred-side reconstruct): {:?}", digest_a);
 
         let time = tokio::time::Instant::now();
         let context = SP1Context::default();
@@ -118,7 +165,7 @@ async fn main() {
         tracing::info!("setup time: {:?}", setup_time);
 
         // Run the prover for a number of iterations.
-        let mut measurements = Vec::with_capacity(args.num_iterations);
+        let mut measurements = Vec::<Measurement>::with_capacity(args.num_iterations);
         for _ in 0..args.num_iterations {
             let mode = proof_mode_from_string(&args.mode);
             let stdin = stdin.clone();

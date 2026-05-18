@@ -455,16 +455,6 @@ impl<'a, M: ExecutionMode> CoreVM<'a, M> {
 
         let is_sigreturn = code == SyscallCode::SIG_RETURN;
 
-        if code == SyscallCode::VERIFY_SP1_PROOF {
-            let state_values = core
-                .mr_slice_without_prot(b, 4)
-                .into_iter()
-                .flat_map(|r| {
-                    vec![r.value & 0xFFFF_FFFF_0000_0000, r.value & 0x0000_0000_FFFF_FFFF]
-                })
-                .collect::<Vec<_>>();
-        }
-
         let mut a_record: MemoryWriteRecord = MemoryWriteRecord::default();
         if is_sigreturn {
             a_record = core.rw(Register::X5, syscall_id);
