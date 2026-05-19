@@ -11,7 +11,7 @@ pub mod memory_bus_interaction;
 pub mod program;
 
 use powdr_autoprecompiles::{
-    adapter::{AdapterApcWithStats, PgoAdapter},
+    adapter::{detect_blocks, select_apcs, AdapterApcWithStats, PgoAdapter},
     blocks::collect_basic_blocks,
     empirical_constraints::EmpiricalConstraints,
     execution_profile::ExecutionProfile,
@@ -137,13 +137,26 @@ impl CompiledProgram {
             PgoConfig::None => Box::new(NonePgo::default()),
         };
 
-        // Generate APC
-        let apcs_and_stats = pgo_adapter.filter_blocks_and_create_apcs_with_pgo(
-            blocks,
+        // Build + rank, then trim. Mirrors the old fused
+        // `filter_blocks_and_create_apcs_with_pgo` behavior: cap the build at
+        // `autoprecompiles + skip` (so instruction/none don't build candidates
+        // they'll never select), then take `autoprecompiles` past `skip`.
+        let mut config = config;
+        if config.apc_candidates.is_none() {
+            config.apc_candidates = Some(config.autoprecompiles + config.skip_autoprecompiles);
+        }
+        let exec_blocks = detect_blocks(pgo_adapter.as_ref(), blocks, &config);
+        let ranked = pgo_adapter.generate_apcs(
+            exec_blocks,
             &config,
             vm_config,
             BTreeMap::new(),
             EmpiricalConstraints::default(),
+        );
+        let apcs_and_stats = select_apcs::<Sp1ApcAdapter>(
+            ranked,
+            config.autoprecompiles as usize,
+            config.skip_autoprecompiles as usize,
         );
 
         Self { apcs_and_stats }
