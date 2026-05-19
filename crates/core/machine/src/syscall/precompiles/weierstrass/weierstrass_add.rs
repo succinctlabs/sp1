@@ -665,13 +665,6 @@ impl<E: EllipticCurve, M: TrustMode> WeierstrassAddAssignChip<E, M> {
             );
         }
 
-        let dummy_memory_record = MemoryRecordEnum::Read(MemoryReadRecord {
-            value: 1,
-            timestamp: 1,
-            prev_timestamp: 0,
-            prev_page_prot_record: None,
-        });
-
         // Populate the memory access columns.
         for i in 0..cols.q_access.len() {
             cols.q_addrs[i].populate(new_byte_lookup_events, event.q_ptr, 8 * i as u64);
@@ -691,6 +684,13 @@ impl<E: EllipticCurve, M: TrustMode> WeierstrassAddAssignChip<E, M> {
                 cols.p_access[i] = MemoryAccessColsU8::default();
             }
         }
+
+        let dummy_memory_record = MemoryRecordEnum::Read(MemoryReadRecord {
+            value: 1,
+            timestamp: 1,
+            prev_timestamp: 0,
+            prev_page_prot_record: None,
+        });
 
         if !is_not_trap {
             let num_words_field_element = E::BaseField::NB_LIMBS / 8;

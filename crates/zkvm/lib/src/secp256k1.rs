@@ -84,6 +84,7 @@ impl AffinePoint<N> for Secp256k1Point {
         }
     }
 
+    /// This currently assumes that the scalar is less than the group order.
     fn mul_assign(&mut self, scalar: &[u64]) {
         debug_assert_eq!(scalar.len(), N / 2);
         match &mut self.0 {

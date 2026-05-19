@@ -1,15 +1,25 @@
-use super::interactions::{internal_add_call, internal_memory_rw};
+use super::{
+    event_words_to_biguint, event_words_to_limbs,
+    interactions::{internal_add_call, internal_memory_rw},
+};
 use crate::{
     air::SP1CoreAirBuilder,
     operations::field::{field_op::FieldOpCols, range::FieldLtCols},
+    utils::zeroed_f_vec,
 };
-use core::{borrow::Borrow, mem::size_of};
-use num::{BigUint, One};
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
+use num::{BigUint, One, Zero};
 use slop_air::{Air, AirBuilder, BaseAir};
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_matrix::Matrix;
 use sp1_core_executor::{
-    events::{ByteLookupEvent, FieldOperation},
+    events::{
+        ByteLookupEvent, ECMulInternalAddEvent, EllipticCurveMulEvent, FieldOperation,
+        PrecompileEvent,
+    },
     ExecutionRecord, Program, SyscallCode,
 };
 use sp1_curves::{
@@ -25,6 +35,15 @@ use typenum::Unsigned;
 
 pub const fn num_weierstrass_mul_internal_add_cols<P: FieldParameters + NumWords>() -> usize {
     size_of::<WeierstrassMulInternalAddCols<u8, P>>()
+}
+
+/// Number of internal-add events the controller emits for a single ECMUL precompile
+/// event: `popcount(scalar) - 1`, since the first set bit's add is folded into the
+/// controller chip's own row. Trapped user-mode events (which produce zero internal
+/// events) are not yet handled — see the TODO in `generate_trace_into`.
+fn non_first_add_count(event: &EllipticCurveMulEvent) -> usize {
+    let popcount: u32 = event.exp_memory_records.iter().map(|r| r.value.count_ones()).sum();
+    popcount.saturating_sub(1) as usize
 }
 
 /// Columns for the Internal Add chip used inside the EC scalar-multiplication chain.
@@ -89,6 +108,45 @@ pub struct WeierstrassMulInternalAddChip<E> {
 impl<E: EllipticCurve + WeierstrassParameters> WeierstrassMulInternalAddChip<E> {
     pub const fn new() -> Self {
         Self { _marker: PhantomData }
+    }
+
+    /// Fills in one internal-add row from an `ECMulInternalAddEvent` and the parent
+    /// `EllipticCurveMulEvent`'s clock. Leaves out all the syscall / main-memory /
+    /// mprotect bookkeeping — this chip only sees the internal memory and opcode
+    /// buses, which are driven directly by `(c, first_add_marker, ird, irt)` plus
+    /// the field-op witness columns.
+    pub fn populate_row<F: PrimeField32>(
+        event: &ECMulInternalAddEvent,
+        clk: u64,
+        cols: &mut WeierstrassMulInternalAddCols<F, E::BaseField>,
+        new_byte_lookup_events: &mut Vec<ByteLookupEvent>,
+    ) {
+        cols.is_real = F::one();
+        cols.clk_high = F::from_canonical_u32((clk >> 24) as u32);
+        cols.clk_low = F::from_canonical_u32((clk & 0xFFFFFF) as u32);
+        cols.c = F::from_canonical_u16(event.c);
+        let marker = F::from_canonical_u16(event.is_first_add);
+        cols.first_add_marker = marker;
+        // `first_add_marker != 0` is guaranteed for events that reach this chip
+        // (the controller absorbs the first add), so `inverse()` is safe.
+        cols.inverse_fam = marker.inverse();
+
+        let half = event.ird.len() / 2;
+        cols.ird_x = event_words_to_limbs(&event.ird[..half]);
+        cols.ird_y = event_words_to_limbs(&event.ird[half..]);
+        cols.irt_x = event_words_to_limbs(&event.irt[..half]);
+        cols.irt_y = event_words_to_limbs(&event.irt[half..]);
+
+        // `populate_field_ops` mirrors `WeierstrassAddAssignChip::populate_field_ops`
+        // with `p = ird`, `q = irt`.
+        Self::populate_field_ops(
+            new_byte_lookup_events,
+            cols,
+            event_words_to_biguint(&event.ird[..half]),
+            event_words_to_biguint(&event.ird[half..]),
+            event_words_to_biguint(&event.irt[..half]),
+            event_words_to_biguint(&event.irt[half..]),
+        );
     }
 
     /// Populates the field-operation columns for one internal-add step:
@@ -172,23 +230,105 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         }
     }
 
-    fn num_rows(&self, _input: &Self::Record) -> Option<usize> {
-        // TODO: at most 255 rows per `SECP256K1_MUL` event (one per non-first add step).
-        todo!()
+    fn num_rows(&self, input: &Self::Record) -> Option<usize> {
+        // One non-first-add per set bit beyond the first one. Trapped events are
+        // not yet accounted for — see TODO in `generate_trace_into`.
+        let nb_rows: usize = match E::CURVE_TYPE {
+            CurveType::Secp256k1 => input
+                .get_precompile_events(SyscallCode::SECP256K1_MUL)
+                .iter()
+                .map(|(_, op)| match op {
+                    PrecompileEvent::Secp256k1Mul(event) => non_first_add_count(event),
+                    _ => 0,
+                })
+                .sum(),
+            _ => panic!("Unsupported curve"),
+        };
+        Some(nb_rows.next_multiple_of(32).max(16))
     }
 
     fn generate_dependencies(&self, _input: &Self::Record, _output: &mut Self::Record) {
-        // TODO: iterate the non-first adds inside each `Secp256k1Mul` precompile event
-        // and call `populate_field_ops` per step to harvest the byte-lookup events.
+        // The byte-lookup events for this chip are produced as a side effect of
+        // `generate_trace_into`'s `populate_row` calls, but those depend on the
+        // controller chip having already sent the corresponding events on the
+        // internal channel. We let the trace-generation pass own this work.
     }
 
     fn generate_trace_into(
         &self,
-        _input: &ExecutionRecord,
+        input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
-        _buffer: &mut [MaybeUninit<F>],
+        buffer: &mut [MaybeUninit<F>],
     ) {
-        todo!()
+        let padded_nb_rows =
+            <WeierstrassMulInternalAddChip<E> as MachineAir<F>>::num_rows(self, input).unwrap();
+        let num_cols =
+            <WeierstrassMulInternalAddChip<E> as BaseAir<F>>::width(self);
+
+        let events = match E::CURVE_TYPE {
+            CurveType::Secp256k1 => input.get_precompile_events(SyscallCode::SECP256K1_MUL),
+            _ => panic!("Unsupported curve"),
+        };
+
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let values =
+            unsafe { core::slice::from_raw_parts_mut(buffer_ptr, padded_nb_rows * num_cols) };
+
+        // Dummy row used to fill any padding past the real events. `is_real = 0`
+        // gates every column-level constraint, but the field-op witness columns
+        // still have to satisfy their internal carry/range bookkeeping for a
+        // well-formed matrix, so populate them with non-degenerate inputs
+        // `(p, q) = ((0, 0), (1, 1))` (mirrors `WeierstrassAddAssignChip`).
+        let mut dummy_row = zeroed_f_vec::<F>(num_cols);
+        {
+            let cols: &mut WeierstrassMulInternalAddCols<F, E::BaseField> =
+                dummy_row.as_mut_slice().borrow_mut();
+            let zero = BigUint::zero();
+            let one = BigUint::one();
+            Self::populate_field_ops(
+                &mut vec![],
+                cols,
+                zero.clone(),
+                zero,
+                one.clone(),
+                one,
+            );
+        }
+
+        // Drain the controller's internal-add channel in ECMUL-event order. We hold
+        // the receiver lock for the duration of this chip's tracegen — this chip is
+        // the sole consumer of that channel, and the producer (controller) only
+        // interacts with the Sender side.
+        //
+        // TODO: trapped user-mode rows produce zero internal events; the current
+        // count assumes every ECMUL event contributes `popcount - 1` adds, which is
+        // correct in supervisor mode but will deadlock if a user-mode event traps.
+        let rx_arc = input.channels.ecmul_internal_add_channel.1.clone();
+        let rx = rx_arc.lock().expect("internal add channel mutex poisoned");
+
+        let mut row_idx = 0usize;
+        let mut blu = Vec::new();
+        for (_, op) in events.iter() {
+            let event = match op {
+                PrecompileEvent::Secp256k1Mul(e) => e,
+                _ => continue,
+            };
+            let n = non_first_add_count(event);
+            for _ in 0..n {
+                let internal_event =
+                    rx.recv().expect("internal add channel disconnected before drain");
+                let row =
+                    &mut values[row_idx * num_cols..(row_idx + 1) * num_cols];
+                let cols: &mut WeierstrassMulInternalAddCols<F, E::BaseField> = row.borrow_mut();
+                Self::populate_row(&internal_event, event.clk, cols, &mut blu);
+                row_idx += 1;
+            }
+        }
+
+        for i in row_idx..padded_nb_rows {
+            let row = &mut values[i * num_cols..(i + 1) * num_cols];
+            row.copy_from_slice(&dummy_row);
+        }
     }
 
     fn included(&self, shard: &Self::Record) -> bool {

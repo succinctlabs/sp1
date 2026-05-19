@@ -1,11 +1,18 @@
 use core::{borrow::Borrow, marker::PhantomData, mem::size_of, mem::MaybeUninit};
+use std::iter::repeat;
 
 use generic_array::GenericArray;
-use itertools::Itertools;
+use itertools::{repeat_n, Itertools};
 use slop_air::{Air, AirBuilder, BaseAir};
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_matrix::Matrix;
-use sp1_core_executor::{ExecutionRecord, Program, SupervisorMode, SyscallCode, UserMode};
+use sp1_core_executor::{
+    events::{
+        ByteLookupEvent, ECMulInternalAddEvent, ECMulInternalDoubleEvent, EllipticCurveMulEvent,
+        MemoryReadRecord, MemoryRecordEnum,
+    },
+    ExecutionRecord, Program, SupervisorMode, SyscallCode, UserMode,
+};
 use sp1_curves::{
     params::{FieldParameters, Limbs, NumBits, NumLimbs, NumWords, NB_BITS_PER_LIMB},
     weierstrass::WeierstrassParameters,
@@ -23,8 +30,10 @@ use crate::{
     air::SP1CoreAirBuilder,
     memory::MemoryAccessColsU8,
     operations::{AddrAddOperation, AddressSlicePageProtOperation, SyscallAddrOperation},
-    syscall::precompiles::weierstrass::weierstrass_mul::interactions::{
-        ec_identity, internal_add_call, internal_double_call, internal_memory_rw,
+    syscall::precompiles::weierstrass::weierstrass_mul::{
+        affine_add, affine_double, event_words_to_limbs,
+        interactions::{ec_identity, internal_add_call, internal_double_call, internal_memory_rw},
+        limbs_to_event_words,
     },
     utils::limbs_to_words,
     TrustMode,
@@ -83,6 +92,190 @@ impl<E: EllipticCurve + WeierstrassParameters, M: TrustMode> WeierstrassMulAssig
     pub const fn new() -> Self {
         Self { _marker: PhantomData }
     }
+
+    pub fn populate_row<F: PrimeField32>(
+        event: &EllipticCurveMulEvent,
+        cols: &mut WeierstrassMulAssignCols<F, E::BaseField, M>,
+        new_byte_lookup_events: &mut Vec<ByteLookupEvent>,
+        add_sender: &std::sync::mpsc::Sender<ECMulInternalAddEvent>,
+        double_sender: &std::sync::mpsc::Sender<ECMulInternalDoubleEvent>,
+    ) {
+        // is_real and clock
+        cols.is_real = F::one();
+        cols.clk_high = F::from_canonical_u32((event.clk >> 24) as u32);
+        cols.clk_low = F::from_canonical_u32((event.clk & 0xFFFFFF) as u32);
+
+        // pointers + syscall handling
+        cols.p_ptr.populate(new_byte_lookup_events, event.p_ptr, E::NB_LIMBS as u64 * 2);
+        cols.exp_ptr.populate(new_byte_lookup_events, event.exp_ptr, E::NB_LIMBS as u64 * 2);
+
+        // Mprotect
+        let mut is_not_trap = true;
+        let mut trap_code = 0u8;
+        if !M::IS_TRUSTED {
+            let cols: &mut WeierstrassMulAssignCols<F, E::BaseField, UserMode> =
+                unsafe { &mut *(cols as *mut _ as *mut _) };
+            cols.read_slice_page_prot_access.populate(
+                new_byte_lookup_events,
+                event.exp_ptr,
+                event.exp_ptr + 8 * (cols.exp_addrs.len() - 1) as u64,
+                event.clk,
+                PROT_READ,
+                &event.page_prot_records.read_page_prot_records,
+                &mut is_not_trap,
+                &mut trap_code,
+            );
+
+            cols.write_slice_page_prot_access.populate(
+                new_byte_lookup_events,
+                event.p_ptr,
+                event.p_ptr + 8 * (cols.p_addrs.len() - 1) as u64,
+                event.clk + 1,
+                PROT_READ | PROT_WRITE,
+                &event.page_prot_records.write_page_prot_records,
+                &mut is_not_trap,
+                &mut trap_code,
+            );
+        }
+
+        // Populate the memory access columns.
+        for i in 0..cols.exp_access.len() {
+            cols.exp_addrs[i].populate(new_byte_lookup_events, event.exp_ptr, 8 * i as u64);
+            if is_not_trap {
+                let record = MemoryRecordEnum::Read(event.exp_memory_records[i]);
+                cols.exp_access[i].populate(record, new_byte_lookup_events);
+            } else {
+                cols.exp_access[i] = MemoryAccessColsU8::default();
+            }
+        }
+        for i in 0..cols.p_access.len() {
+            cols.p_addrs[i].populate(new_byte_lookup_events, event.p_ptr, 8 * i as u64);
+            if is_not_trap {
+                let record = MemoryRecordEnum::Write(event.p_memory_records[i]);
+                cols.p_access[i].populate(record, new_byte_lookup_events);
+            } else {
+                cols.p_access[i] = MemoryAccessColsU8::default();
+            }
+        }
+
+        // Reconstruct output values from memory write records
+        let half = event.p_memory_records.len() / 2;
+        cols.ort_x = event.p_memory_records[..half]
+            .iter()
+            .flat_map(|r| r.value.to_le_bytes())
+            .map(F::from_canonical_u8)
+            .collect();
+        cols.ort_y = event.p_memory_records[half..]
+            .iter()
+            .flat_map(|r| r.value.to_le_bytes())
+            .map(F::from_canonical_u8)
+            .collect();
+        // Reconstruct final ord values TODO, need to figure out how to avoid redundancy with internal chips
+
+        // Get bits of exponent
+        let exp_bits: Vec<bool> = event
+            .exp_memory_records
+            .iter()
+            .flat_map(|r| -> [bool; 64] {
+                let value = r.value;
+                core::array::from_fn(|i| ((value >> i) & 1 == 1) && is_not_trap)
+            })
+            .collect();
+        cols.exp_bits = exp_bits.iter().map(|b| F::from_canonical_u8(*b as u8)).collect();
+
+        // Trapped rows emit no internal add/double events and have no meaningful
+        // intermediate state to populate.
+        if !is_not_trap {
+            return;
+        }
+
+        // Walk the standard double-and-add chain in the same order as the AIR:
+        //   sum(0), double(0), sum(1), double(1), ..., double(n-2), sum(n-1).
+        // - `sum(i)` (i.e., add(i)) fires only when `b_i == 1`. The very first such
+        //   add cannot be handled by the internal-add chip because the running
+        //   total is the EC identity at that point; the controller absorbs that
+        //   one itself via the `c_at_first_add` / `ird_at_first_add_*` columns.
+        // - `double(i)` is sent for every `i < n - 1` (the last double is always
+        //   skipped — the chain ends on the n-1th add slot).
+        //
+        // c-values mirror the AIR:
+        //   add(i)    → c = i + S_{i-1}    (carries `first_add_marker = S_{i-1}`)
+        //   double(i) → c = i + S_i
+        // where S_i = b_0 + b_1 + ... + b_i, S_{-1} = 0.
+        let exp_num_bits = exp_bits.len();
+        let half = event.p.len() / 2;
+        let mut doubler_x: Limbs<F, <E::BaseField as NumLimbs>::Limbs> =
+            event_words_to_limbs(&event.p[..half]);
+        let mut doubler_y: Limbs<F, <E::BaseField as NumLimbs>::Limbs> =
+            event_words_to_limbs(&event.p[half..]);
+        // Running total starts as the EC identity. The first add never reaches
+        // `affine_add` (the controller handles it directly), and every subsequent
+        // add overwrites `total_*` before reading the previous identity value, so
+        // a zero placeholder here is sufficient for both the channel payloads and
+        // the affine-add inputs.
+        let mut total_x: Limbs<F, <E::BaseField as NumLimbs>::Limbs> = Default::default();
+        let mut total_y: Limbs<F, <E::BaseField as NumLimbs>::Limbs> = Default::default();
+        let mut s_prev: u16 = 0;
+
+        for (i, &b_i) in exp_bits.iter().enumerate() {
+            let c_add = i as u16 + s_prev;
+            if b_i {
+                // `S_{i-1} == 0` is the AIR's own first-add discriminator
+                // (`first_add_marker` on the opcode bus).
+                if s_prev == 0 {
+                    // First add: handled by the controller row, not the internal chip.
+                    cols.c_at_first_add = F::from_canonical_u16(c_add);
+                    cols.ird_at_first_add_x = doubler_x.clone();
+                    cols.ird_at_first_add_y = doubler_y.clone();
+                    total_x = doubler_x.clone();
+                    total_y = doubler_y.clone();
+                } else {
+                    // Snapshot ird/irt *before* updating the running total.
+                    let mut ird = limbs_to_event_words(&doubler_x);
+                    ird.extend(limbs_to_event_words(&doubler_y));
+                    let mut irt = limbs_to_event_words(&total_x);
+                    irt.extend(limbs_to_event_words(&total_y));
+                    add_sender
+                        .send(ECMulInternalAddEvent {
+                            c: c_add,
+                            // `first_add_marker = S_{i-1}`, guaranteed non-zero here.
+                            is_first_add: s_prev,
+                            ird,
+                            irt,
+                        })
+                        .expect("internal add channel disconnected");
+
+                    let (new_x, new_y) =
+                        affine_add::<F, E>(&total_x, &total_y, &doubler_x, &doubler_y);
+                    total_x = new_x;
+                    total_y = new_y;
+                }
+            }
+
+            let s_i = s_prev + b_i as u16;
+            if i + 1 < exp_num_bits {
+                let c_double = i as u16 + s_i;
+                let mut ird = limbs_to_event_words(&doubler_x);
+                ird.extend(limbs_to_event_words(&doubler_y));
+                let mut irt = limbs_to_event_words(&total_x);
+                irt.extend(limbs_to_event_words(&total_y));
+                double_sender
+                    .send(ECMulInternalDoubleEvent { c: c_double, ird, irt })
+                    .expect("internal double channel disconnected");
+
+                let (new_x, new_y) = affine_double::<F, E>(&doubler_x, &doubler_y);
+                doubler_x = new_x;
+                doubler_y = new_y;
+            }
+            s_prev = s_i;
+        }
+
+        // After the loop, `doubler_*` holds 2^(n-1) * P, which is the final output
+        // running doubler (`ord`) on the memory bus. `ort_*` was already filled in
+        // from the syscall's write-back records above.
+        cols.ord_x = doubler_x;
+        cols.ord_y = doubler_y;
+    }
 }
 
 impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters, M: TrustMode> MachineAir<F>
@@ -99,16 +292,47 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters, M: TrustMode> Ma
         }
     }
 
-    fn num_rows(&self, _input: &Self::Record) -> Option<usize> {
-        todo!()
+    fn num_rows(&self, input: &Self::Record) -> Option<usize> {
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return Some(0);
+        }
+        let nb_rows = match E::CURVE_TYPE {
+            CurveType::Secp256k1 => input.get_precompile_events(SyscallCode::SECP256K1_MUL).len(),
+            _ => panic!("Unsupported curve"),
+        };
+        let padded_nb_rows = nb_rows.next_multiple_of(32).max(16);
+        Some(padded_nb_rows)
     }
 
     fn generate_trace_into(
         &self,
-        _input: &ExecutionRecord,
+        input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
-        _buffer: &mut [MaybeUninit<F>],
+        buffer: &mut [MaybeUninit<F>],
     ) {
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return;
+        }
+        let padded_nb_rows =
+            <WeierstrassMulAssignChip<E, M> as MachineAir<F>>::num_rows(self, input).unwrap();
+        let events = match E::CURVE_TYPE {
+            CurveType::Secp256k1 => input.get_precompile_events(SyscallCode::SECP256K1_MUL),
+            _ => panic!("Unsupported curve"),
+        };
+
+        let num_event_rows = events.len();
+        let num_cols = <WeierstrassMulAssignChip<E, M> as BaseAir<F>>::width(self);
+        let chunk_size = 64;
+
+        // Padding rows set to all 0
+        unsafe {
+            let padding_start = num_event_rows * num_cols;
+            let padding_size = (padded_nb_rows - num_event_rows) * num_cols;
+            if padding_size > 0 {
+                core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
+            }
+        }
+
         todo!()
     }
 
@@ -286,7 +510,7 @@ where
         });
 
         // Internal interactions
-        // compute S_i = \sum_{j < i + 1} b_j for bits b_j
+        // compute S_i = \sum_{j <= i} b_j for bits b_j
         let bit_totals = local
             .exp_bits
             .iter()
@@ -355,7 +579,7 @@ where
                 );
             });
         // Internal mul OpCalls. Note we skip the last double
-        bit_totals[1..exp_num_bits - 1].iter().enumerate().for_each(|(i, bit_total)| {
+        bit_totals.iter().take(exp_num_bits - 1).enumerate().for_each(|(i, bit_total)| {
             builder.send(
                 internal_double_call::<AB>(
                     local.clk_high,

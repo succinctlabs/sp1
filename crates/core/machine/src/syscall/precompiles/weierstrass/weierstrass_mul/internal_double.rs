@@ -1,15 +1,25 @@
-use super::interactions::{internal_double_call, internal_memory_rw};
+use super::{
+    event_words_to_biguint, event_words_to_limbs,
+    interactions::{internal_double_call, internal_memory_rw},
+};
 use crate::{
     air::SP1CoreAirBuilder,
     operations::field::{field_op::FieldOpCols, range::FieldLtCols},
+    utils::zeroed_f_vec,
 };
-use core::{borrow::Borrow, mem::size_of};
-use num::BigUint;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
+use num::{BigUint, One};
 use slop_air::{Air, BaseAir};
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_matrix::Matrix;
 use sp1_core_executor::{
-    events::{ByteLookupEvent, FieldOperation},
+    events::{
+        ByteLookupEvent, ECMulInternalDoubleEvent, EllipticCurveMulEvent, FieldOperation,
+        PrecompileEvent,
+    },
     ExecutionRecord, Program, SyscallCode,
 };
 use sp1_curves::{
@@ -23,6 +33,15 @@ use std::{fmt::Debug, marker::PhantomData, mem::MaybeUninit};
 
 pub const fn num_weierstrass_mul_internal_double_cols<P: FieldParameters + NumWords>() -> usize {
     size_of::<WeierstrassMulInternalDoubleCols<u8, P>>()
+}
+
+/// Number of internal-double events the controller emits for a single ECMUL precompile
+/// event: `n - 1` where `n` is the scalar bit-length (the last double is always
+/// skipped — see the controller's loop). Trapped user-mode events emit zero — not
+/// yet handled here; see the TODO in `generate_trace_into`.
+fn internal_double_count(event: &EllipticCurveMulEvent) -> usize {
+    let nb_bits = event.exp_memory_records.len() * 64;
+    nb_bits.saturating_sub(1)
 }
 
 /// Columns for the Internal Double chip used inside the EC scalar-multiplication chain.
@@ -74,6 +93,37 @@ pub struct WeierstrassMulInternalDoubleChip<E> {
 impl<E: EllipticCurve + WeierstrassParameters> WeierstrassMulInternalDoubleChip<E> {
     pub const fn new() -> Self {
         Self { _marker: PhantomData }
+    }
+
+    /// Fills in one internal-double row from an `ECMulInternalDoubleEvent` and the
+    /// parent `EllipticCurveMulEvent`'s clock. Leaves out the syscall / main-memory /
+    /// mprotect bookkeeping — this chip only sees the internal memory and opcode
+    /// buses, which are driven by `(c, ird, irt)` plus the field-op witness columns.
+    pub fn populate_row<F: PrimeField32>(
+        event: &ECMulInternalDoubleEvent,
+        clk: u64,
+        cols: &mut WeierstrassMulInternalDoubleCols<F, E::BaseField>,
+        new_byte_lookup_events: &mut Vec<ByteLookupEvent>,
+    ) {
+        cols.is_real = F::one();
+        cols.clk_high = F::from_canonical_u32((clk >> 24) as u32);
+        cols.clk_low = F::from_canonical_u32((clk & 0xFFFFFF) as u32);
+        cols.c = F::from_canonical_u16(event.c);
+
+        let half = event.ird.len() / 2;
+        cols.ird_x = event_words_to_limbs(&event.ird[..half]);
+        cols.ird_y = event_words_to_limbs(&event.ird[half..]);
+        cols.irt_x = event_words_to_limbs(&event.irt[..half]);
+        cols.irt_y = event_words_to_limbs(&event.irt[half..]);
+
+        // `populate_field_ops` mirrors `WeierstrassDoubleAssignChip::populate_field_ops`
+        // and only consumes the doubler (`p = ird`); `irt` is forwarded unchanged.
+        Self::populate_field_ops(
+            new_byte_lookup_events,
+            cols,
+            event_words_to_biguint(&event.ird[..half]),
+            event_words_to_biguint(&event.ird[half..]),
+        );
     }
 
     /// Populates the field-operation columns for one internal-double step:
@@ -170,23 +220,92 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         }
     }
 
-    fn num_rows(&self, _input: &Self::Record) -> Option<usize> {
-        // TODO: 256 rows per `SECP256K1_MUL` event (one per double step).
-        todo!()
+    fn num_rows(&self, input: &Self::Record) -> Option<usize> {
+        // `nb_bits - 1` doubles per ECMUL event (last double is skipped). Trapped
+        // events are not yet accounted for — see TODO in `generate_trace_into`.
+        let nb_rows: usize = match E::CURVE_TYPE {
+            CurveType::Secp256k1 => input
+                .get_precompile_events(SyscallCode::SECP256K1_MUL)
+                .iter()
+                .map(|(_, op)| match op {
+                    PrecompileEvent::Secp256k1Mul(event) => internal_double_count(event),
+                    _ => 0,
+                })
+                .sum(),
+            _ => panic!("Unsupported curve"),
+        };
+        Some(nb_rows.next_multiple_of(32).max(16))
     }
 
     fn generate_dependencies(&self, _input: &Self::Record, _output: &mut Self::Record) {
-        // TODO: iterate the doubles inside each `Secp256k1Mul` precompile event and
-        // call `populate_field_ops` per step to harvest the byte-lookup events.
+        // See the matching comment in `WeierstrassMulInternalAddChip`: the
+        // byte-lookup events are produced inside `generate_trace_into` as the
+        // channel drains, because the events only exist once the controller has
+        // sent them.
     }
 
     fn generate_trace_into(
         &self,
-        _input: &ExecutionRecord,
+        input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
-        _buffer: &mut [MaybeUninit<F>],
+        buffer: &mut [MaybeUninit<F>],
     ) {
-        todo!()
+        let padded_nb_rows =
+            <WeierstrassMulInternalDoubleChip<E> as MachineAir<F>>::num_rows(self, input).unwrap();
+        let num_cols =
+            <WeierstrassMulInternalDoubleChip<E> as BaseAir<F>>::width(self);
+
+        let events = match E::CURVE_TYPE {
+            CurveType::Secp256k1 => input.get_precompile_events(SyscallCode::SECP256K1_MUL),
+            _ => panic!("Unsupported curve"),
+        };
+
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let values =
+            unsafe { core::slice::from_raw_parts_mut(buffer_ptr, padded_nb_rows * num_cols) };
+
+        // Dummy row for padding. `populate_field_ops` requires `p_y != 0` (it
+        // computes `slope = (a + 3*p_x^2) / (2*p_y)`), so use `(p_x, p_y) = (1, 1)`.
+        let mut dummy_row = zeroed_f_vec::<F>(num_cols);
+        {
+            let cols: &mut WeierstrassMulInternalDoubleCols<F, E::BaseField> =
+                dummy_row.as_mut_slice().borrow_mut();
+            let one = BigUint::one();
+            Self::populate_field_ops(&mut vec![], cols, one.clone(), one);
+        }
+
+        // Drain the controller's internal-double channel in ECMUL-event order.
+        //
+        // TODO: trapped user-mode rows produce zero internal events; the current
+        // count assumes every ECMUL event contributes `nb_bits - 1` doubles, which
+        // will deadlock on `recv()` if a user-mode event traps.
+        let rx_arc = input.channels.ecmul_internal_double_channel.1.clone();
+        let rx = rx_arc.lock().expect("internal double channel mutex poisoned");
+
+        let mut row_idx = 0usize;
+        let mut blu = Vec::new();
+        for (_, op) in events.iter() {
+            let event = match op {
+                PrecompileEvent::Secp256k1Mul(e) => e,
+                _ => continue,
+            };
+            let n = internal_double_count(event);
+            for _ in 0..n {
+                let internal_event =
+                    rx.recv().expect("internal double channel disconnected before drain");
+                let row =
+                    &mut values[row_idx * num_cols..(row_idx + 1) * num_cols];
+                let cols: &mut WeierstrassMulInternalDoubleCols<F, E::BaseField> =
+                    row.borrow_mut();
+                Self::populate_row(&internal_event, event.clk, cols, &mut blu);
+                row_idx += 1;
+            }
+        }
+
+        for i in row_idx..padded_nb_rows {
+            let row = &mut values[i * num_cols..(i + 1) * num_cols];
+            row.copy_from_slice(&dummy_row);
+        }
     }
 
     fn included(&self, shard: &Self::Record) -> bool {

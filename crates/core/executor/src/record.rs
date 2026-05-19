@@ -1,5 +1,7 @@
-use crate::events::{TrapExecEvent, TrapMemInstrEvent};
-use deepsize2::DeepSizeOf;
+use crate::events::{
+    ECMulInternalAddEvent, ECMulInternalDoubleEvent, TrapExecEvent, TrapMemInstrEvent,
+};
+use deepsize2::{known_deep_size, DeepSizeOf};
 use hashbrown::HashMap;
 use slop_air::AirBuilder;
 use slop_algebra::{AbstractField, Field, PrimeField, PrimeField32};
@@ -148,7 +150,39 @@ pub struct ExecutionRecord {
     pub exit_code: u32,
     /// Use optimized `generate_dependencies` for global chip.
     pub global_dependencies_opt: bool,
+    /// Channels for internal chip dependencies used during tracegen.
+    /// This is an internal helper for tracegen and not tracked for serialization or deep size.
+    #[serde(skip)]
+    pub channels: ExecutionReportChannels,
 }
+
+/// Internal channels in the execution report used during tracegen
+#[derive(Clone, Debug)]
+pub struct ExecutionReportChannels {
+    /// Channel for internal addition in ecmul precompile
+    pub ecmul_internal_add_channel: (
+        std::sync::mpsc::Sender<ECMulInternalAddEvent>,
+        Arc<Mutex<std::sync::mpsc::Receiver<ECMulInternalAddEvent>>>,
+    ),
+    /// Channel for internal doubling in ecmul precompile
+    pub ecmul_internal_double_channel: (
+        std::sync::mpsc::Sender<ECMulInternalDoubleEvent>,
+        Arc<Mutex<std::sync::mpsc::Receiver<ECMulInternalDoubleEvent>>>,
+    ),
+}
+
+impl Default for ExecutionReportChannels {
+    fn default() -> Self {
+        let (add_sender, add_receiver) = std::sync::mpsc::channel();
+        let (double_sender, double_receiver) = std::sync::mpsc::channel();
+        Self {
+            ecmul_internal_add_channel: (add_sender, Arc::new(Mutex::new(add_receiver))),
+            ecmul_internal_double_channel: (double_sender, Arc::new(Mutex::new(double_receiver))),
+        }
+    }
+}
+
+known_deep_size!(0; ExecutionReportChannels);
 
 impl ExecutionRecord {
     /// Create a new [`ExecutionRecord`].
