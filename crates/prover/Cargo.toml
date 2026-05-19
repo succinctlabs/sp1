@@ -76,10 +76,9 @@ indicatif = { workspace = true }
 tempfile = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
-# TODO: put back test-artifacts into dev-dependencies
-test-artifacts = { path = "../test-artifacts" }
 
 [dev-dependencies]
+test-artifacts = { path = "../test-artifacts" }
 anyhow = { workspace = true }
 
 [[bin]]
