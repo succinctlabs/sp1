@@ -620,6 +620,28 @@ async fn copy_main_jagged_traces(
     }
 }
 
+/// Quantization unit for the prover memory-budget semaphore. Weights and the
+/// budget are both expressed in these units so `ProverSemaphore::acquire_many`
+/// (a `u32` counting semaphore) admits "whatever fits the GPU".
+pub const PROVE_WEIGHT_UNIT_BYTES: u64 = 256 * 1024 * 1024;
+
+/// Estimated GPU-DRAM footprint of one shard prove, in [`PROVE_WEIGHT_UNIT_BYTES`]
+/// units — the weight a prove acquires from the prover's memory-budget
+/// semaphore so concurrent proves cannot oversubscribe device memory.
+///
+/// Calibrated from nsys / `recursion-bench` measurements (RTX 4090):
+/// a core prove (`max_trace_size ≈ 304M` felts) ≈ 10.0 GB; a recursion prove
+/// (`≈ 134M`) ≈ 5.9 GB → linear fit `≈ 2.6 GB + 25 B/felt`.
+///
+/// TODO(gpu-calibration): re-measure per prove type; the fit is approximate
+/// and the budget carries a safety margin to absorb the error.
+pub fn prove_weight(max_trace_size: usize) -> u32 {
+    const FIXED_BYTES: u64 = 2_600_000_000;
+    const BYTES_PER_FELT: u64 = 25;
+    let footprint = FIXED_BYTES + BYTES_PER_FELT * max_trace_size as u64;
+    footprint.div_ceil(PROVE_WEIGHT_UNIT_BYTES).max(1) as u32
+}
+
 /// Corresponds to `generate_preprocessed_traces`.
 #[instrument(skip_all, level = "debug")]
 #[allow(clippy::too_many_arguments)]
@@ -637,7 +659,7 @@ pub async fn setup_tracegen<A: CudaTracegenAir<Felt>>(
     let (host_phase_tracegen, _) =
         host_preprocessed_tracegen(machine, buffer_ptr, Arc::clone(&program)).await;
 
-    let permit = prover_permit.acquire().await.unwrap();
+    let permit = prover_permit.acquire_many(prove_weight(max_trace_size)).await.unwrap();
     // - Copying host traces to the device.
     // - Generating traces on the device.
     let preprocessed_traces =
@@ -851,6 +873,7 @@ pub async fn main_tracegen<GC: IopCtx<F = Felt>, A: CudaTracegenAir<Felt>>(
     buffer: &Worker<PinnedBuffer<Felt>>,
     log_stacking_height: u32,
     max_log_row_count: u32,
+    max_trace_size: usize,
     backend: &TaskScope,
     prover_permit: ProverSemaphore,
     global_dependencies_opt: bool,
@@ -860,8 +883,11 @@ pub async fn main_tracegen<GC: IopCtx<F = Felt>, A: CudaTracegenAir<Felt>>(
         host_main_tracegen(machine, buffer.as_ptr() as usize, 0, record.clone()).await;
 
     let HostPhaseShapeInfo { traces_by_name: initial_traces, chip_set } = host_phase_shape_info;
-    let permit =
-        prover_permit.acquire().instrument(tracing::debug_span!("acquire permit")).await.unwrap();
+    let permit = prover_permit
+        .acquire_many(prove_weight(max_trace_size))
+        .instrument(tracing::debug_span!("acquire permit"))
+        .await
+        .unwrap();
     let mut jagged_traces = jagged_traces.lock().await;
 
     // Now that the permit is acquired, we can begin the following two tasks:
@@ -892,6 +918,7 @@ pub async fn main_tracegen_permit<GC: IopCtx<F = Felt>, A: CudaTracegenAir<Felt>
     buffer: &Worker<PinnedBuffer<Felt>>,
     log_stacking_height: u32,
     max_log_row_count: u32,
+    max_trace_size: usize,
     backend: &TaskScope,
     prover_permit: ProverSemaphore,
     global_dependencies_opt: bool,
@@ -903,6 +930,7 @@ pub async fn main_tracegen_permit<GC: IopCtx<F = Felt>, A: CudaTracegenAir<Felt>
         buffer,
         log_stacking_height,
         max_log_row_count,
+        max_trace_size,
         backend,
         prover_permit,
         global_dependencies_opt,
@@ -936,8 +964,11 @@ pub async fn full_tracegen<A: CudaTracegenAir<Felt>>(
         host_main_tracegen(machine, buffer.as_ptr() as usize, start_idx, record.clone()).await;
 
     // Wait for a prover to be available.
-    let permit =
-        prover_permits.acquire().instrument(tracing::debug_span!("acquire")).await.unwrap();
+    let permit = prover_permits
+        .acquire_many(prove_weight(max_trace_size))
+        .instrument(tracing::debug_span!("acquire"))
+        .await
+        .unwrap();
 
     // Now that the permit is acquired, we can begin the following two tasks:
     // - Copying host traces to the device.

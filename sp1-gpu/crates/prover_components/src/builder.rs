@@ -4,6 +4,7 @@ use sp1_core_machine::riscv::RiscvAir;
 use sp1_gpu_cudart::{cuda_memory_info, TaskScope};
 
 use sp1_core_executor::{SP1CoreOpts, ELEMENT_THRESHOLD};
+use sp1_gpu_jagged_tracegen::{prove_weight, CORE_MAX_TRACE_SIZE, PROVE_WEIGHT_UNIT_BYTES};
 use sp1_gpu_shard_prover::CudaShardProver;
 use sp1_hypercube::{prover::ProverSemaphore, InnerSC, Machine, MachineVerifier};
 use sp1_primitives::{SP1Field, SP1GlobalContext};
@@ -22,6 +23,28 @@ use crate::{
     new_cuda_prover, CudaProverCoreComponents, CudaProverRecursionComponents,
     SP1CudaProverComponents,
 };
+
+/// Capacity (in [`PROVE_WEIGHT_UNIT_BYTES`] units) of the prover memory-budget
+/// semaphore. Each prove acquires `prove_weight()` units before it allocates,
+/// so concurrency is bounded by "what fits GPU DRAM" rather than a fixed count.
+///
+/// Default = one core prove's weight → effectively serial (today's behaviour),
+/// and always ≥ the largest single weight so a prove can never deadlock itself.
+/// Set `SP1_GPU_PROVER_BUDGET_GB` to raise it and enable concurrent proving
+/// (requires per-prove stream routing to actually overlap on the GPU).
+fn prover_memory_budget_units() -> usize {
+    let serial_default = prove_weight(CORE_MAX_TRACE_SIZE as usize);
+    let units =
+        match std::env::var("SP1_GPU_PROVER_BUDGET_GB").ok().and_then(|s| s.parse::<f64>().ok()) {
+            Some(gb) => {
+                let bytes = gb * (1u64 << 30) as f64;
+                (bytes / PROVE_WEIGHT_UNIT_BYTES as f64) as u32
+            }
+            None => serial_default,
+        };
+    // Never below the largest single prove's weight (deadlock floor).
+    units.max(serial_default) as usize
+}
 
 pub fn local_gpu_opts() -> (SP1CoreOpts, bool) {
     let mut opts = SP1CoreOpts::default();
@@ -92,8 +115,10 @@ pub async fn cuda_worker_builder_with_machine(
     scope: TaskScope,
     machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 ) -> SP1WorkerBuilder<SP1CudaProverComponents> {
-    // Create a prover permits, assuming a single proof happens at a time.
-    let prover_permits = ProverSemaphore::new(1);
+    // Prover memory-budget semaphore — each prove acquires `prove_weight()`
+    // units before allocating, so the GPU cannot be oversubscribed. Defaults
+    // to one core prove (serial); `SP1_GPU_PROVER_BUDGET_GB` raises it.
+    let prover_permits = ProverSemaphore::new(prover_memory_budget_units());
 
     // Get the core options.
     let (opts, _) = local_gpu_opts();

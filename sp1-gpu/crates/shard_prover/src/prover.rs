@@ -330,6 +330,7 @@ where
             &buffer,
             self.inner.basefold_prover.log_height,
             self.inner.max_log_row_count,
+            self.inner.max_trace_size,
             &self.inner.backend,
             prover_permits,
             true,
