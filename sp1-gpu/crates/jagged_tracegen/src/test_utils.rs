@@ -651,7 +651,8 @@ pub mod bench_utils {
         match cluster {
             ChipCluster::Core => {
                 let add_chip = AddChip::<SupervisorMode> { _phantom: Default::default() };
-                let add_chip = RiscvAir::<Felt>::Add(add_chip);
+                let add_chip =
+                    RiscvAir::Riscv(sp1_core_machine::riscv::air::RiscvAir::<Felt>::Add(add_chip));
                 let add_chip = Chip::new(add_chip);
                 machine
                     .smallest_cluster(&BTreeSet::from_iter([add_chip]))
