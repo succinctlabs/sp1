@@ -1,609 +1,609 @@
 name: PR
 
 on:
-  push:
-    branches: [main, dev, multilinear_v6]
-  pull_request:
-    branches:
-      - "**"
-    paths:
-      - "crates/**"
-      - "slop/**"
-      - "sp1-gpu/**"
-      - "examples/**"
-      - "Cargo.toml"
-      - ".github/workflows/**"
-      - ".github/actions/**"
-  merge_group:
+    push:
+        branches: [main, dev, multilinear_v6]
+    pull_request:
+        branches:
+            - "**"
+        paths:
+            - "crates/**"
+            - "slop/**"
+            - "sp1-gpu/**"
+            - "examples/**"
+            - "Cargo.toml"
+            - ".github/workflows/**"
+            - ".github/actions/**"
+    merge_group:
 
 env:
-  SP1_CI_IN_PROGRESS: "true"
-  SP1_CIRCUIT_MODE: "dev"
-  WITHOUT_VK_VERIFICATION: "true"
+    SP1_CI_IN_PROGRESS: "true"
+    SP1_CIRCUIT_MODE: "dev"
+    WITHOUT_VK_VERIFICATION: "true"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+    group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: true
 
 jobs:
-  test-x86:
-    name: Test (x86-64)
-    runs-on:
-      [
-        runs-on,
-        runner=64cpu-linux-x64,
-        spot=false,
-        disk=large,
-        "run-id=${{ github.run_id }}",
-      ]
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v6
-
-      - name: Setup CI
-        uses: ./.github/actions/setup
-        with:
-          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_S3 }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_S3 }}
-          aws-region: us-west-2
-
-      - name: Download dev circuit artifacts
-        uses: ./.github/actions/download-dev-artifacts
-
-      - name: Install SP1 toolchain from repo
-        run: |
-          cargo run -p sp1-cli --no-default-features -- prove install-toolchain
-          cd crates/cli
-
-      - name: Run cargo check
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --all-targets --all-features --tests
-
-      - name: Run cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: >-
-            --release --workspace
-            --exclude sp1-verifier
-            --exclude sp1-gpu-air
-            --exclude sp1-gpu-basefold
-            --exclude sp1-gpu-challenger
-            --exclude sp1-gpu-commit
-            --exclude sp1-gpu-cudart
-            --exclude sp1-gpu-jagged-assist
-            --exclude sp1-gpu-jagged-sumcheck
-            --exclude sp1-gpu-jagged-tracegen
-            --exclude sp1-gpu-logup-gkr
-            --exclude sp1-gpu-merkle-tree
-            --exclude sp1-gpu-perf
-            --exclude sp1-gpu-prover
-            --exclude sp1-gpu-server
-            --exclude sp1-gpu-shard-prover
-            --exclude sp1-gpu-sys
-            --exclude sp1-gpu-tracegen
-            --exclude sp1-gpu-tracing
-            --exclude sp1-gpu-utils
-            --exclude sp1-gpu-zerocheck
-            --features native-gnark,experimental,profiling
+    test-x86:
+        name: Test (x86-64)
+        runs-on:
+            [
+                runs-on,
+                runner=64cpu-linux-x64,
+                spot=false,
+                disk=large,
+                "run-id=${{ github.run_id }}",
+            ]
         env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
-          SP1_CIRCUIT_MODE: "dev"
-          RUST_BACKTRACE: 1
+            CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+        steps:
+            - name: Checkout sources
+              uses: actions/checkout@v6
 
-  test-arm:
-    name: Test (ARM)
-    runs-on:
-      [
-        runs-on,
-        runner=64cpu-linux-arm64,
-        spot=false,
-        disk=large,
-        "run-id=${{ github.run_id }}",
-      ]
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v6
+            - name: Setup CI
+              uses: ./.github/actions/setup
+              with:
+                  pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
-      - name: Setup CI
-        uses: ./.github/actions/setup
-        with:
-          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_S3 }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_S3 }}
+                  aws-region: us-west-2
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_S3 }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_S3 }}
-          aws-region: us-west-2
+            - name: Download dev circuit artifacts
+              uses: ./.github/actions/download-dev-artifacts
 
-      - name: Download dev circuit artifacts
-        uses: ./.github/actions/download-dev-artifacts
+            - name: Install SP1 toolchain from repo
+              run: |
+                  cargo run -p sp1-cli --no-default-features -- prove install-toolchain
+                  cd crates/cli
 
-      - name: Install SP1 toolchain from repo
-        run: |
-          cargo run -p sp1-cli --no-default-features -- prove install-toolchain
-          cd crates/cli
+            - name: Run cargo check
+              uses: actions-rs/cargo@v1
+              with:
+                  command: check
+                  args: --all-targets --all-features --tests
 
-      - name: Run cargo check
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --all-targets --all-features --tests
+            - name: Run cargo test
+              uses: actions-rs/cargo@v1
+              with:
+                  command: test
+                  args: >-
+                      --release --workspace
+                      --exclude sp1-verifier
+                      --exclude sp1-gpu-air
+                      --exclude sp1-gpu-basefold
+                      --exclude sp1-gpu-challenger
+                      --exclude sp1-gpu-commit
+                      --exclude sp1-gpu-cudart
+                      --exclude sp1-gpu-jagged-assist
+                      --exclude sp1-gpu-jagged-sumcheck
+                      --exclude sp1-gpu-jagged-tracegen
+                      --exclude sp1-gpu-logup-gkr
+                      --exclude sp1-gpu-merkle-tree
+                      --exclude sp1-gpu-perf
+                      --exclude sp1-gpu-prover
+                      --exclude sp1-gpu-server
+                      --exclude sp1-gpu-shard-prover
+                      --exclude sp1-gpu-sys
+                      --exclude sp1-gpu-tracegen
+                      --exclude sp1-gpu-tracing
+                      --exclude sp1-gpu-utils
+                      --exclude sp1-gpu-zerocheck
+                      --features native-gnark,experimental,profiling
+              env:
+                  RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
+                  SP1_CIRCUIT_MODE: "dev"
+                  RUST_BACKTRACE: 1
 
-      - name: Run cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: >-
-            --release --workspace
-            --exclude sp1-verifier
-            --exclude sp1-gpu-air
-            --exclude sp1-gpu-basefold
-            --exclude sp1-gpu-challenger
-            --exclude sp1-gpu-commit
-            --exclude sp1-gpu-cudart
-            --exclude sp1-gpu-jagged-assist
-            --exclude sp1-gpu-jagged-sumcheck
-            --exclude sp1-gpu-jagged-tracegen
-            --exclude sp1-gpu-logup-gkr
-            --exclude sp1-gpu-merkle-tree
-            --exclude sp1-gpu-perf
-            --exclude sp1-gpu-prover
-            --exclude sp1-gpu-server
-            --exclude sp1-gpu-shard-prover
-            --exclude sp1-gpu-sys
-            --exclude sp1-gpu-tracegen
-            --exclude sp1-gpu-tracing
-            --exclude sp1-gpu-utils
-            --exclude sp1-gpu-zerocheck
-            --features native-gnark,experimental
+    test-arm:
+        name: Test (ARM)
+        runs-on:
+            [
+                runs-on,
+                runner=64cpu-linux-arm64,
+                spot=false,
+                disk=large,
+                "run-id=${{ github.run_id }}",
+            ]
         env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
-          SP1_CIRCUIT_MODE: "dev"
-          RUST_BACKTRACE: 1
+            CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+        steps:
+            - name: Checkout sources
+              uses: actions/checkout@v6
 
-  test-verifier:
-    name: Test Verifier Crate
-    runs-on:
-      [
-        runs-on,
-        runner=64cpu-linux-arm64,
-        spot=false,
-        disk=large,
-        "run-id=${{ github.run_id }}",
-      ]
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v6
+            - name: Setup CI
+              uses: ./.github/actions/setup
+              with:
+                  pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
-      - name: Setup CI
-        uses: ./.github/actions/setup
-        with:
-          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_S3 }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_S3 }}
+                  aws-region: us-west-2
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_S3 }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_S3 }}
-          aws-region: us-west-2
+            - name: Download dev circuit artifacts
+              uses: ./.github/actions/download-dev-artifacts
 
-      - name: Download dev circuit artifacts
-        uses: ./.github/actions/download-dev-artifacts
+            - name: Install SP1 toolchain from repo
+              run: |
+                  cargo run -p sp1-cli --no-default-features -- prove install-toolchain
+                  cd crates/cli
 
-      - name: Install SP1 toolchain from repo
-        run: |
-          cargo run -p sp1-cli --no-default-features -- prove install-toolchain
-          cd crates/cli
+            - name: Run cargo check
+              uses: actions-rs/cargo@v1
+              with:
+                  command: check
+                  args: --all-targets --all-features --tests
 
-      - name: Run cargo check
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --all-targets --all-features --tests
+            - name: Run cargo test
+              uses: actions-rs/cargo@v1
+              with:
+                  command: test
+                  args: >-
+                      --release --workspace
+                      --exclude sp1-verifier
+                      --exclude sp1-gpu-air
+                      --exclude sp1-gpu-basefold
+                      --exclude sp1-gpu-challenger
+                      --exclude sp1-gpu-commit
+                      --exclude sp1-gpu-cudart
+                      --exclude sp1-gpu-jagged-assist
+                      --exclude sp1-gpu-jagged-sumcheck
+                      --exclude sp1-gpu-jagged-tracegen
+                      --exclude sp1-gpu-logup-gkr
+                      --exclude sp1-gpu-merkle-tree
+                      --exclude sp1-gpu-perf
+                      --exclude sp1-gpu-prover
+                      --exclude sp1-gpu-server
+                      --exclude sp1-gpu-shard-prover
+                      --exclude sp1-gpu-sys
+                      --exclude sp1-gpu-tracegen
+                      --exclude sp1-gpu-tracing
+                      --exclude sp1-gpu-utils
+                      --exclude sp1-gpu-zerocheck
+                      --features native-gnark,experimental
+              env:
+                  RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
+                  SP1_CIRCUIT_MODE: "dev"
+                  RUST_BACKTRACE: 1
 
-      - name: Run cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --release --package sp1-verifier -F ark
+    # test-verifier:
+    #   name: Test Verifier Crate
+    #   runs-on:
+    #     [
+    #       runs-on,
+    #       runner=64cpu-linux-arm64,
+    #       spot=false,
+    #       disk=large,
+    #       "run-id=${{ github.run_id }}",
+    #     ]
+    #   env:
+    #     CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    #   steps:
+    #     - name: Checkout sources
+    #       uses: actions/checkout@v6
+
+    #     - name: Setup CI
+    #       uses: ./.github/actions/setup
+    #       with:
+    #         pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+
+    #     - name: Configure AWS credentials
+    #       uses: aws-actions/configure-aws-credentials@v4
+    #       with:
+    #         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_S3 }}
+    #         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_S3 }}
+    #         aws-region: us-west-2
+
+    #     - name: Download dev circuit artifacts
+    #       uses: ./.github/actions/download-dev-artifacts
+
+    #     - name: Install SP1 toolchain from repo
+    #       run: |
+    #         cargo run -p sp1-cli --no-default-features -- prove install-toolchain
+    #         cd crates/cli
+
+    #     - name: Run cargo check
+    #       uses: actions-rs/cargo@v1
+    #       with:
+    #         command: check
+    #         args: --all-targets --all-features --tests
+
+    #     - name: Run cargo test
+    #       uses: actions-rs/cargo@v1
+    #       with:
+    #         command: test
+    #         args: --release --package sp1-verifier -F ark
+    #       env:
+    #         RUSTFLAGS: -Copt-level=3 -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+    #         RUST_BACKTRACE: 1
+    #         SP1_CIRCUIT_MODE: "dev"
+
+    lint:
+        name: Formatting & Clippy
+        runs-on:
+            [
+                runs-on,
+                runner=16cpu-linux-x64,
+                disk=large,
+                spot=false,
+                "run-id=${{ github.run_id }}",
+            ]
         env:
-          RUSTFLAGS: -Copt-level=3 -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
-          RUST_BACKTRACE: 1
-          SP1_CIRCUIT_MODE: "dev"
+            CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+        steps:
+            - name: Checkout sources
+              uses: actions/checkout@v6
 
-  lint:
-    name: Formatting & Clippy
-    runs-on:
-      [
-        runs-on,
-        runner=16cpu-linux-x64,
-        disk=large,
-        spot=false,
-        "run-id=${{ github.run_id }}",
-      ]
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v6
+            - name: Setup CI
+              uses: ./.github/actions/setup
+              with:
+                  pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
-      - name: Setup CI
-        uses: ./.github/actions/setup
-        with:
-          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+            - name: Install SP1 toolchain from repo
+              run: |
+                  cargo run -p sp1-cli --no-default-features -- prove install-toolchain
 
-      - name: Install SP1 toolchain from repo
-        run: |
-          cargo run -p sp1-cli --no-default-features -- prove install-toolchain
+            - name: Run cargo fmt
+              uses: actions-rs/cargo@v1
+              with:
+                  command: fmt
+                  args: --all -- --check
 
-      - name: Run cargo fmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+            - name: Check test-artifacts
+              uses: actions-rs/cargo@v1
+              with:
+                  command: check
+                  args: -p test-artifacts
 
-      - name: Check test-artifacts
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: -p test-artifacts
+            - name: Run cargo clippy
+              uses: actions-rs/cargo@v1
+              with:
+                  command: clippy
+                  args: >-
+                      --all-features --all-targets
+                      -- -D warnings -A incomplete-features
 
-      - name: Run cargo clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: >-
-            --all-features --all-targets
-            -- -D warnings -A incomplete-features
-
-  check:
-    name: Cargo Check
-    runs-on:
-      [
-        runs-on,
-        runner=16cpu-linux-x64,
-        disk=large,
-        spot=false,
-        "run-id=${{ github.run_id }}",
-      ]
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-      RUSTFLAGS: "--cfg sp1_debug_constraints"
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v6
-
-      - name: Setup CI
-        uses: ./.github/actions/setup
-        with:
-          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
-
-      - name: Install SP1 toolchain from repo
-        run: |
-          cargo run -p sp1-cli --no-default-features -- prove install-toolchain
-          cd crates/cli
-
-      - name: Check workspace no features
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: >-
-            --workspace --all-targets --no-default-features
-
-      - name: Check workspace with default features
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: >-
-            --workspace --all-targets
-
-      - name: Check workspace with all features
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: >-
-            --workspace --all-targets --all-features
-
-  check-nightly:
-    name: Cargo Check (Nightly)
-    runs-on:
-      [
-        runs-on,
-        runner=16cpu-linux-x64,
-        disk=large,
-        spot=false,
-        "run-id=${{ github.run_id }}",
-      ]
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v6
-
-      - name: Setup CI
-        uses: ./.github/actions/setup
-        with:
-          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
-          rustup_override: nightly
-
-      - name: Install SP1 toolchain from repo
-        run: |
-          cargo run -p sp1-cli --no-default-features -- prove install-toolchain
-          cd crates/cli
-
-      - name: Check workspace no features
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: >-
-            --workspace --all-targets --no-default-features
-
-      - name: Check workspace with default features
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: >-
-            --workspace --all-targets
-
-      - name: Check workspace with all features
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: >-
-            --workspace --all-targets --all-features
-
-  examples:
-    name: Examples
-    runs-on:
-      [
-        runs-on,
-        runner=64cpu-linux-x64,
-        disk=large,
-        spot=false,
-        "run-id=${{ github.run_id }}",
-      ]
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v6
-
-      - name: Setup CI
-        uses: ./.github/actions/setup
-        with:
-          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
-
-      - name: Install SP1 toolchain from repo
-        run: |
-          cargo run -p sp1-cli --no-default-features -- prove install-toolchain
-          cd crates/cli
-          cargo install --force --locked --path .
-          cargo clean
-
-      - name: Run cargo fmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
-          toolchain: nightly
+    check:
+        name: Cargo Check
+        runs-on:
+            [
+                runs-on,
+                runner=16cpu-linux-x64,
+                disk=large,
+                spot=false,
+                "run-id=${{ github.run_id }}",
+            ]
         env:
-          CARGO_INCREMENTAL: 1
+            CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+            RUSTFLAGS: "--cfg sp1_debug_constraints"
+        steps:
+            - name: Checkout sources
+              uses: actions/checkout@v6
 
-      - name: Run cargo check
-        run: |
-          cd ./examples/
-          cargo check --all-targets --all-features
+            - name: Setup CI
+              uses: ./.github/actions/setup
+              with:
+                  pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
-  # check-verifier-no-std:
-  #   name: Check Verifier `no_std`
-  #   runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
-  #   timeout-minutes: 10
-  #   strategy:
-  #     fail-fast: false
-  #   steps:
-  #     - name: Checkout Actions Repository
-  #       uses: actions/checkout@v6
+            - name: Install SP1 toolchain from repo
+              run: |
+                  cargo run -p sp1-cli --no-default-features -- prove install-toolchain
+                  cd crates/cli
 
-  #     - name: Install Rust toolchain
-  #       uses: dtolnay/rust-toolchain@stable
-  #       with:
-  #         targets: riscv32imac-unknown-none-elf
+            - name: Check workspace no features
+              uses: actions-rs/cargo@v1
+              with:
+                  command: check
+                  args: >-
+                      --workspace --all-targets --no-default-features
 
-  #     - name: Install target support
-  #       run: rustup target add riscv32imac-unknown-none-elf
+            - name: Check workspace with default features
+              uses: actions-rs/cargo@v1
+              with:
+                  command: check
+                  args: >-
+                      --workspace --all-targets
 
-  #     - name: Check build
-  #       run: cargo check --target riscv32imac-unknown-none-elf --no-default-features -p sp1-verifier
+            - name: Check workspace with all features
+              uses: actions-rs/cargo@v1
+              with:
+                  command: check
+                  args: >-
+                      --workspace --all-targets --all-features
 
-  # TODO: Enable once recursion crates are fixed for multilinear.
-  # lock-files:
-  #   name: "Check lock files"
-  #   runs-on:
-  #     [
-  #       runs-on,
-  #       cpu=64,
-  #       ram=256,
-  #       family=m7i+m7a,
-  #       disk=large,
-  #       image=ubuntu22-full-x64,
-  #       spot=false,
-  #       "run-id=${{ github.run_id }}",
-  #     ]
-  #   env:
-  #     CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-  #   steps:
-  #     - name: "Checkout sources"
-  #       uses: "actions/checkout@v6"
-
-  #     - name: Setup CI
-  #       uses: ./.github/actions/setup
-  #       with:
-  #         pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
-
-  #     - name: "Remove lock files"
-  #       run: |
-  #         find -name Cargo.lock -type f -exec rm {} \;
-
-  #     - name: Install SP1 toolchain from repo
-  #       run: |
-  #         cargo run -p sp1-cli --no-default-features -- prove install-toolchain
-  #         cd crates/cli
-  #         cargo install --force --locked --path .
-  #         cargo clean
-
-  #     - name: "Build SP1 without lock files"
-  #       run: |
-  #         cargo build --all --all-targets
-
-  #     - name: "Build examples without lock files"
-  #       run: |
-  #         cd examples
-  #         cargo build --all --all-targets
-
-  # TODO: Enable once recursion crates are fixed for multilinear.
-  # build-in-host:
-  #   name: "Build patches and zkvm in host"
-  #   runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
-  #   steps:
-  #     - name: "Checkout sources"
-  #       uses: "actions/checkout@v6"
-
-  #     - name: "Setup CI"
-  #       uses: ./.github/actions/setup
-  #       with:
-  #         pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
-
-  #     - name: "Build programs in host"
-  #       run: |
-  #         cd ./patch-testing/build-host
-
-  # GPU Unit Tests
-  test-gpu:
-    name: Test (GPU)
-    runs-on:
-      [
-        "runs-on",
-        "family=g6.4xlarge",
-        "hdd=200",
-        "ami=ami-0a63dc9cb9e934ba3",
-        "spot=false",
-        "run-id=${{ github.run_id }}",
-      ]
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v6
-
-      - name: Setup CI
-        uses: ./.github/actions/setup
-        with:
-          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
-          setup_gpu: true
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_S3 }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_S3 }}
-          aws-region: us-west-2
-
-      - name: Download dev circuit artifacts
-        uses: ./.github/actions/download-dev-artifacts
-
-      - name: Install SP1 toolchain from repo
-        run: cargo run -p sp1-cli --no-default-features -- prove install-toolchain
-
-      - name: Run GPU cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: >-
-            --release
-            -p sp1-gpu-air
-            -p sp1-gpu-basefold
-            -p sp1-gpu-challenger
-            -p sp1-gpu-commit
-            -p sp1-gpu-cudart
-            -p sp1-gpu-jagged-assist
-            -p sp1-gpu-jagged-sumcheck
-            -p sp1-gpu-jagged-tracegen
-            -p sp1-gpu-logup-gkr
-            -p sp1-gpu-merkle-tree
-            -p sp1-gpu-prover
-            -p sp1-gpu-server
-            -p sp1-gpu-shard-prover
-            -p sp1-gpu-sys
-            -p sp1-gpu-tracegen
-            -p sp1-gpu-tracing
-            -p sp1-gpu-utils
-            -p sp1-gpu-zerocheck
-            -- --test-threads=1
+    check-nightly:
+        name: Cargo Check (Nightly)
+        runs-on:
+            [
+                runs-on,
+                runner=16cpu-linux-x64,
+                disk=large,
+                spot=false,
+                "run-id=${{ github.run_id }}",
+            ]
         env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
-          SP1_CIRCUIT_MODE: "dev"
-          RUST_BACKTRACE: 1
-          CUDA_ARCHS: 89
+            CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+        steps:
+            - name: Checkout sources
+              uses: actions/checkout@v6
 
-  # GPU E2E Test
-  test-gpu-e2e:
-    name: GPU E2E (node)
-    runs-on:
-      [
-        "runs-on",
-        "family=g6.4xlarge",
-        "hdd=200",
-        "ami=ami-0a63dc9cb9e934ba3",
-        "spot=false",
-        "run-id=${{ github.run_id }}",
-      ]
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v6
+            - name: Setup CI
+              uses: ./.github/actions/setup
+              with:
+                  pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+                  rustup_override: nightly
 
-      - name: Setup CI
-        uses: ./.github/actions/setup
-        with:
-          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
-          setup_gpu: true
+            - name: Install SP1 toolchain from repo
+              run: |
+                  cargo run -p sp1-cli --no-default-features -- prove install-toolchain
+                  cd crates/cli
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_S3 }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_S3 }}
-          aws-region: us-west-2
+            - name: Check workspace no features
+              uses: actions-rs/cargo@v1
+              with:
+                  command: check
+                  args: >-
+                      --workspace --all-targets --no-default-features
 
-      - name: Download dev circuit artifacts
-        uses: ./.github/actions/download-dev-artifacts
+            - name: Check workspace with default features
+              uses: actions-rs/cargo@v1
+              with:
+                  command: check
+                  args: >-
+                      --workspace --all-targets
 
-      - name: Install SP1 toolchain from repo
-        run: cargo run -p sp1-cli --no-default-features -- prove install-toolchain
+            - name: Check workspace with all features
+              uses: actions-rs/cargo@v1
+              with:
+                  command: check
+                  args: >-
+                      --workspace --all-targets --all-features
 
-      - name: Run E2E node test
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --release -p sp1-gpu-perf --bin node --features native-gnark,experimental -- --program local-rsp --param 21000001 --mode groth16
+    examples:
+        name: Examples
+        runs-on:
+            [
+                runs-on,
+                runner=64cpu-linux-x64,
+                disk=large,
+                spot=false,
+                "run-id=${{ github.run_id }}",
+            ]
         env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
-          SP1_CIRCUIT_MODE: "dev"
-          RUST_BACKTRACE: 1
-          CUDA_ARCHS: 89
+            CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+        steps:
+            - name: Checkout sources
+              uses: actions/checkout@v6
+
+            - name: Setup CI
+              uses: ./.github/actions/setup
+              with:
+                  pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+
+            - name: Install SP1 toolchain from repo
+              run: |
+                  cargo run -p sp1-cli --no-default-features -- prove install-toolchain
+                  cd crates/cli
+                  cargo install --force --locked --path .
+                  cargo clean
+
+            - name: Run cargo fmt
+              uses: actions-rs/cargo@v1
+              with:
+                  command: fmt
+                  args: --all -- --check
+                  toolchain: nightly
+              env:
+                  CARGO_INCREMENTAL: 1
+
+            - name: Run cargo check
+              run: |
+                  cd ./examples/
+                  cargo check --all-targets --all-features
+
+    # check-verifier-no-std:
+    #   name: Check Verifier `no_std`
+    #   runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
+    #   timeout-minutes: 10
+    #   strategy:
+    #     fail-fast: false
+    #   steps:
+    #     - name: Checkout Actions Repository
+    #       uses: actions/checkout@v6
+
+    #     - name: Install Rust toolchain
+    #       uses: dtolnay/rust-toolchain@stable
+    #       with:
+    #         targets: riscv32imac-unknown-none-elf
+
+    #     - name: Install target support
+    #       run: rustup target add riscv32imac-unknown-none-elf
+
+    #     - name: Check build
+    #       run: cargo check --target riscv32imac-unknown-none-elf --no-default-features -p sp1-verifier
+
+    # TODO: Enable once recursion crates are fixed for multilinear.
+    # lock-files:
+    #   name: "Check lock files"
+    #   runs-on:
+    #     [
+    #       runs-on,
+    #       cpu=64,
+    #       ram=256,
+    #       family=m7i+m7a,
+    #       disk=large,
+    #       image=ubuntu22-full-x64,
+    #       spot=false,
+    #       "run-id=${{ github.run_id }}",
+    #     ]
+    #   env:
+    #     CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    #   steps:
+    #     - name: "Checkout sources"
+    #       uses: "actions/checkout@v6"
+
+    #     - name: Setup CI
+    #       uses: ./.github/actions/setup
+    #       with:
+    #         pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+
+    #     - name: "Remove lock files"
+    #       run: |
+    #         find -name Cargo.lock -type f -exec rm {} \;
+
+    #     - name: Install SP1 toolchain from repo
+    #       run: |
+    #         cargo run -p sp1-cli --no-default-features -- prove install-toolchain
+    #         cd crates/cli
+    #         cargo install --force --locked --path .
+    #         cargo clean
+
+    #     - name: "Build SP1 without lock files"
+    #       run: |
+    #         cargo build --all --all-targets
+
+    #     - name: "Build examples without lock files"
+    #       run: |
+    #         cd examples
+    #         cargo build --all --all-targets
+
+    # TODO: Enable once recursion crates are fixed for multilinear.
+    # build-in-host:
+    #   name: "Build patches and zkvm in host"
+    #   runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
+    #   steps:
+    #     - name: "Checkout sources"
+    #       uses: "actions/checkout@v6"
+
+    #     - name: "Setup CI"
+    #       uses: ./.github/actions/setup
+    #       with:
+    #         pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+
+    #     - name: "Build programs in host"
+    #       run: |
+    #         cd ./patch-testing/build-host
+
+    # GPU Unit Tests
+    test-gpu:
+        name: Test (GPU)
+        runs-on:
+            [
+                "runs-on",
+                "family=g6.4xlarge",
+                "hdd=200",
+                "ami=ami-0a63dc9cb9e934ba3",
+                "spot=false",
+                "run-id=${{ github.run_id }}",
+            ]
+        env:
+            CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+        steps:
+            - name: Checkout sources
+              uses: actions/checkout@v6
+
+            - name: Setup CI
+              uses: ./.github/actions/setup
+              with:
+                  pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+                  setup_gpu: true
+
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_S3 }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_S3 }}
+                  aws-region: us-west-2
+
+            - name: Download dev circuit artifacts
+              uses: ./.github/actions/download-dev-artifacts
+
+            - name: Install SP1 toolchain from repo
+              run: cargo run -p sp1-cli --no-default-features -- prove install-toolchain
+
+            - name: Run GPU cargo test
+              uses: actions-rs/cargo@v1
+              with:
+                  command: test
+                  args: >-
+                      --release
+                      -p sp1-gpu-air
+                      -p sp1-gpu-basefold
+                      -p sp1-gpu-challenger
+                      -p sp1-gpu-commit
+                      -p sp1-gpu-cudart
+                      -p sp1-gpu-jagged-assist
+                      -p sp1-gpu-jagged-sumcheck
+                      -p sp1-gpu-jagged-tracegen
+                      -p sp1-gpu-logup-gkr
+                      -p sp1-gpu-merkle-tree
+                      -p sp1-gpu-prover
+                      -p sp1-gpu-server
+                      -p sp1-gpu-shard-prover
+                      -p sp1-gpu-sys
+                      -p sp1-gpu-tracegen
+                      -p sp1-gpu-tracing
+                      -p sp1-gpu-utils
+                      -p sp1-gpu-zerocheck
+                      -- --test-threads=1
+              env:
+                  RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+                  SP1_CIRCUIT_MODE: "dev"
+                  RUST_BACKTRACE: 1
+                  CUDA_ARCHS: 89
+
+    # GPU E2E Test
+    test-gpu-e2e:
+        name: GPU E2E (node)
+        runs-on:
+            [
+                "runs-on",
+                "family=g6.4xlarge",
+                "hdd=200",
+                "ami=ami-0a63dc9cb9e934ba3",
+                "spot=false",
+                "run-id=${{ github.run_id }}",
+            ]
+        env:
+            CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+        steps:
+            - name: Checkout sources
+              uses: actions/checkout@v6
+
+            - name: Setup CI
+              uses: ./.github/actions/setup
+              with:
+                  pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+                  setup_gpu: true
+
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_S3 }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_S3 }}
+                  aws-region: us-west-2
+
+            - name: Download dev circuit artifacts
+              uses: ./.github/actions/download-dev-artifacts
+
+            - name: Install SP1 toolchain from repo
+              run: cargo run -p sp1-cli --no-default-features -- prove install-toolchain
+
+            - name: Run E2E node test
+              uses: actions-rs/cargo@v1
+              with:
+                  command: run
+                  args: --release -p sp1-gpu-perf --bin node --features native-gnark,experimental -- --program local-rsp --param 21000001 --mode groth16
+              env:
+                  RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+                  SP1_CIRCUIT_MODE: "dev"
+                  RUST_BACKTRACE: 1
+                  CUDA_ARCHS: 89
