@@ -18,6 +18,7 @@ use sp1_curves::{
     params::{Limbs, NumLimbs},
     EllipticCurve,
 };
+use sp1_hypercube::air::SP1AirBuilder;
 use sp1_hypercube::{air::AirInteraction, InteractionKind};
 use typenum::Unsigned;
 
@@ -53,6 +54,10 @@ where
     let zero = || E::BaseField::to_limbs_field::<AB::Expr, AB::F>(&BigUint::from(0u32));
     [zero(), zero()]
 }
+
+// pub trait EcMulAirBuilder: SP1AirBuilder {}
+
+// impl<AB: SP1AirBuilder> EcMulAirBuilder for AB {}
 
 /// Build a tuple on the internal memory bus `EcMulMemory`:
 /// `(clk_high, clk_low, c, doubler.x, doubler.y, total.x, total.y)`.

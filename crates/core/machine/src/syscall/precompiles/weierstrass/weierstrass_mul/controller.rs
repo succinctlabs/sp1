@@ -13,10 +13,10 @@ use slop_matrix::Matrix;
 use slop_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 use sp1_core_executor::{
     events::{
-        ByteLookupEvent, ECMulInternalAddEvent, ECMulInternalDoubleEvent, EllipticCurveMulEvent,
-        MemoryRecordEnum, PrecompileEvent,
+        ByteLookupEvent, ByteRecord, ECMulInternalAddEvent, ECMulInternalDoubleEvent,
+        EllipticCurveMulEvent, MemoryRecordEnum, PrecompileEvent,
     },
-    ExecutionRecord, Program, SupervisorMode, SyscallCode, UserMode,
+    ExecutionRecord, ExecutionReportChannels, Program, SupervisorMode, SyscallCode, UserMode,
 };
 use sp1_curves::{
     params::{FieldParameters, Limbs, NumBits, NumLimbs, NumWords, NB_BITS_PER_LIMB},
@@ -102,8 +102,7 @@ impl<E: EllipticCurve + WeierstrassParameters, M: TrustMode> WeierstrassMulAssig
         event: &EllipticCurveMulEvent,
         cols: &mut WeierstrassMulAssignCols<F, E::BaseField, M>,
         new_byte_lookup_events: &mut Vec<ByteLookupEvent>,
-        add_sender: &std::sync::mpsc::Sender<ECMulInternalAddEvent>,
-        double_sender: &std::sync::mpsc::Sender<ECMulInternalDoubleEvent>,
+        channels: &ExecutionReportChannels,
     ) {
         // is_real and clock
         cols.is_real = F::one();
@@ -240,16 +239,14 @@ impl<E: EllipticCurve + WeierstrassParameters, M: TrustMode> WeierstrassMulAssig
                     ird.extend(limbs_to_event_words(&doubler_y));
                     let mut irt = limbs_to_event_words(&total_x);
                     irt.extend(limbs_to_event_words(&total_y));
-                    add_sender
-                        .send(ECMulInternalAddEvent {
-                            clk: event.clk,
-                            c: c_add,
-                            // `first_add_marker = S_{i-1}`, guaranteed non-zero here.
-                            is_first_add: s_prev,
-                            ird,
-                            irt,
-                        })
-                        .expect("internal add channel disconnected");
+                    channels.send_ecmul_internal_add_event(ECMulInternalAddEvent {
+                        clk: event.clk,
+                        c: c_add,
+                        // `first_add_marker = S_{i-1}`, guaranteed non-zero here.
+                        is_first_add: s_prev,
+                        ird,
+                        irt,
+                    });
 
                     let (new_x, new_y) =
                         affine_add::<F, E>(&total_x, &total_y, &doubler_x, &doubler_y);
@@ -265,9 +262,12 @@ impl<E: EllipticCurve + WeierstrassParameters, M: TrustMode> WeierstrassMulAssig
                 ird.extend(limbs_to_event_words(&doubler_y));
                 let mut irt = limbs_to_event_words(&total_x);
                 irt.extend(limbs_to_event_words(&total_y));
-                double_sender
-                    .send(ECMulInternalDoubleEvent { clk: event.clk, c: c_double, ird, irt })
-                    .expect("internal double channel disconnected");
+                channels.send_ecmul_internal_double_event(ECMulInternalDoubleEvent {
+                    clk: event.clk,
+                    c: c_double,
+                    ird,
+                    irt,
+                });
 
                 let (new_x, new_y) = affine_double::<F, E>(&doubler_x, &doubler_y);
                 doubler_x = new_x;
@@ -313,7 +313,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters, M: TrustMode> Ma
     fn generate_trace_into(
         &self,
         input: &ExecutionRecord,
-        _output: &mut ExecutionRecord,
+        output: &mut ExecutionRecord,
         buffer: &mut [MaybeUninit<F>],
     ) {
         if input.program.enable_untrusted_programs == M::IS_TRUSTED {
@@ -344,29 +344,29 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters, M: TrustMode> Ma
         let values =
             unsafe { core::slice::from_raw_parts_mut(buffer_ptr, padded_nb_rows * num_cols) };
 
-        // Per-chunk sender clones. `mpsc::Sender` is `Send + !Sync`, so we can't
-        // share `&Sender` across parallel tasks — instead each chunk takes
-        // ownership of its own clone via the zipped iterator. The internal Add
-        // and Double chips now carry `clk` on each channel event and drain in
-        // arrival order, so cross-event ordering on the channel doesn't matter.
+        // Per-chunk clones of `ExecutionReportChannels`. The struct holds an
+        // `mpsc::Sender` (which is `Send + !Sync`), so we can't share a
+        // reference across parallel tasks — instead each chunk takes ownership
+        // of its own cheap clone (Sender / Arc clones internally). The internal
+        // Add and Double chips now carry `clk` on each channel event and drain
+        // via the channels' `receive_ecmul_internal_*_events` iterator, so
+        // cross-event ordering on the channel doesn't matter.
         let chunk_size = 64;
         let num_chunks = padded_nb_rows.div_ceil(chunk_size);
-        let senders: Vec<(
-            std::sync::mpsc::Sender<ECMulInternalAddEvent>,
-            std::sync::mpsc::Sender<ECMulInternalDoubleEvent>,
-        )> = (0..num_chunks)
-            .map(|_| {
-                (
-                    input.channels.ecmul_internal_add_channel.0.clone(),
-                    input.channels.ecmul_internal_double_channel.0.clone(),
-                )
-            })
-            .collect();
+        let channels_per_chunk: Vec<ExecutionReportChannels> =
+            (0..num_chunks).map(|_| input.channels.clone()).collect();
 
-        // `blu` is currently dropped — `generate_dependencies` isn't yet wired up
-        // for this chip (see the matching note on the internal chips).
-        values.chunks_mut(chunk_size * num_cols).zip(senders).enumerate().par_bridge().for_each(
-            |(i, (rows, (add_sender, double_sender)))| {
+        // TEMPORARY: relying on default `generate_dependencies`, which calls
+        // this `generate_trace_into` against a fresh `output` in the deps pass
+        // (the harness merges that fresh output into the record after) and a
+        // throwaway `Record::default()` in the trace pass. So pushing `blu` to
+        // `output` here is correct in deps and harmlessly discarded in trace.
+        let blu_events: Vec<Vec<ByteLookupEvent>> = values
+            .chunks_mut(chunk_size * num_cols)
+            .zip(channels_per_chunk)
+            .enumerate()
+            .par_bridge()
+            .map(|(i, (rows, channels))| {
                 let mut blu = Vec::new();
                 rows.chunks_mut(num_cols).enumerate().for_each(|(j, row)| {
                     let idx = i * chunk_size + j;
@@ -375,21 +375,20 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters, M: TrustMode> Ma
                             PrecompileEvent::Secp256k1Mul(event) => {
                                 let cols: &mut WeierstrassMulAssignCols<F, E::BaseField, M> =
                                     row.borrow_mut();
-                                Self::populate_row(
-                                    event,
-                                    cols,
-                                    &mut blu,
-                                    &add_sender,
-                                    &double_sender,
-                                );
+                                Self::populate_row(event, cols, &mut blu, &channels);
                             }
                             _ => unreachable!(),
                         }
                     }
                     // Else: row is already zeroed; valid fake row for this chip.
                 });
-            },
-        );
+                blu
+            })
+            .collect();
+
+        for blu in blu_events {
+            output.add_byte_lookup_events(blu);
+        }
     }
 
     fn included(&self, shard: &Self::Record) -> bool {

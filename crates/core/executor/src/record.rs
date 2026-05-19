@@ -156,28 +156,68 @@ pub struct ExecutionRecord {
     pub channels: ExecutionReportChannels,
 }
 
-/// Internal channels in the execution report used during tracegen
+/// Internal channels in the execution report used during tracegen.
+///
+/// Backed by `crossbeam::channel` rather than `std::sync::mpsc` so the
+/// `Sender`/`Receiver` are `Send + Sync + Clone` — consumers can drive
+/// them from any thread without an `Arc<Mutex<...>>` wrapper, and a
+/// receiver iterator stays `Send` so it can flow through `par_bridge`.
 #[derive(Clone, Debug)]
 pub struct ExecutionReportChannels {
     /// Channel for internal addition in ecmul precompile
-    pub ecmul_internal_add_channel: (
-        std::sync::mpsc::Sender<ECMulInternalAddEvent>,
-        Arc<Mutex<std::sync::mpsc::Receiver<ECMulInternalAddEvent>>>,
-    ),
+    ecmul_internal_add_channel:
+        (crossbeam::channel::Sender<ECMulInternalAddEvent>, crossbeam::channel::Receiver<ECMulInternalAddEvent>),
     /// Channel for internal doubling in ecmul precompile
-    pub ecmul_internal_double_channel: (
-        std::sync::mpsc::Sender<ECMulInternalDoubleEvent>,
-        Arc<Mutex<std::sync::mpsc::Receiver<ECMulInternalDoubleEvent>>>,
+    ecmul_internal_double_channel: (
+        crossbeam::channel::Sender<ECMulInternalDoubleEvent>,
+        crossbeam::channel::Receiver<ECMulInternalDoubleEvent>,
     ),
+}
+
+impl ExecutionReportChannels {
+    /// Send an internal double event to the channel.
+    pub fn send_ecmul_internal_double_event(&self, event: ECMulInternalDoubleEvent) {
+        self.ecmul_internal_double_channel
+            .0
+            .send(event)
+            .expect("Double channel closed unexpectedly");
+    }
+
+    /// Send an internal add event to the channel.
+    pub fn send_ecmul_internal_add_event(&self, event: ECMulInternalAddEvent) {
+        self.ecmul_internal_add_channel.0.send(event).expect("Add channel closed unexpectedly");
+    }
+
+    /// Receive internal add events from the channel as an iterator.
+    ///
+    /// The `count` parameter specifies how many events to receive, which should
+    /// correspond to the number of steps in the internal add trace. The returned
+    /// iterator is `Send`, so it can be driven from a `par_bridge` stream.
+    pub fn receive_ecmul_internal_add_events(
+        &self,
+        count: usize,
+    ) -> impl Iterator<Item = ECMulInternalAddEvent> + '_ {
+        let receiver = &self.ecmul_internal_add_channel.1;
+        (0..count).map(move |_| receiver.recv().expect("Failed to receive from add channel"))
+    }
+
+    /// Receive internal double events from the channel as an iterator.
+    ///
+    /// See [`receive_ecmul_internal_add_events`] for semantics.
+    pub fn receive_ecmul_internal_double_events(
+        &self,
+        count: usize,
+    ) -> impl Iterator<Item = ECMulInternalDoubleEvent> + '_ {
+        let receiver = &self.ecmul_internal_double_channel.1;
+        (0..count).map(move |_| receiver.recv().expect("Failed to receive from double channel"))
+    }
 }
 
 impl Default for ExecutionReportChannels {
     fn default() -> Self {
-        let (add_sender, add_receiver) = std::sync::mpsc::channel();
-        let (double_sender, double_receiver) = std::sync::mpsc::channel();
         Self {
-            ecmul_internal_add_channel: (add_sender, Arc::new(Mutex::new(add_receiver))),
-            ecmul_internal_double_channel: (double_sender, Arc::new(Mutex::new(double_receiver))),
+            ecmul_internal_add_channel: crossbeam::channel::unbounded(),
+            ecmul_internal_double_channel: crossbeam::channel::unbounded(),
         }
     }
 }

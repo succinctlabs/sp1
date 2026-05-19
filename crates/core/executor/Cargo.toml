@@ -47,6 +47,7 @@ deepsize2 = { workspace = true }
 memmap2 = { workspace = true }
 cfg-if = { workspace = true }
 object = { workspace = true }
+crossbeam = { workspace = true }
 
 # profiling
 rustc-demangle = { workspace = true, optional = true }

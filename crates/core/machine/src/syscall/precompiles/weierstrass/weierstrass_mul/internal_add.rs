@@ -15,10 +15,10 @@ use num::{BigUint, One, Zero};
 use slop_air::{Air, AirBuilder, BaseAir};
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_matrix::Matrix;
-use slop_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
+use slop_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSliceMut};
 use sp1_core_executor::{
     events::{
-        ByteLookupEvent, ECMulInternalAddEvent, EllipticCurveMulEvent, FieldOperation,
+        ByteLookupEvent, ByteRecord, ECMulInternalAddEvent, EllipticCurveMulEvent, FieldOperation,
         PrecompileEvent,
     },
     ExecutionRecord, Program, SyscallCode,
@@ -252,17 +252,16 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         Some(nb_rows.next_multiple_of(32).max(16))
     }
 
-    fn generate_dependencies(&self, _input: &Self::Record, _output: &mut Self::Record) {
-        // The byte-lookup events for this chip are produced as a side effect of
-        // `generate_trace_into`'s `populate_row` calls, but those depend on the
-        // controller chip having already sent the corresponding events on the
-        // internal channel. We let the trace-generation pass own this work.
-    }
+    // TEMPORARY: rely on the default `generate_dependencies`, which calls
+    // `generate_trace_into` into a throwaway buffer. That happens to drain the
+    // channel and push byte-lookup events into the deps phase's `output` (which
+    // gets merged into the record), at the cost of running the full populate
+    // twice. Replace with a dedicated dry-run pass once the chip is tested.
 
     fn generate_trace_into(
         &self,
         input: &ExecutionRecord,
-        _output: &mut ExecutionRecord,
+        output: &mut ExecutionRecord,
         buffer: &mut [MaybeUninit<F>],
     ) {
         let padded_nb_rows =
@@ -300,13 +299,14 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             );
         }
 
-        // Drain the entire internal-add channel into a Vec serially (the
-        // Receiver is `!Sync`, so we can't recv from multiple threads), then
-        // populate rows in parallel. Each event now carries its own `clk`, so
-        // the drain order doesn't have to match any ECMUL-event order — the
-        // controller is free to send out of order from its own par_bridge.
-        // Trapped events contribute 0 sends and 0 to `total_internal_adds`, so
-        // no deadlock.
+        // Parallelize across batches of `chunk_size` rows, each batch processed
+        // serially by one rayon worker (matches the 64-rows-per-thread pattern
+        // used by the other weierstrass chips). Each worker creates its own
+        // channel iterator with its own batch size; multiple workers race on
+        // `Receiver::recv` concurrently, which is fine — crossbeam's receiver
+        // is `Sync`, and each event carries its own `clk`, so any ordering is
+        // valid. Trapped events contribute 0 to `total_internal_adds` and to
+        // the controller's sends, so no deadlock.
         let total_internal_adds: usize = events
             .iter()
             .map(|(_, op)| match op {
@@ -315,36 +315,39 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             })
             .sum();
 
-        let mut all_events: Vec<ECMulInternalAddEvent> =
-            Vec::with_capacity(total_internal_adds);
-        {
-            let rx_arc = input.channels.ecmul_internal_add_channel.1.clone();
-            let rx = rx_arc.lock().expect("internal add channel mutex poisoned");
-            for _ in 0..total_internal_adds {
-                all_events.push(
-                    rx.recv().expect("internal add channel disconnected before drain"),
-                );
-            }
-        }
-
         let chunk_size = 64;
         let dummy_row_ref = dummy_row.as_slice();
-        let all_events_ref = all_events.as_slice();
-        values.chunks_mut(chunk_size * num_cols).enumerate().par_bridge().for_each(
-            |(i, rows)| {
+        let (event_buf, padding_buf) =
+            values.split_at_mut(total_internal_adds * num_cols);
+
+        let channels = &input.channels;
+        let blu_batches: Vec<Vec<ByteLookupEvent>> = event_buf
+            .chunks_mut(chunk_size * num_cols)
+            .par_bridge()
+            .map(|batch_rows| {
+                let batch_size = batch_rows.len() / num_cols;
+                let event_iter = channels.receive_ecmul_internal_add_events(batch_size);
                 let mut blu = Vec::new();
-                rows.chunks_mut(num_cols).enumerate().for_each(|(j, row)| {
-                    let idx = i * chunk_size + j;
-                    if idx < all_events_ref.len() {
-                        let cols: &mut WeierstrassMulInternalAddCols<F, E::BaseField> =
-                            row.borrow_mut();
-                        Self::populate_row(&all_events_ref[idx], cols, &mut blu);
-                    } else {
-                        row.copy_from_slice(dummy_row_ref);
-                    }
+                batch_rows.chunks_mut(num_cols).zip(event_iter).for_each(|(row, event)| {
+                    let cols: &mut WeierstrassMulInternalAddCols<F, E::BaseField> =
+                        row.borrow_mut();
+                    Self::populate_row(&event, cols, &mut blu);
                 });
-            },
-        );
+                blu
+            })
+            .collect();
+
+        // In Phase 1 (deps), `output` is fresh and gets merged into the record;
+        // in Phase 2 (trace), `output` is a throwaway that's immediately
+        // discarded by the harness — so pushing here is correct in deps and
+        // harmless in trace.
+        for blu in blu_batches {
+            output.add_byte_lookup_events(blu);
+        }
+
+        padding_buf
+            .par_chunks_mut(num_cols)
+            .for_each(|row| row.copy_from_slice(dummy_row_ref));
     }
 
     fn included(&self, shard: &Self::Record) -> bool {

@@ -28,6 +28,7 @@ use crate::{
         precompiles::{
             fptower::{Fp2AddSubAssignChip, Fp2MulAssignChip, FpOpChip},
             sigreturn::SigReturnChip,
+            weierstrass::{WeierstrassMulInternalAddChip, WeierstrassMulInternalDoubleChip},
         },
     },
     utype::UTypeChip,
@@ -275,6 +276,10 @@ pub enum RiscvAir<F: PrimeField32> {
     Secp256k1Mul(WeierstrassMulAssignChip<SwCurve<Secp256k1Parameters>, SupervisorMode>),
     /// A precompile for scalar multiplication on the Elliptic curve secp256k1 (user mode).
     Secp256k1MulUser(WeierstrassMulAssignChip<SwCurve<Secp256k1Parameters>, UserMode>),
+    /// A chip for handling internal addition calls in the secp256k1 scalar multiplication precompile.
+    Secp256k1MulInternalAdd(WeierstrassMulInternalAddChip<SwCurve<Secp256k1Parameters>>),
+    /// A chip for handling internal doubling calls in the secp256k1 scalar multiplication precompile.
+    Secp256k1MulInternalDouble(WeierstrassMulInternalDoubleChip<SwCurve<Secp256k1Parameters>>),
     /// A precompile for addition on the Elliptic curve secp256r1.
     Secp256r1Add(WeierstrassAddAssignChip<SwCurve<Secp256r1Parameters>, SupervisorMode>),
     /// A precompile for addition on the Elliptic curve secp256r1 (user mode).
@@ -399,6 +404,12 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::Secp256k1MulUser(WeierstrassMulAssignChip::<
                 SwCurve<Secp256k1Parameters>,
                 UserMode,
+            >::new()),
+            RiscvAir::Secp256k1MulInternalAdd(WeierstrassMulInternalAddChip::<
+                SwCurve<Secp256k1Parameters>,
+            >::new()),
+            RiscvAir::Secp256k1MulInternalDouble(WeierstrassMulInternalDoubleChip::<
+                SwCurve<Secp256k1Parameters>,
             >::new()),
             RiscvAir::Secp256r1Add(WeierstrassAddAssignChip::<
                 SwCurve<Secp256r1Parameters>,
@@ -587,7 +598,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             [Ed25519Decompress].as_slice(),
             [Secp256k1Add].as_slice(),
             [Secp256k1Double].as_slice(),
-            [Secp256k1Mul].as_slice(),
+            [Secp256k1Mul, Secp256k1MulInternalAdd, Secp256k1MulInternalDouble].as_slice(),
             [Secp256r1Add].as_slice(),
             [Secp256r1Double].as_slice(),
             [KeccakP, KeccakPControl].as_slice(),
@@ -969,6 +980,26 @@ impl<F: PrimeField32> RiscvAir<F> {
         costs
             .insert(secp256k1_mul_assign_user.name().to_string(), secp256k1_mul_assign_user.cost());
         chips.push(secp256k1_mul_assign_user);
+
+        let secp256k1_mul_internal_add =
+            Chip::new(RiscvAir::Secp256k1MulInternalAdd(WeierstrassMulInternalAddChip::<
+                SwCurve<Secp256k1Parameters>,
+            >::new()));
+        costs.insert(
+            secp256k1_mul_internal_add.name().to_string(),
+            secp256k1_mul_internal_add.cost(),
+        );
+        chips.push(secp256k1_mul_internal_add);
+
+        let secp256k1_mul_internal_double =
+            Chip::new(RiscvAir::Secp256k1MulInternalDouble(WeierstrassMulInternalDoubleChip::<
+                SwCurve<Secp256k1Parameters>,
+            >::new()));
+        costs.insert(
+            secp256k1_mul_internal_double.name().to_string(),
+            secp256k1_mul_internal_double.cost(),
+        );
+        chips.push(secp256k1_mul_internal_double);
 
         let secp256r1_add_assign = Chip::new(RiscvAir::Secp256r1Add(WeierstrassAddAssignChip::<
             SwCurve<Secp256r1Parameters>,
@@ -1708,6 +1739,10 @@ impl From<RiscvAirDiscriminants> for RiscvAirId {
             RiscvAirDiscriminants::Secp256k1DoubleUser => RiscvAirId::Secp256k1DoubleAssignUser,
             RiscvAirDiscriminants::Secp256k1Mul => RiscvAirId::Secp256k1MulAssign,
             RiscvAirDiscriminants::Secp256k1MulUser => RiscvAirId::Secp256k1MulAssignUser,
+            RiscvAirDiscriminants::Secp256k1MulInternalDouble => {
+                RiscvAirId::Secp256k1MulInternalDouble
+            }
+            RiscvAirDiscriminants::Secp256k1MulInternalAdd => RiscvAirId::Secp256k1MulInternalAdd,
             RiscvAirDiscriminants::Secp256r1Add => RiscvAirId::Secp256r1AddAssign,
             RiscvAirDiscriminants::Secp256r1AddUser => RiscvAirId::Secp256r1AddAssignUser,
             RiscvAirDiscriminants::Secp256r1Double => RiscvAirId::Secp256r1DoubleAssign,

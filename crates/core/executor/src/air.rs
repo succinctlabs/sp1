@@ -348,6 +348,10 @@ pub enum RiscvAirId {
     Secp256k1MulAssign = 122,
     /// The secp256k1 scalar multiplication chip for user mode.
     Secp256k1MulAssignUser = 123,
+    /// The secp256k1 scalar multiplication internal add helper.
+    Secp256k1MulInternalAdd = 124,
+    /// The secp256k1 scalar multiplication internal double helper.
+    Secp256k1MulInternalDouble = 125,
 }
 
 impl RiscvAirId {

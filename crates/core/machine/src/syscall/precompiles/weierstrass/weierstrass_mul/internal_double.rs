@@ -15,11 +15,11 @@ use num::{BigUint, One};
 use slop_air::{Air, BaseAir};
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_matrix::Matrix;
-use slop_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
+use slop_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSliceMut};
 use sp1_core_executor::{
     events::{
-        ByteLookupEvent, ECMulInternalDoubleEvent, EllipticCurveMulEvent, FieldOperation,
-        PrecompileEvent,
+        ByteLookupEvent, ByteRecord, ECMulInternalDoubleEvent, EllipticCurveMulEvent,
+        FieldOperation, PrecompileEvent,
     },
     ExecutionRecord, Program, SyscallCode,
 };
@@ -244,17 +244,14 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         Some(nb_rows.next_multiple_of(32).max(16))
     }
 
-    fn generate_dependencies(&self, _input: &Self::Record, _output: &mut Self::Record) {
-        // See the matching comment in `WeierstrassMulInternalAddChip`: the
-        // byte-lookup events are produced inside `generate_trace_into` as the
-        // channel drains, because the events only exist once the controller has
-        // sent them.
-    }
+    // TEMPORARY: rely on the default `generate_dependencies` — see the matching
+    // comment in `WeierstrassMulInternalAddChip`. Replace with a dedicated
+    // dry-run pass once the chip is tested.
 
     fn generate_trace_into(
         &self,
         input: &ExecutionRecord,
-        _output: &mut ExecutionRecord,
+        output: &mut ExecutionRecord,
         buffer: &mut [MaybeUninit<F>],
     ) {
         let padded_nb_rows =
@@ -281,13 +278,8 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             Self::populate_field_ops(&mut vec![], cols, one.clone(), one);
         }
 
-        // Drain the entire internal-double channel into a Vec serially (the
-        // Receiver is `!Sync`, so we can't recv from multiple threads), then
-        // populate rows in parallel. Each event now carries its own `clk`, so
-        // the drain order doesn't have to match any ECMUL-event order — the
-        // controller is free to send out of order from its own par_bridge.
-        // Trapped events contribute 0 sends and 0 to `total_internal_doubles`,
-        // so no deadlock.
+        // See the matching comment in `WeierstrassMulInternalAddChip` for the
+        // design rationale.
         let total_internal_doubles: usize = events
             .iter()
             .map(|(_, op)| match op {
@@ -296,36 +288,35 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             })
             .sum();
 
-        let mut all_events: Vec<ECMulInternalDoubleEvent> =
-            Vec::with_capacity(total_internal_doubles);
-        {
-            let rx_arc = input.channels.ecmul_internal_double_channel.1.clone();
-            let rx = rx_arc.lock().expect("internal double channel mutex poisoned");
-            for _ in 0..total_internal_doubles {
-                all_events.push(
-                    rx.recv().expect("internal double channel disconnected before drain"),
-                );
-            }
-        }
-
         let chunk_size = 64;
         let dummy_row_ref = dummy_row.as_slice();
-        let all_events_ref = all_events.as_slice();
-        values.chunks_mut(chunk_size * num_cols).enumerate().par_bridge().for_each(
-            |(i, rows)| {
+        let (event_buf, padding_buf) =
+            values.split_at_mut(total_internal_doubles * num_cols);
+
+        let channels = &input.channels;
+        let blu_batches: Vec<Vec<ByteLookupEvent>> = event_buf
+            .chunks_mut(chunk_size * num_cols)
+            .par_bridge()
+            .map(|batch_rows| {
+                let batch_size = batch_rows.len() / num_cols;
+                let event_iter = channels.receive_ecmul_internal_double_events(batch_size);
                 let mut blu = Vec::new();
-                rows.chunks_mut(num_cols).enumerate().for_each(|(j, row)| {
-                    let idx = i * chunk_size + j;
-                    if idx < all_events_ref.len() {
-                        let cols: &mut WeierstrassMulInternalDoubleCols<F, E::BaseField> =
-                            row.borrow_mut();
-                        Self::populate_row(&all_events_ref[idx], cols, &mut blu);
-                    } else {
-                        row.copy_from_slice(dummy_row_ref);
-                    }
+                batch_rows.chunks_mut(num_cols).zip(event_iter).for_each(|(row, event)| {
+                    let cols: &mut WeierstrassMulInternalDoubleCols<F, E::BaseField> =
+                        row.borrow_mut();
+                    Self::populate_row(&event, cols, &mut blu);
                 });
-            },
-        );
+                blu
+            })
+            .collect();
+
+        for blu in blu_batches {
+            output.add_byte_lookup_events(blu);
+        }
+
+        padding_buf
+            .par_chunks_mut(num_cols)
+            .for_each(|row| row.copy_from_slice(dummy_row_ref));
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
