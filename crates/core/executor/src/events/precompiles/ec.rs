@@ -115,14 +115,28 @@ pub struct EllipticCurveMulEvent {
     pub page_prot_records: EllipticCurvePageProtRecords,
     /// The local page prot access records.
     pub local_page_prot_access: Vec<PageProtLocalEvent>,
+    /// Whether this syscall trapped on an mprotect check.
+    ///
+    /// When `true`, the executor leaves `p`, `exp`, and the memory-record vectors
+    /// empty and emits no work for the internal Add / Double chips, so they can
+    /// short-circuit their per-event row counts to 0 without re-deriving trap
+    /// status from `page_prot_records`.
+    pub is_trapped: bool,
 }
 
 /// Internal event emitted for each addition step in elliptic curve scalar multiplication.
+///
+/// `clk` rides on the event so the internal chips can drain the channel in any
+/// order — the controller can then populate its rows in parallel without
+/// preserving per-event ordering on the channel.
 #[derive(Default, Debug, Clone, Serialize, PartialEq, Eq, Deserialize, DeepSizeOf)]
 pub struct ECMulInternalAddEvent {
-    /// internal clock cycle
+    /// parent ECMUL event's clock cycle
+    pub clk: u64,
+    /// internal step counter
     pub c: u16,
-    /// first add marker
+    /// first add marker (the prefix bit-sum `S_{i-1}`, always non-zero for events
+    /// that reach this chip; the first add is absorbed by the controller)
     pub is_first_add: u16,
     /// input running doubler
     pub ird: Vec<u64>,
@@ -131,9 +145,13 @@ pub struct ECMulInternalAddEvent {
 }
 
 /// Internal event emitted for each doubling step in elliptic curve scalar multiplication.
+///
+/// See [`ECMulInternalAddEvent`] for the rationale behind carrying `clk`.
 #[derive(Default, Debug, Clone, Serialize, PartialEq, Eq, Deserialize, DeepSizeOf)]
 pub struct ECMulInternalDoubleEvent {
-    /// internal clock cycle
+    /// parent ECMUL event's clock cycle
+    pub clk: u64,
+    /// internal step counter
     pub c: u16,
     /// input running doubler
     pub ird: Vec<u64>,

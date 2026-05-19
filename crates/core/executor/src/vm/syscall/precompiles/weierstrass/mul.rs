@@ -97,6 +97,7 @@ pub(crate) fn weierstrass_mul<'a, M: ExecutionMode, RT: SyscallRuntime<'a, M>, E
             local_mem_access,
             page_prot_records,
             local_page_prot_access,
+            is_trapped: is_trap.is_some(),
         };
 
         let syscall_event = rt.syscall_event(

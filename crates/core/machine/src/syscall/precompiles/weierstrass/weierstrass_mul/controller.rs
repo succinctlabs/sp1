@@ -1,15 +1,20 @@
-use core::{borrow::Borrow, marker::PhantomData, mem::size_of, mem::MaybeUninit};
-use std::iter::repeat;
+use core::{
+    borrow::{Borrow, BorrowMut},
+    marker::PhantomData,
+    mem::size_of,
+    mem::MaybeUninit,
+};
 
 use generic_array::GenericArray;
-use itertools::{repeat_n, Itertools};
+use itertools::Itertools;
 use slop_air::{Air, AirBuilder, BaseAir};
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_matrix::Matrix;
+use slop_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 use sp1_core_executor::{
     events::{
         ByteLookupEvent, ECMulInternalAddEvent, ECMulInternalDoubleEvent, EllipticCurveMulEvent,
-        MemoryReadRecord, MemoryRecordEnum,
+        MemoryRecordEnum, PrecompileEvent,
     },
     ExecutionRecord, Program, SupervisorMode, SyscallCode, UserMode,
 };
@@ -237,6 +242,7 @@ impl<E: EllipticCurve + WeierstrassParameters, M: TrustMode> WeierstrassMulAssig
                     irt.extend(limbs_to_event_words(&total_y));
                     add_sender
                         .send(ECMulInternalAddEvent {
+                            clk: event.clk,
                             c: c_add,
                             // `first_add_marker = S_{i-1}`, guaranteed non-zero here.
                             is_first_add: s_prev,
@@ -260,7 +266,7 @@ impl<E: EllipticCurve + WeierstrassParameters, M: TrustMode> WeierstrassMulAssig
                 let mut irt = limbs_to_event_words(&total_x);
                 irt.extend(limbs_to_event_words(&total_y));
                 double_sender
-                    .send(ECMulInternalDoubleEvent { c: c_double, ird, irt })
+                    .send(ECMulInternalDoubleEvent { clk: event.clk, c: c_double, ird, irt })
                     .expect("internal double channel disconnected");
 
                 let (new_x, new_y) = affine_double::<F, E>(&doubler_x, &doubler_y);
@@ -320,20 +326,70 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters, M: TrustMode> Ma
             _ => panic!("Unsupported curve"),
         };
 
-        let num_event_rows = events.len();
         let num_cols = <WeierstrassMulAssignChip<E, M> as BaseAir<F>>::width(self);
-        let chunk_size = 64;
 
-        // Padding rows set to all 0
+        // Zero the entire buffer up front. The AIR gates every meaningful
+        // interaction on `is_real`, `is_not_trap`, or a bit column, and the only
+        // ungated `assert_bool` checks live on `exp_bits` (which are all zero in
+        // a zero row). So zero is a valid "fake" row with no dummy field-op
+        // padding needed — and it also covers any columns that `populate_row`
+        // skips on the trap branch (it returns after writing the page-prot /
+        // memory-access witness, leaving `c_at_first_add` / `ird_at_first_add_*`
+        // / `ord_*` untouched on a trapped row).
         unsafe {
-            let padding_start = num_event_rows * num_cols;
-            let padding_size = (padded_nb_rows - num_event_rows) * num_cols;
-            if padding_size > 0 {
-                core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
-            }
+            core::ptr::write_bytes(buffer.as_mut_ptr(), 0, padded_nb_rows * num_cols);
         }
 
-        todo!()
+        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
+        let values =
+            unsafe { core::slice::from_raw_parts_mut(buffer_ptr, padded_nb_rows * num_cols) };
+
+        // Per-chunk sender clones. `mpsc::Sender` is `Send + !Sync`, so we can't
+        // share `&Sender` across parallel tasks — instead each chunk takes
+        // ownership of its own clone via the zipped iterator. The internal Add
+        // and Double chips now carry `clk` on each channel event and drain in
+        // arrival order, so cross-event ordering on the channel doesn't matter.
+        let chunk_size = 64;
+        let num_chunks = padded_nb_rows.div_ceil(chunk_size);
+        let senders: Vec<(
+            std::sync::mpsc::Sender<ECMulInternalAddEvent>,
+            std::sync::mpsc::Sender<ECMulInternalDoubleEvent>,
+        )> = (0..num_chunks)
+            .map(|_| {
+                (
+                    input.channels.ecmul_internal_add_channel.0.clone(),
+                    input.channels.ecmul_internal_double_channel.0.clone(),
+                )
+            })
+            .collect();
+
+        // `blu` is currently dropped — `generate_dependencies` isn't yet wired up
+        // for this chip (see the matching note on the internal chips).
+        values.chunks_mut(chunk_size * num_cols).zip(senders).enumerate().par_bridge().for_each(
+            |(i, (rows, (add_sender, double_sender)))| {
+                let mut blu = Vec::new();
+                rows.chunks_mut(num_cols).enumerate().for_each(|(j, row)| {
+                    let idx = i * chunk_size + j;
+                    if idx < events.len() {
+                        match &events[idx].1 {
+                            PrecompileEvent::Secp256k1Mul(event) => {
+                                let cols: &mut WeierstrassMulAssignCols<F, E::BaseField, M> =
+                                    row.borrow_mut();
+                                Self::populate_row(
+                                    event,
+                                    cols,
+                                    &mut blu,
+                                    &add_sender,
+                                    &double_sender,
+                                );
+                            }
+                            _ => unreachable!(),
+                        }
+                    }
+                    // Else: row is already zeroed; valid fake row for this chip.
+                });
+            },
+        );
     }
 
     fn included(&self, shard: &Self::Record) -> bool {

@@ -15,6 +15,7 @@ use num::{BigUint, One, Zero};
 use slop_air::{Air, AirBuilder, BaseAir};
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_matrix::Matrix;
+use slop_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 use sp1_core_executor::{
     events::{
         ByteLookupEvent, ECMulInternalAddEvent, EllipticCurveMulEvent, FieldOperation,
@@ -39,9 +40,13 @@ pub const fn num_weierstrass_mul_internal_add_cols<P: FieldParameters + NumWords
 
 /// Number of internal-add events the controller emits for a single ECMUL precompile
 /// event: `popcount(scalar) - 1`, since the first set bit's add is folded into the
-/// controller chip's own row. Trapped user-mode events (which produce zero internal
-/// events) are not yet handled — see the TODO in `generate_trace_into`.
+/// controller chip's own row. Trapped events emit nothing, so they contribute 0
+/// — this is what keeps `num_rows` and the channel-drain in `generate_trace_into`
+/// in sync without re-deriving trap state from `page_prot_records`.
 fn non_first_add_count(event: &EllipticCurveMulEvent) -> usize {
+    if event.is_trapped {
+        return 0;
+    }
     let popcount: u32 = event.exp_memory_records.iter().map(|r| r.value.count_ones()).sum();
     popcount.saturating_sub(1) as usize
 }
@@ -110,20 +115,20 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassMulInternalAddChip<E> 
         Self { _marker: PhantomData }
     }
 
-    /// Fills in one internal-add row from an `ECMulInternalAddEvent` and the parent
-    /// `EllipticCurveMulEvent`'s clock. Leaves out all the syscall / main-memory /
-    /// mprotect bookkeeping — this chip only sees the internal memory and opcode
-    /// buses, which are driven directly by `(c, first_add_marker, ird, irt)` plus
-    /// the field-op witness columns.
+    /// Fills in one internal-add row from an `ECMulInternalAddEvent`. The parent
+    /// ECMUL event's clock is carried on the channel event itself (`event.clk`),
+    /// so this populate is order-independent and can run in parallel across
+    /// drained events. Leaves out the syscall / main-memory / mprotect bookkeeping
+    /// — this chip only sees the internal memory and opcode buses, which are
+    /// driven by `(c, first_add_marker, ird, irt)` plus the field-op witness.
     pub fn populate_row<F: PrimeField32>(
         event: &ECMulInternalAddEvent,
-        clk: u64,
         cols: &mut WeierstrassMulInternalAddCols<F, E::BaseField>,
         new_byte_lookup_events: &mut Vec<ByteLookupEvent>,
     ) {
         cols.is_real = F::one();
-        cols.clk_high = F::from_canonical_u32((clk >> 24) as u32);
-        cols.clk_low = F::from_canonical_u32((clk & 0xFFFFFF) as u32);
+        cols.clk_high = F::from_canonical_u32((event.clk >> 24) as u32);
+        cols.clk_low = F::from_canonical_u32((event.clk & 0xFFFFFF) as u32);
         cols.c = F::from_canonical_u16(event.c);
         let marker = F::from_canonical_u16(event.is_first_add);
         cols.first_add_marker = marker;
@@ -295,40 +300,51 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             );
         }
 
-        // Drain the controller's internal-add channel in ECMUL-event order. We hold
-        // the receiver lock for the duration of this chip's tracegen — this chip is
-        // the sole consumer of that channel, and the producer (controller) only
-        // interacts with the Sender side.
-        //
-        // TODO: trapped user-mode rows produce zero internal events; the current
-        // count assumes every ECMUL event contributes `popcount - 1` adds, which is
-        // correct in supervisor mode but will deadlock if a user-mode event traps.
-        let rx_arc = input.channels.ecmul_internal_add_channel.1.clone();
-        let rx = rx_arc.lock().expect("internal add channel mutex poisoned");
+        // Drain the entire internal-add channel into a Vec serially (the
+        // Receiver is `!Sync`, so we can't recv from multiple threads), then
+        // populate rows in parallel. Each event now carries its own `clk`, so
+        // the drain order doesn't have to match any ECMUL-event order — the
+        // controller is free to send out of order from its own par_bridge.
+        // Trapped events contribute 0 sends and 0 to `total_internal_adds`, so
+        // no deadlock.
+        let total_internal_adds: usize = events
+            .iter()
+            .map(|(_, op)| match op {
+                PrecompileEvent::Secp256k1Mul(e) => non_first_add_count(e),
+                _ => 0,
+            })
+            .sum();
 
-        let mut row_idx = 0usize;
-        let mut blu = Vec::new();
-        for (_, op) in events.iter() {
-            let event = match op {
-                PrecompileEvent::Secp256k1Mul(e) => e,
-                _ => continue,
-            };
-            let n = non_first_add_count(event);
-            for _ in 0..n {
-                let internal_event =
-                    rx.recv().expect("internal add channel disconnected before drain");
-                let row =
-                    &mut values[row_idx * num_cols..(row_idx + 1) * num_cols];
-                let cols: &mut WeierstrassMulInternalAddCols<F, E::BaseField> = row.borrow_mut();
-                Self::populate_row(&internal_event, event.clk, cols, &mut blu);
-                row_idx += 1;
+        let mut all_events: Vec<ECMulInternalAddEvent> =
+            Vec::with_capacity(total_internal_adds);
+        {
+            let rx_arc = input.channels.ecmul_internal_add_channel.1.clone();
+            let rx = rx_arc.lock().expect("internal add channel mutex poisoned");
+            for _ in 0..total_internal_adds {
+                all_events.push(
+                    rx.recv().expect("internal add channel disconnected before drain"),
+                );
             }
         }
 
-        for i in row_idx..padded_nb_rows {
-            let row = &mut values[i * num_cols..(i + 1) * num_cols];
-            row.copy_from_slice(&dummy_row);
-        }
+        let chunk_size = 64;
+        let dummy_row_ref = dummy_row.as_slice();
+        let all_events_ref = all_events.as_slice();
+        values.chunks_mut(chunk_size * num_cols).enumerate().par_bridge().for_each(
+            |(i, rows)| {
+                let mut blu = Vec::new();
+                rows.chunks_mut(num_cols).enumerate().for_each(|(j, row)| {
+                    let idx = i * chunk_size + j;
+                    if idx < all_events_ref.len() {
+                        let cols: &mut WeierstrassMulInternalAddCols<F, E::BaseField> =
+                            row.borrow_mut();
+                        Self::populate_row(&all_events_ref[idx], cols, &mut blu);
+                    } else {
+                        row.copy_from_slice(dummy_row_ref);
+                    }
+                });
+            },
+        );
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
