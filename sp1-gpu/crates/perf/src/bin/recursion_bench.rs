@@ -14,6 +14,7 @@ use sp1_hypercube::{
 };
 use sp1_primitives::{SP1ExtensionField, SP1Field, SP1GlobalContext};
 use sp1_prover::{
+    machine_has_apcs,
     recursion::{compose_program_from_input, recursive_verifier, shrink_program_from_input},
     shapes::SP1RecursionProofShape,
     SP1ProverComponents,
@@ -143,10 +144,11 @@ async fn main() {
         let build_start = Instant::now();
         let program = match mode.compose_arity() {
             Some(_) => {
-                let reduce_shape = SP1RecursionProofShape::retrieve_or_compute_reduce_shape(
-                    &machine,
+                let reduce_shape = SP1RecursionProofShape::compress_proof_shape_from_arity(
                     original_arity,
-                );
+                    machine_has_apcs(&machine),
+                )
+                .expect("original arity not supported");
                 let mut program = compose_program_from_input(
                     &recursive_compress_verifier,
                     vk_verification,
