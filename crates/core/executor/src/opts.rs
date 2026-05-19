@@ -13,8 +13,11 @@ pub const ELEMENT_THRESHOLD: u64 = (1 << 28) + (1 << 27);
 /// The height threshold for a shard.
 pub const HEIGHT_THRESHOLD: u64 = 1 << 22;
 /// The maximum size of a minimal trace chunk in terms of memory entries.
-pub const MINIMAL_TRACE_CHUNK_THRESHOLD: u64 =
-    2147483648 / std::mem::size_of::<sp1_jit::MemValue>() as u64;
+///
+/// 16,777,216 entries × 16 B/entry = 256 MiB per chunk. With
+/// [`DEFAULT_TRACE_CHUNK_SLOTS`] slots in the SHM ring buffer, this caps the
+/// trace-ring shared memory at ~5 × 256 MiB × 10/9 ≈ 1.43 GiB.
+pub const MINIMAL_TRACE_CHUNK_THRESHOLD: u64 = 16_777_216;
 /// The default number trace chunk slots
 pub const DEFAULT_TRACE_CHUNK_SLOTS: usize = 5;
 /// Default memory limit for SP1 programs, note this value has different semantics

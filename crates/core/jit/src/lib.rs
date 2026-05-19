@@ -223,6 +223,9 @@ pub struct JitFunction<M> {
     pub global_clk: u64,
     pub exit_code: u32,
 
+    /// The public value digest words emitted by `COMMIT` syscalls.
+    pub public_value_digest: [u32; context::PUBLIC_VALUE_DIGEST_WORDS],
+
     pub debug_sender: Option<mpsc::SyncSender<Option<debug::State>>>,
 }
 
@@ -258,6 +261,7 @@ impl<M: JitMemory> JitFunction<M> {
             public_values_stream: Vec::new(),
             debug_sender: None,
             exit_code: 0,
+            public_value_digest: [0; context::PUBLIC_VALUE_DIGEST_WORDS],
         })
     }
 
@@ -349,6 +353,7 @@ impl<M: JitMemory> JitFunction<M> {
             tracing,
             debug_sender: self.debug_sender.clone(),
             exit_code: self.exit_code,
+            public_value_digest: self.public_value_digest,
         };
 
         tracing::debug_span!("JIT function", pc = ctx.pc, clk = ctx.clk).in_scope(|| {
@@ -361,6 +366,7 @@ impl<M: JitMemory> JitFunction<M> {
         self.clk = ctx.clk;
         self.global_clk = ctx.global_clk;
         self.exit_code = ctx.exit_code;
+        self.public_value_digest = ctx.public_value_digest;
     }
 
     fn insert_memory_image(&mut self) {
@@ -400,6 +406,7 @@ impl<M: JitResetableMemory> JitFunction<M> {
         self.input_buffer = VecDeque::new();
         self.hints = Vec::new();
         self.public_values_stream = Vec::new();
+        self.public_value_digest = [0; context::PUBLIC_VALUE_DIGEST_WORDS];
         self.memory.reset();
 
         self.insert_memory_image();

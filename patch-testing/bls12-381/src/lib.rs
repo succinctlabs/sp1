@@ -182,3 +182,4 @@ pub fn test_bls_double_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk
         }
     }
 }
+
