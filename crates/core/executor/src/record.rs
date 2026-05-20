@@ -165,8 +165,10 @@ pub struct ExecutionRecord {
 #[derive(Clone, Debug)]
 pub struct ExecutionReportChannels {
     /// Channel for internal addition in ecmul precompile
-    ecmul_internal_add_channel:
-        (crossbeam::channel::Sender<ECMulInternalAddEvent>, crossbeam::channel::Receiver<ECMulInternalAddEvent>),
+    ecmul_internal_add_channel: (
+        crossbeam::channel::Sender<ECMulInternalAddEvent>,
+        crossbeam::channel::Receiver<ECMulInternalAddEvent>,
+    ),
     /// Channel for internal doubling in ecmul precompile
     ecmul_internal_double_channel: (
         crossbeam::channel::Sender<ECMulInternalDoubleEvent>,
