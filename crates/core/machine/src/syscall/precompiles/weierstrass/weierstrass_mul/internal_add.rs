@@ -282,13 +282,20 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         // gates every column-level constraint, but the field-op witness columns
         // still have to satisfy their internal carry/range bookkeeping for a
         // well-formed matrix, so populate them with non-degenerate inputs
-        // `(p, q) = ((0, 0), (1, 1))` (mirrors `WeierstrassAddAssignChip`).
+        // `(p, q) = ((0, 0), (1, 1))`. Unlike `WeierstrassAddAssignChip` (which
+        // gets `p`/`q` from memory-access columns), this chip's AIR reads them
+        // straight off `ird`/`irt`, so those have to be set to match the
+        // witness — leaving them zero would make `slope_numerator = irt_y -
+        // ird_y` evaluate to `0` while the witness was populated for `1`.
         let mut dummy_row = zeroed_f_vec::<F>(num_cols);
         {
             let cols: &mut WeierstrassMulInternalAddCols<F, E::BaseField> =
                 dummy_row.as_mut_slice().borrow_mut();
             let zero = BigUint::zero();
             let one = BigUint::one();
+            // ird_x / ird_y stay zero (already zeroed); irt_x / irt_y = limbs(1).
+            cols.irt_x = E::BaseField::to_limbs_field::<F, F>(&one);
+            cols.irt_y = E::BaseField::to_limbs_field::<F, F>(&one);
             Self::populate_field_ops(
                 &mut vec![],
                 cols,

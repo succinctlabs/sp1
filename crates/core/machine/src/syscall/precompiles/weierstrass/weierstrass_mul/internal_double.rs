@@ -270,11 +270,15 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
         // Dummy row for padding. `populate_field_ops` requires `p_y != 0` (it
         // computes `slope = (a + 3*p_x^2) / (2*p_y)`), so use `(p_x, p_y) = (1, 1)`.
+        // The AIR reads `p_x` / `p_y` straight off `ird_x` / `ird_y`, so those
+        // have to be set to `limbs(1)` to match the populated witness.
         let mut dummy_row = zeroed_f_vec::<F>(num_cols);
         {
             let cols: &mut WeierstrassMulInternalDoubleCols<F, E::BaseField> =
                 dummy_row.as_mut_slice().borrow_mut();
             let one = BigUint::one();
+            cols.ird_x = E::BaseField::to_limbs_field::<F, F>(&one);
+            cols.ird_y = E::BaseField::to_limbs_field::<F, F>(&one);
             Self::populate_field_ops(&mut vec![], cols, one.clone(), one);
         }
 

@@ -55,9 +55,9 @@ where
     [zero(), zero()]
 }
 
-// pub trait EcMulAirBuilder: SP1AirBuilder {}
+pub trait EcMulAirBuilder: SP1AirBuilder {}
 
-// impl<AB: SP1AirBuilder> EcMulAirBuilder for AB {}
+impl<AB: SP1AirBuilder> EcMulAirBuilder for AB {}
 
 /// Build a tuple on the internal memory bus `EcMulMemory`:
 /// `(clk_high, clk_low, c, doubler.x, doubler.y, total.x, total.y)`.
