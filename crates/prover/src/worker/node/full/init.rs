@@ -20,7 +20,6 @@ use crate::{
 };
 
 pub struct SP1LocalNodeBuilder<C: SP1ProverComponents> {
-    pub machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     pub worker_builder: SP1WorkerBuilder<C, InMemoryArtifactClient, LocalWorkerClient>,
     pub channels: LocalWorkerClientChannels,
 }
@@ -49,10 +48,9 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
     pub fn from_worker_client_builder(builder: SP1WorkerBuilder<C>) -> Self {
         let artifact_client = InMemoryArtifactClient::new();
         let (worker_client, channels) = LocalWorkerClient::init();
-        let machine = builder.machine().clone();
         let worker_builder =
             builder.with_artifact_client(artifact_client).with_worker_client(worker_client);
-        Self { machine, worker_builder, channels }
+        Self { worker_builder, channels }
     }
 
     /// Sets the core air prover to the worker client builder.
@@ -98,7 +96,8 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
 
     pub async fn build(self) -> anyhow::Result<SP1LocalNode> {
         // Destructure the builder.
-        let Self { machine, worker_builder, mut channels } = self;
+        let Self { worker_builder, mut channels } = self;
+        let machine = worker_builder.machine().clone();
         // Get the core options from the worker builder.
         let opts = worker_builder.core_opts().clone();
 
