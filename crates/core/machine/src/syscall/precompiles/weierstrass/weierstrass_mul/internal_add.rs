@@ -1,6 +1,5 @@
 use super::{
-    event_words_to_biguint, event_words_to_limbs,
-    interactions::{internal_add_call, internal_memory_rw},
+    event_words_to_point_biguint, event_words_to_point_limbs, interactions::EcMulAirBuilder,
 };
 use crate::{
     air::SP1CoreAirBuilder,
@@ -29,7 +28,7 @@ use sp1_curves::{
     CurveType, EllipticCurve,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_hypercube::air::{InteractionScope, MachineAir};
+use sp1_hypercube::air::MachineAir;
 use sp1_primitives::polynomial::Polynomial;
 use std::{fmt::Debug, marker::PhantomData, mem::MaybeUninit};
 use typenum::Unsigned;
@@ -136,22 +135,14 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassMulInternalAddChip<E> 
         // (the controller absorbs the first add), so `inverse()` is safe.
         cols.inverse_fam = marker.inverse();
 
-        let half = event.ird.len() / 2;
-        cols.ird_x = event_words_to_limbs(&event.ird[..half]);
-        cols.ird_y = event_words_to_limbs(&event.ird[half..]);
-        cols.irt_x = event_words_to_limbs(&event.irt[..half]);
-        cols.irt_y = event_words_to_limbs(&event.irt[half..]);
+        (cols.ird_x, cols.ird_y) = event_words_to_point_limbs(&event.ird);
+        (cols.irt_x, cols.irt_y) = event_words_to_point_limbs(&event.irt);
 
         // `populate_field_ops` mirrors `WeierstrassAddAssignChip::populate_field_ops`
         // with `p = ird`, `q = irt`.
-        Self::populate_field_ops(
-            new_byte_lookup_events,
-            cols,
-            event_words_to_biguint(&event.ird[..half]),
-            event_words_to_biguint(&event.ird[half..]),
-            event_words_to_biguint(&event.irt[..half]),
-            event_words_to_biguint(&event.irt[half..]),
-        );
+        let (ird_x, ird_y) = event_words_to_point_biguint(&event.ird);
+        let (irt_x, irt_y) = event_words_to_point_biguint(&event.irt);
+        Self::populate_field_ops(new_byte_lookup_events, cols, ird_x, ird_y, irt_x, irt_y);
     }
 
     /// Populates the field-operation columns for one internal-add step:
@@ -266,8 +257,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     ) {
         let padded_nb_rows =
             <WeierstrassMulInternalAddChip<E> as MachineAir<F>>::num_rows(self, input).unwrap();
-        let num_cols =
-            <WeierstrassMulInternalAddChip<E> as BaseAir<F>>::width(self);
+        let num_cols = <WeierstrassMulInternalAddChip<E> as BaseAir<F>>::width(self);
 
         let events = match E::CURVE_TYPE {
             CurveType::Secp256k1 => input.get_precompile_events(SyscallCode::SECP256K1_MUL),
@@ -296,14 +286,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             // ird_x / ird_y stay zero (already zeroed); irt_x / irt_y = limbs(1).
             cols.irt_x = E::BaseField::to_limbs_field::<F, F>(&one);
             cols.irt_y = E::BaseField::to_limbs_field::<F, F>(&one);
-            Self::populate_field_ops(
-                &mut vec![],
-                cols,
-                zero.clone(),
-                zero,
-                one.clone(),
-                one,
-            );
+            Self::populate_field_ops(&mut vec![], cols, zero.clone(), zero, one.clone(), one);
         }
 
         // Parallelize across batches of `chunk_size` rows, each batch processed
@@ -324,8 +307,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
         let chunk_size = 64;
         let dummy_row_ref = dummy_row.as_slice();
-        let (event_buf, padding_buf) =
-            values.split_at_mut(total_internal_adds * num_cols);
+        let (event_buf, padding_buf) = values.split_at_mut(total_internal_adds * num_cols);
 
         let channels = &input.channels;
         let blu_batches: Vec<Vec<ByteLookupEvent>> = event_buf
@@ -352,9 +334,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             output.add_byte_lookup_events(blu);
         }
 
-        padding_buf
-            .par_chunks_mut(num_cols)
-            .for_each(|row| row.copy_from_slice(dummy_row_ref));
+        padding_buf.par_chunks_mut(num_cols).for_each(|row| row.copy_from_slice(dummy_row_ref));
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -489,43 +469,34 @@ where
 
         // Internal memory bus: receive `(clock, c, ird, irt)` and send
         // `(clock, c+1, ord = ird, ort = (x3, y3))` with `ord` forwarded unchanged.
-        builder.receive(
-            internal_memory_rw::<AB, E::BaseField>(
-                local.clk_high,
-                local.clk_low,
-                local.c,
-                local.ird_x,
-                local.ird_y,
-                local.irt_x,
-                local.irt_y,
-                local.is_real,
-            ),
-            InteractionScope::Local,
+        builder.receive_ec_mul_internal_memory_event::<E::BaseField>(
+            local.clk_high,
+            local.clk_low,
+            local.c,
+            local.ird_x,
+            local.ird_y,
+            local.irt_x,
+            local.irt_y,
+            local.is_real,
         );
-        builder.send(
-            internal_memory_rw::<AB, E::BaseField>(
-                local.clk_high,
-                local.clk_low,
-                local.c.into() + AB::Expr::one(),
-                local.ird_x,
-                local.ird_y,
-                local.x3_ins.result,
-                local.y3_ins.result,
-                local.is_real,
-            ),
-            InteractionScope::Local,
+        builder.send_ec_mul_internal_memory_event::<E::BaseField>(
+            local.clk_high,
+            local.clk_low,
+            local.c.into() + AB::Expr::one(),
+            local.ird_x,
+            local.ird_y,
+            local.x3_ins.result,
+            local.y3_ins.result,
+            local.is_real,
         );
 
         // Internal opcode bus: receive an `Add` dispatch tuple from the controller.
-        builder.receive(
-            internal_add_call::<AB>(
-                local.clk_high,
-                local.clk_low,
-                local.c,
-                local.first_add_marker,
-                local.is_real,
-            ),
-            InteractionScope::Local,
+        builder.receive_ec_mul_internal_add_call(
+            local.clk_high,
+            local.clk_low,
+            local.c,
+            local.first_add_marker,
+            local.is_real,
         );
     }
 }

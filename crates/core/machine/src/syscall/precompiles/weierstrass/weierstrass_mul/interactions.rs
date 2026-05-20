@@ -1,24 +1,26 @@
 //! Custom interactions used by the EC scalar-multiplication chip family.
 //!
-//! These helpers package the two internal buses so the controller and the internal
-//! Add / Double chips can construct the right tuples without re-listing every column
-//! at each send/receive site:
+//! The two internal buses are exposed as methods on the [`EcMulAirBuilder`] extension
+//! trait so the controller and the internal Add / Double chips can do
+//! `builder.send_ec_mul_internal_memory_event(...)` etc. without re-listing every
+//! column at each send/receive site:
 //!
 //! - `EcMulMemory` carries the chain state `(clock, c, running_doubler, running_total)`.
 //! - `EcMulOpcode` carries the per-step dispatch `(clock, c, op, first_add_marker)`.
 //!
-//! Multiplicities passed in here are taken at face value — callers are responsible
-//! for gating them by `is_real * is_not_trap` (or equivalent) where applicable.
+//! All sends/receives are on the `InteractionScope::Local` scope (these are
+//! intra-chip-family buses). Multiplicities passed in here are taken at face value —
+//! callers are responsible for gating them by `is_real * is_not_trap` (or equivalent)
+//! where applicable.
 
 use num::BigUint;
-use slop_air::AirBuilder;
 use slop_algebra::AbstractField;
 use sp1_curves::params::FieldParameters;
 use sp1_curves::{
     params::{Limbs, NumLimbs},
     EllipticCurve,
 };
-use sp1_hypercube::air::SP1AirBuilder;
+use sp1_hypercube::air::{InteractionScope, SP1AirBuilder};
 use sp1_hypercube::{air::AirInteraction, InteractionKind};
 use typenum::Unsigned;
 
@@ -43,9 +45,9 @@ impl EcMulOp {
 /// prefix bit-sum `S_{i-1}` instead, which is `0` only at the very first set bit.
 pub const DOUBLE_MARKER: u8 = 1;
 
-/// Outputs an invalid point to represent the identity for the internal memory bus
+/// Outputs an invalid point to represent the identity for the internal memory bus.
 ///
-/// TODO: make sure this point is always invalid for general Weierstrass curves
+/// TODO: make sure this point is always invalid for general Weierstrass curves.
 pub fn ec_identity<E, AB>() -> [Limbs<AB::Expr, <E::BaseField as NumLimbs>::Limbs>; 2]
 where
     E: EllipticCurve,
@@ -55,20 +57,145 @@ where
     [zero(), zero()]
 }
 
-pub trait EcMulAirBuilder: SP1AirBuilder {}
+/// Extension trait providing `send_*` / `receive_*` helpers for the EC scalar-mul
+/// internal buses. Implemented for every `SP1AirBuilder` via a blanket impl, so any
+/// chip eval method that has `AB: SP1AirBuilder` automatically gets these methods.
+///
+/// Each scalar and each limb element is accepted as `impl Into<Self::Expr>`, so
+/// callers can pass column vars, expressions, or pre-converted `Limbs<Self::Expr, _>`
+/// interchangeably and the four limb args may even have different element types.
+pub trait EcMulAirBuilder: SP1AirBuilder {
+    /// Send a tuple on the internal memory bus `EcMulMemory`:
+    /// `(clk_high, clk_low, c, doubler.x, doubler.y, total.x, total.y)`.
+    #[allow(clippy::too_many_arguments)]
+    fn send_ec_mul_internal_memory_event<P: NumLimbs>(
+        &mut self,
+        clk_high: impl Into<Self::Expr>,
+        clk_low: impl Into<Self::Expr>,
+        c: impl Into<Self::Expr>,
+        doubler_x: Limbs<impl Into<Self::Expr>, P::Limbs>,
+        doubler_y: Limbs<impl Into<Self::Expr>, P::Limbs>,
+        total_x: Limbs<impl Into<Self::Expr>, P::Limbs>,
+        total_y: Limbs<impl Into<Self::Expr>, P::Limbs>,
+        multiplicity: impl Into<Self::Expr>,
+    ) {
+        self.send(
+            ec_mul_internal_memory_tuple::<Self, P>(
+                clk_high,
+                clk_low,
+                c,
+                doubler_x,
+                doubler_y,
+                total_x,
+                total_y,
+                multiplicity,
+            ),
+            InteractionScope::Local,
+        );
+    }
+
+    /// Receive a tuple on the internal memory bus `EcMulMemory`. See
+    /// [`Self::send_ec_mul_internal_memory_event`].
+    #[allow(clippy::too_many_arguments)]
+    fn receive_ec_mul_internal_memory_event<P: NumLimbs>(
+        &mut self,
+        clk_high: impl Into<Self::Expr>,
+        clk_low: impl Into<Self::Expr>,
+        c: impl Into<Self::Expr>,
+        doubler_x: Limbs<impl Into<Self::Expr>, P::Limbs>,
+        doubler_y: Limbs<impl Into<Self::Expr>, P::Limbs>,
+        total_x: Limbs<impl Into<Self::Expr>, P::Limbs>,
+        total_y: Limbs<impl Into<Self::Expr>, P::Limbs>,
+        multiplicity: impl Into<Self::Expr>,
+    ) {
+        self.receive(
+            ec_mul_internal_memory_tuple::<Self, P>(
+                clk_high,
+                clk_low,
+                c,
+                doubler_x,
+                doubler_y,
+                total_x,
+                total_y,
+                multiplicity,
+            ),
+            InteractionScope::Local,
+        );
+    }
+
+    /// Send a tuple on the internal opcode bus `EcMulOpcode` for an `Add` step:
+    /// `(clk_high, clk_low, c, EcMulOp::Add, first_add_marker)`.
+    ///
+    /// `first_add_marker` is the prefix bit-sum `S_{i-1}` (always an affine LC of the
+    /// controller's bit columns, never its own column):
+    ///   - `0` for the first add — consumed by the controller's first-add receive.
+    ///   - non-zero for every subsequent add — consumed by the Internal Add chip,
+    ///     which enforces non-zeroness via `first_add_marker * inverse_fam = 1`.
+    fn send_ec_mul_internal_add_call(
+        &mut self,
+        clk_high: impl Into<Self::Expr>,
+        clk_low: impl Into<Self::Expr>,
+        c: impl Into<Self::Expr>,
+        first_add_marker: impl Into<Self::Expr>,
+        multiplicity: impl Into<Self::Expr>,
+    ) {
+        self.send(
+            ec_mul_internal_add_tuple::<Self>(clk_high, clk_low, c, first_add_marker, multiplicity),
+            InteractionScope::Local,
+        );
+    }
+
+    /// Receive a tuple on the internal opcode bus `EcMulOpcode` for an `Add` step.
+    /// See [`Self::send_ec_mul_internal_add_call`].
+    fn receive_ec_mul_internal_add_call(
+        &mut self,
+        clk_high: impl Into<Self::Expr>,
+        clk_low: impl Into<Self::Expr>,
+        c: impl Into<Self::Expr>,
+        first_add_marker: impl Into<Self::Expr>,
+        multiplicity: impl Into<Self::Expr>,
+    ) {
+        self.receive(
+            ec_mul_internal_add_tuple::<Self>(clk_high, clk_low, c, first_add_marker, multiplicity),
+            InteractionScope::Local,
+        );
+    }
+
+    /// Send a tuple on the internal opcode bus `EcMulOpcode` for a `Double` step:
+    /// `(clk_high, clk_low, c, EcMulOp::Double, DOUBLE_MARKER)`.
+    fn send_ec_mul_internal_double_call(
+        &mut self,
+        clk_high: impl Into<Self::Expr>,
+        clk_low: impl Into<Self::Expr>,
+        c: impl Into<Self::Expr>,
+        multiplicity: impl Into<Self::Expr>,
+    ) {
+        self.send(
+            ec_mul_internal_double_tuple::<Self>(clk_high, clk_low, c, multiplicity),
+            InteractionScope::Local,
+        );
+    }
+
+    /// Receive a tuple on the internal opcode bus `EcMulOpcode` for a `Double` step.
+    /// See [`Self::send_ec_mul_internal_double_call`].
+    fn receive_ec_mul_internal_double_call(
+        &mut self,
+        clk_high: impl Into<Self::Expr>,
+        clk_low: impl Into<Self::Expr>,
+        c: impl Into<Self::Expr>,
+        multiplicity: impl Into<Self::Expr>,
+    ) {
+        self.receive(
+            ec_mul_internal_double_tuple::<Self>(clk_high, clk_low, c, multiplicity),
+            InteractionScope::Local,
+        );
+    }
+}
 
 impl<AB: SP1AirBuilder> EcMulAirBuilder for AB {}
 
-/// Build a tuple on the internal memory bus `EcMulMemory`:
-/// `(clk_high, clk_low, c, doubler.x, doubler.y, total.x, total.y)`.
-///
-/// Used identically for sends and receives — the caller passes the result to
-/// `builder.send(...)` or `builder.receive(...)`. Each scalar and each limb
-/// element is accepted as `impl Into<AB::Expr>`, so callers can pass column
-/// vars, expressions, or pre-converted `Limbs<AB::Expr, _>` interchangeably and
-/// the four limb args may even have different element types.
 #[allow(clippy::too_many_arguments)]
-pub fn internal_memory_rw<AB, P>(
+fn ec_mul_internal_memory_tuple<AB, P>(
     clk_high: impl Into<AB::Expr>,
     clk_low: impl Into<AB::Expr>,
     c: impl Into<AB::Expr>,
@@ -79,7 +206,7 @@ pub fn internal_memory_rw<AB, P>(
     multiplicity: impl Into<AB::Expr>,
 ) -> AirInteraction<AB::Expr>
 where
-    AB: AirBuilder,
+    AB: SP1AirBuilder,
     P: NumLimbs,
 {
     let mut values = Vec::with_capacity(3 + 4 * P::Limbs::USIZE);
@@ -93,36 +220,7 @@ where
     AirInteraction::new(values, multiplicity.into(), InteractionKind::EcMulMemory)
 }
 
-/// Build a tuple on the internal opcode bus `EcMulOpcode` for a `Double` step:
-/// `(clk_high, clk_low, c, EcMulOp::Double, DOUBLE_MARKER)`.
-pub fn internal_double_call<AB>(
-    clk_high: impl Into<AB::Expr>,
-    clk_low: impl Into<AB::Expr>,
-    c: impl Into<AB::Expr>,
-    multiplicity: impl Into<AB::Expr>,
-) -> AirInteraction<AB::Expr>
-where
-    AB: AirBuilder,
-{
-    let values = vec![
-        clk_high.into(),
-        clk_low.into(),
-        c.into(),
-        EcMulOp::Double.as_expr::<AB::Expr>(),
-        AB::Expr::from_canonical_u8(DOUBLE_MARKER),
-    ];
-    AirInteraction::new(values, multiplicity.into(), InteractionKind::EcMulOpcode)
-}
-
-/// Build a tuple on the internal opcode bus `EcMulOpcode` for an `Add` step:
-/// `(clk_high, clk_low, c, EcMulOp::Add, first_add_marker)`.
-///
-/// `first_add_marker` is the prefix bit-sum `S_{i-1}` (always an affine LC of the
-/// controller's bit columns, never its own column):
-///   - `0` for the first add — consumed by the controller's first-add receive.
-///   - non-zero for every subsequent add — consumed by the Internal Add chip,
-///     which enforces non-zeroness via `first_add_marker * inverse_fam = 1`.
-pub fn internal_add_call<AB>(
+fn ec_mul_internal_add_tuple<AB>(
     clk_high: impl Into<AB::Expr>,
     clk_low: impl Into<AB::Expr>,
     c: impl Into<AB::Expr>,
@@ -130,7 +228,7 @@ pub fn internal_add_call<AB>(
     multiplicity: impl Into<AB::Expr>,
 ) -> AirInteraction<AB::Expr>
 where
-    AB: AirBuilder,
+    AB: SP1AirBuilder,
 {
     let values = vec![
         clk_high.into(),
@@ -138,6 +236,25 @@ where
         c.into(),
         EcMulOp::Add.as_expr::<AB::Expr>(),
         first_add_marker.into(),
+    ];
+    AirInteraction::new(values, multiplicity.into(), InteractionKind::EcMulOpcode)
+}
+
+fn ec_mul_internal_double_tuple<AB>(
+    clk_high: impl Into<AB::Expr>,
+    clk_low: impl Into<AB::Expr>,
+    c: impl Into<AB::Expr>,
+    multiplicity: impl Into<AB::Expr>,
+) -> AirInteraction<AB::Expr>
+where
+    AB: SP1AirBuilder,
+{
+    let values = vec![
+        clk_high.into(),
+        clk_low.into(),
+        c.into(),
+        EcMulOp::Double.as_expr::<AB::Expr>(),
+        AB::Expr::from_canonical_u8(DOUBLE_MARKER),
     ];
     AirInteraction::new(values, multiplicity.into(), InteractionKind::EcMulOpcode)
 }

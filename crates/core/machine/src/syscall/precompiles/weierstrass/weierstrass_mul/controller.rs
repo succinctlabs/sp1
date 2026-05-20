@@ -36,9 +36,9 @@ use crate::{
     memory::MemoryAccessColsU8,
     operations::{AddrAddOperation, AddressSlicePageProtOperation, SyscallAddrOperation},
     syscall::precompiles::weierstrass::weierstrass_mul::{
-        affine_add, affine_double, event_words_to_limbs,
-        interactions::{ec_identity, internal_add_call, internal_double_call, internal_memory_rw},
-        limbs_to_event_words,
+        affine_add, affine_double, event_words_to_limbs, event_words_to_point_limbs,
+        interactions::{ec_identity, EcMulAirBuilder},
+        point_limbs_to_event_words,
     },
     utils::limbs_to_words,
     TrustMode,
@@ -164,16 +164,8 @@ impl<E: EllipticCurve + WeierstrassParameters, M: TrustMode> WeierstrassMulAssig
 
         // Reconstruct output values from memory write records
         let half = event.p_memory_records.len() / 2;
-        cols.ort_x = event.p_memory_records[..half]
-            .iter()
-            .flat_map(|r| r.value.to_le_bytes())
-            .map(F::from_canonical_u8)
-            .collect();
-        cols.ort_y = event.p_memory_records[half..]
-            .iter()
-            .flat_map(|r| r.value.to_le_bytes())
-            .map(F::from_canonical_u8)
-            .collect();
+        cols.ort_x = event_words_to_limbs(event.p_memory_records[..half].iter().map(|r| r.value));
+        cols.ort_y = event_words_to_limbs(event.p_memory_records[half..].iter().map(|r| r.value));
         // Reconstruct final ord values TODO, need to figure out how to avoid redundancy with internal chips
 
         // Get bits of exponent
@@ -207,11 +199,10 @@ impl<E: EllipticCurve + WeierstrassParameters, M: TrustMode> WeierstrassMulAssig
         //   double(i) → c = i + S_i
         // where S_i = b_0 + b_1 + ... + b_i, S_{-1} = 0.
         let exp_num_bits = exp_bits.len();
-        let half = event.p.len() / 2;
-        let mut doubler_x: Limbs<F, <E::BaseField as NumLimbs>::Limbs> =
-            event_words_to_limbs(&event.p[..half]);
-        let mut doubler_y: Limbs<F, <E::BaseField as NumLimbs>::Limbs> =
-            event_words_to_limbs(&event.p[half..]);
+        let (mut doubler_x, mut doubler_y): (
+            Limbs<F, <E::BaseField as NumLimbs>::Limbs>,
+            Limbs<F, <E::BaseField as NumLimbs>::Limbs>,
+        ) = event_words_to_point_limbs(&event.p);
         // Running total starts as the EC identity. The first add never reaches
         // `affine_add` (the controller handles it directly), and every subsequent
         // add overwrites `total_*` before reading the previous identity value, so
@@ -235,17 +226,13 @@ impl<E: EllipticCurve + WeierstrassParameters, M: TrustMode> WeierstrassMulAssig
                     total_y = doubler_y.clone();
                 } else {
                     // Snapshot ird/irt *before* updating the running total.
-                    let mut ird = limbs_to_event_words(&doubler_x);
-                    ird.extend(limbs_to_event_words(&doubler_y));
-                    let mut irt = limbs_to_event_words(&total_x);
-                    irt.extend(limbs_to_event_words(&total_y));
                     channels.send_ecmul_internal_add_event(ECMulInternalAddEvent {
                         clk: event.clk,
                         c: c_add,
                         // `first_add_marker = S_{i-1}`, guaranteed non-zero here.
                         is_first_add: s_prev,
-                        ird,
-                        irt,
+                        ird: point_limbs_to_event_words(&doubler_x, &doubler_y),
+                        irt: point_limbs_to_event_words(&total_x, &total_y),
                     });
 
                     let (new_x, new_y) =
@@ -258,15 +245,11 @@ impl<E: EllipticCurve + WeierstrassParameters, M: TrustMode> WeierstrassMulAssig
             let s_i = s_prev + b_i as u16;
             if i + 1 < exp_num_bits {
                 let c_double = i as u16 + s_i;
-                let mut ird = limbs_to_event_words(&doubler_x);
-                ird.extend(limbs_to_event_words(&doubler_y));
-                let mut irt = limbs_to_event_words(&total_x);
-                irt.extend(limbs_to_event_words(&total_y));
                 channels.send_ecmul_internal_double_event(ECMulInternalDoubleEvent {
                     clk: event.clk,
                     c: c_double,
-                    ird,
-                    irt,
+                    ird: point_limbs_to_event_words(&doubler_x, &doubler_y),
+                    irt: point_limbs_to_event_words(&total_x, &total_y),
                 });
 
                 let (new_x, new_y) = affine_double::<F, E>(&doubler_x, &doubler_y);
@@ -584,33 +567,26 @@ where
         let ird_y: Limbs<AB::Expr, <E::BaseField as NumLimbs>::Limbs> =
             Limbs(ird_y_limbs.try_into().expect("failed to convert limbs"));
         let [zero_x, zero_y] = ec_identity::<E, AB>();
-        builder.send(
-            internal_memory_rw::<AB, E::BaseField>(
-                local.clk_high,
-                local.clk_low,
-                AB::Expr::zero(), // c = 0 for initial send
-                ird_x,
-                ird_y,
-                zero_x.clone(),
-                zero_y.clone(),
-                is_not_trap.clone(),
-            ),
-            InteractionScope::Local,
+        builder.send_ec_mul_internal_memory_event::<E::BaseField>(
+            local.clk_high,
+            local.clk_low,
+            AB::Expr::zero(), // c = 0 for initial send
+            ird_x,
+            ird_y,
+            zero_x.clone(),
+            zero_y.clone(),
+            is_not_trap.clone(),
         );
         // Final memory receive: `(clk, c = 255 + Σ b_j, ord, ort)`.
-        builder.receive(
-            internal_memory_rw::<AB, E::BaseField>(
-                local.clk_high,
-                local.clk_low,
-                AB::Expr::from_canonical_usize(exp_num_bits - 1)
-                    + bit_totals.last().unwrap().clone(),
-                local.ord_x,
-                local.ord_y,
-                local.ort_x,
-                local.ort_y,
-                is_not_trap.clone(),
-            ),
-            InteractionScope::Local,
+        builder.receive_ec_mul_internal_memory_event::<E::BaseField>(
+            local.clk_high,
+            local.clk_low,
+            AB::Expr::from_canonical_usize(exp_num_bits - 1) + bit_totals.last().unwrap().clone(),
+            local.ord_x,
+            local.ord_y,
+            local.ort_x,
+            local.ort_y,
+            is_not_trap.clone(),
         );
 
         // Internal OpCalls: Order: sum(0), double(0), sum(1), double(1), ..., double(n-2), sum(n-1)
@@ -622,69 +598,54 @@ where
             .zip(std::iter::once(&AB::Expr::zero()).chain(bit_totals.iter())) // shift: ith coor is now sum(i-1)
             .enumerate()
             .for_each(|(i, (bit, shifted_bit_total))| {
-                builder.send(
-                    internal_add_call::<AB>(
-                        local.clk_high,
-                        local.clk_low,
-                        AB::Expr::from_canonical_usize(i) + shifted_bit_total.clone(),
-                        shifted_bit_total.clone(), // marker if add should actually be first add
-                        *bit, // skips when bit is zero, this should always be zero when row is fake
-                    ),
-                    InteractionScope::Local,
+                builder.send_ec_mul_internal_add_call(
+                    local.clk_high,
+                    local.clk_low,
+                    AB::Expr::from_canonical_usize(i) + shifted_bit_total.clone(),
+                    shifted_bit_total.clone(), // marker if add should actually be first add
+                    *bit, // skips when bit is zero, this should always be zero when row is fake
                 );
             });
         // Internal mul OpCalls. Note we skip the last double
         bit_totals.iter().take(exp_num_bits - 1).enumerate().for_each(|(i, bit_total)| {
-            builder.send(
-                internal_double_call::<AB>(
-                    local.clk_high,
-                    local.clk_low,
-                    AB::Expr::from_canonical_usize(i) + bit_total.clone(),
-                    is_not_trap.clone(),
-                ),
-                InteractionScope::Local,
+            builder.send_ec_mul_internal_double_call(
+                local.clk_high,
+                local.clk_low,
+                AB::Expr::from_canonical_usize(i) + bit_total.clone(),
+                is_not_trap.clone(),
             );
         });
 
         // First add interactions
         // Memory read
-        builder.receive(
-            internal_memory_rw::<AB, E::BaseField>(
-                local.clk_high,
-                local.clk_low,
-                local.c_at_first_add,
-                local.ird_at_first_add_x,
-                local.ird_at_first_add_y,
-                zero_x,
-                zero_y,
-                is_not_trap.clone(),
-            ),
-            InteractionScope::Local,
+        builder.receive_ec_mul_internal_memory_event::<E::BaseField>(
+            local.clk_high,
+            local.clk_low,
+            local.c_at_first_add,
+            local.ird_at_first_add_x,
+            local.ird_at_first_add_y,
+            zero_x,
+            zero_y,
+            is_not_trap.clone(),
         );
         // Memory write
-        builder.send(
-            internal_memory_rw::<AB, E::BaseField>(
-                local.clk_high,
-                local.clk_low,
-                local.c_at_first_add + AB::Expr::one(),
-                local.ird_at_first_add_x, // doubler
-                local.ird_at_first_add_y,
-                local.ird_at_first_add_x, // running total set to doubler
-                local.ird_at_first_add_y,
-                is_not_trap.clone(),
-            ),
-            InteractionScope::Local,
+        builder.send_ec_mul_internal_memory_event::<E::BaseField>(
+            local.clk_high,
+            local.clk_low,
+            local.c_at_first_add + AB::Expr::one(),
+            local.ird_at_first_add_x, // doubler
+            local.ird_at_first_add_y,
+            local.ird_at_first_add_x, // running total set to doubler
+            local.ird_at_first_add_y,
+            is_not_trap.clone(),
         );
         // OpCall receive
-        builder.receive(
-            internal_add_call::<AB>(
-                local.clk_high,
-                local.clk_low,
-                local.c_at_first_add,
-                AB::Expr::zero(), // first add marker is zero => this is the first add
-                is_not_trap,      // bit should be one at first add
-            ),
-            InteractionScope::Local,
+        builder.receive_ec_mul_internal_add_call(
+            local.clk_high,
+            local.clk_low,
+            local.c_at_first_add,
+            AB::Expr::zero(), // first add marker is zero => this is the first add
+            is_not_trap,      // bit should be one at first add
         );
     }
 }

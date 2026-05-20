@@ -23,6 +23,18 @@ cargo fmt --all -- --check
 
 # Run clippy. Run this and fix errors before handing control back to the user.
 cargo clippy -p <crate-name> --all-targets --all-features -- -D warnings -A incomplete-features
+
+# Debug a constraint failure. When a prove-and-verify test fails with
+# `ConstraintsCheckFailed(InconsistencyWithEval)` (or similar), the failure is
+# generic — it just says the trace doesn't satisfy the AIR somewhere. To find
+# *which* chip, *which* rows, and *which* constraint indices, re-run with the
+# `sp1_debug_constraints` cfg + `RUST_LOG=info` (setup_logger's EnvFilter
+# defaults to "off", so error-level tracing is suppressed without it):
+RUST_LOG=info RUSTFLAGS="--cfg sp1_debug_constraints" \
+    cargo test --release -p <crate-name> --lib <test_name> -- --nocapture
+# Prints per-chip: `CONSTRAINTS FAILED ON CHIP '<name>'`, total failing rows,
+# constraint indices, and (up to 3) full row dumps. It also runs an interaction
+# (bus) consistency check — failing sends/receives show up the same way.
 ```
 
 ## Code Style Preferences

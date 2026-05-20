@@ -21,27 +21,28 @@ fn limbs_to_biguint<F: PrimeField32, N: ArrayLength>(limbs: &Limbs<F, N>) -> Big
     BigUint::from_bytes_le(&bytes)
 }
 
-/// Convert a slice of little-endian `u64` words representing one field-element
-/// coordinate (as found on `EllipticCurveMulEvent::p` and the internal-add/double
-/// event payloads) into the byte-per-limb `Limbs<F, N>` form used in the controller's
-/// columns. The caller is responsible for passing the correct slice (e.g.
-/// `&words[..half]` for the x-coordinate of a curve point).
-pub fn event_words_to_limbs<F: PrimeField32, N: ArrayLength>(words: &[u64]) -> Limbs<F, N> {
-    words.iter().flat_map(|w| w.to_le_bytes()).map(F::from_canonical_u8).collect()
+/// Convert an iterator of little-endian `u64` words representing one
+/// field-element coordinate into the byte-per-limb `Limbs<F, N>` form used in
+/// the chips' columns. Accepts both `&[u64]` (via `.iter().copied()`) and
+/// memory-record iterators (via `.iter().map(|r| r.value)`).
+pub fn event_words_to_limbs<F: PrimeField32, N: ArrayLength>(
+    words: impl IntoIterator<Item = u64>,
+) -> Limbs<F, N> {
+    words.into_iter().flat_map(|w| w.to_le_bytes()).map(F::from_canonical_u8).collect()
 }
 
-/// Convert a slice of little-endian `u64` words representing one field-element
-/// coordinate (as found on the internal-add/double channel event payloads) into a
-/// `BigUint`, suitable for feeding into the chip's `populate_field_ops`.
-pub fn event_words_to_biguint(words: &[u64]) -> BigUint {
-    let bytes: Vec<u8> = words.iter().flat_map(|w| w.to_le_bytes()).collect();
+/// Convert an iterator of little-endian `u64` words representing one
+/// field-element coordinate into a `BigUint`, suitable for feeding into a
+/// chip's `populate_field_ops`.
+fn event_words_to_biguint(words: impl IntoIterator<Item = u64>) -> BigUint {
+    let bytes: Vec<u8> = words.into_iter().flat_map(|w| w.to_le_bytes()).collect();
     BigUint::from_bytes_le(&bytes)
 }
 
 /// Inverse of [`event_words_to_limbs`]: pack a `Limbs<F, N>` into a `Vec<u64>` of
 /// little-endian words. Each limb must be a byte stored as a field element (this
-/// is the invariant maintained by the controller's column population).
-pub fn limbs_to_event_words<F: PrimeField32, N: ArrayLength>(limbs: &Limbs<F, N>) -> Vec<u64> {
+/// is the invariant maintained by the chips' column populations).
+fn limbs_to_event_words<F: PrimeField32, N: ArrayLength>(limbs: &Limbs<F, N>) -> Vec<u64> {
     limbs
         .0
         .chunks(8)
@@ -53,6 +54,39 @@ pub fn limbs_to_event_words<F: PrimeField32, N: ArrayLength>(limbs: &Limbs<F, N>
             u64::from_le_bytes(bytes)
         })
         .collect()
+}
+
+/// Split a `&[u64]` representing the concatenation of two coordinates `(x, y)`
+/// (the layout used by `EllipticCurveMulEvent::p` and the internal add/double
+/// channel events) into two `Limbs<F, N>`.
+pub fn event_words_to_point_limbs<F: PrimeField32, N: ArrayLength>(
+    words: &[u64],
+) -> (Limbs<F, N>, Limbs<F, N>) {
+    let half = words.len() / 2;
+    (
+        event_words_to_limbs(words[..half].iter().copied()),
+        event_words_to_limbs(words[half..].iter().copied()),
+    )
+}
+
+/// `BigUint` counterpart of [`event_words_to_point_limbs`].
+pub fn event_words_to_point_biguint(words: &[u64]) -> (BigUint, BigUint) {
+    let half = words.len() / 2;
+    (
+        event_words_to_biguint(words[..half].iter().copied()),
+        event_words_to_biguint(words[half..].iter().copied()),
+    )
+}
+
+/// Inverse of [`event_words_to_point_limbs`]: pack two `Limbs<F, N>` (x, y) into
+/// a single `Vec<u64>` in the channel-event coordinate-pair layout.
+pub fn point_limbs_to_event_words<F: PrimeField32, N: ArrayLength>(
+    x: &Limbs<F, N>,
+    y: &Limbs<F, N>,
+) -> Vec<u64> {
+    let mut words = limbs_to_event_words(x);
+    words.extend(limbs_to_event_words(y));
+    words
 }
 
 /// Affine elliptic-curve addition under the same assumptions as the

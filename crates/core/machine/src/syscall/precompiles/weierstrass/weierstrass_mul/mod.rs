@@ -8,5 +8,6 @@ pub use controller::*;
 pub use internal_add::*;
 pub use internal_double::*;
 pub(crate) use utils::{
-    affine_add, affine_double, event_words_to_biguint, event_words_to_limbs, limbs_to_event_words,
+    affine_add, affine_double, event_words_to_limbs, event_words_to_point_biguint,
+    event_words_to_point_limbs, point_limbs_to_event_words,
 };

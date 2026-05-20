@@ -1,6 +1,5 @@
 use super::{
-    event_words_to_biguint, event_words_to_limbs,
-    interactions::{internal_double_call, internal_memory_rw},
+    event_words_to_point_biguint, event_words_to_point_limbs, interactions::EcMulAirBuilder,
 };
 use crate::{
     air::SP1CoreAirBuilder,
@@ -29,7 +28,7 @@ use sp1_curves::{
     CurveType, EllipticCurve,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_hypercube::air::{InteractionScope, MachineAir};
+use sp1_hypercube::air::MachineAir;
 use std::{fmt::Debug, marker::PhantomData, mem::MaybeUninit};
 
 pub const fn num_weierstrass_mul_internal_double_cols<P: FieldParameters + NumWords>() -> usize {
@@ -117,20 +116,13 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassMulInternalDoubleChip<
         cols.clk_low = F::from_canonical_u32((event.clk & 0xFFFFFF) as u32);
         cols.c = F::from_canonical_u16(event.c);
 
-        let half = event.ird.len() / 2;
-        cols.ird_x = event_words_to_limbs(&event.ird[..half]);
-        cols.ird_y = event_words_to_limbs(&event.ird[half..]);
-        cols.irt_x = event_words_to_limbs(&event.irt[..half]);
-        cols.irt_y = event_words_to_limbs(&event.irt[half..]);
+        (cols.ird_x, cols.ird_y) = event_words_to_point_limbs(&event.ird);
+        (cols.irt_x, cols.irt_y) = event_words_to_point_limbs(&event.irt);
 
         // `populate_field_ops` mirrors `WeierstrassDoubleAssignChip::populate_field_ops`
         // and only consumes the doubler (`p = ird`); `irt` is forwarded unchanged.
-        Self::populate_field_ops(
-            new_byte_lookup_events,
-            cols,
-            event_words_to_biguint(&event.ird[..half]),
-            event_words_to_biguint(&event.ird[half..]),
-        );
+        let (ird_x, ird_y) = event_words_to_point_biguint(&event.ird);
+        Self::populate_field_ops(new_byte_lookup_events, cols, ird_x, ird_y);
     }
 
     /// Populates the field-operation columns for one internal-double step:
@@ -256,8 +248,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     ) {
         let padded_nb_rows =
             <WeierstrassMulInternalDoubleChip<E> as MachineAir<F>>::num_rows(self, input).unwrap();
-        let num_cols =
-            <WeierstrassMulInternalDoubleChip<E> as BaseAir<F>>::width(self);
+        let num_cols = <WeierstrassMulInternalDoubleChip<E> as BaseAir<F>>::width(self);
 
         let events = match E::CURVE_TYPE {
             CurveType::Secp256k1 => input.get_precompile_events(SyscallCode::SECP256K1_MUL),
@@ -294,8 +285,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
         let chunk_size = 64;
         let dummy_row_ref = dummy_row.as_slice();
-        let (event_buf, padding_buf) =
-            values.split_at_mut(total_internal_doubles * num_cols);
+        let (event_buf, padding_buf) = values.split_at_mut(total_internal_doubles * num_cols);
 
         let channels = &input.channels;
         let blu_batches: Vec<Vec<ByteLookupEvent>> = event_buf
@@ -318,9 +308,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             output.add_byte_lookup_events(blu);
         }
 
-        padding_buf
-            .par_chunks_mut(num_cols)
-            .for_each(|row| row.copy_from_slice(dummy_row_ref));
+        padding_buf.par_chunks_mut(num_cols).for_each(|row| row.copy_from_slice(dummy_row_ref));
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -449,37 +437,33 @@ where
         // Internal memory bus: receive `(clock, c, ird, irt)`, send `(clock, c+1,
         // ord = (x3, y3), irt)` with `irt` forwarded unchanged. Columns are passed
         // straight in; the helper handles `Var → Expr`.
-        builder.receive(
-            internal_memory_rw::<AB, E::BaseField>(
-                local.clk_high,
-                local.clk_low,
-                local.c,
-                local.ird_x,
-                local.ird_y,
-                local.irt_x,
-                local.irt_y,
-                local.is_real,
-            ),
-            InteractionScope::Local,
+        builder.receive_ec_mul_internal_memory_event::<E::BaseField>(
+            local.clk_high,
+            local.clk_low,
+            local.c,
+            local.ird_x,
+            local.ird_y,
+            local.irt_x,
+            local.irt_y,
+            local.is_real,
         );
-        builder.send(
-            internal_memory_rw::<AB, E::BaseField>(
-                local.clk_high,
-                local.clk_low,
-                local.c.into() + AB::Expr::one(),
-                local.x3_ins.result,
-                local.y3_ins.result,
-                local.irt_x,
-                local.irt_y,
-                local.is_real,
-            ),
-            InteractionScope::Local,
+        builder.send_ec_mul_internal_memory_event::<E::BaseField>(
+            local.clk_high,
+            local.clk_low,
+            local.c.into() + AB::Expr::one(),
+            local.x3_ins.result,
+            local.y3_ins.result,
+            local.irt_x,
+            local.irt_y,
+            local.is_real,
         );
 
         // Internal opcode bus: receive a `Double` dispatch tuple from the controller.
-        builder.receive(
-            internal_double_call::<AB>(local.clk_high, local.clk_low, local.c, local.is_real),
-            InteractionScope::Local,
+        builder.receive_ec_mul_internal_double_call(
+            local.clk_high,
+            local.clk_low,
+            local.c,
+            local.is_real,
         );
     }
 }
