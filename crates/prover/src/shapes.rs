@@ -1412,16 +1412,58 @@ mod tests {
         serde_json::to_writer_pretty(&mut file, &shape).unwrap();
     }
 
+    /// Regenerate `compress_shape_apc.json`, the universal recursion shape used for any APC
+    /// machine. We pin the machine to RSP / 100 APCs on the largest checked-in block so the
+    /// committed shape covers every smaller APC configuration. Block selection is essentially
+    /// free: changing it perturbs the shape by <0.1% across all chips. APC count is the
+    /// dominant lever (about 20% from APC=50 to APC=100), so 100 is fixed as the upper bound this shape is
+    /// sized to cover.
     #[tokio::test]
-    #[ignore = "should be invoked for apc shape tuning"]
+    #[cfg(feature = "apc")]
+    #[ignore = "should be invoked for apc shape tuning; runs ~3 min once built"]
     async fn test_find_apc_recursion_shape() {
-        setup_logger();
-        unimplemented!(
-            "create a machine with a lot of apcs whose shape will be used for all others"
-        );
-        // let shape = compute_compress_shape(_machine).await;
+        use std::sync::Arc;
 
-        // let mut file = std::fs::File::create("compress_shape_apc.json").unwrap();
-        // serde_json::to_writer_pretty(&mut file, &shape).unwrap();
+        use powdr_autoprecompiles::{adapter::ApcWithStats, PgoConfig};
+        use sp1_core_executor::Program;
+        use sp1_core_machine::{
+            autoprecompiles::{execution_profile_from_program, sp1_powdr_config, CompiledProgram},
+            io::SP1Stdin,
+        };
+
+        setup_logger();
+
+        // The RSP ELF and the largest-block input live in sp1-gpu/crates/perf/programs/rsp/.
+        // We read them at runtime to avoid duplicating ~14 MB of binary fixtures inside this
+        // crate.
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let elf_path =
+            format!("{manifest_dir}/../../sp1-gpu/crates/perf/programs/rsp/elf/rsp-client");
+        let stdin_path =
+            format!("{manifest_dir}/../../sp1-gpu/crates/perf/programs/rsp/input/21740137.bin");
+        let elf = std::fs::read(&elf_path)
+            .unwrap_or_else(|e| panic!("read rsp-client elf at {elf_path}: {e}"));
+        let stdin_bytes = std::fs::read(&stdin_path)
+            .unwrap_or_else(|e| panic!("read rsp block input at {stdin_path}: {e}"));
+        let mut stdin = SP1Stdin::new();
+        stdin.write_vec(stdin_bytes);
+
+        let program = Arc::new(Program::from(&elf).expect("parse rsp-client elf"));
+        let execution_profile = execution_profile_from_program(program, stdin.clone());
+        let config = sp1_powdr_config(100, 0);
+        let pgo_config = PgoConfig::Instruction(execution_profile);
+        let compiled_program = CompiledProgram::new(&elf, config, pgo_config);
+        let apcs: Vec<_> = compiled_program
+            .apcs_and_stats
+            .into_iter()
+            .map(ApcWithStats::into_parts)
+            .map(|(apc, _, _)| apc)
+            .collect();
+
+        let machine = RiscvAir::machine_with_apcs(apcs);
+        let shape = compute_compress_shape(machine).await;
+
+        let mut file = std::fs::File::create("compress_shape_apc.json").unwrap();
+        serde_json::to_writer_pretty(&mut file, &shape).unwrap();
     }
 }
