@@ -7,8 +7,6 @@ extern "C" void* transition_kernel();
 extern "C" void* transition_w8_kernel();
 extern "C" void* interpolateAndObserve_kernel();
 extern "C" void* precomputePrefixStates_kernel();
-extern "C" void* evalWithCachedAtZeroAndHalf_kernel();
-extern "C" void* updateSuffixVector_kernel();
 extern "C" void* fusedJaggedAssistSumcheck_kernel_duplex();
 extern "C" void* fusedJaggedAssistSumcheck_kernel_multi_field_32();
 

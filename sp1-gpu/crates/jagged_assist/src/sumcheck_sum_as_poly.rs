@@ -19,7 +19,6 @@ pub struct JaggedAssistSumAsPolyGPUImpl<F: Field, EF: ExtensionField<F>, Challen
     next_prefix_sums: Tensor<F, TaskScope>,
     prefix_sum_length: usize,
     num_columns: usize,
-    num_layers: usize,
     half: EF,
     prefix_states: Buffer<EF, TaskScope>,
     suffix_vector_device: Buffer<EF, TaskScope>,
@@ -129,130 +128,12 @@ where
             next_prefix_sums: next_prefix_sums_device,
             prefix_sum_length,
             num_columns,
-            num_layers,
             half,
             prefix_states,
             suffix_vector_device,
             round_claim_device,
             _marker: PhantomData,
         }
-    }
-
-    pub fn sum_as_poly_and_sample_into_point<OnDeviceChallenger: AsMutRawChallenger>(
-        &mut self,
-        round_num: usize,
-        z_col_eq_vals: &Buffer<EF, TaskScope>,
-        intermediate_eq_full_evals: &Buffer<EF, TaskScope>,
-        sum_values: &mut Buffer<EF, TaskScope>,
-        challenger: &mut OnDeviceChallenger,
-        rhos: Point<EF, TaskScope>,
-    ) -> Point<EF, TaskScope>
-    where
-        TaskScope: BranchingProgramKernel<F, EF, OnDeviceChallenger>,
-    {
-        let backend = self.current_prefix_sums.backend();
-
-        const BLOCK_SIZE: usize = 256;
-        let grid_size_x = self.num_columns.div_ceil(BLOCK_SIZE);
-
-        // 1. Launch evalWithCachedAtZeroAndHalf kernel → [2, num_columns] output
-        let mut eval_results: Tensor<EF, TaskScope> =
-            Tensor::zeros_in([2, self.num_columns], backend.clone());
-
-        unsafe {
-            let eval_args = args!(
-                self.prefix_states.as_ptr(),
-                self.suffix_vector_device.as_ptr(),
-                self.z_row.as_ptr(),
-                self.z_row.dimension(),
-                self.z_index.as_ptr(),
-                self.z_index.dimension(),
-                self.current_prefix_sums.as_ptr(),
-                self.next_prefix_sums.as_ptr(),
-                self.prefix_sum_length,
-                z_col_eq_vals.as_ptr(),
-                intermediate_eq_full_evals.as_ptr(),
-                self.num_columns,
-                round_num,
-                self.half,
-                eval_results.as_mut_ptr()
-            );
-
-            eval_results.assume_init();
-
-            backend
-                .launch_kernel(
-                    <TaskScope as BranchingProgramKernel<F, EF, OnDeviceChallenger>>::eval_with_cached_kernel(),
-                    (grid_size_x, 1, 1),
-                    (BLOCK_SIZE, 1, 1),
-                    &eval_args,
-                    0,
-                )
-                .unwrap();
-        }
-
-        // 2. Reduce across columns → 2 values [y_0, y_half]
-        let results = DeviceTensor::from_raw(eval_results).sum_dim(1).into_inner();
-
-        // 3. Launch interpolateAndObserve kernel (reads/writes round_claim on device)
-        let mut sampled_value = Buffer::with_capacity_in(rhos.dimension() + 1, backend.clone());
-
-        unsafe {
-            sampled_value.assume_init();
-            let interp_args = args!(
-                results.as_ptr(),
-                challenger.as_mut_raw(),
-                sampled_value.as_mut_ptr(),
-                i8::try_from(round_num).unwrap(),
-                sum_values.as_mut_ptr(),
-                self.round_claim_device.as_mut_ptr()
-            );
-
-            backend
-                .launch_kernel(
-                    <TaskScope as BranchingProgramKernel<F, EF, OnDeviceChallenger>>::interpolate_and_observe_kernel(),
-                    (1usize, 1, 1),
-                    (BLOCK_SIZE, 1, 1),
-                    &interp_args,
-                    0,
-                )
-                .unwrap();
-
-            sampled_value.set_len(1);
-        }
-
-        // 4. Launch updateSuffixVector kernel (single thread, reads alpha from sampled_value)
-        unsafe {
-            let suffix_args = args!(
-                self.suffix_vector_device.as_mut_ptr(),
-                sampled_value.as_ptr(),
-                self.z_row.as_ptr(),
-                self.z_row.dimension(),
-                self.z_index.as_ptr(),
-                self.z_index.dimension(),
-                self.current_prefix_sums.as_ptr(),
-                self.next_prefix_sums.as_ptr(),
-                self.prefix_sum_length,
-                self.num_columns,
-                round_num,
-                self.num_layers
-            );
-
-            backend
-                .launch_kernel(
-                    <TaskScope as BranchingProgramKernel<F, EF, OnDeviceChallenger>>::update_suffix_vector_kernel(),
-                    (1usize, 1, 1),
-                    (1usize, 1, 1),
-                    &suffix_args,
-                    0,
-                )
-                .unwrap();
-        }
-
-        // Build new rho point: [alpha, ...existing rhos]
-        sampled_value.extend_from_device_slice(&rhos).unwrap();
-
-        Point::new(sampled_value)
     }
 
     pub fn fix_last_variable_kernel<OnDeviceChallenger>(

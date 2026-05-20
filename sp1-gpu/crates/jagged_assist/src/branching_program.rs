@@ -10,11 +10,10 @@ use sp1_gpu_cudart::{
     args,
     sys::{
         jagged::{
-            branching_program_kernel, evalWithCachedAtZeroAndHalf_kernel, fixLastVariable_kernel,
+            branching_program_kernel, fixLastVariable_kernel,
             fusedJaggedAssistSumcheck_kernel_duplex,
             fusedJaggedAssistSumcheck_kernel_multi_field_32, interpolateAndObserve_kernel_duplex,
             interpolateAndObserve_kernel_multi_field_32, precomputePrefixStates_kernel,
-            updateSuffixVector_kernel,
         },
         runtime::KernelPtr,
     },
@@ -55,10 +54,6 @@ pub unsafe trait BranchingProgramKernel<F: Field, EF: ExtensionField<F>, Challen
 
     fn precompute_prefix_states_kernel() -> KernelPtr;
 
-    fn eval_with_cached_kernel() -> KernelPtr;
-
-    fn update_suffix_vector_kernel() -> KernelPtr;
-
     fn fused_sumcheck_kernel() -> KernelPtr;
 }
 
@@ -83,14 +78,6 @@ unsafe impl<F: Field, EF: ExtensionField<F>>
         unsafe { precomputePrefixStates_kernel() }
     }
 
-    fn eval_with_cached_kernel() -> KernelPtr {
-        unsafe { evalWithCachedAtZeroAndHalf_kernel() }
-    }
-
-    fn update_suffix_vector_kernel() -> KernelPtr {
-        unsafe { updateSuffixVector_kernel() }
-    }
-
     fn fused_sumcheck_kernel() -> KernelPtr {
         unsafe { fusedJaggedAssistSumcheck_kernel_duplex() }
     }
@@ -113,14 +100,6 @@ unsafe impl<F: Field, EF: ExtensionField<F>>
 
     fn precompute_prefix_states_kernel() -> KernelPtr {
         unsafe { precomputePrefixStates_kernel() }
-    }
-
-    fn eval_with_cached_kernel() -> KernelPtr {
-        unsafe { evalWithCachedAtZeroAndHalf_kernel() }
-    }
-
-    fn update_suffix_vector_kernel() -> KernelPtr {
-        unsafe { updateSuffixVector_kernel() }
     }
 
     fn fused_sumcheck_kernel() -> KernelPtr {
