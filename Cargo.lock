@@ -8429,6 +8429,7 @@ dependencies = [
  "num-bigint 0.4.6",
  "opentelemetry",
  "pin-project",
+ "powdr-autoprecompiles",
  "rand 0.8.6",
  "reqwest",
  "serde",
