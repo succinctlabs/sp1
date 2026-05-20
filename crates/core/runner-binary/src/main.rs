@@ -110,6 +110,7 @@ fn main() {
         global_clk: compiled.global_clk,
         clk: compiled.clk,
         exit_code: compiled.exit_code,
+        public_value_digest: compiled.public_value_digest,
     };
 
     let stdout = io::stdout();

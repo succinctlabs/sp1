@@ -1,0 +1,18 @@
+# Configuration for GitHub's auto-generated release notes.
+# See: https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes
+#
+# The release workflow post-processes the body produced by `gh release create
+# --generate-notes` to bucket PRs by Conventional Commit prefix (feat / fix /
+# perf / etc.). This file controls what GitHub feeds into that post-processor.
+
+changelog:
+  exclude:
+    authors:
+      - dependabot
+      - dependabot[bot]
+    labels:
+      - ignore-for-release
+  categories:
+    - title: All Changes
+      labels:
+        - "*"

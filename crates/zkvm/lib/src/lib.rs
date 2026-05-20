@@ -21,6 +21,59 @@ pub mod utils;
 #[cfg(feature = "verify")]
 pub mod verify;
 
+/// Halts the zkVM with exit code 3, signalling that a prover-supplied hint
+/// failed verification.
+///
+/// This exists to disambiguate hint-validation failures from regular Rust
+/// panics (which use exit code 1). Patches should call this on any hint check
+/// that would otherwise panic, so a malicious prover cannot forge a "panicked"
+/// proof by feeding wrong hints.
+///
+/// Prefer the [`invalid_hint!`] macro when you have a diagnostic message
+/// to attach.
+#[inline(never)]
+pub fn halt_invalid_hint() -> ! {
+    unsafe { syscall_halt(3) }
+}
+
+/// Internal helper used by [`invalid_hint!`] — write a formatted diagnostic
+/// to stderr (FD 2), then halt with exit code 3.
+///
+/// Kept out-of-line so the macro expansion stays small at every call site.
+#[doc(hidden)]
+#[cold]
+#[inline(never)]
+pub fn __invalid_hint_fmt(args: std::fmt::Arguments<'_>) -> ! {
+    let msg = std::format!("invalid prover hint: {}\n", args);
+    unsafe {
+        syscall_write(2, msg.as_ptr(), msg.len());
+    }
+    halt_invalid_hint()
+}
+
+/// Halts the zkVM with exit code 3 (invalid prover hint), optionally writing
+/// a formatted diagnostic to stderr first.
+///
+/// Format-arg syntax matches [`panic!`], but exit code 3 disambiguates
+/// hint-validation failures from regular panics (exit code 1) — a malicious
+/// prover cannot forge a panicked-program proof by feeding wrong hints.
+/// Patches should reach for this on any hint check that would otherwise panic.
+///
+/// ```ignore
+/// sp1_lib::invalid_hint!();                                    // no message
+/// sp1_lib::invalid_hint!("Fp inverse hint mismatch");
+/// sp1_lib::invalid_hint!("expected {} bytes, got {}", expected, got);
+/// ```
+#[macro_export]
+macro_rules! invalid_hint {
+    () => {{
+        $crate::halt_invalid_hint()
+    }};
+    ($($arg:tt)*) => {{
+        $crate::__invalid_hint_fmt(::core::format_args!($($arg)*))
+    }};
+}
+
 extern "C" {
     /// Halts the program with the given exit code.
     pub fn syscall_halt(exit_code: u8) -> !;

@@ -38,7 +38,7 @@ dependencies = [
  "rustc-hash",
  "serde",
  "sha3",
- "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.0.0)",
+ "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.2.0)",
 ]
 
 [[package]]
@@ -362,26 +362,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "blake2"
-version = "0.10.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46502ad458c9a52b69d4d4d32775c788b7a1b85e8bc9d482d92250fc0e3f8efe"
-dependencies = [
- "digest 0.10.7",
-]
-
-[[package]]
-name = "blake2b_simd"
-version = "1.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b79834656f71332577234b50bfc009996f7449e0c056884e6a02492ded0ca2f3"
-dependencies = [
- "arrayref",
- "arrayvec",
- "constant_time_eq",
-]
-
-[[package]]
 name = "blake3"
 version = "1.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -426,7 +406,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 6.2.0",
+ "sp1-lib 6.2.1",
  "sp1-zkvm",
 ]
 
@@ -469,21 +449,8 @@ name = "bls12381-mul-test"
 version = "1.1.0"
 dependencies = [
  "sp1-derive",
- "sp1-lib 6.2.0",
+ "sp1-lib 6.2.1",
  "sp1-zkvm",
-]
-
-[[package]]
-name = "bls12_381"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3c196a77437e7cc2fb515ce413a6401291578b5afc8ecb29a3c7ab957f05941"
-dependencies = [
- "ff 0.12.1",
- "group 0.12.1",
- "pairing",
- "rand_core 0.6.4",
- "subtle",
 ]
 
 [[package]]
@@ -492,7 +459,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 6.2.0",
+ "sp1-lib 6.2.1",
  "sp1-zkvm",
 ]
 
@@ -535,7 +502,7 @@ name = "bn254-mul-test"
 version = "1.1.0"
 dependencies = [
  "sp1-derive",
- "sp1-lib 6.2.0",
+ "sp1-lib 6.2.1",
  "sp1-zkvm",
 ]
 
@@ -605,7 +572,7 @@ name = "common-test-utils"
 version = "1.1.0"
 dependencies = [
  "num-bigint 0.4.6",
- "sp1-lib 6.2.0",
+ "sp1-lib 6.2.1",
 ]
 
 [[package]]
@@ -689,31 +656,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "790eea4361631c5e7d22598ecd5723ff611904e3344ce8720784c93e3d83d40b"
 
 [[package]]
-name = "crossbeam-deque"
-version = "0.8.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9dd111b7b7f7d55b72c0a6ae361660ee5853c9af73f70c3c2ef6858b950e2e51"
-dependencies = [
- "crossbeam-epoch",
- "crossbeam-utils",
-]
-
-[[package]]
-name = "crossbeam-epoch"
-version = "0.9.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b82ac4a3c2ca9c3460964f020e1402edd5753411d7737aa39c3714ad1b5420e"
-dependencies = [
- "crossbeam-utils",
-]
-
-[[package]]
-name = "crossbeam-utils"
-version = "0.8.21"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
-
-[[package]]
 name = "crunchy"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -744,7 +686,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek"
 version = "4.1.3"
-source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.0.0#ade3f90a82efc7c58c4ae1ecb4d48bbe673c2a8f"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.2.0#b251b2a155f859d00375f73bc2c937f025f7b4b4"
 dependencies = [
  "cfg-if",
  "cpufeatures",
@@ -752,7 +694,7 @@ dependencies = [
  "digest 0.10.7",
  "fiat-crypto",
  "rustc_version 0.4.1",
- "sp1-lib 6.2.0",
+ "sp1-lib 6.2.1",
  "subtle",
  "zeroize",
 ]
@@ -760,7 +702,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-derive"
 version = "0.1.1"
-source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.0.0#ade3f90a82efc7c58c4ae1ecb4d48bbe673c2a8f"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.2.0#b251b2a155f859d00375f73bc2c937f025f7b4b4"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1071,7 +1013,7 @@ dependencies = [
 [[package]]
 name = "ed25519-dalek"
 version = "2.1.1"
-source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.0.0#ade3f90a82efc7c58c4ae1ecb4d48bbe673c2a8f"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.2.0#b251b2a155f859d00375f73bc2c937f025f7b4b4"
 dependencies = [
  "curve25519-dalek",
  "ed25519",
@@ -1123,9 +1065,9 @@ dependencies = [
  "base16ct",
  "crypto-bigint",
  "digest 0.10.7",
- "ff 0.13.1",
+ "ff",
  "generic-array 0.14.9",
- "group 0.13.0",
+ "group",
  "hkdf",
  "pem-rfc7468",
  "pkcs8",
@@ -1209,17 +1151,6 @@ dependencies = [
  "arrayvec",
  "auto_impl",
  "bytes",
-]
-
-[[package]]
-name = "ff"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d013fc25338cc558c5c2cfbad646908fb23591e2404481826742b651c9af7160"
-dependencies = [
- "bitvec",
- "rand_core 0.6.4",
- "subtle",
 ]
 
 [[package]]
@@ -1449,48 +1380,13 @@ dependencies = [
 
 [[package]]
 name = "group"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5dfbfb3a6cfbd390d5c9564ab283a0349b9b9fcd46a706c1eb10e0db70bfbac7"
-dependencies = [
- "ff 0.12.1",
- "memuse",
- "rand_core 0.6.4",
- "subtle",
-]
-
-[[package]]
-name = "group"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f0f9ef7462f7c099f518d754361858f86d8a07af53ba9af0fe635bbccb151a63"
 dependencies = [
- "ff 0.13.1",
+ "ff",
  "rand_core 0.6.4",
  "subtle",
-]
-
-[[package]]
-name = "halo2"
-version = "0.1.0-beta.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a23c779b38253fe1538102da44ad5bd5378495a61d2c4ee18d64eaa61ae5995"
-dependencies = [
- "halo2_proofs",
-]
-
-[[package]]
-name = "halo2_proofs"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e925780549adee8364c7f2b685c753f6f3df23bde520c67416e93bf615933760"
-dependencies = [
- "blake2b_simd",
- "ff 0.12.1",
- "group 0.12.1",
- "pasta_curves 0.4.1",
- "rand_core 0.6.4",
- "rayon",
 ]
 
 [[package]]
@@ -1678,20 +1574,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "jubjub"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a575df5f985fe1cd5b2b05664ff6accfc46559032b954529fd225a2168d27b0f"
-dependencies = [
- "bitvec",
- "bls12_381",
- "ff 0.12.1",
- "group 0.12.1",
- "rand_core 0.6.4",
- "subtle",
-]
-
-[[package]]
 name = "k256"
 version = "0.13.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1736,7 +1618,7 @@ name = "keccak256-test"
 version = "1.1.0"
 dependencies = [
  "sp1-zkvm",
- "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.0.0)",
+ "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.2.0)",
 ]
 
 [[package]]
@@ -1744,9 +1626,6 @@ name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
-dependencies = [
- "spin",
-]
 
 [[package]]
 name = "libc"
@@ -1791,12 +1670,6 @@ dependencies = [
  "sp1-primitives",
  "sp1-zkvm",
 ]
-
-[[package]]
-name = "memuse"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d97bbf43eb4f088f8ca469930cde17fa036207c9a5e02ccc5107c4e8b17c964"
 
 [[package]]
 name = "num"
@@ -1945,7 +1818,7 @@ version = "0.3.3-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "577200e3fa7e49e2b21e940a6dc7399dc63acb8581da088558cdf7c455adafc0"
 dependencies = [
- "ff 0.13.1",
+ "ff",
  "num-bigint 0.4.6",
  "p3-field",
  "p3-poseidon2",
@@ -2083,15 +1956,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pairing"
-version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "135590d8bdba2b31346f9cd1fb2a912329f5135e832a4f422942eb6ead8b6b3b"
-dependencies = [
- "group 0.12.1",
-]
-
-[[package]]
 name = "panic-test"
 version = "1.1.0"
 dependencies = [
@@ -2124,36 +1988,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.114",
-]
-
-[[package]]
-name = "pasta_curves"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5cc65faf8e7313b4b1fbaa9f7ca917a0eed499a9663be71477f87993604341d8"
-dependencies = [
- "blake2b_simd",
- "ff 0.12.1",
- "group 0.12.1",
- "lazy_static",
- "rand 0.8.5",
- "static_assertions",
- "subtle",
-]
-
-[[package]]
-name = "pasta_curves"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d3e57598f73cc7e1b2ac63c79c517b31a0877cd7c402cdcaa311b5208de7a095"
-dependencies = [
- "blake2b_simd",
- "ff 0.13.1",
- "group 0.13.0",
- "lazy_static",
- "rand 0.8.5",
- "static_assertions",
- "subtle",
 ]
 
 [[package]]
@@ -2292,7 +2126,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81bddcdb20abf9501610992b6759a4c888aef7d1a7247ef75e2404275ac24af1"
 dependencies = [
  "anyhow",
- "itertools 0.12.1",
+ "itertools 0.10.5",
  "proc-macro2",
  "quote",
  "syn 2.0.114",
@@ -2417,26 +2251,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d8b5b858a440a0bc02625b62dd95131b9201aa9f69f411195dd4a7cfb1de3d7"
 dependencies = [
  "rustversion",
-]
-
-[[package]]
-name = "rayon"
-version = "1.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "368f01d005bf8fd9b1206fb6fa653e6c4a81ceb1466406b81792d87c5677a58f"
-dependencies = [
- "either",
- "rayon-core",
-]
-
-[[package]]
-name = "rayon-core"
-version = "1.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22e18b0f0062d30d4230b2e85ff77fdfe4326feb054b9783a3460d8435c8ab91"
-dependencies = [
- "crossbeam-deque",
- "crossbeam-utils",
 ]
 
 [[package]]
@@ -2660,7 +2474,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 6.2.0",
+ "sp1-lib 6.2.1",
  "sp1-zkvm",
 ]
 
@@ -2696,7 +2510,7 @@ dependencies = [
  "num",
  "p256",
  "sp1-curves",
- "sp1-lib 6.2.0",
+ "sp1-lib 6.2.1",
  "sp1-zkvm",
 ]
 
@@ -2717,7 +2531,7 @@ dependencies = [
  "num",
  "p256",
  "sp1-curves",
- "sp1-lib 6.2.0",
+ "sp1-lib 6.2.1",
  "sp1-zkvm",
 ]
 
@@ -2941,7 +2755,7 @@ checksum = "7a2ae44ef20feb57a68b23d846850f861394c2e02dc425a50098ae8c90267589"
 
 [[package]]
 name = "slop-algebra"
-version = "6.2.0"
+version = "6.2.1"
 dependencies = [
  "itertools 0.14.0",
  "p3-field",
@@ -2950,21 +2764,20 @@ dependencies = [
 
 [[package]]
 name = "slop-bn254"
-version = "6.2.0"
+version = "6.2.1"
 dependencies = [
- "ff 0.13.1",
+ "ff",
  "p3-bn254-fr",
  "serde",
  "slop-algebra",
  "slop-challenger",
  "slop-poseidon2",
  "slop-symmetric",
- "zkhash",
 ]
 
 [[package]]
 name = "slop-challenger"
-version = "6.2.0"
+version = "6.2.1"
 dependencies = [
  "futures",
  "p3-challenger",
@@ -2975,7 +2788,7 @@ dependencies = [
 
 [[package]]
 name = "slop-koala-bear"
-version = "6.2.0"
+version = "6.2.1"
 dependencies = [
  "lazy_static",
  "p3-koala-bear",
@@ -2988,21 +2801,21 @@ dependencies = [
 
 [[package]]
 name = "slop-poseidon2"
-version = "6.2.0"
+version = "6.2.1"
 dependencies = [
  "p3-poseidon2",
 ]
 
 [[package]]
 name = "slop-primitives"
-version = "6.2.0"
+version = "6.2.1"
 dependencies = [
  "slop-algebra",
 ]
 
 [[package]]
 name = "slop-symmetric"
-version = "6.2.0"
+version = "6.2.1"
 dependencies = [
  "p3-symmetric",
 ]
@@ -3019,7 +2832,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "6.2.0"
+version = "6.2.1"
 dependencies = [
  "cfg-if",
  "dashu",
@@ -3038,7 +2851,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "6.2.0"
+version = "6.2.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3057,7 +2870,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "6.2.0"
+version = "6.2.1"
 dependencies = [
  "bincode",
  "elliptic-curve",
@@ -3067,7 +2880,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "6.2.0"
+version = "6.2.1"
 dependencies = [
  "bincode",
  "blake3",
@@ -3089,7 +2902,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "6.2.0"
+version = "6.2.1"
 dependencies = [
  "cfg-if",
  "critical-section",
@@ -3101,15 +2914,9 @@ dependencies = [
  "rand 0.8.5",
  "sha2 0.10.9",
  "slop-algebra",
- "sp1-lib 6.2.0",
+ "sp1-lib 6.2.1",
  "sp1-primitives",
 ]
-
-[[package]]
-name = "spin"
-version = "0.9.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
 
 [[package]]
 name = "spki"
@@ -3352,11 +3159,11 @@ dependencies = [
 [[package]]
 name = "tiny-keccak"
 version = "2.0.2"
-source = "git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.0.0#957430a459f7a2332ab5bab4a12f9b473bb95c87"
+source = "git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.2.0#c3f95bcc35b391101d0cf0abe91ea4c8423868b0"
 dependencies = [
  "cfg-if",
  "crunchy",
- "sp1-lib 6.2.0",
+ "sp1-lib 6.2.1",
 ]
 
 [[package]]
@@ -3518,7 +3325,7 @@ dependencies = [
  "hex",
  "sha2 0.10.9",
  "sp1-zkvm",
- "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.0.0)",
+ "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.2.0)",
 ]
 
 [[package]]
@@ -3726,33 +3533,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.114",
-]
-
-[[package]]
-name = "zkhash"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4352d1081da6922701401cdd4cbf29a2723feb4cfabb5771f6fee8e9276da1c7"
-dependencies = [
- "ark-ff 0.4.2",
- "ark-std 0.4.0",
- "bitvec",
- "blake2",
- "bls12_381",
- "byteorder",
- "cfg-if",
- "group 0.12.1",
- "group 0.13.0",
- "halo2",
- "hex",
- "jubjub",
- "lazy_static",
- "pasta_curves 0.5.1",
- "rand 0.8.5",
- "serde",
- "sha2 0.10.9",
- "sha3",
- "subtle",
 ]
 
 [[package]]

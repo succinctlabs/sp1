@@ -181,9 +181,12 @@ pub fn ecall_handler(ctx: &mut impl SyscallContext, code: SyscallCode) -> Result
         SyscallCode::DELETE_PROFILER_SYMBOLS => {
             Ok(delete_profile_symbols_syscall(ctx, arg1, arg2))
         }
-        SyscallCode::VERIFY_SP1_PROOF
-        | SyscallCode::COMMIT
-        | SyscallCode::COMMIT_DEFERRED_PROOFS => Ok(None),
+        SyscallCode::COMMIT => {
+            let digest_word: u32 = arg2.try_into().expect("digest word should fit in u32");
+            ctx.set_public_value_digest_word(arg1, digest_word);
+            Ok(None)
+        }
+        SyscallCode::VERIFY_SP1_PROOF | SyscallCode::COMMIT_DEFERRED_PROOFS => Ok(None),
     }
     .map(|opt: Option<u64>| opt.unwrap_or(code as u64))
 }
