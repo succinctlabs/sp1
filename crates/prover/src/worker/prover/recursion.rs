@@ -81,7 +81,7 @@ pub struct SP1RecursionProverConfig {
     /// for code that is feature-gated behind the `experimental` flag.
     vk_map_file: Option<String>,
     /// The machine that determines recursion sizing and SNARK support.
-    pub machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     /// The reduce shape
     pub reduce_shape: SP1RecursionProofShape,
 }
@@ -703,7 +703,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
     }
 
     pub async fn run_shrink_wrap(&self, request: RawTaskRequest) -> Result<(), TaskError> {
-        if !recursion_supports_snark_wrap(&self.wrap_prover_init.config.machine) {
+        if !recursion_supports_snark_wrap(&self.prover_data.machine) {
             return Err(TaskError::Fatal(anyhow::anyhow!(
                 "the active machine uses APCs, so shrink-wrap is not supported"
             )));
@@ -742,7 +742,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
     }
 
     pub async fn run_groth16(&self, request: RawTaskRequest) -> Result<(), TaskError> {
-        if !recursion_supports_snark_wrap(&self.wrap_prover_init.config.machine) {
+        if !recursion_supports_snark_wrap(&self.prover_data.machine) {
             return Err(TaskError::Fatal(anyhow::anyhow!(
                 "the active machine uses APCs, so Groth16 wrapping is not supported"
             )));
@@ -817,7 +817,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
     }
 
     pub async fn run_plonk(&self, request: RawTaskRequest) -> Result<(), TaskError> {
-        if !recursion_supports_snark_wrap(&self.wrap_prover_init.config.machine) {
+        if !recursion_supports_snark_wrap(&self.prover_data.machine) {
             return Err(TaskError::Fatal(anyhow::anyhow!(
                 "the active machine uses APCs, so Plonk wrapping is not supported"
             )));
