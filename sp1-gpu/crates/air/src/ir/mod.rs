@@ -26,7 +26,7 @@ pub use column_tile_bytecode::{
     lower_column_tile, synthesize_gkr_chunk, ColumnTermEntry, ColumnTileBytecode, COEFF_KIND_CONST,
     COEFF_KIND_PUBLIC, COEFF_KIND_RUNTIME,
 };
-pub use dag::{ConstraintDag, ConstraintField, ConstraintRef, DagNode, NodeId, TraceSource};
+pub use dag::{ConstraintDag, ConstraintRef, DagNode, NodeId, TraceSource};
 pub use expr::{DagExprEF, DagExprF};
 pub use lowering::{
     enumerate_lowerings, ColumnTilePlan, ColumnTilePlanTerm, Lowering, SequentialPlan,

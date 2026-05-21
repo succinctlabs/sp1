@@ -1,9 +1,10 @@
-// v2 Sequential lowering — DAG bytecode interpreter with eval-point caching.
+// Sequential lowering — DAG bytecode interpreter over a flat machine-wide
+// instruction stream.
 //
-// Each CTA processes a tile of rows. Each thread = one row. Per-thread state
-// is a register file of `MAX_REGS` × 3 K values (one slot per eval point),
-// so leaf (zero, one) loads happen ONCE per thread per leaf and feed all
-// three eval points without re-loading.
+// Each CTA grid-strides over rows. Each thread = one row: it binary-searches
+// `row_starts` to find its chunk, runs that chunk's bytecode, weights the
+// result by `eq · λ_chip`, and accumulates into a per-thread sum that is
+// block-reduced into one partial per CTA per eval point.
 //
 // Templated on `K` ∈ {felt_t, ext_t}:
 //   - Round 0 of sumcheck uses K = felt_t (base-field trace).
@@ -28,10 +29,19 @@ namespace {
 // round. Each thread binary-searches `row_starts` to find its chunk, then
 // runs that chunk's bytecode.
 //
-// Output: one ext_t[3] per block (block-reduced across all rows the block
-// touched, regardless of which chunks). The chip-specific weighting
-// (eq * λ_chip) is applied INSIDE the per-row body, so the cross-chunk sum
-// is unambiguous — chip totals are NOT separately tracked.
+// Output: one ext_t per (block, eval point), stored at `blockIdx.x * 3 + e`
+// (block-reduced across all rows the block touched, regardless of which
+// chunks). The chip-specific weighting (eq * λ_chip) is applied INSIDE the
+// per-row body, so the cross-chunk sum is unambiguous — chip totals are NOT
+// separately tracked.
+//
+// The three eval points (the degree-2 univariate per round) live on the grid's
+// z-dimension: each block owns one eval point (blockIdx.z) and reduces it
+// independently. This keeps the per-thread register file minimal and lets the
+// GPU run all three eval points concurrently. Measured faster than having one
+// block compute all three at every round size from millions of rows down to a
+// handful, since the per-block reduces then run in parallel rather than
+// serially.
 // ============================================================================
 
 __device__ __forceinline__ uint32_t
@@ -60,21 +70,18 @@ __global__ void zerocheck_fused_sequential(
     uint32_t rest_point_dim,
     ext_t* __restrict__ partials
 ) {
-    // The eval-point axis lives on grid_z (matches v1's design): each thread
-    // handles ONE eval point and the per-thread register file is
-    // single-dimensional. Stashing all 3 eval points in regs[MAX_REGS][3]
-    // tripled register pressure and forced heavy local-memory spilling
-    // (profiling showed 5.9M local loads + 3.3M stores per launch). With
-    // grid_z=3 the same total work runs across 3x more blocks, each block
-    // has 1/3 the per-thread state, and the GPU schedules them concurrently.
+    // This block's eval point. Each thread handles ONE eval point, so the
+    // register file is single-dimensional. ep_v is the interpolation point
+    // (0, 2, 4) folded into each leaf as `z + ep_v * (one - z)`.
+    const int e = blockIdx.z;
+    const felt_t ep_v = (e == 0) ? felt_t::zero()
+                       : felt_t::from_canonical_u32(2u * (uint32_t)e);
+
     K regs[MAX_REGS];
     ext_t thread_acc = ext_t::zero();
 
     const uint32_t stride = blockDim.x * gridDim.x;
     const uint32_t row_limit = 1u << rest_point_dim;
-    const int e = blockIdx.z;
-    const felt_t ep_v = (e == 0) ? felt_t::zero()
-                       : felt_t::from_canonical_u32(2u * (uint32_t)e);
 
     for (uint32_t idx = blockIdx.x * blockDim.x + threadIdx.x;
          idx < total_rows;
@@ -93,9 +100,8 @@ __global__ void zerocheck_fused_sequential(
             switch (instr.opcode) {
             case BC_LOAD_LEAF: {
                 LeafRef leaf = cm.leaves[instr.a];
-                size_t base = (leaf.source == 4 || leaf.source == 5)
-                                ? cm.main_ptr
-                                : cm.preprocessed_ptr;
+                // source: 2 = preprocessed, 4 = main (local row only).
+                size_t base = (leaf.source == 4) ? cm.main_ptr : cm.preprocessed_ptr;
                 K z = K::load(trace_data, base + leaf.col * cm.height + (row_idx << 1));
                 if (e == 0) {
                     regs[instr.out] = z;
@@ -214,8 +220,7 @@ __global__ void zerocheck_fused_sequential(
 
     ext_t block_sum = partialBlockReduce(block, tile_warp, thread_acc, shared);
     if (threadIdx.x == 0) {
-        // Output layout: blockIdx.z slot lives at (block.x * 3 + e). Matches
-        // the existing host aggregation that sums 3 ext per block.
+        // Output layout: eval point e of block.x lives at (block.x * 3 + e).
         ext_t::store(partials, blockIdx.x * 3 + (uint32_t)e, block_sum);
     }
 }

@@ -79,9 +79,7 @@ pub fn lower_column_tile(
             DagNode::InputLeaf { source, col } => {
                 let s = match source {
                     TraceSource::PreprocessedLocal => 2u8,
-                    TraceSource::PreprocessedNext => 3,
                     TraceSource::MainLocal => 4,
-                    TraceSource::MainNext => 5,
                 };
                 (s, col)
             }

@@ -152,9 +152,7 @@ fn collect_main_columns(
         return;
     }
     let node = &nodes[root as usize];
-    if let DagNode::InputLeaf { source: TraceSource::MainLocal, col }
-    | DagNode::InputLeaf { source: TraceSource::MainNext, col } = node
-    {
+    if let DagNode::InputLeaf { source: TraceSource::MainLocal, col } = node {
         main_cols.insert(*col);
     }
     for c in children(node) {

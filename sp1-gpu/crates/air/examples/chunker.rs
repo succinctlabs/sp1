@@ -1,13 +1,3 @@
-#![allow(
-    clippy::print_stdout,
-    clippy::print_stderr,
-    clippy::too_many_arguments,
-    clippy::needless_range_loop,
-    clippy::vec_init_then_push,
-    clippy::useless_vec,
-    clippy::manual_div_ceil,
-    clippy::doc_lazy_continuation
-)]
 //! Phase 1 validation: run the v2 builder + analysis + chunker on every chip
 //! in `RiscvAir` and reproduce the chunk-count and union-leafset distributions
 //! we saw in the earlier `analyze_chips` study.

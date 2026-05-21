@@ -188,7 +188,6 @@ mod tests {
         ConstraintInfo {
             constraint_idx: idx,
             root: 0,
-            field: crate::ir::dag::ConstraintField::Base,
             alpha_index: idx as u32,
             total_nodes: 0,
             work,

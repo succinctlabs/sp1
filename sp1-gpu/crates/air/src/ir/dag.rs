@@ -11,20 +11,12 @@ use crate::{EF, F};
 /// A handle into `ConstraintDag::nodes`. Allocated monotonically by the builder.
 pub type NodeId = u32;
 
-/// Which slice of trace a leaf comes from.
+/// Which trace a leaf comes from. Constraints in this architecture only ever
+/// reference the local row, so there is no "next row" variant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TraceSource {
     PreprocessedLocal,
-    PreprocessedNext,
     MainLocal,
-    MainNext,
-}
-
-/// Whether a constraint's assertion is over the base field or the extension field.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ConstraintField {
-    Base,
-    Extension,
 }
 
 /// One node in the DAG.
@@ -112,12 +104,12 @@ pub enum DagNode {
     },
 }
 
-/// One top-level assertion. Produced by `assert_zero` / `assert_zero_ext`.
+/// One top-level assertion. Produced by `assert_zero` (all constraints are over
+/// the base field; the extension-field builder hook is `unimplemented!`).
 #[derive(Debug, Clone, Copy)]
 pub struct ConstraintRef {
     pub root: NodeId,
     pub alpha_index: u32,
-    pub field: ConstraintField,
 }
 
 /// Output of running a chip's `eval` against `DagBuilder`.

@@ -15,7 +15,7 @@ use sp1_core_machine::air::TrivialOperationBuilder;
 use sp1_hypercube::air::{EmptyMessageBuilder, MachineAir};
 use sp1_hypercube::{AirOpenedValues, PROOF_MAX_NUM_PVS};
 
-use crate::ir::dag::{ConstraintDag, ConstraintField, ConstraintRef};
+use crate::ir::dag::{ConstraintDag, ConstraintRef};
 use crate::ir::expr::{DagExprEF, DagExprF};
 use crate::ir::state::{with_state, DAG_BUILDER_LOCK, DAG_STATE};
 use crate::ir::var::{DagVarEF, DagVarF};
@@ -59,11 +59,7 @@ impl<'a> AirBuilder for DagBuilder<'a> {
         let x: Self::Expr = x.into();
         let alpha_index = self.num_constraints;
         with_state(|s| {
-            s.constraints.push(ConstraintRef {
-                root: x.0,
-                alpha_index,
-                field: ConstraintField::Base,
-            });
+            s.constraints.push(ConstraintRef { root: x.0, alpha_index });
         });
         self.num_constraints += 1;
     }
@@ -74,20 +70,15 @@ impl ExtensionBuilder for DagBuilder<'_> {
     type ExprEF = DagExprEF;
     type VarEF = DagVarEF;
 
-    fn assert_zero_ext<I>(&mut self, x: I)
+    fn assert_zero_ext<I>(&mut self, _x: I)
     where
         I: Into<Self::ExprEF>,
     {
-        let x: Self::ExprEF = x.into();
-        let alpha_index = self.num_constraints;
-        with_state(|s| {
-            s.constraints.push(ConstraintRef {
-                root: x.0,
-                alpha_index,
-                field: ConstraintField::Extension,
-            });
-        });
-        self.num_constraints += 1;
+        // SP1's RISCV chips assert only over the base field; extension-field
+        // constraints are handled by GKR, not by these AIR assertions. If a
+        // chip ever does emit one, the Sequential lowering can't represent it,
+        // so fail loudly rather than silently drop it.
+        unimplemented!("DAG builder does not support extension-field constraints");
     }
 }
 

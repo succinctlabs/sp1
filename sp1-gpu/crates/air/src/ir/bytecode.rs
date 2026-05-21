@@ -18,7 +18,7 @@
 
 use crate::ir::analysis::ConstraintInfo;
 use crate::ir::chunker::Chunk;
-use crate::ir::dag::{ConstraintDag, ConstraintField, DagNode, NodeId, TraceSource};
+use crate::ir::dag::{ConstraintDag, DagNode, NodeId, TraceSource};
 use crate::ir::lowering::SequentialPlan;
 use crate::F;
 use std::collections::HashMap;
@@ -68,8 +68,9 @@ impl DagInstr {
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LeafRef {
-    /// 2 = PreprocessedLocal, 3 = PreprocessedNext, 4 = MainLocal, 5 = MainNext.
-    /// This encoding matches the jagged-mle layout code's column-variant tags.
+    /// 2 = PreprocessedLocal, 4 = MainLocal. This encoding matches the
+    /// jagged-mle layout code's column-variant tags (whose 3 = PreprocessedNext
+    /// / 5 = MainNext are never emitted here — constraints are local-row only).
     pub source: u8,
     pub _pad: u8,
     /// Column index within the chip's preprocessed or main trace.
@@ -132,9 +133,7 @@ pub fn lower_sequential(
             DagNode::InputLeaf { source, col } => {
                 let src_byte = match source {
                     TraceSource::PreprocessedLocal => 2,
-                    TraceSource::PreprocessedNext => 3,
                     TraceSource::MainLocal => 4,
-                    TraceSource::MainNext => 5,
                 };
                 let leaf_idx = *leaf_of.entry((src_byte, col)).or_insert_with(|| {
                     let i = bc.leaves.len() as u16;
@@ -187,10 +186,6 @@ pub fn lower_sequential(
     // Append per-constraint assertions.
     for &ci in &chunk.constraint_indices {
         let info = &constraints[ci];
-        // Phase 2 base-field only: skip EF constraints.
-        if !matches!(info.field, ConstraintField::Base) {
-            continue;
-        }
         bc.asserts.push((reg(info.root), info.alpha_index));
     }
 

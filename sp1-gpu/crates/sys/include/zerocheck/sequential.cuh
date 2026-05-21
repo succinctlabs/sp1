@@ -24,7 +24,7 @@ struct DagInstr {
 
 // Must match `LeafRef` in v2/bytecode.rs.
 struct LeafRef {
-    uint8_t source;   // 2=PrepLocal, 3=PrepNext, 4=MainLocal, 5=MainNext
+    uint8_t source;   // 2=PrepLocal, 4=MainLocal (local row only)
     uint8_t _pad;
     uint32_t col;
 };

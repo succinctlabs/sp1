@@ -19,8 +19,8 @@ use rand::{rngs::StdRng, Rng, SeedableRng};
 use slop_algebra::{AbstractExtensionField, AbstractField};
 use sp1_gpu_air::ir::{
     analyze_constraints, chunk_dag, enumerate_lowerings, lower_column_tile, ChunkBudget,
-    ColumnTileBytecode, ConstraintDag, ConstraintField, ConstraintRef, ConstraintShape, DagNode,
-    Lowering, TraceSource, COEFF_KIND_CONST,
+    ColumnTileBytecode, ConstraintDag, ConstraintRef, ConstraintShape, DagNode, Lowering,
+    TraceSource, COEFF_KIND_CONST,
 };
 use sp1_gpu_air::{EF, F};
 use sp1_gpu_cudart::sys::kernels::zerocheck_column_tile_kb_kernel;
@@ -73,9 +73,9 @@ fn build_linear_dag() -> ConstraintDag {
     nodes.push(DagNode::AddF { a: m5, b: m6 });
 
     let constraints = vec![
-        ConstraintRef { root: c0_root, alpha_index: 0, field: ConstraintField::Base },
-        ConstraintRef { root: c1_root, alpha_index: 1, field: ConstraintField::Base },
-        ConstraintRef { root: c2_root, alpha_index: 2, field: ConstraintField::Base },
+        ConstraintRef { root: c0_root, alpha_index: 0 },
+        ConstraintRef { root: c1_root, alpha_index: 1 },
+        ConstraintRef { root: c2_root, alpha_index: 2 },
     ];
 
     ConstraintDag { nodes, constraints, preprocessed_width: 0, main_width: 5 }

@@ -10,7 +10,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use crate::ir::dag::{ConstraintDag, ConstraintField, DagNode, NodeId, TraceSource};
+use crate::ir::dag::{ConstraintDag, DagNode, NodeId, TraceSource};
 
 /// Identifies a column-ref leaf for chunker bookkeeping.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -36,7 +36,6 @@ pub struct ConstraintInfo {
     /// Index into `dag.constraints`.
     pub constraint_idx: usize,
     pub root: NodeId,
-    pub field: ConstraintField,
     pub alpha_index: u32,
 
     /// Total nodes in the transitive closure (leaves + consts + arithmetic).
@@ -61,7 +60,7 @@ pub fn analyze_constraints(dag: &ConstraintDag) -> Vec<ConstraintInfo> {
     dag.constraints
         .iter()
         .enumerate()
-        .map(|(i, c)| analyze_one(dag, i, c.root, c.field, c.alpha_index))
+        .map(|(i, c)| analyze_one(dag, i, c.root, c.alpha_index))
         .collect()
 }
 
@@ -69,7 +68,6 @@ fn analyze_one(
     dag: &ConstraintDag,
     constraint_idx: usize,
     root: NodeId,
-    field: ConstraintField,
     alpha_index: u32,
 ) -> ConstraintInfo {
     let mut depth_of: HashMap<NodeId, u32> = HashMap::new();
@@ -83,7 +81,6 @@ fn analyze_one(
     ConstraintInfo {
         constraint_idx,
         root,
-        field,
         alpha_index,
         total_nodes: total,
         work,
@@ -108,15 +105,7 @@ fn walk(
     *total += 1;
     let d = match *node {
         DagNode::InputLeaf { source, col } => {
-            if matches!(
-                source,
-                TraceSource::MainLocal
-                    | TraceSource::MainNext
-                    | TraceSource::PreprocessedLocal
-                    | TraceSource::PreprocessedNext
-            ) {
-                column_leaves.insert(ColumnLeaf { source, col });
-            }
+            column_leaves.insert(ColumnLeaf { source, col });
             0
         }
         DagNode::ConstF { .. }
@@ -199,17 +188,7 @@ fn walk_linear_sum(
             }
             _ => false,
         },
-        DagNode::InputLeaf { source, col }
-            if matches!(
-                source,
-                TraceSource::MainLocal
-                    | TraceSource::MainNext
-                    | TraceSource::PreprocessedLocal
-                    | TraceSource::PreprocessedNext
-            ) =>
-        {
-            leaves_seen.insert(ColumnLeaf { source, col })
-        }
+        DagNode::InputLeaf { source, col } => leaves_seen.insert(ColumnLeaf { source, col }),
         _ => false,
     }
 }
@@ -231,17 +210,7 @@ fn coefficient(dag: &ConstraintDag, node_id: NodeId) -> Option<()> {
 
 fn extract_column_leaf(dag: &ConstraintDag, node_id: NodeId) -> Option<ColumnLeaf> {
     match dag.nodes[node_id as usize] {
-        DagNode::InputLeaf { source, col }
-            if matches!(
-                source,
-                TraceSource::MainLocal
-                    | TraceSource::MainNext
-                    | TraceSource::PreprocessedLocal
-                    | TraceSource::PreprocessedNext
-            ) =>
-        {
-            Some(ColumnLeaf { source, col })
-        }
+        DagNode::InputLeaf { source, col } => Some(ColumnLeaf { source, col }),
         _ => None,
     }
 }

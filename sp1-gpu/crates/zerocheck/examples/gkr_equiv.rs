@@ -147,8 +147,7 @@ fn host_oracle(
             if (row as u32) < domain { partial_lagrange[row] * lambda } else { EF::zero() };
         for t in &bc.terms {
             let leaf = bc.leaves[t.leaf_idx as usize];
-            let base =
-                if leaf.source == 4 || leaf.source == 5 { main_ptr } else { preprocessed_ptr };
+            let base = if leaf.source == 4 { main_ptr } else { preprocessed_ptr };
             let off = base + (leaf.col as usize) * height + (row << 1);
             let z = trace[off];
             let o = trace[off + 1];

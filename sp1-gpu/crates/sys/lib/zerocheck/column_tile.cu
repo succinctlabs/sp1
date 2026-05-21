@@ -68,7 +68,8 @@ __global__ void zerocheck_column_tile(
         ColumnTermEntry t = terms[term_idx];
 
         LeafRef leaf = leaves[t.leaf_idx];
-        size_t base = (leaf.source == 4 || leaf.source == 5) ? main_ptr : preprocessed_ptr;
+        // source: 2 = preprocessed, 4 = main (local row only).
+        size_t base = (leaf.source == 4) ? main_ptr : preprocessed_ptr;
         K z = K::load(trace_data, base + leaf.col * height + (row << 1));
         K o = K::load(trace_data, base + leaf.col * height + (row << 1 | 1));
         K diff = o - z;

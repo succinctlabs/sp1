@@ -26,18 +26,8 @@ impl DagVarF {
         DagVarF(id)
     }
 
-    pub fn preprocessed_next(col: u32) -> Self {
-        let id = with_state(|s| s.intern_leaf(TraceSource::PreprocessedNext, col));
-        DagVarF(id)
-    }
-
     pub fn main_local(col: u32) -> Self {
         let id = with_state(|s| s.intern_leaf(TraceSource::MainLocal, col));
-        DagVarF(id)
-    }
-
-    pub fn main_next(col: u32) -> Self {
-        let id = with_state(|s| s.intern_leaf(TraceSource::MainNext, col));
         DagVarF(id)
     }
 
