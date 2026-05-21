@@ -383,9 +383,8 @@ mod tests {
     async fn test_e2e_node_rsp_secp256k1_mul() -> anyhow::Result<()> {
         setup_logger();
 
-        let dir = std::path::PathBuf::from(
-            "/home/rahul/sp1/crates/perf/inputs/rsp-core-u64/1/20526624",
-        );
+        let dir =
+            std::path::PathBuf::from("/home/rahul/sp1/crates/perf/inputs/rsp-core-u64/1/20526624");
         let elf = std::fs::read(dir.join("program.bin"))?;
         let stdin_bytes = std::fs::read(dir.join("stdin.bin"))?;
         let stdin: SP1Stdin = bincode::deserialize(&stdin_bytes)?;
@@ -405,50 +404,7 @@ mod tests {
 
         let vk = client.setup(&elf).await.unwrap();
         let time = tokio::time::Instant::now();
-        let proof = client
-            .prove_with_mode(&elf, stdin, context, mode)
-            .await
-            .expect("proof failed");
-        tracing::info!("prove time: {:?}", time.elapsed());
-
-        tokio::task::spawn_blocking(move || client.verify(&vk, &proof.proof).unwrap())
-            .await
-            .unwrap();
-
-        Ok(())
-    }
-
-    /// CPU equivalent of the failing GPU `node` run, using the same minimal
-    /// SECP256K1_MUL test ELF as `test_secp256k1_mul_simple` so it iterates fast.
-    /// Used to disambiguate whether the `global cumulative sum is not zero` failure
-    /// is GPU-prover-specific or chip-side.
-    #[tokio::test]
-    #[serial]
-    async fn test_e2e_node_secp256k1_mul() -> anyhow::Result<()> {
-        setup_logger();
-
-        let elf = test_artifacts::SECP256K1_MUL_ELF.to_vec();
-        let stdin = SP1Stdin::default();
-        let mode = ProofMode::Core;
-
-        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
-            .build()
-            .await
-            .unwrap();
-
-        let proof_nonce = [0x6284, 0xC0DE, 0x4242, 0xCAFE];
-        let context = SP1Context { proof_nonce, ..Default::default() };
-
-        let (_, _, report) = client.execute(&elf, stdin.clone(), context.clone()).await.unwrap();
-        let cycles = report.total_instruction_count() as usize;
-        tracing::info!("cycles: {}", cycles);
-
-        let vk = client.setup(&elf).await.unwrap();
-        let time = tokio::time::Instant::now();
-        let proof = client
-            .prove_with_mode(&elf, stdin, context, mode)
-            .await
-            .expect("proof failed");
+        let proof = client.prove_with_mode(&elf, stdin, context, mode).await.expect("proof failed");
         tracing::info!("prove time: {:?}", time.elapsed());
 
         tokio::task::spawn_blocking(move || client.verify(&vk, &proof.proof).unwrap())
