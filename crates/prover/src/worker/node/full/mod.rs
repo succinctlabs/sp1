@@ -374,46 +374,6 @@ mod tests {
         run_e2e_node_test(cpu_worker_builder()).await
     }
 
-    /// CPU equivalent of the GPU `node` run on RSP block 20526624 (41 ECDSA recoveries
-    /// → 82 secp256k1_mul syscalls). Larger workload than `test_e2e_node_secp256k1_mul`
-    /// and exercises the full multi-shard global memory chain.
-    #[tokio::test]
-    #[serial]
-    #[ignore = "loads dumped RSP block from disk; takes a few minutes"]
-    async fn test_e2e_node_rsp_secp256k1_mul() -> anyhow::Result<()> {
-        setup_logger();
-
-        let dir =
-            std::path::PathBuf::from("/home/rahul/sp1/crates/perf/inputs/rsp-core-u64/1/20526624");
-        let elf = std::fs::read(dir.join("program.bin"))?;
-        let stdin_bytes = std::fs::read(dir.join("stdin.bin"))?;
-        let stdin: SP1Stdin = bincode::deserialize(&stdin_bytes)?;
-        let mode = ProofMode::Core;
-
-        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
-            .build()
-            .await
-            .unwrap();
-
-        let proof_nonce = [0x6284, 0xC0DE, 0x4242, 0xCAFE];
-        let context = SP1Context { proof_nonce, ..Default::default() };
-
-        let (_, _, report) = client.execute(&elf, stdin.clone(), context.clone()).await.unwrap();
-        let cycles = report.total_instruction_count() as usize;
-        tracing::info!("cycles: {}", cycles);
-
-        let vk = client.setup(&elf).await.unwrap();
-        let time = tokio::time::Instant::now();
-        let proof = client.prove_with_mode(&elf, stdin, context, mode).await.expect("proof failed");
-        tracing::info!("prove time: {:?}", time.elapsed());
-
-        tokio::task::spawn_blocking(move || client.verify(&vk, &proof.proof).unwrap())
-            .await
-            .unwrap();
-
-        Ok(())
-    }
-
     #[tokio::test]
     #[cfg(feature = "experimental")]
     #[serial]
