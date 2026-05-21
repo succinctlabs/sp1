@@ -54,6 +54,15 @@ pub fn get_program_and_input(program: String, param: String) -> (Vec<u8>, SP1Std
             let client_input = std::fs::read(client_input_path).unwrap();
             stdin.write_vec(client_input);
             return (RSP_ELF.to_vec(), stdin);
+        } else if program_path == "elf" {
+            // --param is a directory containing `program.bin` (raw ELF) and
+            // `stdin.bin` (bincode-serialized SP1Stdin), matching the layout
+            // produced by `examples/rsp/script/bin/dump_core_u64.rs`.
+            let dir = std::path::PathBuf::from(&param);
+            let program = std::fs::read(dir.join("program.bin")).unwrap();
+            let stdin_bytes = std::fs::read(dir.join("stdin.bin")).unwrap();
+            let stdin: SP1Stdin = bincode::deserialize(&stdin_bytes).unwrap();
+            return (program, stdin);
         } else {
             panic!("invalid program path provided: {program}");
         }

@@ -104,8 +104,12 @@ pub(crate) unsafe fn ec_mul<E: EllipticCurve>(
 
     ctx.set_clk(clk);
     let p_affine = AffinePoint::<E>::from_words_le(ctx.mr_slice_unsafe(p_ptr, num_words));
+    // Scalar is a read-only input the chip's AIR treats like `q` in `ec_add`, so it must use
+    // `mr_slice_without_prot` (which advances `mem_value.clk = self.clk`) to keep the memory-bus
+    // chain consistent. Using `mr_slice_unsafe` here leaves the memory's per-address clk stale
+    // and breaks the global cumulative-sum check across shards.
     let scalar = BigUint::from_slice(
-        &ctx.mr_slice_unsafe(scalar_ptr, scalar_num_words)
+        &ctx.mr_slice_without_prot(scalar_ptr, scalar_num_words)
             .into_iter()
             .flat_map(|&w| [w as u32, (w >> 32) as u32])
             .collect::<Vec<_>>(),
