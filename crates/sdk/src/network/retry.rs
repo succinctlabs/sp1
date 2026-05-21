@@ -56,7 +56,8 @@ where
                         Code::Unavailable
                         | Code::DeadlineExceeded
                         | Code::Internal
-                        | Code::Aborted => {
+                        | Code::Aborted
+                        | Code::Cancelled => {
                             tracing::warn!(
                                 "Network temporarily unavailable when {} due to {}, retrying...",
                                 operation_name,
