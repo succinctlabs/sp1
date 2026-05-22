@@ -130,13 +130,16 @@ pub fn cost_and_height_per_syscall(
     };
 
     let rows_per_event = air_id.rows_per_event();
-    let mut cost_per_syscall = 0;
+    let mut cost_per_syscall = rows_per_event * costs[&air_id];
     let mut max_height_per_syscall = rows_per_event;
 
-    cost_per_syscall += rows_per_event * costs[&air_id];
-    if rows_per_event > 1 {
-        let control_air_id = air_id.control_air_id(page_protect).unwrap();
-        cost_per_syscall += costs[&control_air_id];
+    // Account for any "child" chips dispatched by this syscall's controller AIR — the
+    // single-chip syscalls (SECP_ADD, SECP_DOUBLE, etc.) return an empty slice and add
+    // nothing; multi-chip syscalls (KECCAK, SHA, SECP_MUL) credit their worker chips here.
+    for child in air_id.child_air_ids(page_protect) {
+        let child_rows_per_event = child.rows_per_event();
+        cost_per_syscall += child_rows_per_event * costs[child];
+        max_height_per_syscall = max_height_per_syscall.max(child_rows_per_event);
     }
 
     let touched_addresses = syscall_code.touched_addresses();

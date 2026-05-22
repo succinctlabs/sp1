@@ -1962,7 +1962,13 @@ pub mod tests {
             cost_per_syscall += costs[&RiscvAirId::MemoryBump] * 32;
             cost_per_syscall += costs[&RiscvAirId::StateBump];
 
-            assert!(cost_per_syscall as u64 <= MAXIMUM_CYCLE_AREA);
+            assert!(
+                cost_per_syscall as u64 <= MAXIMUM_CYCLE_AREA,
+                "{:?}: cost_per_syscall={} > MAXIMUM_CYCLE_AREA={}",
+                syscall_code,
+                cost_per_syscall,
+                MAXIMUM_CYCLE_AREA,
+            );
         }
     }
 

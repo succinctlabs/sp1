@@ -456,6 +456,7 @@ impl RiscvAirId {
                 | RiscvAirId::EdDecompress
                 | RiscvAirId::Secp256k1AddAssign
                 | RiscvAirId::Secp256k1DoubleAssign
+                | RiscvAirId::Secp256k1MulAssign
                 | RiscvAirId::Secp256r1AddAssign
                 | RiscvAirId::Secp256r1DoubleAssign
                 | RiscvAirId::KeccakPermute
@@ -483,26 +484,42 @@ impl RiscvAirId {
             Self::ShaCompress => 80,
             Self::ShaExtend => 48,
             Self::KeccakPermute => 24,
+            Self::Secp256k1MulInternalAdd => 256, //TODO: find a way to compute actual number
+            Self::Secp256k1MulInternalDouble => 255,
             _ => 1,
         }
     }
 
-    /// Get the ID of the AIR used in the syscall control implementation.
+    /// Returns the AIRs that are dispatched / controlled by this AIR within a single syscall.
+    ///
+    /// This is the inverse direction of [`Self::control_air_id`]: given a controller chip,
+    /// returns the worker / "controlled" chips that produce rows on its behalf. Controllers
+    /// contribute one row per syscall themselves (`rows_per_event == 1` on the default arm);
+    /// their children's per-event row counts come from [`Self::rows_per_event`].
+    ///
+    /// For chips that are not controllers (workers, single-chip precompiles, instruction AIRs,
+    /// etc.) this returns an empty slice.
     #[must_use]
-    pub fn control_air_id(self, page_protect_enabled: bool) -> Option<RiscvAirId> {
+    pub fn child_air_ids(self, page_protect_enabled: bool) -> &'static [RiscvAirId] {
         if page_protect_enabled {
             return match self {
-                RiscvAirId::ShaCompress => Some(RiscvAirId::ShaCompressControlUser),
-                RiscvAirId::ShaExtend => Some(RiscvAirId::ShaExtendControlUser),
-                RiscvAirId::KeccakPermute => Some(RiscvAirId::KeccakPermuteControlUser),
-                _ => None,
+                RiscvAirId::ShaCompressControlUser => &[RiscvAirId::ShaCompress],
+                RiscvAirId::ShaExtendControlUser => &[RiscvAirId::ShaExtend],
+                RiscvAirId::KeccakPermuteControlUser => &[RiscvAirId::KeccakPermute],
+                RiscvAirId::Secp256k1MulAssignUser => {
+                    &[RiscvAirId::Secp256k1MulInternalAdd, RiscvAirId::Secp256k1MulInternalDouble]
+                }
+                _ => &[],
             };
         }
         match self {
-            RiscvAirId::ShaCompress => Some(RiscvAirId::ShaCompressControl),
-            RiscvAirId::ShaExtend => Some(RiscvAirId::ShaExtendControl),
-            RiscvAirId::KeccakPermute => Some(RiscvAirId::KeccakPermuteControl),
-            _ => None,
+            RiscvAirId::ShaCompressControl => &[RiscvAirId::ShaCompress],
+            RiscvAirId::ShaExtendControl => &[RiscvAirId::ShaExtend],
+            RiscvAirId::KeccakPermuteControl => &[RiscvAirId::KeccakPermute],
+            RiscvAirId::Secp256k1MulAssign => {
+                &[RiscvAirId::Secp256k1MulInternalAdd, RiscvAirId::Secp256k1MulInternalDouble]
+            }
+            _ => &[],
         }
     }
 

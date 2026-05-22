@@ -325,11 +325,15 @@ impl SyscallCode {
     #[must_use]
     pub fn as_air_id(self) -> Option<RiscvAirId> {
         Some(match self {
-            SyscallCode::SHA_EXTEND => RiscvAirId::ShaExtend,
-            SyscallCode::SHA_COMPRESS => RiscvAirId::ShaCompress,
+            // Multi-chip syscalls map to their *controller* AIR. The worker chips
+            // (Sha{Compress,Extend}, KeccakPermute, Secp256k1MulInternal{Add,Double}) are
+            // surfaced via `RiscvAirId::child_air_ids` so that shape/cost computations can
+            // walk them uniformly.
+            SyscallCode::SHA_EXTEND => RiscvAirId::ShaExtendControl,
+            SyscallCode::SHA_COMPRESS => RiscvAirId::ShaCompressControl,
             SyscallCode::ED_ADD => RiscvAirId::EdAddAssign,
             SyscallCode::ED_DECOMPRESS => RiscvAirId::EdDecompress,
-            SyscallCode::KECCAK_PERMUTE => RiscvAirId::KeccakPermute,
+            SyscallCode::KECCAK_PERMUTE => RiscvAirId::KeccakPermuteControl,
             SyscallCode::SECP256K1_ADD => RiscvAirId::Secp256k1AddAssign,
             SyscallCode::SECP256K1_DOUBLE => RiscvAirId::Secp256k1DoubleAssign,
             SyscallCode::SECP256K1_MUL => RiscvAirId::Secp256k1MulAssign,
@@ -384,11 +388,12 @@ impl SyscallCode {
     #[must_use]
     pub fn as_air_id_user(self) -> Option<RiscvAirId> {
         Some(match self {
-            SyscallCode::SHA_EXTEND => RiscvAirId::ShaExtend,
-            SyscallCode::SHA_COMPRESS => RiscvAirId::ShaCompress,
+            // See the comment on `as_air_id`: multi-chip syscalls map to their controller.
+            SyscallCode::SHA_EXTEND => RiscvAirId::ShaExtendControlUser,
+            SyscallCode::SHA_COMPRESS => RiscvAirId::ShaCompressControlUser,
             SyscallCode::ED_ADD => RiscvAirId::EdAddAssignUser,
             SyscallCode::ED_DECOMPRESS => RiscvAirId::EdDecompressUser,
-            SyscallCode::KECCAK_PERMUTE => RiscvAirId::KeccakPermute,
+            SyscallCode::KECCAK_PERMUTE => RiscvAirId::KeccakPermuteControlUser,
             SyscallCode::SECP256K1_ADD => RiscvAirId::Secp256k1AddAssignUser,
             SyscallCode::SECP256K1_DOUBLE => RiscvAirId::Secp256k1DoubleAssignUser,
             SyscallCode::SECP256K1_MUL => RiscvAirId::Secp256k1MulAssignUser,

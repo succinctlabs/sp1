@@ -14,7 +14,11 @@ pub const MAXIMUM_PADDING_AREA: u64 = 1 << 18;
 
 /// The maximum trace area from a single cycle.
 /// The correctness of this value is checked in the test `test_maximum_cycle`.
-pub const MAXIMUM_CYCLE_AREA: u64 = 1 << 18;
+/// Sized to accommodate the worst case among current syscalls: `SECP256K1_MUL`,
+/// whose `cost_and_height_per_syscall` is roughly `1 * cost[MulAssign] +
+/// 256 * cost[InternalAdd] + 255 * cost[InternalDouble] + mem/global/syscall overhead`
+/// ≈ 786 k. The next power of two gives headroom for cost-table updates.
+pub const MAXIMUM_CYCLE_AREA: u64 = 1 << 20;
 
 /// The maximum trace area from the `syscall_halt` function.
 pub const HALT_AREA: u64 = 1 << 18;
@@ -160,15 +164,19 @@ impl<M: ExecutionMode> ShapeChecker<M> {
 
         let rows_per_event = syscall_air_id.rows_per_event() as u64;
         self.heights[syscall_air_id] += rows_per_event;
-
         self.trace_area += rows_per_event * self.costs[syscall_air_id];
         self.max_height = self.max_height.max(self.heights[syscall_air_id]);
 
-        // Currently, all precompiles with `rows_per_event > 1` have the respective control chip.
-        if rows_per_event > 1 {
-            self.trace_area += self.costs[syscall_air_id
-                .control_air_id(M::PAGE_PROTECTION_ENABLED)
-                .expect("Controls AIRs are found for each precompile with rows_per_event > 1")];
+        // Account for any "child" chips dispatched by this syscall's controller AIR — the
+        // single-chip syscalls return an empty slice (no-op); multi-chip syscalls (KECCAK,
+        // SHA, SECP_MUL) credit their worker chips here. Without this the splicer would
+        // underestimate shard cost and pack too many controller syscalls into one shard,
+        // overflowing the per-chip row budget at trace-gen time.
+        for child in syscall_air_id.child_air_ids(M::PAGE_PROTECTION_ENABLED) {
+            let child_rows_per_event = child.rows_per_event() as u64;
+            self.heights[*child] += child_rows_per_event;
+            self.trace_area += child_rows_per_event * self.costs[*child];
+            self.max_height = self.max_height.max(self.heights[*child]);
         }
     }
 

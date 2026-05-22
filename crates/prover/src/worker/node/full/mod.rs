@@ -411,6 +411,118 @@ mod tests {
         Ok(())
     }
 
+    // ========================================================================
+    // End-to-end tests for multi-chip syscalls
+    // ========================================================================
+    //
+    // These tests exercise the full `SP1LocalNodeBuilder::prove_with_mode`
+    // pipeline against programs that fire each multi-chip syscall (keccak,
+    // sha-compress, sha-extend, secp256k1-mul). They are the only test class
+    // here that exercises the multi-shard global memory chain end-to-end —
+    // the lighter `run_test_core` path used by per-chip tests under
+    // `crates/core/machine` doesn't verify the global cumulative sum across
+    // shards, so chip-side bugs that span shards can sneak past it. Adding
+    // these guards every multi-chip-syscall design at the same level the
+    // production GPU prover exercises.
+    //
+    // Cost: ~20-40s per test on CPU. The dumped-RSP variant is `#[ignore]`
+    // because it takes a few minutes and depends on a per-machine input file
+    // produced by `examples/rsp/script/bin/dump_core_u64`.
+
+    async fn run_e2e_multi_chip_syscall_test(
+        elf: Vec<u8>,
+        stdin: SP1Stdin,
+    ) -> anyhow::Result<()> {
+        let mode = ProofMode::Core;
+        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
+            .build()
+            .await
+            .unwrap();
+        let proof_nonce = [0x6284, 0xC0DE, 0x4242, 0xCAFE];
+        let context = SP1Context { proof_nonce, ..Default::default() };
+        let (_, _, report) = client.execute(&elf, stdin.clone(), context.clone()).await.unwrap();
+        tracing::info!("cycles: {}", report.total_instruction_count());
+        let vk = client.setup(&elf).await.unwrap();
+        let time = tokio::time::Instant::now();
+        let proof = client.prove_with_mode(&elf, stdin, context, mode).await.expect("proof failed");
+        tracing::info!("prove time: {:?}", time.elapsed());
+        tokio::task::spawn_blocking(move || client.verify(&vk, &proof.proof).unwrap())
+            .await
+            .unwrap();
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_e2e_node_keccak_permute() -> anyhow::Result<()> {
+        setup_logger();
+        run_e2e_multi_chip_syscall_test(
+            test_artifacts::KECCAK_PERMUTE_ELF.to_vec(),
+            SP1Stdin::default(),
+        )
+        .await
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_e2e_node_sha_compress() -> anyhow::Result<()> {
+        setup_logger();
+        run_e2e_multi_chip_syscall_test(
+            test_artifacts::SHA_COMPRESS_ELF.to_vec(),
+            SP1Stdin::default(),
+        )
+        .await
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_e2e_node_sha_extend() -> anyhow::Result<()> {
+        setup_logger();
+        run_e2e_multi_chip_syscall_test(
+            test_artifacts::SHA_EXTEND_ELF.to_vec(),
+            SP1Stdin::default(),
+        )
+        .await
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_e2e_node_secp256k1_mul() -> anyhow::Result<()> {
+        setup_logger();
+        run_e2e_multi_chip_syscall_test(
+            test_artifacts::SECP256K1_MUL_ELF.to_vec(),
+            SP1Stdin::default(),
+        )
+        .await
+    }
+
+    /// Larger multi-shard workload than the other tests in this group: an
+    /// actual RSP block (41 ECDSA recoveries → 82 secp256k1_mul syscalls →
+    /// 19 shards on the default opts). Loads program.bin/stdin.bin produced
+    /// by `examples/rsp/script/bin/dump_core_u64 --block-number 20526624`,
+    /// which writes into `crates/perf/inputs/rsp-core-u64/1/<block>/`.
+    /// Override the location via `SP1_E2E_RSP_INPUT_DIR` if needed.
+    #[tokio::test]
+    #[serial]
+    #[ignore = "loads dumped RSP block from disk; takes a few minutes"]
+    async fn test_e2e_node_rsp_secp256k1_mul() -> anyhow::Result<()> {
+        setup_logger();
+        let dir = std::env::var("SP1_E2E_RSP_INPUT_DIR").map(std::path::PathBuf::from).unwrap_or_else(
+            |_| {
+                std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .join("../perf/inputs/rsp-core-u64/1/20526624")
+            },
+        );
+        let elf = std::fs::read(dir.join("program.bin"))?;
+        let stdin_bytes = std::fs::read(dir.join("stdin.bin"))?;
+        let stdin: SP1Stdin = bincode::deserialize(&stdin_bytes)?;
+        run_e2e_multi_chip_syscall_test(elf, stdin).await
+    }
+
+    // ========================================================================
+    // End of multi-chip syscall e2e tests
+    // ========================================================================
+
     #[tokio::test]
     #[serial]
     #[ignore = "only run to write the vk root and num keys to a file"]
