@@ -2,7 +2,8 @@ use std::marker::PhantomData;
 
 use rayon::ThreadPoolBuilder;
 use slop_jagged::{
-    BranchingProgram, JaggedLittlePolynomialVerifierParams, JaggedSumcheckEvalProof,
+    deinterleave_prefix_sums, BranchingProgram, JaggedLittlePolynomialVerifierParams,
+    JaggedSumcheckEvalProof,
 };
 use slop_multilinear::{Mle, Point};
 use sp1_primitives::{SP1ExtensionField, SP1Field};
@@ -130,11 +131,15 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>>
         let proof_point = <Point<Ext<SP1Field, SP1ExtensionField>> as IntoSymbolic<C>>::as_symbolic(
             &partial_sumcheck_proof.point_and_eval.0,
         );
-        let (first_half_z_index, second_half_z_index) =
-            proof_point.split_at(proof_point.dimension() / 2);
-        assert!(first_half_z_index.len() == second_half_z_index.len());
 
         // Compute the jagged eval sc expected eval and assert it matches the proof's eval.
+        // De-interleave the proof point from interleaved [next, curr, next, curr, ...]
+        // to [curr..., next...] layout to match merged_prefix_sum ordering.
+        let (curr_ext, next_ext) =
+            deinterleave_prefix_sums(&partial_sumcheck_proof.point_and_eval.0);
+        let deinterleaved_point: Vec<_> =
+            curr_ext.to_vec().into_iter().chain(next_ext.to_vec()).collect();
+
         let current_column_prefix_sums = params.col_prefix_sums.iter();
         let next_column_prefix_sums = params.col_prefix_sums.iter().skip(1);
         let mut prefix_sum_felts = Vec::new();
@@ -152,7 +157,7 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>>
                 let (full_lagrange_eval, felt) = C::prefix_sum_checks(
                     builder,
                     merged_prefix_sum.to_vec(),
-                    partial_sumcheck_proof.point_and_eval.0.to_vec(),
+                    deinterleaved_point.clone(),
                 );
                 prefix_sum_felts.push(felt);
                 *z_col_eq_val * full_lagrange_eval
@@ -160,8 +165,8 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>>
             .sum::<SymbolicExt<SP1Field, SP1ExtensionField>>();
         builder.cycle_tracker_v2_exit();
         let branching_program = BranchingProgram::new(z_row.clone(), z_trace.clone());
-        jagged_eval_sc_expected_eval *=
-            branching_program.eval(&first_half_z_index, &second_half_z_index);
+        let (curr, next) = deinterleave_prefix_sums(&proof_point);
+        jagged_eval_sc_expected_eval *= branching_program.eval(&curr, &next);
 
         builder
             .assert_ext_eq(jagged_eval_sc_expected_eval, partial_sumcheck_proof.point_and_eval.1);
@@ -176,11 +181,10 @@ mod tests {
 
     use rand::{thread_rng, Rng};
     use slop_algebra::{extension::BinomialExtensionField, AbstractField};
-    use slop_alloc::CpuBackend;
     use slop_challenger::{DuplexChallenger, IopCtx};
     use slop_jagged::{
-        JaggedAssistSumAsPolyCPUImpl, JaggedEvalProver, JaggedEvalSumcheckProver,
-        JaggedLittlePolynomialProverParams, JaggedLittlePolynomialVerifierParams,
+        JaggedEvalSumcheckProver, JaggedLittlePolynomialProverParams,
+        JaggedLittlePolynomialVerifierParams,
     };
     use slop_multilinear::Point;
     use sp1_core_machine::utils::setup_logger;
@@ -267,23 +271,13 @@ mod tests {
         expected_result: EF,
         should_succeed: bool,
     ) -> Vec<Felt<F>> {
-        let prover = JaggedEvalSumcheckProver::<
-            F,
-            JaggedAssistSumAsPolyCPUImpl<_, _, _>,
-            CpuBackend,
-            <SP1GlobalContext as IopCtx>::Challenger,
-        >::default();
+        let prover =
+            JaggedEvalSumcheckProver::<F, EF, <SP1GlobalContext as IopCtx>::Challenger>::default();
         let default_perm = inner_perm();
         let mut challenger =
             DuplexChallenger::<SP1Field, SP1Perm, 16, 8>::new(default_perm.clone());
-        let jagged_eval_proof = prover.prove_jagged_evaluation(
-            prover_params,
-            z_row,
-            z_col,
-            z_trace,
-            &mut challenger,
-            CpuBackend,
-        );
+        let jagged_eval_proof =
+            prover.prove_jagged_evaluation(prover_params, z_row, z_col, z_trace, &mut challenger);
 
         let mut builder = AsmBuilder::default();
         builder.cycle_tracker_v2_enter("sumcheck-jagged-eval");

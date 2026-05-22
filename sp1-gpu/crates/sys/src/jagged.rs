@@ -13,6 +13,12 @@ extern "C" {
     pub fn interpolateAndObserve_kernel_multi_field_32() -> KernelPtr;
 
     pub fn transition_kernel() -> KernelPtr;
+    pub fn transition_w8_kernel() -> KernelPtr;
 
     pub fn fixLastVariable_kernel() -> KernelPtr;
+
+    pub fn precomputePrefixStates_kernel() -> KernelPtr;
+
+    pub fn fusedJaggedAssistSumcheck_kernel_duplex() -> KernelPtr;
+    pub fn fusedJaggedAssistSumcheck_kernel_multi_field_32() -> KernelPtr;
 }

@@ -121,7 +121,7 @@ fn run_zerocheck<R: Rng>(
 
 fn bench_zerocheck(c: &mut Criterion) {
     let mut rng = StdRng::seed_from_u64(42);
-    with_trace_source(c, &mut rng, FullKind, |c, id, scope, rng, data| {
+    with_trace_source(c, &mut rng, FullKind, CORE_MAX_LOG_ROW_COUNT, |c, id, scope, rng, data| {
         run_zerocheck(c, id, scope, rng, data);
     });
 }

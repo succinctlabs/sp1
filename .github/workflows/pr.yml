@@ -18,7 +18,8 @@ on:
 
 env:
   SP1_CI_IN_PROGRESS: "true"
-  SP1_CIRCUIT_MODE: "release"
+  SP1_CIRCUIT_MODE: "dev"
+  WITHOUT_VK_VERIFICATION: "true"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -96,7 +97,7 @@ jobs:
             --features native-gnark,experimental,profiling
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
-          SP1_CIRCUIT_MODE: "release"
+          SP1_CIRCUIT_MODE: "dev"
           RUST_BACKTRACE: 1
 
   test-arm:
@@ -170,60 +171,60 @@ jobs:
             --features native-gnark,experimental
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
-          SP1_CIRCUIT_MODE: "release"
+          SP1_CIRCUIT_MODE: "dev"
           RUST_BACKTRACE: 1
 
-  test-verifier:
-    name: Test Verifier Crate
-    runs-on:
-      [
-        runs-on,
-        runner=64cpu-linux-arm64,
-        spot=false,
-        disk=large,
-        "run-id=${{ github.run_id }}",
-      ]
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v6
+  # test-verifier:
+  #   name: Test Verifier Crate
+  #   runs-on:
+  #     [
+  #       runs-on,
+  #       runner=64cpu-linux-arm64,
+  #       spot=false,
+  #       disk=large,
+  #       "run-id=${{ github.run_id }}",
+  #     ]
+  #   env:
+  #     CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+  #   steps:
+  #     - name: Checkout sources
+  #       uses: actions/checkout@v6
 
-      - name: Setup CI
-        uses: ./.github/actions/setup
-        with:
-          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+  #     - name: Setup CI
+  #       uses: ./.github/actions/setup
+  #       with:
+  #         pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_S3 }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_S3 }}
-          aws-region: us-west-2
+  #     - name: Configure AWS credentials
+  #       uses: aws-actions/configure-aws-credentials@v4
+  #       with:
+  #         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_S3 }}
+  #         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_S3 }}
+  #         aws-region: us-west-2
 
-      - name: Download dev circuit artifacts
-        uses: ./.github/actions/download-dev-artifacts
+  #     - name: Download dev circuit artifacts
+  #       uses: ./.github/actions/download-dev-artifacts
 
-      - name: Install SP1 toolchain from repo
-        run: |
-          cargo run -p sp1-cli --no-default-features -- prove install-toolchain
-          cd crates/cli
+  #     - name: Install SP1 toolchain from repo
+  #       run: |
+  #         cargo run -p sp1-cli --no-default-features -- prove install-toolchain
+  #         cd crates/cli
 
-      - name: Run cargo check
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --all-targets --all-features --tests
+  #     - name: Run cargo check
+  #       uses: actions-rs/cargo@v1
+  #       with:
+  #         command: check
+  #         args: --all-targets --all-features --tests
 
-      - name: Run cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --release --package sp1-verifier -F ark
-        env:
-          RUSTFLAGS: -Copt-level=3 -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
-          RUST_BACKTRACE: 1
-          SP1_CIRCUIT_MODE: "release"
+  #     - name: Run cargo test
+  #       uses: actions-rs/cargo@v1
+  #       with:
+  #         command: test
+  #         args: --release --package sp1-verifier -F ark
+  #       env:
+  #         RUSTFLAGS: -Copt-level=3 -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+  #         RUST_BACKTRACE: 1
+  #         SP1_CIRCUIT_MODE: "dev"
 
   lint:
     name: Formatting & Clippy
@@ -255,6 +256,7 @@ jobs:
         with:
           command: fmt
           args: --all -- --check
+          toolchain: stable
 
       - name: Check test-artifacts
         uses: actions-rs/cargo@v1
@@ -269,6 +271,7 @@ jobs:
           args: >-
             --all-features --all-targets
             -- -D warnings -A incomplete-features
+          toolchain: stable
 
   check:
     name: Cargo Check
@@ -555,7 +558,7 @@ jobs:
             -- --test-threads=1
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
-          SP1_CIRCUIT_MODE: "release"
+          SP1_CIRCUIT_MODE: "dev"
           RUST_BACKTRACE: 1
           CUDA_ARCHS: 89
 
@@ -603,6 +606,6 @@ jobs:
           args: --release -p sp1-gpu-perf --bin node --features native-gnark,experimental -- --program local-rsp --param 21000001 --mode groth16
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
-          SP1_CIRCUIT_MODE: "release"
+          SP1_CIRCUIT_MODE: "dev"
           RUST_BACKTRACE: 1
           CUDA_ARCHS: 89

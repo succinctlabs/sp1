@@ -159,9 +159,15 @@ fn run_prove_trusted_evaluations<R: Rng>(
 
 fn bench_prove_trusted_evaluations(c: &mut Criterion) {
     let mut rng = StdRng::seed_from_u64(42);
-    with_trace_source(c, &mut rng, JaggedKind, |c, id, scope, rng, device_mle| {
-        run_prove_trusted_evaluations(c, id, scope, rng, &device_mle);
-    });
+    with_trace_source(
+        c,
+        &mut rng,
+        JaggedKind,
+        CORE_MAX_LOG_ROW_COUNT,
+        |c, id, scope, rng, device_mle| {
+            run_prove_trusted_evaluations(c, id, scope, rng, &device_mle);
+        },
+    );
 }
 
 criterion_group!(benches, bench_prove_trusted_evaluations);
