@@ -429,10 +429,7 @@ mod tests {
     // because it takes a few minutes and depends on a per-machine input file
     // produced by `examples/rsp/script/bin/dump_core_u64`.
 
-    async fn run_e2e_multi_chip_syscall_test(
-        elf: Vec<u8>,
-        stdin: SP1Stdin,
-    ) -> anyhow::Result<()> {
+    async fn run_e2e_multi_chip_syscall_test(elf: Vec<u8>, stdin: SP1Stdin) -> anyhow::Result<()> {
         let mode = ProofMode::Core;
         let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
             .build()
@@ -507,12 +504,12 @@ mod tests {
     #[ignore = "loads dumped RSP block from disk; takes a few minutes"]
     async fn test_e2e_node_rsp_secp256k1_mul() -> anyhow::Result<()> {
         setup_logger();
-        let dir = std::env::var("SP1_E2E_RSP_INPUT_DIR").map(std::path::PathBuf::from).unwrap_or_else(
-            |_| {
+        let dir = std::env::var("SP1_E2E_RSP_INPUT_DIR")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|_| {
                 std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                     .join("../perf/inputs/rsp-core-u64/1/20526624")
-            },
-        );
+            });
         let elf = std::fs::read(dir.join("program.bin"))?;
         let stdin_bytes = std::fs::read(dir.join("stdin.bin"))?;
         let stdin: SP1Stdin = bincode::deserialize(&stdin_bytes)?;
