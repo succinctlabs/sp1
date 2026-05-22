@@ -1695,6 +1695,9 @@ impl SystemInstructions for TranspilerBackend {
         extern "C" fn unimp(ctx: *mut JitContext) {
             let ctx = unsafe { &mut *ctx };
             eprintln!("Unimplemented instruction at pc: {}", ctx.pc);
+            // Trap via SIGILL so the parent maps this to a typed `Unimplemented`
+            // cause instead of a generic abort.
+            unsafe { libc::raise(libc::SIGILL) };
         }
 
         self.update_pc(TEMP_A, self.pc_current);
