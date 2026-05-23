@@ -198,6 +198,9 @@ impl<T: AbstractField> Mul for Polynomial<T> {
     type Output = Self;
 
     fn mul(self, other: Self) -> Self {
+        if self.coefficients.is_empty() || other.coefficients.is_empty() {
+            return Self::new(vec![]);
+        }
         let mut result = vec![T::zero(); self.coefficients.len() + other.coefficients.len() - 1];
         for (i, a) in self.coefficients.into_iter().enumerate() {
             for (j, b) in other.coefficients.iter().enumerate() {
@@ -212,6 +215,9 @@ impl<T: AbstractField> Mul for &Polynomial<T> {
     type Output = Polynomial<T>;
 
     fn mul(self, other: Self) -> Polynomial<T> {
+        if self.coefficients.is_empty() || other.coefficients.is_empty() {
+            return Polynomial::new(vec![]);
+        }
         let mut result = vec![T::zero(); self.coefficients.len() + other.coefficients.len() - 1];
         for (i, a) in self.coefficients.iter().enumerate() {
             for (j, b) in other.coefficients.iter().enumerate() {
