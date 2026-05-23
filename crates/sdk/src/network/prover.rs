@@ -48,6 +48,14 @@ pub struct NetworkProver {
     pub(crate) node: SP1LightNode,
     pub(crate) tee_signers: Vec<Address>,
     pub(crate) network_mode: NetworkMode,
+    /// Whether to use hosted defaults for proof requests.
+    ///
+    /// When set, [`NetworkProver::prove`] skips local simulation and sets the cycle and gas limits
+    /// to their maximum, so that `prove(&pk, stdin).await` works without any network-specific
+    /// toggles. This is the behavior wanted by self-hosted clusters talking to the
+    /// network-gateway. It is independent of [`NetworkMode`]; a hosted prover runs in
+    /// [`NetworkMode::Reserved`].
+    pub(crate) hosted: bool,
 }
 
 impl Prover for NetworkProver {
@@ -71,13 +79,19 @@ impl Prover for NetworkProver {
     fn prove<'a>(&'a self, pk: &'a Self::ProvingKey, stdin: SP1Stdin) -> Self::ProveRequest<'a> {
         let strategy = self.default_fulfillment_strategy();
 
+        // A hosted prover skips simulation and proves up to the maximum limits by default, so that
+        // `prove(&pk, stdin).await` works with no network-specific toggles. These remain overridable
+        // per request via the builder methods.
+        let (skip_simulation, cycle_limit, gas_limit) =
+            if self.hosted { (true, Some(u64::MAX), Some(u64::MAX)) } else { (false, None, None) };
+
         NetworkProveBuilder {
             base: BaseProveRequest::new(self, pk, stdin),
             timeout: None,
             strategy,
-            skip_simulation: false,
-            cycle_limit: None,
-            gas_limit: None,
+            skip_simulation,
+            cycle_limit,
+            gas_limit,
             tee_2fa: false,
             min_auction_period: 0,
             whitelist: None,
@@ -155,13 +169,22 @@ impl NetworkProver {
         let signer = signer.into();
         let node = SP1LightNode::new_with_machine(machine).await;
         let client = NetworkClient::new(signer, rpc_url, network_mode);
-        Self { client, node, tee_signers: vec![], network_mode }
+        Self { client, node, tee_signers: vec![], network_mode, hosted: false }
     }
 
     /// Sets the list of TEE signers, used for verifying TEE proofs.
     #[must_use]
     pub fn with_tee_signers(mut self, tee_signers: Vec<Address>) -> Self {
         self.tee_signers = tee_signers;
+        self
+    }
+
+    /// Sets whether this prover uses hosted defaults (skip simulation, max cycle and gas limits).
+    ///
+    /// See [`NetworkProver::hosted`] for details.
+    #[must_use]
+    pub(crate) fn with_hosted(mut self, hosted: bool) -> Self {
+        self.hosted = hosted;
         self
     }
 
