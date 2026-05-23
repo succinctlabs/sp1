@@ -384,6 +384,9 @@ impl<B: RiscvTranspiler> SystemInstructions for DebugBackend<B> {
         extern "C" fn unimp(ctx: *mut JitContext) {
             let ctx = unsafe { &mut *ctx };
             eprintln!("Unimplemented instruction at pc: {}", ctx.pc);
+            // Trap via SIGILL so the parent maps this to a typed `Unimplemented`
+            // cause instead of a generic abort.
+            unsafe { libc::raise(libc::SIGILL) };
         }
 
         self.backend.call_extern_fn(unimp);
