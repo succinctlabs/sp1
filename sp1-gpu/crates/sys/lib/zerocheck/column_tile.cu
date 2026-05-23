@@ -23,10 +23,6 @@ namespace cg = cooperative_groups;
 
 namespace {
 
-__device__ __forceinline__ felt_t eval_point(int i) {
-    return felt_t::from_canonical_u32(2u * i);
-}
-
 template <typename K>
 __global__ void zerocheck_column_tile(
     const ColumnTermEntry* __restrict__ terms,
@@ -73,12 +69,15 @@ __global__ void zerocheck_column_tile(
         K z = K::load(trace_data, base + leaf.col * height + (row << 1));
         K o = K::load(trace_data, base + leaf.col * height + (row << 1 | 1));
         K diff = o - z;
+        // Eval points are {0, 2, 4}; compute the two doublings as adds rather
+        // than felt-by-K mults (~12 ops each for K = ext_t).
+        K d2 = diff + diff;        // 2 * diff
 
         ext_t alpha = ext_t::load(powers_of_alpha, t.alpha_idx);
 
         K v0 = z;
-        K v1 = z + eval_point(1) * diff;
-        K v2 = z + eval_point(2) * diff;
+        K v1 = z + d2;             // z + 2*diff
+        K v2 = z + d2 + d2;        // z + 4*diff
 
         ext_t a0, a1, a2;
         if (t.coeff_kind == COEFF_KIND_RUNTIME) {

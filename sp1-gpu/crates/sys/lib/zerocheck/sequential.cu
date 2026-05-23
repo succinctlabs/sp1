@@ -70,12 +70,11 @@ __global__ void zerocheck_fused_sequential(
     uint32_t rest_point_dim,
     ext_t* __restrict__ partials
 ) {
-    // This block's eval point. Each thread handles ONE eval point, so the
-    // register file is single-dimensional. ep_v is the interpolation point
-    // (0, 2, 4) folded into each leaf as `z + ep_v * (one - z)`.
+    // This block's eval point index. Each thread handles ONE eval point, so
+    // the register file is single-dimensional. Eval points are {0, 2, 4};
+    // the leaf interpolation `z + ep * (o - z)` is rewritten as add doublings
+    // (z + d2 / z + d2 + d2 with d2 = diff + diff) to avoid a felt-by-K mul.
     const int e = blockIdx.z;
-    const felt_t ep_v = (e == 0) ? felt_t::zero()
-                       : felt_t::from_canonical_u32(2u * (uint32_t)e);
 
     K regs[MAX_REGS];
     ext_t thread_acc = ext_t::zero();
@@ -108,7 +107,12 @@ __global__ void zerocheck_fused_sequential(
                 } else {
                     K o = K::load(trace_data,
                                   base + leaf.col * cm.height + (row_idx << 1 | 1));
-                    regs[instr.out] = z + ep_v * (o - z);
+                    // Diff-doubling: see kernel banner. e is uniform across
+                    // the block, so the ternary is a uniform branch.
+                    K diff = o - z;
+                    K d2 = diff + diff;          // 2 * diff
+                    regs[instr.out] = (e == 1) ? (z + d2)            // z + 2*diff
+                                               : (z + d2 + d2);      // z + 4*diff
                 }
                 break;
             }
@@ -152,6 +156,8 @@ __global__ void zerocheck_fused_sequential(
         }
 
         if (cm.gkr_main_width != 0 || cm.gkr_prep_width != 0) {
+            // Same diff-doubling trick as BC_LOAD_LEAF for the GKR carrier
+            // columns: `z + ep*(o-z)` becomes `z + d2` or `z + d2 + d2`.
             for (uint32_t i = 0; i < cm.gkr_main_width; i++) {
                 K z = K::load(trace_data, cm.main_ptr + i * cm.height + (row_idx << 1));
                 K v;
@@ -159,7 +165,9 @@ __global__ void zerocheck_fused_sequential(
                     v = z;
                 } else {
                     K o = K::load(trace_data, cm.main_ptr + i * cm.height + (row_idx << 1 | 1));
-                    v = z + ep_v * (o - z);
+                    K diff = o - z;
+                    K d2 = diff + diff;
+                    v = (e == 1) ? (z + d2) : (z + d2 + d2);
                 }
                 ext_t bp = ext_t::load(gkr_powers, i);
                 acc += bp * v;
@@ -173,7 +181,9 @@ __global__ void zerocheck_fused_sequential(
                 } else {
                     K o = K::load(trace_data,
                                   cm.preprocessed_ptr + i * cm.height + (row_idx << 1 | 1));
-                    v = z + ep_v * (o - z);
+                    K diff = o - z;
+                    K d2 = diff + diff;
+                    v = (e == 1) ? (z + d2) : (z + d2 + d2);
                 }
                 ext_t bp = ext_t::load(gkr_powers, cm.gkr_main_width + i);
                 acc += bp * v;
@@ -201,7 +211,14 @@ __global__ void zerocheck_fused_sequential(
             } else {
                 geq_o = ext_t::one();
             }
-            ext_t geq_v = (e == 0) ? geq_z : (geq_z + ep_v * (geq_o - geq_z));
+            ext_t geq_v;
+            if (e == 0) {
+                geq_v = geq_z;
+            } else {
+                ext_t gdiff = geq_o - geq_z;
+                ext_t gd2 = gdiff + gdiff;
+                geq_v = (e == 1) ? (geq_z + gd2) : (geq_z + gd2 + gd2);
+            }
             acc -= geq_v * cm.padded_row_adjustment;
         }
 
