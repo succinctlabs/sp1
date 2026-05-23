@@ -98,11 +98,10 @@ pub const fn get_msb(a: u64) -> u8 {
     ((a >> 63) & 1) as u8
 }
 
-/// Load the cost of each air from the predefined JSON.
-///
-/// Note: `Secp256k1MulAssign` / `Secp256k1MulAssignUser` are placeholder values mirroring
-/// the add/double costs. They need to be recomputed (column count × constraint degree)
-/// once the real mul chip layout lands.
+/// Load the cost of each air from the predefined JSON. Values are kept in sync with the actual
+/// chip layouts by the `write_core_air_costs` test (`#[ignore]`-gated; regenerate the JSON when
+/// any chip's column count or constraint degree changes) and the `core_air_cost_consistency`
+/// test (unignored; asserts the JSON matches `RiscvAir::<SP1Field>::costs()`).
 #[must_use]
 pub fn rv64im_costs() -> HashMap<RiscvAirId, usize> {
     let costs: HashMap<String, usize> =
