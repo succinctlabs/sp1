@@ -19,6 +19,7 @@ pub struct NetworkProverBuilder {
     pub(crate) tee_signers: Option<Vec<Address>>,
     pub(crate) signer: Option<NetworkSigner>,
     pub(crate) network_mode: Option<NetworkMode>,
+    pub(crate) hosted: bool,
     pub(crate) machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 }
 
@@ -44,6 +45,7 @@ impl NetworkProverBuilder {
             tee_signers: None,
             signer: None,
             network_mode: None,
+            hosted: false,
             machine,
         }
     }
@@ -102,6 +104,27 @@ impl NetworkProverBuilder {
         self
     }
 
+    /// Configures the prover for hosted proving.
+    ///
+    /// # Details
+    /// Hosted proving runs in [`NetworkMode::Reserved`] and makes `prove(&pk, stdin)` skip local
+    /// simulation and use the maximum cycle and gas limits by default, with no network-specific
+    /// toggles required. This matches the behavior expected by self-hosted clusters talking to the
+    /// network-gateway. The defaults remain overridable per request.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::blocking::ProverClient;
+    ///
+    /// let prover = ProverClient::builder().network().hosted().build();
+    /// ```
+    #[must_use]
+    pub fn hosted(mut self) -> Self {
+        self.hosted = true;
+        self.network_mode = Some(NetworkMode::Reserved);
+        self
+    }
+
     /// Sets the list of TEE signers, used for verifying TEE proofs.
     #[must_use]
     pub fn tee_signers(mut self, tee_signers: &[Address]) -> Self {
@@ -143,6 +166,7 @@ impl NetworkProverBuilder {
             tee_signers: self.tee_signers,
             signer: self.signer,
             network_mode: self.network_mode,
+            hosted: self.hosted,
             machine: self.machine,
         };
         let prover = crate::blocking::block_on(async_builder.build());

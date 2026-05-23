@@ -5,6 +5,7 @@
 use std::{
     result::Result::Ok as StdOk,
     str::FromStr,
+    sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -15,6 +16,7 @@ use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
 use serde::{de::DeserializeOwned, Serialize};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{HashableKey, SP1VerifyingKey};
+use tokio::sync::OnceCell;
 use tonic::{transport::Channel, Code};
 
 use super::{
@@ -75,6 +77,8 @@ pub struct NetworkClient {
     pub(crate) http: HttpClientWithMiddleware,
     pub(crate) rpc_url: String,
     pub(crate) network_mode: NetworkMode,
+    /// Lazily-established gRPC channel, shared across clones and reused across calls.
+    pub(crate) channel: Arc<OnceCell<Channel>>,
 }
 
 #[async_trait]
@@ -117,7 +121,13 @@ impl NetworkClient {
             .pool_idle_timeout(Duration::from_secs(240))
             .build()
             .unwrap();
-        Self { signer, http: client.into(), rpc_url: rpc_url.into(), network_mode }
+        Self {
+            signer,
+            http: client.into(),
+            rpc_url: rpc_url.into(),
+            network_mode,
+            channel: Arc::new(OnceCell::new()),
+        }
     }
 
     /// Get the explorer URL for the current network mode.
@@ -296,9 +306,7 @@ impl NetworkClient {
         elf: &[u8],
     ) -> Result<CreateProgramResponse> {
         // Create the program artifact.
-        let mut store = self.artifact_store_client().await?;
-        let program_uri =
-            self.create_artifact_with_content(&mut store, ArtifactType::Program, &elf).await?;
+        let program_uri = self.create_artifact_with_content(ArtifactType::Program, &elf).await?;
 
         // Serialize the verifying key.
         let vk_encoded = bincode::serialize(&vk)?;
@@ -600,11 +608,9 @@ impl NetworkClient {
         let start = SystemTime::now();
         let since_the_epoch = start.duration_since(UNIX_EPOCH).expect("Invalid start time");
         let deadline = since_the_epoch.as_secs() + timeout_secs;
-        let mut store = self.artifact_store_client().await?;
 
         let stdin_uri = self
             .create_artifact_with_content(
-                &mut store,
                 if private_stdin { ArtifactType::PrivateStdin } else { ArtifactType::Stdin },
                 &stdin,
             )
@@ -721,55 +727,57 @@ impl NetworkClient {
         self.auction_prover_network_client().await
     }
 
+    /// Returns the shared gRPC channel, built at most once.
+    ///
+    /// `OnceCell` rather than `new()` since `new()` is infallible but `configure_endpoint` isn't.
+    /// `connect_lazy` reconnects transparently, so the connection is reused across polls and a
+    /// dropped one self-heals on next use.
+    async fn channel(&self) -> Result<Channel> {
+        self.channel
+            .get_or_try_init(|| async {
+                tracing::debug!(rpc_url = %self.rpc_url, "establishing gRPC channel");
+                Ok(grpc::configure_endpoint(&self.rpc_url)?.connect_lazy())
+            })
+            .await
+            .cloned()
+    }
+
     // Helper methods for runtime proto type selection.
     pub(crate) async fn auction_prover_network_client(
         &self,
     ) -> Result<AuctionProverNetworkClient<Channel>> {
-        self.with_retry(
-            || async {
-                let channel = grpc::configure_endpoint(&self.rpc_url)?.connect().await?;
-                Ok(AuctionProverNetworkClient::new(channel))
-            },
-            "creating auction network client",
-        )
-        .await
+        Ok(AuctionProverNetworkClient::new(self.channel().await?))
     }
 
     pub(crate) async fn base_prover_network_client(
         &self,
     ) -> Result<BaseProverNetworkClient<Channel>> {
-        self.with_retry(
-            || async {
-                let channel = grpc::configure_endpoint(&self.rpc_url)?.connect().await?;
-                Ok(BaseProverNetworkClient::new(channel))
-            },
-            "creating base network client",
-        )
-        .await
+        Ok(BaseProverNetworkClient::new(self.channel().await?))
     }
 
     pub(crate) async fn artifact_store_client(&self) -> Result<ArtifactStoreClient<Channel>> {
-        self.with_retry(
-            || async {
-                let channel = grpc::configure_endpoint(&self.rpc_url)?.connect().await?;
-                Ok(ArtifactStoreClient::new(channel))
-            },
-            "creating artifact client",
-        )
-        .await
+        Ok(ArtifactStoreClient::new(self.channel().await?))
     }
 
     pub(crate) async fn create_artifact_with_content<T: Serialize + Send + Sync>(
         &self,
-        store: &mut ArtifactStoreClient<Channel>,
         artifact_type: ArtifactType,
         item: &T,
     ) -> Result<String> {
-        let signature = sign_message("create_artifact".as_bytes(), &self.signer).await?;
-        let request = CreateArtifactRequest { artifact_type: artifact_type.into(), signature };
-
-        // Create the artifact.
-        let response = store.create_artifact(request).await?.into_inner();
+        // Acquire the store inside the retry so a transient channel-connect failure is retried.
+        let response = self
+            .with_retry(
+                || async {
+                    let mut store = self.artifact_store_client().await?;
+                    let signature =
+                        sign_message("create_artifact".as_bytes(), &self.signer).await?;
+                    let request =
+                        CreateArtifactRequest { artifact_type: artifact_type.into(), signature };
+                    Ok(store.create_artifact(request).await?.into_inner())
+                },
+                "creating artifact",
+            )
+            .await?;
 
         let presigned_url = response.artifact_presigned_url;
         let uri = response.artifact_uri;

@@ -111,16 +111,22 @@ impl EnvProver {
             "mock" => Self::Mock(MockProver::new_with_machine(machine).await),
             "light" => Self::Light(LightProver::new_with_machine(machine).await),
             #[cfg(feature = "network")]
-            "network" => {
+            "network" | "hosted" => {
                 let private_key =
                     std::env::var("NETWORK_PRIVATE_KEY").ok().filter(|k| !k.is_empty()).expect(
                         "NETWORK_PRIVATE_KEY environment variable is not set. \
                 Please set it to your private key or use the .private_key() method.",
                     );
 
-                let network_builder =
+                let mut network_builder =
                     crate::network::builder::NetworkProverBuilder::new_with_machine(machine)
                         .private_key(&private_key);
+
+                // `hosted` is a network prover in reserved mode that skips simulation and proves up
+                // to the maximum limits by default, so it stays an `EnvProver::Network` variant.
+                if prover == "hosted" {
+                    network_builder = network_builder.hosted();
+                }
 
                 Self::Network(network_builder.build().await)
             }
