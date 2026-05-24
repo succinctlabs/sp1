@@ -28,15 +28,16 @@ use sp1_gpu_air::ir::{
     DagBuilder, Lowering,
 };
 use sp1_gpu_cudart::sys::kernels::{
-    zerocheck_column_tile_ext_kernel, zerocheck_column_tile_kb_kernel,
-    zerocheck_fix_geq_state_kernel, zerocheck_fused_sequential_ext_1024_kernel,
-    zerocheck_fused_sequential_ext_128_kernel, zerocheck_fused_sequential_ext_256_kernel,
-    zerocheck_fused_sequential_ext_32_kernel, zerocheck_fused_sequential_ext_512_kernel,
-    zerocheck_fused_sequential_ext_64_kernel, zerocheck_fused_sequential_ext_kernel,
-    zerocheck_fused_sequential_kb_1024_kernel, zerocheck_fused_sequential_kb_128_kernel,
-    zerocheck_fused_sequential_kb_256_kernel, zerocheck_fused_sequential_kb_32_kernel,
-    zerocheck_fused_sequential_kb_512_kernel, zerocheck_fused_sequential_kb_64_kernel,
-    zerocheck_fused_sequential_kb_kernel, zerocheck_geq_corrections_kernel,
+    zerocheck_aggregate_partials_kernel, zerocheck_column_tile_ext_kernel,
+    zerocheck_column_tile_kb_kernel, zerocheck_fix_geq_state_kernel,
+    zerocheck_fused_sequential_ext_1024_kernel, zerocheck_fused_sequential_ext_128_kernel,
+    zerocheck_fused_sequential_ext_256_kernel, zerocheck_fused_sequential_ext_32_kernel,
+    zerocheck_fused_sequential_ext_512_kernel, zerocheck_fused_sequential_ext_64_kernel,
+    zerocheck_fused_sequential_ext_kernel, zerocheck_fused_sequential_kb_1024_kernel,
+    zerocheck_fused_sequential_kb_128_kernel, zerocheck_fused_sequential_kb_256_kernel,
+    zerocheck_fused_sequential_kb_32_kernel, zerocheck_fused_sequential_kb_512_kernel,
+    zerocheck_fused_sequential_kb_64_kernel, zerocheck_fused_sequential_kb_kernel,
+    zerocheck_geq_corrections_kernel,
 };
 use sp1_gpu_cudart::sys::runtime::KernelPtr;
 use sp1_gpu_cudart::{args, DeviceBuffer, DevicePoint, TaskScope};
@@ -1174,39 +1175,49 @@ where
         }
     }
 
-    // ---- Single host sync + copy ----
-    let host_partials: Vec<Ext> = unsafe { shared_output.into_buffer().copy_into_host_vec() };
-
-    // ---- Pass 3: aggregate ----
-    let mut totals: [Ext; NUM_EVAL_POINT] = [Ext::zero(); NUM_EVAL_POINT];
-
-    // Fused Sequential output: cross-tier, cross-block sum (λ applied
-    // per-row in-kernel). Each tier wrote one (eval-point) triple per block
-    // in its dispatch table.
-    for t in 0..2 {
-        for b in 0..dispatch_tiers[t].len() {
-            for e in 0..NUM_EVAL_POINT {
-                totals[e] += host_partials[tier_slot[t] + b * NUM_EVAL_POINT + e];
-            }
+    // ---- Device-side aggregation ----
+    //
+    // Every producer wrote `[block][e]` triples into `shared_output`. The
+    // host used to download the whole buffer and sum it per eval point;
+    // instead we launch a single-block reduction kernel that emits the 3
+    // totals directly and download only those. Saves O(total_slots) host
+    // work + O(total_slots) PCIe per round (at scale that's MBs per round
+    // → KBs).
+    //
+    // `total_slots` is guaranteed a multiple of 3 (every slot range above
+    // is `n * NUM_EVAL_POINT`).
+    let mut totals_buf: Tensor<Ext, TaskScope> =
+        Tensor::with_sizes_in([NUM_EVAL_POINT], backend.clone());
+    unsafe {
+        totals_buf.assume_init();
+    }
+    {
+        const AGG_BLOCK_SIZE: u32 = 256;
+        let shmem_bytes = (AGG_BLOCK_SIZE as usize / 32) * std::mem::size_of::<Ext>();
+        unsafe {
+            let args = args!(
+                shared_output_ptr as *const Ext,
+                (total_slots as u32),
+                totals_buf.as_mut_ptr()
+            );
+            backend
+                .launch_kernel(
+                    zerocheck_aggregate_partials_kernel(),
+                    (1u32, 1u32, 1u32),
+                    (AGG_BLOCK_SIZE, 1u32, 1u32),
+                    &args,
+                    shmem_bytes,
+                )
+                .unwrap();
         }
     }
-    for (i, &(_chip_idx, _chunk, _, _, _, _)) in ct_launches.iter().enumerate() {
-        let (slot, n_blocks) = ct_slots[i];
-        for b in 0..(n_blocks as usize) {
-            for e in 0..NUM_EVAL_POINT {
-                totals[e] += host_partials[slot + b * NUM_EVAL_POINT + e];
-            }
-        }
-    }
 
-    // Geq corrections: one chip per slot triple, already negated by the
-    // kernel, so summing them in matches the per-row subtraction the main
-    // kernel used to do.
-    for i in 0..poly.n_geq_chips {
-        for e in 0..NUM_EVAL_POINT {
-            totals[e] += host_partials[geq_slot + i * NUM_EVAL_POINT + e];
-        }
-    }
+    // ---- Single host sync + copy of 3 totals ----
+    let totals_vec: Vec<Ext> = unsafe { totals_buf.into_buffer().copy_into_host_vec() };
+    let totals: [Ext; NUM_EVAL_POINT] = [totals_vec[0], totals_vec[1], totals_vec[2]];
+    // `shared_output` is no longer needed; drop it after the sync so the
+    // device allocation can be freed.
+    drop(shared_output);
 
     // Apply last_var_eq and eq_adjustment (mirror v1's evaluate_zerocheck).
     let mut xs =

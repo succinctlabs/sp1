@@ -61,6 +61,11 @@ extern "C" {
     // in place to each chip's geq state. One thread per chip.
     pub fn zerocheck_fix_geq_state_kernel() -> KernelPtr;
 
+    // zerocheck (DAG-native): aggregate per-block partials into the 3
+    // per-eval-point totals via a single-block grid-stride reduction. The
+    // host then only downloads the 3 totals instead of the full partials.
+    pub fn zerocheck_aggregate_partials_kernel() -> KernelPtr;
+
     // Jagged Zerocheck Kernels
     pub fn jagged_constraint_poly_eval_32_koala_bear_kernel() -> KernelPtr;
     pub fn jagged_constraint_poly_eval_64_koala_bear_kernel() -> KernelPtr;
