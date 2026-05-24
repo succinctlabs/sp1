@@ -41,38 +41,47 @@ enum BcOp : uint8_t {
     BC_ASSERT_F    = 7,
 };
 
-// Per-chunk metadata for the fused dispatch kernel. One ChunkMeta entry per
-// Sequential chunk that the round wants to evaluate. Must match
-// `ChunkMetaC` in v2.rs (layout-compat).
-//
-// All per-chunk buffer pointers are device pointers into separate
-// (per-chunk) buffers — we don't concatenate at this stage, because each
-// chunk's bytecode/leaves are uploaded once and reused across rounds.
-struct ChunkMeta {
+// Shard-static per-chunk descriptor. Must match `ChunkStaticC` in
+// zerocheck/src/prover.rs (layout-compat). Uploaded once per shard, reused
+// across all rounds — none of its fields depend on the per-round trace fold.
+struct ChunkStatic {
     const DagInstr* instrs;            // 8
     const LeafRef* leaves;             // 8
     const void* consts;                // 8 — cast to felt_t* in kernel
     const uint32_t* publics;           // 8
     const uint16_t* assert_regs;       // 8
     const uint32_t* assert_alphas;     // 8
-    uint64_t preprocessed_ptr;         // 8
-    uint64_t main_ptr;                 // 8
     uint32_t n_instrs;                 // 4
     uint32_t n_asserts;                // 4
     uint32_t chip_idx;                 // 4
     uint32_t gkr_main_width;           // 4
     uint32_t gkr_prep_width;           // 4
-    uint32_t height;                   // 4
-    uint32_t row_count;                // 4
     uint32_t chip_alpha_offset;        // 4 — added to chip-relative alpha idx
-    uint32_t geq_threshold;            // 4 — applied iff gkr_main_width != 0
-    ext_t geq_eq_coefficient;          // 16
-    ext_t padded_row_adjustment;       // 16
 };
 
-// Fused dispatch kernel. One launch handles every Sequential chunk across
-// every chip. Each thread binary-searches `row_starts` to find which chunk
-// its `idx` belongs to, then runs that chunk's bytecode.
+// Per-round per-chip trace pointers + height. Must match `ChipLayoutC` in
+// zerocheck/src/prover.rs (layout-compat). Indexed by chip_idx — the kernel
+// reads `chip_layouts[chunk_static.chip_idx]` after reading the chunk.
+struct ChipLayout {
+    uint64_t main_ptr;                 // 8
+    uint64_t preprocessed_ptr;         // 8
+    uint32_t height;                   // 4
+    uint32_t _pad;                     // 4
+};
+
+// Per-block dispatch entry. One per launched block; the kernel reads
+// `dispatch[blockIdx.x]` once at block init and handles `n_rows` rows
+// starting at `row_offset` of chunk `chunk_id`. Must match `BlockDispatchC`
+// in zerocheck/src/prover.rs.
+struct BlockDispatch {
+    uint32_t chunk_id;                 // 4
+    uint32_t row_offset;               // 4
+    uint32_t n_rows;                   // 4
+};
+
+// Fused dispatch kernel. One launch handles every Sequential chunk tile
+// produced by the host-side dispatch builder. Each block reads its
+// `BlockDispatch` once at block init — no per-row binary search.
 //
 // Tiered variants by MAX_REGS — the launcher partitions chunks into tiers
 // and launches one kernel per non-empty tier so each kernel's per-thread

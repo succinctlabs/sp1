@@ -1,10 +1,21 @@
-// Sequential lowering — DAG bytecode interpreter over a flat machine-wide
-// instruction stream.
+// Sequential lowering — DAG bytecode interpreter, dispatched block-per-tile.
 //
-// Each CTA grid-strides over rows. Each thread = one row: it binary-searches
-// `row_starts` to find its chunk, runs that chunk's bytecode, weights the
-// result by `eq · λ_chip`, and accumulates into a per-thread sum that is
-// block-reduced into one partial per CTA per eval point.
+// The launcher partitions each Sequential chunk into row tiles and builds a
+// `BlockDispatch[]` table — one entry per launched block. Each block:
+//
+//   1. Reads `dispatch[blockIdx.x]` once at block init.
+//   2. Loads the chunk's static descriptor (`ChunkStatic`) and the chip's
+//      per-round trace layout (`ChipLayout`) — uniform across all threads in
+//      the block, so the compiler can hoist these into a single load.
+//   3. Each thread strides through its share of the tile's `n_rows` rows,
+//      running the chunk's bytecode and weighting by `eq · λ_chip`.
+//   4. The block reduces the per-thread accumulator into one ext_t per eval
+//      point and writes the output at `blockIdx.x * 3 + e`.
+//
+// Replaces the previous per-row `upper_bound` binary search on `row_starts`
+// (O(log n_chunks) per row, plus per-row `ChunkMeta` loads). The new path
+// has O(1) per-block dispatch with all metadata loaded exactly once per
+// block — uniform reads, no cache thrashing as chunk counts grow.
 //
 // Templated on `K` ∈ {felt_t, ext_t}:
 //   - Round 0 of sumcheck uses K = felt_t (base-field trace).
@@ -12,6 +23,11 @@
 //     challenges).
 // Constants and public values are always base-field; runtime coeffs and the
 // per-row weighting/accumulator are always ext_t.
+//
+// The three eval points (the degree-2 univariate per round) live on the
+// grid's z-dimension: each block owns one eval point (blockIdx.z) and
+// reduces it independently. This keeps the per-thread register file minimal
+// and lets the GPU run all three eval points concurrently.
 
 #include "zerocheck/sequential.cuh"
 #include "config.cuh"
@@ -24,43 +40,11 @@ namespace cg = cooperative_groups;
 
 namespace {
 
-// ============================================================================
-// Fused dispatch kernel: one launch handles every Sequential chunk in the
-// round. Each thread binary-searches `row_starts` to find its chunk, then
-// runs that chunk's bytecode.
-//
-// Output: one ext_t per (block, eval point), stored at `blockIdx.x * 3 + e`
-// (block-reduced across all rows the block touched, regardless of which
-// chunks). The chip-specific weighting (eq * λ_chip) is applied INSIDE the
-// per-row body, so the cross-chunk sum is unambiguous — chip totals are NOT
-// separately tracked.
-//
-// The three eval points (the degree-2 univariate per round) live on the grid's
-// z-dimension: each block owns one eval point (blockIdx.z) and reduces it
-// independently. This keeps the per-thread register file minimal and lets the
-// GPU run all three eval points concurrently. Measured faster than having one
-// block compute all three at every round size from millions of rows down to a
-// handful, since the per-block reduces then run in parallel rather than
-// serially.
-// ============================================================================
-
-__device__ __forceinline__ uint32_t
-upper_bound_u32_local(const uint32_t* arr, uint32_t n, uint32_t target) {
-    uint32_t lo = 0, hi = n;
-    while (lo < hi) {
-        uint32_t mid = (lo + hi) >> 1;
-        if (arr[mid] <= target) lo = mid + 1;
-        else hi = mid;
-    }
-    return lo;
-}
-
 template <typename K, int MAX_REGS>
 __global__ void zerocheck_fused_sequential(
-    const ChunkMeta* __restrict__ chunk_meta,
-    const uint32_t* __restrict__ row_starts,  // n_chunks + 1 entries
-    uint32_t n_chunks,
-    uint32_t total_rows,
+    const BlockDispatch* __restrict__ dispatch,
+    const ChunkStatic* __restrict__ chunk_static,
+    const ChipLayout* __restrict__ chip_layouts,
     const K* __restrict__ trace_data,
     const felt_t* __restrict__ public_values,
     const ext_t* __restrict__ powers_of_alpha,
@@ -70,45 +54,46 @@ __global__ void zerocheck_fused_sequential(
     uint32_t rest_point_dim,
     ext_t* __restrict__ partials
 ) {
-    // This block's eval point index. Each thread handles ONE eval point, so
-    // the register file is single-dimensional. Eval points are {0, 2, 4};
-    // the leaf interpolation `z + ep * (o - z)` is rewritten as add doublings
-    // (z + d2 / z + d2 + d2 with d2 = diff + diff) to avoid a felt-by-K mul.
+    // Per-block uniform setup. The compiler hoists these loads — every
+    // thread in the block sees the same dispatch/static/layout values.
+    BlockDispatch disp = dispatch[blockIdx.x];
+    ChunkStatic stc = chunk_static[disp.chunk_id];
+    ChipLayout lay = chip_layouts[stc.chip_idx];
+    const felt_t* consts = reinterpret_cast<const felt_t*>(stc.consts);
+
+    // Eval point index. Diff-doubling: eval points are {0, 2, 4}; the leaf
+    // interpolation `z + ep * (o - z)` is rewritten as `z + d2 (+ d2)` with
+    // `d2 = diff + diff` so we never multiply by a felt.
     const int e = blockIdx.z;
 
     K regs[MAX_REGS];
     ext_t thread_acc = ext_t::zero();
 
-    const uint32_t stride = blockDim.x * gridDim.x;
     const uint32_t row_limit = 1u << rest_point_dim;
+    const uint32_t row_end = disp.row_offset + disp.n_rows;
 
-    for (uint32_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-         idx < total_rows;
-         idx += stride)
+    // Stride through this tile's rows. Each thread handles `n_rows /
+    // blockDim.x` rows; for the launcher's chosen tile sizes that's a few
+    // rows per thread, which amortises the per-block reduce cost.
+    for (uint32_t row_idx = disp.row_offset + threadIdx.x;
+         row_idx < row_end;
+         row_idx += blockDim.x)
     {
-        // Find chunk index for this idx.
-        uint32_t chunk_idx = upper_bound_u32_local(row_starts, n_chunks + 1, idx) - 1;
-        uint32_t row_idx = idx - row_starts[chunk_idx];
-        ChunkMeta cm = chunk_meta[chunk_idx];
-        const felt_t* consts = reinterpret_cast<const felt_t*>(cm.consts);
-
         ext_t acc = ext_t::zero();
 
-        for (uint32_t i = 0; i < cm.n_instrs; i++) {
-            DagInstr instr = cm.instrs[i];
+        for (uint32_t i = 0; i < stc.n_instrs; i++) {
+            DagInstr instr = stc.instrs[i];
             switch (instr.opcode) {
             case BC_LOAD_LEAF: {
-                LeafRef leaf = cm.leaves[instr.a];
+                LeafRef leaf = stc.leaves[instr.a];
                 // source: 2 = preprocessed, 4 = main (local row only).
-                size_t base = (leaf.source == 4) ? cm.main_ptr : cm.preprocessed_ptr;
-                K z = K::load(trace_data, base + leaf.col * cm.height + (row_idx << 1));
+                size_t base = (leaf.source == 4) ? lay.main_ptr : lay.preprocessed_ptr;
+                K z = K::load(trace_data, base + leaf.col * lay.height + (row_idx << 1));
                 if (e == 0) {
                     regs[instr.out] = z;
                 } else {
                     K o = K::load(trace_data,
-                                  base + leaf.col * cm.height + (row_idx << 1 | 1));
-                    // Diff-doubling: see kernel banner. e is uniform across
-                    // the block, so the ternary is a uniform branch.
+                                  base + leaf.col * lay.height + (row_idx << 1 | 1));
                     K diff = o - z;
                     K d2 = diff + diff;          // 2 * diff
                     regs[instr.out] = (e == 1) ? (z + d2)            // z + 2*diff
@@ -121,7 +106,7 @@ __global__ void zerocheck_fused_sequential(
                 break;
             }
             case BC_LOAD_PUBLIC: {
-                uint32_t pv_idx = cm.publics[instr.a];
+                uint32_t pv_idx = stc.publics[instr.a];
                 regs[instr.out] = K(felt_t::load(public_values, pv_idx));
                 break;
             }
@@ -146,25 +131,26 @@ __global__ void zerocheck_fused_sequential(
             }
         }
 
-        for (uint32_t i = 0; i < cm.n_asserts; i++) {
-            uint16_t reg = cm.assert_regs[i];
+        for (uint32_t i = 0; i < stc.n_asserts; i++) {
+            uint16_t reg = stc.assert_regs[i];
             // Bytecode stores chip-relative alpha indices; shift into the
             // cluster's powers_of_alpha table here.
-            uint32_t alpha_idx = cm.chip_alpha_offset + cm.assert_alphas[i];
+            uint32_t alpha_idx = stc.chip_alpha_offset + stc.assert_alphas[i];
             ext_t alpha = ext_t::load(powers_of_alpha, alpha_idx);
             acc += alpha * regs[reg];
         }
 
-        if (cm.gkr_main_width != 0 || cm.gkr_prep_width != 0) {
+        if (stc.gkr_main_width != 0 || stc.gkr_prep_width != 0) {
             // Same diff-doubling trick as BC_LOAD_LEAF for the GKR carrier
             // columns: `z + ep*(o-z)` becomes `z + d2` or `z + d2 + d2`.
-            for (uint32_t i = 0; i < cm.gkr_main_width; i++) {
-                K z = K::load(trace_data, cm.main_ptr + i * cm.height + (row_idx << 1));
+            for (uint32_t i = 0; i < stc.gkr_main_width; i++) {
+                K z = K::load(trace_data, lay.main_ptr + i * lay.height + (row_idx << 1));
                 K v;
                 if (e == 0) {
                     v = z;
                 } else {
-                    K o = K::load(trace_data, cm.main_ptr + i * cm.height + (row_idx << 1 | 1));
+                    K o = K::load(trace_data,
+                                  lay.main_ptr + i * lay.height + (row_idx << 1 | 1));
                     K diff = o - z;
                     K d2 = diff + diff;
                     v = (e == 1) ? (z + d2) : (z + d2 + d2);
@@ -172,59 +158,30 @@ __global__ void zerocheck_fused_sequential(
                 ext_t bp = ext_t::load(gkr_powers, i);
                 acc += bp * v;
             }
-            for (uint32_t i = 0; i < cm.gkr_prep_width; i++) {
+            for (uint32_t i = 0; i < stc.gkr_prep_width; i++) {
                 K z = K::load(trace_data,
-                              cm.preprocessed_ptr + i * cm.height + (row_idx << 1));
+                              lay.preprocessed_ptr + i * lay.height + (row_idx << 1));
                 K v;
                 if (e == 0) {
                     v = z;
                 } else {
                     K o = K::load(trace_data,
-                                  cm.preprocessed_ptr + i * cm.height + (row_idx << 1 | 1));
+                                  lay.preprocessed_ptr + i * lay.height + (row_idx << 1 | 1));
                     K diff = o - z;
                     K d2 = diff + diff;
                     v = (e == 1) ? (z + d2) : (z + d2 + d2);
                 }
-                ext_t bp = ext_t::load(gkr_powers, cm.gkr_main_width + i);
+                ext_t bp = ext_t::load(gkr_powers, stc.gkr_main_width + i);
                 acc += bp * v;
             }
 
-            // Geq correction — subtract `geq(row, eval_pt) * padded_row_adjustment`
-            // from acc. Carrier chunk (gkr_main_width > 0) is the natural place
-            // since each chip's geq fires exactly once. Moving this from a host
-            // loop into the kernel was a big win: the host loop iterated
-            // row_count rows × 9 ext ops per row per chip per round.
-            uint32_t z_idx = row_idx << 1;
-            uint32_t o_idx = (row_idx << 1) | 1;
-            ext_t geq_z, geq_o;
-            if (z_idx < cm.geq_threshold) {
-                geq_z = ext_t::zero();
-            } else if (z_idx == cm.geq_threshold) {
-                geq_z = ext_t::one() + cm.geq_eq_coefficient;
-            } else {
-                geq_z = ext_t::one();
-            }
-            if (o_idx < cm.geq_threshold) {
-                geq_o = ext_t::zero();
-            } else if (o_idx == cm.geq_threshold) {
-                geq_o = ext_t::one() + cm.geq_eq_coefficient;
-            } else {
-                geq_o = ext_t::one();
-            }
-            ext_t geq_v;
-            if (e == 0) {
-                geq_v = geq_z;
-            } else {
-                ext_t gdiff = geq_o - geq_z;
-                ext_t gd2 = gdiff + gdiff;
-                geq_v = (e == 1) ? (geq_z + gd2) : (geq_z + gd2 + gd2);
-            }
-            acc -= geq_v * cm.padded_row_adjustment;
+            // The chip's geq correction is summed once per chip per round by
+            // `zerocheck_geq_corrections`, not per row here.
         }
 
         if (row_idx < row_limit) {
             ext_t eq = ext_t::load(partial_lagrange, row_idx);
-            ext_t lambda = ext_t::load(powers_of_lambda, cm.chip_idx);
+            ext_t lambda = ext_t::load(powers_of_lambda, stc.chip_idx);
             thread_acc += acc * (eq * lambda);
         }
     }
@@ -246,7 +203,7 @@ __global__ void zerocheck_fused_sequential(
 
 // Fused dispatch entry points, tiered by MAX_REGS so the per-thread local
 // memory footprint matches the largest chunk in the tier. The launcher
-// partitions seq_meta into tiers and launches one fused kernel per non-empty
+// partitions chunks into tiers and launches one fused kernel per non-empty
 // tier (typically 1-2 launches per round on real workloads).
 extern "C" void* zerocheck_fused_sequential_kb_32_kernel() {
     return (void*)zerocheck_fused_sequential<felt_t, 32>;

@@ -52,6 +52,15 @@ extern "C" {
     pub fn zerocheck_column_tile_kb_kernel() -> KernelPtr;
     pub fn zerocheck_column_tile_ext_kernel() -> KernelPtr;
 
+    // zerocheck (DAG-native): per-chip geq correction. One block per chip,
+    // writes 3 ext_t partials per chip (one per eval point) that the host
+    // aggregation sums into the round's totals.
+    pub fn zerocheck_geq_corrections_kernel() -> KernelPtr;
+
+    // zerocheck (DAG-native): apply `VirtualGeq::fix_last_variable(alpha)`
+    // in place to each chip's geq state. One thread per chip.
+    pub fn zerocheck_fix_geq_state_kernel() -> KernelPtr;
+
     // Jagged Zerocheck Kernels
     pub fn jagged_constraint_poly_eval_32_koala_bear_kernel() -> KernelPtr;
     pub fn jagged_constraint_poly_eval_64_koala_bear_kernel() -> KernelPtr;

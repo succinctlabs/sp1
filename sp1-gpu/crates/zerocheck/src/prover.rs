@@ -18,7 +18,7 @@ use slop_algebra::{
 use slop_alloc::{Buffer, HasBackend};
 use slop_challenger::{FieldChallenger, VariableLengthChallenger};
 use slop_matrix::dense::RowMajorMatrixView;
-use slop_multilinear::{Point, VirtualGeq};
+use slop_multilinear::Point;
 use slop_sumcheck::PartialSumcheckProof;
 use slop_tensor::Tensor;
 
@@ -29,13 +29,14 @@ use sp1_gpu_air::ir::{
 };
 use sp1_gpu_cudart::sys::kernels::{
     zerocheck_column_tile_ext_kernel, zerocheck_column_tile_kb_kernel,
-    zerocheck_fused_sequential_ext_1024_kernel, zerocheck_fused_sequential_ext_128_kernel,
-    zerocheck_fused_sequential_ext_256_kernel, zerocheck_fused_sequential_ext_32_kernel,
-    zerocheck_fused_sequential_ext_512_kernel, zerocheck_fused_sequential_ext_64_kernel,
-    zerocheck_fused_sequential_ext_kernel, zerocheck_fused_sequential_kb_1024_kernel,
-    zerocheck_fused_sequential_kb_128_kernel, zerocheck_fused_sequential_kb_256_kernel,
-    zerocheck_fused_sequential_kb_32_kernel, zerocheck_fused_sequential_kb_512_kernel,
-    zerocheck_fused_sequential_kb_64_kernel, zerocheck_fused_sequential_kb_kernel,
+    zerocheck_fix_geq_state_kernel, zerocheck_fused_sequential_ext_1024_kernel,
+    zerocheck_fused_sequential_ext_128_kernel, zerocheck_fused_sequential_ext_256_kernel,
+    zerocheck_fused_sequential_ext_32_kernel, zerocheck_fused_sequential_ext_512_kernel,
+    zerocheck_fused_sequential_ext_64_kernel, zerocheck_fused_sequential_ext_kernel,
+    zerocheck_fused_sequential_kb_1024_kernel, zerocheck_fused_sequential_kb_128_kernel,
+    zerocheck_fused_sequential_kb_256_kernel, zerocheck_fused_sequential_kb_32_kernel,
+    zerocheck_fused_sequential_kb_512_kernel, zerocheck_fused_sequential_kb_64_kernel,
+    zerocheck_fused_sequential_kb_kernel, zerocheck_geq_corrections_kernel,
 };
 use sp1_gpu_cudart::sys::runtime::KernelPtr;
 use sp1_gpu_cudart::{args, DeviceBuffer, DevicePoint, TaskScope};
@@ -193,45 +194,83 @@ where
 // Device-uploaded per-chunk buffers — built once per shard.
 // ============================================================================
 
-/// Device-side per-chunk metadata for the fused dispatch kernel. Layout
-/// must match `struct ChunkMeta` in `include/zerocheck/sequential.cuh`.
+/// Shard-static per-chunk descriptor uploaded ONCE per shard. Layout must
+/// match `struct ChunkStatic` in `include/zerocheck/sequential.cuh`.
 ///
-/// The "carrier" chunk (one per chip, gkr_main_width > 0) also carries the
-/// chip's per-round geq parameters (`padded_row_adjustment`, `geq_threshold`,
-/// `geq_eq_coefficient`). The kernel subtracts the geq correction
-/// in-thread, eliminating the per-round host loop that used to dominate
-/// runtime for chips with large row counts.
+/// Per-chunk fields that only depend on the chunk's bytecode + the shard's
+/// chip set (i.e. don't change between rounds) live here. Per-round chip
+/// state — trace pointers and current height — lives in [`ChipLayoutC`],
+/// indexed by `chip_idx`. The kernel composes them via the per-block
+/// dispatch descriptor [`BlockDispatchC`].
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
-pub struct ChunkMetaC {
+pub struct ChunkStaticC {
     pub instrs: *const sp1_gpu_air::ir::DagInstr,
     pub leaves: *const sp1_gpu_air::ir::LeafRef,
     pub consts: *const Felt,
     pub publics: *const u32,
     pub assert_regs: *const u16,
     pub assert_alphas: *const u32,
-    pub preprocessed_ptr: u64,
-    pub main_ptr: u64,
     pub n_instrs: u32,
     pub n_asserts: u32,
     pub chip_idx: u32,
     pub gkr_main_width: u32,
     pub gkr_prep_width: u32,
-    pub height: u32,
-    pub row_count: u32,
     /// Cluster-dependent shift added to every chip-relative alpha index in
     /// this chunk's bytecode before indexing `powers_of_alpha`.
     pub chip_alpha_offset: u32,
-    pub geq_threshold: u32,
-    pub geq_eq_coefficient: Ext,
-    pub padded_row_adjustment: Ext,
 }
 
-// SAFETY: ChunkMetaC contains raw device pointers but the kernel will only
-// dereference them on the GPU after we copy the struct over. Send/Sync is
-// fine for our usage — we never share these across threads on the host.
-unsafe impl Send for ChunkMetaC {}
-unsafe impl Sync for ChunkMetaC {}
+// SAFETY: holds raw device pointers; the kernel dereferences them on the GPU
+// after we copy the struct over. Send/Sync is fine for our usage.
+unsafe impl Send for ChunkStaticC {}
+unsafe impl Sync for ChunkStaticC {}
+
+/// Per-round per-chip trace pointers + height. Layout must match
+/// `struct ChipLayout` in `include/zerocheck/sequential.cuh`.
+///
+/// Built per round from the jagged structure; the kernel reads it via
+/// `chip_layouts[chunk_static.chip_idx]`.
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct ChipLayoutC {
+    pub main_ptr: u64,
+    pub preprocessed_ptr: u64,
+    pub height: u32,
+    pub _pad: u32,
+}
+
+/// Per-block dispatch entry. One per launched block per tier; the kernel
+/// reads `dispatch[blockIdx.x]` once and processes `n_rows` rows of the
+/// referenced chunk starting at `row_offset`. Replaces the old per-row
+/// `upper_bound` binary search on `row_starts`.
+///
+/// Layout must match `struct BlockDispatch` in
+/// `include/zerocheck/sequential.cuh`.
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct BlockDispatchC {
+    pub chunk_id: u32,
+    pub row_offset: u32,
+    pub n_rows: u32,
+}
+
+/// Per-chip VirtualGeq state held on device. Mirrors `VirtualGeqState` in
+/// `sys/include/zerocheck/geq_corrections.cuh` and the host
+/// `slop_multilinear::VirtualGeq<Ext>` struct it replaces.
+///
+/// Built once per shard from the initial heights, then mutated in place by
+/// the `zerocheck_fix_geq_state` kernel after each fold. The recurrence
+/// matches `VirtualGeq::fix_last_variable` bit-for-bit so the device state
+/// stays identical to what the host loop used to produce.
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct VirtualGeqStateC {
+    pub threshold: u32,
+    pub num_vars: u32,
+    pub geq_coefficient: Ext,
+    pub eq_coefficient: Ext,
+}
 
 /// A per-chunk view into the flat machine-wide bytecode buffers
 /// (`MachineBytecode`). Holds raw device pointers, not owned allocations —
@@ -504,7 +543,6 @@ pub struct ZeroCheckJaggedPoly<'b, K: Field> {
     /// The machine-wide flat bytecode the `compiled` views point into. Held
     /// here so the device buffers outlive every round of this shard.
     pub machine_bytecode: Arc<MachineBytecode>,
-    pub virtual_geq: Vec<VirtualGeq<Ext>>,
     pub eq_adjustment: Ext,
     pub zeta: Point<Ext>,
     pub claim: Ext,
@@ -514,7 +552,6 @@ pub struct ZeroCheckJaggedPoly<'b, K: Field> {
     pub powers_of_alpha: Buffer<Ext, TaskScope>,
     pub gkr_powers: Buffer<Ext, TaskScope>,
     pub powers_of_lambda: Buffer<Ext, TaskScope>,
-    pub powers_of_lambda_host: Vec<Ext>,
     pub chip_main_ptrs: Vec<u64>,
     pub chip_preprocessed_ptrs: Vec<u64>,
     pub chip_heights: Vec<u32>,
@@ -523,6 +560,44 @@ pub struct ZeroCheckJaggedPoly<'b, K: Field> {
     /// stores chip-relative alpha indices; this shift is applied at launch
     /// (see `compile_chips`). Indexed by `chip_idx`.
     pub chip_alpha_offset: Vec<u32>,
+    /// Per-shard, per-tier precomputed kernel-launch state.
+    pub seq_tiers: [SeqTierStatic; 2],
+    /// Per-chip geq state on device. One entry per active chip, indexed by
+    /// `chip_idx`. Uploaded at shard init then mutated in place by the
+    /// `zerocheck_fix_geq_state` kernel after each fold — no host iteration
+    /// per round.
+    pub chip_geq_state_dev: Buffer<VirtualGeqStateC, TaskScope>,
+    /// Per-chip padded-row adjustment on device, indexed by `chip_idx`.
+    /// Shard-static (computed once via the CPU folder against a zero trace).
+    pub chip_pad_adj_dev: Buffer<Ext, TaskScope>,
+    /// Chip indices that should receive a geq correction this shard —
+    /// chips with at least one Sequential carrier and a non-zero `pad_adj`.
+    /// Shard-static; `None` iff `n_geq_chips == 0`.
+    pub geq_chip_indices_dev: Option<Buffer<u32, TaskScope>>,
+    /// Number of chips in `geq_chip_indices_dev`. Drives the grid size of
+    /// `zerocheck_geq_corrections`.
+    pub n_geq_chips: usize,
+}
+
+/// Shard-static data for one fused-kernel tier (low-reg / high-reg).
+///
+/// The `ChunkStaticC` array is built once when the shard's chips are known
+/// and uploaded once — the kernel reads from it every round without further
+/// host involvement. `chip_indices` mirrors the static array so the per-round
+/// dispatch builder can look up each chunk's current `chip_height` cheaply.
+pub struct SeqTierStatic {
+    /// Per-chunk static descriptors in tier order. Index `i` here corresponds
+    /// to `chunk_id = i` in `BlockDispatchC`.
+    pub static_host: Vec<ChunkStaticC>,
+    /// Same length as `static_host`; the chip_idx for chunk `i`, kept in
+    /// host memory so dispatch building can look up `chip_heights[chip_idx]`.
+    pub chip_indices: Vec<u32>,
+    /// Worst-case `max_reg` across all chunks in this tier — drives the
+    /// kernel template choice at launch.
+    pub max_reg: u16,
+    /// Device buffer holding `static_host`; uploaded once per shard, reused
+    /// every round.
+    pub static_buf: Option<Buffer<ChunkStaticC, TaskScope>>,
 }
 
 /// Per-trace-element-type kernel selection. Round 0 uses `K = Felt`; rounds
@@ -615,17 +690,6 @@ where
 {
     let scope = data.dense().backend();
 
-    let mut virtual_geq: Vec<VirtualGeq<Ext>> = vec![];
-    for (chip, height) in chips.iter().zip_eq(initial_heights.iter()) {
-        virtual_geq.push(VirtualGeq::new(
-            *height,
-            Ext::one(),
-            Ext::zero(),
-            zeta.dimension() as u32,
-        ));
-        let _ = chip;
-    }
-
     let (chip_main_ptrs, chip_preprocessed_ptrs, chip_heights) = compute_chip_offsets(data, chips);
 
     // Per-chip launch-time shift into the reversed `powers_of_alpha` table.
@@ -640,15 +704,53 @@ where
         DeviceBuffer::from_host(&Buffer::from(powers_of_alpha), scope).unwrap().into_inner();
     let gkr_powers_device =
         DeviceBuffer::from_host(&Buffer::from(gkr_powers), scope).unwrap().into_inner();
-    let powers_of_lambda_host = powers_of_lambda.clone();
     let powers_of_lambda_device =
         DeviceBuffer::from_host(&Buffer::from(powers_of_lambda), scope).unwrap().into_inner();
+
+    let seq_tiers = build_seq_tiers(&compiled_chips_dev, &chip_alpha_offset, scope);
+
+    // ---- Per-chip geq state on device ----
+    //
+    // Initial state matches `VirtualGeq::new(initial_height, 1, 0, num_vars)`
+    // per chip. The state is mutated in place by `zerocheck_fix_geq_state`
+    // each round, never touched by the host again.
+    let num_vars = zeta.dimension() as u32;
+    let geq_state_host: Vec<VirtualGeqStateC> = initial_heights
+        .iter()
+        .map(|&h| VirtualGeqStateC {
+            threshold: h,
+            num_vars,
+            geq_coefficient: Ext::one(),
+            eq_coefficient: Ext::zero(),
+        })
+        .collect();
+    let chip_geq_state_dev =
+        DeviceBuffer::from_host_slice(&geq_state_host, scope).unwrap().into_inner();
+    let chip_pad_adj_dev =
+        DeviceBuffer::from_host_slice(&padded_row_adjustment, scope).unwrap().into_inner();
+
+    // Filter chips that should get a geq correction: must have a Sequential
+    // carrier (matches the predicate the old in-kernel geq gated on) and a
+    // non-zero `pad_adj` (otherwise the contribution is identically zero).
+    let geq_chip_indices_host: Vec<u32> = compiled_chips_dev
+        .iter()
+        .filter(|chip| {
+            chip.chunks.iter().any(|c| matches!(c.kind, ChunkKind::Sequential))
+                && padded_row_adjustment[chip.chip_idx as usize] != Ext::zero()
+        })
+        .map(|chip| chip.chip_idx)
+        .collect();
+    let n_geq_chips = geq_chip_indices_host.len();
+    let geq_chip_indices_dev = if n_geq_chips > 0 {
+        Some(DeviceBuffer::from_host_slice(&geq_chip_indices_host, scope).unwrap().into_inner())
+    } else {
+        None
+    };
 
     ZeroCheckJaggedPoly {
         data: Cow::Borrowed(data),
         compiled: compiled_chips_dev,
         machine_bytecode,
-        virtual_geq,
         eq_adjustment: Ext::one(),
         zeta,
         claim,
@@ -658,12 +760,94 @@ where
         powers_of_alpha: powers_of_alpha_device,
         gkr_powers: gkr_powers_device,
         powers_of_lambda: powers_of_lambda_device,
-        powers_of_lambda_host,
         chip_main_ptrs,
         chip_preprocessed_ptrs,
         chip_heights,
         chip_alpha_offset,
+        seq_tiers,
+        chip_geq_state_dev,
+        chip_pad_adj_dev,
+        geq_chip_indices_dev,
+        n_geq_chips,
     }
+}
+
+// ============================================================================
+// Per-shard tier construction. Decides the tier-split heuristic once per
+// shard (it depends only on the chip max_reg distribution, which is shard-
+// static) and uploads the per-tier ChunkStaticC arrays. The per-round
+// launcher just builds dispatch tables on top of these.
+// ============================================================================
+
+/// Tier-split threshold and minority-ratio heuristic — see
+/// `evaluate_zerocheck`'s old in-line decision for the motivation. Tier-split
+/// only when the high-`max_reg` chunks are a small minority of all
+/// Sequential chunks, otherwise the launch fragmentation cost outweighs the
+/// per-thread footprint win.
+const TIER_SPLIT_MAX_REG: u16 = 256;
+
+fn build_seq_tiers(
+    compiled: &[CompiledChipDevice],
+    chip_alpha_offset: &[u32],
+    scope: &TaskScope,
+) -> [SeqTierStatic; 2] {
+    let mut tier1_candidate_count = 0usize;
+    let mut total_seq_count = 0usize;
+    for chip in compiled.iter() {
+        for chunk in chip.chunks.iter() {
+            if matches!(chunk.kind, ChunkKind::Sequential) {
+                total_seq_count += 1;
+                if chunk.max_reg > TIER_SPLIT_MAX_REG {
+                    tier1_candidate_count += 1;
+                }
+            }
+        }
+    }
+    let do_tier_split = total_seq_count > 0
+        && tier1_candidate_count > 0
+        && tier1_candidate_count * 10 <= total_seq_count;
+
+    let mut tiers: [SeqTierStatic; 2] = std::array::from_fn(|_| SeqTierStatic {
+        static_host: Vec::new(),
+        chip_indices: Vec::new(),
+        max_reg: 0,
+        static_buf: None,
+    });
+
+    for chip in compiled.iter() {
+        let chip_idx = chip.chip_idx;
+        for chunk in chip.chunks.iter() {
+            if !matches!(chunk.kind, ChunkKind::Sequential) {
+                continue;
+            }
+            let tier: usize =
+                if do_tier_split && chunk.max_reg > TIER_SPLIT_MAX_REG { 1 } else { 0 };
+            tiers[tier].max_reg = tiers[tier].max_reg.max(chunk.max_reg);
+            tiers[tier].chip_indices.push(chip_idx);
+            tiers[tier].static_host.push(ChunkStaticC {
+                instrs: chunk.instrs,
+                leaves: chunk.leaves,
+                consts: chunk.consts,
+                publics: chunk.publics,
+                assert_regs: chunk.assert_regs,
+                assert_alphas: chunk.assert_alphas,
+                n_instrs: chunk.n_instrs,
+                n_asserts: chunk.n_asserts,
+                chip_idx,
+                gkr_main_width: chunk.gkr_main_width,
+                gkr_prep_width: chunk.gkr_prep_width,
+                chip_alpha_offset: chip_alpha_offset[chip_idx as usize],
+            });
+        }
+    }
+
+    for tier in tiers.iter_mut() {
+        if !tier.static_host.is_empty() {
+            tier.static_buf =
+                Some(DeviceBuffer::from_host_slice(&tier.static_host, scope).unwrap().into_inner());
+        }
+    }
+    tiers
 }
 
 /// Compute the per-chip main/preprocessed trace pointers within the jagged
@@ -754,17 +938,19 @@ where
     // Three evaluation points per univariate round (degree-2 polynomial
     // recovered by Lagrange interpolation downstream).
     const NUM_EVAL_POINT: usize = 3;
-    // Cap on grid x-dim. Beyond this, blocks oversubscribe SMs and the per-
-    // block reduce overhead dominates the actual per-row work. Measured: 4096
-    // saturates an SM-rich GPU (Ada/Hopper); higher values are flat or worse.
+    // Cap on grid x-dim for the ColumnTile fallback. Beyond this, blocks
+    // oversubscribe SMs and the per-block reduce overhead dominates.
     const MAX_GRID: u32 = 4096;
-    // Two-tier launch threshold. Sequential chunks with `max_reg > TIER_SPLIT`
-    // run in a separate larger-template kernel so the bulk of chunks (which
-    // sit at `max_reg ≤ 128`) don't pay for the bigger `regs[]` array. We
-    // only actually tier-split when the high-`max_reg` chunks are a small
-    // minority (see `do_tier_split` below); otherwise the launch
-    // fragmentation cost outweighs the per-thread footprint win.
-    const TIER_SPLIT: u16 = 256;
+    // Block size per tier, keyed off the tier's worst-case `max_reg`: above
+    // 128 the per-thread `regs[]` array crosses into a bigger MAX_REGS
+    // template and we need a smaller block so enough warps still fit per SM
+    // for latency hiding.
+    const BLOCK_SIZE_LOW_REG: u32 = 256;
+    const BLOCK_SIZE_HIGH_REG: u32 = 64;
+    // Each thread handles this many rows from its tile (matches the old
+    // grid-stride loop's `GRID_STRIDE_ROWS_PER_THREAD` so the reduce
+    // overhead is amortised the same way). Tile size = block_size * this.
+    const ROWS_PER_THREAD: u32 = 4;
 
     let (rest, last) = poly.zeta.split_at(poly.zeta.dimension() - 1);
     let last = *last[0];
@@ -774,148 +960,89 @@ where
 
     let trace_ptr = poly.data.as_ref().dense_data.dense.as_ptr();
 
-    // ---- Pass 1: partition Sequential chunks into 2 tiers by max_reg ----
-    //
-    // We tier-split ONLY when tier 1 (the large-register-pressure tier) has
-    // a SMALL number of chunks relative to tier 0 — i.e. when there are a
-    // few outliers forcing the whole kernel into a large MAX_REGS template.
-    // This catches real RSP shards (1-2 outliers at max_reg=340 force
-    // MAX_REGS=512 for the entire kernel; tiering them out lets ~95% of
-    // chunks run at MAX_REGS=128 with much less spill) without hurting
-    // all-chips, where many chunks have moderately high max_reg and the
-    // unified kernel is actually more efficient than 2 launches.
-    //
-    // Decide the tier assignment in two passes: first pre-scan to count
-    // chunks per tier; if tier 1's count is non-trivial, collapse everything
-    // into tier 0 (the unified single-launch path).
-    //
-    // ColumnTile chunks (only when a chip had no Sequential chunk to carry
-    // GKR — empty for current SP1 workloads) launch individually.
-    let mut tier1_candidate_count = 0usize;
-    let mut total_seq_count = 0usize;
-    for chip in poly.compiled.iter() {
-        // Skip empty chips — they aren't launched, so they must not skew the
-        // tier-split ratio below.
-        if poly.chip_heights[chip.chip_idx as usize] / 2 == 0 {
-            continue;
-        }
-        for chunk in chip.chunks.iter() {
-            if matches!(chunk.kind, ChunkKind::Sequential) {
-                total_seq_count += 1;
-                if chunk.max_reg > TIER_SPLIT {
-                    tier1_candidate_count += 1;
-                }
-            }
-        }
-    }
-    // Heuristic: tier-split only when tier 1 is a small minority. The
-    // exact ratio comes from measurement — real RSP has ≤1/30 chunks in
-    // tier 1 and benefits hugely; all-chips has ~1/3 and regresses.
-    let do_tier_split = total_seq_count > 0
-        && tier1_candidate_count > 0
-        && tier1_candidate_count * 10 <= total_seq_count;
-    let mut seq_meta_tiers: [Vec<ChunkMetaC>; 2] = [Vec::new(), Vec::new()];
-    let mut row_starts_tiers: [Vec<u32>; 2] = [vec![0], vec![0]];
-    let mut max_reg_tiers: [u16; 2] = [0, 0];
-    let mut ct_launches: Vec<(u32, &ChunkDeviceBufs, u64, u64, u32, u32)> = Vec::new();
-
-    for chip in poly.compiled.iter() {
-        let chip_idx = chip.chip_idx;
-        let height = poly.chip_heights[chip_idx as usize];
-        let row_count = height / 2;
-        // An empty chip (0 rows) contributes nothing to the zerocheck sum:
-        // its constraint pass and GKR sweep both run over 0 rows. Skip it
-        // entirely so the per-round `ChunkMetaC` array and `row_starts` table
-        // stay O(non-empty chips) rather than O(total chips) — this matters
-        // when the machine has thousands of chips most of which are empty in
-        // any given shard.
-        if row_count == 0 {
-            continue;
-        }
-        let main_ptr = poly.chip_main_ptrs[chip_idx as usize];
-        let preprocessed_ptr = poly.chip_preprocessed_ptrs[chip_idx as usize];
-
-        for chunk in chip.chunks.iter() {
-            match chunk.kind {
-                ChunkKind::Sequential => {
-                    let geq = &poly.virtual_geq[chip_idx as usize];
-                    let pad_adj = poly.padded_row_adjustment_host[chip_idx as usize];
-                    let tier: usize =
-                        if do_tier_split && chunk.max_reg > TIER_SPLIT { 1 } else { 0 };
-                    max_reg_tiers[tier] = max_reg_tiers[tier].max(chunk.max_reg);
-                    seq_meta_tiers[tier].push(ChunkMetaC {
-                        instrs: chunk.instrs,
-                        leaves: chunk.leaves,
-                        consts: chunk.consts,
-                        publics: chunk.publics,
-                        assert_regs: chunk.assert_regs,
-                        assert_alphas: chunk.assert_alphas,
-                        preprocessed_ptr,
-                        main_ptr,
-                        n_instrs: chunk.n_instrs,
-                        n_asserts: chunk.n_asserts,
-                        chip_idx,
-                        gkr_main_width: chunk.gkr_main_width,
-                        gkr_prep_width: chunk.gkr_prep_width,
-                        height,
-                        row_count,
-                        chip_alpha_offset: poly.chip_alpha_offset[chip_idx as usize],
-                        geq_threshold: geq.threshold,
-                        geq_eq_coefficient: geq.eq_coefficient,
-                        padded_row_adjustment: pad_adj,
-                    });
-                    let last = *row_starts_tiers[tier].last().unwrap();
-                    row_starts_tiers[tier].push(last + row_count);
-                }
-                ChunkKind::ColumnTile => {
-                    ct_launches.push((
-                        chip_idx,
-                        chunk,
-                        preprocessed_ptr,
-                        main_ptr,
-                        height,
-                        row_count,
-                    ));
-                }
-            }
-        }
-    }
-
-    // Block size per tier, keyed off the tier's worst-case `max_reg`: above
-    // 128 the per-thread `regs[]` array crosses into a bigger MAX_REGS
-    // template and we need a smaller block so enough warps still fit per SM
-    // for latency hiding.
-    const BLOCK_SIZE_LOW_REG: u32 = 256;
-    const BLOCK_SIZE_HIGH_REG: u32 = 64;
     let block_size_for = |tier: usize| -> u32 {
-        if max_reg_tiers[tier] > 128 {
+        if poly.seq_tiers[tier].max_reg > 128 {
             BLOCK_SIZE_HIGH_REG
         } else {
             BLOCK_SIZE_LOW_REG
         }
     };
 
-    // Target a few grid-stride iterations per thread so per-block reduce
-    // overhead is amortised by real work. Larger values under-saturate SMs;
-    // smaller values over-saturate and spill local memory under the per-block
-    // reduce. Measured plateau in [2, 8]; 4 sits comfortably in the middle.
-    const GRID_STRIDE_ROWS_PER_THREAD: u64 = 4;
-    let mut tier_n_blocks: [u32; 2] = [0, 0];
+    // ---- Build per-round chip layouts (one entry per active chip) ----
+    //
+    // The kernel reads `chip_layouts[chunk_static.chip_idx]` to get the
+    // current trace pointers + height. Indexed by the shard-relative
+    // `chip_idx` ∈ 0..n_active_chips. Empty chips still get a slot (with
+    // zeroed height), but the dispatch builder below emits no entries for
+    // them, so the kernel never reads those slots.
+    let chip_layouts: Vec<ChipLayoutC> = (0..poly.compiled.len())
+        .map(|i| ChipLayoutC {
+            main_ptr: poly.chip_main_ptrs[i],
+            preprocessed_ptr: poly.chip_preprocessed_ptrs[i],
+            height: poly.chip_heights[i],
+            _pad: 0,
+        })
+        .collect();
+    let chip_layouts_buf =
+        DeviceBuffer::from_host_slice(&chip_layouts, backend).unwrap().into_inner();
+
+    // ---- Walk active chips for ColumnTile fallback launches ----
+    //
+    // The Sequential dispatch table is built off `poly.seq_tiers` below.
+    // Geq inputs all live on device — built at shard init in
+    // `initialize_zerocheck_poly`, mutated in place by
+    // `zerocheck_fix_geq_state` each round — so no per-round host iteration.
+    let mut ct_launches: Vec<(u32, &ChunkDeviceBufs, u64, u64, u32, u32)> = Vec::new();
+    for chip in poly.compiled.iter() {
+        let chip_idx = chip.chip_idx;
+        let row_count = poly.chip_heights[chip_idx as usize] / 2;
+        if row_count == 0 {
+            continue;
+        }
+        let main_ptr = poly.chip_main_ptrs[chip_idx as usize];
+        let preprocessed_ptr = poly.chip_preprocessed_ptrs[chip_idx as usize];
+        let height = poly.chip_heights[chip_idx as usize];
+
+        for chunk in chip.chunks.iter() {
+            if let ChunkKind::ColumnTile = chunk.kind {
+                ct_launches.push((chip_idx, chunk, preprocessed_ptr, main_ptr, height, row_count));
+            }
+        }
+    }
+
+    // ---- Per-tier dispatch tables ----
+    //
+    // For each Sequential chunk in the tier, emit `ceil(row_count / tile)`
+    // BlockDispatch entries. The kernel reads one entry per block and
+    // strides through `n_rows` rows of `chunk_id`.
+    let mut dispatch_tiers: [Vec<BlockDispatchC>; 2] = [Vec::new(), Vec::new()];
+    for (t, tier) in poly.seq_tiers.iter().enumerate() {
+        let tile = block_size_for(t) * ROWS_PER_THREAD;
+        for (chunk_idx_in_tier, &chip_idx) in tier.chip_indices.iter().enumerate() {
+            let row_count = poly.chip_heights[chip_idx as usize] / 2;
+            if row_count == 0 {
+                continue;
+            }
+            let mut row_offset = 0u32;
+            while row_offset < row_count {
+                let n_rows = (row_count - row_offset).min(tile);
+                dispatch_tiers[t].push(BlockDispatchC {
+                    chunk_id: chunk_idx_in_tier as u32,
+                    row_offset,
+                    n_rows,
+                });
+                row_offset += tile;
+            }
+        }
+    }
+
+    // ---- Slot allocation in the shared output ----
     let mut tier_slot: [usize; 2] = [0, 0];
     let mut total_slots: usize = 0;
     for t in 0..2 {
-        let bs = block_size_for(t);
-        let total_rows = *row_starts_tiers[t].last().unwrap();
-        if !seq_meta_tiers[t].is_empty() && total_rows > 0 {
-            let target_threads =
-                (total_rows as u64).div_ceil(GRID_STRIDE_ROWS_PER_THREAD).max(bs as u64);
-            let blocks = target_threads.div_ceil(bs as u64);
-            tier_n_blocks[t] = blocks.min(MAX_GRID as u64).max(1) as u32;
-        }
         tier_slot[t] = total_slots;
-        total_slots += (tier_n_blocks[t] as usize) * NUM_EVAL_POINT;
+        total_slots += dispatch_tiers[t].len() * NUM_EVAL_POINT;
     }
-
     let mut ct_slots: Vec<(usize, u32)> = Vec::with_capacity(ct_launches.len());
     let ct_block_size: u32 = 128; // unchanged for ColumnTile fallback
     for &(_, chunk, _, _, _, row_count) in &ct_launches {
@@ -928,6 +1055,11 @@ where
         ct_slots.push((total_slots, n_blocks));
         total_slots += (n_blocks as usize) * NUM_EVAL_POINT;
     }
+    // Per-chip geq correction slots: one (chip, eval_point) per active geq
+    // chip, each holding the already-negated `λ · pad_adj · S(e)` so the
+    // host aggregation pass below adds them straight into totals.
+    let geq_slot = total_slots;
+    total_slots += poly.n_geq_chips * NUM_EVAL_POINT;
 
     let mut shared_output: Tensor<Ext, TaskScope> =
         Tensor::with_sizes_in([total_slots.max(1)], backend.clone());
@@ -936,27 +1068,23 @@ where
     }
     let shared_output_ptr = shared_output.as_mut_ptr();
 
-    // Launch one fused kernel per non-empty tier.
-    let mut _seq_keepalive: Vec<(Buffer<ChunkMetaC, TaskScope>, Buffer<u32, TaskScope>)> =
-        Vec::with_capacity(2);
+    // ---- Launch one fused kernel per non-empty tier ----
+    let mut _dispatch_keepalive: Vec<Buffer<BlockDispatchC, TaskScope>> = Vec::with_capacity(2);
     for t in 0..2 {
-        if tier_n_blocks[t] == 0 {
+        if dispatch_tiers[t].is_empty() {
             continue;
         }
         let bs = block_size_for(t);
-        let total_rows = *row_starts_tiers[t].last().unwrap();
-        let chunk_meta_buf =
-            DeviceBuffer::from_host_slice(&seq_meta_tiers[t], backend).unwrap().into_inner();
-        let row_starts_buf =
-            DeviceBuffer::from_host_slice(&row_starts_tiers[t], backend).unwrap().into_inner();
+        let dispatch_buf =
+            DeviceBuffer::from_host_slice(&dispatch_tiers[t], backend).unwrap().into_inner();
+        let static_buf = poly.seq_tiers[t].static_buf.as_ref().unwrap();
         let out_ptr = unsafe { shared_output_ptr.add(tier_slot[t]) };
         let shmem_bytes = (bs as usize / 32).max(1) * std::mem::size_of::<Ext>();
         unsafe {
             let args = args!(
-                chunk_meta_buf.as_ptr(),
-                row_starts_buf.as_ptr(),
-                (seq_meta_tiers[t].len() as u32),
-                total_rows,
+                dispatch_buf.as_ptr(),
+                static_buf.as_ptr(),
+                chip_layouts_buf.as_ptr(),
                 trace_ptr,
                 poly.public_values.as_ptr(),
                 poly.powers_of_alpha.as_ptr(),
@@ -968,15 +1096,17 @@ where
             );
             backend
                 .launch_kernel(
-                    <TaskScope as EvalKernels<K>>::fused_sequential_kernel_for(max_reg_tiers[t]),
-                    (tier_n_blocks[t], 1, 3),
+                    <TaskScope as EvalKernels<K>>::fused_sequential_kernel_for(
+                        poly.seq_tiers[t].max_reg,
+                    ),
+                    (dispatch_tiers[t].len() as u32, 1, 3),
                     (bs, 1, 1),
                     &args,
                     shmem_bytes,
                 )
                 .unwrap();
         }
-        _seq_keepalive.push((chunk_meta_buf, row_starts_buf));
+        _dispatch_keepalive.push(dispatch_buf);
     }
 
     // Launch any remaining ColumnTile chunks individually (typically zero
@@ -1012,15 +1142,49 @@ where
         );
     }
 
+    // Launch the per-chip geq corrections kernel — one block per active geq
+    // chip, all inputs already on device (see `chip_geq_state_dev`,
+    // `chip_pad_adj_dev`, `geq_chip_indices_dev`, `chip_layouts_buf`).
+    if poly.n_geq_chips > 0 {
+        const GEQ_BLOCK_SIZE: u32 = 256;
+        let geq_indices = poly.geq_chip_indices_dev.as_ref().unwrap();
+        let out_ptr = unsafe { shared_output_ptr.add(geq_slot) };
+        let shmem_bytes = (GEQ_BLOCK_SIZE as usize / 32) * std::mem::size_of::<Ext>();
+        unsafe {
+            let args = args!(
+                geq_indices.as_ptr(),
+                (poly.n_geq_chips as u32),
+                poly.chip_geq_state_dev.as_ptr(),
+                poly.chip_pad_adj_dev.as_ptr(),
+                poly.powers_of_lambda.as_ptr(),
+                chip_layouts_buf.as_ptr(),
+                partial_lagrange.as_ptr(),
+                rest_point_dim,
+                out_ptr
+            );
+            backend
+                .launch_kernel(
+                    zerocheck_geq_corrections_kernel(),
+                    (poly.n_geq_chips as u32, 1, 1),
+                    (GEQ_BLOCK_SIZE, 1, 1),
+                    &args,
+                    shmem_bytes,
+                )
+                .unwrap();
+        }
+    }
+
     // ---- Single host sync + copy ----
     let host_partials: Vec<Ext> = unsafe { shared_output.into_buffer().copy_into_host_vec() };
 
     // ---- Pass 3: aggregate ----
     let mut totals: [Ext; NUM_EVAL_POINT] = [Ext::zero(); NUM_EVAL_POINT];
 
-    // Fused Sequential output: cross-tier, cross-chunk sum (λ applied per-row).
+    // Fused Sequential output: cross-tier, cross-block sum (λ applied
+    // per-row in-kernel). Each tier wrote one (eval-point) triple per block
+    // in its dispatch table.
     for t in 0..2 {
-        for b in 0..(tier_n_blocks[t] as usize) {
+        for b in 0..dispatch_tiers[t].len() {
             for e in 0..NUM_EVAL_POINT {
                 totals[e] += host_partials[tier_slot[t] + b * NUM_EVAL_POINT + e];
             }
@@ -1035,9 +1199,14 @@ where
         }
     }
 
-    // Geq correction is applied INSIDE the fused kernel (per-row, on the
-    // carrier chunk for each chip). Nothing to do here — it was the dominant
-    // host cost before being pushed into the kernel.
+    // Geq corrections: one chip per slot triple, already negated by the
+    // kernel, so summing them in matches the per-row subtraction the main
+    // kernel used to do.
+    for i in 0..poly.n_geq_chips {
+        for e in 0..NUM_EVAL_POINT {
+            totals[e] += host_partials[geq_slot + i * NUM_EVAL_POINT + e];
+        }
+    }
 
     // Apply last_var_eq and eq_adjustment (mirror v1's evaluate_zerocheck).
     let mut xs =
@@ -1158,10 +1327,29 @@ where
     let last = *last[0];
 
     let new_data = evaluate_jagged_fix_last_variable(&input.data, point);
-    let virtual_geq =
-        input.virtual_geq.iter().map(|geq| geq.fix_last_variable(point)).collect::<Vec<_>>();
     let eq = (Ext::one() - last) * (Ext::one() - point) + last * point;
     let eq_adjustment = input.eq_adjustment * eq;
+
+    // Mutate the device-resident per-chip geq state in place. One thread per
+    // chip; pure ext arithmetic so we just hand it `point` as a kernel arg.
+    let n_chips = input.compiled.len() as u32;
+    if n_chips > 0 {
+        const BS: u32 = 128;
+        let n_blocks = n_chips.div_ceil(BS);
+        let scope = new_data.dense().backend();
+        unsafe {
+            let args = args!(input.chip_geq_state_dev.as_ptr(), n_chips, point);
+            scope
+                .launch_kernel(
+                    zerocheck_fix_geq_state_kernel(),
+                    (n_blocks, 1, 1),
+                    (BS, 1, 1),
+                    &args,
+                    0,
+                )
+                .unwrap();
+        }
+    }
 
     // After fold, the jagged layout may pad some columns (fold kernel adds 2
     // ext slots when `column_height_pairs % 4 != 0`). The `update_offset`
@@ -1215,7 +1403,6 @@ where
         data: Cow::Owned(new_data),
         compiled: input.compiled,
         machine_bytecode: input.machine_bytecode,
-        virtual_geq,
         eq_adjustment,
         zeta: rest,
         claim,
@@ -1225,11 +1412,15 @@ where
         powers_of_alpha: input.powers_of_alpha,
         gkr_powers: input.gkr_powers,
         powers_of_lambda: input.powers_of_lambda,
-        powers_of_lambda_host: input.powers_of_lambda_host,
         chip_main_ptrs,
         chip_preprocessed_ptrs,
         chip_heights,
         chip_alpha_offset: input.chip_alpha_offset,
+        seq_tiers: input.seq_tiers,
+        chip_geq_state_dev: input.chip_geq_state_dev,
+        chip_pad_adj_dev: input.chip_pad_adj_dev,
+        geq_chip_indices_dev: input.geq_chip_indices_dev,
+        n_geq_chips: input.n_geq_chips,
     }
 }
 
