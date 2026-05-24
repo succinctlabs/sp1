@@ -23,8 +23,7 @@ use slop_tensor::Tensor;
 
 use sp1_gpu_air::ir::{
     analyze_constraints, build_dag, chunk_dag, enumerate_lowerings, lower_column_tile,
-    lower_sequential, synthesize_gkr_chunk, ChunkBudget, ChunkBytecode, ColumnTileBytecode,
-    DagBuilder, Lowering,
+    lower_sequential, ChunkBudget, ChunkBytecode, ColumnTileBytecode, DagBuilder, Lowering,
 };
 use sp1_gpu_cudart::sys::kernels::{
     zerocheck_aggregate_partials_kernel, zerocheck_column_tile_ext_kernel,
@@ -32,10 +31,9 @@ use sp1_gpu_cudart::sys::kernels::{
     zerocheck_fused_sequential_ext_1024_kernel, zerocheck_fused_sequential_ext_128_kernel,
     zerocheck_fused_sequential_ext_256_kernel, zerocheck_fused_sequential_ext_32_kernel,
     zerocheck_fused_sequential_ext_512_kernel, zerocheck_fused_sequential_ext_64_kernel,
-    zerocheck_fused_sequential_ext_kernel, zerocheck_fused_sequential_kb_1024_kernel,
-    zerocheck_fused_sequential_kb_128_kernel, zerocheck_fused_sequential_kb_256_kernel,
-    zerocheck_fused_sequential_kb_32_kernel, zerocheck_fused_sequential_kb_512_kernel,
-    zerocheck_fused_sequential_kb_64_kernel, zerocheck_fused_sequential_kb_kernel,
+    zerocheck_fused_sequential_kb_1024_kernel, zerocheck_fused_sequential_kb_128_kernel,
+    zerocheck_fused_sequential_kb_256_kernel, zerocheck_fused_sequential_kb_32_kernel,
+    zerocheck_fused_sequential_kb_512_kernel, zerocheck_fused_sequential_kb_64_kernel,
     zerocheck_geq_corrections_kernel, zerocheck_gkr_sweep_ext_kernel,
     zerocheck_gkr_sweep_kb_kernel, zerocheck_pad_adj_1024_kernel, zerocheck_pad_adj_128_kernel,
     zerocheck_pad_adj_256_kernel, zerocheck_pad_adj_32_kernel, zerocheck_pad_adj_512_kernel,
@@ -151,31 +149,22 @@ where
             }
         }
 
-        // GKR carrier selection: the synthesized GKR sweep is
-        // `Σ_i bp_i · col_i` over all main + prep cols. We bake it into the
-        // FIRST Sequential chunk of the chip (it then does the column sweep
-        // after its bytecode + asserts, sharing column reads with the
-        // constraint pass in L1 — same memory pattern as v1).
-        //
-        // Chips with no Sequential chunk (would be ColumnTile-only — rare in
-        // practice for SP1 today) fall back to the legacy synthesized
-        // ColumnTile GKR chunk so they still get GKR.
+        // Inline-GKR carrier selection. The first Sequential chunk of the
+        // chip carries the column-sweep widths so the per-row interp loop
+        // shares L1 with the constraint leaf reads — `build_seq_tiers`
+        // zeroes these out for chips wider than `WIDE_GKR_THRESHOLD`,
+        // routing them through the dedicated `zerocheck_gkr_sweep` kernel
+        // instead. Chips without a Sequential carrier (ColumnTile-only)
+        // get GKR exclusively from the dedicated kernel — see
+        // `gkr_active_chips` in `initialize_zerocheck_poly`.
         let main_width = air.width() as u32;
         let prep_width = air.preprocessed_width() as u32;
-        let carrier = compiled_chunks.iter_mut().find_map(|c| match c {
+        if let Some(carrier_bc) = compiled_chunks.iter_mut().find_map(|c| match c {
             CompiledChunk::Sequential(bc) => Some(bc),
             _ => None,
-        });
-        if let Some(carrier_bc) = carrier {
+        }) {
             carrier_bc.gkr_main_width = main_width;
             carrier_bc.gkr_prep_width = prep_width;
-        } else {
-            // No Sequential carrier — synthesize a ColumnTile GKR chunk. It
-            // is flagged `is_gkr_carrier`; the launcher weights it by the
-            // `powers_of_alpha` slot holding `1` directly (see
-            // `synthesize_gkr_chunk` / `launch_chunk_into`).
-            let gkr_bc = synthesize_gkr_chunk(main_width, prep_width);
-            compiled_chunks.push(CompiledChunk::ColumnTile(gkr_bc));
         }
 
         out.push(CompiledChip {
@@ -315,8 +304,6 @@ pub struct ChunkDeviceBufs {
     // ColumnTile-only (dummy-but-valid pointer + zero count for Sequential)
     pub terms: *const sp1_gpu_air::ir::ColumnTermEntry,
     pub n_terms: u32,
-    // Marker for GKR (uses the per-shard runtime_coeffs buffer)
-    pub is_gkr: bool,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -407,7 +394,6 @@ pub fn upload_compiled_bytecode(compiled: Vec<CompiledChip>, scope: &TaskScope) 
         max_reg: u16,
         gkr_main_width: u32,
         gkr_prep_width: u32,
-        is_gkr: bool,
     }
     let mut chip_offsets: Vec<Vec<ChunkOffsets>> = Vec::with_capacity(compiled.len());
 
@@ -437,7 +423,6 @@ pub fn upload_compiled_bytecode(compiled: Vec<CompiledChip>, scope: &TaskScope) 
                         max_reg: bc.max_reg,
                         gkr_main_width: bc.gkr_main_width,
                         gkr_prep_width: bc.gkr_prep_width,
-                        is_gkr: false,
                     }
                 }
                 CompiledChunk::ColumnTile(bc) => ChunkOffsets {
@@ -452,7 +437,6 @@ pub fn upload_compiled_bytecode(compiled: Vec<CompiledChip>, scope: &TaskScope) 
                     max_reg: 0,
                     gkr_main_width: 0,
                     gkr_prep_width: 0,
-                    is_gkr: bc.is_gkr_carrier,
                 },
             });
         }
@@ -522,7 +506,6 @@ pub fn upload_compiled_bytecode(compiled: Vec<CompiledChip>, scope: &TaskScope) 
                 gkr_main_width: o.gkr_main_width,
                 gkr_prep_width: o.gkr_prep_width,
                 n_terms: o.terms.1 as u32,
-                is_gkr: o.is_gkr,
             })
             .collect();
         chip_index.insert(chip.name.clone(), device_chips.len());
@@ -640,9 +623,6 @@ pub struct SeqTierStatic {
 /// 1+ use `K = Ext` after the trace is folded into the extension field.
 pub trait EvalKernels<K: Field> {
     fn column_tile_kernel() -> KernelPtr;
-    /// Fused dispatch kernel — one launch handles every Sequential chunk
-    /// across every chip in a round.
-    fn fused_sequential_kernel() -> KernelPtr;
     /// Tiered fused dispatch kernel. The launcher partitions chunks into
     /// tiers by their `max_reg` and launches one kernel per non-empty
     /// tier so each kernel's local register array is sized to its tier's
@@ -656,9 +636,6 @@ pub trait EvalKernels<K: Field> {
 impl EvalKernels<Felt> for TaskScope {
     fn column_tile_kernel() -> KernelPtr {
         unsafe { zerocheck_column_tile_kb_kernel() }
-    }
-    fn fused_sequential_kernel() -> KernelPtr {
-        unsafe { zerocheck_fused_sequential_kb_kernel() }
     }
     fn fused_sequential_kernel_for(max_reg_in_tier: u16) -> KernelPtr {
         unsafe {
@@ -685,9 +662,6 @@ impl EvalKernels<Felt> for TaskScope {
 impl EvalKernels<Ext> for TaskScope {
     fn column_tile_kernel() -> KernelPtr {
         unsafe { zerocheck_column_tile_ext_kernel() }
-    }
-    fn fused_sequential_kernel() -> KernelPtr {
-        unsafe { zerocheck_fused_sequential_ext_kernel() }
     }
     fn fused_sequential_kernel_for(max_reg_in_tier: u16) -> KernelPtr {
         unsafe {
@@ -1220,14 +1194,7 @@ where
         let height = poly.chip_heights[chip_idx as usize];
 
         for chunk in chip.chunks.iter() {
-            // Skip the synthesized `is_gkr` ColumnTile fallback — the
-            // dedicated `zerocheck_gkr_sweep` kernel now handles GKR for
-            // every chip uniformly, so the legacy fallback would
-            // double-count.
             if let ChunkKind::ColumnTile = chunk.kind {
-                if chunk.is_gkr {
-                    continue;
-                }
                 ct_launches.push((chip_idx, chunk, preprocessed_ptr, main_ptr, height, row_count));
             }
         }
@@ -1558,18 +1525,9 @@ fn launch_chunk_into<K: Field>(
             unreachable!("Sequential chunks go through the fused kernel, not launch_chunk_into")
         }
         ChunkKind::ColumnTile => unsafe {
-            // Regular ColumnTile chunks store chip-relative `alpha_idx`; shift
-            // the `powers_of_alpha` base by the per-chip offset. The
-            // synthesized GKR carrier (`is_gkr`) instead wants weight `1`:
-            // its terms store `alpha_idx = 0`, so we point the base at the
-            // last slot (which holds `1` in the reversed table). The per-chip
-            // offset can't express this for a 0-constraint chip.
-            let shift = if chunk.is_gkr {
-                powers_of_alpha.len().saturating_sub(1)
-            } else {
-                chip_alpha_offset as usize
-            };
-            let powers_of_alpha_shifted = powers_of_alpha.as_ptr().add(shift);
+            // ColumnTile chunks store chip-relative `alpha_idx`; shift the
+            // `powers_of_alpha` base by the per-chip offset.
+            let powers_of_alpha_shifted = powers_of_alpha.as_ptr().add(chip_alpha_offset as usize);
             let args = args!(
                 chunk.terms,
                 chunk.n_terms,

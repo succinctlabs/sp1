@@ -1,19 +1,15 @@
-// Sequential lowering for v2 zerocheck.
+// Sequential lowering for the DAG-native zerocheck.
 //
-// Interprets a chunk's bytecode per row, computing 3 eval-point partial sums
-// per CTA. Matches the host-side `ChunkBytecode` layout from
-// sp1-gpu-air/src/v2/bytecode.rs.
-//
-// Phase 2 scope: base-field DAG nodes only. Output is unweighted (no
-// partial_lagrange / lambda multiplication). The host weighting + final
-// reduction happens in a follow-up phase.
+// Interprets a chunk's bytecode per row, computing one ext_t partial per
+// (block, eval point). Mirrors the host-side `ChunkBytecode` layout from
+// `sp1-gpu-air/src/ir/bytecode.rs`.
 
 #pragma once
 
 #include "config.cuh"
 #include <cstdint>
 
-// Must match `DagInstr` in v2/bytecode.rs.
+// Must match `DagInstr` in sp1-gpu-air/src/ir/bytecode.rs.
 struct DagInstr {
     uint8_t opcode;
     uint8_t _pad;
@@ -22,14 +18,14 @@ struct DagInstr {
     uint16_t b;
 };
 
-// Must match `LeafRef` in v2/bytecode.rs.
+// Must match `LeafRef` in sp1-gpu-air/src/ir/bytecode.rs.
 struct LeafRef {
     uint8_t source;   // 2=PrepLocal, 4=MainLocal (local row only)
     uint8_t _pad;
     uint32_t col;
 };
 
-// Opcodes — must match `BcOp` in v2/bytecode.rs.
+// Opcodes — must match `BcOp` in sp1-gpu-air/src/ir/bytecode.rs.
 enum BcOp : uint8_t {
     BC_LOAD_LEAF   = 0,
     BC_LOAD_CONST  = 1,
@@ -92,8 +88,6 @@ struct BlockDispatch {
 // and launches one kernel per non-empty tier so each kernel's per-thread
 // register array is sized to its tier's worst case (not the entire
 // workload's worst case).
-extern "C" void* zerocheck_fused_sequential_kb_kernel();
-extern "C" void* zerocheck_fused_sequential_ext_kernel();
 extern "C" void* zerocheck_fused_sequential_kb_32_kernel();
 extern "C" void* zerocheck_fused_sequential_kb_64_kernel();
 extern "C" void* zerocheck_fused_sequential_kb_128_kernel();

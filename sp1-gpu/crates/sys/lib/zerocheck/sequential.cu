@@ -241,11 +241,3 @@ extern "C" void* zerocheck_fused_sequential_ext_512_kernel() {
 extern "C" void* zerocheck_fused_sequential_ext_1024_kernel() {
     return (void*)zerocheck_fused_sequential<ext_t, 1024>;
 }
-
-// Back-compat entry points (deprecated: use the tiered variants).
-extern "C" void* zerocheck_fused_sequential_kb_kernel() {
-    return (void*)zerocheck_fused_sequential<felt_t, 128>;
-}
-extern "C" void* zerocheck_fused_sequential_ext_kernel() {
-    return (void*)zerocheck_fused_sequential<ext_t, 128>;
-}

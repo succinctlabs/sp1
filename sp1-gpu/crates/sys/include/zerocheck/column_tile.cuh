@@ -10,7 +10,7 @@
 #include "zerocheck/sequential.cuh"   // re-uses LeafRef
 #include <cstdint>
 
-// Must match `ColumnTermEntry` in column_tile_bytecode.rs.
+// Must match `ColumnTermEntry` in sp1-gpu-air/src/ir/column_tile_bytecode.rs.
 struct ColumnTermEntry {
     uint32_t leaf_idx;
     uint32_t coeff_kind;   // 0 = const, 1 = public

@@ -31,10 +31,9 @@ extern "C" {
     pub fn fix_last_variable_jagged_felt() -> KernelPtr;
     pub fn fix_last_variable_jagged_ext() -> KernelPtr;
 
-    // Fused dispatch: one launch handles every Sequential chunk in a round.
-    // Per-thread idx → chunk_idx via binary search on `row_starts`.
-    pub fn zerocheck_fused_sequential_kb_kernel() -> KernelPtr;
-    pub fn zerocheck_fused_sequential_ext_kernel() -> KernelPtr;
+    // Fused dispatch: one launch per non-empty tier handles every
+    // Sequential chunk in a round. The launcher's per-block dispatch
+    // descriptor maps each block to its `(chunk_id, row_offset, n_rows)`.
     pub fn zerocheck_fused_sequential_kb_32_kernel() -> KernelPtr;
     pub fn zerocheck_fused_sequential_kb_64_kernel() -> KernelPtr;
     pub fn zerocheck_fused_sequential_kb_128_kernel() -> KernelPtr;
