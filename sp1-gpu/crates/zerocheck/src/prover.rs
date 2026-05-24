@@ -17,7 +17,6 @@ use slop_algebra::{
 };
 use slop_alloc::{Buffer, HasBackend};
 use slop_challenger::{FieldChallenger, VariableLengthChallenger};
-use slop_matrix::dense::RowMajorMatrixView;
 use slop_multilinear::Point;
 use slop_sumcheck::PartialSumcheckProof;
 use slop_tensor::Tensor;
@@ -38,16 +37,17 @@ use sp1_gpu_cudart::sys::kernels::{
     zerocheck_fused_sequential_kb_32_kernel, zerocheck_fused_sequential_kb_512_kernel,
     zerocheck_fused_sequential_kb_64_kernel, zerocheck_fused_sequential_kb_kernel,
     zerocheck_geq_corrections_kernel, zerocheck_gkr_sweep_ext_kernel,
-    zerocheck_gkr_sweep_kb_kernel,
+    zerocheck_gkr_sweep_kb_kernel, zerocheck_pad_adj_1024_kernel, zerocheck_pad_adj_128_kernel,
+    zerocheck_pad_adj_256_kernel, zerocheck_pad_adj_32_kernel, zerocheck_pad_adj_512_kernel,
+    zerocheck_pad_adj_64_kernel,
 };
 use sp1_gpu_cudart::sys::runtime::KernelPtr;
-use sp1_gpu_cudart::{args, DeviceBuffer, DevicePoint, TaskScope};
+use sp1_gpu_cudart::{args, DeviceBuffer, DeviceCopy, DevicePoint, TaskScope};
 use sp1_gpu_utils::{Ext, Felt, JaggedTraceMle};
 use sp1_hypercube::air::MachineAir;
 use sp1_hypercube::prover::ZerocheckAir;
 use sp1_hypercube::{
-    AirOpenedValues, Chip, ChipEvaluation, ChipOpenedValues, ConstraintSumcheckFolder,
-    LogUpEvaluations, ShardOpenedValues,
+    AirOpenedValues, Chip, ChipEvaluation, ChipOpenedValues, LogUpEvaluations, ShardOpenedValues,
 };
 
 use crate::challenger_update;
@@ -599,6 +599,20 @@ pub struct ZeroCheckJaggedPoly<'b, K: Field> {
     /// prep_width > 0). Used as the per-row mapping for the GKR dispatch
     /// table built each round.
     pub gkr_active_chips: Vec<u32>,
+
+    // ---- Per-round buffer caches (grow-only) ----
+    //
+    // The launcher's per-round host→device uploads (chip layouts, dispatch
+    // tables) used to allocate a fresh `DeviceBuffer` every round. With
+    // device-side allocator pools off, that's a CUDA malloc per upload per
+    // round — small at current scale but linear in chips × rounds and pure
+    // waste relative to reusing one buffer with `clear()` +
+    // `extend_from_host_slice()`. These caches hold the prior round's
+    // buffer and refill in place; only re-allocate when the new payload
+    // exceeds the cached capacity.
+    pub cached_chip_layouts_buf: Option<Buffer<ChipLayoutC, TaskScope>>,
+    pub cached_seq_dispatch: [Option<Buffer<BlockDispatchC, TaskScope>>; 2],
+    pub cached_gkr_dispatch: Option<Buffer<BlockDispatchC, TaskScope>>,
 }
 
 /// Shard-static data for one fused-kernel tier (low-reg / high-reg).
@@ -712,7 +726,6 @@ pub fn initialize_zerocheck_poly<'b, A>(
     powers_of_alpha: Vec<Ext>,
     gkr_powers: Vec<Ext>,
     powers_of_lambda: Vec<Ext>,
-    padded_row_adjustment: Vec<Ext>,
     zeta: Point<Ext>,
     claim: Ext,
 ) -> ZeroCheckJaggedPoly<'b, Felt>
@@ -785,6 +798,22 @@ where
         .collect();
     let chip_geq_state_dev =
         DeviceBuffer::from_host_slice(&geq_state_host, scope).unwrap().into_inner();
+
+    // ---- padded_row_adjustment on device ----
+    //
+    // Replaces the per-chip CPU `chip.air.eval` loop that used to run at
+    // shard init. The bytecode interpreter knows how to evaluate every
+    // chip's constraints; we just run it at the all-zero trace and sum
+    // asserts. ColumnTile chunks contribute exactly zero at the zero trace
+    // (every term is `coeff · 0`), so summing only Sequential chunks is
+    // mathematically exact.
+    let padded_row_adjustment = compute_padded_row_adjustment(
+        compiled_chips_dev.len(),
+        &seq_tiers,
+        &public_values_device,
+        &powers_of_alpha_device,
+        scope,
+    );
     let chip_pad_adj_dev =
         DeviceBuffer::from_host_slice(&padded_row_adjustment, scope).unwrap().into_inner();
 
@@ -830,6 +859,9 @@ where
         n_geq_chips,
         chip_gkr_info_dev,
         gkr_active_chips,
+        cached_chip_layouts_buf: None,
+        cached_seq_dispatch: [None, None],
+        cached_gkr_dispatch: None,
     }
 }
 
@@ -934,6 +966,105 @@ fn build_seq_tiers(
     tiers
 }
 
+/// Refill a cached device buffer in place from a host slice, growing the
+/// allocation only when capacity is insufficient. Returns a reference to
+/// the (now-refilled) buffer.
+fn refill_buffer<'a, T: Copy + DeviceCopy>(
+    cache: &'a mut Option<Buffer<T, TaskScope>>,
+    host_data: &[T],
+    scope: &TaskScope,
+) -> &'a Buffer<T, TaskScope> {
+    let needed = host_data.len().max(1);
+    if cache.as_ref().is_none_or(|b| b.capacity() < needed) {
+        *cache = Some(Buffer::with_capacity_in(needed, scope.clone()));
+    }
+    let buf = cache.as_mut().unwrap();
+    // SAFETY: set_len(0) shrinks the buffer's effective length to zero before
+    // we refill via extend_from_host_slice. Shrinking len is always safe (no
+    // new bytes claimed); the previous bytes are not dropped, but T: Copy so
+    // there's nothing to drop.
+    unsafe {
+        buf.set_len(0);
+    }
+    buf.extend_from_host_slice(host_data).unwrap();
+    cache.as_ref().unwrap()
+}
+
+/// Pick the `zerocheck_pad_adj` template that covers a tier's worst-case
+/// register footprint. Mirrors the `fused_sequential_kernel_for` ladder.
+fn pad_adj_kernel_for(max_reg_in_tier: u16) -> KernelPtr {
+    unsafe {
+        if max_reg_in_tier <= 32 {
+            zerocheck_pad_adj_32_kernel()
+        } else if max_reg_in_tier <= 64 {
+            zerocheck_pad_adj_64_kernel()
+        } else if max_reg_in_tier <= 128 {
+            zerocheck_pad_adj_128_kernel()
+        } else if max_reg_in_tier <= 256 {
+            zerocheck_pad_adj_256_kernel()
+        } else if max_reg_in_tier <= 512 {
+            zerocheck_pad_adj_512_kernel()
+        } else {
+            zerocheck_pad_adj_1024_kernel()
+        }
+    }
+}
+
+/// Compute the per-chip `padded_row_adjustment` on device: run the bytecode
+/// interpreter at the all-zero trace for each chunk, sum asserts, then sum
+/// per chip on the host (`chip_indices` tells us which chip each tier slot
+/// belongs to).
+///
+/// Replaces the CPU `chip.air.eval` loop that used to run at shard init —
+/// the device already has the bytecode and the alpha powers it needs.
+/// ColumnTile chunks contribute exactly zero at the zero trace (every term
+/// is `coeff · 0`), so summing only Sequential chunks is exact.
+fn compute_padded_row_adjustment(
+    n_chips: usize,
+    seq_tiers: &[SeqTierStatic; 2],
+    public_values: &Buffer<Felt, TaskScope>,
+    powers_of_alpha: &Buffer<Ext, TaskScope>,
+    scope: &TaskScope,
+) -> Vec<Ext> {
+    let mut padded_row_adjustment = vec![Ext::zero(); n_chips];
+    const PAD_ADJ_BLOCK_SIZE: u32 = 64;
+    for tier in seq_tiers.iter() {
+        let n_chunks = tier.static_host.len();
+        if n_chunks == 0 {
+            continue;
+        }
+        let static_buf = tier.static_buf.as_ref().unwrap();
+        let mut output: Tensor<Ext, TaskScope> = Tensor::with_sizes_in([n_chunks], scope.clone());
+        unsafe {
+            output.assume_init();
+        }
+        let n_blocks = (n_chunks as u32).div_ceil(PAD_ADJ_BLOCK_SIZE);
+        unsafe {
+            let args = args!(
+                static_buf.as_ptr(),
+                (n_chunks as u32),
+                public_values.as_ptr(),
+                powers_of_alpha.as_ptr(),
+                output.as_mut_ptr()
+            );
+            scope
+                .launch_kernel(
+                    pad_adj_kernel_for(tier.max_reg),
+                    (n_blocks, 1u32, 1u32),
+                    (PAD_ADJ_BLOCK_SIZE, 1u32, 1u32),
+                    &args,
+                    0,
+                )
+                .unwrap();
+        }
+        let per_chunk: Vec<Ext> = unsafe { output.into_buffer().copy_into_host_vec() };
+        for (i, &chip_idx) in tier.chip_indices.iter().enumerate() {
+            padded_row_adjustment[chip_idx as usize] += per_chunk[i];
+        }
+    }
+    padded_row_adjustment
+}
+
 /// Compute the per-chip main/preprocessed trace pointers within the jagged
 /// dense buffer, using the jagged structure's `start_indices` and
 /// `column_heights` (in pair units) as the source of truth:
@@ -1013,7 +1144,7 @@ where
 // ============================================================================
 
 pub fn evaluate_zerocheck<'b, K: Field>(
-    poly: &ZeroCheckJaggedPoly<'b, K>,
+    poly: &mut ZeroCheckJaggedPoly<'b, K>,
 ) -> UnivariatePolynomial<Ext>
 where
     TaskScope: EvalKernels<K>,
@@ -1067,8 +1198,9 @@ where
             _pad: 0,
         })
         .collect();
-    let chip_layouts_buf =
-        DeviceBuffer::from_host_slice(&chip_layouts, backend).unwrap().into_inner();
+    // Reuse the cached chip_layouts buffer; refill in place (grow-only).
+    let chip_layouts_ptr =
+        refill_buffer(&mut poly.cached_chip_layouts_buf, &chip_layouts, backend).as_ptr();
 
     // ---- Walk active chips for ColumnTile fallback launches ----
     //
@@ -1186,22 +1318,25 @@ where
     let shared_output_ptr = shared_output.as_mut_ptr();
 
     // ---- Launch one fused kernel per non-empty tier ----
-    let mut _dispatch_keepalive: Vec<Buffer<BlockDispatchC, TaskScope>> = Vec::with_capacity(2);
+    //
+    // Per-tier dispatch buffers are pooled in `poly.cached_seq_dispatch`
+    // (grow-only) so we don't pay a CUDA malloc per round per tier.
     for t in 0..2 {
         if dispatch_tiers[t].is_empty() {
             continue;
         }
         let bs = block_size_for(t);
-        let dispatch_buf =
-            DeviceBuffer::from_host_slice(&dispatch_tiers[t], backend).unwrap().into_inner();
-        let static_buf = poly.seq_tiers[t].static_buf.as_ref().unwrap();
+        let dispatch_ptr =
+            refill_buffer(&mut poly.cached_seq_dispatch[t], &dispatch_tiers[t], backend).as_ptr();
+        let static_ptr = poly.seq_tiers[t].static_buf.as_ref().unwrap().as_ptr();
+        let max_reg = poly.seq_tiers[t].max_reg;
         let out_ptr = unsafe { shared_output_ptr.add(tier_slot[t]) };
         let shmem_bytes = (bs as usize / 32).max(1) * std::mem::size_of::<Ext>();
         unsafe {
             let args = args!(
-                dispatch_buf.as_ptr(),
-                static_buf.as_ptr(),
-                chip_layouts_buf.as_ptr(),
+                dispatch_ptr,
+                static_ptr,
+                chip_layouts_ptr,
                 trace_ptr,
                 poly.public_values.as_ptr(),
                 poly.powers_of_alpha.as_ptr(),
@@ -1213,9 +1348,7 @@ where
             );
             backend
                 .launch_kernel(
-                    <TaskScope as EvalKernels<K>>::fused_sequential_kernel_for(
-                        poly.seq_tiers[t].max_reg,
-                    ),
+                    <TaskScope as EvalKernels<K>>::fused_sequential_kernel_for(max_reg),
                     (dispatch_tiers[t].len() as u32, 1, 3),
                     (bs, 1, 1),
                     &args,
@@ -1223,7 +1356,6 @@ where
                 )
                 .unwrap();
         }
-        _dispatch_keepalive.push(dispatch_buf);
     }
 
     // Launch any remaining ColumnTile chunks individually (typically zero
@@ -1274,7 +1406,7 @@ where
                 poly.chip_geq_state_dev.as_ptr(),
                 poly.chip_pad_adj_dev.as_ptr(),
                 poly.powers_of_lambda.as_ptr(),
-                chip_layouts_buf.as_ptr(),
+                chip_layouts_ptr,
                 partial_lagrange.as_ptr(),
                 rest_point_dim,
                 out_ptr
@@ -1298,14 +1430,14 @@ where
     // warp-per-row + lane-strided column reduction so chips with widths in
     // the thousands parallelise across the warp's lanes instead of running
     // a O(width) column loop in a single thread.
-    let _gkr_dispatch_keepalive = if !gkr_dispatch.is_empty() {
-        let gkr_buf = DeviceBuffer::from_host_slice(&gkr_dispatch, backend).unwrap().into_inner();
+    if !gkr_dispatch.is_empty() {
+        let gkr_ptr = refill_buffer(&mut poly.cached_gkr_dispatch, &gkr_dispatch, backend).as_ptr();
         let out_ptr = unsafe { shared_output_ptr.add(gkr_slot) };
         let shmem_bytes = (GKR_BLOCK_SIZE as usize / 32) * std::mem::size_of::<Ext>();
         unsafe {
             let args = args!(
-                gkr_buf.as_ptr(),
-                chip_layouts_buf.as_ptr(),
+                gkr_ptr,
+                chip_layouts_ptr,
                 poly.chip_gkr_info_dev.as_ptr(),
                 trace_ptr,
                 poly.gkr_powers.as_ptr(),
@@ -1324,10 +1456,7 @@ where
                 )
                 .unwrap();
         }
-        Some(gkr_buf)
-    } else {
-        None
-    };
+    }
 
     // ---- Device-side aggregation ----
     //
@@ -1588,6 +1717,9 @@ where
         n_geq_chips: input.n_geq_chips,
         chip_gkr_info_dev: input.chip_gkr_info_dev,
         gkr_active_chips: input.gkr_active_chips,
+        cached_chip_layouts_buf: input.cached_chip_layouts_buf,
+        cached_seq_dispatch: input.cached_seq_dispatch,
+        cached_gkr_dispatch: input.cached_gkr_dispatch,
     }
 }
 
@@ -1630,26 +1762,10 @@ where
     let num_chips = chips.len();
     let debug_timing = std::env::var("SP1_GPU_ZEROCHECK_TIMING").is_ok();
 
-    // padded_row_adjustment (CPU per-chip folder accumulator at all-zero trace).
+    // `padded_row_adjustment` is now computed on device inside
+    // `initialize_zerocheck_poly` (`zerocheck_pad_adj` kernel) — the host
+    // CPU folder loop is gone.
     let t_setup = std::time::Instant::now();
-    let mut padded_row_adjustment = vec![Ext::zero(); num_chips];
-    for (i, chip) in chips.iter().enumerate() {
-        let prep_len = chip.preprocessed_width();
-        let main_len = chip.width();
-        let prep_zero = vec![Felt::zero(); prep_len];
-        let main_zero = vec![Felt::zero(); main_len];
-        let mut folder = ConstraintSumcheckFolder {
-            preprocessed: RowMajorMatrixView::new_row(&prep_zero),
-            main: RowMajorMatrixView::new_row(&main_zero),
-            accumulator: Ext::zero(),
-            public_values: &public_values,
-            constraint_index: 0,
-            powers_of_alpha: &powers_of_challenge
-                [powers_of_challenge.len() - chip.num_constraints..],
-        };
-        chip.air.eval(&mut folder);
-        padded_row_adjustment[i] = folder.accumulator;
-    }
 
     let gkr_powers =
         gkr_opening_batch_randomness.powers().skip(1).take(max_columns).collect::<Vec<_>>();
@@ -1712,7 +1828,7 @@ where
         );
     }
 
-    let main_poly = initialize_zerocheck_poly(
+    let mut main_poly = initialize_zerocheck_poly(
         trace_mle,
         chips,
         compiled_dev,
@@ -1722,7 +1838,6 @@ where
         powers_of_challenge,
         gkr_powers,
         powers_of_lambda,
-        padded_row_adjustment,
         gkr_point.clone(),
         claim,
     );
@@ -1734,7 +1849,7 @@ where
     let mut total_eval = std::time::Duration::ZERO;
     let mut total_chal = std::time::Duration::ZERO;
     let t = std::time::Instant::now();
-    let mut result = evaluate_zerocheck(&main_poly);
+    let mut result = evaluate_zerocheck(&mut main_poly);
     if debug_timing {
         total_eval += t.elapsed();
     }
@@ -1752,7 +1867,7 @@ where
     }
     for _ in 0..max_log_row_count - 1 {
         let t = std::time::Instant::now();
-        result = evaluate_zerocheck(&next_poly);
+        result = evaluate_zerocheck(&mut next_poly);
         if debug_timing {
             total_eval += t.elapsed();
         }

@@ -72,6 +72,18 @@ extern "C" {
     pub fn zerocheck_gkr_sweep_kb_kernel() -> KernelPtr;
     pub fn zerocheck_gkr_sweep_ext_kernel() -> KernelPtr;
 
+    // zerocheck (DAG-native): per-chunk padded_row_adjustment via the
+    // bytecode interpreter at the all-zero trace. One thread per chunk;
+    // output is one ext_t per chunk, summed by chip on the host into the
+    // per-chip `padded_row_adjustment`. Tiered by MAX_REGS like
+    // `fused_sequential`.
+    pub fn zerocheck_pad_adj_32_kernel() -> KernelPtr;
+    pub fn zerocheck_pad_adj_64_kernel() -> KernelPtr;
+    pub fn zerocheck_pad_adj_128_kernel() -> KernelPtr;
+    pub fn zerocheck_pad_adj_256_kernel() -> KernelPtr;
+    pub fn zerocheck_pad_adj_512_kernel() -> KernelPtr;
+    pub fn zerocheck_pad_adj_1024_kernel() -> KernelPtr;
+
     // Jagged Zerocheck Kernels
     pub fn jagged_constraint_poly_eval_32_koala_bear_kernel() -> KernelPtr;
     pub fn jagged_constraint_poly_eval_64_koala_bear_kernel() -> KernelPtr;
