@@ -209,7 +209,34 @@ impl ProverClientBuilder {
             rpc_url: None,
             tee_signers: None,
             network_mode: Some(mode),
+            hosted: false,
             machine: self.machine.clone(),
         }
+    }
+
+    /// Builds a hosted [`NetworkProver`] for self-hosted clusters talking to the network-gateway.
+    ///
+    /// # Details
+    /// A hosted prover runs in [`NetworkMode::Reserved`] and makes `prove(&pk, stdin).await` skip
+    /// local simulation and use the maximum cycle and gas limits by default, so no
+    /// network-specific toggles are needed. The defaults remain overridable per request.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
+    ///
+    /// tokio_test::block_on(async {
+    ///     let elf = Elf::Static(&[1, 2, 3]);
+    ///     let stdin = SP1Stdin::new();
+    ///
+    ///     let prover = ProverClient::builder().hosted().build().await;
+    ///     let pk = prover.setup(elf).await.unwrap();
+    ///     let proof = prover.prove(&pk, stdin).compressed().await.unwrap();
+    /// });
+    /// ```
+    #[cfg(feature = "network")]
+    #[must_use]
+    pub fn hosted(&self) -> NetworkProverBuilder {
+        self.network_for(NetworkMode::Reserved).hosted()
     }
 }
