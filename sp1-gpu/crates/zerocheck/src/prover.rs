@@ -37,7 +37,8 @@ use sp1_gpu_cudart::sys::kernels::{
     zerocheck_fused_sequential_kb_128_kernel, zerocheck_fused_sequential_kb_256_kernel,
     zerocheck_fused_sequential_kb_32_kernel, zerocheck_fused_sequential_kb_512_kernel,
     zerocheck_fused_sequential_kb_64_kernel, zerocheck_fused_sequential_kb_kernel,
-    zerocheck_geq_corrections_kernel,
+    zerocheck_geq_corrections_kernel, zerocheck_gkr_sweep_ext_kernel,
+    zerocheck_gkr_sweep_kb_kernel,
 };
 use sp1_gpu_cudart::sys::runtime::KernelPtr;
 use sp1_gpu_cudart::{args, DeviceBuffer, DevicePoint, TaskScope};
@@ -215,11 +216,25 @@ pub struct ChunkStaticC {
     pub n_instrs: u32,
     pub n_asserts: u32,
     pub chip_idx: u32,
+    /// Carrier-chunk inline GKR widths. Set non-zero ONLY for narrow chips
+    /// (total width ≤ `WIDE_GKR_THRESHOLD`) where keeping the column sweep
+    /// inline preserves L1 locality with constraint reads. Wide chips get
+    /// GKR via `zerocheck_gkr_sweep` and have these zeroed here.
     pub gkr_main_width: u32,
     pub gkr_prep_width: u32,
     /// Cluster-dependent shift added to every chip-relative alpha index in
     /// this chunk's bytecode before indexing `powers_of_alpha`.
     pub chip_alpha_offset: u32,
+}
+
+/// Per-chip GKR widths held on device. Indexed by `chip_idx`; shard-static
+/// (widths don't depend on per-round fold). Mirrors `ChipGkrInfo` in
+/// `sys/include/zerocheck/gkr_sweep.cuh`.
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct ChipGkrInfoC {
+    pub main_width: u32,
+    pub prep_width: u32,
 }
 
 // SAFETY: holds raw device pointers; the kernel dereferences them on the GPU
@@ -578,6 +593,12 @@ pub struct ZeroCheckJaggedPoly<'b, K: Field> {
     /// Number of chips in `geq_chip_indices_dev`. Drives the grid size of
     /// `zerocheck_geq_corrections`.
     pub n_geq_chips: usize,
+    /// Per-chip GKR widths on device, indexed by `chip_idx`. Shard-static.
+    pub chip_gkr_info_dev: Buffer<ChipGkrInfoC, TaskScope>,
+    /// Chips that participate in GKR (any chip with main_width > 0 or
+    /// prep_width > 0). Used as the per-row mapping for the GKR dispatch
+    /// table built each round.
+    pub gkr_active_chips: Vec<u32>,
 }
 
 /// Shard-static data for one fused-kernel tier (low-reg / high-reg).
@@ -613,6 +634,9 @@ pub trait EvalKernels<K: Field> {
     /// tier so each kernel's local register array is sized to its tier's
     /// worst case.
     fn fused_sequential_kernel_for(max_reg_in_tier: u16) -> KernelPtr;
+    /// Per-chip GKR column sweep — one block per (chip, row-tile), warp-
+    /// per-row with lane-strided column reduction so wide chips scale.
+    fn gkr_sweep_kernel() -> KernelPtr;
 }
 
 impl EvalKernels<Felt> for TaskScope {
@@ -639,6 +663,9 @@ impl EvalKernels<Felt> for TaskScope {
             }
         }
     }
+    fn gkr_sweep_kernel() -> KernelPtr {
+        unsafe { zerocheck_gkr_sweep_kb_kernel() }
+    }
 }
 
 impl EvalKernels<Ext> for TaskScope {
@@ -664,6 +691,9 @@ impl EvalKernels<Ext> for TaskScope {
                 zerocheck_fused_sequential_ext_1024_kernel()
             }
         }
+    }
+    fn gkr_sweep_kernel() -> KernelPtr {
+        unsafe { zerocheck_gkr_sweep_ext_kernel() }
     }
 }
 
@@ -709,6 +739,34 @@ where
         DeviceBuffer::from_host(&Buffer::from(powers_of_lambda), scope).unwrap().into_inner();
 
     let seq_tiers = build_seq_tiers(&compiled_chips_dev, &chip_alpha_offset, scope);
+
+    // ---- Per-chip GKR info on device ----
+    //
+    // The GKR column sweep (formerly inlined in the carrier chunk) is now
+    // its own kernel that runs uniformly for every chip with non-zero
+    // width. This also fixes the latent gap where ColumnTile-only chips
+    // never got GKR.
+    let chip_gkr_info_host: Vec<ChipGkrInfoC> = compiled_chips_dev
+        .iter()
+        .map(|chip| ChipGkrInfoC { main_width: chip.main_width, prep_width: chip.prep_width })
+        .collect();
+    let chip_gkr_info_dev =
+        DeviceBuffer::from_host_slice(&chip_gkr_info_host, scope).unwrap().into_inner();
+    // The decoupled GKR kernel runs for any chip whose carrier-chunk inline
+    // GKR doesn't (or can't) fire: wide chips (`build_seq_tiers` zeroed
+    // their inline widths) and chips that lack a Sequential carrier
+    // entirely (ColumnTile-only — narrow or wide, neither path runs
+    // otherwise). Both groups need decoupled coverage.
+    let gkr_active_chips: Vec<u32> = compiled_chips_dev
+        .iter()
+        .filter(|chip| chip.main_width + chip.prep_width > 0)
+        .filter(|chip| {
+            let has_seq_carrier =
+                chip.chunks.iter().any(|c| matches!(c.kind, ChunkKind::Sequential));
+            chip_uses_decoupled_gkr(chip.main_width, chip.prep_width) || !has_seq_carrier
+        })
+        .map(|chip| chip.chip_idx)
+        .collect();
 
     // ---- Per-chip geq state on device ----
     //
@@ -770,6 +828,8 @@ where
         chip_pad_adj_dev,
         geq_chip_indices_dev,
         n_geq_chips,
+        chip_gkr_info_dev,
+        gkr_active_chips,
     }
 }
 
@@ -786,6 +846,25 @@ where
 /// Sequential chunks, otherwise the launch fragmentation cost outweighs the
 /// per-thread footprint win.
 const TIER_SPLIT_MAX_REG: u16 = 256;
+
+/// Per-chip total GKR width (`main_width + prep_width`) above which we use
+/// the dedicated `zerocheck_gkr_sweep` kernel (warp-per-row, lane-strided
+/// columns) instead of the inline carrier-chunk loop. Narrow chips below
+/// the threshold keep their inline GKR for L1 locality with constraint
+/// reads; wide chips need column parallelism to scale.
+///
+/// Measured on RTX 5090: at 32 the kernel hand-off cost out-weighs the
+/// column-parallel win until widths reach ~hundreds; 128 keeps the current
+/// SP1 chip set (max width ~70) on the inline path while still routing
+/// future regime-2 chips (widths 100-10k) through the decoupled kernel.
+pub const WIDE_GKR_THRESHOLD: u32 = 256;
+
+/// True iff this chip's GKR work should run in the dedicated decoupled
+/// kernel. Stays false for typical SP1 chips today; flips to true for the
+/// regime-2 case of chips with widths in the hundreds-to-thousands.
+fn chip_uses_decoupled_gkr(main_width: u32, prep_width: u32) -> bool {
+    main_width + prep_width > WIDE_GKR_THRESHOLD
+}
 
 fn build_seq_tiers(
     compiled: &[CompiledChipDevice],
@@ -817,6 +896,10 @@ fn build_seq_tiers(
 
     for chip in compiled.iter() {
         let chip_idx = chip.chip_idx;
+        // Decoupled-GKR chips have their inline widths zeroed so the
+        // sequential kernel skips the in-line column sweep (the decoupled
+        // kernel handles them).
+        let decoupled = chip_uses_decoupled_gkr(chip.main_width, chip.prep_width);
         for chunk in chip.chunks.iter() {
             if !matches!(chunk.kind, ChunkKind::Sequential) {
                 continue;
@@ -835,8 +918,8 @@ fn build_seq_tiers(
                 n_instrs: chunk.n_instrs,
                 n_asserts: chunk.n_asserts,
                 chip_idx,
-                gkr_main_width: chunk.gkr_main_width,
-                gkr_prep_width: chunk.gkr_prep_width,
+                gkr_main_width: if decoupled { 0 } else { chunk.gkr_main_width },
+                gkr_prep_width: if decoupled { 0 } else { chunk.gkr_prep_width },
                 chip_alpha_offset: chip_alpha_offset[chip_idx as usize],
             });
         }
@@ -1005,7 +1088,14 @@ where
         let height = poly.chip_heights[chip_idx as usize];
 
         for chunk in chip.chunks.iter() {
+            // Skip the synthesized `is_gkr` ColumnTile fallback — the
+            // dedicated `zerocheck_gkr_sweep` kernel now handles GKR for
+            // every chip uniformly, so the legacy fallback would
+            // double-count.
             if let ChunkKind::ColumnTile = chunk.kind {
+                if chunk.is_gkr {
+                    continue;
+                }
                 ct_launches.push((chip_idx, chunk, preprocessed_ptr, main_ptr, height, row_count));
             }
         }
@@ -1037,6 +1127,29 @@ where
         }
     }
 
+    // ---- GKR dispatch table ----
+    //
+    // One block per (active chip, row-tile). The chip's `chip_idx` is
+    // packed into `BlockDispatchC.chunk_id` (the GKR kernel reuses the
+    // same descriptor struct, just with different field semantics).
+    // Block size for GKR is fixed (256, 8 warps); tile = block_size *
+    // ROWS_PER_THREAD matches the sequential pattern.
+    const GKR_BLOCK_SIZE: u32 = 256;
+    let gkr_tile: u32 = GKR_BLOCK_SIZE * ROWS_PER_THREAD;
+    let mut gkr_dispatch: Vec<BlockDispatchC> = Vec::new();
+    for &chip_idx in poly.gkr_active_chips.iter() {
+        let row_count = poly.chip_heights[chip_idx as usize] / 2;
+        if row_count == 0 {
+            continue;
+        }
+        let mut row_offset = 0u32;
+        while row_offset < row_count {
+            let n_rows = (row_count - row_offset).min(gkr_tile);
+            gkr_dispatch.push(BlockDispatchC { chunk_id: chip_idx, row_offset, n_rows });
+            row_offset += gkr_tile;
+        }
+    }
+
     // ---- Slot allocation in the shared output ----
     let mut tier_slot: [usize; 2] = [0, 0];
     let mut total_slots: usize = 0;
@@ -1061,6 +1174,9 @@ where
     // host aggregation pass below adds them straight into totals.
     let geq_slot = total_slots;
     total_slots += poly.n_geq_chips * NUM_EVAL_POINT;
+    // GKR sweep slots: one (block, eval_point) per GKR dispatch entry.
+    let gkr_slot = total_slots;
+    total_slots += gkr_dispatch.len() * NUM_EVAL_POINT;
 
     let mut shared_output: Tensor<Ext, TaskScope> =
         Tensor::with_sizes_in([total_slots.max(1)], backend.clone());
@@ -1174,6 +1290,44 @@ where
                 .unwrap();
         }
     }
+
+    // ---- GKR column sweep ----
+    //
+    // Replaces the carrier-chunk piggyback that used to live inside the
+    // sequential kernel. One block per (chip, row-tile); the kernel uses
+    // warp-per-row + lane-strided column reduction so chips with widths in
+    // the thousands parallelise across the warp's lanes instead of running
+    // a O(width) column loop in a single thread.
+    let _gkr_dispatch_keepalive = if !gkr_dispatch.is_empty() {
+        let gkr_buf = DeviceBuffer::from_host_slice(&gkr_dispatch, backend).unwrap().into_inner();
+        let out_ptr = unsafe { shared_output_ptr.add(gkr_slot) };
+        let shmem_bytes = (GKR_BLOCK_SIZE as usize / 32) * std::mem::size_of::<Ext>();
+        unsafe {
+            let args = args!(
+                gkr_buf.as_ptr(),
+                chip_layouts_buf.as_ptr(),
+                poly.chip_gkr_info_dev.as_ptr(),
+                trace_ptr,
+                poly.gkr_powers.as_ptr(),
+                partial_lagrange.as_ptr(),
+                poly.powers_of_lambda.as_ptr(),
+                rest_point_dim,
+                out_ptr
+            );
+            backend
+                .launch_kernel(
+                    <TaskScope as EvalKernels<K>>::gkr_sweep_kernel(),
+                    (gkr_dispatch.len() as u32, 1, 3),
+                    (GKR_BLOCK_SIZE, 1, 1),
+                    &args,
+                    shmem_bytes,
+                )
+                .unwrap();
+        }
+        Some(gkr_buf)
+    } else {
+        None
+    };
 
     // ---- Device-side aggregation ----
     //
@@ -1432,6 +1586,8 @@ where
         chip_pad_adj_dev: input.chip_pad_adj_dev,
         geq_chip_indices_dev: input.geq_chip_indices_dev,
         n_geq_chips: input.n_geq_chips,
+        chip_gkr_info_dev: input.chip_gkr_info_dev,
+        gkr_active_chips: input.gkr_active_chips,
     }
 }
 

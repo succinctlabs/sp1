@@ -66,6 +66,12 @@ extern "C" {
     // host then only downloads the 3 totals instead of the full partials.
     pub fn zerocheck_aggregate_partials_kernel() -> KernelPtr;
 
+    // zerocheck (DAG-native): per-chip GKR column sweep. Decoupled from the
+    // sequential constraint kernel so wide chips can parallelise the column
+    // reduction across a warp's lanes. One block per (chip, row-tile).
+    pub fn zerocheck_gkr_sweep_kb_kernel() -> KernelPtr;
+    pub fn zerocheck_gkr_sweep_ext_kernel() -> KernelPtr;
+
     // Jagged Zerocheck Kernels
     pub fn jagged_constraint_poly_eval_32_koala_bear_kernel() -> KernelPtr;
     pub fn jagged_constraint_poly_eval_64_koala_bear_kernel() -> KernelPtr;

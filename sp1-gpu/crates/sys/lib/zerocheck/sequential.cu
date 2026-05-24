@@ -140,9 +140,14 @@ __global__ void zerocheck_fused_sequential(
             acc += alpha * regs[reg];
         }
 
+        // Inline GKR column sweep for the carrier chunk of NARROW chips
+        // (the launcher zeroes these widths for wide chips, which get GKR
+        // via the dedicated `zerocheck_gkr_sweep` kernel). Inline keeps
+        // the column reads in L1 alongside the constraint leaf reads,
+        // which matters for narrow widths.
+        //
+        // Geq correction is always out-of-band (`zerocheck_geq_corrections`).
         if (stc.gkr_main_width != 0 || stc.gkr_prep_width != 0) {
-            // Same diff-doubling trick as BC_LOAD_LEAF for the GKR carrier
-            // columns: `z + ep*(o-z)` becomes `z + d2` or `z + d2 + d2`.
             for (uint32_t i = 0; i < stc.gkr_main_width; i++) {
                 K z = K::load(trace_data, lay.main_ptr + i * lay.height + (row_idx << 1));
                 K v;
@@ -155,8 +160,7 @@ __global__ void zerocheck_fused_sequential(
                     K d2 = diff + diff;
                     v = (e == 1) ? (z + d2) : (z + d2 + d2);
                 }
-                ext_t bp = ext_t::load(gkr_powers, i);
-                acc += bp * v;
+                acc += ext_t::load(gkr_powers, i) * v;
             }
             for (uint32_t i = 0; i < stc.gkr_prep_width; i++) {
                 K z = K::load(trace_data,
@@ -171,12 +175,8 @@ __global__ void zerocheck_fused_sequential(
                     K d2 = diff + diff;
                     v = (e == 1) ? (z + d2) : (z + d2 + d2);
                 }
-                ext_t bp = ext_t::load(gkr_powers, stc.gkr_main_width + i);
-                acc += bp * v;
+                acc += ext_t::load(gkr_powers, stc.gkr_main_width + i) * v;
             }
-
-            // The chip's geq correction is summed once per chip per round by
-            // `zerocheck_geq_corrections`, not per row here.
         }
 
         if (row_idx < row_limit) {

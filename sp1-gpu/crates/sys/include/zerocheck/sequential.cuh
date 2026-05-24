@@ -54,6 +54,11 @@ struct ChunkStatic {
     uint32_t n_instrs;                 // 4
     uint32_t n_asserts;                // 4
     uint32_t chip_idx;                 // 4
+    /// Carrier-chunk inline-GKR widths. Set non-zero ONLY for narrow chips
+    /// (total width ≤ WIDE_GKR_THRESHOLD) where keeping the column sweep
+    /// inline preserves L1 cache locality with constraint leaf reads. Wide
+    /// chips get GKR via the dedicated `zerocheck_gkr_sweep` kernel and
+    /// have these zeroed at shard init.
     uint32_t gkr_main_width;           // 4
     uint32_t gkr_prep_width;           // 4
     uint32_t chip_alpha_offset;        // 4 — added to chip-relative alpha idx
