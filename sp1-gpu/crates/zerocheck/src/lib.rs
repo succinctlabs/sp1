@@ -1325,10 +1325,15 @@ pub mod tests {
                 main_table_index,
                 main_padding: 0,
                 preprocessed_padding: 0,
+                // The synthetic trace layout emits exactly one prep-padding
+                // column (see the `heights.push(padded_preprocessed / 2 - cnt
+                // as u32)` line above); no main-padding columns.
+                prep_padding_col_count: 1,
+                main_padding_col_count: 0,
             },
             Buffer::from(cols),
             Buffer::from(start_idx),
-            heights,
+            Buffer::from(heights),
         )
     }
 

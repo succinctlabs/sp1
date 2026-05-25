@@ -273,11 +273,15 @@ fn fix_and_sum_first_layer(
     let height = poly.layer.jagged_mle.dense_data.height >> 1;
 
     // Compute the next layer's start indices and column heights.
-    let (output_interaction_start_indices, output_interaction_row_counts) =
+    let (output_interaction_start_indices, output_interaction_row_counts, _) =
         poly.layer.jagged_mle.next_start_indices_and_column_heights();
     let output_height = output_interaction_start_indices.last().copied().unwrap() as usize;
     let output_interaction_start_indices =
         DeviceBuffer::from_host(&output_interaction_start_indices, backend).unwrap().into_inner();
+    let output_interaction_row_counts =
+        DeviceBuffer::from_host_slice(&output_interaction_row_counts, backend)
+            .unwrap()
+            .into_inner();
 
     // Create a new layer
     let output_layer: Tensor<Ext, TaskScope> =
@@ -517,12 +521,16 @@ fn fix_and_sum_materialized_round(
             } else {
                 let eq_row = poly.eq_row.fix_last_variable_constant_padding(alpha, Ext::zero());
 
-                let (output_interaction_start_indices, output_interaction_row_counts) =
+                let (output_interaction_start_indices, output_interaction_row_counts, _) =
                     circuit.jagged_mle.next_start_indices_and_column_heights();
                 let output_height =
                     output_interaction_start_indices.last().copied().unwrap() as usize;
                 let output_interaction_start_indices =
                     DeviceBuffer::from_host(&output_interaction_start_indices, backend)
+                        .unwrap()
+                        .into_inner();
+                let output_interaction_row_counts =
+                    DeviceBuffer::from_host_slice(&output_interaction_row_counts, backend)
                         .unwrap()
                         .into_inner();
 

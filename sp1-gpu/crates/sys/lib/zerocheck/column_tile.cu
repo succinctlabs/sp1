@@ -31,9 +31,7 @@ __global__ void zerocheck_column_tile(
     const felt_t* __restrict__ consts,
     const uint32_t* __restrict__ publics,
     const K* __restrict__ trace_data,
-    size_t preprocessed_ptr,
-    size_t main_ptr,
-    uint32_t height,
+    const ChipLayout* __restrict__ chip_layouts,
     const felt_t* __restrict__ public_values,
     const ext_t* __restrict__ powers_of_alpha,
     const ext_t* __restrict__ partial_lagrange,
@@ -44,6 +42,14 @@ __global__ void zerocheck_column_tile(
     uint32_t row_count,
     ext_t* __restrict__ partials
 ) {
+    // Per-chip trace pointers + height come from `chip_layouts[chip_idx]`.
+    // The host-side caller no longer passes them as scalar args — every
+    // per-chip kernel (sequential / column_tile / gkr_sweep / geq) now
+    // reads from the same device-resident `chip_layouts` array.
+    const ChipLayout lay = chip_layouts[chip_idx];
+    const size_t preprocessed_ptr = lay.preprocessed_ptr;
+    const size_t main_ptr = lay.main_ptr;
+    const uint32_t height = lay.height;
     const uint64_t total = (uint64_t)n_terms * (uint64_t)row_count;
     const uint64_t stride = (uint64_t)blockDim.x * (uint64_t)gridDim.x;
     const ext_t lambda = ext_t::load(powers_of_lambda, chip_idx);

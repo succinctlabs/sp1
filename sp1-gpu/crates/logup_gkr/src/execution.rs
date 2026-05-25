@@ -27,12 +27,16 @@ pub fn layer_transition(layer: &GkrLayer) -> GkrLayer {
     let backend = layer.jagged_mle.backend();
     let height = layer.jagged_mle.dense_data.height;
 
-    let (output_interaction_start_indices, output_interaction_row_counts) =
+    let (output_interaction_start_indices, output_interaction_row_counts, _) =
         layer.jagged_mle.next_start_indices_and_column_heights();
 
     let output_height = output_interaction_start_indices.last().copied().unwrap() as usize;
     let output_interaction_start_indices =
         DeviceBuffer::from_host(&output_interaction_start_indices, backend).unwrap().into_inner();
+    let output_interaction_row_counts =
+        DeviceBuffer::from_host_slice(&output_interaction_row_counts, backend)
+            .unwrap()
+            .into_inner();
 
     // Create a new layer
     let output_layer: Tensor<Ext, _> =
@@ -78,11 +82,15 @@ pub fn first_layer_transition(layer: &FirstGkrLayer) -> GkrLayer {
 
     // If this is not the last layer, we need to fix the last variable and create a
     // new circuit layer.
-    let (output_interaction_start_indices, output_interaction_row_counts) =
+    let (output_interaction_start_indices, output_interaction_row_counts, _) =
         layer.jagged_mle.next_start_indices_and_column_heights();
     let output_height = output_interaction_start_indices.last().copied().unwrap() as usize;
     let output_interaction_start_indices =
         DeviceBuffer::from_host(&output_interaction_start_indices, backend).unwrap().into_inner();
+    let output_interaction_row_counts =
+        DeviceBuffer::from_host_slice(&output_interaction_row_counts, backend)
+            .unwrap()
+            .into_inner();
 
     // Create a new layer
     let output_layer: Tensor<Ext, _> =

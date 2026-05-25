@@ -1,6 +1,6 @@
 use std::iter::once;
 
-use slop_alloc::{Backend, Buffer, HasBackend};
+use slop_alloc::{Backend, Buffer, CpuBackend, HasBackend};
 use slop_tensor::{Dimensions, Tensor};
 use sp1_gpu_cudart::TaskScope;
 
@@ -11,8 +11,10 @@ pub struct JaggedMle<D: DenseData<A>, A: Backend> {
     pub col_index: Buffer<u32, A>,
     /// start_indices[i] is the half the dense index of the first element of the i'th column.
     pub start_indices: Buffer<u32, A>,
-    /// column_heights[i] is half of the height of the i'th column.
-    pub column_heights: Vec<u32>,
+    /// column_heights[i] is half of the height of the i'th column. Device-
+    /// resident — every fold runs on the GPU, and zerocheck consumes it
+    /// directly on device to derive per-chip layouts without a host round-trip.
+    pub column_heights: Buffer<u32, A>,
     pub dense_data: D,
 }
 
@@ -98,9 +100,13 @@ impl<D: DenseData<A>, A: Backend> JaggedMle<D, A> {
         dense_data: D,
         col_index: Buffer<u32, A>,
         start_indices: Buffer<u32, A>,
-        column_heights: Vec<u32>,
+        column_heights: Buffer<u32, A>,
     ) -> Self {
         Self { dense_data, col_index, start_indices, column_heights }
+    }
+
+    pub fn column_heights(&self) -> &Buffer<u32, A> {
+        &self.column_heights
     }
 
     pub fn dense(&self) -> &D {
@@ -133,12 +139,27 @@ impl<D: DenseData<A>, A: Backend> JaggedMle<D, A> {
 }
 
 impl<D: DenseData<TaskScope>> JaggedMle<D, TaskScope> {
-    /// Computes the next start indices and column heights for use in jagged fix last variable.
+    /// Computes the next start indices, column heights and *input* total
+    /// length for use in jagged fix last variable.
+    ///
+    /// Returns host buffers; the caller uploads device copies as needed. We
+    /// download `column_heights` once and compute on host because the per-
+    /// round fold's hot work happens on device — this metadata derivation is
+    /// O(n_columns) and the round trip is cheap. The input length is returned
+    /// alongside so callers don't re-download `column_heights` to sum it.
     ///
     /// TODO: ignore all of the padding stuff.
-    pub fn next_start_indices_and_column_heights(&self) -> (Buffer<u32>, Vec<u32>) {
+    pub fn next_start_indices_and_column_heights(
+        &self,
+    ) -> (Buffer<u32, CpuBackend>, Vec<u32>, u32) {
+        // SAFETY: `column_heights` was populated via `extend_from_host_slice`
+        // (or the equivalent during fold), so the device range is fully
+        // initialised up to `len()`.
+        let host_column_heights: Vec<u32> =
+            unsafe { self.column_heights.clone().copy_into_host_vec() };
+        let input_length = host_column_heights.iter().sum::<u32>();
         let output_heights =
-            self.column_heights.iter().map(|height| height.div_ceil(4) * 2).collect::<Vec<u32>>();
+            host_column_heights.iter().map(|height| height.div_ceil(4) * 2).collect::<Vec<u32>>();
 
         let new_start_idx = once(0)
             .chain(output_heights.iter().scan(0u32, |acc, x| {
@@ -147,7 +168,7 @@ impl<D: DenseData<TaskScope>> JaggedMle<D, TaskScope> {
             }))
             .collect::<Vec<_>>();
         let buffer_start_idx = Buffer::from(new_start_idx);
-        (buffer_start_idx, output_heights)
+        (buffer_start_idx, output_heights, input_length)
     }
 }
 

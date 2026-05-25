@@ -29,10 +29,34 @@ impl JaggedFixLastVariableKernel<Ext> for TaskScope {
     }
 }
 
+/// Scratch buffers for the fold-metadata multi-block scan. Caller allocates
+/// once (sized for the initial-round block count, which upper-bounds every
+/// subsequent round) and resets in place — no per-fold allocation.
+pub struct FoldMetadataScratch<'a> {
+    pub block_counter: &'a mut Buffer<u32, TaskScope>,
+    pub flags: &'a mut Buffer<u32, TaskScope>,
+    pub scan_values: &'a mut Buffer<u32, TaskScope>,
+}
+
+/// Folds the trace MLE against `value`, returning the next-round MLE.
+///
+/// The caller passes `input_length` (sum of input column_heights in pair
+/// units, used as the fold kernel's loop bound) and `new_total_length`
+/// (sum of new column_heights * 2 = element count for the new dense
+/// buffer). Both are deterministic functions of the existing column_heights
+/// metadata; the zerocheck (and logup_gkr) callers maintain a per-chip
+/// host-side tracker that produces them in O(n_chips) without any GPU sync.
+///
+/// The fold-metadata kernel (`jagged_fold_metadata`) computes the new
+/// `column_heights` and `start_indices` on device — no host download of
+/// column_heights, no host upload of derived metadata.
 #[inline(always)]
 pub(crate) fn evaluate_jagged_fix_last_variable<F: Field>(
     jagged_mle: &JaggedTraceMle<F, TaskScope>,
     value: Ext,
+    input_length: u32,
+    new_total_length: u32,
+    scratch: FoldMetadataScratch<'_>,
 ) -> JaggedTraceMle<Ext, TaskScope>
 where
     TaskScope: JaggedFixLastVariableKernel<F>,
@@ -67,22 +91,80 @@ where
     let (next_main_table_index, _next_main_offset) =
         update_offset(&jagged_mle.dense_data.main_table_index, next_preprocessed_offset);
 
-    let length = jagged_mle.column_heights.iter().sum::<u32>();
+    // ---- Device-side fold metadata ----
+    //
+    // Single launch reads `column_heights`, writes new `column_heights` and
+    // new `start_indices` — fully on device, no host round-trip. The kernel
+    // uses a multi-block decoupled-lookback inclusive scan with the
+    // `h.div_ceil(4)*2` transform fused into the load and the exclusive-
+    // prefix shift fused into the store. Caller pre-zeroes the
+    // bookkeeping buffers `block_counter`, `flags`, `scan_values` per the
+    // contract in `fold_metadata.cuh`.
+    let n_columns = jagged_mle.column_heights.len();
+    let section_size =
+        unsafe { sp1_gpu_cudart::sys::kernels::jagged_fold_metadata_section_size() } as usize;
+    let block_dim = unsafe { sp1_gpu_cudart::sys::kernels::jagged_fold_metadata_block_dim() };
+    let n_blocks: usize = n_columns.div_ceil(section_size).max(1);
 
-    // Adjusts offsets for each column, without tracking chip information.
-    let (buffer_start_idx, output_heights) = jagged_mle.next_start_indices_and_column_heights();
+    let mut output_heights_dev =
+        Buffer::<u32, TaskScope>::with_capacity_in(n_columns, backend.clone());
+    let mut output_start_idx =
+        Buffer::<u32, TaskScope>::with_capacity_in(n_columns + 1, backend.clone());
+    // SAFETY: the fold-metadata kernel writes all `n_columns` + `n_columns+1`
+    // slots before any downstream read.
+    unsafe {
+        output_heights_dev.assume_init();
+        output_start_idx.assume_init();
+    }
 
-    let new_total_length = buffer_start_idx.last().unwrap() * 2;
+    // Reset the cached scan bookkeeping in place — no per-fold allocation.
+    // `block_counter[0] = 0`, `flags[0]` set non-zero so the first block
+    // doesn't wait, `flags[1..n_blocks+1] = 0` and `scan_values[0..n_blocks+1]
+    // = 0` so the decoupled-lookback chain starts from a clean state. The
+    // caller-owned buffers were allocated once for this shard's
+    // `n_blocks = ceil(n_columns / SECTION_SIZE)`; since `n_columns` is
+    // invariant across folds, the same capacity suffices every round.
+    let u32_bytes = std::mem::size_of::<u32>();
+    unsafe {
+        scratch.block_counter.set_len(0);
+        scratch.flags.set_len(0);
+        scratch.scan_values.set_len(0);
+    }
+    scratch.block_counter.write_bytes(0, u32_bytes).unwrap();
+    scratch.flags.write_bytes(1, u32_bytes).unwrap();
+    scratch.flags.write_bytes(0, n_blocks * u32_bytes).unwrap();
+    scratch.scan_values.write_bytes(0, (n_blocks + 1) * u32_bytes).unwrap();
 
-    let output_start_idx =
-        DeviceBuffer::from_host(&buffer_start_idx, backend).unwrap().into_inner();
+    unsafe {
+        let args = args!(
+            jagged_mle.column_heights.as_ptr(),
+            n_columns as u32,
+            output_heights_dev.as_mut_ptr(),
+            output_start_idx.as_mut_ptr(),
+            scratch.block_counter.as_mut_ptr(),
+            scratch.flags.as_mut_ptr(),
+            scratch.scan_values.as_mut_ptr()
+        );
+        backend
+            .launch_kernel(
+                sp1_gpu_cudart::sys::kernels::jagged_fold_metadata_kernel(),
+                (n_blocks as u32, 1u32, 1u32),
+                (block_dim, 1u32, 1u32),
+                &args,
+                0,
+            )
+            .unwrap();
+    }
 
     let new_data =
         Buffer::<Ext, TaskScope>::with_capacity_in(new_total_length as usize, backend.clone());
     let new_cols =
         Buffer::<u32, TaskScope>::with_capacity_in(new_total_length as usize / 2, backend.clone());
 
-    // For the next trace data, we remove all of the padding.
+    // For the next trace data, we drop the element-unit padding (the
+    // post-fold layout has no slack to track), but the *column* structure
+    // is preserved — the fold-metadata kernel transforms every column's
+    // height in place, so the padding-column count carries over unchanged.
     let next_trace_data = TraceDenseData {
         dense: new_data,
         preprocessed_offset: next_preprocessed_offset,
@@ -91,16 +173,18 @@ where
         main_table_index: next_main_table_index,
         main_padding: 0,
         preprocessed_padding: 0,
+        prep_padding_col_count: jagged_mle.dense_data.prep_padding_col_count,
+        main_padding_col_count: jagged_mle.dense_data.main_padding_col_count,
     };
 
     let mut next_jagged_mle =
-        JaggedTraceMle::new(next_trace_data, new_cols, output_start_idx, output_heights);
+        JaggedTraceMle::new(next_trace_data, new_cols, output_start_idx, output_heights_dev);
 
     const BLOCK_SIZE: usize = 256;
     const CHUNK_SIZE: usize = 1 << 16;
-    let grid_size_x = (length as usize).div_ceil(CHUNK_SIZE).max(256);
+    let grid_size_x = (input_length as usize).div_ceil(CHUNK_SIZE).max(256);
     let grid_size = (grid_size_x, 1, 1);
-    let block_dim = BLOCK_SIZE;
+    let block_dim_fold = BLOCK_SIZE;
 
     // SAFETY: `next_jagged_mle` is freshly allocated with capacity sized to
     // `total_length`; the kernel below writes every element before any later
@@ -111,12 +195,12 @@ where
     unsafe {
         next_jagged_mle.dense_data.dense.assume_init();
         next_jagged_mle.col_index.assume_init();
-        let args = args!(jagged_mle.as_raw(), next_jagged_mle.as_mut_raw(), length, value);
+        let args = args!(jagged_mle.as_raw(), next_jagged_mle.as_mut_raw(), input_length, value);
         backend
             .launch_kernel(
                 <TaskScope as JaggedFixLastVariableKernel<F>>::jagged_fix_last_variable_kernel(),
                 grid_size,
-                block_dim,
+                block_dim_fold,
                 &args,
                 0,
             )
@@ -198,12 +282,57 @@ pub fn evaluate_jagged_columns(
     jagged_mle: &JaggedTraceMle<Felt, TaskScope>,
     point: Point<Ext>,
 ) -> Vec<Ext> {
-    let input_heights = &jagged_mle.column_heights;
+    // Not a hot path (one call at the END of zerocheck). Download
+    // `column_heights` once and walk the recurrence on host to compute the
+    // per-round lengths needed by `evaluate_jagged_fix_last_variable`.
+    let mut heights: Vec<u32> = unsafe { jagged_mle.column_heights.clone().copy_into_host_vec() };
+    let input_heights = heights.clone();
     let row_variable = point.dimension();
-    let mut jagged_mle = evaluate_jagged_fix_last_variable(jagged_mle, *point[row_variable - 1]);
+    let backend = jagged_mle.dense().backend();
+
+    // Local scratch — one allocation, reused across the per-round folds
+    // inside this function via `set_len(0) + write_bytes`. `n_columns` is
+    // invariant across folds, so this single capacity sizes the scan
+    // bookkeeping for every round.
+    let section_size =
+        unsafe { sp1_gpu_cudart::sys::kernels::jagged_fold_metadata_section_size() } as usize;
+    let initial_n_blocks = heights.len().div_ceil(section_size).max(1);
+    let mut block_counter = Buffer::<u32, _>::with_capacity_in(1, backend.clone());
+    let mut flags = Buffer::<u32, _>::with_capacity_in(initial_n_blocks + 1, backend.clone());
+    let mut scan_values = Buffer::<u32, _>::with_capacity_in(initial_n_blocks + 1, backend.clone());
+
+    let mut input_length: u32 = heights.iter().sum();
+    let mut next_heights: Vec<u32> = heights.iter().map(|h| h.div_ceil(4) * 2).collect();
+    let mut new_total_length: u32 = next_heights.iter().sum::<u32>() * 2;
+    let mut jagged_mle = evaluate_jagged_fix_last_variable(
+        jagged_mle,
+        *point[row_variable - 1],
+        input_length,
+        new_total_length,
+        FoldMetadataScratch {
+            block_counter: &mut block_counter,
+            flags: &mut flags,
+            scan_values: &mut scan_values,
+        },
+    );
+    heights = next_heights;
 
     for i in (0..row_variable - 1).rev() {
-        jagged_mle = evaluate_jagged_fix_last_variable(&jagged_mle, *point[i]);
+        input_length = heights.iter().sum();
+        next_heights = heights.iter().map(|h| h.div_ceil(4) * 2).collect();
+        new_total_length = next_heights.iter().sum::<u32>() * 2;
+        jagged_mle = evaluate_jagged_fix_last_variable(
+            &jagged_mle,
+            *point[i],
+            input_length,
+            new_total_length,
+            FoldMetadataScratch {
+                block_counter: &mut block_counter,
+                flags: &mut flags,
+                scan_values: &mut scan_values,
+            },
+        );
+        heights = next_heights;
     }
     let result = unsafe { jagged_mle.dense_data.dense.copy_into_host_vec() };
 
@@ -509,10 +638,12 @@ mod tests {
                     main_table_index: BTreeMap::new(),
                     main_padding: 0,
                     preprocessed_padding: 0,
+                    prep_padding_col_count: 0,
+                    main_padding_col_count: 0,
                 },
                 DeviceBuffer::from_host(&cols, &t).unwrap().into_inner(),
                 DeviceBuffer::from_host(&start_idx, &t).unwrap().into_inner(),
-                input_heights.clone(),
+                DeviceBuffer::from_host_slice(&input_heights, &t).unwrap().into_inner(),
             );
 
             t.synchronize_blocking().unwrap();
@@ -542,10 +673,12 @@ mod tests {
                     main_table_index: BTreeMap::new(),
                     main_padding: 0,
                     preprocessed_padding: 0,
+                    prep_padding_col_count: 0,
+                    main_padding_col_count: 0,
                 },
                 DeviceBuffer::from_host(&cols, &t).unwrap().into_inner(),
                 DeviceBuffer::from_host(&start_idx, &t).unwrap().into_inner(),
-                input_heights.clone(),
+                DeviceBuffer::from_host_slice(&input_heights, &t).unwrap().into_inner(),
             );
 
             t.synchronize_blocking().unwrap();
@@ -635,10 +768,12 @@ mod tests {
                     main_table_index,
                     main_padding: 0,
                     preprocessed_padding: 0,
+                    prep_padding_col_count: 0,
+                    main_padding_col_count: 0,
                 },
                 DeviceBuffer::from_host(&cols, &t).unwrap().into_inner(),
                 DeviceBuffer::from_host(&start_idx, &t).unwrap().into_inner(),
-                input_heights.clone(),
+                DeviceBuffer::from_host_slice(&input_heights, &t).unwrap().into_inner(),
             );
 
             t.synchronize_blocking().unwrap();

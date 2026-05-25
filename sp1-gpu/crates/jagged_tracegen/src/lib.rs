@@ -153,7 +153,13 @@ async fn generate_jagged_traces(
     initial_cols: usize,
     log_stacking_height: u32,
     max_log_row_count: u32,
-) -> (usize, usize, usize, BTreeMap<String, TraceOffset>) {
+) -> (usize, usize, usize, usize, BTreeMap<String, TraceOffset>) {
+    // Returns (final_offset, final_cols, padding_size_elements,
+    // padding_col_count, table_index). `padding_col_count` is the number of
+    // padding *columns* the "final padding" closure appended (always ≥ 1);
+    // both callers (prep and main phases) propagate it into
+    // `TraceDenseData.{prep,main}_padding_col_count` so downstream consumers
+    // don't have to guess.
     let mut offset = initial_offset;
     let mut cols_so_far = initial_cols;
     let mut table_index = BTreeMap::new();
@@ -308,7 +314,7 @@ async fn generate_jagged_traces(
             }
             column_heights.push(0);
             cols_so_far += 1;
-            return (next_multiple, cols_so_far, 0, table_index);
+            return (next_multiple, cols_so_far, 0, 1, table_index);
         }
         let dst_dense_slice = &mut dense_data[offset..next_multiple];
         let dst_col_idx_slice = &mut col_index[offset >> 1..(next_multiple >> 1)];
@@ -352,7 +358,7 @@ async fn generate_jagged_traces(
             .extend((0..num_added_cols - 1).map(|_| (1 << (max_log_row_count - 1)) as u32));
         column_heights.push((remainder >> 1) as u32);
         cols_so_far += num_added_cols;
-        (next_multiple, cols_so_far, next_multiple - offset, table_index)
+        (next_multiple, cols_so_far, next_multiple - offset, num_added_cols, table_index)
     });
 
     result
@@ -505,19 +511,24 @@ async fn allocate_and_initialize_traces(
     }
 
     // Put them in right places. Todo: parallelize.
-    let (preprocessed_offset, preprocessed_cols, preprocessed_padding, preprocessed_table_index) =
-        generate_jagged_traces(
-            &mut dense_data,
-            &mut col_index,
-            &mut start_indices,
-            &mut column_heights,
-            preprocessed_traces,
-            0,
-            0,
-            log_stacking_height,
-            max_log_row_count,
-        )
-        .await;
+    let (
+        preprocessed_offset,
+        preprocessed_cols,
+        preprocessed_padding,
+        prep_padding_col_count,
+        preprocessed_table_index,
+    ) = generate_jagged_traces(
+        &mut dense_data,
+        &mut col_index,
+        &mut start_indices,
+        &mut column_heights,
+        preprocessed_traces,
+        0,
+        0,
+        log_stacking_height,
+        max_log_row_count,
+    )
+    .await;
 
     let trace_dense_data: TraceDenseData<Felt, TaskScope> = TraceDenseData {
         dense: dense_data,
@@ -527,13 +538,20 @@ async fn allocate_and_initialize_traces(
         main_table_index: BTreeMap::new(),
         preprocessed_padding,
         main_padding: 0,
+        prep_padding_col_count,
+        // Main phase hasn't run yet; updated in `copy_main_jagged_traces`.
+        main_padding_col_count: 0,
     };
 
+    // Upload column_heights once at the end of tracegen — the rest of the
+    // pipeline (zerocheck, fix-last-variable) consumes it on device.
+    let column_heights_dev =
+        DeviceBuffer::from_host_slice(&column_heights, backend).unwrap().into_inner();
     JaggedTraceMle(JaggedMle {
         dense_data: trace_dense_data,
         col_index,
         start_indices,
-        column_heights,
+        column_heights: column_heights_dev,
     })
 }
 
@@ -581,6 +599,7 @@ async fn copy_main_jagged_traces(
         preprocessed_cols,
         main_table_index,
         main_padding,
+        main_padding_col_count,
         ..
     } = trace_dense_data;
 
@@ -590,23 +609,38 @@ async fn copy_main_jagged_traces(
         start_indices.set_len(start_indices.capacity());
     }
 
-    // Put them in right places. Todo: parallelize.
-    let (final_offset, final_cols, final_main_padding, new_main_table_index) =
-        generate_jagged_traces(
-            dense_data,
-            col_index,
-            start_indices,
-            column_heights,
-            traces,
-            *preprocessed_offset,
-            *preprocessed_cols,
-            log_stacking_height,
-            max_log_row_count,
-        )
-        .await;
+    // `column_heights` is device-resident; download for the host-side
+    // generation loop, then upload the new vector back. The loop is the
+    // host's tracegen — no benefit to keeping the device buffer live during
+    // it.
+    let backend = dense_data.backend().clone();
+    let mut column_heights_host: Vec<u32> = unsafe { column_heights.clone().copy_into_host_vec() };
 
+    // Put them in right places. Todo: parallelize.
+    let (
+        final_offset,
+        final_cols,
+        final_main_padding,
+        final_main_padding_col_count,
+        new_main_table_index,
+    ) = generate_jagged_traces(
+        dense_data,
+        col_index,
+        start_indices,
+        &mut column_heights_host,
+        traces,
+        *preprocessed_offset,
+        *preprocessed_cols,
+        log_stacking_height,
+        max_log_row_count,
+    )
+    .await;
+
+    *column_heights =
+        DeviceBuffer::from_host_slice(&column_heights_host, &backend).unwrap().into_inner();
     *main_table_index = new_main_table_index;
     *main_padding = final_main_padding;
+    *main_padding_col_count = final_main_padding_col_count;
 
     if main_table_index.contains_key("Global") && global_dependencies_opt {
         update_global_dependencies(dense_data, main_table_index);
@@ -1250,18 +1284,19 @@ mod tests {
                 start_indices.assume_init();
             }
 
-            let (final_offset, final_cols, padding, table_index) = generate_jagged_traces(
-                &mut dense_data,
-                &mut col_index,
-                &mut start_indices,
-                &mut column_heights,
-                traces,
-                0,
-                0,
-                log_stacking_height,
-                max_log_row_count,
-            )
-            .await;
+            let (final_offset, final_cols, padding, prep_padding_col_count, table_index) =
+                generate_jagged_traces(
+                    &mut dense_data,
+                    &mut col_index,
+                    &mut start_indices,
+                    &mut column_heights,
+                    traces,
+                    0,
+                    0,
+                    log_stacking_height,
+                    max_log_row_count,
+                )
+                .await;
 
             assert_eq!(padding, 0, "Expected zero padding for perfect multiple");
 
@@ -1281,9 +1316,13 @@ mod tests {
                 main_table_index: BTreeMap::new(),
                 preprocessed_padding: padding,
                 main_padding: 0,
+                prep_padding_col_count,
+                main_padding_col_count: 0,
             };
+            let column_heights_dev =
+                DeviceBuffer::from_host_slice(&column_heights, &scope).unwrap().into_inner();
             let jagged_trace_mle =
-                JaggedTraceMle::new(trace_dense_data, col_index, start_indices, column_heights);
+                JaggedTraceMle::new(trace_dense_data, col_index, start_indices, column_heights_dev);
 
             // Evaluate the jagged MLE at a random point using the GPU pipeline.
             let z_row: Point<Ext, _> = Point::rand(&mut rng, max_log_row_count);
@@ -1353,18 +1392,19 @@ mod tests {
                 start_indices.assume_init();
             }
 
-            let (final_offset, final_cols, padding, table_index) = generate_jagged_traces(
-                &mut dense_data,
-                &mut col_index,
-                &mut start_indices,
-                &mut column_heights,
-                traces,
-                0,
-                0,
-                log_stacking_height,
-                max_log_row_count,
-            )
-            .await;
+            let (final_offset, final_cols, padding, prep_padding_col_count, table_index) =
+                generate_jagged_traces(
+                    &mut dense_data,
+                    &mut col_index,
+                    &mut start_indices,
+                    &mut column_heights,
+                    traces,
+                    0,
+                    0,
+                    log_stacking_height,
+                    max_log_row_count,
+                )
+                .await;
 
             assert!(padding > 0, "Expected non-zero padding for non-perfect-multiple");
 
@@ -1382,9 +1422,13 @@ mod tests {
                 main_table_index: BTreeMap::new(),
                 preprocessed_padding: padding,
                 main_padding: 0,
+                prep_padding_col_count,
+                main_padding_col_count: 0,
             };
+            let column_heights_dev =
+                DeviceBuffer::from_host_slice(&column_heights, &scope).unwrap().into_inner();
             let jagged_trace_mle =
-                JaggedTraceMle::new(trace_dense_data, col_index, start_indices, column_heights);
+                JaggedTraceMle::new(trace_dense_data, col_index, start_indices, column_heights_dev);
 
             let z_row: Point<Ext, _> = Point::rand(&mut rng, max_log_row_count);
             let gpu_evals = evaluate_traces(&jagged_trace_mle, &z_row);
