@@ -22,9 +22,7 @@
 //! through a shifted layout.
 
 use sp1_gpu_air::ir::{ColumnTermEntry, DagInstr, LeafRef};
-use sp1_gpu_zerocheck::prover::{
-    BlockDispatchC, ChipLayoutC, ChunkStaticC, VirtualGeqStateC,
-};
+use sp1_gpu_zerocheck::prover::{BlockDispatchC, ChipLayoutC, ChunkStaticC, VirtualGeqStateC};
 
 unsafe extern "C" {
     fn zerocheck_layout_dag_instr() -> *const u32;

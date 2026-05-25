@@ -1,35 +1,40 @@
-#![allow(
-    clippy::print_stdout,
-    clippy::print_stderr,
-    clippy::too_many_arguments,
-    clippy::needless_range_loop,
-    clippy::vec_init_then_push,
-    clippy::useless_vec,
-    clippy::manual_div_ceil,
-    clippy::doc_lazy_continuation
-)]
-//! Equivalence test for the v2 ColumnTile kernel.
+//! Equivalence test for the `zerocheck_column_tile` kernel.
 //!
-//! Constructs a synthetic `LinearWeightedSum` DAG (every constraint is a
-//! linear combination of column leaves with constant or public coefficients),
-//! lowers it via `lower_column_tile`, runs both a CPU oracle and the GPU
-//! kernel, and verifies the 3 per-eval-point partial sums match bitwise.
+//! Lowers a synthetic `LinearWeightedSum` DAG, runs both a CPU oracle
+//! and the GPU kernel against random trace data, asserts per-eval-point
+//! partials match bitwise.
+//!
+//! Promoted from the previous `examples/column_tile_equiv.rs` (which
+//! wasn't run by CI and silently used the old kernel signature with the
+//! removed `runtime_coeffs` parameter — undefined behavior at runtime).
+//! Re-exercises:
+//!
+//! - The `COEFF_KIND_CONST` and `COEFF_KIND_PUBLIC` coefficient branches.
+//! - The `COEFF_NEGATE_BIT` flag set by `flatten_linear` for `SubF`
+//!   right operands. Without the SubF case the test wouldn't catch the
+//!   sign-tracking regression that the recent review-pass fixed —
+//!   `column_tile_bytecode::tests` already verifies the lowering emits
+//!   the bit, this verifies the *kernel* respects it.
+//! - Grid-stride boundaries via two scenarios (single-block + multi-block).
+
+#![allow(clippy::needless_range_loop)]
 
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use slop_algebra::{AbstractExtensionField, AbstractField};
 use sp1_gpu_air::ir::{
     analyze_constraints, chunk_dag, enumerate_lowerings, lower_column_tile, ChunkBudget,
     ColumnTileBytecode, ConstraintDag, ConstraintRef, ConstraintShape, DagNode, Lowering,
-    TraceSource, COEFF_KIND_CONST,
+    TraceSource, COEFF_KIND_CONST, COEFF_KIND_MASK, COEFF_NEGATE_BIT,
 };
 use sp1_gpu_air::{EF, F};
 use sp1_gpu_cudart::sys::kernels::zerocheck_column_tile_kb_kernel;
 use sp1_gpu_cudart::{args, run_sync_in_place, DeviceBuffer};
 
-// LinearWeightedSum DAG with constants AND publics as coefficients:
-//   c0: 3*l0 + 5*l1 + 7*l2          (constant coeffs)
-//   c1: 11*l3 + 13*l4               (constant coeffs)
-//   c2: pv0 * l0 + pv1 * l1         (public coeffs)
+// LinearWeightedSum DAG mixing constants, publics, AddF *and* SubF:
+//   c0: 3·l0 + 5·l1 + 7·l2          (constants, AddF only)
+//   c1: 11·l3 + 13·l4               (constants, AddF only)
+//   c2: pv0·l0 + pv1·l1             (publics)
+//   c3: 17·l0 - 19·l2               (SubF spine — exercises COEFF_NEGATE_BIT)
 fn build_linear_dag() -> ConstraintDag {
     let mut nodes = vec![];
     // 0..5: column leaves
@@ -43,24 +48,27 @@ fn build_linear_dag() -> ConstraintDag {
     // 10..12: public values 0, 1
     nodes.push(DagNode::PublicValue { idx: 0 });
     nodes.push(DagNode::PublicValue { idx: 1 });
+    // 12..14: constants (17, 19) for the SubF constraint
+    nodes.push(DagNode::ConstF { value: F::from_canonical_u32(17) });
+    nodes.push(DagNode::ConstF { value: F::from_canonical_u32(19) });
 
     // c0: 3*l0 + 5*l1 + 7*l2
     let m0 = nodes.len() as u32;
-    nodes.push(DagNode::MulF { a: 5, b: 0 }); // 3 * l0
+    nodes.push(DagNode::MulF { a: 5, b: 0 });
     let m1 = nodes.len() as u32;
-    nodes.push(DagNode::MulF { a: 6, b: 1 }); // 5 * l1
+    nodes.push(DagNode::MulF { a: 6, b: 1 });
     let s0 = nodes.len() as u32;
     nodes.push(DagNode::AddF { a: m0, b: m1 });
     let m2 = nodes.len() as u32;
-    nodes.push(DagNode::MulF { a: 7, b: 2 }); // 7 * l2
+    nodes.push(DagNode::MulF { a: 7, b: 2 });
     let c0_root = nodes.len() as u32;
     nodes.push(DagNode::AddF { a: s0, b: m2 });
 
     // c1: 11*l3 + 13*l4
     let m3 = nodes.len() as u32;
-    nodes.push(DagNode::MulF { a: 8, b: 3 }); // 11 * l3
+    nodes.push(DagNode::MulF { a: 8, b: 3 });
     let m4 = nodes.len() as u32;
-    nodes.push(DagNode::MulF { a: 9, b: 4 }); // 13 * l4
+    nodes.push(DagNode::MulF { a: 9, b: 4 });
     let c1_root = nodes.len() as u32;
     nodes.push(DagNode::AddF { a: m3, b: m4 });
 
@@ -72,10 +80,21 @@ fn build_linear_dag() -> ConstraintDag {
     let c2_root = nodes.len() as u32;
     nodes.push(DagNode::AddF { a: m5, b: m6 });
 
+    // c3: 17*l0 - 19*l2 — flat SubF, drives `flatten_linear` to emit the
+    // second term with `COEFF_NEGATE_BIT` set; the kernel must flip the
+    // loaded coefficient or this test fails.
+    let m7 = nodes.len() as u32;
+    nodes.push(DagNode::MulF { a: 12, b: 0 });
+    let m8 = nodes.len() as u32;
+    nodes.push(DagNode::MulF { a: 13, b: 2 });
+    let c3_root = nodes.len() as u32;
+    nodes.push(DagNode::SubF { a: m7, b: m8 });
+
     let constraints = vec![
         ConstraintRef { root: c0_root, alpha_index: 0 },
         ConstraintRef { root: c1_root, alpha_index: 1 },
         ConstraintRef { root: c2_root, alpha_index: 2 },
+        ConstraintRef { root: c3_root, alpha_index: 3 },
     ];
 
     ConstraintDag { nodes, constraints, preprocessed_width: 0, main_width: 5 }
@@ -84,16 +103,14 @@ fn build_linear_dag() -> ConstraintDag {
 const N_COLS: usize = 5;
 const N_PARTIAL_PER_BLOCK: usize = 3;
 
-fn main() {
+#[test]
+fn column_tile_kernel_matches_host_oracle() {
     let dag = build_linear_dag();
     let infos = analyze_constraints(&dag);
-
-    // Sanity: every constraint should be LinearWeightedSum.
     for (i, info) in infos.iter().enumerate() {
         assert!(
             matches!(info.shape, ConstraintShape::LinearWeightedSum),
-            "constraint {} not detected as LinearWeightedSum",
-            i
+            "constraint {i} not detected as LinearWeightedSum",
         );
     }
 
@@ -113,26 +130,21 @@ fn main() {
     let bc =
         lower_column_tile(chunk, &infos, &dag, plan).expect("lower_column_tile should succeed");
 
-    println!(
-        "column-tile bytecode: {} terms, {} leaves, {} consts, {} publics",
-        bc.terms.len(),
-        bc.leaves.len(),
-        bc.consts.len(),
-        bc.publics.len()
+    // Sanity: at least one term must carry the negate bit (the SubF
+    // case). If `flatten_linear` ever stops tracking sign this assert
+    // catches it before the oracle/kernel comparison.
+    let neg_count = bc.terms.iter().filter(|t| (t.coeff_kind & COEFF_NEGATE_BIT) != 0).count();
+    assert!(
+        neg_count >= 1,
+        "expected ≥1 term with COEFF_NEGATE_BIT (the `c3 = 17·l0 - 19·l2` constraint); \
+         got {neg_count}. Did `flatten_linear` regress?",
     );
-    for (i, t) in bc.terms.iter().enumerate() {
-        let kind = if t.coeff_kind == COEFF_KIND_CONST { "const" } else { "public" };
-        println!(
-            "  term {}: leaf_idx={} {}#{} alpha_idx={}",
-            i, t.leaf_idx, kind, t.coeff_idx, t.alpha_idx
-        );
-    }
 
-    // Run multiple scenarios to exercise grid bounds. n_rows == 2^rest_point_dim.
+    // Two scenarios exercise different grid sizes inside the kernel's
+    // grid-stride loop.
     let scenarios: &[(&str, usize, u32, u64)] =
         &[("single block, full row tile", 8, 3, 0xAA), ("multi block, aligned tail", 32, 5, 0xCC)];
 
-    let mut all_ok = true;
     for &(label, n_rows, rest_point_dim, seed) in scenarios {
         let mut rng = StdRng::seed_from_u64(seed);
         let height = 2 * n_rows;
@@ -170,19 +182,12 @@ fn main() {
             n_rows,
         );
 
-        let ok = (0..N_PARTIAL_PER_BLOCK).all(|e| host[e] == gpu[e]);
-        println!("[{}] n_rows={} : {}", label, n_rows, if ok { "match" } else { "MISMATCH" });
-        if !ok {
-            for e in 0..N_PARTIAL_PER_BLOCK {
-                println!("  e{}: host={:?}  gpu={:?}", e, host[e], gpu[e]);
-            }
-            all_ok = false;
+        for e in 0..N_PARTIAL_PER_BLOCK {
+            assert_eq!(
+                host[e], gpu[e],
+                "[{label}] eval point {e} disagrees: host={host:?} gpu={gpu:?}",
+            );
         }
-    }
-    if all_ok {
-        println!("\nv2 ColumnTile kernel matches host oracle bitwise across all scenarios");
-    } else {
-        std::process::exit(1);
     }
 }
 
@@ -194,6 +199,7 @@ fn rand_ef(rng: &mut StdRng) -> EF {
     EF::from_base_slice(&[rand_f(rng), rand_f(rng), rand_f(rng), rand_f(rng)])
 }
 
+#[allow(clippy::too_many_arguments)]
 fn host_oracle(
     bc: &ColumnTileBytecode,
     trace: &[F],
@@ -212,9 +218,6 @@ fn host_oracle(
     let domain = 1u32 << rest_point_dim;
     let lambda = powers_of_lambda[chip_idx as usize];
     for row in 0..n_rows {
-        // Each term in a column-tile chunk contributes one weighted value per
-        // (row, eval). The kernel multiplies each term's contribution by
-        // eq[row] · λ; the host mirrors that exactly per-term.
         let weight =
             if (row as u32) < domain { partial_lagrange[row] * lambda } else { EF::zero() };
         for t in &bc.terms {
@@ -222,11 +225,16 @@ fn host_oracle(
             let off = (leaf.col as usize) * height + (row << 1);
             let z = trace[off];
             let o = trace[off + 1];
-            let coeff = if t.coeff_kind == COEFF_KIND_CONST {
+            let kind = t.coeff_kind & COEFF_KIND_MASK;
+            let negate = (t.coeff_kind & COEFF_NEGATE_BIT) != 0;
+            let mut coeff = if kind == COEFF_KIND_CONST {
                 bc.consts[t.coeff_idx as usize]
             } else {
                 public_values[bc.publics[t.coeff_idx as usize] as usize]
             };
+            if negate {
+                coeff = F::zero() - coeff;
+            }
             let alpha = powers_of_alpha[t.alpha_idx as usize];
             for e in 0..3 {
                 let v = z + eval_pts[e] * (o - z);
@@ -238,6 +246,7 @@ fn host_oracle(
     sum
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_gpu(
     bc: &ColumnTileBytecode,
     trace: &[F],
@@ -253,7 +262,7 @@ fn run_gpu(
     // 1D block; each thread = one (term, row) pair, computing all 3 eval points.
     const BLOCK_SIZE: u32 = 64;
     let total = (bc.terms.len() as u32) * (n_rows as u32);
-    let grid_x = (total + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    let grid_x = total.div_ceil(BLOCK_SIZE);
     let n_warps = BLOCK_SIZE / 32;
     let shmem_bytes = (n_warps as usize) * std::mem::size_of::<EF>();
 
@@ -262,10 +271,6 @@ fn run_gpu(
         let d_leaves = DeviceBuffer::from_host_slice(&bc.leaves, &scope).unwrap();
         let d_consts = DeviceBuffer::from_host_slice(&bc.consts, &scope).unwrap();
         let d_publics = DeviceBuffer::from_host_slice(&bc.publics, &scope).unwrap();
-        // No COEFF_KIND_RUNTIME terms in this test; pass a 1-element dummy so
-        // the kernel pointer is non-null.
-        let d_runtime: DeviceBuffer<EF> =
-            DeviceBuffer::from_host_slice(&[EF::zero()], &scope).unwrap();
         let d_trace = DeviceBuffer::from_host_slice(trace, &scope).unwrap();
         let d_public_values = DeviceBuffer::from_host_slice(public_values, &scope).unwrap();
         let d_powers = DeviceBuffer::from_host_slice(powers_of_alpha, &scope).unwrap();
@@ -273,6 +278,7 @@ fn run_gpu(
         let d_powers_of_lambda = DeviceBuffer::from_host_slice(powers_of_lambda, &scope).unwrap();
         let mut d_partials: DeviceBuffer<EF> =
             DeviceBuffer::with_capacity_in(grid_x as usize * 3, scope.clone());
+        // SAFETY: kernel writes `grid_x * 3` ext_t partials before any host read.
         unsafe {
             d_partials.assume_init();
         }
@@ -284,6 +290,8 @@ fn run_gpu(
         let row_start: u32 = 0;
         let row_count: u32 = n_rows as u32;
 
+        // SAFETY: every device buffer above lives in `scope`, outlives
+        // the launch; the kernel signature matches `column_tile.cuh`.
         unsafe {
             let a = args!(
                 d_terms.as_ptr(),
@@ -291,7 +299,6 @@ fn run_gpu(
                 d_leaves.as_ptr(),
                 d_consts.as_ptr(),
                 d_publics.as_ptr(),
-                d_runtime.as_ptr(),
                 d_trace.as_ptr(),
                 preprocessed_ptr,
                 main_ptr,
