@@ -23,7 +23,12 @@ use crate::ir::lowering::SequentialPlan;
 use crate::F;
 use std::collections::HashMap;
 
-/// Bytecode opcodes. Must mirror the constants in `sequential.cuh`.
+/// Bytecode opcodes for the per-row register-machine the fused sequential
+/// kernel interprets. Must mirror the constants in `sequential.cuh`.
+/// Asserts are *not* an opcode — they live in the chunk's separate
+/// `asserts: Vec<(reg, alpha_idx)>` table so the interpreter can iterate
+/// them after the main bytecode body, summing `α[αᵢ] · regs[root]` into
+/// the accumulator.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BcOp {
@@ -41,9 +46,6 @@ pub enum BcOp {
     MulF = 5,
     /// out = -regs[a]
     NegF = 6,
-    /// accumulator += powers_of_alpha[a] * regs[b]
-    /// (`out` is unused for asserts; we pack a sentinel.)
-    AssertF = 7,
 }
 
 /// One bytecode instruction. 8 bytes.
@@ -63,14 +65,22 @@ impl DagInstr {
     }
 }
 
+/// Source tag for `LeafRef.source`. The encoding mirrors the jagged-mle
+/// column-variant tags (3 = PreprocessedNext, 5 = MainNext) but only the
+/// local-row variants are reachable from constraint lowering. Kernels
+/// branch on `source == LEAF_SOURCE_MAIN_LOCAL` to pick between the chip's
+/// `main_ptr` / `preprocessed_ptr` — every per-chip CUDA kernel must use
+/// the same constants (mirrored in `include/zerocheck/sequential.cuh`).
+pub const LEAF_SOURCE_PREPROCESSED_LOCAL: u8 = 2;
+pub const LEAF_SOURCE_MAIN_LOCAL: u8 = 4;
+
 /// Trace reference for a leaf. The kernel uses this at CTA preamble to load
 /// `(zero, one)` pairs into shared memory.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LeafRef {
-    /// 2 = PreprocessedLocal, 4 = MainLocal. This encoding matches the
-    /// jagged-mle layout code's column-variant tags (whose 3 = PreprocessedNext
-    /// / 5 = MainNext are never emitted here — constraints are local-row only).
+    /// `LEAF_SOURCE_PREPROCESSED_LOCAL` or `LEAF_SOURCE_MAIN_LOCAL`. See
+    /// the constants above for the encoding rationale.
     pub source: u8,
     pub _pad: u8,
     /// Column index within the chip's preprocessed or main trace.
@@ -132,8 +142,8 @@ pub fn lower_sequential(
         match *node {
             DagNode::InputLeaf { source, col } => {
                 let src_byte = match source {
-                    TraceSource::PreprocessedLocal => 2,
-                    TraceSource::MainLocal => 4,
+                    TraceSource::PreprocessedLocal => LEAF_SOURCE_PREPROCESSED_LOCAL,
+                    TraceSource::MainLocal => LEAF_SOURCE_MAIN_LOCAL,
                 };
                 let leaf_idx = *leaf_of.entry((src_byte, col)).or_insert_with(|| {
                     let i = bc.leaves.len() as u16;
@@ -172,11 +182,17 @@ pub fn lower_sequential(
             DagNode::NegF { a } => {
                 bc.instrs.push(DagInstr::new(BcOp::NegF, reg(node_id), reg(a), 0));
             }
-            // EF / mixed / singletons / cumsum are not handled by the
-            // Phase 2 kernel — same scope as v1 production.
+            // EF / mixed / cumsum / boundary singletons aren't reachable
+            // from any asserted base-field root in the current chip set —
+            // `DagBuilder` rejects `assert_zero_ext` so EF nodes never
+            // become roots, and the other variants have no overload
+            // creating them via base-field arithmetic. Trip loudly if a
+            // future chip changes that invariant.
             _ => {
                 panic!(
-                    "Phase 2 Sequential kernel does not handle node kind {:?}; node {}",
+                    "Sequential kernel cannot lower node kind {:?} (node id {}); \
+                     a base-field asserted root reached a non-base-field DAG node \
+                     for the first time",
                     node, node_id
                 );
             }
@@ -287,13 +303,5 @@ fn node_children(node: &DagNode) -> [Option<NodeId>; 2] {
         | EFSubF { a, b }
         | EFMulF { a, b } => [Some(a), Some(b)],
         NegF { a } | NegEF { a } | EFFromF { a } => [Some(a), None],
-    }
-}
-
-/// Convenience that detects bytecode incompatibility before launch.
-impl ChunkBytecode {
-    pub fn is_compatible_with_v1_kernel(&self) -> bool {
-        // Phase 2 Sequential covers the base-field subset of v1.
-        self.instrs.iter().all(|i| i.opcode <= BcOp::NegF as u8) && !self.asserts.is_empty()
     }
 }

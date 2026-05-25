@@ -11,16 +11,21 @@
 #include <cstdint>
 
 // Must match `ColumnTermEntry` in sp1-gpu-air/src/ir/column_tile_bytecode.rs.
+// `coeff_kind` packs the kind in the low 31 bits and a "negate the loaded
+// coefficient" flag in the high bit (`COEFF_NEGATE_BIT`) — set when the
+// term sits on the right side of an odd number of `SubF` nodes in the
+// original linear-sum spine.
 struct ColumnTermEntry {
     uint32_t leaf_idx;
-    uint32_t coeff_kind;   // 0 = const, 1 = public
+    uint32_t coeff_kind;   // bits 30..0: kind; bit 31: negate flag
     uint32_t coeff_idx;
     uint32_t alpha_idx;
 };
 
 constexpr uint32_t COEFF_KIND_CONST   = 0;
 constexpr uint32_t COEFF_KIND_PUBLIC  = 1;
-constexpr uint32_t COEFF_KIND_RUNTIME = 2;
+constexpr uint32_t COEFF_KIND_MASK    = 0x7FFFFFFFu;
+constexpr uint32_t COEFF_NEGATE_BIT   = 0x80000000u;
 
 extern "C" void* zerocheck_column_tile_kb_kernel();
 extern "C" void* zerocheck_column_tile_ext_kernel();

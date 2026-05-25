@@ -136,6 +136,24 @@ where
                 let bc = lower_sequential(chunk, &infos, &dag, plan);
                 // `bc.asserts[*].1` (alpha index) stays chip-relative; the
                 // cluster shift is applied at launch.
+                // The fused sequential kernel templates cap `MAX_REGS` at
+                // 1024; `fused_sequential_kernel_for` silently clamps to
+                // the 1024 template, so a chunk exceeding it would OOB-write
+                // its per-thread `regs[]` array. Trip loudly here instead —
+                // the chunker's leaf budget should keep us well under, but
+                // a `CHUNKER_MAX_LEAFSET` env override (or a future
+                // `oversize_singleton` escape valve) could otherwise hit
+                // this silently. See review bug #6.
+                const MAX_FUSED_REGS: u16 = 1024;
+                assert!(
+                    bc.max_reg <= MAX_FUSED_REGS,
+                    "chip {}: chunk max_reg={} exceeds fused-kernel cap ({}); \
+                     reduce CHUNKER_MAX_LEAFSET or implement the oversize-singleton \
+                     escape valve",
+                    air.name(),
+                    bc.max_reg,
+                    MAX_FUSED_REGS,
+                );
                 if std::env::var("SP1_GPU_DEBUG_MAXREG").is_ok() {
                     eprintln!(
                         "compile chip={} max_reg={} n_instrs={} n_asserts={}",
@@ -1345,7 +1363,6 @@ where
             &poly.public_values,
             &poly.powers_of_alpha,
             poly.chip_alpha_offset[chip_idx as usize],
-            &poly.gkr_powers,
             partial_lagrange.as_ptr(),
             &poly.powers_of_lambda,
             chip_idx,
@@ -1504,7 +1521,6 @@ fn launch_chunk_into<K: Field>(
     public_values: &Buffer<Felt, TaskScope>,
     powers_of_alpha: &Buffer<Ext, TaskScope>,
     chip_alpha_offset: u32,
-    gkr_powers: &Buffer<Ext, TaskScope>,
     partial_lagrange_ptr: *const Ext,
     powers_of_lambda: &Buffer<Ext, TaskScope>,
     chip_idx: u32,
@@ -1534,7 +1550,6 @@ fn launch_chunk_into<K: Field>(
                 chunk.leaves,
                 chunk.consts,
                 chunk.publics,
-                gkr_powers.as_ptr(),
                 trace_ptr,
                 preprocessed_ptr,
                 main_ptr,
@@ -1563,7 +1578,7 @@ fn launch_chunk_into<K: Field>(
 }
 
 // ============================================================================
-// Fix-last-variable: fold trace data (reused from v1 path), update eq_adjustment.
+// Fix-last-variable: fold trace data, update eq_adjustment.
 // ============================================================================
 
 pub fn zerocheck_fix_last_variable<'b, K: Field>(

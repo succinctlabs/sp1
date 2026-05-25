@@ -50,7 +50,7 @@ fn main() {
             let dag = build_dag(chip.air.as_ref());
             let infos = analyze_constraints(&dag);
             let chunks = chunk_dag(&infos, budget);
-            print_row(name, &infos, &chunks);
+            print_row(name, &infos, &chunks, budget.max_leafset);
         }
     }
 
@@ -74,7 +74,12 @@ fn main() {
     }
 }
 
-fn print_row(name: &str, infos: &[sp1_gpu_air::ir::ConstraintInfo], chunks: &[Chunk]) {
+fn print_row(
+    name: &str,
+    infos: &[sp1_gpu_air::ir::ConstraintInfo],
+    chunks: &[Chunk],
+    max_leafset: u32,
+) {
     let cons = infos.len();
     let nodes: usize = infos.iter().map(|c| c.total_nodes as usize).sum();
     let depth_max = infos.iter().map(|c| c.depth).max().unwrap_or(0);
@@ -97,7 +102,13 @@ fn print_row(name: &str, infos: &[sp1_gpu_air::ir::ConstraintInfo], chunks: &[Ch
             .count()
             / chunks.len()
     };
-    let oversize = chunks.iter().filter(|c| c.oversize_singleton).count();
+    // Singletons larger than `max_leafset` are diagnostic — they still
+    // get emitted in their own chunk; `compile_chips` is what panics if
+    // the resulting register pressure exceeds the fused kernel cap.
+    let oversize = chunks
+        .iter()
+        .filter(|c| c.leafset.len() as u32 > max_leafset && c.constraint_indices.len() == 1)
+        .count();
 
     println!(
         "{:<28} {:>5} {:>6} {:>5} {:>6} {:>5} {:>5} {:>5.1} {:>6}% {:>3}",

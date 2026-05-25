@@ -86,14 +86,17 @@ __global__ void zerocheck_fused_sequential(
             switch (instr.opcode) {
             case BC_LOAD_LEAF: {
                 LeafRef leaf = stc.leaves[instr.a];
-                // source: 2 = preprocessed, 4 = main (local row only).
-                size_t base = (leaf.source == 4) ? lay.main_ptr : lay.preprocessed_ptr;
-                K z = K::load(trace_data, base + leaf.col * lay.height + (row_idx << 1));
+                size_t base = (leaf.source == LEAF_SOURCE_MAIN_LOCAL)
+                                  ? lay.main_ptr
+                                  : lay.preprocessed_ptr;
+                // 64-bit column stride math; u32 × u32 wraps near the
+                // 2^32 / height column count. See review #6.
+                size_t col_off = (size_t)leaf.col * (size_t)lay.height;
+                K z = K::load(trace_data, base + col_off + (row_idx << 1));
                 if (e == 0) {
                     regs[instr.out] = z;
                 } else {
-                    K o = K::load(trace_data,
-                                  base + leaf.col * lay.height + (row_idx << 1 | 1));
+                    K o = K::load(trace_data, base + col_off + (row_idx << 1 | 1));
                     K diff = o - z;
                     K d2 = diff + diff;          // 2 * diff
                     regs[instr.out] = (e == 1) ? (z + d2)            // z + 2*diff
@@ -127,7 +130,10 @@ __global__ void zerocheck_fused_sequential(
                 break;
             }
             default:
-                break;
+                // Unknown opcode = Rust↔CUDA bytecode drift; fail loudly
+                // rather than leaving `regs[instr.out]` stale and silently
+                // producing the wrong constraint value downstream.
+                __trap();
             }
         }
 
@@ -148,14 +154,18 @@ __global__ void zerocheck_fused_sequential(
         //
         // Geq correction is always out-of-band (`zerocheck_geq_corrections`).
         if (stc.gkr_main_width != 0 || stc.gkr_prep_width != 0) {
+            // 64-bit column stride math; u32 × u32 wraps near
+            // `2^32 / height` columns. See review #6.
+            const size_t height_64 = (size_t)lay.height;
             for (uint32_t i = 0; i < stc.gkr_main_width; i++) {
-                K z = K::load(trace_data, lay.main_ptr + i * lay.height + (row_idx << 1));
+                size_t col_off = (size_t)i * height_64;
+                K z = K::load(trace_data, lay.main_ptr + col_off + (row_idx << 1));
                 K v;
                 if (e == 0) {
                     v = z;
                 } else {
                     K o = K::load(trace_data,
-                                  lay.main_ptr + i * lay.height + (row_idx << 1 | 1));
+                                  lay.main_ptr + col_off + (row_idx << 1 | 1));
                     K diff = o - z;
                     K d2 = diff + diff;
                     v = (e == 1) ? (z + d2) : (z + d2 + d2);
@@ -163,14 +173,14 @@ __global__ void zerocheck_fused_sequential(
                 acc += ext_t::load(gkr_powers, i) * v;
             }
             for (uint32_t i = 0; i < stc.gkr_prep_width; i++) {
-                K z = K::load(trace_data,
-                              lay.preprocessed_ptr + i * lay.height + (row_idx << 1));
+                size_t col_off = (size_t)i * height_64;
+                K z = K::load(trace_data, lay.preprocessed_ptr + col_off + (row_idx << 1));
                 K v;
                 if (e == 0) {
                     v = z;
                 } else {
                     K o = K::load(trace_data,
-                                  lay.preprocessed_ptr + i * lay.height + (row_idx << 1 | 1));
+                                  lay.preprocessed_ptr + col_off + (row_idx << 1 | 1));
                     K diff = o - z;
                     K d2 = diff + diff;
                     v = (e == 1) ? (z + d2) : (z + d2 + d2);

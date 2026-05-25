@@ -5,8 +5,7 @@
 //! its constraint DAGs, pre-computed once per (chunk, chip-set) and reused
 //! across sumcheck rounds.
 //!
-//! Currently ships Sequential + ColumnTile. ListScheduled and TermExpanded
-//! are sketched as variants but their plan builders are not yet implemented.
+//! Currently ships Sequential + ColumnTile.
 
 use crate::ir::analysis::{ConstraintInfo, ConstraintShape};
 use crate::ir::chunker::Chunk;
@@ -28,13 +27,6 @@ pub enum Lowering {
     /// when the chunk's DAG is `Σ_i (coeff_i · leaf_i)` over a contiguous
     /// column range.
     ColumnTile(ColumnTilePlan),
-
-    /// Reserved for Phase 5. Lanes cooperate across DAG levels within a warp.
-    ListScheduled,
-
-    /// Reserved for Phase 5. Lanes vary along `(term, row, eval)` after
-    /// expanding the chunk into monomials.
-    TermExpanded,
 }
 
 #[derive(Debug, Clone)]
@@ -66,6 +58,11 @@ pub struct ColumnTilePlanTerm {
     pub leaf_node: NodeId,
     /// `α^k` index for the constraint that owns this term.
     pub alpha_idx: u32,
+    /// True when this term sits on the right side of an odd number of
+    /// `SubF` nodes along the path to the linear-sum root. The lowering
+    /// passes it through to `ColumnTermEntry`'s `COEFF_NEGATE_BIT` so the
+    /// kernel flips the loaded coefficient.
+    pub negate: bool,
 }
 
 /// Enumerate the lowerings that *apply* to this chunk. Always includes
@@ -206,7 +203,10 @@ fn compute_max_live(topo: &[NodeId], dag: &ConstraintDag) -> u32 {
 
 /// Try to materialize a column-tile plan: requires every constraint in
 /// the chunk to be `LinearWeightedSum`. Each constraint's terms get tagged
-/// with its `alpha_index` so the kernel can weight them correctly.
+/// with its `alpha_index` so the kernel can weight them correctly, and
+/// with a per-term `negate` flag so a `SubF` spine produces the correct
+/// asserted polynomial (the right-hand side of every `Sub` contributes
+/// with a flipped coefficient).
 fn build_column_tile(
     chunk: &Chunk,
     constraints: &[ConstraintInfo],
@@ -218,30 +218,51 @@ fn build_column_tile(
         if !matches!(c.shape, ConstraintShape::LinearWeightedSum) {
             return None;
         }
-        let mut raw: Vec<(NodeId, NodeId)> = Vec::new();
-        flatten_linear(dag, c.root, &mut raw)?;
-        for (coeff, leaf) in raw {
+        let mut raw: Vec<FlattenedTerm> = Vec::new();
+        flatten_linear(dag, c.root, false, &mut raw)?;
+        for FlattenedTerm { coeff, leaf, negate } in raw {
             terms.push(ColumnTilePlanTerm {
                 coeff_node: coeff,
                 leaf_node: leaf,
                 alpha_idx: c.alpha_index,
+                negate,
             });
         }
     }
     Some(ColumnTilePlan { terms })
 }
 
-/// Walk an Add/Sub-of-Mul tree, pushing each `(coefficient, column_leaf)` pair.
+/// One term extracted from a linear-sum spine: the coefficient node, the
+/// column-leaf node, and a `negate` flag tracking whether the term appears
+/// on the right side of an odd number of `SubF` nodes (i.e., its
+/// coefficient should be flipped before evaluation).
+struct FlattenedTerm {
+    coeff: NodeId,
+    leaf: NodeId,
+    negate: bool,
+}
+
+/// Walk an Add/Sub-of-Mul tree, pushing each `(coefficient, column_leaf,
+/// negate)` triple. `negate` tracks the parity of `SubF` right-children
+/// along the path to each leaf so the asserted polynomial matches the
+/// AIR exactly: `a - b` produces `[(coeff_a, leaf_a, false), (coeff_b,
+/// leaf_b, true)]`, not `[(.., false), (.., false)]`.
 fn flatten_linear(
     dag: &ConstraintDag,
     node_id: NodeId,
-    out: &mut Vec<(NodeId, NodeId)>,
+    negate: bool,
+    out: &mut Vec<FlattenedTerm>,
 ) -> Option<()> {
     use crate::ir::dag::DagNode::*;
     match dag.nodes[node_id as usize] {
-        AddF { a, b } | SubF { a, b } => {
-            flatten_linear(dag, a, out)?;
-            flatten_linear(dag, b, out)?;
+        AddF { a, b } => {
+            flatten_linear(dag, a, negate, out)?;
+            flatten_linear(dag, b, negate, out)?;
+            Some(())
+        }
+        SubF { a, b } => {
+            flatten_linear(dag, a, negate, out)?;
+            flatten_linear(dag, b, !negate, out)?;
             Some(())
         }
         MulF { a, b } => {
@@ -249,11 +270,11 @@ fn flatten_linear(
             let b_is_coeff = is_coefficient(dag, b);
             match (a_is_coeff, b_is_coeff) {
                 (true, false) => {
-                    out.push((a, b));
+                    out.push(FlattenedTerm { coeff: a, leaf: b, negate });
                     Some(())
                 }
                 (false, true) => {
-                    out.push((b, a));
+                    out.push(FlattenedTerm { coeff: b, leaf: a, negate });
                     Some(())
                 }
                 _ => None,

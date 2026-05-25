@@ -7,7 +7,7 @@
 //! interpretation — lane variation IS the program.
 
 use crate::ir::analysis::ConstraintInfo;
-use crate::ir::bytecode::LeafRef;
+use crate::ir::bytecode::{LeafRef, LEAF_SOURCE_MAIN_LOCAL, LEAF_SOURCE_PREPROCESSED_LOCAL};
 use crate::ir::chunker::Chunk;
 use crate::ir::dag::{ConstraintDag, DagNode, TraceSource};
 use crate::ir::lowering::ColumnTilePlan;
@@ -16,10 +16,12 @@ use crate::F;
 /// Kind tag for `ColumnTermEntry.coeff_kind`. Must match the CUDA header.
 pub const COEFF_KIND_CONST: u32 = 0;
 pub const COEFF_KIND_PUBLIC: u32 = 1;
-/// Coefficient is an extension-field value supplied at launch time via the
-/// kernel's `runtime_coeffs` buffer. Used by GKR-correction chunks: each
-/// `batching_power_i` is a per-proof random challenge, not a DAG constant.
-pub const COEFF_KIND_RUNTIME: u32 = 2;
+/// Mask isolating the kind from the negate flag (bit 31).
+pub const COEFF_KIND_MASK: u32 = 0x7FFF_FFFF;
+/// High bit of `coeff_kind`: when set, the kernel negates the loaded
+/// coefficient before applying it. Tracks the `-` in a `SubF` spine of
+/// `LinearWeightedSum` so the asserted polynomial matches the AIR.
+pub const COEFF_NEGATE_BIT: u32 = 1u32 << 31;
 
 /// One term: `α^k · coeff · leaf_i(row, eval)`.
 ///
@@ -42,13 +44,6 @@ pub struct ColumnTileBytecode {
     pub publics: Vec<u32>,
     pub terms: Vec<ColumnTermEntry>,
     pub n_constraints: u32,
-    /// True iff this is a `synthesize_gkr_chunk` output — the GKR-sweep
-    /// carrier for a chip with no Sequential chunk. Its terms are weighted
-    /// by `EF::one()`, so at launch the kernel must read the `powers_of_alpha`
-    /// slot holding `1` (the last slot) rather than applying the per-chip
-    /// alpha shift. (A chip with 0 constraints has `chip_alpha_offset` equal
-    /// to the table length, so the per-chip shift would read out of bounds.)
-    pub is_gkr_carrier: bool,
 }
 
 /// Lower a `ColumnTilePlan` to flat term-entry bytecode.
@@ -78,8 +73,8 @@ pub fn lower_column_tile(
         let (src_byte, col) = match dag.nodes[t.leaf_node as usize] {
             DagNode::InputLeaf { source, col } => {
                 let s = match source {
-                    TraceSource::PreprocessedLocal => 2u8,
-                    TraceSource::MainLocal => 4,
+                    TraceSource::PreprocessedLocal => LEAF_SOURCE_PREPROCESSED_LOCAL,
+                    TraceSource::MainLocal => LEAF_SOURCE_MAIN_LOCAL,
                 };
                 (s, col)
             }
@@ -115,53 +110,170 @@ pub fn lower_column_tile(
             _ => return None,
         };
 
-        bc.terms.push(ColumnTermEntry { leaf_idx, coeff_kind, coeff_idx, alpha_idx: t.alpha_idx });
+        let kind_encoded = if t.negate { coeff_kind | COEFF_NEGATE_BIT } else { coeff_kind };
+        bc.terms.push(ColumnTermEntry {
+            leaf_idx,
+            coeff_kind: kind_encoded,
+            coeff_idx,
+            alpha_idx: t.alpha_idx,
+        });
     }
 
     Some(bc)
 }
 
-/// Synthesize a GKR-correction chunk for a chip.
-///
-/// Produces a `ColumnTileBytecode` whose program is
-/// `Σ_i batching_power_i · col_i`, summed across all main and preprocessed
-/// columns. Coefficient kind is `RUNTIME` — the caller supplies a per-launch
-/// `runtime_coeffs: &[EF]` of length `main_width + preprocessed_width`.
-///
-/// Term ordering matches v1's `jaggedConstraintPolyEval` GKR loop: main
-/// columns first (indices `0 .. main_width`), then preprocessed
-/// (indices `main_width .. main_width + preprocessed_width`). The caller
-/// must lay out `runtime_coeffs` in this order.
-///
-/// The GKR correction is added without an α weighting (weight `EF::one()`).
-/// Terms store `alpha_idx = 0` and the chunk is flagged `is_gkr_carrier`; at
-/// launch the kernel reads the `powers_of_alpha` slot holding `1` (the last
-/// slot) directly, bypassing the per-chip alpha shift — which would be
-/// out-of-bounds for a chip with 0 constraints.
-pub fn synthesize_gkr_chunk(main_width: u32, preprocessed_width: u32) -> ColumnTileBytecode {
-    let mut bc =
-        ColumnTileBytecode { is_gkr_carrier: true, n_constraints: 1, ..Default::default() };
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ir::analysis::{analyze_constraints, ConstraintShape};
+    use crate::ir::chunker::Chunk;
+    use crate::ir::dag::{ConstraintRef, DagNode, TraceSource};
+    use crate::ir::lowering::{enumerate_lowerings, Lowering};
+    use slop_algebra::AbstractField;
+    use std::collections::HashSet;
 
-    let push_term = |bc: &mut ColumnTileBytecode, source: u8, col: u32| {
-        let leaf_idx = bc.leaves.len() as u32;
-        bc.leaves.push(LeafRef { source, _pad: 0, col });
-        let coeff_idx = bc.terms.len() as u32;
-        bc.terms.push(ColumnTermEntry {
-            leaf_idx,
-            coeff_kind: COEFF_KIND_RUNTIME,
-            coeff_idx,
-            alpha_idx: 0,
-        });
-    };
+    /// Constraint `c0 * x0 - c1 * x1` MUST lower to ColumnTile with the
+    /// second term's `COEFF_NEGATE_BIT` set. This regression-tests the
+    /// `SubF` soundness fix — before it, `flatten_linear` treated `SubF`
+    /// identically to `AddF`, dropping the sign on the right operand and
+    /// producing a wrong asserted polynomial.
+    #[test]
+    fn lower_column_tile_handles_subf_sign() {
+        // Build DAG:  c0 = const(7), x0 = MainLocal[0], t0 = c0 * x0
+        //             c1 = const(11), x1 = MainLocal[1], t1 = c1 * x1
+        //             root = SubF { a: t0, b: t1 }
+        let mut nodes = Vec::new();
+        let c0 = nodes.len() as u32;
+        nodes.push(DagNode::ConstF { value: F::from_canonical_u32(7) });
+        let x0 = nodes.len() as u32;
+        nodes.push(DagNode::InputLeaf { source: TraceSource::MainLocal, col: 0 });
+        let t0 = nodes.len() as u32;
+        nodes.push(DagNode::MulF { a: c0, b: x0 });
+        let c1 = nodes.len() as u32;
+        nodes.push(DagNode::ConstF { value: F::from_canonical_u32(11) });
+        let x1 = nodes.len() as u32;
+        nodes.push(DagNode::InputLeaf { source: TraceSource::MainLocal, col: 1 });
+        let t1 = nodes.len() as u32;
+        nodes.push(DagNode::MulF { a: c1, b: x1 });
+        let root = nodes.len() as u32;
+        nodes.push(DagNode::SubF { a: t0, b: t1 });
 
-    // Main columns first (source byte 4 = MainLocal).
-    for col in 0..main_width {
-        push_term(&mut bc, 4, col);
+        let dag = ConstraintDag {
+            nodes,
+            constraints: vec![ConstraintRef { root, alpha_index: 0 }],
+            preprocessed_width: 0,
+            main_width: 2,
+        };
+        let infos = analyze_constraints(&dag);
+        assert!(matches!(infos[0].shape, ConstraintShape::LinearWeightedSum));
+
+        // Single-constraint chunk covering the SubF.
+        let mut leafset = HashSet::new();
+        for &leaf in &infos[0].column_leaves {
+            leafset.insert(leaf);
+        }
+        let chunk = Chunk {
+            constraint_indices: vec![0],
+            leafset,
+            depth_max: infos[0].depth,
+            shape: ConstraintShape::LinearWeightedSum,
+        };
+
+        let lowerings = enumerate_lowerings(&chunk, &infos, &dag);
+        let plan = lowerings
+            .iter()
+            .find_map(|l| match l {
+                Lowering::ColumnTile(p) => Some(p),
+                _ => None,
+            })
+            .expect("ColumnTile lowering should apply to LinearWeightedSum chunk");
+        let bc = lower_column_tile(&chunk, &infos, &dag, plan)
+            .expect("ColumnTile bytecode should lower successfully");
+
+        assert_eq!(bc.terms.len(), 2, "two terms expected for `c0*x0 - c1*x1`");
+
+        // First term: `+ c0 * x0` — negate bit must be clear.
+        let kind0 = bc.terms[0].coeff_kind & COEFF_KIND_MASK;
+        let neg0 = (bc.terms[0].coeff_kind & COEFF_NEGATE_BIT) != 0;
+        assert_eq!(kind0, COEFF_KIND_CONST);
+        assert!(!neg0, "first term (additive) must not be negated");
+
+        // Second term: `- c1 * x1` — negate bit MUST be set. Without the
+        // fix this would be `false`, silently making the kernel evaluate
+        // `c0*x0 + c1*x1` instead of `c0*x0 - c1*x1`.
+        let kind1 = bc.terms[1].coeff_kind & COEFF_KIND_MASK;
+        let neg1 = (bc.terms[1].coeff_kind & COEFF_NEGATE_BIT) != 0;
+        assert_eq!(kind1, COEFF_KIND_CONST);
+        assert!(neg1, "right-of-SubF term must carry the negate flag");
     }
-    // Then preprocessed (source byte 2 = PreprocessedLocal).
-    for col in 0..preprocessed_width {
-        push_term(&mut bc, 2, col);
-    }
 
-    bc
+    /// `c0*x0 - (c1*x1 - c2*x2)` exercises nested SubF: the inner
+    /// subtraction flips again, so `c2*x2` ends up additive (parity is
+    /// even). `c1*x1` is on the right side of the outer SubF only and
+    /// stays negated.
+    #[test]
+    fn lower_column_tile_handles_nested_subf() {
+        let mut nodes = Vec::new();
+        let c0 = nodes.len() as u32;
+        nodes.push(DagNode::ConstF { value: F::from_canonical_u32(2) });
+        let x0 = nodes.len() as u32;
+        nodes.push(DagNode::InputLeaf { source: TraceSource::MainLocal, col: 0 });
+        let t0 = nodes.len() as u32;
+        nodes.push(DagNode::MulF { a: c0, b: x0 });
+        let c1 = nodes.len() as u32;
+        nodes.push(DagNode::ConstF { value: F::from_canonical_u32(3) });
+        let x1 = nodes.len() as u32;
+        nodes.push(DagNode::InputLeaf { source: TraceSource::MainLocal, col: 1 });
+        let t1 = nodes.len() as u32;
+        nodes.push(DagNode::MulF { a: c1, b: x1 });
+        let c2 = nodes.len() as u32;
+        nodes.push(DagNode::ConstF { value: F::from_canonical_u32(5) });
+        let x2 = nodes.len() as u32;
+        nodes.push(DagNode::InputLeaf { source: TraceSource::MainLocal, col: 2 });
+        let t2 = nodes.len() as u32;
+        nodes.push(DagNode::MulF { a: c2, b: x2 });
+        let inner = nodes.len() as u32;
+        nodes.push(DagNode::SubF { a: t1, b: t2 });
+        let root = nodes.len() as u32;
+        nodes.push(DagNode::SubF { a: t0, b: inner });
+
+        let dag = ConstraintDag {
+            nodes,
+            constraints: vec![ConstraintRef { root, alpha_index: 0 }],
+            preprocessed_width: 0,
+            main_width: 3,
+        };
+        let infos = analyze_constraints(&dag);
+        assert!(matches!(infos[0].shape, ConstraintShape::LinearWeightedSum));
+
+        let mut leafset = HashSet::new();
+        for &leaf in &infos[0].column_leaves {
+            leafset.insert(leaf);
+        }
+        let chunk = Chunk {
+            constraint_indices: vec![0],
+            leafset,
+            depth_max: infos[0].depth,
+            shape: ConstraintShape::LinearWeightedSum,
+        };
+
+        let lowerings = enumerate_lowerings(&chunk, &infos, &dag);
+        let plan = lowerings
+            .iter()
+            .find_map(|l| match l {
+                Lowering::ColumnTile(p) => Some(p),
+                _ => None,
+            })
+            .expect("ColumnTile lowering should apply");
+        let bc = lower_column_tile(&chunk, &infos, &dag, plan)
+            .expect("ColumnTile bytecode should lower successfully");
+
+        // Three terms — sign parities: t0 = +, t1 = - (right of outer SubF),
+        // t2 = + (right of outer ⊕ right of inner = parity even).
+        assert_eq!(bc.terms.len(), 3);
+        let neg = |i: usize| (bc.terms[i].coeff_kind & COEFF_NEGATE_BIT) != 0;
+        assert!(!neg(0), "t0 = +c0*x0");
+        assert!(neg(1), "t1 = -c1*x1");
+        assert!(!neg(2), "t2 = -(-c2*x2) = +c2*x2");
+    }
 }

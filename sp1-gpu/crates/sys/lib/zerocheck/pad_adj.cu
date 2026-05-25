@@ -60,7 +60,9 @@ __global__ void zerocheck_pad_adj(
             break;
         }
         default:
-            break;
+            // Unknown opcode = Rust↔CUDA bytecode drift; fail loudly rather
+            // than silently emitting a wrong padded_row_adjustment.
+            __trap();
         }
     }
 
