@@ -126,6 +126,18 @@ where
     next_jagged_mle
 }
 
+/// Evaluate every column of `traces` (preprocessed + main, in that order) at
+/// `point` and return the per-column evaluations as host-side
+/// [`Ext`] values.
+///
+/// Per chip: compute the row partial-Lagrange table for `point`, slice the
+/// chip's flat region out of the trace's dense backing buffer via a
+/// `TensorView`, and dot-product each column with the partial Lagrange along
+/// the row dimension. The aggregated result is one [`Ext`] per (chip,
+/// column), concatenated in the order
+/// `preprocessed_table_index ∪ main_table_index`.
+///
+/// Chips whose dense region is empty are skipped (no contribution).
 #[inline(always)]
 pub fn evaluate_traces(traces: &JaggedTraceMle<Felt, TaskScope>, point: &Point<Ext>) -> Vec<Ext> {
     let trace_data = traces.dense();
@@ -169,6 +181,19 @@ pub fn evaluate_traces(traces: &JaggedTraceMle<Felt, TaskScope>, point: &Point<E
     DeviceBuffer::from_raw(result_buffer).to_host().unwrap()
 }
 
+/// Evaluate every column of `jagged_mle` at `point` by iteratively folding
+/// the trailing variable on device, returning one [`Ext`] per column.
+///
+/// Equivalent in result to running `MleEval::eval_at_point` per column on the
+/// host, but folds the whole jagged trace in place via repeated
+/// `fix_last_variable_jagged_felt`/`_ext` kernel launches — one per variable
+/// in `point`, walking from the last variable down to the first. After the
+/// chain the dense data holds, for each non-empty column, the four
+/// (a, b, c, d) coefficients of the residual extension element packed
+/// contiguously, from which the column's evaluation is read directly.
+///
+/// Used by the test/bench paths that need a host-visible "expected" set of
+/// column evaluations to compare against the prover's opening transcript.
 pub fn evaluate_jagged_columns(
     jagged_mle: &JaggedTraceMle<Felt, TaskScope>,
     point: Point<Ext>,
@@ -194,6 +219,15 @@ pub fn evaluate_jagged_columns(
     evals
 }
 
+/// Evaluate a jagged MLE at `(z_row, z_col)` using a chunked GPU kernel,
+/// returning the device-side per-column accumulator tensor.
+///
+/// The work is partitioned into `CHUNK_SIZE`-row blocks fed through `kernel`
+/// (the field-specialised `jagged_eval_kernel_chunked_<felt|ext>`); each
+/// block writes its partial into a (block, column) tensor that the caller
+/// is expected to reduce along the block dimension. `total_length` is the
+/// sum of all column heights and selects the kernel grid; `num_cols` sizes
+/// the column dimension of the output.
 pub fn evaluate_jagged_mle_chunked<F: Field>(
     jagged_mle: JaggedTraceMle<F, TaskScope>,
     z_row: Point<Ext, TaskScope>,

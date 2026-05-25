@@ -1737,6 +1737,24 @@ where
 // Outer driver — parallel to v1's `zerocheck`.
 // ============================================================================
 
+/// Run the shard's zerocheck sum-check and produce the per-chip opened values
+/// the rest of the prover needs.
+///
+/// Initializes a `ZeroCheckJaggedPoly` from the shard's jagged trace + machine
+/// bytecode, then drives one `evaluate_zerocheck` → `zerocheck_fix_last_variable`
+/// round per variable, observing each round's univariate polynomial into the
+/// challenger. At the end of the sum-check the final folded MLE yields one
+/// evaluation per main+preprocessed column, which are packaged with the
+/// corresponding heights/degrees into [`ShardOpenedValues`] alongside the
+/// [`PartialSumcheckProof`] of the round transcript.
+///
+/// `machine_bytecode` must have been produced once at prover construction by
+/// [`upload_machine_bytecode`] and may be reused across shards.
+/// `logup_evaluations` supplies the precomputed batched LogUp opening that
+/// seeds the per-chip claim; `batching_challenge` and
+/// `gkr_opening_batch_randomness` are the round-zero Fiat–Shamir challenges
+/// drawn before calling. `max_log_row_count` is the cluster's height bound,
+/// shared by every chip's degree computation.
 #[allow(clippy::too_many_arguments)]
 pub fn zerocheck<A, C>(
     chips: &BTreeSet<Chip<Felt, A>>,
