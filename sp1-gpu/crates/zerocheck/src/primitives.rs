@@ -1,4 +1,3 @@
-use crate::data::{InfoBuffer, JaggedDenseInfo};
 use slop_algebra::{AbstractField, ExtensionField, Field};
 use slop_alloc::{Backend, Buffer, CpuBackend, HasBackend, Slice};
 use slop_commit::Rounds;
@@ -6,19 +5,15 @@ use slop_commit::Rounds;
 use slop_multilinear::{MleEval, Point};
 use slop_tensor::{Tensor, TensorView};
 
-use sp1_gpu_cudart::sys::kernels::{
-    fix_last_variable_jagged_ext, fix_last_variable_jagged_felt, fix_last_variable_jagged_info,
-    initialize_jagged_info,
-};
+use sp1_gpu_cudart::sys::kernels::{fix_last_variable_jagged_ext, fix_last_variable_jagged_felt};
 use sp1_gpu_cudart::sys::runtime::KernelPtr;
 use sp1_gpu_cudart::{
     args, dot_along_dim_view, DeviceBuffer, DevicePoint, DeviceTensor, TaskScope,
 };
-use sp1_gpu_utils::{Ext, Felt, JaggedMle, JaggedTraceMle, TraceDenseData, TraceOffset};
+use sp1_gpu_utils::{Ext, Felt, JaggedTraceMle, TraceDenseData, TraceOffset};
 use std::collections::BTreeMap;
-use std::iter::once;
 
-pub trait JaggedFixLastVariableKernel<K: Field> {
+pub(crate) trait JaggedFixLastVariableKernel<K: Field> {
     fn jagged_fix_last_variable_kernel() -> KernelPtr;
 }
 
@@ -35,7 +30,7 @@ impl JaggedFixLastVariableKernel<Ext> for TaskScope {
 }
 
 #[inline(always)]
-pub fn evaluate_jagged_fix_last_variable<F: Field>(
+pub(crate) fn evaluate_jagged_fix_last_variable<F: Field>(
     jagged_mle: &JaggedTraceMle<F, TaskScope>,
     value: Ext,
 ) -> JaggedTraceMle<Ext, TaskScope>
@@ -185,101 +180,6 @@ pub fn evaluate_jagged_columns(
     }
 
     evals
-}
-
-pub fn initialize_jagged_dense_info(
-    heights: Vec<u32>,
-    values: Vec<u64>,
-    backend: &TaskScope,
-) -> JaggedDenseInfo<TaskScope> {
-    let buffer_start_idx = once(0)
-        .chain(heights.iter().scan(0u32, |acc, x| {
-            *acc += x;
-            Some(*acc)
-        }))
-        .collect::<Buffer<_>>();
-    let start_idx_device =
-        DeviceBuffer::from_host(&buffer_start_idx, backend).unwrap().into_inner();
-    let values = DeviceBuffer::from_host(&Buffer::from(values), backend).unwrap().into_inner();
-
-    let num_blocks = heights.len();
-    assert_eq!(heights.len(), values.len());
-
-    let total_len = buffer_start_idx.last().unwrap() * 2;
-    let info_buffer =
-        Buffer::<u64, TaskScope>::with_capacity_in(total_len as usize, backend.clone());
-    let info_cols_buffer =
-        Buffer::<u32, TaskScope>::with_capacity_in(total_len as usize / 2, backend.clone());
-
-    let mut jagged_info =
-        JaggedMle::new(InfoBuffer::new(info_buffer), info_cols_buffer, start_idx_device, heights);
-
-    const BLOCK_SIZE: usize = 256;
-    const CHUNK_SIZE: usize = 1 << 16;
-    let grid_size_x = (total_len as usize / 2).div_ceil(CHUNK_SIZE);
-    let grid_size = (grid_size_x, 1, 1);
-    let block_dim = BLOCK_SIZE;
-
-    unsafe {
-        jagged_info.dense_data.assume_init();
-        jagged_info.col_index.assume_init();
-        let args =
-            args!(jagged_info.as_mut_raw(), values.as_ptr(), total_len / 2, num_blocks as u32);
-        backend.launch_kernel(initialize_jagged_info(), grid_size, block_dim, &args, 0).unwrap();
-    }
-
-    JaggedDenseInfo(jagged_info)
-}
-
-pub fn evaluate_jagged_info_fix_last_variable(
-    jagged_info: JaggedDenseInfo<TaskScope>,
-) -> JaggedDenseInfo<TaskScope> {
-    let backend = jagged_info.dense_data.backend();
-    let input_heights = &jagged_info.column_heights;
-
-    let length = input_heights.iter().sum::<u32>();
-    let output_heights =
-        input_heights.iter().map(|height| height.div_ceil(4) * 2).collect::<Vec<u32>>();
-    let new_start_idx = once(0)
-        .chain(output_heights.iter().scan(0u32, |acc, x| {
-            *acc += x;
-            Some(*acc)
-        }))
-        .collect::<Vec<_>>();
-    let new_total_length = *new_start_idx.last().unwrap() * 2;
-    let buffer_start_idx = Buffer::from(new_start_idx);
-    let output_start_idx =
-        DeviceBuffer::from_host(&buffer_start_idx, backend).unwrap().into_inner();
-    let new_data =
-        Buffer::<u64, TaskScope>::with_capacity_in(new_total_length as usize, backend.clone());
-    let new_cols = Buffer::<u32, TaskScope>::with_capacity_in(
-        (new_total_length / 2) as usize,
-        backend.clone(),
-    );
-
-    let mut next_jagged_info = JaggedDenseInfo::new(
-        InfoBuffer { data: new_data },
-        new_cols,
-        output_start_idx,
-        output_heights,
-    );
-
-    const BLOCK_SIZE: usize = 256;
-    const CHUNK_SIZE: usize = 1 << 16;
-    let grid_size_x = (length as usize).div_ceil(CHUNK_SIZE).max(256);
-    let grid_size = (grid_size_x, 1, 1);
-    let block_dim = BLOCK_SIZE;
-
-    unsafe {
-        next_jagged_info.dense_data.assume_init();
-        next_jagged_info.col_index.assume_init();
-        let args = args!(jagged_info.as_raw(), next_jagged_info.as_mut_raw(), length);
-        backend
-            .launch_kernel(fix_last_variable_jagged_info(), grid_size, block_dim, &args, 0)
-            .unwrap();
-    }
-
-    next_jagged_info
 }
 
 pub fn evaluate_jagged_mle_chunked<F: Field>(

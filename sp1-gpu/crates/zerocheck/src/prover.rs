@@ -58,7 +58,7 @@ use crate::primitives::{evaluate_jagged_fix_last_variable, JaggedFixLastVariable
 
 /// One chunk's bytecode + a discriminator for which kernel runs it.
 #[derive(Debug, Clone)]
-pub enum CompiledChunk {
+pub(crate) enum CompiledChunk {
     Sequential(ChunkBytecode),
     ColumnTile(ColumnTileBytecode),
 }
@@ -66,7 +66,7 @@ pub enum CompiledChunk {
 /// Per-chip compiled program: a list of chunks (Sequential + ColumnTile)
 /// plus a final synthesized GKR-correction chunk.
 #[derive(Debug, Clone)]
-pub struct CompiledChip {
+pub(crate) struct CompiledChip {
     pub chip_idx: u32,
     pub name: String,
     pub main_width: u32,
@@ -76,11 +76,6 @@ pub struct CompiledChip {
 
 /// Index of the synthesized GKR chunk inside `chunks`. Used by the launcher
 /// to wire `runtime_coeffs` only to that one chunk's launch.
-pub fn gkr_chunk_idx(chip: &CompiledChip) -> usize {
-    // GKR is always the last chunk we append in `compile_chip`.
-    chip.chunks.len() - 1
-}
-
 /// Compile a chip set to per-chip v2 chunks.
 ///
 /// The emitted bytecode is **machine-stable**: it depends only on each chip's
@@ -96,7 +91,10 @@ pub fn gkr_chunk_idx(chip: &CompiledChip) -> usize {
 /// The synthesized GKR chunk (only for chips with no Sequential carrier)
 /// stores the chip-relative index `num_constraints - 1`, which the same
 /// runtime shift maps onto the `powers_of_alpha` slot holding `EF::one()`.
-pub fn compile_chips<A>(chips: &BTreeSet<Chip<Felt, A>>, budget: ChunkBudget) -> Vec<CompiledChip>
+pub(crate) fn compile_chips<A>(
+    chips: &BTreeSet<Chip<Felt, A>>,
+    budget: ChunkBudget,
+) -> Vec<CompiledChip>
 where
     A: MachineAir<Felt> + for<'a> Air<DagBuilder<'a>>,
 {
@@ -239,7 +237,7 @@ pub struct ChunkStaticC {
 /// `sys/include/zerocheck/gkr_sweep.cuh`.
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
-pub struct ChipGkrInfoC {
+pub(crate) struct ChipGkrInfoC {
     pub main_width: u32,
     pub prep_width: u32,
 }
@@ -300,7 +298,7 @@ pub struct VirtualGeqStateC {
 /// the backing memory lives in the `MachineBytecode` that contains this
 /// struct, so a view is valid exactly as long as that machine bytecode is.
 #[derive(Clone, Copy)]
-pub struct ChunkDeviceBufs {
+pub(crate) struct ChunkDeviceBufs {
     pub kind: ChunkKind,
     // Common
     pub leaves: *const sp1_gpu_air::ir::LeafRef,
@@ -325,16 +323,15 @@ pub struct ChunkDeviceBufs {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum ChunkKind {
+pub(crate) enum ChunkKind {
     Sequential,
     ColumnTile,
 }
 
 /// Per-chip device views into the flat machine bytecode.
 #[derive(Clone)]
-pub struct CompiledChipDevice {
+pub(crate) struct CompiledChipDevice {
     pub chip_idx: u32,
-    pub name: String,
     pub main_width: u32,
     pub prep_width: u32,
     pub chunks: Vec<ChunkDeviceBufs>,
@@ -359,9 +356,9 @@ pub struct MachineBytecode {
     _flat_assert_alphas: Buffer<u32, TaskScope>,
     _flat_terms: Buffer<sp1_gpu_air::ir::ColumnTermEntry, TaskScope>,
     /// One entry per machine chip, in machine chip order.
-    pub chips: Vec<CompiledChipDevice>,
+    pub(crate) chips: Vec<CompiledChipDevice>,
     /// Chip name → index into `chips`, for per-shard subset selection.
-    pub chip_index: BTreeMap<String, usize>,
+    pub(crate) chip_index: BTreeMap<String, usize>,
 }
 
 // SAFETY: `ChunkDeviceBufs`/`CompiledChipDevice` hold raw device pointers
@@ -388,7 +385,10 @@ where
 /// Flatten + upload an already-compiled set of chips. Split out of
 /// `upload_machine_bytecode` so scaling tests can feed a synthetically large
 /// chip list without paying repeated AIR compilation.
-pub fn upload_compiled_bytecode(compiled: Vec<CompiledChip>, scope: &TaskScope) -> MachineBytecode {
+pub(crate) fn upload_compiled_bytecode(
+    compiled: Vec<CompiledChip>,
+    scope: &TaskScope,
+) -> MachineBytecode {
     // ---- Pass 1: concatenate every chunk's arrays into flat host vecs. ----
     let mut flat_instrs: Vec<sp1_gpu_air::ir::DagInstr> = Vec::new();
     let mut flat_leaves: Vec<sp1_gpu_air::ir::LeafRef> = Vec::new();
@@ -529,7 +529,6 @@ pub fn upload_compiled_bytecode(compiled: Vec<CompiledChip>, scope: &TaskScope) 
         chip_index.insert(chip.name.clone(), device_chips.len());
         device_chips.push(CompiledChipDevice {
             chip_idx: chip.chip_idx,
-            name: chip.name.clone(),
             main_width: chip.main_width,
             prep_width: chip.prep_width,
             chunks,
@@ -553,7 +552,7 @@ pub fn upload_compiled_bytecode(compiled: Vec<CompiledChip>, scope: &TaskScope) 
 // Per-round poly state (parallel to v1's ZeroCheckJaggedPoly).
 // ============================================================================
 
-pub struct ZeroCheckJaggedPoly<'b, K: Field> {
+pub(crate) struct ZeroCheckJaggedPoly<'b, K: Field> {
     pub data: Cow<'b, JaggedTraceMle<K, TaskScope>>,
     /// This shard's chips, as pointer-views into `machine_bytecode`.
     pub compiled: Vec<CompiledChipDevice>,
@@ -563,7 +562,6 @@ pub struct ZeroCheckJaggedPoly<'b, K: Field> {
     pub eq_adjustment: Ext,
     pub zeta: Point<Ext>,
     pub claim: Ext,
-    pub initial_heights: Vec<u32>,
     pub padded_row_adjustment_host: Vec<Ext>,
     pub public_values: Buffer<Felt, TaskScope>,
     pub powers_of_alpha: Buffer<Ext, TaskScope>,
@@ -622,7 +620,7 @@ pub struct ZeroCheckJaggedPoly<'b, K: Field> {
 /// and uploaded once — the kernel reads from it every round without further
 /// host involvement. `chip_indices` mirrors the static array so the per-round
 /// dispatch builder can look up each chunk's current `chip_height` cheaply.
-pub struct SeqTierStatic {
+pub(crate) struct SeqTierStatic {
     /// Per-chunk static descriptors in tier order. Index `i` here corresponds
     /// to `chunk_id = i` in `BlockDispatchC`.
     pub static_host: Vec<ChunkStaticC>,
@@ -639,7 +637,7 @@ pub struct SeqTierStatic {
 
 /// Per-trace-element-type kernel selection. Round 0 uses `K = Felt`; rounds
 /// 1+ use `K = Ext` after the trace is folded into the extension field.
-pub trait EvalKernels<K: Field> {
+pub(crate) trait EvalKernels<K: Field> {
     fn column_tile_kernel() -> KernelPtr;
     /// Tiered fused dispatch kernel. The launcher partitions chunks into
     /// tiers by their `max_reg` and launches one kernel per non-empty
@@ -708,7 +706,7 @@ impl EvalKernels<Ext> for TaskScope {
 // ============================================================================
 
 #[allow(clippy::too_many_arguments)]
-pub fn initialize_zerocheck_poly<'b, A>(
+pub(crate) fn initialize_zerocheck_poly<'b, A>(
     data: &'b JaggedTraceMle<Felt, TaskScope>,
     chips: &BTreeSet<Chip<Felt, A>>,
     compiled_chips_dev: Vec<CompiledChipDevice>,
@@ -834,7 +832,6 @@ where
         eq_adjustment: Ext::one(),
         zeta,
         claim,
-        initial_heights,
         padded_row_adjustment_host: padded_row_adjustment,
         public_values: public_values_device,
         powers_of_alpha: powers_of_alpha_device,
@@ -881,7 +878,7 @@ const TIER_SPLIT_MAX_REG: u16 = 256;
 /// column-parallel win until widths reach ~hundreds; 128 keeps the current
 /// SP1 chip set (max width ~70) on the inline path while still routing
 /// future regime-2 chips (widths 100-10k) through the decoupled kernel.
-pub const WIDE_GKR_THRESHOLD: u32 = 256;
+pub(crate) const WIDE_GKR_THRESHOLD: u32 = 256;
 
 /// True iff this chip's GKR work should run in the dedicated decoupled
 /// kernel. Stays false for typical SP1 chips today; flips to true for the
@@ -1135,7 +1132,7 @@ where
 // Per-round kernel launcher.
 // ============================================================================
 
-pub fn evaluate_zerocheck<'b, K: Field>(
+pub(crate) fn evaluate_zerocheck<'b, K: Field>(
     poly: &mut ZeroCheckJaggedPoly<'b, K>,
 ) -> UnivariatePolynomial<Ext>
 where
@@ -1581,7 +1578,7 @@ fn launch_chunk_into<K: Field>(
 // Fix-last-variable: fold trace data, update eq_adjustment.
 // ============================================================================
 
-pub fn zerocheck_fix_last_variable<'b, K: Field>(
+pub(crate) fn zerocheck_fix_last_variable<'b, K: Field>(
     input: ZeroCheckJaggedPoly<'b, K>,
     point: Ext,
     claim: Ext,
@@ -1664,7 +1661,6 @@ where
         cum_prep += prep_w;
         cum_main += main_w;
     }
-    let initial_heights = chip_heights.clone();
 
     ZeroCheckJaggedPoly {
         data: Cow::Owned(new_data),
@@ -1673,7 +1669,6 @@ where
         eq_adjustment,
         zeta: rest,
         claim,
-        initial_heights,
         padded_row_adjustment_host: input.padded_row_adjustment_host,
         public_values: input.public_values,
         powers_of_alpha: input.powers_of_alpha,

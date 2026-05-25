@@ -3,11 +3,10 @@ use slop_algebra::{AbstractExtensionField, UnivariatePolynomial};
 use slop_challenger::FieldChallenger;
 use sp1_gpu_utils::{Ext, Felt};
 
-pub mod data;
 pub mod primitives;
 pub mod prover;
 
-pub fn challenger_update<C>(
+pub(crate) fn challenger_update<C>(
     input_poly: &UnivariatePolynomial<Ext>,
     challenger: &mut C,
 ) -> (Ext, Ext)
