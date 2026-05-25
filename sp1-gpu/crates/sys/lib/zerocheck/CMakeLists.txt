@@ -6,5 +6,6 @@ add_library(zerocheck_objs OBJECT
     aggregate.cu
     gkr_sweep.cu
     pad_adj.cu
+    layout_check.cu
 )
 target_link_libraries(zerocheck_objs PRIVATE sp1_gpu_common)
