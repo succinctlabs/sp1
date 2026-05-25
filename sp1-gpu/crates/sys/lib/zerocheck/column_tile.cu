@@ -66,8 +66,11 @@ __global__ void zerocheck_column_tile(
         LeafRef leaf = leaves[t.leaf_idx];
         // source: 2 = preprocessed, 4 = main (local row only).
         size_t base = (leaf.source == 4) ? main_ptr : preprocessed_ptr;
-        K z = K::load(trace_data, base + leaf.col * height + (row << 1));
-        K o = K::load(trace_data, base + leaf.col * height + (row << 1 | 1));
+        // 64-bit column stride math; u32 × u32 wraps near
+        // `2^32 / height` columns. See review #6.
+        const size_t col_off = (size_t)leaf.col * (size_t)height;
+        K z = K::load(trace_data, base + col_off + (row << 1));
+        K o = K::load(trace_data, base + col_off + (row << 1 | 1));
         K diff = o - z;
         // Eval points are {0, 2, 4}; compute the two doublings as adds rather
         // than felt-by-K mults (~12 ops each for K = ext_t).
@@ -79,19 +82,34 @@ __global__ void zerocheck_column_tile(
         K v1 = z + d2;             // z + 2*diff
         K v2 = z + d2 + d2;        // z + 4*diff
 
+        // `coeff_kind` packs kind (low 31 bits) + negate flag (high bit).
+        // The negate flag tracks `SubF` parity in the original linear-sum
+        // spine: when set, the loaded coefficient is flipped before use so
+        // the asserted polynomial matches the AIR. Without this, a
+        // constraint like `c0·x0 - c1·x1` would be evaluated as
+        // `c0·x0 + c1·x1` — a soundness bug for any chip whose linear-sum
+        // constraints contain subtraction.
+        const uint32_t kind = t.coeff_kind & COEFF_KIND_MASK;
+        const bool negate = (t.coeff_kind & COEFF_NEGATE_BIT) != 0u;
         ext_t a0, a1, a2;
-        if (t.coeff_kind == COEFF_KIND_RUNTIME) {
+        if (kind == COEFF_KIND_RUNTIME) {
             ext_t coeff = ext_t::load(runtime_coeffs, t.coeff_idx);
+            if (negate) {
+                coeff = ext_t::zero() - coeff;
+            }
             a0 = alpha * (coeff * v0);
             a1 = alpha * (coeff * v1);
             a2 = alpha * (coeff * v2);
         } else {
             felt_t coeff;
-            if (t.coeff_kind == COEFF_KIND_CONST) {
+            if (kind == COEFF_KIND_CONST) {
                 coeff = consts[t.coeff_idx];
             } else {
                 uint32_t pv_idx = publics[t.coeff_idx];
                 coeff = felt_t::load(public_values, pv_idx);
+            }
+            if (negate) {
+                coeff = felt_t::zero() - coeff;
             }
             a0 = alpha * (coeff * v0);
             a1 = alpha * (coeff * v1);

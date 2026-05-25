@@ -35,6 +35,13 @@ __global__ void zerocheck_fix_geq_state(
         return;
     }
     VirtualGeqState s = state[chip_idx];
+    // Host `VirtualGeq::fix_last_variable` panics on `num_vars == 0`; do
+    // the same here so divergence between host and device semantics fails
+    // loudly rather than silently mutating threshold/eq_coefficient on
+    // exhausted state. See review bug #5.
+    if (s.num_vars == 0u) {
+        __trap();
+    }
     uint32_t new_threshold = s.threshold >> 1;
     // The host-side formula:
     //   new_eq = (1 - alpha) * eq_coef           if threshold is even
@@ -47,11 +54,7 @@ __global__ void zerocheck_fix_geq_state(
     }
     state[chip_idx].threshold = new_threshold;
     state[chip_idx].eq_coefficient = new_eq;
-    // geq_coefficient is unchanged by `.into()`; num_vars saturates at 0 (the
-    // host helper uses `saturating_sub(1)`).
-    if (s.num_vars > 0) {
-        state[chip_idx].num_vars = s.num_vars - 1;
-    }
+    state[chip_idx].num_vars = s.num_vars - 1;
 }
 
 // ============================================================================

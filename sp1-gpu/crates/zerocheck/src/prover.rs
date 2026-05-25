@@ -136,6 +136,24 @@ where
                 let bc = lower_sequential(chunk, &infos, &dag, plan);
                 // `bc.asserts[*].1` (alpha index) stays chip-relative; the
                 // cluster shift is applied at launch.
+                // The fused sequential kernel templates cap `MAX_REGS` at
+                // 1024; `fused_sequential_kernel_for` silently clamps to
+                // the 1024 template, so a chunk exceeding it would OOB-write
+                // its per-thread `regs[]` array. Trip loudly here instead —
+                // the chunker's leaf budget should keep us well under, but
+                // a `CHUNKER_MAX_LEAFSET` env override (or a future
+                // `oversize_singleton` escape valve) could otherwise hit
+                // this silently. See review bug #6.
+                const MAX_FUSED_REGS: u16 = 1024;
+                assert!(
+                    bc.max_reg <= MAX_FUSED_REGS,
+                    "chip {}: chunk max_reg={} exceeds fused-kernel cap ({}); \
+                     reduce CHUNKER_MAX_LEAFSET or implement the oversize-singleton \
+                     escape valve",
+                    air.name(),
+                    bc.max_reg,
+                    MAX_FUSED_REGS,
+                );
                 if std::env::var("SP1_GPU_DEBUG_MAXREG").is_ok() {
                     eprintln!(
                         "compile chip={} max_reg={} n_instrs={} n_asserts={}",

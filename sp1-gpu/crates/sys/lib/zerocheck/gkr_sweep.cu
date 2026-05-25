@@ -23,11 +23,15 @@ __device__ __forceinline__ K interp_load(
     const K* trace_data, size_t base, uint32_t col, uint32_t height,
     uint32_t row_idx, int e)
 {
-    K z = K::load(trace_data, base + col * height + (row_idx << 1));
+    // Cast one operand to size_t so the column-stride math is 64-bit; with
+    // u32 × u32 the product wraps for chips approaching `2^32 / height`
+    // columns, silently reading from the wrong column. See review #6.
+    const size_t col_off = (size_t)col * (size_t)height;
+    K z = K::load(trace_data, base + col_off + (row_idx << 1));
     if (e == 0) {
         return z;
     }
-    K o = K::load(trace_data, base + col * height + (row_idx << 1 | 1));
+    K o = K::load(trace_data, base + col_off + (row_idx << 1 | 1));
     K diff = o - z;
     K d2 = diff + diff;
     return (e == 1) ? (z + d2) : (z + d2 + d2);

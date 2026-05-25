@@ -88,11 +88,12 @@ pub struct Chunk {
 /// chunks could use a larger leaf budget since ColumnTile doesn't pay for a
 /// shared-mem cache, but Phase 3 keeps it uniform.
 pub fn chunk_dag(constraints: &[ConstraintInfo], budget: &ChunkBudget) -> Vec<Chunk> {
+    // Every asserted constraint needs an `α^k` slot and an enforced
+    // bytecode entry, even ones whose root reduces to a single
+    // public/cumsum/IsFirstRow leaf (no column reads, no work). Dropping
+    // them would silently under-constrain the AIR — the chip's
+    // `alpha_index` is still allocated, but no chunk ever asserts it.
     let (linear, general): (Vec<_>, Vec<_>) = (0..constraints.len())
-        .filter(|&i| {
-            let c = &constraints[i];
-            !c.column_leaves.is_empty() || c.work > 0
-        })
         .partition(|&i| matches!(constraints[i].shape, ConstraintShape::LinearWeightedSum));
 
     let mut chunks = Vec::new();
