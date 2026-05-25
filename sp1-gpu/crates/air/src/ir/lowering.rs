@@ -5,8 +5,7 @@
 //! its constraint DAGs, pre-computed once per (chunk, chip-set) and reused
 //! across sumcheck rounds.
 //!
-//! Currently ships Sequential + ColumnTile. ListScheduled and TermExpanded
-//! are sketched as variants but their plan builders are not yet implemented.
+//! Currently ships Sequential + ColumnTile.
 
 use crate::ir::analysis::{ConstraintInfo, ConstraintShape};
 use crate::ir::chunker::Chunk;
@@ -28,13 +27,6 @@ pub enum Lowering {
     /// when the chunk's DAG is `Σ_i (coeff_i · leaf_i)` over a contiguous
     /// column range.
     ColumnTile(ColumnTilePlan),
-
-    /// Reserved for Phase 5. Lanes cooperate across DAG levels within a warp.
-    ListScheduled,
-
-    /// Reserved for Phase 5. Lanes vary along `(term, row, eval)` after
-    /// expanding the chunk into monomials.
-    TermExpanded,
 }
 
 #[derive(Debug, Clone)]

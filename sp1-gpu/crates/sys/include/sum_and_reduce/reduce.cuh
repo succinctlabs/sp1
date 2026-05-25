@@ -5,6 +5,20 @@
 
 namespace cg = cooperative_groups;
 
+// Block-level reduction of one F-typed value per thread to one F per block.
+//
+// Returns `shared[0]` to every thread. Despite that, the contract is:
+// **only `block.thread_rank() == 0`'s return value is valid**; other
+// threads read the same global address but it isn't a real broadcast —
+// the next call to `partialBlockReduce` (or any other `shared[]` writer)
+// races the late-thread reads. Callers that need the value on every
+// thread must explicitly broadcast (e.g. write to `shared[0]` then
+// `block.sync()`).
+//
+// Back-to-back calls *must* `block.sync()` between them: this function
+// ends with `block.sync()` inside the tree loop, then a non-synced load
+// of `shared[0]`, so a slow thread's load can otherwise race the next
+// call's `shared[meta_group_rank()] = val` write.
 template <typename F, typename TyBlock, typename TyTile>
 __device__ __forceinline__ F
 partialBlockReduce(const TyBlock& block, const TyTile& tile, F val, F* shared) {

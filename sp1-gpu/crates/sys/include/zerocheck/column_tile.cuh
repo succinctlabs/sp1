@@ -24,7 +24,6 @@ struct ColumnTermEntry {
 
 constexpr uint32_t COEFF_KIND_CONST   = 0;
 constexpr uint32_t COEFF_KIND_PUBLIC  = 1;
-constexpr uint32_t COEFF_KIND_RUNTIME = 2;
 constexpr uint32_t COEFF_KIND_MASK    = 0x7FFFFFFFu;
 constexpr uint32_t COEFF_NEGATE_BIT   = 0x80000000u;
 

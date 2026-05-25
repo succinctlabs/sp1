@@ -18,14 +18,26 @@ struct DagInstr {
     uint16_t b;
 };
 
+// Source tag for `LeafRef.source`. Must match
+// `LEAF_SOURCE_{PREPROCESSED,MAIN}_LOCAL` in
+// `sp1-gpu-air/src/ir/bytecode.rs`. The (`PreprocessedNext`,
+// `MainNext`) variants from the jagged-mle column tags would be 3 and 5
+// but are never emitted here — constraint lowering only references local
+// rows.
+constexpr uint8_t LEAF_SOURCE_PREPROCESSED_LOCAL = 2;
+constexpr uint8_t LEAF_SOURCE_MAIN_LOCAL         = 4;
+
 // Must match `LeafRef` in sp1-gpu-air/src/ir/bytecode.rs.
 struct LeafRef {
-    uint8_t source;   // 2=PrepLocal, 4=MainLocal (local row only)
+    uint8_t source;   // LEAF_SOURCE_PREPROCESSED_LOCAL / LEAF_SOURCE_MAIN_LOCAL
     uint8_t _pad;
     uint32_t col;
 };
 
 // Opcodes — must match `BcOp` in sp1-gpu-air/src/ir/bytecode.rs.
+// Asserts aren't an opcode: they live in a separate per-chunk
+// `(reg, alpha_idx)` array (`stc.asserts`) so the interpreter can iterate
+// them after the bytecode body, summed against `powers_of_alpha`.
 enum BcOp : uint8_t {
     BC_LOAD_LEAF   = 0,
     BC_LOAD_CONST  = 1,
@@ -34,7 +46,6 @@ enum BcOp : uint8_t {
     BC_SUB_F       = 4,
     BC_MUL_F       = 5,
     BC_NEG_F       = 6,
-    BC_ASSERT_F    = 7,
 };
 
 // Shard-static per-chunk descriptor. Must match `ChunkStaticC` in

@@ -19,8 +19,8 @@ fn main() {
     let budget = ChunkBudget::recommended();
 
     println!(
-        "{:<22} {:>5} {:>6} {:>5} {:>5} {:>5} {:>5} {:>5} {:>8}",
-        "chip", "nChnk", "instrs", "leaf", "const", "pub", "asrt", "maxR", "compat?"
+        "{:<22} {:>5} {:>6} {:>5} {:>5} {:>5} {:>5} {:>5}",
+        "chip", "nChnk", "instrs", "leaf", "const", "pub", "asrt", "maxR"
     );
     println!("{}", "-".repeat(78));
 
@@ -54,7 +54,7 @@ fn main() {
             }
         }
         println!(
-            "{:<22} {:>5} {:>6} {:>5} {:>5} {:>5} {:>5} {:>5} {:>8}",
+            "{:<22} {:>5} {:>6} {:>5} {:>5} {:>5} {:>5} {:>5}",
             name,
             chunks.len(),
             total.instrs,
@@ -63,7 +63,6 @@ fn main() {
             total.publics,
             total.asserts,
             total.max_reg_seen,
-            if total.all_compatible { "yes" } else { "MIXED" },
         );
     }
 
@@ -109,7 +108,6 @@ struct LoweredStats {
     publics: usize,
     asserts: usize,
     max_reg_seen: u16,
-    all_compatible: bool,
 }
 
 impl LoweredStats {
@@ -120,7 +118,6 @@ impl LoweredStats {
         self.publics += bc.publics.len();
         self.asserts += bc.asserts.len();
         self.max_reg_seen = self.max_reg_seen.max(bc.max_reg);
-        self.all_compatible = bc.is_compatible_with_v1_kernel() || self.all_compatible;
     }
 }
 

@@ -86,8 +86,9 @@ __global__ void zerocheck_fused_sequential(
             switch (instr.opcode) {
             case BC_LOAD_LEAF: {
                 LeafRef leaf = stc.leaves[instr.a];
-                // source: 2 = preprocessed, 4 = main (local row only).
-                size_t base = (leaf.source == 4) ? lay.main_ptr : lay.preprocessed_ptr;
+                size_t base = (leaf.source == LEAF_SOURCE_MAIN_LOCAL)
+                                  ? lay.main_ptr
+                                  : lay.preprocessed_ptr;
                 // 64-bit column stride math; u32 × u32 wraps near the
                 // 2^32 / height column count. See review #6.
                 size_t col_off = (size_t)leaf.col * (size_t)lay.height;

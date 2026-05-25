@@ -30,7 +30,6 @@ __global__ void zerocheck_column_tile(
     const LeafRef* __restrict__ leaves,
     const felt_t* __restrict__ consts,
     const uint32_t* __restrict__ publics,
-    const ext_t* __restrict__ runtime_coeffs,
     const K* __restrict__ trace_data,
     size_t preprocessed_ptr,
     size_t main_ptr,
@@ -64,8 +63,7 @@ __global__ void zerocheck_column_tile(
         ColumnTermEntry t = terms[term_idx];
 
         LeafRef leaf = leaves[t.leaf_idx];
-        // source: 2 = preprocessed, 4 = main (local row only).
-        size_t base = (leaf.source == 4) ? main_ptr : preprocessed_ptr;
+        size_t base = (leaf.source == LEAF_SOURCE_MAIN_LOCAL) ? main_ptr : preprocessed_ptr;
         // 64-bit column stride math; u32 × u32 wraps near
         // `2^32 / height` columns. See review #6.
         const size_t col_off = (size_t)leaf.col * (size_t)height;
@@ -92,15 +90,7 @@ __global__ void zerocheck_column_tile(
         const uint32_t kind = t.coeff_kind & COEFF_KIND_MASK;
         const bool negate = (t.coeff_kind & COEFF_NEGATE_BIT) != 0u;
         ext_t a0, a1, a2;
-        if (kind == COEFF_KIND_RUNTIME) {
-            ext_t coeff = ext_t::load(runtime_coeffs, t.coeff_idx);
-            if (negate) {
-                coeff = ext_t::zero() - coeff;
-            }
-            a0 = alpha * (coeff * v0);
-            a1 = alpha * (coeff * v1);
-            a2 = alpha * (coeff * v2);
-        } else {
+        {
             felt_t coeff;
             if (kind == COEFF_KIND_CONST) {
                 coeff = consts[t.coeff_idx];

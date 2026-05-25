@@ -7,7 +7,7 @@
 //! interpretation — lane variation IS the program.
 
 use crate::ir::analysis::ConstraintInfo;
-use crate::ir::bytecode::LeafRef;
+use crate::ir::bytecode::{LeafRef, LEAF_SOURCE_MAIN_LOCAL, LEAF_SOURCE_PREPROCESSED_LOCAL};
 use crate::ir::chunker::Chunk;
 use crate::ir::dag::{ConstraintDag, DagNode, TraceSource};
 use crate::ir::lowering::ColumnTilePlan;
@@ -16,10 +16,6 @@ use crate::F;
 /// Kind tag for `ColumnTermEntry.coeff_kind`. Must match the CUDA header.
 pub const COEFF_KIND_CONST: u32 = 0;
 pub const COEFF_KIND_PUBLIC: u32 = 1;
-/// Coefficient is an extension-field value supplied at launch time via the
-/// kernel's `runtime_coeffs` buffer. Used by GKR-correction chunks: each
-/// `batching_power_i` is a per-proof random challenge, not a DAG constant.
-pub const COEFF_KIND_RUNTIME: u32 = 2;
 /// Mask isolating the kind from the negate flag (bit 31).
 pub const COEFF_KIND_MASK: u32 = 0x7FFF_FFFF;
 /// High bit of `coeff_kind`: when set, the kernel negates the loaded
@@ -48,13 +44,6 @@ pub struct ColumnTileBytecode {
     pub publics: Vec<u32>,
     pub terms: Vec<ColumnTermEntry>,
     pub n_constraints: u32,
-    /// True iff this is a `synthesize_gkr_chunk` output — the GKR-sweep
-    /// carrier for a chip with no Sequential chunk. Its terms are weighted
-    /// by `EF::one()`, so at launch the kernel must read the `powers_of_alpha`
-    /// slot holding `1` (the last slot) rather than applying the per-chip
-    /// alpha shift. (A chip with 0 constraints has `chip_alpha_offset` equal
-    /// to the table length, so the per-chip shift would read out of bounds.)
-    pub is_gkr_carrier: bool,
 }
 
 /// Lower a `ColumnTilePlan` to flat term-entry bytecode.
@@ -84,8 +73,8 @@ pub fn lower_column_tile(
         let (src_byte, col) = match dag.nodes[t.leaf_node as usize] {
             DagNode::InputLeaf { source, col } => {
                 let s = match source {
-                    TraceSource::PreprocessedLocal => 2u8,
-                    TraceSource::MainLocal => 4,
+                    TraceSource::PreprocessedLocal => LEAF_SOURCE_PREPROCESSED_LOCAL,
+                    TraceSource::MainLocal => LEAF_SOURCE_MAIN_LOCAL,
                 };
                 (s, col)
             }
@@ -131,51 +120,6 @@ pub fn lower_column_tile(
     }
 
     Some(bc)
-}
-
-/// Synthesize a GKR-correction chunk for a chip.
-///
-/// Produces a `ColumnTileBytecode` whose program is
-/// `Σ_i batching_power_i · col_i`, summed across all main and preprocessed
-/// columns. Coefficient kind is `RUNTIME` — the caller supplies a per-launch
-/// `runtime_coeffs: &[EF]` of length `main_width + preprocessed_width`.
-///
-/// Term ordering matches v1's `jaggedConstraintPolyEval` GKR loop: main
-/// columns first (indices `0 .. main_width`), then preprocessed
-/// (indices `main_width .. main_width + preprocessed_width`). The caller
-/// must lay out `runtime_coeffs` in this order.
-///
-/// The GKR correction is added without an α weighting (weight `EF::one()`).
-/// Terms store `alpha_idx = 0` and the chunk is flagged `is_gkr_carrier`; at
-/// launch the kernel reads the `powers_of_alpha` slot holding `1` (the last
-/// slot) directly, bypassing the per-chip alpha shift — which would be
-/// out-of-bounds for a chip with 0 constraints.
-pub fn synthesize_gkr_chunk(main_width: u32, preprocessed_width: u32) -> ColumnTileBytecode {
-    let mut bc =
-        ColumnTileBytecode { is_gkr_carrier: true, n_constraints: 1, ..Default::default() };
-
-    let push_term = |bc: &mut ColumnTileBytecode, source: u8, col: u32| {
-        let leaf_idx = bc.leaves.len() as u32;
-        bc.leaves.push(LeafRef { source, _pad: 0, col });
-        let coeff_idx = bc.terms.len() as u32;
-        bc.terms.push(ColumnTermEntry {
-            leaf_idx,
-            coeff_kind: COEFF_KIND_RUNTIME,
-            coeff_idx,
-            alpha_idx: 0,
-        });
-    };
-
-    // Main columns first (source byte 4 = MainLocal).
-    for col in 0..main_width {
-        push_term(&mut bc, 4, col);
-    }
-    // Then preprocessed (source byte 2 = PreprocessedLocal).
-    for col in 0..preprocessed_width {
-        push_term(&mut bc, 2, col);
-    }
-
-    bc
 }
 
 #[cfg(test)]
@@ -233,7 +177,6 @@ mod tests {
             leafset,
             depth_max: infos[0].depth,
             shape: ConstraintShape::LinearWeightedSum,
-            oversize_singleton: false,
         };
 
         let lowerings = enumerate_lowerings(&chunk, &infos, &dag);
@@ -312,7 +255,6 @@ mod tests {
             leafset,
             depth_max: infos[0].depth,
             shape: ConstraintShape::LinearWeightedSum,
-            oversize_singleton: false,
         };
 
         let lowerings = enumerate_lowerings(&chunk, &infos, &dag);

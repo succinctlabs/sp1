@@ -71,10 +71,11 @@ __global__ void zerocheck_geq_corrections(
     uint32_t rest_point_dim,
     ext_t* __restrict__ partials  // 3 slots per geq chip, laid out as [idx][e]
 ) {
+    // The launcher sizes `gridDim.x` exactly to `n_geq_chips`, so
+    // `out_idx < n_geq_chips` always. Kept as a parameter for symmetry
+    // with the data buffers; not bounds-checked here.
+    (void)n_geq_chips;
     const uint32_t out_idx = blockIdx.x;
-    if (out_idx >= n_geq_chips) {
-        return;
-    }
     const uint32_t chip_idx = geq_chip_indices[out_idx];
     const VirtualGeqState s = geq_state[chip_idx];
     const ext_t pad_adj = ext_t::load(chip_pad_adj, chip_idx);

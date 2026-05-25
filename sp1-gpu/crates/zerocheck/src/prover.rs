@@ -1363,7 +1363,6 @@ where
             &poly.public_values,
             &poly.powers_of_alpha,
             poly.chip_alpha_offset[chip_idx as usize],
-            &poly.gkr_powers,
             partial_lagrange.as_ptr(),
             &poly.powers_of_lambda,
             chip_idx,
@@ -1522,7 +1521,6 @@ fn launch_chunk_into<K: Field>(
     public_values: &Buffer<Felt, TaskScope>,
     powers_of_alpha: &Buffer<Ext, TaskScope>,
     chip_alpha_offset: u32,
-    gkr_powers: &Buffer<Ext, TaskScope>,
     partial_lagrange_ptr: *const Ext,
     powers_of_lambda: &Buffer<Ext, TaskScope>,
     chip_idx: u32,
@@ -1552,7 +1550,6 @@ fn launch_chunk_into<K: Field>(
                 chunk.leaves,
                 chunk.consts,
                 chunk.publics,
-                gkr_powers.as_ptr(),
                 trace_ptr,
                 preprocessed_ptr,
                 main_ptr,
@@ -1581,7 +1578,7 @@ fn launch_chunk_into<K: Field>(
 }
 
 // ============================================================================
-// Fix-last-variable: fold trace data (reused from v1 path), update eq_adjustment.
+// Fix-last-variable: fold trace data, update eq_adjustment.
 // ============================================================================
 
 pub fn zerocheck_fix_last_variable<'b, K: Field>(

@@ -1,12 +1,11 @@
-//! Global DAG-builder state, mirroring the existing `CUDA_P3_EVAL_*` pattern.
+//! Global DAG-builder state.
 //!
 //! The state is process-global, serialized by a guard lock so chip eval can
-//! be done one-at-a-time. The high-level entry (`build_dag`) acquires the lock,
-//! resets state, runs `chip.eval`, snapshots the result, and releases.
-//!
-//! This is intentionally the same shape as the v1 globals — easier to reason
-//! about, easier to migrate. Can be replaced by builder-owned state once the
-//! v1 path is deleted.
+//! be done one-at-a-time. The high-level entry (`build_dag`) acquires the
+//! lock, resets state, runs `chip.eval`, snapshots the result, and
+//! releases. Builder-owned state would be cleaner but the trait surface
+//! `Air::eval(&mut folder)` only lets us thread state through globals
+//! without retrofitting upstream signatures.
 
 use std::collections::HashMap;
 use std::sync::Mutex;

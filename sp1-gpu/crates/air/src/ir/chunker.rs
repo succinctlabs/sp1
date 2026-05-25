@@ -71,10 +71,6 @@ pub struct Chunk {
     /// is itself `LinearWeightedSum`. The scheduler uses this to elect the
     /// column-tile lowering.
     pub shape: ConstraintShape,
-    /// True iff this chunk is a single constraint that exceeded the budget
-    /// on its own. The scheduler must route it through the escape-valve
-    /// path (global-scratch leaves).
-    pub oversize_singleton: bool,
 }
 
 /// Shape-aware chunker.
@@ -86,7 +82,7 @@ pub struct Chunk {
 ///
 /// Both subsets are packed with the same budget. Future work: linear-sum
 /// chunks could use a larger leaf budget since ColumnTile doesn't pay for a
-/// shared-mem cache, but Phase 3 keeps it uniform.
+/// shared-mem cache, but a uniform budget is simpler to reason about.
 pub fn chunk_dag(constraints: &[ConstraintInfo], budget: &ChunkBudget) -> Vec<Chunk> {
     // Every asserted constraint needs an `α^k` slot and an enforced
     // bytecode entry, even ones whose root reduces to a single
@@ -156,8 +152,11 @@ fn chunk_subset(
             }
             None => {
                 // Could not fit into any existing chunk → emit a fresh one.
-                // If the constraint alone exceeds the budget, flag it.
-                let oversize_singleton = c.column_leaves.len() as u32 > budget.max_leafset;
+                // If the constraint alone exceeds the leaf budget it still
+                // gets its own chunk here; the per-chip `max_reg <= 1024`
+                // assert in `compile_chips` (`prover.rs`) is the loud
+                // failure point if the resulting Sequential lowering would
+                // overflow the per-thread `regs[]` array.
                 let mut leafset = HashSet::with_capacity(c.column_leaves.len());
                 for &leaf in &c.column_leaves {
                     leafset.insert(leaf);
@@ -167,7 +166,6 @@ fn chunk_subset(
                     leafset,
                     depth_max: c.depth,
                     shape: c.shape,
-                    oversize_singleton,
                 });
             }
         }
@@ -218,10 +216,14 @@ mod tests {
     }
 
     #[test]
-    fn oversize_singleton_flagged() {
+    fn oversize_constraint_gets_own_chunk() {
+        // A single constraint whose leaf count exceeds the budget still
+        // gets emitted in its own chunk (chunker doesn't drop it). The
+        // per-chip `max_reg <= 1024` assert in `compile_chips` is what
+        // catches the corresponding register-pressure overflow.
         let c = vec![cinfo(0, &(0..100).collect::<Vec<_>>(), 50, 5)];
         let chunks = chunk_dag(&c, &ChunkBudget { max_leafset: 16, max_constraints_per_chunk: 16 });
         assert_eq!(chunks.len(), 1);
-        assert!(chunks[0].oversize_singleton);
+        assert_eq!(chunks[0].constraint_indices, vec![0]);
     }
 }
