@@ -102,6 +102,12 @@ where
     let grid_size = (grid_size_x, 1, 1);
     let block_dim = BLOCK_SIZE;
 
+    // SAFETY: `next_jagged_mle` is freshly allocated with capacity sized to
+    // `total_length`; the kernel below writes every element before any later
+    // reader (no host read until the next round consumes it). The `args!`
+    // tuple matches `fix_last_variable_jagged_<felt|ext>`'s C signature in
+    // `sys/include/zerocheck/jagged_mle.cuh`. Both jagged-MLE raw views borrow
+    // from buffers held for the launch's lifetime by the enclosing scope.
     unsafe {
         next_jagged_mle.dense_data.dense.assume_init();
         next_jagged_mle.col_index.assume_init();
@@ -142,6 +148,12 @@ pub fn evaluate_traces(traces: &JaggedTraceMle<Felt, TaskScope>, point: &Point<E
         if index.dense_offset.start == index.dense_offset.end {
             continue;
         }
+        // SAFETY: `dense_offset.start` is a valid in-bounds offset into the
+        // contiguous `trace_data.dense` buffer by construction (the offsets
+        // describe disjoint regions inside the same buffer); `num_polys *
+        // poly_size` equals the region's length, so the resulting
+        // `TensorView` aliases exactly that chip's slice. The view borrows
+        // through `chip_ptr`, which outlives this loop iteration.
         let chip_ptr = unsafe { trace_ptr.add(index.dense_offset.start) };
         let chip_view = unsafe {
             TensorView::from_raw_parts(

@@ -507,6 +507,13 @@ pub(crate) fn upload_compiled_bytecode(
     let mut device_chips = Vec::with_capacity(compiled.len());
     let mut chip_index = BTreeMap::new();
     for (chip, offsets) in compiled.iter().zip(chip_offsets.iter()) {
+        // SAFETY: each `o.<arr>.0` is the start offset into its corresponding
+        // flat buffer, computed during the upload pass above by running a
+        // prefix-sum over per-chunk lengths. By construction every offset
+        // satisfies `0 ≤ off ≤ flat_<arr>.len()` (a one-past-the-end pointer
+        // for a zero-length chunk is permitted by `pointer::add`'s contract),
+        // and the resulting pointer is only ever dereferenced on the GPU
+        // through `ChunkDeviceBufs`, whose Send/Sync impl is justified above.
         let chunks = offsets
             .iter()
             .map(|o| ChunkDeviceBufs {
@@ -1024,10 +1031,16 @@ fn compute_padded_row_adjustment(
         }
         let static_buf = tier.static_buf.as_ref().unwrap();
         let mut output: Tensor<Ext, TaskScope> = Tensor::with_sizes_in([n_chunks], scope.clone());
+        // SAFETY: the kernel below writes exactly `n_chunks` `Ext` values into
+        // `output`; we promise to read no slot the kernel hasn't written.
         unsafe {
             output.assume_init();
         }
         let n_blocks = (n_chunks as u32).div_ceil(PAD_ADJ_BLOCK_SIZE);
+        // SAFETY: the `args!` tuple matches `zerocheck_pad_adj_*`'s C
+        // signature in `sys/include/zerocheck/pad_adj.cuh` — five pointer/u32
+        // arguments in this order. Every pointer is live for the duration of
+        // the launch (held by the surrounding `&Buffer` / `Tensor` borrows).
         unsafe {
             let args = args!(
                 static_buf.as_ptr(),
@@ -1046,6 +1059,8 @@ fn compute_padded_row_adjustment(
                 )
                 .unwrap();
         }
+        // SAFETY: the `pad_adj` kernel above fully wrote `output`; the
+        // host-side copy synchronizes on `scope`.
         let per_chunk: Vec<Ext> = unsafe { output.into_buffer().copy_into_host_vec() };
         for (i, &chip_idx) in tier.chip_indices.iter().enumerate() {
             padded_row_adjustment[chip_idx as usize] += per_chunk[i];
@@ -1132,6 +1147,25 @@ where
 // Per-round kernel launcher.
 // ============================================================================
 
+// SAFETY contract for the `unsafe` blocks in this function:
+//
+// * **Slot pointer arithmetic** (`shared_output_ptr.add(slot)`): every `slot`
+//   is computed by the slot-counting pass above (`tier_slot[t]`, `ct_slots[i]`,
+//   `geq_slot`, `gkr_slot`) which reserves exactly that many `Ext` cells in
+//   `shared_output` via `total_slots`. `shared_output` is sized to
+//   `total_slots.max(1)`; offsets are by construction in-bounds.
+// * **`args!` tuples**: each tuple matches the C signature of the kernel it
+//   feeds (`fused_sequential_kernel_for(max_reg)`, `zerocheck_geq_corrections`,
+//   the GKR sweep, the per-chunk ColumnTile fallback) — these signatures are
+//   declared in `sys/include/zerocheck/*.cuh`. Every pointer in the tuple is
+//   live for the launch (kept alive by the borrows on `poly` and the local
+//   buffers above the launch).
+// * **`Tensor::assume_init`**: the matching kernel writes every reserved slot
+//   before we read back; subsequent reads of `shared_output` only touch
+//   slots reserved for already-launched kernels in this function.
+// * **`copy_into_host_vec`**: all device writes are sequenced via `backend`'s
+//   stream, so the final host copy at the end of the function reads only
+//   initialized memory.
 pub(crate) fn evaluate_zerocheck<'b, K: Field>(
     poly: &mut ZeroCheckJaggedPoly<'b, K>,
 ) -> UnivariatePolynomial<Ext>
@@ -1537,6 +1571,14 @@ fn launch_chunk_into<K: Field>(
         ChunkKind::Sequential => {
             unreachable!("Sequential chunks go through the fused kernel, not launch_chunk_into")
         }
+        // SAFETY: `chip_alpha_offset` ≤ `powers_of_alpha.len()` — it is
+        // `max_num_constraints - chip.num_constraints`, a slot index into
+        // the reversed alpha table sized `max_num_constraints`. The shifted
+        // pointer is only dereferenced on the GPU through the kernel's
+        // `alpha_idx`-bounded reads. `args!` matches
+        // `zerocheck_column_tile_<kb|ext>_kernel`'s C signature in
+        // `sys/include/zerocheck/column_tile.cuh`; every pointer in the
+        // tuple borrows from a caller-owned buffer that outlives the launch.
         ChunkKind::ColumnTile => unsafe {
             // ColumnTile chunks store chip-relative `alpha_idx`; shift the
             // `powers_of_alpha` base by the per-chip offset.
@@ -1862,6 +1904,10 @@ where
         );
     }
 
+    // SAFETY: the per-round `zerocheck_fix_last_variable` chain above has
+    // fully written `next_poly.data.dense`; `copy_into_host_vec` issues the
+    // host download on the scope's stream, which serialises after the last
+    // device write.
     let final_jagged_data =
         unsafe { next_poly.data.as_ref().dense_data.dense.copy_into_host_vec() };
 
