@@ -39,6 +39,9 @@ slop-futures = { workspace = true }
 
 # sp1
 sp1-hypercube = { workspace = true }
+sp1-core-machine = { workspace = true }
+sp1-core-executor = { workspace = true }
+sp1-primitives = { workspace = true }
 
 # utils
 thiserror = "1.0"
@@ -63,6 +66,7 @@ slop-stacked = { workspace = true }
 
 # sp1
 sp1-core-machine = { workspace = true }
+sp1-core-executor = { workspace = true }
 sp1-primitives = { workspace = true }
 
 # misc

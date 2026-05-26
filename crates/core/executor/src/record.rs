@@ -1,4 +1,7 @@
-use crate::events::{TrapExecEvent, TrapMemInstrEvent};
+use crate::{
+    events::{TrapExecEvent, TrapMemInstrEvent},
+    MerkleProofRecord,
+};
 use deepsize2::DeepSizeOf;
 use hashbrown::HashMap;
 use slop_air::AirBuilder;
@@ -148,6 +151,8 @@ pub struct ExecutionRecord {
     pub exit_code: u32,
     /// Use optimized `generate_dependencies` for global chip.
     pub global_dependencies_opt: bool,
+    /// The batch merkle proof for a merkle shard.
+    pub merkle_proof_record: Option<MerkleProofRecord>,
 }
 
 impl ExecutionRecord {
@@ -250,17 +255,17 @@ impl ExecutionRecord {
         Self::new(program, proof_nonce, global_dependencies_opt)
     }
 
-    /// TODO(rkm): a stub constructor.
-    /// The input payload should be the batch merkle proof alongside the
-    /// initial and final state of the touched pages for the chunk.
+    /// Construct an [`ExecutionRecord`] carrying a prepared batch Merkle proof.
     #[must_use]
-    pub fn from_merkle_payload(
+    pub fn from_merkle_proof_record(
         program: Arc<Program>,
         proof_nonce: [u32; PROOF_NONCE_NUM_WORDS],
         global_dependencies_opt: bool,
-        _payload: crate::splicing::MerkleProvingPayload,
+        merkle_proof_record: MerkleProofRecord,
     ) -> Self {
-        Self::new(program, proof_nonce, global_dependencies_opt)
+        let mut record = Self::new(program, proof_nonce, global_dependencies_opt);
+        record.merkle_proof_record = Some(merkle_proof_record);
+        record
     }
 
     /// Take out events from the [`ExecutionRecord`] that should be deferred to a separate shard.

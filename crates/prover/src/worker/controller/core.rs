@@ -308,7 +308,8 @@ where
                                 "leaf-hash worker starting"
                             );
 
-                            let mut leaf_state = LeafState::new();
+                            let mut leaf_state =
+                                LeafState::from_memory_image(&program.memory_image);
                             let mut chunk_idx: u64 = 0;
                             while let Ok((chunk, dirty_pages)) = hash_rx.recv() {
                                 let pre_chunk_snapshot = leaf_state.snapshot();

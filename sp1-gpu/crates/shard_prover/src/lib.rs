@@ -1,4 +1,5 @@
 //! The integration of all the prover components.
+mod merkle;
 mod prover;
 mod setup;
 mod types;

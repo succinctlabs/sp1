@@ -37,6 +37,7 @@ sp1-primitives = { workspace = true }
 slop-algebra = { workspace = true }
 slop-bn254 = { workspace = true }
 slop-stacked = { workspace = true }
+slop-merkle-tree = { workspace = true }
 # slop-util = { workspace = true }
 bincode = { workspace = true }
 serde = { workspace = true, features = ["derive", "rc"] }

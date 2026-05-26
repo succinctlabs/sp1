@@ -25,6 +25,7 @@ pub mod executor;
 pub mod global;
 pub mod io;
 pub mod memory;
+pub mod merkle_prover;
 pub mod operations;
 pub mod program;
 pub mod range;

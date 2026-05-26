@@ -7119,6 +7119,7 @@ dependencies = [
  "slop-air",
  "slop-algebra 6.3.1",
  "slop-maybe-rayon",
+ "slop-merkle-tree",
  "slop-symmetric 6.3.1",
  "sp1-curves",
  "sp1-hypercube",
@@ -7198,8 +7199,10 @@ dependencies = [
  "slop-keccak-air",
  "slop-matrix",
  "slop-maybe-rayon",
+ "slop-merkle-tree",
  "slop-multilinear",
  "slop-sumcheck",
+ "slop-symmetric 6.3.1",
  "slop-uni-stark",
  "snowbridge-amcl",
  "sp1-core-executor",
@@ -7574,6 +7577,7 @@ dependencies = [
 name = "sp1-gpu-merkle-tree"
 version = "6.3.1"
 dependencies = [
+ "rayon",
  "serial_test",
  "slop-algebra 6.3.1",
  "slop-alloc",
@@ -7719,6 +7723,7 @@ dependencies = [
  "slop-multilinear",
  "slop-stacked",
  "slop-tensor",
+ "sp1-core-executor",
  "sp1-core-machine",
  "sp1-gpu-air",
  "sp1-gpu-basefold",
@@ -8066,6 +8071,7 @@ dependencies = [
  "slop-challenger 6.3.1",
  "slop-futures",
  "slop-jagged",
+ "slop-merkle-tree",
  "slop-multilinear",
  "slop-stacked",
  "slop-symmetric 6.3.1",

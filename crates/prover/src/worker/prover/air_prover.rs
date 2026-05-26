@@ -5,12 +5,9 @@ use slop_challenger::IopCtx;
 use slop_symmetric::CryptographicHasher;
 use sp1_core_executor::ExecutionRecord;
 use sp1_hypercube::{
-    air::PROOF_NONCE_NUM_WORDS,
     prover::{AirProver, PcsProof, Program, ProverPermit, ProverSemaphore, ProvingKey, Record},
     Chip, Machine, MachineVerifyingKey, ShardContext, ShardContextProof, ShardProof,
 };
-
-use crate::worker::controller::MerkleProvingInput;
 
 /// Bench-only stub configuration.
 #[cfg(feature = "bench-stub")]
@@ -87,32 +84,6 @@ pub trait AirProverWorker<GC: IopCtx, SC: ShardContext<GC>, P: AirProver<GC, SC>
         record: Record<GC, SC>,
         prover_permits: ProverSemaphore,
     ) -> impl Future<Output = (ShardProof<GC, PcsProof<GC, SC>>, ProverPermit)> + Send;
-
-    /// Prepare the batch merkle proof for a chunk's memory updates.
-    /// TODO(rkm): decide whether or not to split the proof here.
-    /// Currently a stub implementation.
-    fn prepare_merkle_proof(
-        &self,
-        input: MerkleProvingInput,
-        program: Arc<sp1_core_executor::Program>,
-        proof_nonce: [u32; PROOF_NONCE_NUM_WORDS],
-        global_dependencies_opt: bool,
-        permits: ProverSemaphore,
-    ) -> impl Future<Output = ExecutionRecord> + Send {
-        async move {
-            let _permit = permits.acquire().await;
-            #[cfg(feature = "bench-stub")]
-            if let Some(cfg) = bench_stub::CONFIG.get() {
-                tokio::time::sleep(std::time::Duration::from_millis(cfg.merkle_prep_ms)).await;
-            }
-            ExecutionRecord::from_merkle_payload(
-                program,
-                proof_nonce,
-                global_dependencies_opt,
-                input.payload,
-            )
-        }
-    }
 
     /// Generate the global commitment the `ExecutionRecord`.
     /// Currently a stub implementation.

@@ -1,6 +1,7 @@
 use std::{marker::PhantomData, sync::Arc};
 
 use serde::{Deserialize, Serialize};
+use slop_merkle_tree::batch_update::BatchMerkleProof;
 use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
 use sp1_jit::{MemReads, MemValue, MinimalTrace, TraceChunk};
 use sp1_primitives::consts::LOG_PAGE_SIZE;
@@ -101,12 +102,28 @@ pub struct ShardData {
 }
 
 /// Per-chunk merkle reconstruction payload.
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct MerkleProvingPayload {
     /// The `page_id` of the touched pages in the `TraceChunk`.
     pub page_ids: Vec<u32>,
     /// The state of each touched pages in the `TraceChunk`.
     pub pages: Vec<PageState>,
+}
+
+/// The result of preparing a chunk's batch merkle proof.
+/// [`crate::ExecutionRecord::from_merkle_proof_record`].
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct MerkleProofRecord {
+    /// The per-chunk touched-page reconstruction payload.
+    pub payload: MerkleProvingPayload,
+    /// The batch Merkle proof in column form.
+    pub proof: BatchMerkleProof,
+}
+
+impl deepsize2::DeepSizeOf for MerkleProofRecord {
+    fn deep_size_of_children(&self, _context: &mut deepsize2::Context) -> usize {
+        0
+    }
 }
 
 /// Borrowed view of [`MerkleProvingPayload`] for in-place serialization without an
@@ -122,7 +139,7 @@ pub struct MerkleProvingPayloadRef<'a> {
 /// Per-page bookkeeping captured by [`SplicingVM`] during a chunk pass.
 /// The mapping `page_id -> page_idx` lives in the parent [`PerChunkState`].
 #[repr(C)]
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PageState {
     /// Value at `addr` at chunk start. Initialized in `set_dirty_pages` from the page's chunk's
     /// final contents. For words that are not accessed in this chunk, chunk-end value

@@ -2,30 +2,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use rayon::prelude::*;
-use serde::{Deserialize, Serialize};
-use slop_algebra::AbstractField;
-use slop_symmetric::CryptographicHasher;
-use sp1_core_executor::MerkleProvingPayload;
+use sp1_core_machine::merkle_prover::{hash_page, zero_leaf, LeafDigest};
 use sp1_jit::{DirtyPage, MERKLE_PAGE_WORDS};
-use sp1_primitives::{SP1Field, POSEIDON2_HASHER};
-
-/// Width of a Poseidon2 leaf digest, in KoalaBear field elements.
-pub const DIGEST_WIDTH: usize = 8;
-
-/// Number of KoalaBear field elements one 2 KB page expands into.
-pub const PAGE_ELEMENTS: usize = MERKLE_PAGE_WORDS * 3;
-
-/// A merkle leaf hash: an 8-element KoalaBear Poseidon2 digest.
-pub type LeafDigest = [SP1Field; DIGEST_WIDTH];
-
-/// Leaf hash for a page that has never been touched.
-#[inline]
-pub fn zero_leaf() -> LeafDigest {
-    *ZERO_LEAF
-}
-
-static ZERO_LEAF: std::sync::LazyLock<LeafDigest> =
-    std::sync::LazyLock::new(|| hash_page(&[0u64; MERKLE_PAGE_WORDS]));
 
 /// Controller-side running merkle leaf state.
 pub struct LeafState {
@@ -41,6 +19,21 @@ impl Default for LeafState {
 impl LeafState {
     pub fn new() -> Self {
         Self { leaves: HashMap::new() }
+    }
+
+    /// Seed the leaf state from a program's initial `memory_image`.
+    pub fn from_memory_image(memory_image: &hashbrown::HashMap<u64, u64>) -> Self {
+        const PAGE_BYTES: u64 = (MERKLE_PAGE_WORDS * 8) as u64;
+        let mut pages: HashMap<u32, Box<[u64; MERKLE_PAGE_WORDS]>> = HashMap::new();
+        for (&addr, &val) in memory_image.iter() {
+            debug_assert_eq!(addr % 8, 0, "memory_image address {addr} must be 8-aligned");
+            let page_id = (addr / PAGE_BYTES) as u32;
+            let word = ((addr % PAGE_BYTES) / 8) as usize;
+            pages.entry(page_id).or_insert_with(|| Box::new([0u64; MERKLE_PAGE_WORDS]))[word] = val;
+        }
+        let leaves: HashMap<u32, LeafDigest> =
+            pages.into_par_iter().map(|(page_id, page)| (page_id, hash_page(&page))).collect();
+        Self { leaves }
     }
 
     /// Current leaf for a page, or the zero leaf if untouched.
@@ -78,36 +71,6 @@ impl LeafState {
 
         (prev_leaves, new_leaves)
     }
-}
-
-/// Hash a single page (`[u64; 256]`) into a Poseidon2 leaf digest.
-#[inline]
-fn hash_page(page: &[u64; MERKLE_PAGE_WORDS]) -> LeafDigest {
-    let elements: Vec<SP1Field> = page
-        .iter()
-        .flat_map(|&word| {
-            let lo = (word & 0x00FF_FFFF) as u32;
-            let mid = ((word >> 24) & 0x00FF_FFFF) as u32;
-            let hi = ((word >> 48) & 0x0000_FFFF) as u32;
-            [
-                SP1Field::from_canonical_u32(lo),
-                SP1Field::from_canonical_u32(mid),
-                SP1Field::from_canonical_u32(hi),
-            ]
-        })
-        .collect();
-    debug_assert_eq!(elements.len(), PAGE_ELEMENTS);
-    POSEIDON2_HASHER.hash_iter(elements)
-}
-
-/// Input to `prepare_merkle_proof` for one chunk's merkle-proving body.
-#[derive(Serialize, Deserialize)]
-pub struct MerkleProvingInput {
-    pub chunk_idx: u64,
-    pub pre_chunk_snapshot: Arc<Vec<(u32, LeafDigest)>>,
-    pub prev_leaves: Arc<Vec<LeafDigest>>,
-    pub new_leaves: Arc<Vec<LeafDigest>>,
-    pub payload: MerkleProvingPayload,
 }
 
 #[cfg(test)]
@@ -257,5 +220,53 @@ mod tests {
         assert_eq!(prev[1], hash_page(&p_v1));
         assert_eq!(new, vec![hash_page(&p_v1), hash_page(&p_v2)]);
         assert_eq!(state.get_leaf(5), hash_page(&p_v2));
+    }
+
+    #[test]
+    fn from_empty_memory_image_is_all_zero() {
+        let state = LeafState::from_memory_image(&hashbrown::HashMap::new());
+        assert_eq!(state.touched_pages(), 0);
+        assert_eq!(state.get_leaf(0), zero_leaf());
+        assert_eq!(state.get_leaf(12345), zero_leaf());
+    }
+
+    #[test]
+    fn from_memory_image_matches_executor_page_layout() {
+        const PAGE_BYTES: u64 = (MERKLE_PAGE_WORDS * 8) as u64;
+        let entries: Vec<(u64, u64)> = vec![
+            (0, 0xdead_beef),
+            (8, 0x0102_0304),
+            (PAGE_BYTES - 8, 0x1111_2222),       // page 0, last word
+            (PAGE_BYTES, 0x3333_4444),           // page 1, word 0
+            (PAGE_BYTES + 8 * 100, 0x5555_6666), // page 1, word 100
+            (PAGE_BYTES * 5 + 8 * 7, 0x7777),    // page 5, word 7
+        ];
+        let image: hashbrown::HashMap<u64, u64> = entries.iter().copied().collect();
+
+        let state = LeafState::from_memory_image(&image);
+
+        let mut pages: HashMap<u32, [u64; MERKLE_PAGE_WORDS]> = HashMap::new();
+        for &(addr, val) in &entries {
+            assert_eq!(addr % 8, 0);
+            let widx = addr / 8;
+            let pid = (widx / MERKLE_PAGE_WORDS as u64) as u32;
+            let w = (widx % MERKLE_PAGE_WORDS as u64) as usize;
+            pages.entry(pid).or_insert([0u64; MERKLE_PAGE_WORDS])[w] = val;
+        }
+
+        assert_eq!(state.touched_pages(), pages.len());
+        for (&pid, page) in &pages {
+            assert_eq!(state.get_leaf(pid), hash_page(page), "leaf mismatch on page {pid}");
+        }
+        // Untouched pages stay zero.
+        assert_eq!(state.get_leaf(2), zero_leaf());
+        assert_eq!(state.get_leaf(42), zero_leaf());
+    }
+
+    #[test]
+    fn from_memory_image_all_zero_words_equal_zero_leaf() {
+        let image: hashbrown::HashMap<u64, u64> = [(0u64, 0u64), (8, 0)].into_iter().collect();
+        let state = LeafState::from_memory_image(&image);
+        assert_eq!(state.get_leaf(0), zero_leaf());
     }
 }

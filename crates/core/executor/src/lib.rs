@@ -48,8 +48,9 @@ pub use vm::{
 };
 mod splicing;
 pub use splicing::{
-    MerkleProvingPayload, MerkleProvingPayloadRef, PageState, PerChunkState, ShardData,
-    SplicedMinimalTrace, SplicingVM, SplicingVMEnum, MERKLE_PAGE_BYTES, MERKLE_PAGE_WORDS,
+    MerkleProofRecord, MerkleProvingPayload, MerkleProvingPayloadRef, PageState, PerChunkState,
+    ShardData, SplicedMinimalTrace, SplicingVM, SplicingVMEnum, MERKLE_PAGE_BYTES,
+    MERKLE_PAGE_WORDS,
 };
 mod estimating;
 pub use estimating::{GasEstimatingVM, GasEstimatingVMEnum};

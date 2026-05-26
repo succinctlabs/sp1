@@ -19,6 +19,8 @@ use tokio::{
     task::JoinSet,
 };
 
+use sp1_core_machine::merkle_prover::BatchMerkleProver;
+
 use crate::{
     worker::{
         controller::{ChunkPayload, TaskInput},

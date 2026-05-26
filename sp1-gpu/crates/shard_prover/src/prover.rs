@@ -64,6 +64,11 @@ impl<GC: IopCtx, PC: CudaShardProverComponents<GC>> Clone for CudaShardProver<GC
 }
 
 impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>> CudaShardProver<GC, PC> {
+    /// The device task scope (CUDA stream) this prover runs on.
+    pub fn scope(&self) -> &TaskScope {
+        &self.inner.backend
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         trace_buffers: Arc<WorkerQueue<PinnedBuffer<GC::F>>>,
