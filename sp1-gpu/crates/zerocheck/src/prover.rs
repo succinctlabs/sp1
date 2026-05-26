@@ -1372,7 +1372,7 @@ where
     // One setup-time download to seed the padding sections. Per-fold work
     // is the tiny `h.div_ceil(4)*2` recurrence in `ShardLayoutTracker::fold`
     // — no further round-trips.
-    let column_heights: Vec<u32> = unsafe { data.0.column_heights.clone().copy_into_host_vec() };
+    let column_heights: Vec<u32> = unsafe { data.0.column_heights.copy_into_host_vec() };
     debug_assert_eq!(
         column_heights.len(),
         total_prep_w + n_prep_padding + total_main_w + n_main_padding,
@@ -1999,8 +1999,7 @@ where
     // Download `trace_mle.column_heights` once for the per-column demux at
     // the bottom of this function. This is the shard's input height vector
     // — set at trace construction and not mutated through the rounds.
-    let data_input_heights: Vec<u32> =
-        unsafe { trace_mle.column_heights.clone().copy_into_host_vec() };
+    let data_input_heights: Vec<u32> = unsafe { trace_mle.column_heights.copy_into_host_vec() };
     let initial_heights = trace_mle
         .dense_data
         .main_table_index

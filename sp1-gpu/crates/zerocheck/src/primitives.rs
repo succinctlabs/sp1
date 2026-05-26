@@ -285,7 +285,7 @@ pub fn evaluate_jagged_columns(
     // Not a hot path (one call at the END of zerocheck). Download
     // `column_heights` once and walk the recurrence on host to compute the
     // per-round lengths needed by `evaluate_jagged_fix_last_variable`.
-    let mut heights: Vec<u32> = unsafe { jagged_mle.column_heights.clone().copy_into_host_vec() };
+    let mut heights: Vec<u32> = unsafe { jagged_mle.column_heights.copy_into_host_vec() };
     let input_heights = heights.clone();
     let row_variable = point.dimension();
     let backend = jagged_mle.dense().backend();

@@ -614,7 +614,7 @@ async fn copy_main_jagged_traces(
     // host's tracegen — no benefit to keeping the device buffer live during
     // it.
     let backend = dense_data.backend().clone();
-    let mut column_heights_host: Vec<u32> = unsafe { column_heights.clone().copy_into_host_vec() };
+    let mut column_heights_host: Vec<u32> = unsafe { column_heights.copy_into_host_vec() };
 
     // Put them in right places. Todo: parallelize.
     let (

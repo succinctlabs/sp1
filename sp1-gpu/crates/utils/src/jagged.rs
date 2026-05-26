@@ -155,8 +155,7 @@ impl<D: DenseData<TaskScope>> JaggedMle<D, TaskScope> {
         // SAFETY: `column_heights` was populated via `extend_from_host_slice`
         // (or the equivalent during fold), so the device range is fully
         // initialised up to `len()`.
-        let host_column_heights: Vec<u32> =
-            unsafe { self.column_heights.clone().copy_into_host_vec() };
+        let host_column_heights: Vec<u32> = unsafe { self.column_heights.copy_into_host_vec() };
         let input_length = host_column_heights.iter().sum::<u32>();
         let output_heights =
             host_column_heights.iter().map(|height| height.div_ceil(4) * 2).collect::<Vec<u32>>();
