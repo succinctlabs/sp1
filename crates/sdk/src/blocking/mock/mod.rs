@@ -19,7 +19,7 @@ use crate::{
         cpu::CPUProverError,
         prover::{BaseProveRequest, ProveRequest, Prover},
     },
-    proof::verify_mock_public_inputs,
+    proof::{mock_status_code, verify_mock_public_inputs},
     SP1Proof, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerificationError, StatusCode,
 };
 
@@ -79,8 +79,19 @@ impl Prover for MockProver {
         &self,
         proof: &SP1ProofWithPublicValues,
         vkey: &SP1VerifyingKey,
-        _status_code: Option<StatusCode>,
+        status_code: Option<StatusCode>,
     ) -> Result<(), SP1VerificationError> {
+        let status_code = status_code.unwrap_or(StatusCode::SUCCESS);
+        let actual_status_code = mock_status_code(proof).map_err(|err| match &proof.proof {
+            SP1Proof::Core(_) => SP1VerificationError::Core(err),
+            SP1Proof::Compressed(_) => SP1VerificationError::Recursion(err),
+            SP1Proof::Plonk(_) => SP1VerificationError::Plonk(err),
+            SP1Proof::Groth16(_) => SP1VerificationError::Groth16(err),
+        })?;
+        if !status_code.is_accepted_code(actual_status_code) {
+            return Err(SP1VerificationError::UnexpectedExitCode(actual_status_code));
+        }
+
         match &proof.proof {
             SP1Proof::Plonk(PlonkBn254Proof { public_inputs, .. }) => {
                 // Verify the mock Plonk proof by checking public inputs match.
@@ -112,12 +123,17 @@ impl<'a> ProveRequest<'a, MockProver> for MockProveRequest<'a> {
         tracing::info!(mode = ?mode, "generating mock proof");
         let mut req = prover.execute(pk.elf.clone(), stdin);
         req.context_builder = context_builder;
-        let (public_values, _) = req.run()?;
-        Ok(SP1ProofWithPublicValues::create_mock_proof(
+        let (public_values, report) = req.run()?;
+        let status_code =
+            u32::try_from(report.exit_code).ok().and_then(StatusCode::new).ok_or_else(|| {
+                anyhow::anyhow!("unsupported mock execution exit code: {}", report.exit_code)
+            })?;
+        Ok(SP1ProofWithPublicValues::create_mock_proof_with_status(
             &pk.vk,
             public_values,
             mode,
             prover.version(),
+            status_code,
         ))
     }
 }
@@ -127,7 +143,7 @@ mod tests {
     use crate::{
         blocking::prover::{ProveRequest, Prover},
         utils::setup_logger,
-        SP1Stdin,
+        SP1Stdin, StatusCode,
     };
 
     use super::MockProver;
@@ -280,5 +296,67 @@ mod tests {
         // Verification should fail because public_values hash won't match.
         let result = prover.verify(&proof, &pk.vk, None);
         assert!(result.is_err(), "Verification should fail with tampered public values");
+    }
+
+    #[test]
+    fn test_mock_proof_panic_exit_status() {
+        setup_logger();
+        let prover = MockProver::new();
+        let pk = prover.setup(test_artifacts::PANIC_ELF).expect("failed to setup proving key");
+        let stdin = SP1Stdin::new();
+
+        let modes = [
+            crate::SP1ProofMode::Core,
+            crate::SP1ProofMode::Compressed,
+            crate::SP1ProofMode::Plonk,
+            crate::SP1ProofMode::Groth16,
+        ];
+
+        for mode in modes {
+            let proof = prover
+                .prove(&pk, stdin.clone())
+                .mode(mode)
+                .expected_exit_code(StatusCode::PANIC)
+                .run()
+                .expect("failed to create panic mock proof");
+
+            prover
+                .verify(&proof, &pk.vk, StatusCode::new(1))
+                .expect("failed to verify mock proof with panic exit code");
+
+            let result = prover.verify(&proof, &pk.vk, None);
+            assert!(matches!(result, Err(crate::SP1VerificationError::UnexpectedExitCode(1))));
+
+            let result = prover.verify(&proof, &pk.vk, StatusCode::new(0));
+            assert!(matches!(result, Err(crate::SP1VerificationError::UnexpectedExitCode(1))));
+        }
+    }
+
+    #[test]
+    fn test_mock_proof_success_exit_status_rejects_panic_expectation() {
+        setup_logger();
+        let prover = MockProver::new();
+        let pk = prover.setup(test_artifacts::FIBONACCI_ELF).expect("failed to setup proving key");
+        let stdin = SP1Stdin::new();
+
+        let modes = [
+            crate::SP1ProofMode::Core,
+            crate::SP1ProofMode::Compressed,
+            crate::SP1ProofMode::Plonk,
+            crate::SP1ProofMode::Groth16,
+        ];
+
+        for mode in modes {
+            let proof = prover
+                .prove(&pk, stdin.clone())
+                .mode(mode)
+                .run()
+                .expect("failed to create success mock proof");
+
+            prover.verify(&proof, &pk.vk, None).expect("failed to verify success mock proof");
+
+            let result = prover.verify(&proof, &pk.vk, StatusCode::new(1));
+            assert!(matches!(result, Err(crate::SP1VerificationError::UnexpectedExitCode(0))));
+        }
     }
 }
