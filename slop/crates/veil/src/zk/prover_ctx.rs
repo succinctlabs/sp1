@@ -1,4 +1,5 @@
 use std::cell::RefMut;
+use std::collections::VecDeque;
 use std::marker::PhantomData;
 
 use slop_algebra::Dorroh;
@@ -7,7 +8,7 @@ use slop_challenger::{FieldChallenger, IopCtx};
 use slop_multilinear::Point;
 use thiserror::Error;
 
-use crate::compiler::{ConstraintCtx, SendingCtx};
+use crate::compiler::{ConstraintCtx, ReadingCtx, SendingCtx, TranscriptReadError};
 use crate::zk::inner::{
     ConstraintContextInnerExt, NoPcsProver, ProverValue, ZkPcsProver, ZkProverContext,
 };
@@ -63,6 +64,44 @@ pub type ProverTranscriptElement<GC: ZkIopCtx, PC: PcsProverConfig<GC>> =
 pub struct ZkProverCtx<GC: ZkIopCtx, PC: PcsProverConfig<GC>> {
     inner: ZkProverContext<GC, PC::Merkelizer, PC::PcsProverData>,
     pcs_prover: Option<PC::PcsProver>,
+    /// Replay log backing the prover's [`ReadingCtx`] impl (the "new flow").
+    ///
+    /// During the `SendingCtx` (compute) pass we record, in order, every
+    /// transcript handle returned by `send_*`, every sampled challenge, and
+    /// every committed oracle. The `ReadingCtx` impl then replays them — purely
+    /// from these buffers, *without* touching the challenger — so the prover can
+    /// run the exact same unified `verify` body the verifier runs. Leaving the
+    /// challenger untouched is what keeps the post-compute Fiat-Shamir state
+    /// (used by `prove()` to derive PCS openings) intact.
+    replay: ProverReplay<GC, PC>,
+}
+
+/// Ordered record/replay buffers for [`ZkProverCtx`]'s [`ReadingCtx`] impl.
+///
+/// `sent` is a queue consumed *by move* on replay: each transcript handle carries
+/// an `Rc` clone of the inner context, so draining the queue as `verify` reads it
+/// hands those `Rc`s straight to the constraint builder (which drops them), rather
+/// than leaving live clones behind that would force `prove()` to deep-clone the
+/// context. `challenges`/`oracles` hold `Copy` data, so they stay simple
+/// `Vec` + cursor.
+struct ProverReplay<GC: ZkIopCtx, PC: PcsProverConfig<GC>> {
+    sent: VecDeque<ProverTranscriptElement<GC, PC>>,
+    challenges: Vec<GC::EF>,
+    challenge_cursor: usize,
+    oracles: Vec<MleCommit>,
+    oracle_cursor: usize,
+}
+
+impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> Default for ProverReplay<GC, PC> {
+    fn default() -> Self {
+        Self {
+            sent: VecDeque::new(),
+            challenges: Vec::new(),
+            challenge_cursor: 0,
+            oracles: Vec::new(),
+            oracle_cursor: 0,
+        }
+    }
 }
 
 impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
@@ -70,7 +109,7 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
         inner: ZkProverContext<GC, PC::Merkelizer, PC::PcsProverData>,
         pcs_prover: Option<PC::PcsProver>,
     ) -> Self {
-        Self { inner, pcs_prover }
+        Self { inner, pcs_prover, replay: ProverReplay::default() }
     }
 
     fn into_inner(self) -> ZkProverContext<GC, PC::Merkelizer, PC::PcsProverData> {
@@ -150,11 +189,16 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> SendingCtx for ZkProverCtx<GC, PC> {
     type CommitError = PcsCommitError;
 
     fn send_value(&mut self, value: GC::EF) -> ProverTranscriptElement<GC, PC> {
-        Dorroh::Element(self.inner.add_value(value))
+        let elem = Dorroh::Element(self.inner.add_value(value));
+        self.replay.sent.push_back(elem.clone());
+        elem
     }
 
     fn send_values(&mut self, values: &[GC::EF]) -> Vec<ProverTranscriptElement<GC, PC>> {
-        self.inner.add_values(values).into_iter().map(Dorroh::Element).collect()
+        let elems: Vec<_> =
+            self.inner.add_values(values).into_iter().map(Dorroh::Element).collect();
+        self.replay.sent.extend(elems.iter().cloned());
+        elems
     }
 
     fn to_value(&self, expr: &ProverTranscriptElement<GC, PC>) -> GC::EF {
@@ -165,7 +209,9 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> SendingCtx for ZkProverCtx<GC, PC> {
     }
 
     fn sample(&mut self) -> GC::EF {
-        self.inner.challenger().sample_ext_element()
+        let challenge = self.inner.challenger().sample_ext_element();
+        self.replay.challenges.push(challenge);
+        challenge
     }
 
     fn commit_mle<RNG: rand::CryptoRng + rand::Rng>(
@@ -182,7 +228,48 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> SendingCtx for ZkProverCtx<GC, PC> {
             .inner
             .commit_mle(mle, log_num_polynomials as usize, pcs_prover, rng)
             .map(|idx| MleCommit { inner: idx })?;
+        self.replay.oracles.push(commit);
         Ok(commit)
+    }
+}
+
+// ============================================================================
+// ReadingCtx impl (prototype, "new flow")
+// ============================================================================
+//
+// Pure record/replay over the buffers populated during the `SendingCtx` pass.
+// Crucially, none of these methods touch the challenger: challenges are replayed
+// from `replay.challenges` rather than re-sampled, so the prover's Fiat-Shamir
+// state (already advanced to its final value by the compute pass) is left exactly
+// where `prove()` needs it for PCS-opening derivation.
+
+impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ReadingCtx for ZkProverCtx<GC, PC> {
+    fn read_exact(&mut self, buf: &mut [Self::Expr]) -> Result<(), TranscriptReadError> {
+        // Atomic all-or-nothing: a correct prove/verify mirror never under-fills,
+        // but bail before mutating the queue if it would.
+        if self.replay.sent.len() < buf.len() {
+            return Err(TranscriptReadError::TranscriptExhausted);
+        }
+        for b in buf.iter_mut() {
+            *b = self.replay.sent.pop_front().expect("length checked above");
+        }
+        Ok(())
+    }
+
+    fn read_oracle(
+        &mut self,
+        _num_encoding_variables: u32,
+        _log_num_polynomials: u32,
+    ) -> Option<MleCommit> {
+        let oracle = self.replay.oracles.get(self.replay.oracle_cursor).copied()?;
+        self.replay.oracle_cursor += 1;
+        Some(oracle)
+    }
+
+    fn sample(&mut self) -> GC::EF {
+        let challenge = self.replay.challenges[self.replay.challenge_cursor];
+        self.replay.challenge_cursor += 1;
+        challenge
     }
 }
 
@@ -237,10 +324,16 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
     }
 
     /// Generates a zero-knowledge proof. Consumes self.
-    pub fn prove<RNG: rand::CryptoRng + rand::Rng>(self, rng: &mut RNG) -> ZkProof<GC>
+    pub fn prove<RNG: rand::CryptoRng + rand::Rng>(mut self, rng: &mut RNG) -> ZkProof<GC>
     where
         rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
     {
+        // The "new flow"'s `verify` drains `replay.sent` by move, but the old flow
+        // records sends and never replays — so release the recorded handles here.
+        // They each hold an `Rc` clone of the inner context; left dangling, they'd
+        // force `inner.prove` to deep-clone the context instead of unwrapping it.
+        // (No-op in the new flow: the queue is already empty.)
+        self.replay.sent.clear();
         self.inner.prove(rng, self.pcs_prover.as_ref())
     }
 }
@@ -255,7 +348,7 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
     where
         rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
     {
-        Self { inner: ZkProverContext::initialize(length, rng), pcs_prover }
+        Self::new(ZkProverContext::initialize(length, rng), pcs_prover)
     }
 
     /// Initializes a prover that supports only linear constraints.
@@ -267,7 +360,7 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
     where
         rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
     {
-        Self { inner: ZkProverContext::initialize_only_lin_constraints(length, rng), pcs_prover }
+        Self::new(ZkProverContext::initialize_only_lin_constraints(length, rng), pcs_prover)
     }
 }
 
@@ -277,10 +370,15 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
 
 impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkProverCtx<GC, NoPcsConfig<MK>> {
     /// Generates a proof without PCS support. Panics if PCS eval claims were registered.
-    pub fn prove_without_pcs<RNG: rand::CryptoRng + rand::Rng>(self, rng: &mut RNG) -> ZkProof<GC>
+    pub fn prove_without_pcs<RNG: rand::CryptoRng + rand::Rng>(
+        mut self,
+        rng: &mut RNG,
+    ) -> ZkProof<GC>
     where
         rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
     {
+        // See `prove`: release recorded handles so the inner context can be unwrapped.
+        self.replay.sent.clear();
         self.inner.prove_without_pcs(rng)
     }
 
@@ -292,7 +390,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkProverCtx<GC, NoPcsConfig<MK>> {
     where
         rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
     {
-        Self { inner: ZkProverContext::initialize(length, rng), pcs_prover: None }
+        Self::new(ZkProverContext::initialize(length, rng), None)
     }
 
     /// Initializes a no-PCS prover with only linear constraints.
@@ -303,9 +401,6 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkProverCtx<GC, NoPcsConfig<MK>> {
     where
         rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
     {
-        Self {
-            inner: ZkProverContext::initialize_only_lin_constraints(length, rng),
-            pcs_prover: None,
-        }
+        Self::new(ZkProverContext::initialize_only_lin_constraints(length, rng), None)
     }
 }
