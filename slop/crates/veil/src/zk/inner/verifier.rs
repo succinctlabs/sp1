@@ -1,5 +1,6 @@
-use std::cell::{Ref, RefCell, RefMut};
-use std::rc::Rc;
+use std::sync::Arc;
+
+use parking_lot::{MappedMutexGuard, Mutex, MutexGuard};
 
 use crate::compiler::TranscriptReadError;
 use crate::zk::dot_product::{dot_product, verify_zk_dot_product, ZkDotProductError};
@@ -23,8 +24,8 @@ use super::{
 /// Handle to a [`ZkVerificationContextInner`] that provides shared mutable access.
 /// This is the main type users interact with for verifying zero-knowledge proofs.
 ///
-/// The handle wraps the inner context in `Rc<RefCell<>>` to allow elements
-/// to hold references back to the context.
+/// The handle wraps the inner context in `Arc<Mutex<>>` to allow elements
+/// to hold references back to the context, while remaining `Send + Sync`.
 ///
 /// # Type Parameters
 /// * `GC` - The ZK IOP context type; `GC::PcsProof` is the PCS proof type.
@@ -32,7 +33,7 @@ use super::{
 /// Contains a challenger which can be accessed using self.borrow_mut().challenger
 #[derive(Clone)]
 pub struct ZkVerificationContext<GC: ZkIopCtx> {
-    inner: Rc<RefCell<ZkVerificationContextInner<GC>>>,
+    inner: Arc<Mutex<ZkVerificationContextInner<GC>>>,
 }
 
 /// Verification context that accumulates constraints during verification.
@@ -166,19 +167,19 @@ impl<GC: ZkIopCtx> ZkProof<GC> {
             proof: self.proof,
         };
 
-        ZkVerificationContext { inner: Rc::new(RefCell::new(inner)) }
+        ZkVerificationContext { inner: Arc::new(Mutex::new(inner)) }
     }
 }
 
 impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
-    /// Borrow the inner context mutably and return a guard.
-    pub fn borrow_mut(&self) -> RefMut<'_, ZkVerificationContextInner<GC>> {
-        self.inner.borrow_mut()
+    /// Lock the inner context mutably and return a guard.
+    pub fn borrow_mut(&self) -> MutexGuard<'_, ZkVerificationContextInner<GC>> {
+        self.inner.lock()
     }
 
-    /// Borrow the inner context immutably and return a guard.
-    pub fn borrow(&self) -> Ref<'_, ZkVerificationContextInner<GC>> {
-        self.inner.borrow()
+    /// Lock the inner context and return a guard.
+    pub fn borrow(&self) -> MutexGuard<'_, ZkVerificationContextInner<GC>> {
+        self.inner.lock()
     }
 
     // Read the next message of expected length, observe it, and return its block index and length.
@@ -267,14 +268,14 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
 
         // Extract the inner context, cloning if there are still outstanding references
         // (e.g., from VerifierElements that haven't been dropped yet)
-        let mut inner = match Rc::try_unwrap(self.inner) {
-            Ok(refcell) => refcell.into_inner(),
-            Err(rc) => {
+        let mut inner = match Arc::try_unwrap(self.inner) {
+            Ok(mutex) => mutex.into_inner(),
+            Err(arc) => {
                 eprintln!(
                     "WARNING: ZkVerificationContext has outstanding references (likely from VerifierElements). \
                      Cloning inner context. Consider dropping VerifierElements before calling verify."
                 );
-                rc.borrow().clone()
+                arc.lock().clone()
             }
         };
 
@@ -466,8 +467,8 @@ impl<GC: ZkIopCtx> ZkCnstrAndReadingCtxInner<GC> for ZkVerificationContext<GC> {
         Ok((0..len).map(|i| self.add_expr([block_index, i].into())).collect())
     }
 
-    fn challenger(&mut self) -> RefMut<'_, GC::Challenger> {
-        RefMut::map(self.borrow_mut(), |inner| &mut inner.challenger)
+    fn challenger(&mut self) -> MappedMutexGuard<'_, GC::Challenger> {
+        MutexGuard::map(self.borrow_mut(), |inner| &mut inner.challenger)
     }
 
     fn read_next_pcs_commitment(

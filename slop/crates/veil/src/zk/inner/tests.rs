@@ -18,6 +18,16 @@ use slop_merkle_tree::Poseidon2KoalaBear16Prover;
 type MK = Poseidon2KoalaBear16Prover;
 use crate::name_constraint;
 
+// The prover/verifier contexts use `Arc<Mutex<>>` (rather than `Rc<RefCell<>>`) so that
+// they stay `Send + Sync`, which downstream GPU integration relies on. Guard that here.
+const fn _assert_send_sync<T: Send + Sync>() {}
+const _: () = {
+    _assert_send_sync::<ZkProverContext<KoalaBearDegree4Duplex, MK>>();
+    _assert_send_sync::<super::verifier::ZkVerificationContext<KoalaBearDegree4Duplex>>();
+    _assert_send_sync::<super::mask_counter::MaskCounterContext<KoalaBearDegree4Duplex>>();
+    _assert_send_sync::<crate::zk::ZkVerifierCtx<KoalaBearDegree4Duplex>>();
+};
+
 /// Single source of truth constraint builder.
 ///
 /// This function is generic over the field K, element type E, and context C.

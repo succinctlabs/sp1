@@ -553,7 +553,7 @@ pub trait ZkCnstrAndReadingCtxInner<GC: ZkIopCtx>: ConstraintContextInnerExt<GC:
     fn read_next(&mut self, num: usize) -> Result<Vec<Self::Expr>, TranscriptReadError>;
 
     /// Returns a mutable reference to the challenger for Fiat-Shamir.
-    fn challenger(&mut self) -> std::cell::RefMut<'_, GC::Challenger>;
+    fn challenger(&mut self) -> parking_lot::MappedMutexGuard<'_, GC::Challenger>;
 
     /// Reads the next PCS commitment from the transcript.
     ///

@@ -19,7 +19,8 @@
       "Bash(cargo clippy *)",
       "Bash(cargo build *)",
       "Bash(cargo test *)",
-      "Bash(cargo bench *)"
+      "Bash(cargo bench *)",
+      "Bash(awk -F: '$1>106 && $1<330')"
     ]
   }
 }

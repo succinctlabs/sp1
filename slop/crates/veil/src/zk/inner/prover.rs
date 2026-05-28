@@ -1,5 +1,6 @@
-use std::cell::{Ref, RefCell, RefMut};
-use std::rc::Rc;
+use std::sync::Arc;
+
+use parking_lot::{MappedMutexGuard, Mutex, MutexGuard};
 
 use crate::zk::dot_product::{
     zk_dot_product_commitment, zk_dot_product_proof, ZkDotTotalProof, ZkVectorProverData,
@@ -72,8 +73,9 @@ pub struct ZkMulCnstrProof<GC: ZkIopCtx> {
 /// Handle to a [`ZkProverContextInner`] that provides shared mutable access.
 /// This is the main type users interact with for building zero-knowledge proofs.
 ///
-/// The handle wraps the inner context in `Rc<RefCell<>>` to allow elements
-/// returned from `add_values` to hold references back to the context.
+/// The handle wraps the inner context in `Arc<Mutex<>>` to allow elements
+/// returned from `add_values` to hold references back to the context, while
+/// remaining `Send + Sync`.
 ///
 /// # Type Parameters
 /// * `GC` - The ZK IOP context type
@@ -83,7 +85,7 @@ pub struct ZkMulCnstrProof<GC: ZkIopCtx> {
 /// Contains a challenger which can be accessed using self.challenger()
 #[derive_where(Clone; PD: Clone)]
 pub struct ZkProverContext<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD = ()> {
-    inner: Rc<RefCell<ZkProverContextInner<GC, MK, PD>>>,
+    inner: Arc<Mutex<ZkProverContextInner<GC, MK, PD>>>,
 }
 
 /// Tracks linear constraints during zero-knowledge proof generation.
@@ -206,19 +208,19 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD: Clone> ConstraintContextInner<GC::E
 }
 
 impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
-    /// Borrow the inner context mutably and return a guard.
-    pub fn borrow_mut(&self) -> RefMut<'_, ZkProverContextInner<GC, MK, PD>> {
-        self.inner.borrow_mut()
+    /// Lock the inner context mutably and return a guard.
+    pub fn borrow_mut(&self) -> MutexGuard<'_, ZkProverContextInner<GC, MK, PD>> {
+        self.inner.lock()
     }
 
-    /// Borrow the inner context immutably and return a guard.
-    pub fn borrow(&self) -> Ref<'_, ZkProverContextInner<GC, MK, PD>> {
-        self.inner.borrow()
+    /// Lock the inner context and return a guard.
+    pub fn borrow(&self) -> MutexGuard<'_, ZkProverContextInner<GC, MK, PD>> {
+        self.inner.lock()
     }
 
     /// Access the challenger for Fiat-Shamir operations.
-    pub fn challenger(&mut self) -> RefMut<'_, GC::Challenger> {
-        RefMut::map(self.borrow_mut(), |inner| &mut inner.challenger)
+    pub fn challenger(&mut self) -> MappedMutexGuard<'_, GC::Challenger> {
+        MutexGuard::map(self.borrow_mut(), |inner| &mut inner.challenger)
     }
 
     /// Initializes a prover that supports only linear constraints.
@@ -312,7 +314,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
         inner.transcript.add_values(&[GC::EF::one() + inner.masks[0]]);
         inner.masks_current_index += 1;
 
-        Self { inner: Rc::new(RefCell::new(inner)) }
+        Self { inner: Arc::new(Mutex::new(inner)) }
     }
 
     fn add_values_raw(&mut self, new_values: &[GC::EF]) -> usize {
@@ -533,14 +535,14 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
 
         // Extract the inner context, cloning if there are still outstanding references
         // (e.g., from ProverElement instances that haven't been dropped yet)
-        let mut inner = match Rc::try_unwrap(self.inner) {
-            Ok(refcell) => refcell.into_inner(),
-            Err(rc) => {
+        let mut inner = match Arc::try_unwrap(self.inner) {
+            Ok(mutex) => mutex.into_inner(),
+            Err(arc) => {
                 eprintln!(
                     "WARNING: ZkProverContext has outstanding references (likely from ProverElements or ProverConstraints). \
                      Cloning inner context. Consider dropping ProverElements before calling into_proof."
                 );
-                rc.borrow().clone()
+                arc.lock().clone()
             }
         };
 

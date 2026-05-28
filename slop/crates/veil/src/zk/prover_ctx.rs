@@ -1,4 +1,4 @@
-use std::cell::RefMut;
+use parking_lot::MappedMutexGuard;
 use std::collections::VecDeque;
 use std::marker::PhantomData;
 
@@ -287,7 +287,7 @@ pub enum PcsCommitError {
 
 impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
     /// Access the challenger directly for Fiat-Shamir operations.
-    pub fn challenger(&mut self) -> RefMut<'_, GC::Challenger> {
+    pub fn challenger(&mut self) -> MappedMutexGuard<'_, GC::Challenger> {
         self.inner.challenger()
     }
 
