@@ -304,35 +304,6 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
         self.inner.with_challenger(f)
     }
 
-    /// Commits to a flat MLE and registers it in the context.
-    ///
-    /// The MLE is internally stacked into a tensor with `2^log_num_polynomials` columns,
-    /// where `log_num_polynomials = mle.num_variables() - num_encoding_variables` and
-    /// `num_encoding_variables` is fixed by the PCS the context was initialized with.
-    ///
-    /// # Arguments
-    /// * `mle` — the flat (unstacked) multilinear extension to commit to. The PCS's
-    ///   `num_encoding_variables` is subtracted from `mle.num_variables()` to recover
-    ///   the number of stacked polynomials.
-    /// * `rng` — cryptographically secure random number generator.
-    pub fn commit_mle<RNG>(
-        &mut self,
-        mle: slop_multilinear::Mle<GC::F, slop_alloc::CpuBackend>,
-        rng: &mut RNG,
-    ) -> Result<MleCommit, PcsCommitError>
-    where
-        RNG: rand::CryptoRng + rand::Rng,
-        rand::distributions::Standard: rand::distributions::Distribution<GC::F>,
-    {
-        let pcs_prover = self.pcs_prover.as_ref().ok_or(PcsCommitError::NoPcsProver)?;
-        let log_num_polynomials = log_num_polynomials(mle.num_variables(), pcs_prover)?;
-        let commit = self
-            .inner
-            .commit_mle(mle, log_num_polynomials, pcs_prover, rng)
-            .map(|idx| MleCommit { inner: idx })?;
-        Ok(commit)
-    }
-
     /// Generates a zero-knowledge proof. Consumes self.
     pub fn prove<RNG: rand::CryptoRng + rand::Rng>(mut self, rng: &mut RNG) -> ZkProof<GC>
     where

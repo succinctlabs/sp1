@@ -18,7 +18,7 @@ use slop_merkle_tree::Poseidon2KoalaBear16Prover;
 use slop_multilinear::{Mle, MultilinearPcsProver, Point};
 use slop_stacked::{StackedPcsProver, StackedPcsVerifier};
 use slop_sumcheck::{partially_verify_sumcheck_proof, reduce_sumcheck_to_evaluation};
-use slop_veil::compiler::ReadingCtx;
+use slop_veil::compiler::{ReadingCtx, SendingCtx};
 use slop_veil::protocols::sumcheck::{SumcheckInputClaim, SumcheckParam};
 use slop_veil::zk::stacked_pcs::{initialize_zk_prover_and_verifier, StackedPcsZkProverCtx};
 use slop_veil::zk::{compute_mask_length, ZkProverCtx, ZkVerifierCtx};
