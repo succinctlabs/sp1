@@ -1,4 +1,3 @@
-use parking_lot::MappedMutexGuard;
 use std::collections::VecDeque;
 use std::marker::PhantomData;
 
@@ -209,7 +208,7 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> SendingCtx for ZkProverCtx<GC, PC> {
     }
 
     fn sample(&mut self) -> GC::EF {
-        let challenge = self.inner.challenger().sample_ext_element();
+        let challenge = self.inner.with_challenger(|c| c.sample_ext_element());
         self.replay.challenges.push(challenge);
         challenge
     }
@@ -300,9 +299,9 @@ pub enum PcsCommitError {
 }
 
 impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
-    /// Access the challenger directly for Fiat-Shamir operations.
-    pub fn challenger(&mut self) -> MappedMutexGuard<'_, GC::Challenger> {
-        self.inner.challenger()
+    /// Run `f` with mutable access to the Fiat-Shamir challenger.
+    pub fn with_challenger<R>(&mut self, f: impl FnOnce(&mut GC::Challenger) -> R) -> R {
+        self.inner.with_challenger(f)
     }
 
     /// Commits to a flat MLE and registers it in the context.

@@ -552,8 +552,11 @@ pub trait ZkCnstrAndReadingCtxInner<GC: ZkIopCtx>: ConstraintContextInnerExt<GC:
     /// Read the next `num` elements from the transcript
     fn read_next(&mut self, num: usize) -> Result<Vec<Self::Expr>, TranscriptReadError>;
 
-    /// Returns a mutable reference to the challenger for Fiat-Shamir.
-    fn challenger(&mut self) -> parking_lot::MappedMutexGuard<'_, GC::Challenger>;
+    /// Run a closure with mutable access to the Fiat-Shamir challenger.
+    ///
+    /// Implementations hold an internal lock for the duration of `f`, so `f` must not
+    /// re-enter the same context (e.g. call `read_next`/`challenger`-equivalents on it).
+    fn with_challenger<R>(&mut self, f: impl FnOnce(&mut GC::Challenger) -> R) -> R;
 
     /// Reads the next PCS commitment from the transcript.
     ///

@@ -109,6 +109,6 @@ impl<GC: ZkIopCtx> ReadingCtx for MaskCounter<GC> {
 
     fn sample(&mut self) -> GC::EF {
         use crate::zk::inner::ZkCnstrAndReadingCtxInner;
-        self.inner.challenger().sample_ext_element()
+        self.inner.with_challenger(|c| c.sample_ext_element())
     }
 }

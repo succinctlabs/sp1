@@ -1,6 +1,4 @@
-use std::sync::Arc;
-
-use parking_lot::{MappedMutexGuard, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::zk::dot_product::{
     zk_dot_product_commitment, zk_dot_product_proof, ZkDotTotalProof, ZkVectorProverData,
@@ -210,17 +208,20 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD: Clone> ConstraintContextInner<GC::E
 impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
     /// Lock the inner context mutably and return a guard.
     pub fn borrow_mut(&self) -> MutexGuard<'_, ZkProverContextInner<GC, MK, PD>> {
-        self.inner.lock()
+        self.inner.lock().expect("ZkProverContext mutex poisoned")
     }
 
     /// Lock the inner context and return a guard.
     pub fn borrow(&self) -> MutexGuard<'_, ZkProverContextInner<GC, MK, PD>> {
-        self.inner.lock()
+        self.inner.lock().expect("ZkProverContext mutex poisoned")
     }
 
-    /// Access the challenger for Fiat-Shamir operations.
-    pub fn challenger(&mut self) -> MappedMutexGuard<'_, GC::Challenger> {
-        MutexGuard::map(self.borrow_mut(), |inner| &mut inner.challenger)
+    /// Run `f` with mutable access to the Fiat-Shamir challenger.
+    ///
+    /// Holds the inner-context lock for the duration of `f`; `f` must not re-enter
+    /// this context.
+    pub fn with_challenger<R>(&mut self, f: impl FnOnce(&mut GC::Challenger) -> R) -> R {
+        f(&mut self.borrow_mut().challenger)
     }
 
     /// Initializes a prover that supports only linear constraints.
@@ -536,13 +537,13 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
         // Extract the inner context, cloning if there are still outstanding references
         // (e.g., from ProverElement instances that haven't been dropped yet)
         let mut inner = match Arc::try_unwrap(self.inner) {
-            Ok(mutex) => mutex.into_inner(),
+            Ok(mutex) => mutex.into_inner().expect("ZkProverContext mutex poisoned"),
             Err(arc) => {
                 eprintln!(
                     "WARNING: ZkProverContext has outstanding references (likely from ProverElements or ProverConstraints). \
                      Cloning inner context. Consider dropping ProverElements before calling into_proof."
                 );
-                arc.lock().clone()
+                arc.lock().expect("ZkProverContext mutex poisoned").clone()
             }
         };
 

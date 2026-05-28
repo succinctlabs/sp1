@@ -263,18 +263,14 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkBasefoldProver<GC, MK> {
         }
 
         // Step 2: Sample shared RLC point (dimension = log_num_data_cols)
-        let rlc_point = {
-            let mut challenger = zkbuilder.challenger();
+        let rlc_point = zkbuilder.with_challenger(|challenger| {
             let coords: Vec<GC::EF> =
                 (0..log_num_data_cols).map(|_| challenger.sample_ext_element()).collect();
             Point::new(coords.into())
-        };
+        });
 
         // Step 3: Sample batching challenge α
-        let batching_challenge: GC::EF = {
-            let mut challenger = zkbuilder.challenger();
-            challenger.sample_ext_element()
-        };
+        let batching_challenge: GC::EF = zkbuilder.with_challenger(|c| c.sample_ext_element());
 
         // Step 4: Compute per-commitment data RLC, then combine with powers of α
         //
@@ -354,26 +350,25 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkBasefoldProver<GC, MK> {
         rlc_eval_claim += alpha_powers[num_claims] * mask_sum_0;
 
         // Step 7: Observe combined padding and eval claim
-        {
-            let mut challenger = zkbuilder.challenger();
+        zkbuilder.with_challenger(|challenger| {
             challenger.observe_ext_element_slice(&rlc_padding_vec[..]);
             challenger.observe_ext_element(rlc_eval_claim);
-        }
+        });
 
         // Step 8: Prove basefold evaluation of the combined polynomial
         let rlc_mle_extension = Mle::new(RowMajorMatrix::new(combined_mle_vec, 1).into());
-        let rlc_eval_proof = {
-            let mut challenger = zkbuilder.challenger();
-            self.prove_with_batched_ef_inputs(
-                eval_point_inner,
-                rlc_mle_extension,
-                rlc_codeword,
-                rlc_eval_claim,
-                full_pcs_datas,
-                &mut challenger,
-            )
-            .map_err(ZkStackedPcsProverError::BasefoldError)?
-        };
+        let rlc_eval_proof = zkbuilder
+            .with_challenger(|challenger| {
+                self.prove_with_batched_ef_inputs(
+                    eval_point_inner,
+                    rlc_mle_extension,
+                    rlc_codeword,
+                    rlc_eval_claim,
+                    full_pcs_datas,
+                    challenger,
+                )
+            })
+            .map_err(ZkStackedPcsProverError::BasefoldError)?;
 
         // Build constraint data (shared with verifier)
         let claim_datas: Vec<_> = eval_claims

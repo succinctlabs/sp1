@@ -1,7 +1,5 @@
 use std::ops::{Add, Mul, Sub};
-use std::sync::Arc;
-
-use parking_lot::{MappedMutexGuard, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 
 use slop_algebra::{AbstractExtensionField, AbstractField};
 use slop_challenger::IopCtx;
@@ -63,7 +61,7 @@ impl<GC: IopCtx> MaskCounterContext<GC> {
 
     /// Returns the current count.
     pub fn count(&self) -> usize {
-        *self.counter.lock()
+        *self.counter.lock().expect("MaskCounterContext counter poisoned")
     }
 }
 
@@ -126,7 +124,7 @@ impl<GC: IopCtx> Mul for MaskCounterContext<GC> {
 
     #[allow(clippy::suspicious_arithmetic_impl)]
     fn mul(self, _rhs: Self) -> Self::Output {
-        *self.counter.lock() += 1;
+        *self.counter.lock().expect("MaskCounterContext counter poisoned") += 1;
         self
     }
 }
@@ -167,31 +165,32 @@ impl<GC: ZkIopCtx> ConstraintContextInnerExt<GC::EF> for MaskCounterContext<GC> 
         claims: Vec<(super::MleCommitmentIndex, Self::Expr)>,
         _point: super::Point<GC::EF>,
     ) {
-        let pcs_commitments = self.pcs_commitments.lock();
+        let pcs_commitments =
+            self.pcs_commitments.lock().expect("MaskCounterContext pcs_commitments poisoned");
         // Each claim corresponds to evaluating a commitment at a point, which requires reading
         // the data column evaluations.
         for (commitment_index, _) in claims.iter() {
             let log_num_polys = pcs_commitments[commitment_index.index()];
             let num_data = 1 << log_num_polys;
-            *self.counter.lock() += num_data;
+            *self.counter.lock().expect("MaskCounterContext counter poisoned") += num_data;
         }
         // Account for mask column evaluations (only once, from the first commitment)
-        *self.counter.lock() += GC::EF::D;
+        *self.counter.lock().expect("MaskCounterContext counter poisoned") += GC::EF::D;
     }
 }
 
 impl<GC: ZkIopCtx> ZkCnstrAndReadingCtxInner<GC> for MaskCounterContext<GC> {
     fn read_next(&mut self, num: usize) -> Result<Vec<Self::Expr>, TranscriptReadError> {
         // Increment the counter by the number of elements read
-        *self.counter.lock() += num;
+        *self.counter.lock().expect("MaskCounterContext counter poisoned") += num;
 
         // Return placeholder expressions. The counter never fails — it isn't bounded by
         // any real transcript — so this is infallible.
         Ok(vec![self.clone(); num])
     }
 
-    fn challenger(&mut self) -> MappedMutexGuard<'_, GC::Challenger> {
-        MutexGuard::map(self.challenger.lock(), |challenger| challenger)
+    fn with_challenger<R>(&mut self, f: impl FnOnce(&mut GC::Challenger) -> R) -> R {
+        f(&mut self.challenger.lock().expect("MaskCounterContext challenger poisoned"))
     }
 
     fn read_next_pcs_commitment(
@@ -200,7 +199,8 @@ impl<GC: ZkIopCtx> ZkCnstrAndReadingCtxInner<GC> for MaskCounterContext<GC> {
         log_num_polys: usize,
     ) -> Option<super::MleCommitmentIndex> {
         // Store the parameters for later use in assert_mle_eval
-        let mut pcs_commitments = self.pcs_commitments.lock();
+        let mut pcs_commitments =
+            self.pcs_commitments.lock().expect("MaskCounterContext pcs_commitments poisoned");
         let index = pcs_commitments.len();
         pcs_commitments.push(log_num_polys);
         Some(super::MleCommitmentIndex::new(index))

@@ -144,6 +144,6 @@ impl<GC: ZkIopCtx> ReadingCtx for ZkVerifierCtx<GC> {
     }
 
     fn sample(&mut self) -> GC::EF {
-        self.inner.challenger().sample_ext_element()
+        self.inner.with_challenger(|c| c.sample_ext_element())
     }
 }

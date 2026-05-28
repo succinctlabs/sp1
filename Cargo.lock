@@ -6718,7 +6718,6 @@ dependencies = [
  "derive-where",
  "futures",
  "itertools 0.14.0",
- "parking_lot",
  "rand 0.8.6",
  "rand_chacha 0.3.1",
  "rayon",

@@ -35,7 +35,6 @@ rand = { workspace = true }
 derive-where = { workspace = true }
 bincode = { workspace = true }
 slop-utils = { workspace = true }
-parking_lot = { workspace = true }
 
 [dev-dependencies]
 rand_chacha = { workspace = true }

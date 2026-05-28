@@ -276,7 +276,6 @@ object = { version = "0.37.3", features = ["write"] }
 num-bigint = { version = "0.4.6", default-features = false }
 num-traits = "0.2.19"
 p256 = "0.13.2"
-parking_lot = "0.12.5"
 pin-project = "1"
 proc-macro2 = "1.0"
 prost = "0.13"

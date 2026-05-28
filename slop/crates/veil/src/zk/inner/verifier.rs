@@ -1,6 +1,4 @@
-use std::sync::Arc;
-
-use parking_lot::{MappedMutexGuard, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::compiler::TranscriptReadError;
 use crate::zk::dot_product::{dot_product, verify_zk_dot_product, ZkDotProductError};
@@ -174,12 +172,12 @@ impl<GC: ZkIopCtx> ZkProof<GC> {
 impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
     /// Lock the inner context mutably and return a guard.
     pub fn borrow_mut(&self) -> MutexGuard<'_, ZkVerificationContextInner<GC>> {
-        self.inner.lock()
+        self.inner.lock().expect("ZkVerificationContext mutex poisoned")
     }
 
     /// Lock the inner context and return a guard.
     pub fn borrow(&self) -> MutexGuard<'_, ZkVerificationContextInner<GC>> {
-        self.inner.lock()
+        self.inner.lock().expect("ZkVerificationContext mutex poisoned")
     }
 
     // Read the next message of expected length, observe it, and return its block index and length.
@@ -269,13 +267,13 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
         // Extract the inner context, cloning if there are still outstanding references
         // (e.g., from VerifierElements that haven't been dropped yet)
         let mut inner = match Arc::try_unwrap(self.inner) {
-            Ok(mutex) => mutex.into_inner(),
+            Ok(mutex) => mutex.into_inner().expect("ZkVerificationContext mutex poisoned"),
             Err(arc) => {
                 eprintln!(
                     "WARNING: ZkVerificationContext has outstanding references (likely from VerifierElements). \
                      Cloning inner context. Consider dropping VerifierElements before calling verify."
                 );
-                arc.lock().clone()
+                arc.lock().expect("ZkVerificationContext mutex poisoned").clone()
             }
         };
 
@@ -471,8 +469,8 @@ impl<GC: ZkIopCtx> ZkCnstrAndReadingCtxInner<GC> for ZkVerificationContext<GC> {
         Ok((0..len).map(|i| self.add_expr([block_index, i].into())).collect())
     }
 
-    fn challenger(&mut self) -> MappedMutexGuard<'_, GC::Challenger> {
-        MutexGuard::map(self.borrow_mut(), |inner| &mut inner.challenger)
+    fn with_challenger<R>(&mut self, f: impl FnOnce(&mut GC::Challenger) -> R) -> R {
+        f(&mut self.borrow_mut().challenger)
     }
 
     fn read_next_pcs_commitment(
