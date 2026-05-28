@@ -75,7 +75,6 @@ fn main() {
                     &mle_ef,
                     claim,
                     num_encoding_variables,
-                    log_num_polynomials,
                     num_variables,
                     &mut rng,
                 );
@@ -103,7 +102,6 @@ fn main() {
                     &mle_ef,
                     claim,
                     num_encoding_variables,
-                    log_num_polynomials,
                     num_variables,
                     &mut rng,
                 );

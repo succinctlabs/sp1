@@ -172,11 +172,11 @@ impl<GC: IopCtx> ReadingCtx for TransparentVerifierCtx<GC> {
         Ok(())
     }
 
-    fn read_oracle(
-        &mut self,
-        num_encoding_variables: u32,
-        log_num_polynomials: u32,
-    ) -> Option<Self::MleOracle> {
+    fn read_oracle(&mut self, num_variables: u32) -> Option<Self::MleOracle> {
+        // The PCS's fixed encoding width pins the expected per-oracle shape; subtract it
+        // from the declared total to recover the expected number of stacked polynomials.
+        let num_encoding_variables = self.pcs_verifier.as_ref()?.log_stacking_height;
+        let log_num_polynomials = num_variables.checked_sub(num_encoding_variables)?;
         let idx = self.oracle_cursor;
         let (digest, proof_num_enc, proof_log_num) = *self.oracle_commits.get(idx)?;
         if proof_num_enc != num_encoding_variables || proof_log_num != log_num_polynomials {

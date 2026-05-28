@@ -217,20 +217,33 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> SendingCtx for ZkProverCtx<GC, PC> {
     fn commit_mle<RNG: rand::CryptoRng + rand::Rng>(
         &mut self,
         mle: slop_multilinear::Mle<GC::F>,
-        log_num_polynomials: u32,
         rng: &mut RNG,
     ) -> Result<MleCommit, PcsCommitError>
     where
         rand::distributions::Standard: rand::distributions::Distribution<GC::F>,
     {
         let pcs_prover = self.pcs_prover.as_ref().ok_or(PcsCommitError::NoPcsProver)?;
+        let log_num_polynomials = log_num_polynomials(mle.num_variables(), pcs_prover)?;
         let commit = self
             .inner
-            .commit_mle(mle, log_num_polynomials as usize, pcs_prover, rng)
+            .commit_mle(mle, log_num_polynomials, pcs_prover, rng)
             .map(|idx| MleCommit { inner: idx })?;
         self.replay.oracles.push(commit);
         Ok(commit)
     }
+}
+
+/// Recovers `log_num_polynomials` from the MLE's total number of variables and the PCS's
+/// fixed `num_encoding_variables`. Errors if the MLE is too small for the PCS.
+fn log_num_polynomials<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD>(
+    mle_num_variables: u32,
+    pcs_prover: &impl ZkPcsProver<GC, MK, ProverData = PD>,
+) -> Result<usize, PcsCommitError> {
+    let num_encoding_variables = pcs_prover.num_encoding_variables();
+    let log_num_polynomials = mle_num_variables.checked_sub(num_encoding_variables).ok_or(
+        PcsCommitError::MleTooSmall { num_variables: mle_num_variables, num_encoding_variables },
+    )?;
+    Ok(log_num_polynomials as usize)
 }
 
 // ============================================================================
@@ -256,11 +269,7 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ReadingCtx for ZkProverCtx<GC, PC> {
         Ok(())
     }
 
-    fn read_oracle(
-        &mut self,
-        _num_encoding_variables: u32,
-        _log_num_polynomials: u32,
-    ) -> Option<MleCommit> {
+    fn read_oracle(&mut self, _num_variables: u32) -> Option<MleCommit> {
         let oracle = self.replay.oracles.get(self.replay.oracle_cursor).copied()?;
         self.replay.oracle_cursor += 1;
         Some(oracle)
@@ -283,6 +292,11 @@ pub enum PcsCommitError {
     Failed(#[from] super::inner::ZkPcsCommitmentError),
     #[error("Context not initialized with Pcs Prover")]
     NoPcsProver,
+    #[error(
+        "MLE has {num_variables} variables, fewer than the PCS's \
+         {num_encoding_variables} encoding variables"
+    )]
+    MleTooSmall { num_variables: u32, num_encoding_variables: u32 },
 }
 
 impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
@@ -293,22 +307,18 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
 
     /// Commits to a flat MLE and registers it in the context.
     ///
-    /// The MLE is internally stacked into a tensor with `2^log_num_polynomials` columns.
-    /// The number of encoding variables is inferred as
-    /// `mle.num_variables() - log_num_polynomials`.
+    /// The MLE is internally stacked into a tensor with `2^log_num_polynomials` columns,
+    /// where `log_num_polynomials = mle.num_variables() - num_encoding_variables` and
+    /// `num_encoding_variables` is fixed by the PCS the context was initialized with.
     ///
     /// # Arguments
-    /// * `mle` — the flat (unstacked) multilinear extension to commit to, with
-    ///   `num_encoding_variables + log_num_polynomials` total variables.
-    /// * `log_num_polynomials` — log2 of the number of stacked polynomials (tensor height).
-    ///   The inferred `num_encoding_variables` must match the value passed to
-    ///   [`initialize_zk_prover_and_verifier`](crate::zk::stacked_pcs::initialize_zk_prover_and_verifier)
-    ///   when the PCS was set up.
+    /// * `mle` — the flat (unstacked) multilinear extension to commit to. The PCS's
+    ///   `num_encoding_variables` is subtracted from `mle.num_variables()` to recover
+    ///   the number of stacked polynomials.
     /// * `rng` — cryptographically secure random number generator.
     pub fn commit_mle<RNG>(
         &mut self,
         mle: slop_multilinear::Mle<GC::F, slop_alloc::CpuBackend>,
-        log_num_polynomials: u32,
         rng: &mut RNG,
     ) -> Result<MleCommit, PcsCommitError>
     where
@@ -316,9 +326,10 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
         rand::distributions::Standard: rand::distributions::Distribution<GC::F>,
     {
         let pcs_prover = self.pcs_prover.as_ref().ok_or(PcsCommitError::NoPcsProver)?;
+        let log_num_polynomials = log_num_polynomials(mle.num_variables(), pcs_prover)?;
         let commit = self
             .inner
-            .commit_mle(mle, log_num_polynomials as usize, pcs_prover, rng)
+            .commit_mle(mle, log_num_polynomials, pcs_prover, rng)
             .map(|idx| MleCommit { inner: idx })?;
         Ok(commit)
     }

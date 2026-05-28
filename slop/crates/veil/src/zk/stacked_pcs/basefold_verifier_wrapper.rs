@@ -402,7 +402,7 @@ where
     let fri_config = FriConfig::default_fri_config();
     let basefold_verifier = BasefoldVerifier::<GC>::new(fri_config, num_expected_commitments);
     let basefold_prover = BasefoldProver::new(&basefold_verifier);
-    let zk_basefold_prover = ZkBasefoldProver::new(basefold_prover);
+    let zk_basefold_prover = ZkBasefoldProver::new(basefold_prover, num_encoding_variables);
     let stacked_verifier = StackedPcsVerifier::new(basefold_verifier, num_encoding_variables);
     let zk_stacked_verifier = ZkStackedPcsVerifier::new(stacked_verifier);
     (zk_basefold_prover, zk_stacked_verifier)

@@ -71,11 +71,9 @@ fn generate_random_hadamard_product(
 
 fn single_mle_read<C: ReadingCtx>(
     ctx: &mut C,
-    num_encoding_variables: u32,
-    log_num_polynomials: u32,
     num_variables: u32,
 ) -> (C::MleOracle, slop_veil::protocols::sumcheck::SumcheckView<C>) {
-    let oracle = ctx.read_oracle(num_encoding_variables, log_num_polynomials).unwrap();
+    let oracle = ctx.read_oracle(num_variables).unwrap();
     let param = SumcheckParam::new(num_variables, 1);
     let view = param.read(ctx).unwrap();
     (oracle, view)
@@ -176,7 +174,6 @@ fn run_zk_single(
     mle_ef: &Mle<EF>,
     claim: EF,
     num_encoding_variables: u32,
-    log_num_polynomials: u32,
     num_variables: u32,
     rng: &mut ChaCha20Rng,
 ) -> (Duration, Duration) {
@@ -189,14 +186,15 @@ fn run_zk_single(
         let prover_start = Instant::now();
 
         let masks_length = compute_mask_length::<GC, _>(
-            |ctx| single_mle_read(ctx, num_encoding_variables, log_num_polynomials, num_variables),
+            num_encoding_variables,
+            |ctx| single_mle_read(ctx, num_variables),
             |(oracle, view), ctx| single_mle_build_constraints(ctx, oracle, claim, view),
         );
 
         let mut ctx: StackedPcsZkProverCtx<GC, MK> =
             ZkProverCtx::initialize_with_pcs_only_lin(masks_length, pcs_prover, rng);
 
-        let commit = ctx.commit_mle(original_mle.clone(), log_num_polynomials, rng).unwrap();
+        let commit = ctx.commit_mle(original_mle.clone(), rng).unwrap();
 
         let in_claim = SumcheckInputClaim::from_value(claim);
         let view = param.prove(&in_claim, mle_ef.clone(), &mut ctx);
@@ -211,7 +209,7 @@ fn run_zk_single(
 
         let mut ctx = ZkVerifierCtx::init(zkproof, Some(zk_stacked_verifier));
         let (oracle, view) =
-            single_mle_read(&mut ctx, num_encoding_variables, log_num_polynomials, num_variables);
+            single_mle_read(&mut ctx, num_variables);
         single_mle_build_constraints(&mut ctx, oracle, claim, view);
         ctx.verify().expect("Failed to verify");
 
@@ -231,14 +229,9 @@ struct HadamardReadData<C: ConstraintCtx> {
     view: slop_veil::protocols::sumcheck::SumcheckView<C>,
 }
 
-fn hadamard_read<C: ReadingCtx>(
-    ctx: &mut C,
-    num_encoding_variables: u32,
-    log_num_polynomials: u32,
-    num_variables: u32,
-) -> HadamardReadData<C> {
-    let ci_base = ctx.read_oracle(num_encoding_variables, log_num_polynomials).unwrap();
-    let ci_ext = ctx.read_oracle(num_encoding_variables, log_num_polynomials).unwrap();
+fn hadamard_read<C: ReadingCtx>(ctx: &mut C, num_variables: u32) -> HadamardReadData<C> {
+    let ci_base = ctx.read_oracle(num_variables).unwrap();
+    let ci_ext = ctx.read_oracle(num_variables).unwrap();
     let param = SumcheckParam::with_component_evals(num_variables, 2, 2);
     let view = param.read(ctx).unwrap();
     HadamardReadData { ci_base, ci_ext, view }
@@ -378,7 +371,6 @@ fn run_zk_hadamard(
     hadamard_product: HadamardProduct<F, EF>,
     claim: EF,
     num_encoding_variables: u32,
-    log_num_polynomials: u32,
     num_variables: u32,
     rng: &mut ChaCha20Rng,
 ) -> (Duration, Duration, u64) {
@@ -391,15 +383,16 @@ fn run_zk_hadamard(
         let prover_start = Instant::now();
 
         let masks_length = compute_mask_length::<GC, _>(
-            |ctx| hadamard_read(ctx, num_encoding_variables, log_num_polynomials, num_variables),
+            num_encoding_variables,
+            |ctx| hadamard_read(ctx, num_variables),
             |data, ctx| hadamard_build_constraints(ctx, claim, data),
         );
 
         let mut ctx: StackedPcsZkProverCtx<GC, MK> =
             ZkProverCtx::initialize_with_pcs(masks_length, pcs_prover, rng);
 
-        let ci_base = ctx.commit_mle(mle_1.clone(), log_num_polynomials, rng).unwrap();
-        let ci_ext = ctx.commit_mle(mle_2.clone(), log_num_polynomials, rng).unwrap();
+        let ci_base = ctx.commit_mle(mle_1.clone(), rng).unwrap();
+        let ci_ext = ctx.commit_mle(mle_2.clone(), rng).unwrap();
 
         let in_claim = SumcheckInputClaim::from_value(claim);
         let view = param.prove(&in_claim, hadamard_product, &mut ctx);
@@ -417,7 +410,7 @@ fn run_zk_hadamard(
 
         let mut ctx = ZkVerifierCtx::init(zkproof, Some(zk_stacked_verifier));
         let data =
-            hadamard_read(&mut ctx, num_encoding_variables, log_num_polynomials, num_variables);
+            hadamard_read(&mut ctx, num_variables);
         hadamard_build_constraints(&mut ctx, claim, data);
         ctx.verify().expect("Failed to verify");
 

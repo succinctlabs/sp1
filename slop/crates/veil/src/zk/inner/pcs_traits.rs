@@ -48,6 +48,12 @@ pub trait ZkPcsProver<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> {
     /// or Merkle tree authentication paths.
     type ProverData;
 
+    /// The fixed number of encoding variables (log of the stacking height) this PCS
+    /// was configured with. Every committed MLE is stacked into a tensor whose columns
+    /// are polynomials over this many variables, so `log_num_polynomials` for any MLE
+    /// is `mle.num_variables() - num_encoding_variables`.
+    fn num_encoding_variables(&self) -> u32;
+
     /// Commits to an MLE by stacking it internally.
     ///
     /// The flat MLE is stacked into a tensor with `2^log_num_polynomials` columns,
@@ -100,6 +106,11 @@ pub trait ZkPcsProver<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> {
 pub trait ZkPcsVerifier<GC: ZkIopCtx> {
     /// The proof type to verify. Must equal `GC::PcsProof` in practice.
     type Proof;
+
+    /// The fixed number of encoding variables (log of the stacking height) this PCS
+    /// was configured with. Used to recover `log_num_polynomials` from an oracle's
+    /// total number of variables: `log_num_polynomials = num_variables - num_encoding_variables`.
+    fn num_encoding_variables(&self) -> u32;
 
     /// Verifies a (possibly batched) evaluation proof for one or more commitments
     /// at the same point.

@@ -52,7 +52,7 @@ struct MleEvalView<C: ConstraintCtx> {
 /// Verifier-side entry point: read the committed oracle, sample the opening point,
 /// and read the prover's claimed evaluation out of the transcript.
 fn mle_eval_read<C: ReadingCtx>(ctx: &mut C) -> MleEvalView<C> {
-    let oracle = ctx.read_oracle(NUM_ENCODING_VARIABLES, LOG_NUM_POLYNOMIALS).unwrap();
+    let oracle = ctx.read_oracle(NUM_VARIABLES).unwrap();
     let point = ctx.sample_point(NUM_VARIABLES);
     let claimed_eval = ctx.read_one().unwrap();
     MleEvalView { oracle, point, claimed_eval }
@@ -67,8 +67,7 @@ where
     RNG: rand::CryptoRng + rand::Rng,
     rand::distributions::Standard: rand::distributions::Distribution<C::Field>,
 {
-    let oracle =
-        ctx.commit_mle(mle.clone(), LOG_NUM_POLYNOMIALS, rng).expect("failed to commit mle");
+    let oracle = ctx.commit_mle(mle.clone(), rng).expect("failed to commit mle");
     let point = ctx.sample_point(NUM_VARIABLES);
     let eval = mle.eval_at(&point).evaluations().as_slice()[0];
     let claimed_eval = ctx.send_value(eval.into());
@@ -92,7 +91,11 @@ fn main() {
 
     let zk_proof = {
         let now = std::time::Instant::now();
-        let mask_length = compute_mask_length::<GC, _>(mle_eval_read, mle_eval_build_constraints);
+        let mask_length = compute_mask_length::<GC, _>(
+            NUM_ENCODING_VARIABLES,
+            mle_eval_read,
+            mle_eval_build_constraints,
+        );
         eprintln!("Mask length: {mask_length}");
 
         let mut pctx: StackedPcsZkProverCtx<GC, MK> =

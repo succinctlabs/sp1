@@ -10,7 +10,33 @@ use slop_stacked::{
     StackedBasefoldProof, StackedBasefoldProverData, StackedPcsProver, StackedPcsVerifier,
 };
 
+use thiserror::Error;
+
 use crate::compiler::{ConstraintCtx, ReadingCtx, SendingCtx, TranscriptReadError};
+
+/// Error returned by [`TransparentProverCtx::commit_mle`].
+///
+/// Wraps the underlying basefold prover error and adds the shape-check failures that the
+/// transparent context performs before handing the MLE to the PCS.
+#[derive(Debug, Error)]
+pub enum TransparentCommitError<E: std::error::Error + 'static> {
+    /// `commit_mle` was called on a context built via [`TransparentProverCtx::initialize_without_pcs`].
+    #[error("commit_mle called on a transparent prover built without a PCS")]
+    NoPcsProver,
+    /// The MLE has fewer variables than the PCS's fixed encoding width.
+    #[error(
+        "MLE has {num_variables} variables, fewer than the PCS's \
+         {num_encoding_variables} encoding variables"
+    )]
+    MleTooSmall { num_variables: u32, num_encoding_variables: u32 },
+    /// The MLE's implied number of stacked polynomials does not match the PCS's
+    /// configured batch size.
+    #[error("MLE implies batch size {got}, but the PCS was configured with batch size {expected}")]
+    BatchSizeMismatch { expected: usize, got: usize },
+    /// The underlying basefold prover failed.
+    #[error(transparent)]
+    Basefold(#[from] BasefoldProverError<E>),
+}
 
 /// Convenience alias for the stacked-basefold PCS prover data attached to each
 /// committed oracle.
@@ -298,7 +324,7 @@ where
     GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>,
     MK: ComputeTcsOpenings<GC, CpuBackend>,
 {
-    type CommitError = BasefoldProverError<MK::ProverError>;
+    type CommitError = TransparentCommitError<MK::ProverError>;
 
     fn send_value(&mut self, value: GC::EF) -> GC::EF {
         self.challenger.observe_ext_element(value);
@@ -326,28 +352,30 @@ where
         challenge
     }
 
-    /// `log_num_polynomials` must match the stacked-PCS's configured `batch_size`
-    /// (= 2^log_num_polynomials). `rng` is unused — transparent mode doesn't mask.
-    /// Panics if the context was built without a PCS via `new_without_pcs`.
+    /// The number of stacked polynomials (`mle.num_variables() - num_encoding_variables`)
+    /// must match the stacked-PCS's configured `batch_size` (= 2^log_num_polynomials).
+    /// `rng` is unused — transparent mode doesn't mask.
     fn commit_mle<RNG: rand::CryptoRng + rand::Rng>(
         &mut self,
         mle: Mle<GC::F>,
-        log_num_polynomials: u32,
         _rng: &mut RNG,
     ) -> Result<Self::MleOracle, Self::CommitError>
     where
         rand::distributions::Standard: rand::distributions::Distribution<GC::F>,
     {
-        let pcs_prover = self
-            .pcs_prover
-            .as_ref()
-            .expect("commit_mle called on a transparent prover built without a PCS");
-        assert_eq!(
-            1usize << log_num_polynomials,
-            pcs_prover.batch_size,
-            "log_num_polynomials must match the stacked PCS's batch_size",
-        );
+        let pcs_prover = self.pcs_prover.as_ref().ok_or(TransparentCommitError::NoPcsProver)?;
         let num_encoding_variables = pcs_prover.log_stacking_height;
+        let num_variables = mle.num_variables();
+        let log_num_polynomials = num_variables
+            .checked_sub(num_encoding_variables)
+            .ok_or(TransparentCommitError::MleTooSmall { num_variables, num_encoding_variables })?;
+        let expected_batch_size = 1usize << log_num_polynomials;
+        if expected_batch_size != pcs_prover.batch_size {
+            return Err(TransparentCommitError::BatchSizeMismatch {
+                expected: pcs_prover.batch_size,
+                got: expected_batch_size,
+            });
+        }
         let message = Message::from(vec![mle]);
         let (commitment, prover_data, _num_added_vals) = pcs_prover.commit_multilinears(message)?;
         self.challenger.observe(commitment);
@@ -389,11 +417,7 @@ where
         Ok(())
     }
 
-    fn read_oracle(
-        &mut self,
-        _num_encoding_variables: u32,
-        _log_num_polynomials: u32,
-    ) -> Option<Self::MleOracle> {
+    fn read_oracle(&mut self, _num_variables: u32) -> Option<Self::MleOracle> {
         // Oracle indices are `0, 1, 2, …` in commit order, so the cursor *is* the
         // next handle — no recorded buffer required.
         let idx = self.replay_oracle_cursor;

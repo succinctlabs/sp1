@@ -20,7 +20,15 @@
       "Bash(cargo build *)",
       "Bash(cargo test *)",
       "Bash(cargo bench *)",
-      "Bash(awk -F: '$1>106 && $1<330')"
+      "Bash(awk -F: '$1>106 && $1<330')",
+      "Bash(sed -n '80,120p' slop/crates/veil/src/zk/stacked_pcs/verifier.rs)",
+      "Bash(sed -n '1,80p' slop/crates/veil/src/zk/inner/mask_counter.rs)",
+      "Bash(sed -n '40,75p' slop/crates/veil/examples/mle_eval.rs)",
+      "Bash(sed -n '45,60p' slop/crates/veil/examples/zerocheck.rs)",
+      "Bash(sed -n '210,260p' slop/crates/veil/examples/zerocheck.rs)",
+      "Bash(sed -n '318,330p' slop/crates/veil/examples/zerocheck.rs)",
+      "Bash(sed -n '100,115p' slop/crates/veil/examples/root.rs)",
+      "Bash(grep -iA0 \"struct FriConfig\\\\|log_stacking\\\\|stacking_height\\\\|num_encoding\")"
     ]
   }
 }

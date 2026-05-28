@@ -135,11 +135,9 @@ impl<GC: ZkIopCtx> ReadingCtx for ZkVerifierCtx<GC> {
         Ok(())
     }
 
-    fn read_oracle(
-        &mut self,
-        num_encoding_variables: u32,
-        log_num_polynomials: u32,
-    ) -> Option<MleCommit> {
+    fn read_oracle(&mut self, num_variables: u32) -> Option<MleCommit> {
+        let num_encoding_variables = self.pcs_verifier.as_ref()?.num_encoding_variables();
+        let log_num_polynomials = num_variables.checked_sub(num_encoding_variables)?;
         self.inner
             .read_next_pcs_commitment(num_encoding_variables as usize, log_num_polynomials as usize)
             .map(|idx| MleCommit { inner: idx })

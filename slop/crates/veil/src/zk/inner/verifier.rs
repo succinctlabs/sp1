@@ -419,6 +419,10 @@ pub struct NoPcsVerifier;
 impl<GC: ZkIopCtx> ZkPcsVerifier<GC> for NoPcsVerifier {
     type Proof = GC::PcsProof;
 
+    fn num_encoding_variables(&self) -> u32 {
+        panic!("NoPcsVerifier::num_encoding_variables should never be called")
+    }
+
     fn verify_multi_eval(
         &self,
         _ctx: &mut ZkVerificationContext<GC>,

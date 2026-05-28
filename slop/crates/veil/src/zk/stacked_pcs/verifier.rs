@@ -327,6 +327,10 @@ where
 {
     type Proof = ZkStackedPcsProof<GC>;
 
+    fn num_encoding_variables(&self) -> u32 {
+        self.inner.log_stacking_height
+    }
+
     fn verify_multi_eval(
         &self,
         ctx: &mut ZkVerificationContext<GC>,

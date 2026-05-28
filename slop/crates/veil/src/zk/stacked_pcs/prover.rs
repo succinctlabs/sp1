@@ -414,6 +414,10 @@ impl<GC: ZkIopCtx<PcsProof = ZkStackedPcsProof<GC>>, MK: ZkMerkleizer<GC>> ZkPcs
 {
     type ProverData = ZkStackedPcsProverData<GC, MK>;
 
+    fn num_encoding_variables(&self) -> u32 {
+        self.num_encoding_variables
+    }
+
     fn commit_mle<RNG: rand::CryptoRng + rand::Rng>(
         &self,
         mle: Mle<GC::F, CpuBackend>,

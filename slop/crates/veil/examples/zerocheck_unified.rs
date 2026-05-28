@@ -208,9 +208,9 @@ fn zerocheck_prove<C, RNG>(
     RNG: rand::CryptoRng + rand::Rng,
     rand::distributions::Standard: rand::distributions::Distribution<C::Field>,
 {
-    ctx.commit_mle(p_base, LOG_NUM_POLYNOMIALS, rng).expect("commit p failed");
-    ctx.commit_mle(q_base, LOG_NUM_POLYNOMIALS, rng).expect("commit q failed");
-    ctx.commit_mle(r_base, LOG_NUM_POLYNOMIALS, rng).expect("commit r failed");
+    ctx.commit_mle(p_base, rng).expect("commit p failed");
+    ctx.commit_mle(q_base, rng).expect("commit q failed");
+    ctx.commit_mle(r_base, rng).expect("commit r failed");
 
     let z_0: Point<EF> = ctx.sample_point(NUM_VARIABLES);
 
@@ -231,9 +231,9 @@ fn zerocheck_prove<C, RNG>(
 /// registers the PCS opening claims — all in one function, generic over any
 /// `ReadingCtx`. Used by both the verifier and the (replaying) prover.
 fn zerocheck_verify<C: ReadingCtx<Challenge = EF>>(ctx: &mut C) {
-    let p_oracle = ctx.read_oracle(LOG_ENCODING_VARS, LOG_NUM_POLYNOMIALS).unwrap();
-    let q_oracle = ctx.read_oracle(LOG_ENCODING_VARS, LOG_NUM_POLYNOMIALS).unwrap();
-    let r_oracle = ctx.read_oracle(LOG_ENCODING_VARS, LOG_NUM_POLYNOMIALS).unwrap();
+    let p_oracle = ctx.read_oracle(NUM_VARIABLES).unwrap();
+    let q_oracle = ctx.read_oracle(NUM_VARIABLES).unwrap();
+    let r_oracle = ctx.read_oracle(NUM_VARIABLES).unwrap();
 
     let z_0 = ctx.sample_point(NUM_VARIABLES);
 
@@ -279,7 +279,8 @@ fn main() {
     let zk_proof = {
         let now = std::time::Instant::now();
         // Mask length now comes from the single unified pass.
-        let mask_length = compute_mask_length::<GC, _>(zerocheck_verify, |_, _| {});
+        let mask_length =
+            compute_mask_length::<GC, _>(LOG_ENCODING_VARS, zerocheck_verify, |_, _| {});
         eprintln!("Mask length: {mask_length}");
         let mut pctx: StackedPcsZkProverCtx<GC, MK> =
             ZkProverCtx::initialize_with_pcs(mask_length, zk_pcs_prover, &mut rng);

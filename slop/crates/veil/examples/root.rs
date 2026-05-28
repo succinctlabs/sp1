@@ -105,7 +105,8 @@ fn main() {
 
     // ZK backend.
     eprintln!("\n=== ZK BACKEND ===");
-    let mask_length = compute_mask_length::<GC, _>(root_read, |view, ctx| {
+    // No MLE commitments in this protocol, so the encoding width is irrelevant.
+    let mask_length = compute_mask_length::<GC, _>(0, root_read, |view, ctx| {
         root_build_constraints(&poly_coeffs, view, ctx)
     });
     eprintln!("Mask length: {mask_length}");

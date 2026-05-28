@@ -16,15 +16,17 @@ pub type MaskCounterExpr<GC: ZkIopCtx> = Dorroh<GC::EF, MaskCounterContext<GC>>;
 /// public interface (compiler sumcheck, etc.) to count how many transcript elements will be used.
 pub struct MaskCounter<GC: ZkIopCtx> {
     inner: MaskCounterContext<GC>,
-}
-
-impl<GC: ZkIopCtx> Default for MaskCounter<GC> {
-    fn default() -> Self {
-        Self { inner: MaskCounterContext::default() }
-    }
+    /// The PCS's fixed `num_encoding_variables`, used to recover `log_num_polynomials`
+    /// from an oracle's total number of variables in [`ReadingCtx::read_oracle`].
+    num_encoding_variables: u32,
 }
 
 impl<GC: ZkIopCtx> MaskCounter<GC> {
+    /// Creates a mask counter for a PCS with the given fixed `num_encoding_variables`.
+    pub fn new(num_encoding_variables: u32) -> Self {
+        Self { inner: MaskCounterContext::default(), num_encoding_variables }
+    }
+
     fn count(&self) -> usize {
         self.inner.count()
     }
@@ -34,16 +36,18 @@ impl<GC: ZkIopCtx> MaskCounter<GC> {
 /// building logic on a counting context.
 ///
 /// # Arguments
+/// * `num_encoding_variables` - the PCS's fixed encoding width, used to size oracle reads
 /// * `read_all` - Reads proof data from the context (mirrors prover's transcript writes)
 /// * `build_all` - Builds constraints using the read data
 pub fn compute_mask_length<GC, T>(
+    num_encoding_variables: u32,
     read_all: impl FnOnce(&mut MaskCounter<GC>) -> T,
     build_all: impl FnOnce(T, &mut MaskCounter<GC>),
 ) -> usize
 where
     GC: ZkIopCtx,
 {
-    let mut counter = MaskCounter::<GC>::default();
+    let mut counter = MaskCounter::<GC>::new(num_encoding_variables);
     let data = read_all(&mut counter);
     build_all(data, &mut counter);
     counter.count()
@@ -92,14 +96,14 @@ impl<GC: ZkIopCtx> ReadingCtx for MaskCounter<GC> {
         Ok(())
     }
 
-    fn read_oracle(
-        &mut self,
-        num_encoding_variables: u32,
-        log_num_polynomials: u32,
-    ) -> Option<MleCommit> {
+    fn read_oracle(&mut self, num_variables: u32) -> Option<MleCommit> {
         use crate::zk::inner::ZkCnstrAndReadingCtxInner;
+        let log_num_polynomials = num_variables.checked_sub(self.num_encoding_variables)?;
         self.inner
-            .read_next_pcs_commitment(num_encoding_variables as usize, log_num_polynomials as usize)
+            .read_next_pcs_commitment(
+                self.num_encoding_variables as usize,
+                log_num_polynomials as usize,
+            )
             .map(|idx| MleCommit { inner: idx })
     }
 

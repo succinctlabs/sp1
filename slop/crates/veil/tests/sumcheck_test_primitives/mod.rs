@@ -81,7 +81,7 @@ pub fn sumcheck_single_mle_read<C: ReadingCtx>(
     log_num_polynomials: u32,
 ) -> SumcheckSingleMleView<C> {
     let oracle =
-        ctx.read_oracle(num_encoding_variables, log_num_polynomials).expect("read_oracle failed");
+        ctx.read_oracle(num_encoding_variables + log_num_polynomials).expect("read_oracle failed");
     let num_vars = num_encoding_variables + log_num_polynomials;
     let sumcheck_view = SumcheckParam::new(num_vars, 1).read(ctx).expect("sumcheck read failed");
     SumcheckSingleMleView { oracle, sumcheck_view }
@@ -114,7 +114,7 @@ where
     RNG: rand::CryptoRng + rand::Rng,
     rand::distributions::Standard: rand::distributions::Distribution<C::Field>,
 {
-    let oracle = ctx.commit_mle(original_mle, log_num_polynomials, rng).expect("commit_mle failed");
+    let oracle = ctx.commit_mle(original_mle, rng).expect("commit_mle failed");
     let num_vars = num_encoding_variables + log_num_polynomials;
     let in_claim = SumcheckInputClaim::from_value(claim);
     let sumcheck_view = SumcheckParam::new(num_vars, 1).prove(&in_claim, mle_ef, ctx);
@@ -143,10 +143,10 @@ pub fn sumcheck_hadamard_read<C: ReadingCtx>(
     log_num_polynomials: u32,
 ) -> SumcheckHadamardView<C> {
     let oracle_base = ctx
-        .read_oracle(num_encoding_variables, log_num_polynomials)
+        .read_oracle(num_encoding_variables + log_num_polynomials)
         .expect("read_oracle base failed");
     let oracle_ext = ctx
-        .read_oracle(num_encoding_variables, log_num_polynomials)
+        .read_oracle(num_encoding_variables + log_num_polynomials)
         .expect("read_oracle ext failed");
     let num_vars = num_encoding_variables + log_num_polynomials;
     let sumcheck_view = SumcheckParam::with_component_evals(num_vars, 2, 2)
@@ -190,9 +190,8 @@ where
     RNG: rand::CryptoRng + rand::Rng,
     rand::distributions::Standard: rand::distributions::Distribution<C::Field>,
 {
-    let oracle_base =
-        ctx.commit_mle(mle_base, log_num_polynomials, rng).expect("commit base failed");
-    let oracle_ext = ctx.commit_mle(mle_ext, log_num_polynomials, rng).expect("commit ext failed");
+    let oracle_base = ctx.commit_mle(mle_base, rng).expect("commit base failed");
+    let oracle_ext = ctx.commit_mle(mle_ext, rng).expect("commit ext failed");
     let num_vars = num_encoding_variables + log_num_polynomials;
     let in_claim = SumcheckInputClaim::from_value(claim);
     let sumcheck_view =
@@ -231,12 +230,15 @@ pub fn sumcheck_triple_hadamard_read<C: ReadingCtx>(
     num_encoding_variables: u32,
     log_num_polynomials: u32,
 ) -> SumcheckTripleHadamardView<C> {
-    let oracle_f =
-        ctx.read_oracle(num_encoding_variables, log_num_polynomials).expect("read_oracle f failed");
-    let oracle_g =
-        ctx.read_oracle(num_encoding_variables, log_num_polynomials).expect("read_oracle g failed");
-    let oracle_h =
-        ctx.read_oracle(num_encoding_variables, log_num_polynomials).expect("read_oracle h failed");
+    let oracle_f = ctx
+        .read_oracle(num_encoding_variables + log_num_polynomials)
+        .expect("read_oracle f failed");
+    let oracle_g = ctx
+        .read_oracle(num_encoding_variables + log_num_polynomials)
+        .expect("read_oracle g failed");
+    let oracle_h = ctx
+        .read_oracle(num_encoding_variables + log_num_polynomials)
+        .expect("read_oracle h failed");
     let num_vars = num_encoding_variables + log_num_polynomials;
     let param = SumcheckParam::with_component_evals(num_vars, 2, 2);
     let sumcheck_fg = param.read(ctx).expect("sumcheck fg read failed");
@@ -329,9 +331,9 @@ where
     RNG: rand::CryptoRng + rand::Rng,
     rand::distributions::Standard: rand::distributions::Distribution<C::Field>,
 {
-    let oracle_f = ctx.commit_mle(mle_f, log_num_polynomials, rng).expect("commit f failed");
-    let oracle_g = ctx.commit_mle(mle_g, log_num_polynomials, rng).expect("commit g failed");
-    let oracle_h = ctx.commit_mle(mle_h, log_num_polynomials, rng).expect("commit h failed");
+    let oracle_f = ctx.commit_mle(mle_f, rng).expect("commit f failed");
+    let oracle_g = ctx.commit_mle(mle_g, rng).expect("commit g failed");
+    let oracle_h = ctx.commit_mle(mle_h, rng).expect("commit h failed");
     let num_vars = num_encoding_variables + log_num_polynomials;
     let param = SumcheckParam::with_component_evals(num_vars, 2, 2);
     let sumcheck_fg = param.prove(&SumcheckInputClaim::from_value(claim_fg), product_fg, ctx);
@@ -370,7 +372,7 @@ pub fn sumcheck_batched_single_mles_read<C: ReadingCtx>(
 ) -> SumcheckBatchedSingleMlesView<C> {
     let oracles: Vec<_> = (0..num_claims)
         .map(|_| {
-            ctx.read_oracle(num_encoding_variables, log_num_polynomials)
+            ctx.read_oracle(num_encoding_variables + log_num_polynomials)
                 .expect("read_oracle failed")
         })
         .collect();
@@ -422,10 +424,8 @@ where
     assert_eq!(originals.len(), mles_ef.len());
     assert_eq!(originals.len(), claims.len());
 
-    let oracles: Vec<_> = originals
-        .into_iter()
-        .map(|mle| ctx.commit_mle(mle, log_num_polynomials, rng).expect("commit failed"))
-        .collect();
+    let oracles: Vec<_> =
+        originals.into_iter().map(|mle| ctx.commit_mle(mle, rng).expect("commit failed")).collect();
     // Sample the RLC coefficient *after* all oracle commits have been observed.
     let lambda = ctx.sample();
     let num_vars = num_encoding_variables + log_num_polynomials;

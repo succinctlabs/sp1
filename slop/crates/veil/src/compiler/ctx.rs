@@ -138,22 +138,18 @@ pub trait ReadingCtx: ConstraintCtx {
 
     /// Read a PCS commitment from the transcript, returning an opaque oracle handle.
     ///
-    /// The committed MLE has `num_encoding_variables + log_num_polynomials` total variables.
-    /// It is stored as a tensor with `2^log_num_polynomials` columns, each of which is a
-    /// polynomial over `num_encoding_variables` variables.
+    /// The committed MLE has `num_variables` total variables. It is stored as a tensor
+    /// with `2^log_num_polynomials` columns, each of which is a polynomial over the PCS's
+    /// fixed `num_encoding_variables` variables, where
+    /// `log_num_polynomials = num_variables - num_encoding_variables`.
     ///
     /// # Arguments
-    /// * `num_encoding_variables` — number of variables per stacked polynomial (encoding width).
-    ///   Must match the value passed to [`initialize_zk_prover_and_verifier`](crate::zk::stacked_pcs::initialize_zk_prover_and_verifier)
-    ///   when the PCS was set up.
-    /// * `log_num_polynomials` — log2 of the number of stacked polynomials (tensor height).
+    /// * `num_variables` — total number of variables of the committed MLE. The PCS's
+    ///   `num_encoding_variables` (fixed at [`initialize_zk_prover_and_verifier`](crate::zk::stacked_pcs::initialize_zk_prover_and_verifier))
+    ///   is subtracted from this to recover the number of stacked polynomials.
     ///
     /// Returns `None` if the transcript is exhausted or parameters don't match.
-    fn read_oracle(
-        &mut self,
-        num_encoding_variables: u32,
-        log_num_polynomials: u32,
-    ) -> Option<Self::MleOracle>;
+    fn read_oracle(&mut self, num_variables: u32) -> Option<Self::MleOracle>;
 
     /// Sample a Fiat-Shamir challenge from the transcript.
     fn sample(&mut self) -> Self::Challenge;
@@ -220,13 +216,12 @@ pub trait SendingCtx: ConstraintCtx {
     /// [`ConstraintCtx::assert_mle_eval`] / [`ConstraintCtx::assert_mle_multi_eval`]
     /// later in the protocol.
     ///
-    /// `log_num_polynomials` specifies how many stacked polynomials this MLE commit
-    /// represents; backends using the stacked PCS must have been constructed to
-    /// match this value.
+    /// The number of stacked polynomials is recovered as
+    /// `mle.num_variables() - num_encoding_variables`, where `num_encoding_variables` is
+    /// the fixed encoding width the backend's PCS was constructed with.
     fn commit_mle<RNG: rand::CryptoRng + rand::Rng>(
         &mut self,
         mle: Mle<Self::Field>,
-        log_num_polynomials: u32,
         rng: &mut RNG,
     ) -> Result<Self::MleOracle, Self::CommitError>
     where

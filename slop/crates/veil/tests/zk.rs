@@ -40,7 +40,9 @@ fn test_sumcheck_no_pcs() {
     let (_, _, product, claim) = generate_random_hadamard_product::<F, EF>(&mut rng, NUM_VARIABLES);
 
     let proof = {
+        // No MLE commitments in this protocol, so the encoding width is irrelevant.
         let mask_length = compute_mask_length::<GC, _>(
+            0,
             |ctx| sumcheck_no_pcs_read(ctx, NUM_VARIABLES),
             |view, ctx| sumcheck_no_pcs_build_constraints(view, ctx, claim),
         );
@@ -78,6 +80,7 @@ fn test_sumcheck_single_mle_with_pcs() {
 
     let proof = {
         let mask_length = compute_mask_length::<GC, _>(
+            NUM_ENCODING_VARIABLES,
             |ctx| sumcheck_single_mle_read(ctx, NUM_ENCODING_VARIABLES, LOG_NUM_POLYNOMIALS),
             |view, ctx| sumcheck_single_mle_build_constraints(view, ctx, claim),
         );
@@ -124,6 +127,7 @@ fn test_sumcheck_hadamard_with_pcs() {
 
     let proof = {
         let mask_length = compute_mask_length::<GC, _>(
+            NUM_ENCODING_VARIABLES,
             |ctx| sumcheck_hadamard_read(ctx, NUM_ENCODING_VARIABLES, LOG_NUM_POLYNOMIALS),
             |view, ctx| sumcheck_hadamard_build_constraints(view, ctx, claim),
         );
@@ -180,6 +184,7 @@ fn test_sumcheck_batched_single_mles_with_pcs() {
     let proof = {
         let claims_for_build = claims.clone();
         let mask_length = compute_mask_length::<GC, _>(
+            NUM_ENCODING_VARIABLES,
             |ctx| {
                 sumcheck_batched_single_mles_read(
                     ctx,
@@ -268,6 +273,7 @@ fn test_sumcheck_triple_hadamard_multi_point() {
 
     let proof = {
         let mask_length = compute_mask_length::<GC, _>(
+            NUM_ENCODING_VARIABLES,
             |ctx| sumcheck_triple_hadamard_read(ctx, NUM_ENCODING_VARIABLES, LOG_NUM_POLYNOMIALS),
             |view, ctx| {
                 sumcheck_triple_hadamard_build_constraints(view, ctx, claim_fg, claim_gh, claim_hf)

@@ -32,7 +32,7 @@
 //! let basefold_prover: BasefoldProver<GC, C> = /* ... */;
 //!
 //! // Wrap it to get ZK capabilities
-//! let zk_prover = ZkBasefoldProver::new(basefold_prover);
+//! let zk_prover = ZkBasefoldProver::new(basefold_prover, num_encoding_variables);
 //!
 //! // The wrapper implements MultilinearPcsBatchProver, so you can use it
 //! // for standard commitment operations
@@ -250,12 +250,17 @@ pub fn prove_from_batched_inputs<GC: ZkIopCtx, MK: ZkMerkleizer<GC>>(
 pub struct ZkBasefoldProver<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> {
     /// The underlying BasefoldProver instance
     pub inner: BasefoldProver<GC, MK>,
+    /// The fixed number of encoding variables (stacking height) this PCS commits at.
+    /// Mirrors the verifier's `StackedPcsVerifier::log_stacking_height`; used to recover
+    /// `log_num_polynomials = mle.num_variables() - num_encoding_variables` at commit time.
+    pub num_encoding_variables: u32,
 }
 
 impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkBasefoldProver<GC, MK> {
-    /// Create a new ZkBasefoldProver wrapping a BasefoldProver
-    pub fn new(inner: BasefoldProver<GC, MK>) -> Self {
-        Self { inner }
+    /// Create a new ZkBasefoldProver wrapping a BasefoldProver, committing at a fixed
+    /// `num_encoding_variables` (stacking height).
+    pub fn new(inner: BasefoldProver<GC, MK>, num_encoding_variables: u32) -> Self {
+        Self { inner, num_encoding_variables }
     }
 
     /// Prove evaluations using custom pre-batched inputs over the extension field.

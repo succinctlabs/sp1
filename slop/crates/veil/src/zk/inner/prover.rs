@@ -738,6 +738,10 @@ pub struct NoPcsProver;
 impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkPcsProver<GC, MK> for NoPcsProver {
     type ProverData = ();
 
+    fn num_encoding_variables(&self) -> u32 {
+        panic!("NoPcsProver::num_encoding_variables should never be called")
+    }
+
     fn commit_mle<RNG: rand::CryptoRng + rand::Rng>(
         &self,
         _mle: slop_multilinear::Mle<GC::F, slop_alloc::CpuBackend>,

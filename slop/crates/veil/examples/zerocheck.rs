@@ -216,9 +216,9 @@ struct ZerocheckView<C: ConstraintCtx> {
 /// Verifier-side entry point: read the three committed oracles, sample `z_0`,
 /// and read the sumcheck proof.
 fn zerocheck_read<C: ReadingCtx>(ctx: &mut C) -> ZerocheckView<C> {
-    let p_oracle = ctx.read_oracle(LOG_ENCODING_VARS, LOG_NUM_POLYNOMIALS).unwrap();
-    let q_oracle = ctx.read_oracle(LOG_ENCODING_VARS, LOG_NUM_POLYNOMIALS).unwrap();
-    let r_oracle = ctx.read_oracle(LOG_ENCODING_VARS, LOG_NUM_POLYNOMIALS).unwrap();
+    let p_oracle = ctx.read_oracle(NUM_VARIABLES).unwrap();
+    let q_oracle = ctx.read_oracle(NUM_VARIABLES).unwrap();
+    let r_oracle = ctx.read_oracle(NUM_VARIABLES).unwrap();
 
     let z_0 = ctx.sample_point(NUM_VARIABLES);
 
@@ -250,9 +250,9 @@ where
     RNG: rand::CryptoRng + rand::Rng,
     rand::distributions::Standard: rand::distributions::Distribution<C::Field>,
 {
-    let p_oracle = ctx.commit_mle(p_base, LOG_NUM_POLYNOMIALS, rng).expect("commit p failed");
-    let q_oracle = ctx.commit_mle(q_base, LOG_NUM_POLYNOMIALS, rng).expect("commit q failed");
-    let r_oracle = ctx.commit_mle(r_base, LOG_NUM_POLYNOMIALS, rng).expect("commit r failed");
+    let p_oracle = ctx.commit_mle(p_base, rng).expect("commit p failed");
+    let q_oracle = ctx.commit_mle(q_base, rng).expect("commit q failed");
+    let r_oracle = ctx.commit_mle(r_base, rng).expect("commit r failed");
 
     let z_0: Point<EF> = ctx.sample_point(NUM_VARIABLES);
 
@@ -322,7 +322,11 @@ fn main() {
 
     let zk_proof = {
         let now = std::time::Instant::now();
-        let mask_length = compute_mask_length::<GC, _>(zerocheck_read, zerocheck_build_constraints);
+        let mask_length = compute_mask_length::<GC, _>(
+            LOG_ENCODING_VARS,
+            zerocheck_read,
+            zerocheck_build_constraints,
+        );
         eprintln!("Mask length: {mask_length}");
         let mut pctx: StackedPcsZkProverCtx<GC, MK> =
             ZkProverCtx::initialize_with_pcs(mask_length, zk_pcs_prover, &mut rng);
