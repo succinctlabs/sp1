@@ -31,6 +31,7 @@ cargo clippy -p <crate-name> --all-targets --all-features -- -D warnings -A inco
 - Remove unused dependencies after refactoring
 - Check both `[dependencies]` and `[dev-dependencies]` sections
 - Prefer minimal dependencies - don't keep things "just in case"
+- Do not add new dependencies without asking the user for permission
 
 ### Traits and Generics
 - Keep data structures (Tensor, Mle, Buffer) generic over backend for potential GPU support
