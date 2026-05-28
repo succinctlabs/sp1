@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    fmt::Debug,
     ops::{Add, Mul, Neg, Sub},
 };
 
@@ -221,7 +222,7 @@ pub trait ConstraintContextInner<K: AbstractField + Copy>: Clone {
 /// - Addition and subtraction (`Add<Self>`, `Sub<Self>`) which return expressions
 pub trait ZkElement<K: AbstractField>:
     Copy
-    + std::fmt::Debug
+    + Debug
     + Into<TranscriptIndex<K>>
     + Into<TranscriptLinConstraint<K>>
     + Add<Self, Output = Self::LinExpr>
@@ -235,7 +236,7 @@ pub trait ZkElement<K: AbstractField>:
 /// Trait for linear expressions in a ZK transcript (prover or verifier side).
 pub trait ZkLinExpression<K: AbstractField, E: ZkElement<K, LinExpr = Self>>:
     Clone
-    + std::fmt::Debug
+    + Debug
     + From<E>
     + From<K>
     + Into<TranscriptLinConstraint<K>>
@@ -304,9 +305,7 @@ impl<K: AbstractField + Copy, C: ConstraintContextInner<K>> ExpressionIndex<K, C
     }
 }
 
-impl<K: AbstractField + Copy, C: ConstraintContextInner<K>> std::fmt::Debug
-    for ExpressionIndex<K, C>
-{
+impl<K: AbstractField + Copy, C: ConstraintContextInner<K>> Debug for ExpressionIndex<K, C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.index)
     }
@@ -409,7 +408,7 @@ impl<K: AbstractField + Copy, C: ConstraintContextInner<K>> Mul<ExpressionIndex<
 /// Public interface for [`ConstraintContextInner`]
 pub trait ConstraintContextInnerExt<K: AbstractField + Copy>: Clone {
     type Expr: Clone
-        + std::fmt::Debug
+        + Debug
         + AsRef<Self>
         + Add<K, Output = Self::Expr>
         + Add<Self::Expr, Output = Self::Expr>

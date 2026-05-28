@@ -10,7 +10,7 @@ use slop_algebra::AbstractField;
 use slop_basefold::{BasefoldVerifier, FriConfig};
 use slop_basefold_prover::BasefoldProver;
 use slop_challenger::{CanObserve, IopCtx};
-use slop_commit::Rounds;
+use slop_commit::{Message, Rounds};
 use slop_jagged::{HadamardProduct, LongMle};
 use slop_koala_bear::KoalaBearDegree4Duplex;
 use slop_matrix::dense::RowMajorMatrix;
@@ -94,7 +94,7 @@ fn run_standard_single(
         let batch_size = 1usize << log_num_polynomials;
         let stacked_prover = StackedPcsProver::new(basefold_prover, num_encoding_variables, batch_size);
 
-        let mle_message = slop_commit::Message::from(vec![original_mle.clone()]);
+        let mle_message = Message::from(vec![original_mle.clone()]);
         let (commitment, prover_data, _) = stacked_prover.commit_multilinears(mle_message).unwrap();
 
         let mut prover_challenger = GC::default_challenger();
@@ -239,10 +239,10 @@ fn run_standard_hadamard(
         let stacked_prover = StackedPcsProver::new(basefold_prover, num_encoding_variables, batch_size);
 
         let (commitment_1, prover_data_1, _) = stacked_prover
-            .commit_multilinears(slop_commit::Message::from(vec![mle_1.clone()]))
+            .commit_multilinears(Message::from(vec![mle_1.clone()]))
             .unwrap();
         let (commitment_2, prover_data_2, _) = stacked_prover
-            .commit_multilinears(slop_commit::Message::from(vec![mle_2.clone()]))
+            .commit_multilinears(Message::from(vec![mle_2.clone()]))
             .unwrap();
 
         let mut challenger = GC::default_challenger();

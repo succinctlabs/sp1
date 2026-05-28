@@ -5,6 +5,8 @@ use crate::zk::inner::{
 };
 use derive_where::derive_where;
 use itertools::Itertools;
+use rand::distributions::{Distribution, Standard};
+use rand::{CryptoRng, Rng};
 use serde::{Deserialize, Serialize};
 use slop_algebra::{AbstractExtensionField, AbstractField};
 use slop_alloc::CpuBackend;
@@ -63,25 +65,25 @@ impl<GC: ZkIopCtx<PcsProof = ZkStackedPcsProof<GC>>, MK: ZkMerkleizer<GC>>
     ZkProverCtx<GC, StackedPcsProverConfig<GC, MK>>
 {
     /// Initializes a prover context with stacked PCS support.
-    pub fn initialize_with_pcs<RNG: rand::CryptoRng + rand::Rng>(
+    pub fn initialize_with_pcs<RNG: CryptoRng + Rng>(
         mask_length: usize,
         pcs_prover: ZkBasefoldProver<GC, MK>,
         rng: &mut RNG,
     ) -> Result<Self, crate::zk::ZkProverCtxInitError<GC, StackedPcsProverConfig<GC, MK>>>
     where
-        rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
+        Standard: Distribution<GC::EF>,
     {
         Self::initialize(mask_length, rng, Some(pcs_prover))
     }
 
     /// Initializes a linear-only prover context with stacked PCS support.
-    pub fn initialize_with_pcs_only_lin<RNG: rand::CryptoRng + rand::Rng>(
+    pub fn initialize_with_pcs_only_lin<RNG: CryptoRng + Rng>(
         mask_length: usize,
         pcs_prover: ZkBasefoldProver<GC, MK>,
         rng: &mut RNG,
     ) -> Result<Self, crate::zk::ZkProverCtxInitError<GC, StackedPcsProverConfig<GC, MK>>>
     where
-        rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
+        Standard: Distribution<GC::EF>,
     {
         Self::initialize_only_lin_constraints(mask_length, rng, Some(pcs_prover))
     }
@@ -119,7 +121,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkBasefoldProver<GC, MK> {
     /// Takes in a batch of MLE's and commits it in a zk-way
     /// The last "padding" entries of each MLE are the padding
     #[allow(clippy::type_complexity)]
-    pub fn zk_commit_mles<RNG: rand::CryptoRng + rand::Rng>(
+    pub fn zk_commit_mles<RNG: CryptoRng + Rng>(
         &self,
         mle: Mle<GC::F, CpuBackend>,
         rng: &mut RNG,
@@ -128,7 +130,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkBasefoldProver<GC, MK> {
         ZkStackedPcsProverError<BaseFoldConfigProverError<GC, MK>>,
     >
     where
-        rand::distributions::Standard: rand::distributions::Distribution<GC::F>,
+        Standard: Distribution<GC::F>,
     {
         let log_num_polys = mle.num_polynomials().next_power_of_two().trailing_zeros();
         let mle_num_vars = mle.num_variables() as usize;
@@ -414,14 +416,14 @@ impl<GC: ZkIopCtx<PcsProof = ZkStackedPcsProof<GC>>, MK: ZkMerkleizer<GC>> ZkPcs
         self.num_encoding_variables
     }
 
-    fn commit_mle<RNG: rand::CryptoRng + rand::Rng>(
+    fn commit_mle<RNG: CryptoRng + Rng>(
         &self,
         mle: Mle<GC::F, CpuBackend>,
         log_num_polynomials: usize,
         rng: &mut RNG,
     ) -> Result<(GC::Digest, Self::ProverData), ZkPcsCommitmentError>
     where
-        rand::distributions::Standard: rand::distributions::Distribution<GC::F>,
+        Standard: Distribution<GC::F>,
     {
         // Stack the flat MLE into a multi-row form
         let stacked_mle = super::utils::stack_mle(mle, log_num_polynomials);

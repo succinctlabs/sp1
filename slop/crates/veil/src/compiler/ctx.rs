@@ -1,4 +1,6 @@
 use core::slice;
+use std::error::Error;
+use std::fmt::Debug;
 
 use itertools::Itertools;
 use slop_algebra::{Algebra, ExtensionField, Field};
@@ -9,15 +11,15 @@ use thiserror::Error;
 /// transparent verifier) encounter a non-zero argument. Carries the failing
 /// expression so callers / panic messages can identify what failed.
 #[derive(Debug)]
-pub struct AssertZeroError<E: std::fmt::Debug>(pub E);
+pub struct AssertZeroError<E: Debug>(pub E);
 
-impl<E: std::fmt::Debug> std::fmt::Display for AssertZeroError<E> {
+impl<E: Debug> std::fmt::Display for AssertZeroError<E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "assertion failed: expression did not evaluate to zero (got {:?})", self.0)
     }
 }
 
-impl<E: std::fmt::Debug + 'static> std::error::Error for AssertZeroError<E> {}
+impl<E: Debug + 'static> Error for AssertZeroError<E> {}
 
 pub trait ConstraintCtx {
     type Field: Field;
@@ -36,7 +38,7 @@ pub trait ConstraintCtx {
     /// discharge, so the assertion itself cannot fail at call time. Generic
     /// protocol code typically `.unwrap()`s the result: a no-op on `Infallible`,
     /// a panic with the failing expression on transparent failures.
-    type AssertError: std::error::Error;
+    type AssertError: Error;
 
     fn assert_zero(&mut self, expr: Self::Expr) -> Result<(), Self::AssertError>;
 
@@ -189,7 +191,7 @@ pub trait ReadingCtx: ConstraintCtx {
 /// propagate it.
 pub trait SendingCtx: ConstraintCtx {
     /// Error returned by [`Self::commit_mle`].
-    type CommitError: std::error::Error;
+    type CommitError: Error;
 
     /// Send a single value to the verifier (adds it to the proof transcript).
     fn send_value(&mut self, value: Self::Extension) -> Self::Expr;

@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::zk::dot_product::{
@@ -8,7 +9,8 @@ use crate::zk::hadamard_product::{
     zk_hadamard_and_dots_proof, zk_hadamard_product_commitment, ZkHadamardAndDotsTotalProof,
 };
 use derive_where::derive_where;
-use rand::Rng;
+use rand::distributions::{Distribution, Standard};
+use rand::{CryptoRng, Rng};
 use serde::{Deserialize, Serialize};
 use slop_algebra::AbstractField;
 use slop_alloc::CpuBackend;
@@ -75,7 +77,7 @@ pub struct ZkMulCnstrProof<GC: ZkIopCtx> {
 /// prover in use (e.g. the stacked-basefold error or `Infallible` for the no-PCS
 /// path) and the [`TensorCsProver::ProverError`] of the merkleizer in use.
 #[derive(Debug, Error)]
-pub enum ZkProveError<PcsErr: std::error::Error + 'static, MerkErr: std::error::Error + 'static> {
+pub enum ZkProveError<PcsErr: Error + 'static, MerkErr: Error + 'static> {
     /// MLE-eval claims were registered but `prove`/`prove_without_pcs` was called
     /// without a PCS prover.
     #[error("PCS evaluation claims exist but no PCS prover was provided")]
@@ -267,12 +269,12 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
     /// # Panics
     /// Later calls will panic if more than `length` transcript elements are added.
     /// Compile with `RUSTFLAGS="--cfg sp1_debug_constraints"` to detect over-allocation.
-    pub fn initialize_only_lin_constraints<RNG: rand::CryptoRng + Rng>(
+    pub fn initialize_only_lin_constraints<RNG: CryptoRng + Rng>(
         length: usize,
         rng: &mut RNG,
     ) -> Result<Self, MK::ProverError>
     where
-        rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
+        Standard: Distribution<GC::EF>,
     {
         Self::initialize_inner(length, false, rng)
     }
@@ -289,24 +291,24 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
     /// # Panics
     /// Later calls will panic if more than `length` transcript elements are added.
     /// Compile with `RUSTFLAGS="--cfg sp1_debug_constraints"` to detect over-allocation.
-    pub fn initialize<RNG: rand::CryptoRng + Rng>(
+    pub fn initialize<RNG: CryptoRng + Rng>(
         length: usize,
         rng: &mut RNG,
     ) -> Result<Self, MK::ProverError>
     where
-        rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
+        Standard: Distribution<GC::EF>,
     {
         Self::initialize_inner(length, true, rng)
     }
 
     /// Shared initialization logic for both `initialize` and `initialize_only_lin_constraints`.
-    fn initialize_inner<RNG: rand::CryptoRng + Rng>(
+    fn initialize_inner<RNG: CryptoRng + Rng>(
         length: usize,
         with_mul_constraints: bool,
         rng: &mut RNG,
     ) -> Result<Self, MK::ProverError>
     where
-        rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
+        Standard: Distribution<GC::EF>,
     {
         let merkleizer = MK::default();
         let mut challenger = GC::default_challenger();
@@ -434,8 +436,8 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
     ) -> Result<MleCommitmentIndex, super::ZkPcsCommitmentError>
     where
         P: super::ZkPcsProver<GC, MK, ProverData = PD>,
-        RNG: rand::CryptoRng + rand::Rng,
-        rand::distributions::Standard: rand::distributions::Distribution<GC::F>,
+        RNG: CryptoRng + Rng,
+        Standard: Distribution<GC::F>,
     {
         // Compute num_vars from the flat MLE's total variables minus stacking height
         let num_vars = mle.num_variables() as usize - log_num_polynomials;
@@ -522,8 +524,8 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
         pcs_prover: Option<&P>,
     ) -> Result<ZkProof<GC>, ZkProveError<P::ProveError, MK::ProverError>>
     where
-        RNG: rand::CryptoRng + rand::Rng,
-        rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
+        RNG: CryptoRng + Rng,
+        Standard: Distribution<GC::EF>,
         P: ZkPcsProver<GC, MK, ProverData = PD>,
         PD: Clone,
     {
@@ -661,10 +663,10 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
         rng: &mut RNG,
     ) -> Result<Option<ZkMulCnstrProof<GC>>, ZkProveError<PcsErr, MK::ProverError>>
     where
-        RNG: rand::CryptoRng + rand::Rng,
-        rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
+        RNG: CryptoRng + Rng,
+        Standard: Distribution<GC::EF>,
         PD: Clone,
-        PcsErr: std::error::Error + 'static,
+        PcsErr: Error + 'static,
     {
         if self.borrow().mul_constraints.is_none() {
             return Ok(None);
@@ -785,14 +787,14 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkPcsProver<GC, MK> for NoPcsProver {
         panic!("NoPcsProver::num_encoding_variables should never be called")
     }
 
-    fn commit_mle<RNG: rand::CryptoRng + rand::Rng>(
+    fn commit_mle<RNG: CryptoRng + Rng>(
         &self,
         _mle: slop_multilinear::Mle<GC::F, slop_alloc::CpuBackend>,
         _log_num_polynomials: usize,
         _rng: &mut RNG,
     ) -> Result<(GC::Digest, Self::ProverData), super::ZkPcsCommitmentError>
     where
-        rand::distributions::Standard: rand::distributions::Distribution<GC::F>,
+        Standard: Distribution<GC::F>,
     {
         panic!("NoPcsProver::commit_mle should never be called")
     }
@@ -814,12 +816,12 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkProverContext<GC, MK, ()> {
     ///
     /// Returns [`ZkProveError::NoPcsProver`] if any PCS evaluation claims were
     /// registered.
-    pub fn prove_without_pcs<RNG: rand::CryptoRng + rand::Rng>(
+    pub fn prove_without_pcs<RNG: CryptoRng + Rng>(
         self,
         rng: &mut RNG,
     ) -> Result<ZkProof<GC>, ZkProveError<std::convert::Infallible, MK::ProverError>>
     where
-        rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
+        Standard: Distribution<GC::EF>,
     {
         self.prove::<RNG, NoPcsProver>(rng, None)
     }

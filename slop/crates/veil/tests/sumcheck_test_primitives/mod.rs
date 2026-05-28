@@ -14,6 +14,8 @@
 //! [`compute_mask_length`](slop_veil::zk::compute_mask_length) consumes the
 //! `*_verify` function directly.
 
+use rand::distributions::{Distribution, Standard};
+use rand::{CryptoRng, Rng};
 use slop_algebra::{AbstractExtensionField, AbstractField, Field};
 use slop_jagged::{HadamardProduct, LongMle};
 use slop_matrix::dense::RowMajorMatrix;
@@ -59,8 +61,8 @@ pub fn sumcheck_single_mle_prove<C, RNG>(
     rng: &mut RNG,
 ) where
     C: SendingCtx,
-    RNG: rand::CryptoRng + rand::Rng,
-    rand::distributions::Standard: rand::distributions::Distribution<C::Field>,
+    RNG: CryptoRng + Rng,
+    Standard: Distribution<C::Field>,
 {
     ctx.commit_mle(original_mle, rng).expect("commit_mle failed");
     let in_claim = SumcheckInputClaim::from_value(claim);
@@ -96,8 +98,8 @@ pub fn sumcheck_hadamard_prove<C, RNG>(
     rng: &mut RNG,
 ) where
     C: SendingCtx,
-    RNG: rand::CryptoRng + rand::Rng,
-    rand::distributions::Standard: rand::distributions::Distribution<C::Field>,
+    RNG: CryptoRng + Rng,
+    Standard: Distribution<C::Field>,
 {
     ctx.commit_mle(mle_base, rng).expect("commit base failed");
     ctx.commit_mle(mle_ext, rng).expect("commit ext failed");
@@ -144,8 +146,8 @@ pub fn sumcheck_batched_single_mles_prove<C, RNG>(
     rng: &mut RNG,
 ) where
     C: SendingCtx,
-    RNG: rand::CryptoRng + rand::Rng,
-    rand::distributions::Standard: rand::distributions::Distribution<C::Field>,
+    RNG: CryptoRng + Rng,
+    Standard: Distribution<C::Field>,
 {
     assert_eq!(originals.len(), mles_ef.len());
     assert_eq!(originals.len(), claims.len());
@@ -217,8 +219,8 @@ pub fn sumcheck_triple_hadamard_prove<C, RNG>(
     rng: &mut RNG,
 ) where
     C: SendingCtx,
-    RNG: rand::CryptoRng + rand::Rng,
-    rand::distributions::Standard: rand::distributions::Distribution<C::Field>,
+    RNG: CryptoRng + Rng,
+    Standard: Distribution<C::Field>,
 {
     ctx.commit_mle(mle_f, rng).expect("commit f failed");
     ctx.commit_mle(mle_g, rng).expect("commit g failed");
@@ -289,14 +291,11 @@ pub fn sumcheck_triple_hadamard_verify<C>(
 
 /// Generate a random MLE in `F`, its lift to `EF`, and its hypercube sum (the
 /// basic-sumcheck claim).
-pub fn generate_random_single_mle<F, EF>(
-    rng: &mut impl rand::Rng,
-    num_vars: u32,
-) -> (Mle<F>, Mle<EF>, EF)
+pub fn generate_random_single_mle<F, EF>(rng: &mut impl Rng, num_vars: u32) -> (Mle<F>, Mle<EF>, EF)
 where
     F: Field,
     EF: AbstractExtensionField<F> + AbstractField + Copy + Send + Sync + 'static,
-    rand::distributions::Standard: rand::distributions::Distribution<F>,
+    Standard: Distribution<F>,
 {
     let original = Mle::<F>::rand(rng, 1, num_vars);
     let ef_data: Vec<EF> = original.guts().as_slice().iter().map(|&x| EF::from(x)).collect();
@@ -309,13 +308,13 @@ where
 /// variables. Returns the two base-field MLE factors, the combined
 /// `HadamardProduct` polynomial, and the matching hypercube sum.
 pub fn generate_random_hadamard_product<F, EF>(
-    rng: &mut impl rand::Rng,
+    rng: &mut impl Rng,
     num_vars: u32,
 ) -> (Mle<F>, Mle<F>, HadamardProduct<F, EF>, EF)
 where
     F: Field,
     EF: AbstractExtensionField<F> + AbstractField + Copy + Send + Sync + 'static,
-    rand::distributions::Standard: rand::distributions::Distribution<F>,
+    Standard: Distribution<F>,
 {
     let mle_base = Mle::<F>::rand(rng, 1, num_vars);
     let mle_ext = Mle::<F>::rand(rng, 1, num_vars);

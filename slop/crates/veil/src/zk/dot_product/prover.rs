@@ -1,5 +1,6 @@
 use crate::zk::error_correcting_code::{CodeParametersForZk, ZkCode};
 use itertools::Itertools;
+use rand::distributions::{Distribution, Standard};
 use rand::{CryptoRng, Rng};
 use serde::{Deserialize, Serialize};
 use slop_algebra::AbstractField;
@@ -96,7 +97,7 @@ pub fn zk_vector_encode<GC: IopCtx, RNG: CryptoRng + Rng, Code: ZkCode<GC::EF>>(
     padding_schedule: &[usize],
 ) -> (Tensor<GC::F>, ZkVectorPreProverData<GC, Code>)
 where
-    rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
+    Standard: Distribution<GC::EF>,
 {
     assert!(!in_vecs.is_empty(), "Must provide at least one input vector");
     let length = in_vecs[0].len();
@@ -192,7 +193,7 @@ pub(in crate::zk::dot_product) fn zk_vector_commit<
     padding_schedule: &[usize],
 ) -> Result<(GC::Digest, ZkVectorProverData<GC, MK::ProverData, Code>), MK::ProverError>
 where
-    rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
+    Standard: Distribution<GC::EF>,
 {
     let (to_merkleize, pre_prover_data) =
         zk_vector_encode::<GC, RNG, Code>(in_vecs, rng, padding_schedule);
@@ -214,7 +215,7 @@ pub fn zk_dot_product_commitment<
     merkleizer: &MK,
 ) -> Result<(GC::Digest, ZkVectorProverData<GC, MK::ProverData, Code>), MK::ProverError>
 where
-    rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
+    Standard: Distribution<GC::EF>,
 {
     zk_vector_commit(in_vecs, rng, merkleizer, &[1])
 }

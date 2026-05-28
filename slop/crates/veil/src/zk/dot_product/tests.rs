@@ -1,4 +1,6 @@
 #![allow(clippy::disallowed_types, clippy::disallowed_methods)]
+use std::iter::repeat_with;
+
 use crate::zk::error_correcting_code::*;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha20Rng;
@@ -19,10 +21,8 @@ async fn test_zk_dot_product() {
     type Code = RsFromCoefficients<<GC as IopCtx>::EF>;
 
     let mut rng = ChaCha20Rng::from_entropy();
-    let in_vec: Vec<<GC as IopCtx>::EF> =
-        std::iter::repeat_with(|| rng.gen()).take(LENGTH).collect();
-    let dot_vec: Vec<<GC as IopCtx>::EF> =
-        std::iter::repeat_with(|| rng.gen()).take(LENGTH).collect();
+    let in_vec: Vec<<GC as IopCtx>::EF> = repeat_with(|| rng.gen()).take(LENGTH).collect();
+    let dot_vec: Vec<<GC as IopCtx>::EF> = repeat_with(|| rng.gen()).take(LENGTH).collect();
     let expected = dot_product(&in_vec, &dot_vec);
 
     // Prover
@@ -58,10 +58,9 @@ async fn test_zk_dot_products_100() {
     type Code = RsFromCoefficients<<GC as IopCtx>::EF>;
 
     let mut rng = ChaCha20Rng::from_entropy();
-    let in_vec: Vec<<GC as IopCtx>::EF> =
-        std::iter::repeat_with(|| rng.gen()).take(LENGTH).collect();
+    let in_vec: Vec<<GC as IopCtx>::EF> = repeat_with(|| rng.gen()).take(LENGTH).collect();
     let dot_vecs: Vec<Vec<<GC as IopCtx>::EF>> =
-        std::iter::repeat_with(|| std::iter::repeat_with(|| rng.gen()).take(LENGTH).collect())
+        repeat_with(|| repeat_with(|| rng.gen()).take(LENGTH).collect())
             .take(NUM_DOT_VECS)
             .collect();
 
@@ -100,10 +99,9 @@ async fn test_zk_dot_products_100_corrupted() {
     type GC = KoalaBearDegree4Duplex;
 
     let mut rng = ChaCha20Rng::from_entropy();
-    let in_vec: Vec<<GC as IopCtx>::EF> =
-        std::iter::repeat_with(|| rng.gen()).take(LENGTH).collect();
+    let in_vec: Vec<<GC as IopCtx>::EF> = repeat_with(|| rng.gen()).take(LENGTH).collect();
     let dot_vecs: Vec<Vec<<GC as IopCtx>::EF>> =
-        std::iter::repeat_with(|| std::iter::repeat_with(|| rng.gen()).take(LENGTH).collect())
+        repeat_with(|| repeat_with(|| rng.gen()).take(LENGTH).collect())
             .take(NUM_DOT_VECS)
             .collect();
 
@@ -156,11 +154,10 @@ async fn test_zk_dot_product_batched() {
 
     let mut rng = ChaCha20Rng::from_entropy();
     let in_vecs: Vec<Vec<<GC as IopCtx>::EF>> =
-        std::iter::repeat_with(|| std::iter::repeat_with(|| rng.gen()).take(LENGTH).collect())
+        repeat_with(|| repeat_with(|| rng.gen()).take(LENGTH).collect())
             .take(NUM_INPUT_VECS)
             .collect();
-    let dot_vec: Vec<<GC as IopCtx>::EF> =
-        std::iter::repeat_with(|| rng.gen()).take(LENGTH).collect();
+    let dot_vec: Vec<<GC as IopCtx>::EF> = repeat_with(|| rng.gen()).take(LENGTH).collect();
 
     let expected: Vec<_> = in_vecs.iter().map(|v| dot_product(v, &dot_vec)).collect();
 
@@ -198,11 +195,10 @@ async fn test_zk_dot_product_batched_corrupted() {
 
     let mut rng = ChaCha20Rng::from_entropy();
     let in_vecs: Vec<Vec<<GC as IopCtx>::EF>> =
-        std::iter::repeat_with(|| std::iter::repeat_with(|| rng.gen()).take(LENGTH).collect())
+        repeat_with(|| repeat_with(|| rng.gen()).take(LENGTH).collect())
             .take(NUM_INPUT_VECS)
             .collect();
-    let dot_vec: Vec<<GC as IopCtx>::EF> =
-        std::iter::repeat_with(|| rng.gen()).take(LENGTH).collect();
+    let dot_vec: Vec<<GC as IopCtx>::EF> = repeat_with(|| rng.gen()).take(LENGTH).collect();
 
     // Prover
     let (commitment, mut total_proof) = {
