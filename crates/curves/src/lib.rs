@@ -1,6 +1,8 @@
 pub mod edwards;
 pub mod params;
 // pub mod polynomial;
+#[cfg(test)]
+mod polynomial;
 pub mod scalar_mul;
 pub mod uint256;
 pub mod utils;

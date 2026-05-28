@@ -7028,6 +7028,7 @@ dependencies = [
  "rug",
  "serde",
  "slop-algebra",
+ "slop-koala-bear",
  "snowbridge-amcl",
  "sp1-primitives",
  "typenum",

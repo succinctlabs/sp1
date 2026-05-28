@@ -30,6 +30,7 @@ cfg-if = { workspace = true }
 [dev-dependencies]
 rand = { workspace = true }
 num = { workspace = true, features = ["rand"] }
+slop-koala-bear = { workspace = true }
 
 [features]
 bigint-rug = ["rug"]

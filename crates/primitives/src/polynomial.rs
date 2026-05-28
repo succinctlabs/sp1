@@ -281,3 +281,31 @@ impl<'a, Var: Into<Expr> + Clone, Expr: Clone> From<Iter<'a, Var>> for Polynomia
         Polynomial::from_coefficients(&value.map(|x| (*x).clone().into()).collect::<Vec<_>>())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use alloc::vec;
+
+    use slop_algebra::AbstractField;
+    use slop_koala_bear::KoalaBear;
+
+    use super::Polynomial;
+
+    fn f(value: u32) -> KoalaBear {
+        KoalaBear::from_canonical_u32(value)
+    }
+
+    #[test]
+    fn empty_multiplication_returns_empty_polynomial() {
+        let empty = Polynomial::<KoalaBear>::new(vec![]);
+        let nonempty = Polynomial::new(vec![f(2), f(3)]);
+
+        assert_eq!((empty.clone() * nonempty.clone()).coefficients(), &[]);
+        assert_eq!((nonempty.clone() * empty.clone()).coefficients(), &[]);
+        assert_eq!((empty.clone() * empty.clone()).coefficients(), &[]);
+
+        assert_eq!((&empty * &nonempty).coefficients(), &[]);
+        assert_eq!((&nonempty * &empty).coefficients(), &[]);
+        assert_eq!((&empty * &empty).coefficients(), &[]);
+    }
+}
