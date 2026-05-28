@@ -67,7 +67,7 @@ impl<GC: ZkIopCtx<PcsProof = ZkStackedPcsProof<GC>>, MK: ZkMerkleizer<GC>>
         mask_length: usize,
         pcs_prover: ZkBasefoldProver<GC, MK>,
         rng: &mut RNG,
-    ) -> Self
+    ) -> Result<Self, crate::zk::ZkProverCtxInitError<GC, StackedPcsProverConfig<GC, MK>>>
     where
         rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
     {
@@ -79,7 +79,7 @@ impl<GC: ZkIopCtx<PcsProof = ZkStackedPcsProof<GC>>, MK: ZkMerkleizer<GC>>
         mask_length: usize,
         pcs_prover: ZkBasefoldProver<GC, MK>,
         rng: &mut RNG,
-    ) -> Self
+    ) -> Result<Self, crate::zk::ZkProverCtxInitError<GC, StackedPcsProverConfig<GC, MK>>>
     where
         rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
     {
@@ -408,6 +408,7 @@ impl<GC: ZkIopCtx<PcsProof = ZkStackedPcsProof<GC>>, MK: ZkMerkleizer<GC>> ZkPcs
     for ZkBasefoldProver<GC, MK>
 {
     type ProverData = ZkStackedPcsProverData<GC, MK>;
+    type ProveError = ZkStackedPcsProverError<BaseFoldConfigProverError<GC, MK>>;
 
     fn num_encoding_variables(&self) -> u32 {
         self.num_encoding_variables
@@ -437,7 +438,7 @@ impl<GC: ZkIopCtx<PcsProof = ZkStackedPcsProof<GC>>, MK: ZkMerkleizer<GC>> ZkPcs
         &self,
         ctx: &mut ZkProverContext<GC, MK, Self::ProverData>,
         claim: PcsMultiEvalClaim<GC::EF, ProverValue<GC, MK, Self::ProverData>>,
-    ) -> GC::PcsProof {
+    ) -> Result<GC::PcsProof, Self::ProveError> {
         // Collect prover data and eval claims for each commitment
         let claims: Vec<_> = claim
             .commitment_indices
@@ -451,14 +452,13 @@ impl<GC: ZkIopCtx<PcsProof = ZkStackedPcsProof<GC>>, MK: ZkMerkleizer<GC>> ZkPcs
             })
             .collect();
 
-        // Generate the batched proof
-        let (proof, constraint_data) = self
-            .zk_generate_eval_proof_for_mles(claims, &claim.point, ctx)
-            .expect("Failed to generate ZK stacked PCS proof");
+        // Generate the batched proof — propagate the real PCS error rather than panic.
+        let (proof, constraint_data) =
+            self.zk_generate_eval_proof_for_mles(claims, &claim.point, ctx)?;
 
         // Build the constraints from the constraint data
         constraint_data.build_constraints();
 
-        proof
+        Ok(proof)
     }
 }

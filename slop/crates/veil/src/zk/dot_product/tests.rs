@@ -29,7 +29,7 @@ async fn test_zk_dot_product() {
     let (commitment, total_proof) = {
         let merkleizer = Poseidon2KoalaBear16Prover::default();
         let (commitment, prover_secret_data) =
-            zk_dot_product_commitment::<GC, _, _, Code>(&[in_vec], &mut rng, &merkleizer);
+            zk_dot_product_commitment::<GC, _, _, Code>(&[in_vec], &mut rng, &merkleizer).unwrap();
         let mut challenger = GC::default_challenger();
         let total_proof = zk_dot_product_proof::<GC, _, Code>(
             &dot_vec,
@@ -37,7 +37,8 @@ async fn test_zk_dot_product() {
             prover_secret_data,
             &mut challenger,
             &merkleizer,
-        );
+        )
+        .unwrap();
         (commitment, total_proof)
     };
 
@@ -68,7 +69,7 @@ async fn test_zk_dot_products_100() {
     let (commitment, total_proof) = {
         let merkleizer = Poseidon2KoalaBear16Prover::default();
         let (commitment, prover_secret_data) =
-            zk_dot_product_commitment::<GC, _, _, Code>(&[in_vec], &mut rng, &merkleizer);
+            zk_dot_product_commitment::<GC, _, _, Code>(&[in_vec], &mut rng, &merkleizer).unwrap();
         let mut challenger = GC::default_challenger();
         let total_proof = zk_dot_products_proof::<GC, _, Code>(
             &dot_vecs,
@@ -76,7 +77,8 @@ async fn test_zk_dot_products_100() {
             prover_secret_data,
             &mut challenger,
             &merkleizer,
-        );
+        )
+        .unwrap();
         (commitment, total_proof)
     };
 
@@ -113,7 +115,8 @@ async fn test_zk_dot_products_100_corrupted() {
             _,
             _,
             RsFromCoefficients<_>,
-        >(&[in_vec], &mut rng, &merkleizer);
+        >(&[in_vec], &mut rng, &merkleizer)
+        .unwrap();
         let mut challenger = GC::default_challenger();
         let total_proof = zk_dot_products_proof::<GC, _, RsFromCoefficients<_>>(
             &dot_vecs,
@@ -121,7 +124,8 @@ async fn test_zk_dot_products_100_corrupted() {
             prover_secret_data,
             &mut challenger,
             &merkleizer,
-        );
+        )
+        .unwrap();
         (commitment, total_proof)
     };
 
@@ -164,7 +168,7 @@ async fn test_zk_dot_product_batched() {
     let (commitment, total_proof) = {
         let merkleizer = Poseidon2KoalaBear16Prover::default();
         let (commitment, prover_secret_data) =
-            zk_dot_product_commitment::<GC, _, _, Code>(&in_vecs, &mut rng, &merkleizer);
+            zk_dot_product_commitment::<GC, _, _, Code>(&in_vecs, &mut rng, &merkleizer).unwrap();
         let mut challenger = GC::default_challenger();
         let total_proof = zk_dot_product_proof::<GC, _, Code>(
             &dot_vec,
@@ -172,7 +176,8 @@ async fn test_zk_dot_product_batched() {
             prover_secret_data,
             &mut challenger,
             &merkleizer,
-        );
+        )
+        .unwrap();
         (commitment, total_proof)
     };
 
@@ -203,7 +208,7 @@ async fn test_zk_dot_product_batched_corrupted() {
     let (commitment, mut total_proof) = {
         let merkleizer = Poseidon2KoalaBear16Prover::default();
         let (commitment, prover_secret_data) =
-            zk_dot_product_commitment::<GC, _, _, Code>(&in_vecs, &mut rng, &merkleizer);
+            zk_dot_product_commitment::<GC, _, _, Code>(&in_vecs, &mut rng, &merkleizer).unwrap();
         let mut challenger = GC::default_challenger();
         let total_proof = zk_dot_product_proof::<GC, _, Code>(
             &dot_vec,
@@ -211,7 +216,8 @@ async fn test_zk_dot_product_batched_corrupted() {
             prover_secret_data,
             &mut challenger,
             &merkleizer,
-        );
+        )
+        .unwrap();
         (commitment, total_proof)
     };
 

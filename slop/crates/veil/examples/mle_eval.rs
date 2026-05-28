@@ -79,10 +79,11 @@ fn main() {
         eprintln!("Mask length: {mask_length}");
 
         let mut pctx: StackedPcsZkProverCtx<GC, MK> =
-            ZkProverCtx::initialize_with_pcs_only_lin(mask_length, zk_pcs_prover, &mut rng);
+            ZkProverCtx::initialize_with_pcs_only_lin(mask_length, zk_pcs_prover, &mut rng)
+                .expect("zk init failed");
         mle_eval_prove(&mut pctx, p.clone(), &mut rng);
         mle_eval_verify(&mut pctx);
-        let proof = pctx.prove(&mut rng);
+        let proof = pctx.prove(&mut rng).expect("zk prove failed");
 
         eprintln!("Prover time: {:?}", now.elapsed());
         proof

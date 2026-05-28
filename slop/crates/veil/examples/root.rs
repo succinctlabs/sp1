@@ -86,10 +86,10 @@ fn main() {
     let zk_proof = {
         let now = std::time::Instant::now();
         let mut pctx: ZkProverCtx<GC, NoPcsConfig<MK>> =
-            ZkProverCtx::initialize_without_pcs(mask_length, &mut rng);
+            ZkProverCtx::initialize_without_pcs(mask_length, &mut rng).expect("zk init failed");
         root_prove(&mut pctx, secret_root);
         root_verify(&poly_coeffs, &mut pctx);
-        let proof = pctx.prove(&mut rng);
+        let proof = pctx.prove(&mut rng).expect("zk prove failed");
         eprintln!("Prover time: {:?}", now.elapsed());
         proof
     };

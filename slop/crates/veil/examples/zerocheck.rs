@@ -281,7 +281,8 @@ fn main() {
         let mask_length = compute_mask_length::<GC>(LOG_ENCODING_VARS, zerocheck_verify);
         eprintln!("Mask length: {mask_length}");
         let mut pctx: StackedPcsZkProverCtx<GC, MK> =
-            ZkProverCtx::initialize_with_pcs(mask_length, zk_pcs_prover, &mut rng);
+            ZkProverCtx::initialize_with_pcs(mask_length, zk_pcs_prover, &mut rng)
+                .expect("zk init failed");
         zerocheck_prove(
             &mut pctx,
             p_base.clone(),
@@ -294,7 +295,7 @@ fn main() {
         );
         // Prover replays the SAME verify body to build constraints.
         zerocheck_verify(&mut pctx);
-        let proof = pctx.prove(&mut rng);
+        let proof = pctx.prove(&mut rng).expect("zk prove failed");
         eprintln!("Prover time: {:?}", now.elapsed());
         proof
     };

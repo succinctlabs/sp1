@@ -42,10 +42,11 @@ fn test_sumcheck_no_pcs() {
             sumcheck_no_pcs_verify(ctx, NUM_VARIABLES, claim);
         });
         let mut pctx: ZkProverCtx<GC, NoPcsConfig<MK>> =
-            ZkProverCtx::initialize_without_pcs_only_lin(mask_length, &mut rng);
+            ZkProverCtx::initialize_without_pcs_only_lin(mask_length, &mut rng)
+                .expect("zk init failed");
         sumcheck_no_pcs_prove(&mut pctx, NUM_VARIABLES, product, claim);
         sumcheck_no_pcs_verify(&mut pctx, NUM_VARIABLES, claim);
-        pctx.prove(&mut rng)
+        pctx.prove(&mut rng).expect("zk prove failed")
     };
 
     {
@@ -77,10 +78,11 @@ fn test_sumcheck_single_mle_with_pcs() {
             sumcheck_single_mle_verify(ctx, NUM_VARIABLES, claim);
         });
         let mut pctx: StackedPcsZkProverCtx<GC, MK> =
-            ZkProverCtx::initialize_with_pcs_only_lin(mask_length, zk_pcs_prover, &mut rng);
+            ZkProverCtx::initialize_with_pcs_only_lin(mask_length, zk_pcs_prover, &mut rng)
+                .expect("zk init failed");
         sumcheck_single_mle_prove(&mut pctx, NUM_VARIABLES, original_mle, mle_ef, claim, &mut rng);
         sumcheck_single_mle_verify(&mut pctx, NUM_VARIABLES, claim);
-        pctx.prove(&mut rng)
+        pctx.prove(&mut rng).expect("zk prove failed")
     };
 
     {
@@ -112,7 +114,8 @@ fn test_sumcheck_hadamard_with_pcs() {
             sumcheck_hadamard_verify(ctx, NUM_VARIABLES, claim);
         });
         let mut pctx: StackedPcsZkProverCtx<GC, MK> =
-            ZkProverCtx::initialize_with_pcs(mask_length, zk_pcs_prover, &mut rng);
+            ZkProverCtx::initialize_with_pcs(mask_length, zk_pcs_prover, &mut rng)
+                .expect("zk init failed");
         sumcheck_hadamard_prove(
             &mut pctx,
             NUM_VARIABLES,
@@ -123,7 +126,7 @@ fn test_sumcheck_hadamard_with_pcs() {
             &mut rng,
         );
         sumcheck_hadamard_verify(&mut pctx, NUM_VARIABLES, claim);
-        pctx.prove(&mut rng)
+        pctx.prove(&mut rng).expect("zk prove failed")
     };
 
     {
@@ -163,7 +166,8 @@ fn test_sumcheck_batched_single_mles_with_pcs() {
             sumcheck_batched_single_mles_verify(ctx, NUM_VARIABLES, &claims);
         });
         let mut pctx: StackedPcsZkProverCtx<GC, MK> =
-            ZkProverCtx::initialize_with_pcs_only_lin(mask_length, zk_pcs_prover, &mut rng);
+            ZkProverCtx::initialize_with_pcs_only_lin(mask_length, zk_pcs_prover, &mut rng)
+                .expect("zk init failed");
         sumcheck_batched_single_mles_prove(
             &mut pctx,
             NUM_VARIABLES,
@@ -173,7 +177,7 @@ fn test_sumcheck_batched_single_mles_with_pcs() {
             &mut rng,
         );
         sumcheck_batched_single_mles_verify(&mut pctx, NUM_VARIABLES, &claims);
-        pctx.prove(&mut rng)
+        pctx.prove(&mut rng).expect("zk prove failed")
     };
 
     {
@@ -184,13 +188,15 @@ fn test_sumcheck_batched_single_mles_with_pcs() {
 }
 
 // ============================================================================
-// #5: Triple Hadamard, multi-point (known ZK limitation — panics).
+// #5: Triple Hadamard, multi-point (known ZK limitation — returns
+// `ZkProveError::DuplicateEvalClaim` instead of panicking, per the
+// prove-Result refactor).
 // ============================================================================
 
 #[test]
-#[should_panic(expected = "Multiple eval claims on the same PCS commitment")]
 fn test_sumcheck_triple_hadamard_multi_point() {
     use slop_multilinear::Mle;
+    use slop_veil::zk::ZkProveError;
 
     let mut rng = ChaCha20Rng::from_entropy();
     const NUM_ENCODING_VARIABLES: u32 = 12;
@@ -229,33 +235,33 @@ fn test_sumcheck_triple_hadamard_multi_point() {
     let (zk_pcs_prover, zk_pcs_verifier) =
         initialize_zk_prover_and_verifier::<GC, MK>(1, NUM_ENCODING_VARIABLES);
 
-    let proof = {
-        let mask_length = compute_mask_length::<GC>(NUM_ENCODING_VARIABLES, |ctx| {
-            sumcheck_triple_hadamard_verify(ctx, NUM_VARIABLES, claim_fg, claim_gh, claim_hf);
-        });
-        let mut pctx: StackedPcsZkProverCtx<GC, MK> =
-            ZkProverCtx::initialize_with_pcs(mask_length, zk_pcs_prover, &mut rng);
-        sumcheck_triple_hadamard_prove(
-            &mut pctx,
-            NUM_VARIABLES,
-            mle_f,
-            mle_g,
-            mle_h,
-            product_fg,
-            product_gh,
-            product_hf,
-            claim_fg,
-            claim_gh,
-            claim_hf,
-            &mut rng,
-        );
-        sumcheck_triple_hadamard_verify(&mut pctx, NUM_VARIABLES, claim_fg, claim_gh, claim_hf);
-        pctx.prove(&mut rng)
-    };
-
-    {
-        let mut vctx = ZkVerifierCtx::init(proof, Some(zk_pcs_verifier));
-        sumcheck_triple_hadamard_verify(&mut vctx, NUM_VARIABLES, claim_fg, claim_gh, claim_hf);
-        vctx.verify().expect("zk verification failed");
+    let mask_length = compute_mask_length::<GC>(NUM_ENCODING_VARIABLES, |ctx| {
+        sumcheck_triple_hadamard_verify(ctx, NUM_VARIABLES, claim_fg, claim_gh, claim_hf);
+    });
+    let mut pctx: StackedPcsZkProverCtx<GC, MK> =
+        ZkProverCtx::initialize_with_pcs(mask_length, zk_pcs_prover, &mut rng)
+            .expect("zk init failed");
+    sumcheck_triple_hadamard_prove(
+        &mut pctx,
+        NUM_VARIABLES,
+        mle_f,
+        mle_g,
+        mle_h,
+        product_fg,
+        product_gh,
+        product_hf,
+        claim_fg,
+        claim_gh,
+        claim_hf,
+        &mut rng,
+    );
+    sumcheck_triple_hadamard_verify(&mut pctx, NUM_VARIABLES, claim_fg, claim_gh, claim_hf);
+    match pctx.prove(&mut rng) {
+        Err(ZkProveError::DuplicateEvalClaim { .. }) => {}
+        Err(other) => panic!("expected ZkProveError::DuplicateEvalClaim, got {other:?}"),
+        Ok(_) => panic!("expected ZkProveError::DuplicateEvalClaim, got Ok(_)"),
     }
+    // `zk_pcs_verifier` is unused (we never produce a verifiable proof) — kept to
+    // exercise the prover path that detects the duplicate claim.
+    let _ = zk_pcs_verifier;
 }

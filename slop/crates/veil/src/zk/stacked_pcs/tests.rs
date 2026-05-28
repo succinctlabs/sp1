@@ -85,7 +85,8 @@ fn run_zk_stacked_pcs_test(num_encoding_variables: u32, log_num_polynomials: u32
     let prover_start = std::time::Instant::now();
     let zkproof = {
         let mut prover_context: StackedPcsZkProverContext<GC, MK> =
-            StackedPcsZkProverContext::initialize_only_lin_constraints(masks_length, &mut rng);
+            StackedPcsZkProverContext::initialize_only_lin_constraints(masks_length, &mut rng)
+                .expect("zk init failed");
 
         let commitment_index = prover_context
             .commit_mle(
@@ -101,7 +102,7 @@ fn run_zk_stacked_pcs_test(num_encoding_variables: u32, log_num_polynomials: u32
         let transcript_data = PcsTranscriptData { commitment_index, eval_claim: claim };
         build_all_constraints(transcript_data, &eval_point, &mut prover_context);
 
-        prover_context.prove(&mut rng, Some(&zk_basefold_prover))
+        prover_context.prove(&mut rng, Some(&zk_basefold_prover)).expect("zk prove failed")
     };
     if verbose {
         eprintln!("Prover time: {:?}", prover_start.elapsed());

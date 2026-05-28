@@ -119,7 +119,10 @@ pub fn zk_hadamard_product_commitment<
     c_vec: &[GC::EF],
     rng: &mut RNG,
     merkleizer: &MK,
-) -> (GC::Digest, ZkHadamardProductProverSecretData<GC, MK::ProverData, Code>)
+) -> Result<
+    (GC::Digest, ZkHadamardProductProverSecretData<GC, MK::ProverData, Code>),
+    MK::ProverError,
+>
 where
     rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
 {
@@ -149,8 +152,7 @@ where
 
     // Step 3: Build message with both tensors and merkleize
     let to_merkleize_message: Message<Tensor<GC::F>> = vec![abc_tensor, r_times_tensor].into();
-    let (commitment, merkle_tree) =
-        merkleizer.commit_tensors(to_merkleize_message.clone()).unwrap();
+    let (commitment, merkle_tree) = merkleizer.commit_tensors(to_merkleize_message.clone())?;
 
     // Step 4: Build commitment data
     let abc_commitment_data = ZkVectorProverData {
@@ -165,7 +167,7 @@ where
     let prover_secret_data =
         ZkHadamardProductProverSecretData { abc_commitment_data, r_times_intermediate };
 
-    (commitment, prover_secret_data)
+    Ok((commitment, prover_secret_data))
 }
 
 /// First phase of the zero-knowledge Hadamard product proof.
@@ -235,6 +237,7 @@ where
 /// Second phase of the zero-knowledge Hadamard product proof: reveal evaluations and generate merkle proofs.
 ///
 /// Returns the proof and the revealed data.
+#[allow(clippy::type_complexity)]
 pub(in crate::zk::hadamard_product) fn zk_hadamard_product_reveal<
     GC: IopCtx,
     MK: TensorCsProver<GC, CpuBackend> + ComputeTcsOpenings<GC, CpuBackend>,
@@ -243,19 +246,18 @@ pub(in crate::zk::hadamard_product) fn zk_hadamard_product_reveal<
     pre_reveal: ZkHadamardProductPreReveal<GC, MK::ProverData, Code>,
     revealed_indices: &[usize],
     merkleizer: &MK,
-) -> (ZkHadamardProductProof<GC, Code>, MerkleOpeningProof<GC>) {
+) -> Result<(ZkHadamardProductProof<GC, Code>, MerkleOpeningProof<GC>), MK::ProverError> {
     let ZkHadamardProductPreReveal { gamma, phi, abc_commitment_data, parameters } = pre_reveal;
 
     let revealed_evals = merkleizer
         .compute_openings_at_indices(abc_commitment_data.to_merkleize_message, revealed_indices);
-    let merkle_paths = merkleizer
-        .prove_openings_at_indices(abc_commitment_data.merkle_tree, revealed_indices)
-        .unwrap();
+    let merkle_paths =
+        merkleizer.prove_openings_at_indices(abc_commitment_data.merkle_tree, revealed_indices)?;
 
     let proof = ZkHadamardProductProof { gamma, phi, parameters };
     let revealed_data = MerkleOpeningProof { revealed_evals, merkle_paths };
 
-    (proof, revealed_data)
+    Ok((proof, revealed_data))
 }
 
 /// Generates the zero-knowledge Hadamard product proof (standalone, without dot products).
@@ -271,7 +273,7 @@ pub fn zk_hadamard_product_proof<
     prover_secret_data: ZkHadamardProductProverSecretData<GC, MK::ProverData, Code>,
     challenger: &mut GC::Challenger,
     merkleizer: &MK,
-) -> ZkHadamardTotalProof<GC, Code>
+) -> Result<ZkHadamardTotalProof<GC, Code>, MK::ProverError>
 where
     GC::EF: TwoAdicField,
 {
@@ -281,8 +283,8 @@ where
             .take(pre_reveal.parameters.multi_evals(&EVAL_SCHEDULE))
             .collect::<Vec<_>>();
     let (proof, revealed_data) =
-        zk_hadamard_product_reveal(pre_reveal, &revealed_indices, merkleizer);
-    ZkHadamardTotalProof { proof, proximity_check_proof: revealed_data }
+        zk_hadamard_product_reveal(pre_reveal, &revealed_indices, merkleizer)?;
+    Ok(ZkHadamardTotalProof { proof, proximity_check_proof: revealed_data })
 }
 
 /// Combined proof for Hadamard product and a batched dot product with shared indices.
@@ -303,7 +305,7 @@ pub fn zk_hadamard_and_dots_proof<
     prover_secret_data: ZkHadamardProductProverSecretData<GC, MK::ProverData, Code>,
     challenger: &mut GC::Challenger,
     merkleizer: &MK,
-) -> ZkHadamardAndDotsTotalProof<GC, Code>
+) -> Result<ZkHadamardAndDotsTotalProof<GC, Code>, MK::ProverError>
 where
     GC::EF: TwoAdicField,
 {
@@ -328,9 +330,8 @@ where
     // Use the Arc-cloned message (cheap) and extract merkle_tree from dot_pre_reveal (moved, no clone).
     let revealed_evals =
         merkleizer.compute_openings_at_indices(to_merkleize_message, &revealed_indices);
-    let merkle_paths = merkleizer
-        .prove_openings_at_indices(dot_pre_reveal.merkle_tree, &revealed_indices)
-        .unwrap();
+    let merkle_paths =
+        merkleizer.prove_openings_at_indices(dot_pre_reveal.merkle_tree, &revealed_indices)?;
 
     // Build Hadamard proof (no revealed data — it's in the shared ZkRevealedData)
     let hadamard_proof = ZkHadamardProductProof { gamma, phi, parameters };
@@ -346,7 +347,11 @@ where
 
     let revealed_data = MerkleOpeningProof { revealed_evals, merkle_paths };
 
-    ZkHadamardAndDotsTotalProof { hadamard_proof, dot_proof, proximity_check_proof: revealed_data }
+    Ok(ZkHadamardAndDotsTotalProof {
+        hadamard_proof,
+        dot_proof,
+        proximity_check_proof: revealed_data,
+    })
 }
 
 /// Computes the Hadamard (elementwise) product of two vectors.

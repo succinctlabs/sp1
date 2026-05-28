@@ -176,7 +176,7 @@ fn run_zk_single(
         });
 
         let mut ctx: StackedPcsZkProverCtx<GC, MK> =
-            ZkProverCtx::initialize_with_pcs_only_lin(masks_length, pcs_prover, rng);
+            ZkProverCtx::initialize_with_pcs_only_lin(masks_length, pcs_prover, rng).expect("zk init failed");
 
         ctx.commit_mle(original_mle.clone(), rng).unwrap();
 
@@ -184,7 +184,7 @@ fn run_zk_single(
         param.prove(&in_claim, mle_ef.clone(), &mut ctx);
         single_mle_verify(&mut ctx, num_variables, claim);
 
-        let zkproof = ctx.prove(rng);
+        let zkproof = ctx.prove(rng).expect("zk prove failed");
         (zkproof, prover_start.elapsed())
     };
 
@@ -351,7 +351,7 @@ fn run_zk_hadamard(
         });
 
         let mut ctx: StackedPcsZkProverCtx<GC, MK> =
-            ZkProverCtx::initialize_with_pcs(masks_length, pcs_prover, rng);
+            ZkProverCtx::initialize_with_pcs(masks_length, pcs_prover, rng).expect("zk init failed");
 
         ctx.commit_mle(mle_1.clone(), rng).unwrap();
         ctx.commit_mle(mle_2.clone(), rng).unwrap();
@@ -360,7 +360,7 @@ fn run_zk_hadamard(
         param.prove(&in_claim, hadamard_product, &mut ctx);
         hadamard_verify(&mut ctx, num_variables, claim);
 
-        let zkproof = ctx.prove(rng);
+        let zkproof = ctx.prove(rng).expect("zk prove failed");
         (zkproof, prover_start.elapsed())
     };
 

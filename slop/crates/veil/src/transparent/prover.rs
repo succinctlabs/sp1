@@ -38,6 +38,22 @@ pub enum TransparentCommitError<E: std::error::Error + 'static> {
     Basefold(#[from] BasefoldProverError<E>),
 }
 
+/// Error returned by [`TransparentProverCtx::prove`].
+///
+/// Wraps the underlying basefold prover error and adds the missing-PCS variant
+/// for contexts built via [`TransparentProverCtx::initialize_without_pcs`] that
+/// nonetheless emitted MLE-eval claims.
+#[derive(Debug, Error)]
+pub enum TransparentProveError<E: std::error::Error + 'static> {
+    /// MLE-eval claims were registered but the context was built via
+    /// [`TransparentProverCtx::initialize_without_pcs`].
+    #[error("MLE-eval claims exist but the transparent prover has no PCS backend")]
+    NoPcsProver,
+    /// The underlying basefold prover failed during opening proof generation.
+    #[error(transparent)]
+    Basefold(#[from] BasefoldProverError<E>),
+}
+
 /// Convenience alias for the stacked-basefold PCS prover data attached to each
 /// committed oracle.
 #[allow(type_alias_bounds)]
@@ -177,7 +193,7 @@ where
     pub fn prove<RNG: rand::CryptoRng + rand::Rng>(
         mut self,
         _rng: &mut RNG,
-    ) -> Result<TransparentProof<GC>, BasefoldProverError<MK::ProverError>>
+    ) -> Result<TransparentProof<GC>, TransparentProveError<MK::ProverError>>
     where
         rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
         // Only needed for the multi-open path below (an oracle opened at >1 point);
@@ -197,10 +213,7 @@ where
                 }
             }
 
-            let pcs_prover = self
-                .pcs_prover
-                .as_ref()
-                .expect("MLE-eval claims exist but transparent prover has no PCS backend");
+            let pcs_prover = self.pcs_prover.as_ref().ok_or(TransparentProveError::NoPcsProver)?;
             // `prove_trusted_evaluation` ignores its `evaluation_claim` argument — the
             // per-oracle claims are checked by the verifier against the proof's embedded
             // batch evaluations — but we still need to pass something.

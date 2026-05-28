@@ -32,7 +32,8 @@ async fn test_zk_hadamard_product_honest() {
         _,
         _,
         RsInterpolation<_>,
-    >(&a_vec, &b_vec, &c_vec, &mut rng, &merkleizer);
+    >(&a_vec, &b_vec, &c_vec, &mut rng, &merkleizer)
+    .unwrap();
 
     let mut challenger_prove = GC::default_challenger();
     let total_proof = zk_hadamard_product_proof::<GC, _, RsInterpolation<_>>(
@@ -40,7 +41,8 @@ async fn test_zk_hadamard_product_honest() {
         prover_secret_data,
         &mut challenger_prove,
         &merkleizer,
-    );
+    )
+    .unwrap();
     let duration = start.elapsed();
     eprintln!("Commitment + proof generation time: {:?}", duration);
     eprintln!("Proof gamma: {:?}", total_proof.proof.gamma);
@@ -77,7 +79,8 @@ async fn test_zk_hadamard_product_small() {
         _,
         _,
         RsInterpolation<_>,
-    >(&a_vec, &b_vec, &c_vec, &mut rng, &merkleizer);
+    >(&a_vec, &b_vec, &c_vec, &mut rng, &merkleizer)
+    .unwrap();
 
     let mut challenger_prove = GC::default_challenger();
     let total_proof = zk_hadamard_product_proof::<GC, _, RsInterpolation<_>>(
@@ -85,7 +88,8 @@ async fn test_zk_hadamard_product_small() {
         prover_secret_data,
         &mut challenger_prove,
         &merkleizer,
-    );
+    )
+    .unwrap();
 
     let mut challenger_ver = GC::default_challenger();
     verify_zk_hadamard_product::<GC, RsInterpolation<_>>(
@@ -120,7 +124,8 @@ async fn test_zk_hadamard_product_invalid() {
         _,
         _,
         RsInterpolation<_>,
-    >(&a_vec, &b_vec, &c_vec, &mut rng, &merkleizer);
+    >(&a_vec, &b_vec, &c_vec, &mut rng, &merkleizer)
+    .unwrap();
 
     let mut challenger_prove = GC::default_challenger();
     let total_proof = zk_hadamard_product_proof::<GC, _, RsInterpolation<_>>(
@@ -128,7 +133,8 @@ async fn test_zk_hadamard_product_invalid() {
         prover_secret_data,
         &mut challenger_prove,
         &merkleizer,
-    );
+    )
+    .unwrap();
 
     let mut challenger_ver = GC::default_challenger();
     verify_zk_hadamard_product::<GC, RsInterpolation<_>>(
@@ -160,7 +166,8 @@ async fn test_zk_hadamard_product_different_sizes() {
             RsInterpolation<_>,
         >(
             &a_vec, &b_vec, &c_vec, &mut rng, &merkleizer
-        );
+        )
+        .unwrap();
 
         let mut challenger_prove = GC::default_challenger();
         let total_proof = zk_hadamard_product_proof::<GC, _, RsInterpolation<_>>(
@@ -168,7 +175,8 @@ async fn test_zk_hadamard_product_different_sizes() {
             prover_secret_data,
             &mut challenger_prove,
             &merkleizer,
-        );
+        )
+        .unwrap();
 
         let mut challenger_ver = GC::default_challenger();
         verify_zk_hadamard_product::<GC, RsInterpolation<_>>(
@@ -214,7 +222,8 @@ async fn test_zk_hadamard_and_dots() {
             &c_vec,
             &mut rng,
             &merkleizer,
-        );
+        )
+        .unwrap();
 
         // Generate combined proofs with shared indices
         eprintln!("\n=== Generating combined Hadamard + dot product proofs ===");
@@ -224,7 +233,8 @@ async fn test_zk_hadamard_and_dots() {
             prover_secret_data,
             &mut challenger,
             &merkleizer,
-        );
+        )
+        .unwrap();
 
         (commitment, total_proof)
     };

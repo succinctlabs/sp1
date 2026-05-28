@@ -9,10 +9,24 @@ use thiserror::Error;
 
 use crate::compiler::{ConstraintCtx, ReadingCtx, SendingCtx, TranscriptReadError};
 use crate::zk::inner::{
-    ConstraintContextInnerExt, NoPcsProver, ProverValue, ZkPcsProver, ZkProverContext,
+    ConstraintContextInnerExt, NoPcsProver, ProverValue, ZkPcsProver, ZkProveError, ZkProverContext,
 };
 use crate::zk::verifier_ctx::MleCommit;
 use crate::zk::{ZkIopCtx, ZkProof};
+
+/// The full `ZkProveError` instantiation for a [`ZkProverCtx<GC, PC>`]. Spells
+/// out the two error parameters (PCS-prover error, merkleizer error) using `PC`.
+#[allow(type_alias_bounds)]
+pub type ZkProverCtxProveError<GC: ZkIopCtx, PC: PcsProverConfig<GC>> = ZkProveError<
+    <PC::PcsProver as ZkPcsProver<GC, PC::Merkelizer>>::ProveError,
+    <PC::Merkelizer as slop_merkle_tree::TensorCsProver<GC, CpuBackend>>::ProverError,
+>;
+
+/// Error returned by the `ZkProverCtx::initialize*` constructors — the merkleizer
+/// can fail when committing to the initial mask vector.
+#[allow(type_alias_bounds)]
+pub type ZkProverCtxInitError<GC: ZkIopCtx, PC: PcsProverConfig<GC>> =
+    <PC::Merkelizer as slop_merkle_tree::TensorCsProver<GC, CpuBackend>>::ProverError;
 
 /// Auto-implemented trait that bundles the merkle commitment bounds needed by prover code.
 ///
@@ -305,7 +319,10 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
     }
 
     /// Generates a zero-knowledge proof. Consumes self.
-    pub fn prove<RNG: rand::CryptoRng + rand::Rng>(mut self, rng: &mut RNG) -> ZkProof<GC>
+    pub fn prove<RNG: rand::CryptoRng + rand::Rng>(
+        mut self,
+        rng: &mut RNG,
+    ) -> Result<ZkProof<GC>, ZkProverCtxProveError<GC, PC>>
     where
         rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
     {
@@ -325,11 +342,11 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
         length: usize,
         rng: &mut RNG,
         pcs_prover: Option<PC::PcsProver>,
-    ) -> Self
+    ) -> Result<Self, ZkProverCtxInitError<GC, PC>>
     where
         rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
     {
-        Self::new(ZkProverContext::initialize(length, rng), pcs_prover)
+        Ok(Self::new(ZkProverContext::initialize(length, rng)?, pcs_prover))
     }
 
     /// Initializes a prover that supports only linear constraints.
@@ -337,11 +354,11 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
         length: usize,
         rng: &mut RNG,
         pcs_prover: Option<PC::PcsProver>,
-    ) -> Self
+    ) -> Result<Self, ZkProverCtxInitError<GC, PC>>
     where
         rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
     {
-        Self::new(ZkProverContext::initialize_only_lin_constraints(length, rng), pcs_prover)
+        Ok(Self::new(ZkProverContext::initialize_only_lin_constraints(length, rng)?, pcs_prover))
     }
 }
 
@@ -350,11 +367,19 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
 // ============================================================================
 
 impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkProverCtx<GC, NoPcsConfig<MK>> {
-    /// Generates a proof without PCS support. Panics if PCS eval claims were registered.
+    /// Generates a proof without PCS support. Returns
+    /// [`ZkProveError::NoPcsProver`] if PCS eval claims were registered.
+    #[allow(clippy::type_complexity)]
     pub fn prove_without_pcs<RNG: rand::CryptoRng + rand::Rng>(
         mut self,
         rng: &mut RNG,
-    ) -> ZkProof<GC>
+    ) -> Result<
+        ZkProof<GC>,
+        ZkProveError<
+            std::convert::Infallible,
+            <MK as slop_merkle_tree::TensorCsProver<GC, CpuBackend>>::ProverError,
+        >,
+    >
     where
         rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
     {
@@ -367,21 +392,21 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkProverCtx<GC, NoPcsConfig<MK>> {
     pub fn initialize_without_pcs<RNG: rand::CryptoRng + rand::Rng>(
         length: usize,
         rng: &mut RNG,
-    ) -> Self
+    ) -> Result<Self, <MK as slop_merkle_tree::TensorCsProver<GC, CpuBackend>>::ProverError>
     where
         rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
     {
-        Self::new(ZkProverContext::initialize(length, rng), None)
+        Ok(Self::new(ZkProverContext::initialize(length, rng)?, None))
     }
 
     /// Initializes a no-PCS prover with only linear constraints.
     pub fn initialize_without_pcs_only_lin<RNG: rand::CryptoRng + rand::Rng>(
         length: usize,
         rng: &mut RNG,
-    ) -> Self
+    ) -> Result<Self, <MK as slop_merkle_tree::TensorCsProver<GC, CpuBackend>>::ProverError>
     where
         rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
     {
-        Self::new(ZkProverContext::initialize_only_lin_constraints(length, rng), None)
+        Ok(Self::new(ZkProverContext::initialize_only_lin_constraints(length, rng)?, None))
     }
 }

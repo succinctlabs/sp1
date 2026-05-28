@@ -200,8 +200,7 @@ pub fn prove_from_batched_inputs<GC: ZkIopCtx, MK: ZkMerkleizer<GC>>(
         let proof = basefold_prover
             .tcs_prover
             .prove_openings_at_indices(tcs_prover_data, &query_indices)
-            .map_err(BaseFoldConfigProverError::<GC, MK>::TcsCommitError)
-            .unwrap();
+            .map_err(BaseFoldConfigProverError::<GC, MK>::TcsCommitError)?;
         component_polynomials_query_openings_and_proofs
             .push(MerkleTreeOpeningAndProof::<GC> { values, proof });
     }

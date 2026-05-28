@@ -23,6 +23,16 @@ pub enum ZkPcsCommitmentError {
     CommitmentFailed(String),
 }
 
+/// Default error type for PCS `prove_multi_eval` failures. Concrete impls may
+/// substitute their own typed error via the [`ZkPcsProver::ProveError`]
+/// associated type.
+#[derive(Debug, Error)]
+pub enum ZkPcsProveError {
+    /// The PCS proof generation failed.
+    #[error("PCS prove_multi_eval failed: {0}")]
+    Failed(String),
+}
+
 /// Error type for PCS verification failures.
 #[derive(Debug, Clone, Error)]
 pub enum ZkPcsVerificationError {
@@ -47,6 +57,11 @@ pub trait ZkPcsProver<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> {
     /// at arbitrary points, such as the original polynomial coefficients
     /// or Merkle tree authentication paths.
     type ProverData;
+
+    /// Error type returned by [`Self::prove_multi_eval`]. Concrete impls thread their
+    /// own typed error here so a top-level `prove()` failure carries the original
+    /// PCS error rather than a stringified copy.
+    type ProveError: std::error::Error + 'static;
 
     /// The fixed number of encoding variables (log of the stacking height) this PCS
     /// was configured with. Every committed MLE is stacked into a tensor whose columns
@@ -84,13 +99,14 @@ pub trait ZkPcsProver<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> {
     /// * `claim` - The evaluation claim (may contain one or multiple commitments)
     ///
     /// # Returns
-    /// A single proof covering all commitments in the claim.
+    /// A single proof covering all commitments in the claim, or [`Self::ProveError`]
+    /// on failure.
     #[allow(clippy::type_complexity)]
     fn prove_multi_eval(
         &self,
         ctx: &mut ZkProverContext<GC, MK, Self::ProverData>,
         claim: PcsMultiEvalClaim<GC::EF, ProverValue<GC, MK, Self::ProverData>>,
-    ) -> GC::PcsProof;
+    ) -> Result<GC::PcsProof, Self::ProveError>;
 }
 
 /// Trait for PCS verifiers that verify evaluation proofs.
