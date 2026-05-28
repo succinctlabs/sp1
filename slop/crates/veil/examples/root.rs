@@ -3,22 +3,12 @@
 //! Proves that the prover knows a root of a public polynomial p(x) without revealing
 //! it. No PCS is needed — this is a pure constraint-based proof.
 //!
-//! The protocol is written once, generically over `SendingCtx` / `ReadingCtx`, then
-//! run first with the zero-knowledge backend (`ZkProverCtx` / `ZkVerifierCtx`) and
-//! afterwards with the transparent backend (`TransparentProverCtx` /
-//! `TransparentVerifierCtx`).
+//! Two functions encode the protocol:
 //!
-//! Shape:
-//!
-//! - `root_read` / `root_prove`: mirror entry points — one reads the transcript on
-//!   the verifier side, the other writes on the prover side. Both return a
-//!   [`RootView`].
-//! - `root_build_constraints`: the shared constraint-building pass used by both
-//!   sides.
-//!
-//! `main` then runs `init → prove → build_constraints → ctx.prove()` on the prover
-//! side and `init(proof) → read → build_constraints → ctx.verify()` on the verifier
-//! side.
+//! - `root_prove`: prover-only — send the secret root through the transcript.
+//! - `root_verify`: reads the root and asserts `p(root) == 0` in one
+//!   `ReadingCtx`-generic pass. Runs on the verifier and (via the prover's
+//!   replay `ReadingCtx`) on the prover.
 
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
@@ -38,31 +28,15 @@ type EF = <GC as IopCtx>::EF;
 // Generic protocol code
 // ============================================================================
 
-struct RootView<C: ConstraintCtx> {
-    root: C::Expr,
+/// Prover-only entry point: send the secret root through the transcript.
+fn root_prove<C: SendingCtx>(ctx: &mut C, secret_root: C::Extension) {
+    ctx.send_value(secret_root);
 }
 
-/// Verifier-side entry point: read the prover's sent root out of the transcript.
-fn root_read<C: ReadingCtx>(ctx: &mut C) -> RootView<C> {
+/// Unified read+constrain pass: read the root and assert `p(root) == 0`.
+fn root_verify<C: ReadingCtx>(coeffs: &[C::Extension], ctx: &mut C) {
     let root = ctx.read_one().unwrap();
-    RootView { root }
-}
-
-/// Prover-side entry point: send the secret root through the transcript and
-/// return the matching [`RootView`] for the caller to feed into
-/// [`root_build_constraints`].
-fn root_prove<C: SendingCtx>(ctx: &mut C, secret_root: C::Extension) -> RootView<C> {
-    let root = ctx.send_value(secret_root);
-    RootView { root }
-}
-
-/// Shared constraint-building pass used by both sides.
-fn root_build_constraints<C: ConstraintCtx>(
-    coeffs: &[C::Extension],
-    view: RootView<C>,
-    ctx: &mut C,
-) {
-    let eval = horner_eval::<C>(coeffs, view.root);
+    let eval = horner_eval::<C>(coeffs, root);
     ctx.assert_zero(eval).unwrap();
 }
 
@@ -106,25 +80,22 @@ fn main() {
     // ZK backend.
     eprintln!("\n=== ZK BACKEND ===");
     // No MLE commitments in this protocol, so the encoding width is irrelevant.
-    let mask_length = compute_mask_length::<GC, _>(0, root_read, |view, ctx| {
-        root_build_constraints(&poly_coeffs, view, ctx)
-    });
+    let mask_length = compute_mask_length::<GC>(0, |ctx| root_verify(&poly_coeffs, ctx));
     eprintln!("Mask length: {mask_length}");
 
     let zk_proof = {
         let now = std::time::Instant::now();
         let mut pctx: ZkProverCtx<GC, NoPcsConfig<MK>> =
             ZkProverCtx::initialize_without_pcs(mask_length, &mut rng);
-        let view = root_prove(&mut pctx, secret_root);
-        root_build_constraints(&poly_coeffs, view, &mut pctx);
+        root_prove(&mut pctx, secret_root);
+        root_verify(&poly_coeffs, &mut pctx);
         let proof = pctx.prove(&mut rng);
         eprintln!("Prover time: {:?}", now.elapsed());
         proof
     };
     {
         let mut vctx = ZkVerifierCtx::init(zk_proof, None);
-        let view = root_read(&mut vctx);
-        root_build_constraints(&poly_coeffs, view, &mut vctx);
+        root_verify(&poly_coeffs, &mut vctx);
         vctx.verify().expect("zk verification failed");
     }
     eprintln!("ZK backend: PASSED");
@@ -134,16 +105,15 @@ fn main() {
     let transparent_proof = {
         let now = std::time::Instant::now();
         let mut pctx: TransparentProverCtx<GC, MK> = TransparentProverCtx::initialize_without_pcs();
-        let view = root_prove(&mut pctx, secret_root);
-        root_build_constraints(&poly_coeffs, view, &mut pctx);
+        root_prove(&mut pctx, secret_root);
+        root_verify(&poly_coeffs, &mut pctx);
         let proof = pctx.prove(&mut rng).expect("transparent prove failed");
         eprintln!("Prover time: {:?}", now.elapsed());
         proof
     };
     {
         let mut vctx = TransparentVerifierCtx::<GC>::new(transparent_proof, None);
-        let view = root_read(&mut vctx);
-        root_build_constraints(&poly_coeffs, view, &mut vctx);
+        root_verify(&poly_coeffs, &mut vctx);
         vctx.verify().expect("transparent verification failed");
     }
     eprintln!("Transparent backend: PASSED");

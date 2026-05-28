@@ -2,29 +2,24 @@
 //!
 //! This is the degenerate terminal case of a veil protocol: nothing is really being
 //! reduced — we just commit an MLE, sample a random point, open at that point, and
-//! discharge the resulting evaluation claim via the primitive `ctx.assert_mle_eval`.
-//! Effectively a PCS smoke test.
+//! discharge the resulting evaluation claim via `ctx.assert_mle_eval`. Effectively a
+//! PCS smoke test.
 //!
-//! The protocol is written once, generically over `SendingCtx` / `ReadingCtx`, then
-//! run first with the zero-knowledge backend (`ZkProverCtx` / `ZkVerifierCtx`) and
-//! afterwards with the transparent backend (`TransparentProverCtx` /
-//! `TransparentVerifierCtx`).
+//! Two functions encode the protocol:
 //!
-//! Shape:
-//!
-//! - `mle_eval_read` / `mle_eval_prove`: mirror entry points — one reads the
-//!   transcript on the verifier side, the other commits + samples + sends on the
-//!   prover side. Both return an [`MleEvalView`].
-//! - `mle_eval_build_constraints`: the shared constraint-building pass used by both
-//!   sides.
+//! - `mle_eval_prove`: prover-only — commit + sample + send.
+//! - `mle_eval_verify`: reads the oracle, samples the point, reads the claimed eval,
+//!   and registers the PCS opening claim — all in one `ReadingCtx`-generic pass.
+//!   Runs unchanged on the verifier and (via the prover's replay `ReadingCtx`) on
+//!   the prover.
 
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use slop_challenger::IopCtx;
 use slop_koala_bear::KoalaBearDegree4Duplex;
 use slop_merkle_tree::Poseidon2KoalaBear16Prover;
-use slop_multilinear::{Mle, Point};
-use slop_veil::compiler::{ConstraintCtx, ReadingCtx, SendingCtx};
+use slop_multilinear::Mle;
+use slop_veil::compiler::{ReadingCtx, SendingCtx};
 use slop_veil::transparent::{
     initialize_transparent_prover_and_verifier, TransparentProverCtx, TransparentVerifierCtx,
 };
@@ -43,40 +38,29 @@ const NUM_VARIABLES: u32 = LOG_NUM_POLYNOMIALS + NUM_ENCODING_VARIABLES;
 // Generic protocol code
 // ============================================================================
 
-struct MleEvalView<C: ConstraintCtx> {
-    oracle: C::MleOracle,
-    point: Point<C::Challenge>,
-    claimed_eval: C::Expr,
-}
-
-/// Verifier-side entry point: read the committed oracle, sample the opening point,
-/// and read the prover's claimed evaluation out of the transcript.
-fn mle_eval_read<C: ReadingCtx>(ctx: &mut C) -> MleEvalView<C> {
-    let oracle = ctx.read_oracle(NUM_VARIABLES).unwrap();
-    let point = ctx.sample_point(NUM_VARIABLES);
-    let claimed_eval = ctx.read_one().unwrap();
-    MleEvalView { oracle, point, claimed_eval }
-}
-
-/// Prover-side entry point: commit `mle`, sample the opening point, compute the
-/// evaluation, send it on the transcript, and return the matching [`MleEvalView`]
-/// for the caller to feed into [`mle_eval_build_constraints`].
-fn mle_eval_prove<C, RNG>(ctx: &mut C, mle: Mle<C::Field>, rng: &mut RNG) -> MleEvalView<C>
+/// Prover-only entry point: commit `mle`, sample the opening point, compute the
+/// evaluation, and send it on the transcript. Constraints are emitted later by
+/// `mle_eval_verify`, which the prover replays.
+fn mle_eval_prove<C, RNG>(ctx: &mut C, mle: Mle<C::Field>, rng: &mut RNG)
 where
     C: SendingCtx,
     RNG: rand::CryptoRng + rand::Rng,
     rand::distributions::Standard: rand::distributions::Distribution<C::Field>,
 {
-    let oracle = ctx.commit_mle(mle.clone(), rng).expect("failed to commit mle");
+    ctx.commit_mle(mle.clone(), rng).expect("failed to commit mle");
     let point = ctx.sample_point(NUM_VARIABLES);
     let eval = mle.eval_at(&point).evaluations().as_slice()[0];
-    let claimed_eval = ctx.send_value(eval.into());
-    MleEvalView { oracle, point, claimed_eval }
+    ctx.send_value(eval.into());
 }
 
-/// Shared constraint-building pass used by both sides.
-fn mle_eval_build_constraints<C: ConstraintCtx>(view: MleEvalView<C>, ctx: &mut C) {
-    ctx.assert_mle_eval(view.oracle, view.point, view.claimed_eval);
+/// Unified read+constrain pass. Reads the oracle, samples the opening point, reads
+/// the claimed eval, and registers the PCS opening claim. Runs on the verifier and
+/// (via the prover's replay `ReadingCtx`) on the prover.
+fn mle_eval_verify<C: ReadingCtx>(ctx: &mut C) {
+    let oracle = ctx.read_oracle(NUM_VARIABLES).unwrap();
+    let point = ctx.sample_point(NUM_VARIABLES);
+    let claimed_eval = ctx.read_one().unwrap();
+    ctx.assert_mle_eval(oracle, point, claimed_eval);
 }
 
 fn main() {
@@ -91,17 +75,13 @@ fn main() {
 
     let zk_proof = {
         let now = std::time::Instant::now();
-        let mask_length = compute_mask_length::<GC, _>(
-            NUM_ENCODING_VARIABLES,
-            mle_eval_read,
-            mle_eval_build_constraints,
-        );
+        let mask_length = compute_mask_length::<GC>(NUM_ENCODING_VARIABLES, mle_eval_verify);
         eprintln!("Mask length: {mask_length}");
 
         let mut pctx: StackedPcsZkProverCtx<GC, MK> =
             ZkProverCtx::initialize_with_pcs_only_lin(mask_length, zk_pcs_prover, &mut rng);
-        let view = mle_eval_prove(&mut pctx, p.clone(), &mut rng);
-        mle_eval_build_constraints(view, &mut pctx);
+        mle_eval_prove(&mut pctx, p.clone(), &mut rng);
+        mle_eval_verify(&mut pctx);
         let proof = pctx.prove(&mut rng);
 
         eprintln!("Prover time: {:?}", now.elapsed());
@@ -109,8 +89,7 @@ fn main() {
     };
     {
         let mut vctx = ZkVerifierCtx::init(zk_proof, Some(zk_pcs_verifier));
-        let view = mle_eval_read(&mut vctx);
-        mle_eval_build_constraints(view, &mut vctx);
+        mle_eval_verify(&mut vctx);
         vctx.verify().expect("zk verification failed");
     }
     eprintln!("ZK backend: PASSED");
@@ -127,16 +106,15 @@ fn main() {
         let now = std::time::Instant::now();
         let mut pctx: TransparentProverCtx<GC, MK> =
             TransparentProverCtx::initialize(stacked_prover);
-        let view = mle_eval_prove(&mut pctx, p.clone(), &mut rng);
-        mle_eval_build_constraints(view, &mut pctx);
+        mle_eval_prove(&mut pctx, p.clone(), &mut rng);
+        mle_eval_verify(&mut pctx);
         let proof = pctx.prove(&mut rng).expect("transparent prove failed");
         eprintln!("Prover time: {:?}", now.elapsed());
         proof
     };
     {
         let mut vctx = TransparentVerifierCtx::<GC>::new(transparent_proof, Some(stacked_verifier));
-        let view = mle_eval_read(&mut vctx);
-        mle_eval_build_constraints(view, &mut vctx);
+        mle_eval_verify(&mut vctx);
         vctx.verify().expect("transparent verification failed");
     }
     eprintln!("Transparent backend: PASSED");

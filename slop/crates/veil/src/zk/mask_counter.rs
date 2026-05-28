@@ -32,24 +32,23 @@ impl<GC: ZkIopCtx> MaskCounter<GC> {
     }
 }
 
-/// Computes the mask length by running the protocol's read and constraint
-/// building logic on a counting context.
+/// Computes the mask length by running the protocol's unified `verify` body on
+/// a counting context. The counter tallies every transcript read and every
+/// constraint emitted; the return matches the eventual `mask_length` the real
+/// prover/verifier need.
 ///
 /// # Arguments
 /// * `num_encoding_variables` - the PCS's fixed encoding width, used to size oracle reads
-/// * `read_all` - Reads proof data from the context (mirrors prover's transcript writes)
-/// * `build_all` - Builds constraints using the read data
-pub fn compute_mask_length<GC, T>(
+/// * `verify_all` - The protocol's `verify` function (reads + constrains in one pass)
+pub fn compute_mask_length<GC>(
     num_encoding_variables: u32,
-    read_all: impl FnOnce(&mut MaskCounter<GC>) -> T,
-    build_all: impl FnOnce(T, &mut MaskCounter<GC>),
+    verify_all: impl FnOnce(&mut MaskCounter<GC>),
 ) -> usize
 where
     GC: ZkIopCtx,
 {
     let mut counter = MaskCounter::<GC>::new(num_encoding_variables);
-    let data = read_all(&mut counter);
-    build_all(data, &mut counter);
+    verify_all(&mut counter);
     counter.count()
 }
 
