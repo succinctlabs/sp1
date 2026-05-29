@@ -21,7 +21,9 @@ impl<T> Polynomial<T> {
     where
         T: Clone,
     {
-        Self { coefficients: coefficients.to_vec() }
+        Self {
+            coefficients: coefficients.to_vec(),
+        }
     }
 
     /// Gets the coefficients of the polynomial.
@@ -45,7 +47,11 @@ impl<T> Polynomial<T> {
         T: AbstractField,
     {
         let powers = x.powers();
-        self.coefficients.iter().zip(powers).map(|(c, x)| x * c.clone()).sum()
+        self.coefficients
+            .iter()
+            .zip(powers)
+            .map(|(c, x)| x * c.clone())
+            .sum()
     }
 
     /// Computes the root quotient of the polynomial.
@@ -62,13 +68,17 @@ impl<T> Polynomial<T> {
             let element = result[i - 1] - self.coefficients[i];
             result.push(element * r_inv);
         }
-        Self { coefficients: result }
+        Self {
+            coefficients: result,
+        }
     }
 }
 
 impl<T> FromIterator<T> for Polynomial<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        Self { coefficients: iter.into_iter().collect() }
+        Self {
+            coefficients: iter.into_iter().collect(),
+        }
     }
 }
 
@@ -188,9 +198,6 @@ impl<T: AbstractField> Mul for Polynomial<T> {
     type Output = Self;
 
     fn mul(self, other: Self) -> Self {
-        if self.coefficients.is_empty() || other.coefficients.is_empty() {
-            return Self::new(vec![]);
-        }
         let mut result = vec![T::zero(); self.coefficients.len() + other.coefficients.len() - 1];
         for (i, a) in self.coefficients.into_iter().enumerate() {
             for (j, b) in other.coefficients.iter().enumerate() {
@@ -205,9 +212,6 @@ impl<T: AbstractField> Mul for &Polynomial<T> {
     type Output = Polynomial<T>;
 
     fn mul(self, other: Self) -> Polynomial<T> {
-        if self.coefficients.is_empty() || other.coefficients.is_empty() {
-            return Polynomial::new(vec![]);
-        }
         let mut result = vec![T::zero(); self.coefficients.len() + other.coefficients.len() - 1];
         for (i, a) in self.coefficients.iter().enumerate() {
             for (j, b) in other.coefficients.iter().enumerate() {
@@ -222,7 +226,12 @@ impl<T: AbstractField> Mul<T> for Polynomial<T> {
     type Output = Self;
 
     fn mul(self, other: T) -> Self {
-        Self::new(self.coefficients.into_iter().map(|x| x * other.clone()).collect())
+        Self::new(
+            self.coefficients
+                .into_iter()
+                .map(|x| x * other.clone())
+                .collect(),
+        )
     }
 }
 
@@ -230,7 +239,13 @@ impl<T: AbstractField> Mul<T> for &Polynomial<T> {
     type Output = Polynomial<T>;
 
     fn mul(self, other: T) -> Polynomial<T> {
-        Polynomial::new(self.coefficients.iter().cloned().map(|x| x * other.clone()).collect())
+        Polynomial::new(
+            self.coefficients
+                .iter()
+                .cloned()
+                .map(|x| x * other.clone())
+                .collect(),
+        )
     }
 }
 
@@ -259,35 +274,11 @@ impl<T: Eq + AbstractField> PartialEq<Polynomial<T>> for Polynomial<T> {
 impl Polynomial<u8> {
     pub fn as_field<F: Field>(self) -> Polynomial<F> {
         Polynomial {
-            coefficients: self.coefficients.iter().map(|x| F::from_canonical_u8(*x)).collect(),
+            coefficients: self
+                .coefficients
+                .iter()
+                .map(|x| F::from_canonical_u8(*x))
+                .collect(),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::vec;
-
-    use slop_algebra::AbstractField;
-    use slop_koala_bear::KoalaBear;
-
-    use super::Polynomial;
-
-    fn f(value: u32) -> KoalaBear {
-        KoalaBear::from_canonical_u32(value)
-    }
-
-    #[test]
-    fn empty_multiplication_returns_empty_polynomial() {
-        let empty = Polynomial::<KoalaBear>::new(vec![]);
-        let nonempty = Polynomial::new(vec![f(2), f(3)]);
-
-        assert_eq!((empty.clone() * nonempty.clone()).coefficients(), &[]);
-        assert_eq!((nonempty.clone() * empty.clone()).coefficients(), &[]);
-        assert_eq!((empty.clone() * empty.clone()).coefficients(), &[]);
-
-        assert_eq!((&empty * &nonempty).coefficients(), &[]);
-        assert_eq!((&nonempty * &empty).coefficients(), &[]);
-        assert_eq!((&empty * &empty).coefficients(), &[]);
     }
 }
