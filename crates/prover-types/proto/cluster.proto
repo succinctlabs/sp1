@@ -28,6 +28,7 @@ message ProofRequestCreateRequest {
   // Identifies which executor/fulfiller scheduled this request. Used to filter
   // submit/fail when multiple fulfillers share a coordinator.
   optional string scheduled_by = 10;
+  bool stdin_private = 11;
 }
 
 message ProofRequestCancelRequest {
@@ -53,6 +54,7 @@ message ProofRequest {
   optional string extra_data = 16;
   // Identifies which executor/fulfiller scheduled this request.
   optional string scheduled_by = 17;
+  bool stdin_private = 18;
 }
 
 message ProofRequestListRequest {

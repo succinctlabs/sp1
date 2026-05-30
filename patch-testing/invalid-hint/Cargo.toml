@@ -1,0 +1,24 @@
+[package]
+name = "invalid-hint-test"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+sp1-zkvm = { workspace = true }
+sp1-sdk = { workspace = true, default-features = true }
+sp1-core-executor = { workspace = true }
+sp1-lib = { workspace = true }
+sp1-test = { workspace = true }
+tokio = { workspace = true }
+color-eyre = { workspace = true }
+
+[features]
+prove = []
+gpu = ["sp1-sdk/cuda"]
+
+[build-dependencies]
+sp1-build = { workspace = true }

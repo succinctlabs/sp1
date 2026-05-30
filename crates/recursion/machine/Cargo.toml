@@ -27,7 +27,6 @@ itertools = { workspace = true }
 strum = { workspace = true, features = ["derive"] }
 tracing = { workspace = true }
 rand = { workspace = true }
-zkhash = { workspace = true }
 
 
 [build-dependencies]

@@ -167,7 +167,7 @@ impl MinimalExecutorRunner {
                         return Ok(Some(chunk));
                     }
                     TraceResult::Finished => {
-                        self.wait_for_success();
+                        self.wait_for_success()?;
                         return Ok(None);
                     }
                     TraceResult::Crashed(details) => {
@@ -178,7 +178,7 @@ impl MinimalExecutorRunner {
                             .1
                             .join()
                             .expect("wait for log thread to finish");
-                        let opcode = match details.signal {
+                        let opcode = match details.operation {
                             1 => Opcode::LD,
                             2 => Opcode::SD,
                             _ => Opcode::UNIMP,
@@ -187,6 +187,8 @@ impl MinimalExecutorRunner {
                             libc::SIGSEGV => {
                                 ExecutionError::InvalidMemoryAccess(opcode, details.addr)
                             }
+                            // SIGILL: child hit a JIT `unimp` (see sp1-jit's unimp handler).
+                            libc::SIGILL => ExecutionError::Unimplemented(),
                             _ => ExecutionError::Other(format!(
                                 "Child native executor crashed, details: {details:?}"
                             )),
@@ -202,7 +204,7 @@ impl MinimalExecutorRunner {
                         {
                             if status.success() {
                                 // The child terminates as normals, we need to process its output.
-                                self.wait_for_success();
+                                self.wait_for_success()?;
                                 return Ok(None);
                             }
                             // The child terminates with some errors. We still want to process logs.
@@ -218,6 +220,8 @@ impl MinimalExecutorRunner {
                             }
                             let error = match (status.code(), status.signal()) {
                                 (_, Some(libc::SIGKILL)) => ExecutionError::TooMuchMemory(),
+                                // SIGILL via exit status, if the crash channel missed it.
+                                (_, Some(libc::SIGILL)) => ExecutionError::Unimplemented(),
                                 (code, signal) => ExecutionError::Other(format!("Child native executor terminates early, code: {code:?}, signal: {signal:?}")),
                             };
                             self.output = Some(Err(error.clone()));
@@ -230,26 +234,44 @@ impl MinimalExecutorRunner {
             }
         } else {
             // Tracing mode is disabled, wait for process termination
-            self.wait_for_success();
+            self.wait_for_success()?;
             Ok(None)
         }
     }
 
-    fn wait_for_success(&mut self) {
+    fn wait_for_success(&mut self) -> Result<(), ExecutionError> {
         // SP1 program terminates, wait for output and terminate child process.
         let (mut child, log_thread) = self.process.take().unwrap();
         let stdout = child.stdout.take().expect("open stdout");
         let mut stdout_reader = BufReader::new(stdout);
 
-        let output: Output = bincode::deserialize_from(&mut stdout_reader).expect("read output");
+        // Read stdout before waiting to avoid a pipe-fill deadlock; a crashed child
+        // closes the pipe (EOF) rather than blocking.
+        let output: Result<Output, _> = bincode::deserialize_from(&mut stdout_reader);
         let status = child.wait().expect("wait for child to exit");
         log_thread.join().expect("wait for log thread to finish");
-        // Normal termination, this should just return success.
-        assert!(status.success());
 
-        self.global_clk = output.global_clk;
-        self.clk = output.clk;
-        self.output = Some(Ok(output));
+        match output {
+            Ok(output) if status.success() => {
+                self.global_clk = output.global_clk;
+                self.clk = output.clk;
+                self.output = Some(Ok(output));
+                Ok(())
+            }
+            // Non-tracing runner has no crash handler, so map the exit signal to a
+            // typed cause here instead of panicking (mirrors the Timeout branch).
+            _ => {
+                let error = match (status.code(), status.signal()) {
+                    (_, Some(libc::SIGKILL)) => ExecutionError::TooMuchMemory(),
+                    (_, Some(libc::SIGILL)) => ExecutionError::Unimplemented(),
+                    (code, signal) => ExecutionError::Other(format!(
+                        "Child native executor terminated abnormally, code: {code:?}, signal: {signal:?}"
+                    )),
+                };
+                self.output = Some(Err(error.clone()));
+                Err(error)
+            }
+        }
     }
 
     fn output(&self) -> &Output {
@@ -329,6 +351,12 @@ impl MinimalExecutorRunner {
     #[must_use]
     pub fn into_public_values_stream(self) -> Vec<u8> {
         self.take_output().public_values_stream
+    }
+
+    /// Get the public value digest words committed by the guest via `COMMIT` syscalls.
+    #[must_use]
+    pub fn public_value_digest(&self) -> [u32; sp1_jit::PUBLIC_VALUE_DIGEST_WORDS] {
+        self.output().public_value_digest
     }
 
     /// Get the hints of the JIT function.
