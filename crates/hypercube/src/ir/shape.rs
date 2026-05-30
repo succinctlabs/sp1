@@ -59,6 +59,9 @@ impl<Expr, ExprExt> Shape<Expr, ExprExt> {
                 for (field_name, field) in fields {
                     def.push_str(&format!("  {field_name} : {}\n", field.to_lean_type()));
                 }
+                // Derive `ProvableStruct` so the column struct can serve as a Clean circuit
+                // output/column type (the witnessed gadget returns `⟨…⟩ : Var (Foo F)`).
+                def.push_str("deriving ProvableStruct\n");
                 out.push((name.clone(), def));
             }
             Shape::Array(elems) => {
