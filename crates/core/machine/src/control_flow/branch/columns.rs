@@ -1,4 +1,4 @@
-use sp1_derive::AlignedBorrow;
+use sp1_derive::{AlignedBorrow, IntoShape};
 use std::mem::size_of;
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
@@ -14,7 +14,7 @@ pub const NUM_BRANCH_COLS_SUPERVISOR: usize = size_of::<BranchColumns<u8, Superv
 pub const NUM_BRANCH_COLS_USER: usize = size_of::<BranchColumns<u8, UserMode>>();
 
 /// The column layout for branching.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection, IntoShape)]
 #[repr(C)]
 pub struct BranchColumns<T, M: TrustMode> {
     /// The current shard, timestamp, program counter of the CPU.

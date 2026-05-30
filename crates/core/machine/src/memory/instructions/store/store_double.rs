@@ -20,7 +20,7 @@ use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord, MemInstrEvent, MemoryAccessPosition},
     ExecutionRecord, Opcode, Program, CLK_INC, PC_INC,
 };
-use sp1_derive::AlignedBorrow;
+use sp1_derive::{AlignedBorrow, IntoShape};
 use sp1_hypercube::air::MachineAir;
 use sp1_primitives::consts::PROT_WRITE;
 use std::{
@@ -40,7 +40,7 @@ pub const NUM_STORE_DOUBLE_COLS_SUPERVISOR: usize =
 pub const NUM_STORE_DOUBLE_COLS_USER: usize = size_of::<StoreDoubleColumns<u8, UserMode>>();
 
 /// The column layout for memory store double instructions.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection, IntoShape)]
 #[repr(C)]
 pub struct StoreDoubleColumns<T, M: TrustMode> {
     /// The current shard, timestamp, program counter of the CPU.

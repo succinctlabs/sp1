@@ -57,7 +57,18 @@ impl<Expr, ExprExt> Shape<Expr, ExprExt> {
                 }
                 let mut def = format!("structure {name} (F : Type) where\n");
                 for (field_name, field) in fields {
-                    def.push_str(&format!("  {field_name} : {}\n", field.to_lean_type()));
+                    // Flatten an array-of-struct field into `field_0 … field_{n-1}` separate
+                    // fields: Clean's `ProvableStruct` deriving handles `Vector F n` and `Word`
+                    // but not a `Vector (<NestedStruct> F) n`. Body field paths are flattened to
+                    // match in `Shape::map_input`. Array-of-scalar stays a `Vector`.
+                    match field.as_ref() {
+                        Shape::Array(elems) if matches!(elems.first().map(|e| e.as_ref()), Some(Shape::Struct(..))) => {
+                            for (i, elem) in elems.iter().enumerate() {
+                                def.push_str(&format!("  {field_name}_{i} : {}\n", elem.to_lean_type()));
+                            }
+                        }
+                        _ => def.push_str(&format!("  {field_name} : {}\n", field.to_lean_type())),
+                    }
                 }
                 // Derive `ProvableStruct` so the column struct can serve as a Clean circuit
                 // output/column type (the witnessed gadget returns `⟨…⟩ : Var (Foo F)`).

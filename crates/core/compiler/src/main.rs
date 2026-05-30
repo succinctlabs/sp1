@@ -23,57 +23,31 @@ type F = SP1Field;
 /// leaves are all base-field, so the extension parameter is never inspected.
 type EF = BinomialExtensionField<SP1Field, 4>;
 
-/// Compose a chip's column-struct [`Shape`] (with `Main(i)` leaves) from its concrete column
-/// type, reusing the `Into<Shape>` impls the nested operation column types already derive
-/// (`CPUState`, `RTypeReader`, `AddOperation`), plus `From<ExprRef>` for the scalar `is_real`.
+/// Map a runtime chip name to its concrete column-struct [`Shape`] (with `Main(i)` leaves),
+/// reusing the `Into<Shape>` impl each `<Chip>Cols`/`<Chip>Columns` struct **derives**
+/// (`#[derive(IntoShape)]`). For the two-parameter `<Chip>Cols<T, M: TrustMode>` column structs
+/// that derive skips the mode-typed `adapter_cols : M::AdapterCols<T>` field (`EmptyCols` — zero
+/// columns — under the `SupervisorMode` we extract at), exactly as the previous hand-written
+/// `*_cols_shape` composers did. The nested operation/adapter column types (`CPUState`,
+/// `RTypeReader`, `AddOperation`, …) already derive `IntoShape`, so the whole column tree is built
+/// by the derives with no per-chip shape logic here.
 ///
-/// We compose here in the compiler crate rather than `#[derive(IntoShape)]` on `AddCols<T, M>`
-/// because that derive needs a single generic parameter and cannot reason about the
-/// associated-type field `adapter_cols : M::AdapterCols<T>`. For `SupervisorMode` those adapter
-/// columns are `EmptyCols` (zero columns), so the field is simply omitted.
-fn add_cols_shape(cols: &AddCols<ExprRef<F>, SupervisorMode>) -> Shape<ExprRef<F>, ExprExtRef<EF>> {
-    Shape::Struct(
-        "AddCols".to_string(),
-        vec![
-            ("state".to_string(), Box::new(cols.state.into())),
-            ("adapter".to_string(), Box::new(cols.adapter.into())),
-            ("add_operation".to_string(), Box::new(cols.add_operation.into())),
-            ("is_real".to_string(), Box::new(cols.is_real.into())),
-        ],
-    )
-}
-
-/// Compose `SubCols`'s column-struct [`Shape`]. Structurally identical to [`add_cols_shape`]
-/// (same `state`/`adapter`/`is_real`), with the operation field renamed `sub_operation`.
-fn sub_cols_shape(cols: &SubCols<ExprRef<F>, SupervisorMode>) -> Shape<ExprRef<F>, ExprExtRef<EF>> {
-    Shape::Struct(
-        "SubCols".to_string(),
-        vec![
-            ("state".to_string(), Box::new(cols.state.into())),
-            ("adapter".to_string(), Box::new(cols.adapter.into())),
-            ("sub_operation".to_string(), Box::new(cols.sub_operation.into())),
-            ("is_real".to_string(), Box::new(cols.is_real.into())),
-        ],
-    )
-}
-
-/// Compose `BitwiseCols`'s column-struct [`Shape`]. Like [`add_cols_shape`] but with the
-/// `ALUTypeReader` adapter, the (nested) `BitwiseU16Operation` operation columns, and three
-/// boolean opcode selectors (`is_xor`/`is_or`/`is_and`) in place of a single `is_real`.
-fn bitwise_cols_shape(
-    cols: &BitwiseCols<ExprRef<F>, SupervisorMode>,
-) -> Shape<ExprRef<F>, ExprExtRef<EF>> {
-    Shape::Struct(
-        "BitwiseCols".to_string(),
-        vec![
-            ("state".to_string(), Box::new(cols.state.into())),
-            ("adapter".to_string(), Box::new(cols.adapter.into())),
-            ("bitwise_operation".to_string(), Box::new(cols.bitwise_operation.into())),
-            ("is_xor".to_string(), Box::new(cols.is_xor.into())),
-            ("is_or".to_string(), Box::new(cols.is_or.into())),
-            ("is_and".to_string(), Box::new(cols.is_and.into())),
-        ],
-    )
+/// The `chip_cols_shape!` table at the call site is the one declarative spot mapping each chip
+/// name to its static column type — the same enumeration `RiscvAir` itself carries. Borrowing the
+/// flat `Main(i)` column vector as the typed struct (via its derived `AlignedBorrow`) flattens to
+/// column order, the invariant `Air::eval` relies on. Returns `None` for an unlisted chip.
+macro_rules! chip_cols_shape {
+    ($chip_name:expr, $main_vars:expr, { $($name:literal => $ty:ty),* $(,)? }) => {
+        match $chip_name {
+            $(
+                $name => {
+                    let cols: &$ty = $main_vars.as_slice().borrow();
+                    Some((*cols).into())
+                }
+            )*
+            _ => None,
+        }
+    };
 }
 
 /// Build the `Main(idx) → field path` map for a chip's column shape (e.g. `Main(28)` →
@@ -97,8 +71,13 @@ fn map_main(
             }
         }
         Shape::Array(vals) => {
+            // Array-of-struct fields are flattened to `prefix_i` (matching the flattened struct
+            // emission in `collect_struct_defs_skip` / `Shape::collect_lean_struct_defs`);
+            // array-of-scalar keeps `prefix[i]`.
+            let flatten = matches!(vals.first().map(|v| v.as_ref()), Some(Shape::Struct(..)));
             for (i, val) in vals.iter().enumerate() {
-                map_main(val, &format!("{prefix}[{i}]"), out);
+                let path = if flatten { format!("{prefix}_{i}") } else { format!("{prefix}[{i}]") };
+                map_main(val, &path, out);
             }
         }
         Shape::Struct(_, fields) => {
@@ -132,7 +111,19 @@ fn collect_struct_defs_skip(
             }
             let mut def = format!("structure {name} (F : Type) where\n");
             for (field_name, field) in fields {
-                def.push_str(&format!("  {field_name} : {}\n", field.to_lean_type()));
+                // Flatten array-of-struct fields to `field_0 … field_{n-1}` (Clean's
+                // `ProvableStruct` can't derive a `Vector (<NestedStruct> F) n` field); paths are
+                // flattened to match in `map_main`. Array-of-scalar stays a `Vector`.
+                match field.as_ref() {
+                    Shape::Array(elems)
+                        if matches!(elems.first().map(|e| e.as_ref()), Some(Shape::Struct(..))) =>
+                    {
+                        for (i, elem) in elems.iter().enumerate() {
+                            def.push_str(&format!("  {field_name}_{i} : {}\n", elem.to_lean_type()));
+                        }
+                    }
+                    _ => def.push_str(&format!("  {field_name} : {}\n", field.to_lean_type())),
+                }
             }
             def.push_str("deriving ProvableStruct\n");
             out.push((name.clone(), def));
@@ -269,28 +260,46 @@ fn compile_chip(chip_name: &str, output_format: &OutputFormat, reuse_struct: &[S
             // known statically.
             let width = builder.num_cols();
             let main_vars: Vec<ExprRef<F>> = (0..width).map(ExprRef::main).collect();
-            let cols_shape: Shape<ExprRef<F>, ExprExtRef<EF>> = match chip_name {
-                "Add" => {
-                    let cols: &AddCols<ExprRef<F>, SupervisorMode> = main_vars.as_slice().borrow();
-                    add_cols_shape(cols)
+            // One declarative row per chip: its name → its column struct. Each struct derives
+            // `IntoShape`, so the `Shape` (and the whole nested column tree) is built by the
+            // derives — no per-chip shape code. Full crate paths keep the import block small.
+            type Sup = SupervisorMode;
+            use sp1_core_machine as m;
+            let cols_shape: Shape<ExprRef<F>, ExprExtRef<EF>> = chip_cols_shape!(
+                chip_name, main_vars, {
+                    "Add"         => AddCols<ExprRef<F>, Sup>,
+                    "Sub"         => SubCols<ExprRef<F>, Sup>,
+                    "Bitwise"     => BitwiseCols<ExprRef<F>, Sup>,
+                    "Addi"        => m::alu::add_sub::addi::AddiCols<ExprRef<F>, Sup>,
+                    "Addw"        => m::alu::add_sub::addw::AddwCols<ExprRef<F>, Sup>,
+                    "Subw"        => m::alu::add_sub::subw::SubwCols<ExprRef<F>, Sup>,
+                    "Lt"          => m::alu::lt::LtCols<ExprRef<F>, Sup>,
+                    "Mul"         => m::alu::mul::MulCols<ExprRef<F>, Sup>,
+                    "ShiftLeft"   => m::alu::sll::ShiftLeftCols<ExprRef<F>, Sup>,
+                    "ShiftRight"  => m::alu::sr::ShiftRightCols<ExprRef<F>, Sup>,
+                    "DivRem"      => m::alu::divrem::DivRemCols<ExprRef<F>, Sup>,
+                    "Branch"      => m::control_flow::BranchColumns<ExprRef<F>, Sup>,
+                    "Jal"         => m::control_flow::JalColumns<ExprRef<F>, Sup>,
+                    "Jalr"        => m::control_flow::JalrColumns<ExprRef<F>, Sup>,
+                    "UType"       => m::utype::UTypeColumns<ExprRef<F>, Sup>,
+                    "LoadByte"    => m::memory::load::load_byte::LoadByteColumns<ExprRef<F>, Sup>,
+                    "LoadHalf"    => m::memory::load::load_half::LoadHalfColumns<ExprRef<F>, Sup>,
+                    "LoadWord"    => m::memory::load::load_word::LoadWordColumns<ExprRef<F>, Sup>,
+                    "LoadDouble"  => m::memory::load::load_double::LoadDoubleColumns<ExprRef<F>, Sup>,
+                    "LoadX0"      => m::memory::load::load_x0::LoadX0Columns<ExprRef<F>, Sup>,
+                    "StoreByte"   => m::memory::store::store_byte::StoreByteColumns<ExprRef<F>, Sup>,
+                    "StoreHalf"   => m::memory::store::store_half::StoreHalfColumns<ExprRef<F>, Sup>,
+                    "StoreWord"   => m::memory::store::store_word::StoreWordColumns<ExprRef<F>, Sup>,
+                    "StoreDouble" => m::memory::store::store_double::StoreDoubleColumns<ExprRef<F>, Sup>,
                 }
-                "Sub" => {
-                    let cols: &SubCols<ExprRef<F>, SupervisorMode> = main_vars.as_slice().borrow();
-                    sub_cols_shape(cols)
-                }
-                "Bitwise" => {
-                    let cols: &BitwiseCols<ExprRef<F>, SupervisorMode> =
-                        main_vars.as_slice().borrow();
-                    bitwise_cols_shape(cols)
-                }
-                _ => {
-                    eprintln!(
-                        "Error: Lean chip-struct extraction not implemented for chip '{}'",
-                        chip_name
-                    );
-                    std::process::exit(1);
-                }
-            };
+            )
+            .unwrap_or_else(|| {
+                eprintln!(
+                    "Error: Lean chip-struct extraction not implemented for chip '{}'",
+                    chip_name
+                );
+                std::process::exit(1);
+            });
 
             let struct_name = match &cols_shape {
                 Shape::Struct(name, _) => name.clone(),

@@ -28,10 +28,32 @@ impl<F: Field, EF: ExtensionField<F>> Shape<ExprRef<F>, ExprExtRef<EF>> {
                     "{{ {} }}",
                     fields
                         .iter()
-                        .map(|(field_name, field_val)| format!(
-                            "{field_name} := {}",
-                            field_val.to_lean_constructor(mapping)
-                        ))
+                        .flat_map(|(field_name, field_val)| {
+                            // An array-of-struct field is flattened to `name_0 := …, name_1 := …`
+                            // (matching the flattened struct definition in
+                            // `Shape::collect_lean_struct_defs` and body paths in `map_input`);
+                            // array-of-scalar stays a single `name := #v[…]`.
+                            match field_val.as_ref() {
+                                Shape::Array(elems)
+                                    if matches!(
+                                        elems.first().map(|e| e.as_ref()),
+                                        Some(Shape::Struct(..))
+                                    ) =>
+                                {
+                                    elems
+                                        .iter()
+                                        .enumerate()
+                                        .map(|(i, e)| {
+                                            format!("{field_name}_{i} := {}", e.to_lean_constructor(mapping))
+                                        })
+                                        .collect::<Vec<_>>()
+                                }
+                                _ => vec![format!(
+                                    "{field_name} := {}",
+                                    field_val.to_lean_constructor(mapping)
+                                )],
+                            }
+                        })
                         .join(", ")
                 )
             }
@@ -104,8 +126,13 @@ impl<F: Field, EF: ExtensionField<F>> Shape<ExprRef<F>, ExprExtRef<EF>> {
                 }
             }
             Shape::Array(vals) => {
+                // Array-of-struct fields are flattened to `prefix_i` separate struct fields (see
+                // `Shape::collect_lean_struct_defs`); array-of-scalar keeps `prefix[i]` indexing.
+                let flatten = matches!(vals.first().map(|v| v.as_ref()), Some(Shape::Struct(..)));
                 for (i, val) in vals.iter().enumerate() {
-                    val.map_input(format!("{prefix}[{i}]"), input_mapping);
+                    let path =
+                        if flatten { format!("{prefix}_{i}") } else { format!("{prefix}[{i}]") };
+                    val.map_input(path, input_mapping);
                 }
             }
             Shape::Struct(_, fields) => {

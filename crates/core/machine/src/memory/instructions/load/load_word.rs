@@ -1,6 +1,6 @@
 use slop_air::{Air, AirBuilder, BaseAir};
 use slop_matrix::Matrix;
-use sp1_derive::AlignedBorrow;
+use sp1_derive::{AlignedBorrow, IntoShape};
 use sp1_primitives::consts::{u64_to_u16_limbs, PROT_READ};
 use std::{
     borrow::{Borrow, BorrowMut},
@@ -41,7 +41,7 @@ pub const NUM_LOAD_WORD_COLS_SUPERVISOR: usize = size_of::<LoadWordColumns<u8, S
 pub const NUM_LOAD_WORD_COLS_USER: usize = size_of::<LoadWordColumns<u8, UserMode>>();
 
 /// The column layout for memory load word instructions.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection, IntoShape)]
 #[repr(C)]
 pub struct LoadWordColumns<T, M: TrustMode> {
     /// The current shard, timestamp, program counter of the CPU.
