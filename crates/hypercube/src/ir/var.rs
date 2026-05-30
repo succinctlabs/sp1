@@ -18,7 +18,7 @@ pub enum IrVar<F> {
     /// pre-computed so that any downstream IR optimization keeps seeing a
     /// concrete field element, but Lean emission renders it as the symbolic
     /// `(base : Fin KB)⁻¹` form (so the auto-generated Lean output is not
-    /// pinned to KoalaBear's specific inverse literals).
+    /// pinned to `KoalaBear`'s specific inverse literals).
     InverseConstant {
         /// The pre-image — Lean emission writes `(base : Fin KB)⁻¹`.
         base: u32,
