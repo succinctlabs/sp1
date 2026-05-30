@@ -1,13 +1,120 @@
+use std::{
+    borrow::Borrow,
+    collections::{HashMap, HashSet},
+};
+
 use clap::{Parser, ValueEnum};
 use slop_air::Air;
-use sp1_core_machine::riscv::RiscvAir;
+use slop_algebra::extension::BinomialExtensionField;
+use sp1_core_machine::{alu::add_sub::add::AddCols, riscv::RiscvAir, SupervisorMode};
 use sp1_hypercube::{
     air::MachineAir,
-    ir::{ConstraintCompiler, Shape},
+    ir::{ConstraintCompiler, ExprExtRef, ExprRef, IrVar, Shape},
 };
 use sp1_primitives::SP1Field;
 
 type F = SP1Field;
+/// Extension field matching the constraint compiler's internal `ExprExt` (see `ir::expr_impl`).
+/// Only used to name the `Shape` type when composing a chip's column struct below; chip column
+/// leaves are all base-field, so the extension parameter is never inspected.
+type EF = BinomialExtensionField<SP1Field, 4>;
+
+/// Compose a chip's column-struct [`Shape`] (with `Main(i)` leaves) from its concrete column
+/// type, reusing the `Into<Shape>` impls the nested operation column types already derive
+/// (`CPUState`, `RTypeReader`, `AddOperation`), plus `From<ExprRef>` for the scalar `is_real`.
+///
+/// We compose here in the compiler crate rather than `#[derive(IntoShape)]` on `AddCols<T, M>`
+/// because that derive needs a single generic parameter and cannot reason about the
+/// associated-type field `adapter_cols : M::AdapterCols<T>`. For `SupervisorMode` those adapter
+/// columns are `EmptyCols` (zero columns), so the field is simply omitted.
+fn add_cols_shape(cols: &AddCols<ExprRef<F>, SupervisorMode>) -> Shape<ExprRef<F>, ExprExtRef<EF>> {
+    Shape::Struct(
+        "AddCols".to_string(),
+        vec![
+            ("state".to_string(), Box::new(cols.state.into())),
+            ("adapter".to_string(), Box::new(cols.adapter.into())),
+            ("add_operation".to_string(), Box::new(cols.add_operation.into())),
+            ("is_real".to_string(), Box::new(cols.is_real.into())),
+        ],
+    )
+}
+
+/// Build the `Main(idx) → field path` map for a chip's column shape (e.g. `Main(28)` →
+/// `cols.add_operation.value[0]`). Local analogue of `Shape::map_input`, matching `IrVar::Main`
+/// rather than `InputArg`; lives here so no code outside the constraint-extractor package
+/// changes.
+fn map_main(shape: &Shape<ExprRef<F>, ExprExtRef<EF>>, prefix: &str, out: &mut HashMap<usize, String>) {
+    match shape {
+        Shape::Expr(ExprRef::IrVar(IrVar::Main(idx))) => {
+            out.insert(*idx, prefix.to_string());
+        }
+        Shape::Word(vals) => {
+            for (i, val) in vals.iter().enumerate() {
+                if let ExprRef::IrVar(IrVar::Main(idx)) = val {
+                    out.insert(*idx, format!("{prefix}[{i}]"));
+                }
+            }
+        }
+        Shape::Array(vals) => {
+            for (i, val) in vals.iter().enumerate() {
+                map_main(val, &format!("{prefix}[{i}]"), out);
+            }
+        }
+        Shape::Struct(_, fields) => {
+            for (name, field) in fields {
+                map_main(field, &format!("{prefix}.{name}"), out);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Local analogue of `Shape::collect_lean_struct_defs` that skips struct names provided
+/// externally (a chip reusing an already-extracted operation's struct via `import`): such a
+/// struct is neither emitted nor recursed into. `to_lean_type` still renders the field type as
+/// `(<name> F)`, so the containing struct references it by name.
+fn collect_struct_defs_skip(
+    shape: &Shape<ExprRef<F>, ExprExtRef<EF>>,
+    out: &mut Vec<(String, String)>,
+    skip: &HashSet<String>,
+) {
+    match shape {
+        Shape::Struct(name, fields) => {
+            if skip.contains(name) {
+                return;
+            }
+            for (_, field) in fields {
+                collect_struct_defs_skip(field, out, skip);
+            }
+            if out.iter().any(|(n, _)| n == name) {
+                return;
+            }
+            let mut def = format!("structure {name} (F : Type) where\n");
+            for (field_name, field) in fields {
+                def.push_str(&format!("  {field_name} : {}\n", field.to_lean_type()));
+            }
+            def.push_str("deriving ProvableStruct\n");
+            out.push((name.clone(), def));
+        }
+        Shape::Array(elems) => {
+            for e in elems {
+                collect_struct_defs_skip(e, out, skip);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Substitute every `Main[idx]` token in an emitted Lean line with its mapped field path.
+/// The trailing `]` makes each `Main[i]` token unambiguous (`Main[3]` is not a substring of
+/// `Main[32]`), so order-independent string replacement is safe.
+fn apply_main_mapping(line: &str, mapping: &HashMap<usize, String>) -> String {
+    let mut out = line.to_string();
+    for (idx, path) in mapping {
+        out = out.replace(&format!("Main[{idx}]"), path);
+    }
+    out
+}
 
 #[derive(ValueEnum, Clone, Debug)]
 enum OutputFormat {
@@ -30,6 +137,13 @@ struct Args {
 
     #[arg(long, value_enum, default_value = "text", help = "Output format")]
     pub format: OutputFormat,
+
+    #[arg(
+        long = "reuse-struct",
+        help = "Struct name(s) the chip reuses from an already-extracted module (provided by \
+                `import` rather than re-emitted). Repeatable. Only affects chip Lean extraction."
+    )]
+    pub reuse_struct: Vec<String>,
 }
 
 #[allow(clippy::print_stdout)]
@@ -45,7 +159,7 @@ fn main() {
         }
         (Some(chip_name), None) => {
             // Only chip specified: compile entire chip
-            compile_chip(chip_name, &args.format);
+            compile_chip(chip_name, &args.format, &args.reuse_struct);
         }
         (None, Some(_)) => {
             eprintln!("Error: When using --operation, you must also specify --chip");
@@ -61,7 +175,7 @@ fn main() {
 
 #[allow(clippy::print_stdout)]
 #[allow(clippy::uninlined_format_args)]
-fn compile_chip(chip_name: &str, output_format: &OutputFormat) {
+fn compile_chip(chip_name: &str, output_format: &OutputFormat, reuse_struct: &[String]) {
     let machine = RiscvAir::<F>::machine();
     let chip =
         machine.chips().iter().find(|c| c.name() == chip_name).cloned().unwrap_or_else(|| {
@@ -91,28 +205,72 @@ fn compile_chip(chip_name: &str, output_format: &OutputFormat) {
             }
         }
         OutputFormat::Lean => {
-            let input_mapping = Default::default();
-            let (steps, constraints, num_calls) = builder.ast().to_lean_components(&input_mapping);
+            // Compose the chip's column-struct shape with `Main(i)` leaves. Building the
+            // `(0..width)` `Main` exprs and borrowing them as the typed column struct (via the
+            // struct's `AlignedBorrow` impl) flattens to exactly column order, the same
+            // invariant `Air::eval` relies on. Dispatch per chip since the column type is only
+            // known statically.
+            let width = builder.num_cols();
+            let main_vars: Vec<ExprRef<F>> = (0..width).map(ExprRef::main).collect();
+            let cols_shape: Shape<ExprRef<F>, ExprExtRef<EF>> = match chip_name {
+                "Add" => {
+                    let cols: &AddCols<ExprRef<F>, SupervisorMode> = main_vars.as_slice().borrow();
+                    add_cols_shape(cols)
+                }
+                _ => {
+                    eprintln!(
+                        "Error: Lean chip-struct extraction not implemented for chip '{}'",
+                        chip_name
+                    );
+                    std::process::exit(1);
+                }
+            };
+
+            let struct_name = match &cols_shape {
+                Shape::Struct(name, _) => name.clone(),
+                _ => unreachable!("a chip column shape is always a struct"),
+            };
+
+            // Map each `Main(idx)` column to its field path within `cols`, then rewrite the
+            // emitted (flat `Main[idx]`) constraints into named field accesses.
+            let mut mapping = HashMap::new();
+            map_main(&cols_shape, "cols", &mut mapping);
+
+            let (steps, constraints, num_calls) =
+                builder.ast().to_lean_components(&Default::default());
 
             println!();
             println!("-- Generated Lean code for chip {}Chip", chip_name);
+            println!();
 
-            println!(
-                "@[irreducible] def constraints {{F : Type}} [Field F] [CoeHead F ℕ] (Main : Vector F {}) : SP1ConstraintList F :=",
-                builder.num_cols()
-            );
+            // Emit the chip's column struct(s), skipping reused (already-extracted) operation
+            // structs — those are provided by `import` in the generated module's header.
+            let skip: HashSet<String> = reuse_struct.iter().cloned().collect();
+            let mut struct_defs: Vec<(String, String)> = Vec::new();
+            collect_struct_defs_skip(&cols_shape, &mut struct_defs, &skip);
+            for (_, def) in &struct_defs {
+                println!("{def}");
+            }
+
+            println!("namespace {struct_name}");
+            println!();
+            println!("@[irreducible] def constraints {{F : Type}} [Field F] [CoeHead F ℕ]");
+            println!("  (cols : {})", cols_shape.to_lean_type());
+            println!("  : SP1ConstraintList F :=");
 
             for step in steps {
-                println!("  {}", step)
+                println!("  {}", apply_main_mapping(&step, &mapping));
             }
 
             let calls_constraints: String = (0..num_calls).map(|i| format!("CS{i} ++ ")).collect();
             println!("  {calls_constraints}[");
             for constraint in constraints {
-                println!("    {},", constraint);
+                println!("    {},", apply_main_mapping(&constraint, &mapping));
             }
             println!("  ]");
 
+            println!();
+            println!("end {struct_name}");
             println!();
         }
         OutputFormat::Json => {
