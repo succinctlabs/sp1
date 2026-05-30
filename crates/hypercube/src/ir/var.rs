@@ -59,7 +59,7 @@ impl<F: Field> IrVar<F> {
                 }
             }
             IrVar::Constant(c) => format!("{c}"),
-            IrVar::InverseConstant { base, .. } => format!("(({base} : Fin KB)⁻¹)"),
+            IrVar::InverseConstant { base, .. } => format!("(({base} : F)⁻¹)"),
             IrVar::Public(i) => format!("Public[{i}]"),
             IrVar::Preprocessed(i) => format!("Preprocessed[{i}]"),
             IrVar::OutputArg(i) => format!("Output[{i}]"),

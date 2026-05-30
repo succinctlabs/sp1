@@ -98,7 +98,7 @@ fn compile_chip(chip_name: &str, output_format: &OutputFormat) {
             println!("-- Generated Lean code for chip {}Chip", chip_name);
 
             println!(
-                "@[irreducible] def constraints (Main : Vector (Fin KB) {}) : SP1ConstraintList (Fin KB) :=",
+                "@[irreducible] def constraints {{F : Type}} [Field F] [CoeHead F ℕ] (Main : Vector F {}) : SP1ConstraintList F :=",
                 builder.num_cols()
             );
 
@@ -169,7 +169,22 @@ fn compile_operation(chip_name: &str, operation_name: &str, output_format: &Outp
 
             println!();
 
-            println!("@[irreducible] def constraints");
+            // Emit the operation's column struct(s) (nested structs first) so the generated
+            // module is self-contained: struct definition(s) followed by `constraints`.
+            let mut struct_defs: Vec<(String, String)> = Vec::new();
+            for (_, _, param) in &operation.decl.input {
+                param.collect_lean_struct_defs(&mut struct_defs);
+            }
+            for (_, def) in &struct_defs {
+                println!("{def}");
+            }
+
+            println!("namespace {operation_name}");
+            println!();
+
+            // Field-generic, clean-native header. `[CoeHead F ℕ]` backs the `ByteOpcode.ofNat`
+            // coercion for dynamic opcodes (e.g. Bitwise); harmless for constant-opcode ops.
+            println!("@[irreducible] def constraints {{F : Type}} [Field F] [CoeHead F ℕ]");
             for (param_name, _, param) in &operation.decl.input {
                 println!(
                     "  ({} : {})",
@@ -206,6 +221,8 @@ fn compile_operation(chip_name: &str, operation_name: &str, output_format: &Outp
                 }
             }
 
+            println!();
+            println!("end {operation_name}");
             println!();
         }
         OutputFormat::Json => {

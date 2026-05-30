@@ -31,13 +31,42 @@ impl<Expr, ExprExt> Shape<Expr, ExprExt> {
     pub fn to_lean_type(&self) -> String {
         match self {
             Shape::Unit => "Unit".to_string(),
-            Shape::Expr(_) => "(Fin KB)".to_string(),
+            Shape::Expr(_) => "F".to_string(),
             Shape::ExprExt(_) => todo!("extension field not implemented yet"),
-            Shape::Word(_) => "(Word (Fin KB))".to_string(),
+            Shape::Word(_) => "(Word F)".to_string(),
             Shape::Array(elems) => {
                 format!("(Vector {} {})", elems.first().unwrap().to_lean_type(), elems.len())
             }
-            Shape::Struct(name, _) => name.clone(),
+            // Structs are field-generic in the clean-native output (`structure Foo (F : Type)`).
+            Shape::Struct(name, _) => format!("({name} F)"),
+        }
+    }
+
+    /// Collect the Lean `structure` definitions for this shape and any nested struct shapes,
+    /// emitting nested structs *before* the structs that contain them and de-duplicating by
+    /// name. Each pushed entry is `(name, full_structure_block)`. Used so the generated
+    /// operation module is self-contained (struct definition(s) + constraints).
+    pub fn collect_lean_struct_defs(&self, out: &mut Vec<(String, String)>) {
+        match self {
+            Shape::Struct(name, fields) => {
+                for (_, field) in fields {
+                    field.collect_lean_struct_defs(out);
+                }
+                if out.iter().any(|(n, _)| n == name) {
+                    return;
+                }
+                let mut def = format!("structure {name} (F : Type) where\n");
+                for (field_name, field) in fields {
+                    def.push_str(&format!("  {field_name} : {}\n", field.to_lean_type()));
+                }
+                out.push((name.clone(), def));
+            }
+            Shape::Array(elems) => {
+                for e in elems {
+                    e.collect_lean_struct_defs(out);
+                }
+            }
+            _ => {}
         }
     }
 }

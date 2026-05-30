@@ -196,7 +196,7 @@ impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
                 }
                 OpExpr::Neg(a, b) => {
                     steps.push(format!(
-                        "let {} : Fin KB := -{}",
+                        "let {} : F := -{}",
                         a.expr_to_lean_string(),
                         b.to_lean_string(mapping),
                     ));
@@ -207,13 +207,13 @@ impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
                     let b_str = b.to_lean_string(mapping);
                     match op {
                         BinOp::Add => {
-                            steps.push(format!("let {result_str} : Fin KB := {a_str} + {b_str}"));
+                            steps.push(format!("let {result_str} : F := {a_str} + {b_str}"));
                         }
                         BinOp::Sub => {
-                            steps.push(format!("let {result_str} : Fin KB := {a_str} - {b_str}"));
+                            steps.push(format!("let {result_str} : F := {a_str} - {b_str}"));
                         }
                         BinOp::Mul => {
-                            steps.push(format!("let {result_str} : Fin KB := {a_str} * {b_str}"));
+                            steps.push(format!("let {result_str} : F := {a_str} * {b_str}"));
                         }
                     }
                 }
@@ -248,7 +248,7 @@ impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
                     match decl.output {
                         Shape::Unit => {
                             step.push_str(&format!(
-                                "let CS{calls} : SP1ConstraintList (Fin KB) := "
+                                "let CS{calls} : SP1ConstraintList F := "
                             ));
                         }
                         _ => {
