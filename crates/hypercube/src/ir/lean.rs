@@ -82,12 +82,7 @@ impl<F: Field, EF: ExtensionField<F>> Shape<ExprRef<F>, ExprExtRef<EF>> {
                 for (i, val) in vals.iter().enumerate() {
                     match val {
                         ExprRef::IrVar(IrVar::InputArg(idx)) => {
-                            // In Mathlib, c[i] means some permutation stuff...
-                            if prefix == "c" {
-                                input_mapping.insert(*idx, format!("cc[{i}]"));
-                            } else {
-                                input_mapping.insert(*idx, format!("{prefix}[{i}]"));
-                            }
+                            input_mapping.insert(*idx, format!("{prefix}[{i}]"));
                         }
                         _ => unimplemented!("map_input must be backed by Input(x)"),
                     }
