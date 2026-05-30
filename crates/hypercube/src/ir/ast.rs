@@ -244,31 +244,48 @@ impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
                     _ => {}
                 },
                 OpExpr::Call(decl) => {
-                    let mut step = String::new();
+                    // Build the call expression `<name>.constraints <inputs…>`.
+                    let mut call = format!("{}.constraints", decl.name);
+                    for input in &decl.input {
+                        call.push(' ');
+                        call.push_str(&input.2.to_lean_constructor(mapping));
+                    }
+
                     match decl.output {
                         Shape::Unit => {
-                            step.push_str(&format!(
-                                "let CS{calls} : SP1ConstraintList F := "
+                            steps.push(format!(
+                                "let CS{calls} : SP1ConstraintList F := {call}"
+                            ));
+                        }
+                        // A constraints-returning sub-operation yields `(output, SP1ConstraintList)`.
+                        // Bind the pair to a temporary, then project the output value by index
+                        // (`tmp.1[k]`) and the constraint list (`tmp.2`). A structural
+                        // `let ⟨⟨[..]⟩, _⟩` destructure of the `Vector` output does not elaborate,
+                        // so we avoid it.
+                        Shape::Expr(ref expr) => {
+                            let tmp = format!("__call{calls}");
+                            steps.push(format!("let {tmp} := {call}"));
+                            steps.push(format!(
+                                "let {} := {tmp}.1",
+                                expr.to_lean_string(&HashMap::default())
+                            ));
+                            steps.push(format!(
+                                "let CS{calls} : SP1ConstraintList F := {tmp}.2"
                             ));
                         }
                         _ => {
-                            step.push_str(&format!(
-                                "let ⟨{}, CS{}⟩ := ",
-                                decl.output.to_lean_destructor(),
-                                calls,
+                            let tmp = format!("__call{calls}");
+                            steps.push(format!("let {tmp} := {call}"));
+                            for (k, leaf) in decl.output.output_leaves().iter().enumerate() {
+                                steps.push(format!("let {leaf} := {tmp}.1[{k}]"));
+                            }
+                            steps.push(format!(
+                                "let CS{calls} : SP1ConstraintList F := {tmp}.2"
                             ));
                         }
                     }
 
-                    step.push_str(&format!("{}.constraints", decl.name));
-
-                    for input in &decl.input {
-                        step.push(' ');
-                        step.push_str(&input.2.to_lean_constructor(mapping));
-                    }
-
                     calls += 1;
-                    steps.push(step);
                 }
                 OpExpr::Assign(ExprRef::IrVar(IrVar::OutputArg(_)), _) => {
                     // Output(x) are specifically ignored

@@ -6,7 +6,11 @@ use std::{
 use clap::{Parser, ValueEnum};
 use slop_air::Air;
 use slop_algebra::extension::BinomialExtensionField;
-use sp1_core_machine::{alu::add_sub::add::AddCols, riscv::RiscvAir, SupervisorMode};
+use sp1_core_machine::{
+    alu::{add_sub::add::AddCols, add_sub::sub::SubCols, bitwise::BitwiseCols},
+    riscv::RiscvAir,
+    SupervisorMode,
+};
 use sp1_hypercube::{
     air::MachineAir,
     ir::{ConstraintCompiler, ExprExtRef, ExprRef, IrVar, Shape},
@@ -35,6 +39,39 @@ fn add_cols_shape(cols: &AddCols<ExprRef<F>, SupervisorMode>) -> Shape<ExprRef<F
             ("adapter".to_string(), Box::new(cols.adapter.into())),
             ("add_operation".to_string(), Box::new(cols.add_operation.into())),
             ("is_real".to_string(), Box::new(cols.is_real.into())),
+        ],
+    )
+}
+
+/// Compose `SubCols`'s column-struct [`Shape`]. Structurally identical to [`add_cols_shape`]
+/// (same `state`/`adapter`/`is_real`), with the operation field renamed `sub_operation`.
+fn sub_cols_shape(cols: &SubCols<ExprRef<F>, SupervisorMode>) -> Shape<ExprRef<F>, ExprExtRef<EF>> {
+    Shape::Struct(
+        "SubCols".to_string(),
+        vec![
+            ("state".to_string(), Box::new(cols.state.into())),
+            ("adapter".to_string(), Box::new(cols.adapter.into())),
+            ("sub_operation".to_string(), Box::new(cols.sub_operation.into())),
+            ("is_real".to_string(), Box::new(cols.is_real.into())),
+        ],
+    )
+}
+
+/// Compose `BitwiseCols`'s column-struct [`Shape`]. Like [`add_cols_shape`] but with the
+/// `ALUTypeReader` adapter, the (nested) `BitwiseU16Operation` operation columns, and three
+/// boolean opcode selectors (`is_xor`/`is_or`/`is_and`) in place of a single `is_real`.
+fn bitwise_cols_shape(
+    cols: &BitwiseCols<ExprRef<F>, SupervisorMode>,
+) -> Shape<ExprRef<F>, ExprExtRef<EF>> {
+    Shape::Struct(
+        "BitwiseCols".to_string(),
+        vec![
+            ("state".to_string(), Box::new(cols.state.into())),
+            ("adapter".to_string(), Box::new(cols.adapter.into())),
+            ("bitwise_operation".to_string(), Box::new(cols.bitwise_operation.into())),
+            ("is_xor".to_string(), Box::new(cols.is_xor.into())),
+            ("is_or".to_string(), Box::new(cols.is_or.into())),
+            ("is_and".to_string(), Box::new(cols.is_and.into())),
         ],
     )
 }
@@ -105,6 +142,21 @@ fn collect_struct_defs_skip(
     }
 }
 
+/// Rename a `c`-parameter leaf path to `cc` (matching the signature's `c → cc` rename). Only the
+/// exact `c` token — alone, or followed by `[` (array index) or `.` (field) — is renamed, so
+/// `cols.…` is left untouched.
+fn rename_c_to_cc(path: String) -> String {
+    if path == "c" {
+        "cc".to_string()
+    } else if let Some(rest) = path.strip_prefix("c[") {
+        format!("cc[{rest}")
+    } else if let Some(rest) = path.strip_prefix("c.") {
+        format!("cc.{rest}")
+    } else {
+        path
+    }
+}
+
 /// Substitute every `Main[idx]` token in an emitted Lean line with its mapped field path.
 /// The trailing `]` makes each `Main[i]` token unambiguous (`Main[3]` is not a substring of
 /// `Main[32]`), so order-independent string replacement is safe.
@@ -140,8 +192,9 @@ struct Args {
 
     #[arg(
         long = "reuse-struct",
-        help = "Struct name(s) the chip reuses from an already-extracted module (provided by \
-                `import` rather than re-emitted). Repeatable. Only affects chip Lean extraction."
+        help = "Struct name(s) reused from an already-extracted module (provided by `import` \
+                rather than re-emitted). Repeatable. Affects both chip and operation Lean \
+                extraction (a skipped struct is neither emitted nor recursed into)."
     )]
     pub reuse_struct: Vec<String>,
 }
@@ -155,7 +208,7 @@ fn main() {
     match (&args.chip, &args.operation) {
         (Some(chip_name), Some(operation_name)) => {
             // Both specified: compile specific operation from chip
-            compile_operation(chip_name, operation_name, &args.format);
+            compile_operation(chip_name, operation_name, &args.format, &args.reuse_struct);
         }
         (Some(chip_name), None) => {
             // Only chip specified: compile entire chip
@@ -216,6 +269,15 @@ fn compile_chip(chip_name: &str, output_format: &OutputFormat, reuse_struct: &[S
                 "Add" => {
                     let cols: &AddCols<ExprRef<F>, SupervisorMode> = main_vars.as_slice().borrow();
                     add_cols_shape(cols)
+                }
+                "Sub" => {
+                    let cols: &SubCols<ExprRef<F>, SupervisorMode> = main_vars.as_slice().borrow();
+                    sub_cols_shape(cols)
+                }
+                "Bitwise" => {
+                    let cols: &BitwiseCols<ExprRef<F>, SupervisorMode> =
+                        main_vars.as_slice().borrow();
+                    bitwise_cols_shape(cols)
                 }
                 _ => {
                     eprintln!(
@@ -281,7 +343,12 @@ fn compile_chip(chip_name: &str, output_format: &OutputFormat, reuse_struct: &[S
 
 #[allow(clippy::print_stdout)]
 #[allow(clippy::uninlined_format_args)]
-fn compile_operation(chip_name: &str, operation_name: &str, output_format: &OutputFormat) {
+fn compile_operation(
+    chip_name: &str,
+    operation_name: &str,
+    output_format: &OutputFormat,
+    reuse_struct: &[String],
+) {
     // Step 1: Compile the chip normally to register all operations
     let machine = RiscvAir::<F>::machine();
     let air = machine
@@ -322,19 +389,33 @@ fn compile_operation(chip_name: &str, operation_name: &str, output_format: &Outp
             println!("{}", operation);
         }
         OutputFormat::Lean => {
-            let input_mapping = operation.decl.input_mapping();
+            // The `c` parameter is emitted as `cc` in the signature (Mathlib pre-defines `c[i]`);
+            // rename the matching leaves in the body's input mapping so they agree. Only the exact
+            // `c` token (followed by `[`, `.`, or end-of-path) is renamed — never `cols`.
+            let input_mapping: HashMap<usize, String> = operation
+                .decl
+                .input_mapping()
+                .into_iter()
+                .map(|(k, v)| (k, rename_c_to_cc(v)))
+                .collect();
             let (steps, constraints, num_calls) = operation.body.to_lean_components(&input_mapping);
 
             println!();
 
             // Emit the operation's column struct(s) (nested structs first) so the generated
-            // module is self-contained: struct definition(s) followed by `constraints`.
+            // module is self-contained: struct definition(s) followed by `constraints`. Structs
+            // named via `--reuse-struct` are provided by `import` (an operation composing a
+            // sub-operation reuses the sub-operation's already-extracted column struct), so they
+            // are skipped from emission.
+            let skip: HashSet<String> = reuse_struct.iter().cloned().collect();
             let mut struct_defs: Vec<(String, String)> = Vec::new();
             for (_, _, param) in &operation.decl.input {
                 param.collect_lean_struct_defs(&mut struct_defs);
             }
-            for (_, def) in &struct_defs {
-                println!("{def}");
+            for (name, def) in &struct_defs {
+                if !skip.contains(name) {
+                    println!("{def}");
+                }
             }
 
             println!("namespace {operation_name}");

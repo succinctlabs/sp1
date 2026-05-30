@@ -55,6 +55,21 @@ impl<F: Field, EF: ExtensionField<F>> Shape<ExprRef<F>, ExprExtRef<EF>> {
         }
     }
 
+    /// The output value's leaf variable names, in flattened column order. Used to bind a call's
+    /// returned value by index (`tmp.1[k]`) rather than by a structural `⟨⟨[..]⟩, _⟩` destructure
+    /// of the `Vector`, which does not elaborate. Mirrors [`Self::to_lean_destructor`]'s flat
+    /// treatment of `Word`/`Array` leaves.
+    pub fn output_leaves(&self) -> Vec<String> {
+        match self {
+            Shape::Expr(expr) => vec![expr.to_lean_string(&HashMap::default())],
+            Shape::Word(word) => {
+                word.iter().map(|x| x.to_lean_string(&HashMap::default())).collect()
+            }
+            Shape::Array(vals) => vals.iter().flat_map(|x| x.output_leaves()).collect(),
+            _ => unimplemented!("output_leaves only supports Expr/Word/Array outputs"),
+        }
+    }
+
     /// Calculates the full variable name that corresponds to `InputArg(x)`.
     ///
     /// For example,
