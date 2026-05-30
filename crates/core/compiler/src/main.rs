@@ -1,6 +1,6 @@
 use std::{
     borrow::Borrow,
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
 };
 
 use clap::{Parser, ValueEnum};
@@ -9,7 +9,7 @@ use slop_algebra::extension::BinomialExtensionField;
 use sp1_core_machine::{alu::add_sub::add::AddCols, riscv::RiscvAir, SupervisorMode};
 use sp1_hypercube::{
     air::MachineAir,
-    ir::{ConstraintCompiler, ExprExtRef, ExprRef, IrVar, Shape},
+    ir::{ConstraintCompiler, ExprExtRef, ExprRef, Func, IrVar, Shape},
 };
 use sp1_primitives::SP1Field;
 
@@ -43,7 +43,11 @@ fn add_cols_shape(cols: &AddCols<ExprRef<F>, SupervisorMode>) -> Shape<ExprRef<F
 /// `cols.add_operation.value[0]`). Local analogue of `Shape::map_input`, matching `IrVar::Main`
 /// rather than `InputArg`; lives here so no code outside the constraint-extractor package
 /// changes.
-fn map_main(shape: &Shape<ExprRef<F>, ExprExtRef<EF>>, prefix: &str, out: &mut HashMap<usize, String>) {
+fn map_main(
+    shape: &Shape<ExprRef<F>, ExprExtRef<EF>>,
+    prefix: &str,
+    out: &mut HashMap<usize, String>,
+) {
     match shape {
         Shape::Expr(ExprRef::IrVar(IrVar::Main(idx))) => {
             out.insert(*idx, prefix.to_string());
@@ -154,17 +158,17 @@ fn main() {
     // Validate arguments and dispatch
     match (&args.chip, &args.operation) {
         (Some(chip_name), Some(operation_name)) => {
-            // Both specified: compile specific operation from chip
+            // Both specified: compile a specific operation as registered by the given chip.
             compile_operation(chip_name, operation_name, &args.format);
         }
         (Some(chip_name), None) => {
             // Only chip specified: compile entire chip
             compile_chip(chip_name, &args.format, &args.reuse_struct);
         }
-        (None, Some(_)) => {
-            eprintln!("Error: When using --operation, you must also specify --chip");
-            eprintln!("Example: --chip Add --operation AddOperation");
-            std::process::exit(1);
+        (None, Some(operation_name)) => {
+            // Only operation specified: extract it without naming a chip, by unioning the
+            // operation modules registered across every `RiscvAir` chip.
+            compile_operation_standalone(operation_name, &args.format);
         }
         (None, None) => {
             eprintln!("Error: Must specify --chip (and optionally --operation)");
@@ -317,6 +321,62 @@ fn compile_operation(chip_name: &str, operation_name: &str, output_format: &Outp
     });
 
     // Step 4: Generate output for just this operation
+    emit_operation(operation, operation_name, output_format);
+}
+
+/// Extract a single operation by name **without** naming a chip. Builds the union of operation
+/// modules registered across every `RiscvAir` chip (operation module registration is chip
+/// independent — see [`all_operation_modules`]), then emits the requested one. This lets callers
+/// feed a flat list of operation names rather than `(chip, operation)` pairs.
+#[allow(clippy::print_stdout)]
+fn compile_operation_standalone(operation_name: &str, output_format: &OutputFormat) {
+    let modules = all_operation_modules();
+    let operation = modules.get(operation_name).unwrap_or_else(|| {
+        eprintln!("Error: Operation '{operation_name}' not found");
+        eprintln!("Available operations:");
+        for name in modules.keys() {
+            eprintln!("  {name}");
+        }
+        std::process::exit(1);
+    });
+
+    emit_operation(operation, operation_name, output_format);
+}
+
+/// Collect every operation module registered across all `RiscvAir` chips, keyed by operation name.
+///
+/// An operation's module is synthesized from its input *types* (not a chip's concrete values), so
+/// the module a chip registers for a given operation is identical regardless of which chip drives
+/// it. We therefore union the modules from each chip's evaluation. `or_insert` keeps the result
+/// deterministic: when two operations register under the same name (e.g. `RTypeReader` and
+/// `RTypeReaderImmutable` both register `"RTypeReader"`), the first chip in `machine.chips()` order
+/// wins.
+fn all_operation_modules() -> BTreeMap<String, Func<ExprRef<F>, ExprExtRef<EF>>> {
+    let machine = RiscvAir::<F>::machine();
+    let num_public_values = machine.num_pv_elts();
+
+    let mut union: BTreeMap<String, Func<ExprRef<F>, ExprExtRef<EF>>> = BTreeMap::new();
+    for chip in machine.chips() {
+        let air = chip.air.clone();
+        let mut builder = ConstraintCompiler::new(air.as_ref(), num_public_values);
+        air.eval(&mut builder);
+        for (name, func) in builder.modules() {
+            union.entry(name.clone()).or_insert_with(|| func.clone());
+        }
+    }
+    union
+}
+
+/// Emit a single operation's Lean (or text/json) representation: a self-contained column struct
+/// followed by its `constraints` def. Shared by the chip-scoped (`--chip C --operation Op`) and
+/// standalone (`--operation Op`) extraction paths.
+#[allow(clippy::print_stdout)]
+#[allow(clippy::uninlined_format_args)]
+fn emit_operation(
+    operation: &Func<ExprRef<F>, ExprExtRef<EF>>,
+    operation_name: &str,
+    output_format: &OutputFormat,
+) {
     match output_format {
         OutputFormat::Text => {
             println!("{}", operation);
