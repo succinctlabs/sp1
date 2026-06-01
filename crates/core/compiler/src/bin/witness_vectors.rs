@@ -25,9 +25,12 @@
 use clap::Parser;
 use serde_json::{json, Value};
 
-use slop_algebra::PrimeField32;
+use slop_algebra::{AbstractField, PrimeField32};
 use sp1_core_executor::events::ByteLookupEvent;
-use sp1_core_machine::operations::{AddOperation, LtOperationUnsigned, SubOperation};
+use sp1_core_machine::operations::{
+    AddOperation, AddwOperation, IsZeroOperation, IsZeroWordOperation, LtOperationUnsigned,
+    SubOperation, SubwOperation,
+};
 use sp1_primitives::{consts::u64_to_u16_limbs, SP1Field};
 
 type F = SP1Field;
@@ -148,6 +151,122 @@ fn lt_unsigned_vectors() -> Value {
     json!({ "operation": "LtOperationUnsigned", "vectors": vectors })
 }
 
+/// `IsZeroOperation::populate(a)` runs `from_canonical_u64(a)`, then sets `inverse = a==0 ? 0 : a⁻¹`
+/// and `result = (a==0)`. `inverse` is a genuine field element with no ℕ analogue (like Lt's
+/// `not_eq_inv`), so it is dumped as a KoalaBear canonical residue. Inputs are reduced mod the field
+/// order before `populate` (`from_canonical_u64` expects a canonical value); `a_field` is that residue
+/// — exactly the value the Lean `isZeroWitness` consumes. The battery includes 0, 1, `p-1`, and the
+/// shared `u64_battery` reduced mod p.
+fn is_zero_vectors() -> Value {
+    const P: u64 = 2130706433; // KoalaBear order (SP1's field).
+    let mut inputs: Vec<u64> = vec![0, 1, P - 1];
+    for a in u64_battery() {
+        inputs.push(a % P);
+    }
+    let mut vectors = Vec::new();
+    for a in inputs {
+        let mut cols = IsZeroOperation::<F>::default();
+        cols.populate(a);
+        vectors.push(json!({
+            "inputs": { "a": a },
+            "a_field": F::from_canonical_u64(a).as_canonical_u32(),
+            "inverse": cols.inverse.as_canonical_u32(),
+            "result": cols.result.as_canonical_u32(),
+        }));
+    }
+    json!({ "operation": "IsZeroOperation", "vectors": vectors })
+}
+
+/// `IsZeroWordOperation::populate(a)` runs `IsZeroOperation` on each of the four u16 limbs of
+/// `Word::from(a)` (each writing an `inverse` + `result`), then `first_half = limb0·limb1`,
+/// `second_half = limb2·limb3`, `result = (a == 0)`. Dumps the operand limbs, the four per-limb
+/// inverse/result columns (as arrays, bridging the Rust `[IsZeroOperation; 4]` ↔ the Lean flattened
+/// `is_zero_limb_0..3`), the two half-products, and the final result. The battery adds per-limb-zero
+/// patterns so "some limbs zero, some not" is covered.
+fn is_zero_word_vectors() -> Value {
+    let mut inputs: Vec<u64> = vec![
+        0,
+        0x0000_0000_0000_FFFF, // only limb 0 nonzero
+        0x0000_0000_FFFF_0000, // only limb 1 nonzero
+        0x0000_FFFF_0000_0000, // only limb 2 nonzero
+        0xFFFF_0000_0000_0000, // only limb 3 nonzero
+        0x0000_0000_FFFF_FFFF,
+        0xFFFF_FFFF_0000_0000,
+    ];
+    inputs.extend(u64_battery());
+    let mut vectors = Vec::new();
+    for a in inputs {
+        let mut cols = IsZeroWordOperation::<F>::default();
+        cols.populate(a);
+        let inv: Vec<u32> = cols.is_zero_limb.iter().map(|c| c.inverse.as_canonical_u32()).collect();
+        let lresult: Vec<u32> =
+            cols.is_zero_limb.iter().map(|c| c.result.as_canonical_u32()).collect();
+        vectors.push(json!({
+            "inputs": { "a": a },
+            "a_limbs": u64_to_u16_limbs(a),
+            "inv": inv,
+            "lresult": lresult,
+            "first_half": cols.is_zero_first_half.as_canonical_u32(),
+            "second_half": cols.is_zero_second_half.as_canonical_u32(),
+            "result": cols.result.as_canonical_u32(),
+        }));
+    }
+    json!({ "operation": "IsZeroWordOperation", "vectors": vectors })
+}
+
+/// `AddwOperation::populate(record, a, b)` computes `(a as u32).wrapping_add(b as u32)`, writes the
+/// low two u16 limbs as `value`, range-checks them, and runs `U16MSBOperation::populate_msb` on
+/// `value[1]` to extract the sign bit `msb`. Both columns are genuinely computed (not passthroughs).
+/// Same battery pairing as `word_op_vectors`.
+fn addw_vectors() -> Value {
+    let battery = u64_battery();
+    let n = battery.len();
+    let mut vectors = Vec::new();
+    for (i, &a) in battery.iter().enumerate() {
+        for &b in &[battery[i], battery[(i + 1) % n], battery[(i + 7) % n]] {
+            let mut blu = Vec::<ByteLookupEvent>::new();
+            let mut c = AddwOperation::<F>::default();
+            c.populate(&mut blu, a, b);
+            blu.sort_by_key(|e| (e.opcode as u8, e.a, e.b, e.c));
+            vectors.push(json!({
+                "inputs": { "a": a, "b": b },
+                "a_limbs": u64_to_u16_limbs(a),
+                "b_limbs": u64_to_u16_limbs(b),
+                "value": limbs(&c.value),
+                "msb": c.msb.msb.as_canonical_u32(),
+                "events": blu.iter().map(event_json).collect::<Vec<_>>(),
+            }));
+        }
+    }
+    json!({ "operation": "AddwOperation", "vectors": vectors })
+}
+
+/// `SubwOperation::populate(record, a, b)` computes `(a as i32) - (b as i32)`, writes the low two u16
+/// limbs as `value`, range-checks them, and runs `populate_msb` on `value[1]`. `u64_battery`'s
+/// sign-bit / max edge cases cover the i32 sign boundary. Same shape as `addw_vectors`.
+fn subw_vectors() -> Value {
+    let battery = u64_battery();
+    let n = battery.len();
+    let mut vectors = Vec::new();
+    for (i, &a) in battery.iter().enumerate() {
+        for &b in &[battery[i], battery[(i + 1) % n], battery[(i + 7) % n]] {
+            let mut blu = Vec::<ByteLookupEvent>::new();
+            let mut c = SubwOperation::<F>::default();
+            c.populate(&mut blu, a, b);
+            blu.sort_by_key(|e| (e.opcode as u8, e.a, e.b, e.c));
+            vectors.push(json!({
+                "inputs": { "a": a, "b": b },
+                "a_limbs": u64_to_u16_limbs(a),
+                "b_limbs": u64_to_u16_limbs(b),
+                "value": limbs(&c.value),
+                "msb": c.msb.msb.as_canonical_u32(),
+                "events": blu.iter().map(event_json).collect::<Vec<_>>(),
+            }));
+        }
+    }
+    json!({ "operation": "SubwOperation", "vectors": vectors })
+}
+
 fn main() {
     let args = Args::parse();
     let out = match args.operation.as_str() {
@@ -164,6 +283,10 @@ fn main() {
             (out, limbs(&c.value.0))
         }),
         "LtOperationUnsigned" => lt_unsigned_vectors(),
+        "IsZeroOperation" => is_zero_vectors(),
+        "IsZeroWordOperation" => is_zero_word_vectors(),
+        "AddwOperation" => addw_vectors(),
+        "SubwOperation" => subw_vectors(),
         other => {
             eprintln!("Error: operation '{other}' has no witness-vector dumper yet");
             std::process::exit(1);
