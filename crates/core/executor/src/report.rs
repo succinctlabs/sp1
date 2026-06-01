@@ -5,6 +5,7 @@ use std::{
 
 use enum_map::{EnumArray, EnumMap};
 use hashbrown::HashMap;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     events::{generate_execution_report, MemInstrEvent, PrecompileEvent, SyscallEvent},
@@ -16,7 +17,11 @@ use crate::{
 const GAS_NORMALIZATION_FACTOR: u64 = 191;
 
 /// An execution report.
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
+///
+/// The serde format is stable only within a single SP1 version, since `Opcode`/`SyscallCode`
+/// gain variants across releases. The serialized `gas` field is the raw value; call
+/// [`ExecutionReport::gas`] for the normalized number.
+#[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExecutionReport {
     /// The opcode counts.
     pub opcode_counts: Box<EnumMap<Opcode, u64>>,
@@ -137,5 +142,60 @@ impl Display for ExecutionReport {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn populated_report() -> ExecutionReport {
+        let mut report = ExecutionReport::default();
+        report.opcode_counts[Opcode::ADD] = 7;
+        report.opcode_counts[Opcode::SUB] = 3;
+        report.syscall_counts[SyscallCode::HALT] = 1;
+        report.cycle_tracker.insert("setup".to_string(), 100);
+        report.invocation_tracker.insert("setup".to_string(), 2);
+        report.touched_memory_addresses = 42;
+        report.exit_code = 0;
+        report.gas = Some(1_000);
+        report
+    }
+
+    /// A populated `ExecutionReport` must round-trip through serde's human-readable (JSON) format.
+    /// Derived `PartialEq` compares every field, including the `pub(crate)` `gas`.
+    #[test]
+    fn execution_report_json_round_trip() {
+        let report = populated_report();
+        let json = serde_json::to_string(&report).expect("serialize");
+        let decoded: ExecutionReport = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(report, decoded);
+    }
+
+    /// `enum_map`'s `Serialize`/`Deserialize` takes a separate code path for non-human-readable
+    /// formats (a fixed-length tuple rather than a map), and SP1 uses bincode for persistence, so
+    /// prove the binary path round-trips too.
+    #[test]
+    fn execution_report_bincode_round_trip() {
+        let report = populated_report();
+        let bytes = bincode::serialize(&report).expect("serialize");
+        let decoded: ExecutionReport = bincode::deserialize(&bytes).expect("deserialize");
+        assert_eq!(report, decoded);
+    }
+
+    /// The `gas` field is `Option<u64>`; the `None` branch (e.g. a report whose gas was never
+    /// computed) must also survive the round trip in both formats.
+    #[test]
+    fn execution_report_default_and_none_gas_round_trip() {
+        let report = ExecutionReport::default();
+        assert_eq!(report.gas, None);
+
+        let json: ExecutionReport =
+            serde_json::from_str(&serde_json::to_string(&report).expect("ser")).expect("de");
+        assert_eq!(report, json);
+
+        let bin: ExecutionReport =
+            bincode::deserialize(&bincode::serialize(&report).expect("ser")).expect("de");
+        assert_eq!(report, bin);
     }
 }
