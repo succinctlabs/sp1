@@ -1,7 +1,10 @@
 use core::slice;
+use std::error::Error;
+use std::fmt::Debug;
 
 use itertools::Itertools;
 use slop_algebra::{Algebra, ExtensionField, Field};
+use slop_commit::Message;
 use slop_multilinear::{Mle, Point};
 use thiserror::Error;
 
@@ -9,15 +12,15 @@ use thiserror::Error;
 /// transparent verifier) encounter a non-zero argument. Carries the failing
 /// expression so callers / panic messages can identify what failed.
 #[derive(Debug)]
-pub struct AssertZeroError<E: std::fmt::Debug>(pub E);
+pub struct AssertZeroError<E: Debug>(pub E);
 
-impl<E: std::fmt::Debug> std::fmt::Display for AssertZeroError<E> {
+impl<E: Debug> std::fmt::Display for AssertZeroError<E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "assertion failed: expression did not evaluate to zero (got {:?})", self.0)
     }
 }
 
-impl<E: std::fmt::Debug + 'static> std::error::Error for AssertZeroError<E> {}
+impl<E: Debug + 'static> Error for AssertZeroError<E> {}
 
 pub trait ConstraintCtx {
     type Field: Field;
@@ -36,7 +39,7 @@ pub trait ConstraintCtx {
     /// discharge, so the assertion itself cannot fail at call time. Generic
     /// protocol code typically `.unwrap()`s the result: a no-op on `Infallible`,
     /// a panic with the failing expression on transparent failures.
-    type AssertError: std::error::Error;
+    type AssertError: Error;
 
     fn assert_zero(&mut self, expr: Self::Expr) -> Result<(), Self::AssertError>;
 
@@ -138,22 +141,18 @@ pub trait ReadingCtx: ConstraintCtx {
 
     /// Read a PCS commitment from the transcript, returning an opaque oracle handle.
     ///
-    /// The committed MLE has `num_encoding_variables + log_num_polynomials` total variables.
-    /// It is stored as a tensor with `2^log_num_polynomials` columns, each of which is a
-    /// polynomial over `num_encoding_variables` variables.
+    /// The committed MLE has `num_variables` total variables. It is stored as a tensor
+    /// with `2^log_num_polynomials` columns, each of which is a polynomial over the PCS's
+    /// fixed `num_encoding_variables` variables, where
+    /// `log_num_polynomials = num_variables - num_encoding_variables`.
     ///
     /// # Arguments
-    /// * `num_encoding_variables` — number of variables per stacked polynomial (encoding width).
-    ///   Must match the value passed to [`initialize_zk_prover_and_verifier`](crate::zk::stacked_pcs::initialize_zk_prover_and_verifier)
-    ///   when the PCS was set up.
-    /// * `log_num_polynomials` — log2 of the number of stacked polynomials (tensor height).
+    /// * `num_variables` — total number of variables of the committed MLE. The PCS's
+    ///   `num_encoding_variables` (fixed at [`initialize_zk_prover_and_verifier`](crate::zk::stacked_pcs::initialize_zk_prover_and_verifier))
+    ///   is subtracted from this to recover the number of stacked polynomials.
     ///
     /// Returns `None` if the transcript is exhausted or parameters don't match.
-    fn read_oracle(
-        &mut self,
-        num_encoding_variables: u32,
-        log_num_polynomials: u32,
-    ) -> Option<Self::MleOracle>;
+    fn read_oracle(&mut self, num_variables: u32) -> Option<Self::MleOracle>;
 
     /// Sample a Fiat-Shamir challenge from the transcript.
     fn sample(&mut self) -> Self::Challenge;
@@ -193,7 +192,7 @@ pub trait ReadingCtx: ConstraintCtx {
 /// propagate it.
 pub trait SendingCtx: ConstraintCtx {
     /// Error returned by [`Self::commit_mle`].
-    type CommitError: std::error::Error;
+    type CommitError: Error;
 
     /// Send a single value to the verifier (adds it to the proof transcript).
     fn send_value(&mut self, value: Self::Extension) -> Self::Expr;
@@ -220,13 +219,16 @@ pub trait SendingCtx: ConstraintCtx {
     /// [`ConstraintCtx::assert_mle_eval`] / [`ConstraintCtx::assert_mle_multi_eval`]
     /// later in the protocol.
     ///
-    /// `log_num_polynomials` specifies how many stacked polynomials this MLE commit
-    /// represents; backends using the stacked PCS must have been constructed to
-    /// match this value.
+    /// The MLE is passed as a [`Message`] so the caller can retain a cheap (`Arc`-backed)
+    /// handle to its data without an expensive deep clone; the buffer is only read, and is
+    /// moved (rather than copied) when the caller holds no other reference.
+    ///
+    /// The number of stacked polynomials is recovered as
+    /// `mle[0].num_variables() - num_encoding_variables`, where `num_encoding_variables` is
+    /// the fixed encoding width the backend's PCS was constructed with.
     fn commit_mle<RNG: rand::CryptoRng + rand::Rng>(
         &mut self,
-        mle: Mle<Self::Field>,
-        log_num_polynomials: u32,
+        mle: Message<Mle<Self::Field>>,
         rng: &mut RNG,
     ) -> Result<Self::MleOracle, Self::CommitError>
     where

@@ -7,6 +7,7 @@
 use std::fmt::Debug;
 
 use slop_alloc::CpuBackend;
+use slop_commit::Message;
 use slop_multilinear::Mle;
 use thiserror::Error;
 
@@ -21,6 +22,16 @@ pub enum ZkPcsCommitmentError {
     /// The PCS commitment failed.
     #[error("PCS commitment failed: {0}")]
     CommitmentFailed(String),
+}
+
+/// Default error type for PCS `prove_multi_eval` failures. Concrete impls may
+/// substitute their own typed error via the [`ZkPcsProver::ProveError`]
+/// associated type.
+#[derive(Debug, Error)]
+pub enum ZkPcsProveError {
+    /// The PCS proof generation failed.
+    #[error("PCS prove_multi_eval failed: {0}")]
+    Failed(String),
 }
 
 /// Error type for PCS verification failures.
@@ -48,11 +59,23 @@ pub trait ZkPcsProver<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> {
     /// or Merkle tree authentication paths.
     type ProverData;
 
-    /// Commits to an MLE by stacking it internally.
+    /// Error type returned by [`Self::prove_multi_eval`]. Concrete impls thread their
+    /// own typed error here so a top-level `prove()` failure carries the original
+    /// PCS error rather than a stringified copy.
+    type ProveError: std::error::Error + 'static;
+
+    /// The fixed number of encoding variables (log of the stacking height) this PCS
+    /// was configured with. Every committed MLE is stacked into a tensor whose columns
+    /// are polynomials over this many variables, so `log_num_polynomials` for any MLE
+    /// is `mle.num_variables() - num_encoding_variables`.
+    fn num_encoding_variables(&self) -> u32;
+
+    /// Commits to an MLE, interpreting it as a stacked tensor internally.
     ///
-    /// The flat MLE is stacked into a tensor with `2^log_num_polynomials` columns,
-    /// each over `num_encoding_variables = mle.num_variables() - log_num_polynomials`
-    /// variables.
+    /// The flat MLE is interpreted as a tensor with `2^log_num_polynomials` columns,
+    /// each over `num_encoding_variables = mle[0].num_variables() - log_num_polynomials`
+    /// variables. The MLE is passed as a [`Message`] so its buffer can be read without
+    /// cloning or consuming the caller's data.
     ///
     /// # Arguments
     /// * `mle` — the flat (unstacked) MLE to commit to.
@@ -63,7 +86,7 @@ pub trait ZkPcsProver<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> {
     /// A tuple of (commitment digest, prover data) or an error.
     fn commit_mle<RNG: rand::CryptoRng + rand::Rng>(
         &self,
-        mle: Mle<GC::F, CpuBackend>,
+        mle: Message<Mle<GC::F, CpuBackend>>,
         log_num_polynomials: usize,
         rng: &mut RNG,
     ) -> Result<(GC::Digest, Self::ProverData), ZkPcsCommitmentError>
@@ -78,13 +101,14 @@ pub trait ZkPcsProver<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> {
     /// * `claim` - The evaluation claim (may contain one or multiple commitments)
     ///
     /// # Returns
-    /// A single proof covering all commitments in the claim.
+    /// A single proof covering all commitments in the claim, or [`Self::ProveError`]
+    /// on failure.
     #[allow(clippy::type_complexity)]
     fn prove_multi_eval(
         &self,
         ctx: &mut ZkProverContext<GC, MK, Self::ProverData>,
         claim: PcsMultiEvalClaim<GC::EF, ProverValue<GC, MK, Self::ProverData>>,
-    ) -> GC::PcsProof;
+    ) -> Result<GC::PcsProof, Self::ProveError>;
 }
 
 /// Trait for PCS verifiers that verify evaluation proofs.
@@ -100,6 +124,11 @@ pub trait ZkPcsProver<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> {
 pub trait ZkPcsVerifier<GC: ZkIopCtx> {
     /// The proof type to verify. Must equal `GC::PcsProof` in practice.
     type Proof;
+
+    /// The fixed number of encoding variables (log of the stacking height) this PCS
+    /// was configured with. Used to recover `log_num_polynomials` from an oracle's
+    /// total number of variables: `log_num_polynomials = num_variables - num_encoding_variables`.
+    fn num_encoding_variables(&self) -> u32;
 
     /// Verifies a (possibly batched) evaluation proof for one or more commitments
     /// at the same point.

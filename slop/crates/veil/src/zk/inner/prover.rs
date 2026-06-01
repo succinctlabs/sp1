@@ -1,5 +1,5 @@
-use std::cell::{Ref, RefCell, RefMut};
-use std::rc::Rc;
+use std::error::Error;
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::zk::dot_product::{
     zk_dot_product_commitment, zk_dot_product_proof, ZkDotTotalProof, ZkVectorProverData,
@@ -9,12 +9,15 @@ use crate::zk::hadamard_product::{
     zk_hadamard_and_dots_proof, zk_hadamard_product_commitment, ZkHadamardAndDotsTotalProof,
 };
 use derive_where::derive_where;
-use rand::Rng;
+use rand::distributions::{Distribution, Standard};
+use rand::{CryptoRng, Rng};
 use serde::{Deserialize, Serialize};
 use slop_algebra::AbstractField;
 use slop_alloc::CpuBackend;
 use slop_challenger::{CanObserve, FieldChallenger};
+use slop_commit::Message;
 use slop_merkle_tree::TensorCsProver;
+use thiserror::Error;
 
 use super::prover_transcript::ProverElement;
 use super::transcript::{
@@ -69,11 +72,41 @@ pub struct ZkMulCnstrProof<GC: ZkIopCtx> {
     pub mul_proof: ZkHadamardAndDotsTotalProof<GC, RsInterpolation<GC::EF>>,
 }
 
+/// Error returned by [`ZkProverContext::prove`].
+///
+/// The two generic parameters are the [`ZkPcsProver::ProveError`] of the PCS
+/// prover in use (e.g. the stacked-basefold error or `Infallible` for the no-PCS
+/// path) and the [`TensorCsProver::ProverError`] of the merkleizer in use.
+#[derive(Debug, Error)]
+pub enum ZkProveError<PcsErr: Error + 'static, MerkErr: Error + 'static> {
+    /// MLE-eval claims were registered but `prove`/`prove_without_pcs` was called
+    /// without a PCS prover.
+    #[error("PCS evaluation claims exist but no PCS prover was provided")]
+    NoPcsProver,
+    /// Two or more eval claims targeted the same committed oracle. This breaks
+    /// zero-knowledge (but not soundness) — opening one commitment at multiple
+    /// points reveals more information than the masking budget covers.
+    #[error(
+        "multiple eval claims on the same PCS commitment (index {commitment_index}); \
+         this breaks zero-knowledge but not soundness"
+    )]
+    DuplicateEvalClaim { commitment_index: usize },
+    /// The PCS prover's `prove_multi_eval` failed.
+    #[error(transparent)]
+    Pcs(PcsErr),
+    /// The merkleizer failed during a commit or opening — surfaces from the
+    /// dot-product / Hadamard subroutines used to discharge linear and
+    /// multiplicative constraints.
+    #[error(transparent)]
+    Merkleizer(MerkErr),
+}
+
 /// Handle to a [`ZkProverContextInner`] that provides shared mutable access.
 /// This is the main type users interact with for building zero-knowledge proofs.
 ///
-/// The handle wraps the inner context in `Rc<RefCell<>>` to allow elements
-/// returned from `add_values` to hold references back to the context.
+/// The handle wraps the inner context in `Arc<Mutex<>>` to allow elements
+/// returned from `add_values` to hold references back to the context, while
+/// remaining `Send + Sync`.
 ///
 /// # Type Parameters
 /// * `GC` - The ZK IOP context type
@@ -83,7 +116,7 @@ pub struct ZkMulCnstrProof<GC: ZkIopCtx> {
 /// Contains a challenger which can be accessed using self.challenger()
 #[derive_where(Clone; PD: Clone)]
 pub struct ZkProverContext<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD = ()> {
-    inner: Rc<RefCell<ZkProverContextInner<GC, MK, PD>>>,
+    inner: Arc<Mutex<ZkProverContextInner<GC, MK, PD>>>,
 }
 
 /// Tracks linear constraints during zero-knowledge proof generation.
@@ -206,19 +239,22 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD: Clone> ConstraintContextInner<GC::E
 }
 
 impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
-    /// Borrow the inner context mutably and return a guard.
-    pub fn borrow_mut(&self) -> RefMut<'_, ZkProverContextInner<GC, MK, PD>> {
-        self.inner.borrow_mut()
+    /// Lock the inner context mutably and return a guard.
+    pub fn borrow_mut(&self) -> MutexGuard<'_, ZkProverContextInner<GC, MK, PD>> {
+        self.inner.lock().expect("ZkProverContext mutex poisoned")
     }
 
-    /// Borrow the inner context immutably and return a guard.
-    pub fn borrow(&self) -> Ref<'_, ZkProverContextInner<GC, MK, PD>> {
-        self.inner.borrow()
+    /// Lock the inner context and return a guard.
+    pub fn borrow(&self) -> MutexGuard<'_, ZkProverContextInner<GC, MK, PD>> {
+        self.inner.lock().expect("ZkProverContext mutex poisoned")
     }
 
-    /// Access the challenger for Fiat-Shamir operations.
-    pub fn challenger(&mut self) -> RefMut<'_, GC::Challenger> {
-        RefMut::map(self.borrow_mut(), |inner| &mut inner.challenger)
+    /// Run `f` with mutable access to the Fiat-Shamir challenger.
+    ///
+    /// Holds the inner-context lock for the duration of `f`; `f` must not re-enter
+    /// this context.
+    pub fn with_challenger<R>(&mut self, f: impl FnOnce(&mut GC::Challenger) -> R) -> R {
+        f(&mut self.borrow_mut().challenger)
     }
 
     /// Initializes a prover that supports only linear constraints.
@@ -234,12 +270,12 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
     /// # Panics
     /// Later calls will panic if more than `length` transcript elements are added.
     /// Compile with `RUSTFLAGS="--cfg sp1_debug_constraints"` to detect over-allocation.
-    pub fn initialize_only_lin_constraints<RNG: rand::CryptoRng + Rng>(
+    pub fn initialize_only_lin_constraints<RNG: CryptoRng + Rng>(
         length: usize,
         rng: &mut RNG,
-    ) -> Self
+    ) -> Result<Self, MK::ProverError>
     where
-        rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
+        Standard: Distribution<GC::EF>,
     {
         Self::initialize_inner(length, false, rng)
     }
@@ -256,21 +292,24 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
     /// # Panics
     /// Later calls will panic if more than `length` transcript elements are added.
     /// Compile with `RUSTFLAGS="--cfg sp1_debug_constraints"` to detect over-allocation.
-    pub fn initialize<RNG: rand::CryptoRng + Rng>(length: usize, rng: &mut RNG) -> Self
+    pub fn initialize<RNG: CryptoRng + Rng>(
+        length: usize,
+        rng: &mut RNG,
+    ) -> Result<Self, MK::ProverError>
     where
-        rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
+        Standard: Distribution<GC::EF>,
     {
         Self::initialize_inner(length, true, rng)
     }
 
     /// Shared initialization logic for both `initialize` and `initialize_only_lin_constraints`.
-    fn initialize_inner<RNG: rand::CryptoRng + Rng>(
+    fn initialize_inner<RNG: CryptoRng + Rng>(
         length: usize,
         with_mul_constraints: bool,
         rng: &mut RNG,
-    ) -> Self
+    ) -> Result<Self, MK::ProverError>
     where
-        rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
+        Standard: Distribution<GC::EF>,
     {
         let merkleizer = MK::default();
         let mut challenger = GC::default_challenger();
@@ -286,7 +325,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
                 std::slice::from_ref(&masks),
                 rng,
                 &merkleizer,
-            );
+            )?;
 
         challenger.observe(commitment);
 
@@ -312,7 +351,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
         inner.transcript.add_values(&[GC::EF::one() + inner.masks[0]]);
         inner.masks_current_index += 1;
 
-        Self { inner: Rc::new(RefCell::new(inner)) }
+        Ok(Self { inner: Arc::new(Mutex::new(inner)) })
     }
 
     fn add_values_raw(&mut self, new_values: &[GC::EF]) -> usize {
@@ -391,18 +430,18 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
     /// when adding evaluation claims, or an error if commitment fails.
     pub fn commit_mle<P, RNG>(
         &mut self,
-        mle: slop_multilinear::Mle<GC::F, slop_alloc::CpuBackend>,
+        mle: Message<slop_multilinear::Mle<GC::F, slop_alloc::CpuBackend>>,
         log_num_polynomials: usize,
         pcs_prover: &P,
         rng: &mut RNG,
     ) -> Result<MleCommitmentIndex, super::ZkPcsCommitmentError>
     where
         P: super::ZkPcsProver<GC, MK, ProverData = PD>,
-        RNG: rand::CryptoRng + rand::Rng,
-        rand::distributions::Standard: rand::distributions::Distribution<GC::F>,
+        RNG: CryptoRng + Rng,
+        Standard: Distribution<GC::F>,
     {
         // Compute num_vars from the flat MLE's total variables minus stacking height
-        let num_vars = mle.num_variables() as usize - log_num_polynomials;
+        let num_vars = mle[0].num_variables() as usize - log_num_polynomials;
         let log_num_polys = log_num_polynomials;
 
         // Generate commitment using the PCS prover (stacking happens inside)
@@ -480,20 +519,24 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
     ///
     /// # Type Parameters
     /// * `P` - The PCS prover type implementing `ZkPcsProver<GC>` with `ProverData = PD`
-    pub fn prove<RNG, P>(mut self, rng: &mut RNG, pcs_prover: Option<&P>) -> ZkProof<GC>
+    pub fn prove<RNG, P>(
+        mut self,
+        rng: &mut RNG,
+        pcs_prover: Option<&P>,
+    ) -> Result<ZkProof<GC>, ZkProveError<P::ProveError, MK::ProverError>>
     where
-        RNG: rand::CryptoRng + rand::Rng,
-        rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
+        RNG: CryptoRng + Rng,
+        Standard: Distribution<GC::EF>,
         P: ZkPcsProver<GC, MK, ProverData = PD>,
         PD: Clone,
     {
         let merkleizer = MK::default();
 
         // Handle PCS evaluation claims first
-        let pcs_proofs = self.generate_pcs_proofs(pcs_prover);
+        let pcs_proofs = self.generate_pcs_proofs(pcs_prover)?;
 
         // Handle multiplicative constraints
-        let mul_proof = self.generate_mul_proof(&merkleizer, rng);
+        let mul_proof = self.generate_mul_proof::<_, P::ProveError>(&merkleizer, rng)?;
 
         // Debug checks
         #[cfg(sp1_debug_constraints)]
@@ -533,14 +576,14 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
 
         // Extract the inner context, cloning if there are still outstanding references
         // (e.g., from ProverElement instances that haven't been dropped yet)
-        let mut inner = match Rc::try_unwrap(self.inner) {
-            Ok(refcell) => refcell.into_inner(),
-            Err(rc) => {
+        let mut inner = match Arc::try_unwrap(self.inner) {
+            Ok(mutex) => mutex.into_inner().expect("ZkProverContext mutex poisoned"),
+            Err(arc) => {
                 eprintln!(
                     "WARNING: ZkProverContext has outstanding references (likely from ProverElements or ProverConstraints). \
                      Cloning inner context. Consider dropping ProverElements before calling into_proof."
                 );
-                rc.borrow().clone()
+                arc.lock().expect("ZkProverContext mutex poisoned").clone()
             }
         };
 
@@ -550,13 +593,14 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
             inner.prover_secret_data,
             &mut inner.challenger,
             &merkleizer,
-        );
+        )
+        .map_err(ZkProveError::Merkleizer)?;
 
         // Extract just the commitment entries (without prover data) for the proof
         let pcs_commitment_transcript =
             inner.pcs_commitments.into_iter().map(|(entry, _)| entry).collect();
 
-        ZkProof {
+        Ok(ZkProof {
             proof: ZkCnstrProof {
                 mask_commitment: inner.mask_commitment,
                 zk_dot_product_proof: total_dot_proof,
@@ -565,14 +609,18 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
             },
             transcript: inner.transcript,
             pcs_commitment_transcript,
-        }
+        })
     }
 
     /// Helper method to generate PCS proofs for all evaluation claims.
     ///
-    /// One proof is generated per claim. Panics if multiple claims exist for the same
-    /// commitment, as this breaks zero-knowledge
-    fn generate_pcs_proofs<P>(&mut self, pcs_prover: Option<&P>) -> Vec<GC::PcsProof>
+    /// One proof is generated per claim. Returns [`ZkProveError::DuplicateEvalClaim`]
+    /// if multiple claims exist for the same commitment, as this breaks zero-knowledge.
+    #[allow(clippy::type_complexity)]
+    fn generate_pcs_proofs<P>(
+        &mut self,
+        pcs_prover: Option<&P>,
+    ) -> Result<Vec<GC::PcsProof>, ZkProveError<P::ProveError, MK::ProverError>>
     where
         P: ZkPcsProver<GC, MK, ProverData = PD>,
         PD: Clone,
@@ -580,7 +628,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
         let eval_claims = self.pcs_eval_claims();
 
         if eval_claims.is_empty() {
-            return vec![];
+            return Ok(vec![]);
         }
 
         // Check for duplicate commitment indices — multiple eval claims on the
@@ -589,44 +637,41 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
         for claim in &eval_claims {
             for idx in &claim.commitment_indices {
                 if !seen.insert(*idx) {
-                    panic!(
-                        "Multiple eval claims on the same PCS commitment (index {}). \
-                         This breaks zero-knowledge but not soundness.",
-                        idx.index(),
-                    );
+                    return Err(ZkProveError::DuplicateEvalClaim { commitment_index: idx.index() });
                 }
             }
         }
 
-        let pcs_prover = pcs_prover.expect(
-            "PCS evaluation claims exist but no PCS prover was provided. \
-             Call prove with pcs_prover: Some(&prover) when using add_eval_claim.",
-        );
+        let pcs_prover = pcs_prover.ok_or(ZkProveError::NoPcsProver)?;
 
         let mut pcs_proofs = Vec::with_capacity(eval_claims.len());
         for claim in eval_claims {
-            let proof = pcs_prover.prove_multi_eval(self, claim);
+            let proof = pcs_prover.prove_multi_eval(self, claim).map_err(ZkProveError::Pcs)?;
             pcs_proofs.push(proof);
         }
 
         // Clear eval claims to drop ProverValue references before calling into_proof
         self.borrow_mut().pcs_eval_claims.clear();
 
-        pcs_proofs
+        Ok(pcs_proofs)
     }
 
     /// Helper method to generate multiplicative constraint proofs.
-    fn generate_mul_proof<RNG>(
+    #[allow(clippy::type_complexity)]
+    fn generate_mul_proof<RNG, PcsErr>(
         &mut self,
         merkleizer: &MK,
         rng: &mut RNG,
-    ) -> Option<ZkMulCnstrProof<GC>>
+    ) -> Result<Option<ZkMulCnstrProof<GC>>, ZkProveError<PcsErr, MK::ProverError>>
     where
-        RNG: rand::CryptoRng + rand::Rng,
-        rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
+        RNG: CryptoRng + Rng,
+        Standard: Distribution<GC::EF>,
         PD: Clone,
+        PcsErr: Error + 'static,
     {
-        self.borrow().mul_constraints.as_ref()?;
+        if self.borrow().mul_constraints.is_none() {
+            return Ok(None);
+        }
 
         // Pad the R1CS witness used by the Hadamard check by `(r, s, rs, r-1, t, (r-1)t)`
         // for i.i.d. uniform `r, s, t`, realizing the two tautological multiplicative
@@ -684,7 +729,8 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
             RsInterpolation<GC::EF>,
         >(
             &mul_vecs[0], &mul_vecs[1], &mul_vecs[2], rng, merkleizer
-        );
+        )
+        .map_err(ZkProveError::Merkleizer)?;
 
         // Sample RLC coefficient
         let rlc_coeff: GC::EF = {
@@ -705,6 +751,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
                 &mut inner.challenger,
                 merkleizer,
             )
+            .map_err(ZkProveError::Merkleizer)?
         };
 
         // Build and add the new linear constraints
@@ -722,7 +769,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
 
         self.add_lin_constraints(new_lin_constraints.to_vec());
 
-        Some(ZkMulCnstrProof { commitment, mul_proof: total_mul_proof })
+        Ok(Some(ZkMulCnstrProof { commitment, mul_proof: total_mul_proof }))
     }
 }
 
@@ -735,15 +782,20 @@ pub struct NoPcsProver;
 
 impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkPcsProver<GC, MK> for NoPcsProver {
     type ProverData = ();
+    type ProveError = std::convert::Infallible;
 
-    fn commit_mle<RNG: rand::CryptoRng + rand::Rng>(
+    fn num_encoding_variables(&self) -> u32 {
+        panic!("NoPcsProver::num_encoding_variables should never be called")
+    }
+
+    fn commit_mle<RNG: CryptoRng + Rng>(
         &self,
-        _mle: slop_multilinear::Mle<GC::F, slop_alloc::CpuBackend>,
+        _mle: Message<slop_multilinear::Mle<GC::F, slop_alloc::CpuBackend>>,
         _log_num_polynomials: usize,
         _rng: &mut RNG,
     ) -> Result<(GC::Digest, Self::ProverData), super::ZkPcsCommitmentError>
     where
-        rand::distributions::Standard: rand::distributions::Distribution<GC::F>,
+        Standard: Distribution<GC::F>,
     {
         panic!("NoPcsProver::commit_mle should never be called")
     }
@@ -752,7 +804,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkPcsProver<GC, MK> for NoPcsProver {
         &self,
         _ctx: &mut ZkProverContext<GC, MK, ()>,
         _claim: PcsMultiEvalClaim<GC::EF, ProverValue<GC, MK, ()>>,
-    ) -> GC::PcsProof {
+    ) -> Result<GC::PcsProof, Self::ProveError> {
         panic!("NoPcsProver::prove_multi_eval should never be called")
     }
 }
@@ -763,11 +815,14 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkProverContext<GC, MK, ()> {
     /// This is equivalent to calling `prove(rng, None::<&NoPcsProver>)`
     /// but with simpler syntax for the common case where no PCS is needed.
     ///
-    /// # Panics
-    /// Panics if there are any PCS evaluation claims registered.
-    pub fn prove_without_pcs<RNG: rand::CryptoRng + rand::Rng>(self, rng: &mut RNG) -> ZkProof<GC>
+    /// Returns [`ZkProveError::NoPcsProver`] if any PCS evaluation claims were
+    /// registered.
+    pub fn prove_without_pcs<RNG: CryptoRng + Rng>(
+        self,
+        rng: &mut RNG,
+    ) -> Result<ZkProof<GC>, ZkProveError<std::convert::Infallible, MK::ProverError>>
     where
-        rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
+        Standard: Distribution<GC::EF>,
     {
         self.prove::<RNG, NoPcsProver>(rng, None)
     }
