@@ -6855,6 +6855,7 @@ dependencies = [
  "serde_json",
  "slop-air",
  "slop-algebra",
+ "sp1-core-executor",
  "sp1-core-machine",
  "sp1-hypercube",
  "sp1-primitives",

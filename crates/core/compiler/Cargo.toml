@@ -14,6 +14,7 @@ slop-air = { workspace = true }
 slop-algebra = { workspace = true }
 
 sp1-core-machine = { workspace = true }
+sp1-core-executor = { workspace = true }
 sp1-hypercube = { workspace = true }
 sp1-primitives = { workspace = true }
 
