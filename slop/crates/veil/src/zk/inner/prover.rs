@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use slop_algebra::AbstractField;
 use slop_alloc::CpuBackend;
 use slop_challenger::{CanObserve, FieldChallenger};
+use slop_commit::Message;
 use slop_merkle_tree::TensorCsProver;
 use thiserror::Error;
 
@@ -429,7 +430,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
     /// when adding evaluation claims, or an error if commitment fails.
     pub fn commit_mle<P, RNG>(
         &mut self,
-        mle: slop_multilinear::Mle<GC::F, slop_alloc::CpuBackend>,
+        mle: Message<slop_multilinear::Mle<GC::F, slop_alloc::CpuBackend>>,
         log_num_polynomials: usize,
         pcs_prover: &P,
         rng: &mut RNG,
@@ -440,7 +441,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
         Standard: Distribution<GC::F>,
     {
         // Compute num_vars from the flat MLE's total variables minus stacking height
-        let num_vars = mle.num_variables() as usize - log_num_polynomials;
+        let num_vars = mle[0].num_variables() as usize - log_num_polynomials;
         let log_num_polys = log_num_polynomials;
 
         // Generate commitment using the PCS prover (stacking happens inside)
@@ -789,7 +790,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkPcsProver<GC, MK> for NoPcsProver {
 
     fn commit_mle<RNG: CryptoRng + Rng>(
         &self,
-        _mle: slop_multilinear::Mle<GC::F, slop_alloc::CpuBackend>,
+        _mle: Message<slop_multilinear::Mle<GC::F, slop_alloc::CpuBackend>>,
         _log_num_polynomials: usize,
         _rng: &mut RNG,
     ) -> Result<(GC::Digest, Self::ProverData), super::ZkPcsCommitmentError>

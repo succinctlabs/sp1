@@ -370,7 +370,7 @@ where
     /// `rng` is unused — transparent mode doesn't mask.
     fn commit_mle<RNG: rand::CryptoRng + rand::Rng>(
         &mut self,
-        mle: Mle<GC::F>,
+        mle: Message<Mle<GC::F>>,
         _rng: &mut RNG,
     ) -> Result<Self::MleOracle, Self::CommitError>
     where
@@ -378,7 +378,7 @@ where
     {
         let pcs_prover = self.pcs_prover.as_ref().ok_or(TransparentCommitError::NoPcsProver)?;
         let num_encoding_variables = pcs_prover.log_stacking_height;
-        let num_variables = mle.num_variables();
+        let num_variables = mle[0].num_variables();
         let log_num_polynomials = num_variables
             .checked_sub(num_encoding_variables)
             .ok_or(TransparentCommitError::MleTooSmall { num_variables, num_encoding_variables })?;
@@ -389,8 +389,7 @@ where
                 got: expected_batch_size,
             });
         }
-        let message = Message::from(vec![mle]);
-        let (commitment, prover_data, _num_added_vals) = pcs_prover.commit_multilinears(message)?;
+        let (commitment, prover_data, _num_added_vals) = pcs_prover.commit_multilinears(mle)?;
         self.challenger.observe(commitment);
         let idx = self.oracles.len();
         self.oracles.push(OracleEntry {

@@ -17,6 +17,7 @@
 use rand::distributions::{Distribution, Standard};
 use rand::{CryptoRng, Rng};
 use slop_algebra::{AbstractExtensionField, AbstractField, Field};
+use slop_commit::Message;
 use slop_jagged::{HadamardProduct, LongMle};
 use slop_matrix::dense::RowMajorMatrix;
 use slop_multilinear::{Mle, Point};
@@ -64,7 +65,7 @@ pub fn sumcheck_single_mle_prove<C, RNG>(
     RNG: CryptoRng + Rng,
     Standard: Distribution<C::Field>,
 {
-    ctx.commit_mle(original_mle, rng).expect("commit_mle failed");
+    ctx.commit_mle(Message::from(original_mle), rng).expect("commit_mle failed");
     let in_claim = SumcheckInputClaim::from_value(claim);
     SumcheckParam::new(num_variables, 1).prove(&in_claim, mle_ef, ctx);
 }
@@ -101,8 +102,8 @@ pub fn sumcheck_hadamard_prove<C, RNG>(
     RNG: CryptoRng + Rng,
     Standard: Distribution<C::Field>,
 {
-    ctx.commit_mle(mle_base, rng).expect("commit base failed");
-    ctx.commit_mle(mle_ext, rng).expect("commit ext failed");
+    ctx.commit_mle(Message::from(mle_base), rng).expect("commit base failed");
+    ctx.commit_mle(Message::from(mle_ext), rng).expect("commit ext failed");
     let in_claim = SumcheckInputClaim::from_value(claim);
     SumcheckParam::with_component_evals(num_variables, 2, 2).prove(&in_claim, product, ctx);
 }
@@ -153,7 +154,7 @@ pub fn sumcheck_batched_single_mles_prove<C, RNG>(
     assert_eq!(originals.len(), claims.len());
 
     for mle in originals {
-        ctx.commit_mle(mle, rng).expect("commit failed");
+        ctx.commit_mle(Message::from(mle), rng).expect("commit failed");
     }
     let lambda = ctx.sample();
     let num_claims = claims.len();
@@ -222,9 +223,9 @@ pub fn sumcheck_triple_hadamard_prove<C, RNG>(
     RNG: CryptoRng + Rng,
     Standard: Distribution<C::Field>,
 {
-    ctx.commit_mle(mle_f, rng).expect("commit f failed");
-    ctx.commit_mle(mle_g, rng).expect("commit g failed");
-    ctx.commit_mle(mle_h, rng).expect("commit h failed");
+    ctx.commit_mle(Message::from(mle_f), rng).expect("commit f failed");
+    ctx.commit_mle(Message::from(mle_g), rng).expect("commit g failed");
+    ctx.commit_mle(Message::from(mle_h), rng).expect("commit h failed");
     let param = SumcheckParam::with_component_evals(num_variables, 2, 2);
     param.prove(&SumcheckInputClaim::from_value(claim_fg), product_fg, ctx);
     param.prove(&SumcheckInputClaim::from_value(claim_gh), product_gh, ctx);

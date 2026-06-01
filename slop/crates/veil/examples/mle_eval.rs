@@ -16,6 +16,7 @@
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use slop_challenger::IopCtx;
+use slop_commit::Message;
 use slop_koala_bear::KoalaBearDegree4Duplex;
 use slop_merkle_tree::Poseidon2KoalaBear16Prover;
 use slop_multilinear::Mle;
@@ -47,9 +48,10 @@ where
     RNG: rand::CryptoRng + rand::Rng,
     rand::distributions::Standard: rand::distributions::Distribution<C::Field>,
 {
+    let mle = Message::from(mle);
     ctx.commit_mle(mle.clone(), rng).expect("failed to commit mle");
     let point = ctx.sample_point(NUM_VARIABLES);
-    let eval = mle.eval_at(&point).evaluations().as_slice()[0];
+    let eval = mle[0].eval_at(&point).evaluations().as_slice()[0];
     ctx.send_value(eval.into());
 }
 

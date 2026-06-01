@@ -178,7 +178,7 @@ fn run_zk_single(
         let mut ctx: StackedPcsZkProverCtx<GC, MK> =
             ZkProverCtx::initialize_with_pcs_only_lin(masks_length, pcs_prover, rng).expect("zk init failed");
 
-        ctx.commit_mle(original_mle.clone(), rng).unwrap();
+        ctx.commit_mle(Message::from(original_mle.clone()), rng).unwrap();
 
         let in_claim = SumcheckInputClaim::from_value(claim);
         param.prove(&in_claim, mle_ef.clone(), &mut ctx);
@@ -353,8 +353,8 @@ fn run_zk_hadamard(
         let mut ctx: StackedPcsZkProverCtx<GC, MK> =
             ZkProverCtx::initialize_with_pcs(masks_length, pcs_prover, rng).expect("zk init failed");
 
-        ctx.commit_mle(mle_1.clone(), rng).unwrap();
-        ctx.commit_mle(mle_2.clone(), rng).unwrap();
+        ctx.commit_mle(Message::from(mle_1.clone()), rng).unwrap();
+        ctx.commit_mle(Message::from(mle_2.clone()), rng).unwrap();
 
         let in_claim = SumcheckInputClaim::from_value(claim);
         param.prove(&in_claim, hadamard_product, &mut ctx);

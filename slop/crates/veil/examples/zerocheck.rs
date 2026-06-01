@@ -29,6 +29,7 @@ use slop_algebra::{
     interpolate_univariate_polynomial, AbstractExtensionField, AbstractField, UnivariatePolynomial,
 };
 use slop_challenger::IopCtx;
+use slop_commit::Message;
 use slop_koala_bear::KoalaBearDegree4Duplex;
 use slop_matrix::dense::RowMajorMatrix;
 use slop_merkle_tree::Poseidon2KoalaBear16Prover;
@@ -208,9 +209,9 @@ fn zerocheck_prove<C, RNG>(
     RNG: rand::CryptoRng + rand::Rng,
     rand::distributions::Standard: rand::distributions::Distribution<C::Field>,
 {
-    ctx.commit_mle(p_base, rng).expect("commit p failed");
-    ctx.commit_mle(q_base, rng).expect("commit q failed");
-    ctx.commit_mle(r_base, rng).expect("commit r failed");
+    ctx.commit_mle(Message::from(p_base), rng).expect("commit p failed");
+    ctx.commit_mle(Message::from(q_base), rng).expect("commit q failed");
+    ctx.commit_mle(Message::from(r_base), rng).expect("commit r failed");
 
     let z_0: Point<EF> = ctx.sample_point(NUM_VARIABLES);
 

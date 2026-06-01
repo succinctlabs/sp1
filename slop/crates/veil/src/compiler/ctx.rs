@@ -4,6 +4,7 @@ use std::fmt::Debug;
 
 use itertools::Itertools;
 use slop_algebra::{Algebra, ExtensionField, Field};
+use slop_commit::Message;
 use slop_multilinear::{Mle, Point};
 use thiserror::Error;
 
@@ -218,12 +219,16 @@ pub trait SendingCtx: ConstraintCtx {
     /// [`ConstraintCtx::assert_mle_eval`] / [`ConstraintCtx::assert_mle_multi_eval`]
     /// later in the protocol.
     ///
+    /// The MLE is passed as a [`Message`] so the caller can retain a cheap (`Arc`-backed)
+    /// handle to its data without an expensive deep clone; the buffer is only read, and is
+    /// moved (rather than copied) when the caller holds no other reference.
+    ///
     /// The number of stacked polynomials is recovered as
-    /// `mle.num_variables() - num_encoding_variables`, where `num_encoding_variables` is
+    /// `mle[0].num_variables() - num_encoding_variables`, where `num_encoding_variables` is
     /// the fixed encoding width the backend's PCS was constructed with.
     fn commit_mle<RNG: rand::CryptoRng + rand::Rng>(
         &mut self,
-        mle: Mle<Self::Field>,
+        mle: Message<Mle<Self::Field>>,
         rng: &mut RNG,
     ) -> Result<Self::MleOracle, Self::CommitError>
     where

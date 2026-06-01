@@ -6,8 +6,9 @@ use rand::{CryptoRng, Rng};
 use slop_algebra::Dorroh;
 use slop_alloc::CpuBackend;
 use slop_challenger::{FieldChallenger, IopCtx};
+use slop_commit::Message;
 use slop_merkle_tree::TensorCsProver;
-use slop_multilinear::Point;
+use slop_multilinear::{Mle, Point};
 use thiserror::Error;
 
 use crate::compiler::{ConstraintCtx, ReadingCtx, SendingCtx, TranscriptReadError};
@@ -229,14 +230,14 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> SendingCtx for ZkProverCtx<GC, PC> {
 
     fn commit_mle<RNG: CryptoRng + Rng>(
         &mut self,
-        mle: slop_multilinear::Mle<GC::F>,
+        mle: Message<Mle<GC::F>>,
         rng: &mut RNG,
     ) -> Result<MleCommit, PcsCommitError>
     where
         Standard: Distribution<GC::F>,
     {
         let pcs_prover = self.pcs_prover.as_ref().ok_or(PcsCommitError::NoPcsProver)?;
-        let log_num_polynomials = log_num_polynomials(mle.num_variables(), pcs_prover)?;
+        let log_num_polynomials = log_num_polynomials(mle[0].num_variables(), pcs_prover)?;
         let commit = self
             .inner
             .commit_mle(mle, log_num_polynomials, pcs_prover, rng)

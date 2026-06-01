@@ -7,6 +7,7 @@
 use std::fmt::Debug;
 
 use slop_alloc::CpuBackend;
+use slop_commit::Message;
 use slop_multilinear::Mle;
 use thiserror::Error;
 
@@ -69,11 +70,12 @@ pub trait ZkPcsProver<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> {
     /// is `mle.num_variables() - num_encoding_variables`.
     fn num_encoding_variables(&self) -> u32;
 
-    /// Commits to an MLE by stacking it internally.
+    /// Commits to an MLE, interpreting it as a stacked tensor internally.
     ///
-    /// The flat MLE is stacked into a tensor with `2^log_num_polynomials` columns,
-    /// each over `num_encoding_variables = mle.num_variables() - log_num_polynomials`
-    /// variables.
+    /// The flat MLE is interpreted as a tensor with `2^log_num_polynomials` columns,
+    /// each over `num_encoding_variables = mle[0].num_variables() - log_num_polynomials`
+    /// variables. The MLE is passed as a [`Message`] so its buffer can be read without
+    /// cloning or consuming the caller's data.
     ///
     /// # Arguments
     /// * `mle` — the flat (unstacked) MLE to commit to.
@@ -84,7 +86,7 @@ pub trait ZkPcsProver<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> {
     /// A tuple of (commitment digest, prover data) or an error.
     fn commit_mle<RNG: rand::CryptoRng + rand::Rng>(
         &self,
-        mle: Mle<GC::F, CpuBackend>,
+        mle: Message<Mle<GC::F, CpuBackend>>,
         log_num_polynomials: usize,
         rng: &mut RNG,
     ) -> Result<(GC::Digest, Self::ProverData), ZkPcsCommitmentError>

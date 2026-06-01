@@ -4,6 +4,7 @@ use crate::zk::inner::{
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use slop_challenger::IopCtx;
+use slop_commit::Message;
 use slop_koala_bear::KoalaBearDegree4Duplex;
 use slop_merkle_tree::Poseidon2KoalaBear16Prover;
 use slop_multilinear::{Mle, Point};
@@ -90,7 +91,7 @@ fn run_zk_stacked_pcs_test(num_encoding_variables: u32, log_num_polynomials: u32
 
         let commitment_index = prover_context
             .commit_mle(
-                original_mle.clone(),
+                Message::from(original_mle),
                 log_num_polynomials as usize,
                 &zk_basefold_prover,
                 &mut rng,
