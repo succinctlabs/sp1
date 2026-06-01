@@ -311,7 +311,7 @@ fn compile_chip(chip_name: &str, output_format: &OutputFormat, reuse_struct: &[S
             let mut mapping = HashMap::new();
             map_main(&cols_shape, "cols", &mut mapping);
 
-            let (steps, constraints, num_calls) =
+            let (steps, asserts, interactions, num_calls) =
                 builder.ast().to_lean_components(&Default::default());
 
             println!();
@@ -331,18 +331,22 @@ fn compile_chip(chip_name: &str, output_format: &OutputFormat, reuse_struct: &[S
             println!();
             println!("@[irreducible] def constraints {{F : Type}} [Field F] [CoeHead F ℕ]");
             println!("  (cols : {})", cols_shape.to_lean_type());
-            println!("  : SP1ConstraintList F :=");
+            println!("  : SP1Constraints F :=");
 
             for step in steps {
                 println!("  {}", apply_main_mapping(&step, &mapping));
             }
 
             let calls_constraints: String = (0..num_calls).map(|i| format!("CS{i} ++ ")).collect();
-            println!("  {calls_constraints}[");
-            for constraint in constraints {
-                println!("    {},", apply_main_mapping(&constraint, &mapping));
+            println!("  {calls_constraints}⟨[");
+            for assert in asserts {
+                println!("    {},", apply_main_mapping(&assert, &mapping));
             }
-            println!("  ]");
+            println!("  ], [");
+            for interaction in interactions {
+                println!("    {},", apply_main_mapping(&interaction, &mapping));
+            }
+            println!("  ]⟩");
 
             println!();
             println!("end {struct_name}");
@@ -472,7 +476,8 @@ fn emit_operation(
                 .into_iter()
                 .map(|(k, v)| (k, rename_c_to_cc(v)))
                 .collect();
-            let (steps, constraints, num_calls) = operation.body.to_lean_components(&input_mapping);
+            let (steps, asserts, interactions, num_calls) =
+                operation.body.to_lean_components(&input_mapping);
 
             println!();
 
@@ -516,21 +521,29 @@ fn emit_operation(
             let calls_constraints: String = (0..num_calls).map(|i| format!("CS{i} ++ ")).collect();
             match operation.decl.output {
                 Shape::Unit => {
-                    println!("  {calls_constraints}[");
-                    for constraint in constraints {
-                        println!("    {},", constraint);
+                    println!("  {calls_constraints}⟨[");
+                    for assert in asserts {
+                        println!("    {},", assert);
                     }
-                    println!("  ]");
+                    println!("  ], [");
+                    for interaction in interactions {
+                        println!("    {},", interaction);
+                    }
+                    println!("  ]⟩");
                 }
                 _ => {
                     println!(
-                        "  ⟨{}, {calls_constraints}[",
+                        "  ⟨{}, {calls_constraints}⟨[",
                         operation.decl.output.to_lean_constructor(&input_mapping)
                     );
-                    for constraint in constraints {
-                        println!("    {},", constraint);
+                    for assert in asserts {
+                        println!("    {},", assert);
                     }
-                    println!("  ]⟩");
+                    println!("  ], [");
+                    for interaction in interactions {
+                        println!("    {},", interaction);
+                    }
+                    println!("  ]⟩⟩");
                 }
             }
 

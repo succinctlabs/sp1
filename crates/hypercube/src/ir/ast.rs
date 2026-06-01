@@ -178,21 +178,23 @@ impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
 
     /// Go through the AST and returns a tuple that contains:
     /// 1. All the evaluation steps and function calls.
-    /// 2. All the constraints.
-    /// 3. Number of calls.
+    /// 2. The field expressions asserted zero (`asserts`).
+    /// 3. The bus sends/receives (`interactions`).
+    /// 4. Number of calls.
     #[must_use]
     pub fn to_lean_components(
         &self,
         mapping: &HashMap<usize, String>,
-    ) -> (Vec<String>, Vec<String>, usize) {
+    ) -> (Vec<String>, Vec<String>, Vec<String>, usize) {
         let mut steps: Vec<String> = Vec::default();
         let mut calls: usize = 0;
-        let mut constraints: Vec<String> = Vec::default();
+        let mut asserts: Vec<String> = Vec::default();
+        let mut interactions: Vec<String> = Vec::default();
 
         for opexpr in &self.operations {
             match opexpr {
                 OpExpr::AssertZero(expr) => {
-                    constraints.push(format!("(.assertZero {})", expr.to_lean_string(mapping)));
+                    asserts.push(expr.to_lean_string(mapping));
                 }
                 OpExpr::Neg(a, b) => {
                     steps.push(format!(
@@ -222,8 +224,8 @@ impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
                     | InteractionKind::State
                     | InteractionKind::Memory
                     | InteractionKind::Program => {
-                        constraints.push(format!(
-                            "(.send {} {})",
+                        interactions.push(format!(
+                            "⟨.send, {}, {}⟩",
                             interaction.to_lean_string(mapping),
                             interaction.multiplicity.to_lean_string(mapping)
                         ));
@@ -235,8 +237,8 @@ impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
                     | InteractionKind::State
                     | InteractionKind::Memory
                     | InteractionKind::Program => {
-                        constraints.push(format!(
-                            "(.receive {} {})",
+                        interactions.push(format!(
+                            "⟨.receive, {}, {}⟩",
                             interaction.to_lean_string(mapping),
                             interaction.multiplicity.to_lean_string(mapping),
                         ));
@@ -254,12 +256,12 @@ impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
                     match decl.output {
                         Shape::Unit => {
                             steps.push(format!(
-                                "let CS{calls} : SP1ConstraintList F := {call}"
+                                "let CS{calls} : SP1Constraints F := {call}"
                             ));
                         }
-                        // A constraints-returning sub-operation yields `(output, SP1ConstraintList)`.
+                        // A constraints-returning sub-operation yields `(output, SP1Constraints)`.
                         // Bind the pair to a temporary, then project the output value by index
-                        // (`tmp.1[k]`) and the constraint list (`tmp.2`). A structural
+                        // (`tmp.1[k]`) and the constraints (`tmp.2`). A structural
                         // `let ⟨⟨[..]⟩, _⟩` destructure of the `Vector` output does not elaborate,
                         // so we avoid it.
                         Shape::Expr(ref expr) => {
@@ -270,7 +272,7 @@ impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
                                 expr.to_lean_string(&HashMap::default())
                             ));
                             steps.push(format!(
-                                "let CS{calls} : SP1ConstraintList F := {tmp}.2"
+                                "let CS{calls} : SP1Constraints F := {tmp}.2"
                             ));
                         }
                         _ => {
@@ -280,7 +282,7 @@ impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
                                 steps.push(format!("let {leaf} := {tmp}.1[{k}]"));
                             }
                             steps.push(format!(
-                                "let CS{calls} : SP1ConstraintList F := {tmp}.2"
+                                "let CS{calls} : SP1Constraints F := {tmp}.2"
                             ));
                         }
                     }
@@ -294,7 +296,7 @@ impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
             }
         }
 
-        (steps, constraints, calls)
+        (steps, asserts, interactions, calls)
     }
 }
 
