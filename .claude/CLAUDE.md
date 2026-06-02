@@ -28,6 +28,7 @@ cargo clippy -p <crate-name> --all-targets --all-features -- -D warnings -A inco
 ## Code Style Preferences
 
 ### Dependency Management
+- **IMPORTANT: Never add a new external crate dependency (to any `Cargo.toml`) without first asking the user for permission.** This applies to both `[dependencies]` and `[dev-dependencies]`.
 - Remove unused dependencies after refactoring
 - Check both `[dependencies]` and `[dev-dependencies]` sections
 - Prefer minimal dependencies - don't keep things "just in case"
