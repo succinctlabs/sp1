@@ -124,7 +124,7 @@ pub const VERIFY_SP1_PROOF: u32 = 0x00_00_00_1B;
 pub const HINT_LEN: u32 = 0x00_00_00_F0;
 
 /// Executes `HINT_READ`.
-pub const HINT_READ: u32 = 0x00_00_00_F1;
+pub const HINT_READ: u32 = 0x00_00_01_F1;
 
 /// Executes `BLS12381_DECOMPRESS`.
 pub const BLS12381_DECOMPRESS: u32 = 0x00_00_01_1C;

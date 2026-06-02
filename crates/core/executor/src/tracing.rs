@@ -877,21 +877,8 @@ impl<'a, M: ExecutionMode> TracingVM<'a, M> {
         let code = self.core.read_code();
         let is_sigreturn = code == SyscallCode::SIG_RETURN;
 
-        // If the syscall is not retained, we need to track the local memory access separately.
-        //
-        // Note that the `precompile_local_memory_access` is set to `None` in the
-        // `postprocess_precompile` method.
-        if !self.core().is_retained_syscall(code) && code.should_send() == 1 {
-            self.precompile_local_memory_access = Some(LocalMemoryAccess::default());
-            if M::PAGE_PROTECTION_ENABLED {
-                self.precompile_local_page_prot_access = Some(LocalPageProtAccess::default());
-            } else {
-                self.precompile_local_page_prot_access = None;
-            }
-        } else {
-            self.precompile_local_page_prot_access = None;
-            self.precompile_local_memory_access = None;
-        }
+        self.precompile_local_page_prot_access = None;
+        self.precompile_local_memory_access = None;
 
         if is_sigreturn {
             let c_record_peek = self.core().rr_peek(Register::X11, MemoryAccessPosition::C);
@@ -1387,15 +1374,11 @@ impl<'a, M: ExecutionMode> SyscallRuntime<'a, M> for TracingVM<'a, M> {
         trap_result: Option<TrapResult>,
         trap_error: Option<TrapError>,
     ) -> SyscallEvent {
-        // should_send: if the syscall is usually sent and it is not manually set as internal.
-        let should_send =
-            syscall_code.should_send() != 0 && !self.core.is_retained_syscall(syscall_code);
-
         SyscallEvent {
             pc: self.core.pc(),
             next_pc,
             clk,
-            should_send,
+            should_send: false,
             syscall_code,
             syscall_id: syscall_code.syscall_id(),
             arg1,

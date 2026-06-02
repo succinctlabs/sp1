@@ -95,6 +95,42 @@ mod differential_tests {
         assert!(is_equal, "state mismatch:\n{report}");
     }
 
+    /// Run both executors and assert their per-chunk `emit_dirty_pages` agree.
+    fn run_and_compare_dirty_pages(program: &Elf) {
+        use std::collections::BTreeMap;
+
+        let program = Arc::new(Program::from(program).unwrap());
+        let chunk = Some(100_000u64);
+        let mut native = NativeExecutor::<SupervisorMode>::new(program.clone(), false, chunk);
+        let mut portable = MinimalExecutor::<SupervisorMode>::new(program.clone(), false, chunk);
+
+        let to_map = |d: sp1_jit::DirtyPages| {
+            d.pages.into_iter().map(|p| (p.page_id, p.final_contents)).collect::<BTreeMap<u32, _>>()
+        };
+
+        let mut chunk_idx = 0u64;
+        loop {
+            let native_has = native.execute_chunk().is_some();
+            let portable_has = portable.execute_chunk().is_some();
+            assert_eq!(native_has, portable_has, "chunk-count mismatch at chunk {chunk_idx}");
+            if !native_has {
+                break;
+            }
+            let nd = to_map(native.emit_dirty_pages());
+            let pd = to_map(portable.emit_dirty_pages());
+            assert_eq!(
+                nd.keys().collect::<Vec<_>>(),
+                pd.keys().collect::<Vec<_>>(),
+                "dirty page ids differ at chunk {chunk_idx}",
+            );
+            for (pid, nc) in &nd {
+                assert!(*nc == pd[pid], "page {pid} contents differ at chunk {chunk_idx}");
+            }
+            chunk_idx += 1;
+        }
+        assert!(chunk_idx > 0, "no chunks executed");
+    }
+
     #[test]
     fn test_run_keccak_with_input() {
         use bincode::serialize;
@@ -132,121 +168,145 @@ mod differential_tests {
     #[test]
     fn test_run_fibonacci() {
         run_program_and_compare_end_state(&test_artifacts::FIBONACCI_ELF);
+        run_and_compare_dirty_pages(&test_artifacts::FIBONACCI_ELF);
     }
 
     #[test]
     fn test_run_sha256() {
         run_program_and_compare_end_state(&test_artifacts::SHA2_ELF);
+        run_and_compare_dirty_pages(&test_artifacts::SHA2_ELF);
     }
 
     #[test]
     fn test_run_sha_extend() {
         run_program_and_compare_end_state(&test_artifacts::SHA_EXTEND_ELF);
+        run_and_compare_dirty_pages(&test_artifacts::SHA_EXTEND_ELF);
     }
 
     #[test]
     fn test_run_sha_compress() {
         run_program_and_compare_end_state(&test_artifacts::SHA_COMPRESS_ELF);
+        run_and_compare_dirty_pages(&test_artifacts::SHA_COMPRESS_ELF);
     }
 
     #[test]
     fn test_run_keccak_permute() {
         run_program_and_compare_end_state(&test_artifacts::KECCAK_PERMUTE_ELF);
+        run_and_compare_dirty_pages(&test_artifacts::KECCAK_PERMUTE_ELF);
     }
 
     #[test]
     fn test_run_secp256k1_add() {
         run_program_and_compare_end_state(&test_artifacts::SECP256K1_ADD_ELF);
+        run_and_compare_dirty_pages(&test_artifacts::SECP256K1_ADD_ELF);
     }
 
     #[test]
     fn test_run_secp256k1_double() {
         run_program_and_compare_end_state(&test_artifacts::SECP256K1_DOUBLE_ELF);
+        run_and_compare_dirty_pages(&test_artifacts::SECP256K1_DOUBLE_ELF);
     }
 
     #[test]
     fn test_run_secp256r1_add() {
         run_program_and_compare_end_state(&test_artifacts::SECP256R1_ADD_ELF);
+        run_and_compare_dirty_pages(&test_artifacts::SECP256R1_ADD_ELF);
     }
 
     #[test]
     fn test_run_secp256r1_double() {
         run_program_and_compare_end_state(&test_artifacts::SECP256R1_DOUBLE_ELF);
+        run_and_compare_dirty_pages(&test_artifacts::SECP256R1_DOUBLE_ELF);
     }
 
     #[test]
     fn test_run_bls12_381_add() {
         run_program_and_compare_end_state(&test_artifacts::BLS12381_ADD_ELF);
+        run_and_compare_dirty_pages(&test_artifacts::BLS12381_ADD_ELF);
     }
 
     #[test]
     fn test_ed_add() {
         run_program_and_compare_end_state(&test_artifacts::ED_ADD_ELF);
+        run_and_compare_dirty_pages(&test_artifacts::ED_ADD_ELF);
     }
 
     #[test]
     fn test_bn254_add() {
         run_program_and_compare_end_state(&test_artifacts::BN254_ADD_ELF);
+        run_and_compare_dirty_pages(&test_artifacts::BN254_ADD_ELF);
     }
 
     #[test]
     fn test_bn254_double() {
         run_program_and_compare_end_state(&test_artifacts::BN254_DOUBLE_ELF);
+        run_and_compare_dirty_pages(&test_artifacts::BN254_DOUBLE_ELF);
     }
 
     #[test]
     fn test_bn254_mul() {
         run_program_and_compare_end_state(&test_artifacts::BN254_MUL_ELF);
+        run_and_compare_dirty_pages(&test_artifacts::BN254_MUL_ELF);
     }
 
     #[test]
     fn test_uint256_mul() {
         run_program_and_compare_end_state(&test_artifacts::UINT256_MUL_ELF);
+        run_and_compare_dirty_pages(&test_artifacts::UINT256_MUL_ELF);
     }
 
     #[test]
     fn test_bls12_381_fp() {
         run_program_and_compare_end_state(&test_artifacts::BLS12381_FP_ELF);
+        run_and_compare_dirty_pages(&test_artifacts::BLS12381_FP_ELF);
     }
 
     #[test]
     fn test_bls12_381_fp2_mul() {
         run_program_and_compare_end_state(&test_artifacts::BLS12381_FP2_MUL_ELF);
+        run_and_compare_dirty_pages(&test_artifacts::BLS12381_FP2_MUL_ELF);
     }
 
     #[test]
     fn test_bls12_381_fp2_addsub() {
         run_program_and_compare_end_state(&test_artifacts::BLS12381_FP2_ADDSUB_ELF);
+        run_and_compare_dirty_pages(&test_artifacts::BLS12381_FP2_ADDSUB_ELF);
     }
 
     #[test]
     fn test_bn254_fp() {
         run_program_and_compare_end_state(&test_artifacts::BN254_FP_ELF);
+        run_and_compare_dirty_pages(&test_artifacts::BN254_FP_ELF);
     }
 
     #[test]
     fn test_bn254_fp2_addsub() {
         run_program_and_compare_end_state(&test_artifacts::BN254_FP2_ADDSUB_ELF);
+        run_and_compare_dirty_pages(&test_artifacts::BN254_FP2_ADDSUB_ELF);
     }
 
     #[test]
     fn test_bn254_fp2_mul() {
         run_program_and_compare_end_state(&test_artifacts::BN254_FP2_MUL_ELF);
+        run_and_compare_dirty_pages(&test_artifacts::BN254_FP2_MUL_ELF);
     }
 
     #[test]
     fn test_ed_decompress() {
         run_program_and_compare_end_state(&test_artifacts::ED_DECOMPRESS_ELF);
+        run_and_compare_dirty_pages(&test_artifacts::ED_DECOMPRESS_ELF);
     }
 
     #[test]
     fn test_ed25519_verify() {
         run_program_and_compare_end_state(&test_artifacts::ED25519_ELF);
+        run_and_compare_dirty_pages(&test_artifacts::ED25519_ELF);
     }
 
     #[test]
     fn test_ssz_withdrawls() {
         run_program_and_compare_end_state(&test_artifacts::SSZ_WITHDRAWALS_ELF);
+        run_and_compare_dirty_pages(&test_artifacts::SSZ_WITHDRAWALS_ELF);
     }
 
     #[test]

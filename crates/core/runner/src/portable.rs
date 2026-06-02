@@ -105,18 +105,18 @@ impl MinimalExecutorRunner {
         self.inner.try_execute_chunk()
     }
 
-    /// API-compatible stub matching `try_execute_chunk_with_dirty_pages` on the
-    /// native runner. Always pairs each trace chunk with an empty
-    /// [`DirtyPages`] — the portable executor doesn't expose per-chunk dirty
-    /// page info in this shape. Callers (e.g. the prover controller) get a
-    /// uniform API on both backends; consumers that care about leaf hashing
-    /// will see no dirty pages on portable and simply not update their
-    /// running leaf state.
+    /// Execute the next chunk and pair it with the chunk's dirty pages.
     #[inline]
     pub fn try_execute_chunk_with_dirty_pages(
         &mut self,
     ) -> Result<Option<(TraceChunkRaw, DirtyPages)>, ExecutionError> {
-        Ok(self.try_execute_chunk()?.map(|c| (c, DirtyPages::default())))
+        match self.try_execute_chunk()? {
+            Some(chunk) => {
+                let dirty = self.inner.emit_dirty_pages();
+                Ok(Some((chunk, dirty)))
+            }
+            None => Ok(None),
+        }
     }
 
     /// Get the registers of the JIT function.

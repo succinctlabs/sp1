@@ -52,14 +52,14 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             .chain(mem_access.prev_value.clone().map(Into::into))
             .collect();
 
-        // The previous values get sent with multiplicity = 1, for "read".
-        self.send(
+        // The previous values get received with multiplicity = 1, for "read".
+        self.receive(
             AirInteraction::new(prev_values, do_check.clone(), InteractionKind::Memory),
             InteractionScope::Local,
         );
 
-        // The current values get "received", i.e. multiplicity = -1
-        self.receive(
+        // The current values get sent, i.e. multiplicity = -1
+        self.send(
             AirInteraction::new(current_values, do_check.clone(), InteractionKind::Memory),
             InteractionScope::Local,
         );
@@ -103,14 +103,14 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             .chain(write_value.map(Into::into))
             .collect();
 
-        // The previous values get sent with multiplicity = 1, for "read".
-        self.send(
+        // The previous values get received with multiplicity = 1, for "read".
+        self.receive(
             AirInteraction::new(prev_values, do_check.clone(), InteractionKind::Memory),
             InteractionScope::Local,
         );
 
-        // The current values get "received", i.e. multiplicity = -1
-        self.receive(
+        // The current values get sent i.e. multiplicity = -1
+        self.send(
             AirInteraction::new(current_values, do_check.clone(), InteractionKind::Memory),
             InteractionScope::Local,
         );
@@ -152,14 +152,14 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             .chain(reg_access.prev_value.clone().map(Into::into))
             .collect();
 
-        // The previous values get sent with multiplicity = 1, for "read".
-        self.send(
+        // The previous values get received with multiplicity = 1, for "read".
+        self.receive(
             AirInteraction::new(prev_values, do_check.clone(), InteractionKind::Memory),
             InteractionScope::Local,
         );
 
-        // The current values get "received", i.e. multiplicity = -1
-        self.receive(
+        // The current values get sent, i.e. multiplicity = -1
+        self.send(
             AirInteraction::new(current_values, do_check.clone(), InteractionKind::Memory),
             InteractionScope::Local,
         );
@@ -202,14 +202,14 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             .chain(write_value.map(Into::into))
             .collect();
 
-        // The previous values get sent with multiplicity = 1, for "read".
-        self.send(
+        // The previous values get received with multiplicity = 1, for "read".
+        self.receive(
             AirInteraction::new(prev_values, do_check.clone(), InteractionKind::Memory),
             InteractionScope::Local,
         );
 
-        // The current values get "received", i.e. multiplicity = -1
-        self.receive(
+        // The current values get sent, i.e. multiplicity = -1
+        self.send(
             AirInteraction::new(current_values, do_check.clone(), InteractionKind::Memory),
             InteractionScope::Local,
         );
@@ -440,14 +440,14 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             .chain(once(page_prot_access.prev_prot_bitmap.into()))
             .collect();
 
-        // The previous values get sent with multiplicity = 1, for "read".
-        self.send(
+        // The previous values get received with multiplicity = 1, for "read".
+        self.receive(
             AirInteraction::new(prev_values, do_check.clone(), InteractionKind::PageProtAccess),
             InteractionScope::Local,
         );
 
-        // The current values get "received", i.e. multiplicity = -1
-        self.receive(
+        // The current values get sent, i.e. multiplicity = -1
+        self.send(
             AirInteraction::new(current_values, do_check.clone(), InteractionKind::PageProtAccess),
             InteractionScope::Local,
         );
@@ -495,14 +495,14 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             .chain(once(new_prot_bitmap))
             .collect();
 
-        // The previous values get sent with multiplicity = 1, for "read".
-        self.send(
+        // The previous values get received with multiplicity = 1, for "read".
+        self.receive(
             AirInteraction::new(prev_values, do_check.clone(), InteractionKind::PageProtAccess),
             InteractionScope::Local,
         );
 
-        // The current values get "received", i.e. multiplicity = -1
-        self.receive(
+        // The current values get sent, i.e. multiplicity = -1
+        self.send(
             AirInteraction::new(current_values, do_check.clone(), InteractionKind::PageProtAccess),
             InteractionScope::Local,
         );

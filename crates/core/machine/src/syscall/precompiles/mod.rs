@@ -1,5 +1,6 @@
 pub mod edwards;
 pub mod fptower;
+pub mod hint_read;
 pub mod keccak256;
 pub mod mprotect;
 pub mod poseidon2;

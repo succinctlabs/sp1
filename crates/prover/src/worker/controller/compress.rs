@@ -637,10 +637,7 @@ mod test_utils {
                     for i in 1..=num_core_shards {
                         let range = ShardRange {
                             timestamp_range: (i, i + 1),
-                            initialized_address_range: (0, 0),
-                            finalized_address_range: (0, 0),
-                            initialized_page_index_range: (0, 0),
-                            finalized_page_index_range: (0, 0),
+
                             deferred_proof_range: (num_deferred_shards, num_deferred_shards),
                         };
                         create_dummy_deferred_proof_data(

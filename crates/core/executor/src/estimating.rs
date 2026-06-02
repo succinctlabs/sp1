@@ -467,11 +467,7 @@ impl<'a, M: ExecutionMode> GasEstimatingVM<'a, M> {
         }
 
         if code.should_send() == 1 {
-            if self.core.is_retained_syscall(code) {
-                self.gas_calculator.handle_retained_syscall(code);
-            } else {
-                self.gas_calculator.syscall_sent(code);
-            }
+            self.gas_calculator.handle_retained_syscall(code);
         }
 
         self.gas_calculator.handle_instruction(

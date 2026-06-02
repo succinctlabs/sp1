@@ -62,14 +62,7 @@ impl<F: PrimeField32> MachineAir<F> for RangeChip<F> {
         output.add_bit_range_check(last_timestamp_0, 16);
         output.add_bit_range_check((last_timestamp_3 - 1) / 8, 13);
 
-        for addr in [
-            input.public_values.pc_start,
-            input.public_values.next_pc,
-            input.public_values.previous_init_addr,
-            input.public_values.last_init_addr,
-            input.public_values.previous_finalize_addr,
-            input.public_values.last_finalize_addr,
-        ] {
+        for addr in [input.public_values.pc_start, input.public_values.next_pc] {
             let limb_0 = (addr & 0xFFFF) as u16;
             let limb_1 = ((addr >> 16) & 0xFFFF) as u16;
             let limb_2 = ((addr >> 32) & 0xFFFF) as u16;

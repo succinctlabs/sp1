@@ -198,9 +198,6 @@ where
             );
         }
 
-        // We add the global cumulative sum of the shard.
-        global_cumulative_sums.push(public_values.global_cumulative_sum);
-
         // We sum the digests in `global_cumulative_sums` to get the overall global cumulative sum.
         let global_cumulative_sum = builder.sum_digest_v2(global_cumulative_sums);
 
@@ -226,15 +223,6 @@ where
             recursion_public_values.next_pc = public_values.next_pc;
             recursion_public_values.initial_timestamp = public_values.initial_timestamp;
             recursion_public_values.last_timestamp = public_values.last_timestamp;
-            recursion_public_values.previous_init_addr = public_values.previous_init_addr;
-            recursion_public_values.last_init_addr = public_values.last_init_addr;
-            recursion_public_values.previous_finalize_addr = public_values.previous_finalize_addr;
-            recursion_public_values.last_finalize_addr = public_values.last_finalize_addr;
-            recursion_public_values.previous_init_page_idx = public_values.previous_init_page_idx;
-            recursion_public_values.last_init_page_idx = public_values.last_init_page_idx;
-            recursion_public_values.previous_finalize_page_idx =
-                public_values.previous_finalize_page_idx;
-            recursion_public_values.last_finalize_page_idx = public_values.last_finalize_page_idx;
             recursion_public_values.start_reconstruct_deferred_digest = reconstruct_deferred_digest;
             recursion_public_values.end_reconstruct_deferred_digest = reconstruct_deferred_digest;
             recursion_public_values.sp1_vk_digest = vk_digest;

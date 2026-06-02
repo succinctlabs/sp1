@@ -37,7 +37,9 @@ where
                     &updates,
                     MERKLE_TREE_HEIGHT,
                 );
-                MerkleProofRecord { payload: input.payload, proof }
+                let prev_leaves = input.prev_leaves.to_vec();
+                let new_leaves = input.new_leaves.to_vec();
+                MerkleProofRecord { payload: input.payload, proof, prev_leaves, new_leaves }
             })
             .await
             .expect("gpu merkle proof preparation panicked");

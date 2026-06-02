@@ -27,12 +27,6 @@ pub(crate) fn assert_complete<C: Config>(
         end_reconstruct_deferred_digest,
         global_cumulative_sum,
         contains_first_shard,
-        previous_init_addr,
-        last_init_addr,
-        previous_finalize_addr,
-        last_finalize_addr,
-        previous_init_page_idx,
-        previous_finalize_page_idx,
         prev_commit_syscall,
         commit_syscall,
         prev_commit_deferred_syscall,
@@ -74,42 +68,6 @@ pub(crate) fn assert_complete<C: Config>(
     }
     builder
         .assert_felt_eq(is_complete * (initial_timestamp[3] - SP1Field::one()), SP1Field::zero());
-
-    // Assert that the `previous_init_addr` is 0.
-    for limb in previous_init_addr.iter() {
-        builder.assert_felt_eq(is_complete * *limb, SP1Field::zero());
-    }
-
-    // Assert that the `last_init_addr` is not 0.
-    // SAFETY: `last_init_addr` are with valid u16 limbs, as it's checked in each core shard.
-    // If `is_complete = 0`, then the right hand side is `p - 1`, which cannot equal sum of three
-    // u16 limbs due to the size of `p`. If `is_complete = 1`, then the right hand side is `0`, so
-    // this constrains that `last_init_addr` cannot be identical to `0`.
-    builder.assert_felt_ne(
-        last_init_addr[0] + last_init_addr[1] + last_init_addr[2],
-        is_complete - SP1Field::one(),
-    );
-
-    // Assert that the `previous_finalize_addr` is 0.
-    for limb in previous_finalize_addr.iter() {
-        builder.assert_felt_eq(is_complete * *limb, SP1Field::zero());
-    }
-
-    // Assert that the `last_finalize_addr` is not 0. Same method as `last_init_addr`.
-    builder.assert_felt_ne(
-        last_finalize_addr[0] + last_finalize_addr[1] + last_finalize_addr[2],
-        is_complete - SP1Field::one(),
-    );
-
-    // Assert that the `previous_init_page_idx` is 0.
-    for limb in previous_init_page_idx.iter() {
-        builder.assert_felt_eq(is_complete * *limb, SP1Field::zero());
-    }
-
-    // Assert that the `previous_finalize_page_idx` is 0.
-    for limb in previous_finalize_page_idx.iter() {
-        builder.assert_felt_eq(is_complete * *limb, SP1Field::zero());
-    }
 
     // The start reconstruct deferred digest should be zero.
     for start_digest in start_reconstruct_deferred_digest {

@@ -7,8 +7,9 @@ use std::collections::BTreeSet;
 use crate::{
     adapter::bump::StateBumpChip,
     control_flow::{BranchChip, JalChip, JalrChip, TrapExecChip, TrapMemChip},
-    global::GlobalChip,
     memory::{
+        leaf_hash::LeafHashChip,
+        leaf_hash_controller::LeafHashControlChip,
         load::{
             load_byte::LoadByteChip, load_double::LoadDoubleChip, load_half::LoadHalfChip,
             load_word::LoadWordChip, load_x0::LoadX0Chip,
@@ -17,8 +18,9 @@ use crate::{
             store_byte::StoreByteChip, store_double::StoreDoubleChip, store_half::StoreHalfChip,
             store_word::StoreWordChip,
         },
-        MemoryBumpChip, MemoryChipType, MemoryLocalChip, PageProtChip, PageProtGlobalChip,
-        PageProtLocalChip, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW, NUM_LOCAL_PAGE_PROT_ENTRIES_PER_ROW,
+        tree_traversal::MerkleTreeTraversalChip,
+        MemoryBumpChip, MemoryLocalChip, PageProtChip, PageProtLocalChip,
+        NUM_LOCAL_MEMORY_ENTRIES_PER_ROW, NUM_LOCAL_PAGE_PROT_ENTRIES_PER_ROW,
         NUM_PAGE_PROT_ENTRIES_PER_ROW,
     },
     program::{InstructionDecodeChip, InstructionFetchChip},
@@ -27,6 +29,7 @@ use crate::{
         instructions::SyscallInstrsChip,
         precompiles::{
             fptower::{Fp2AddSubAssignChip, Fp2MulAssignChip, FpOpChip},
+            hint_read::{HintReadChip, HintReadControlChip},
             sigreturn::SigReturnChip,
         },
     },
@@ -54,22 +57,18 @@ pub(crate) mod riscv_chips {
             ShiftRightChip,
         },
         bytes::ByteChip,
-        memory::MemoryGlobalChip,
         program::ProgramChip,
-        syscall::{
-            chip::SyscallChip,
-            precompiles::{
-                edwards::{EdAddAssignChip, EdDecompressChip},
-                keccak256::{KeccakPermuteChip, KeccakPermuteControlChip},
-                mprotect::MProtectChip,
-                poseidon2::Poseidon2Chip,
-                sha256::{
-                    ShaCompressChip, ShaCompressControlChip, ShaExtendChip, ShaExtendControlChip,
-                },
-                uint256::Uint256MulChip,
-                uint256_ops::Uint256OpsChip,
-                weierstrass::{WeierstrassAddAssignChip, WeierstrassDoubleAssignChip},
+        syscall::precompiles::{
+            edwards::{EdAddAssignChip, EdDecompressChip},
+            keccak256::{KeccakPermuteChip, KeccakPermuteControlChip},
+            mprotect::MProtectChip,
+            poseidon2::Poseidon2Chip,
+            sha256::{
+                ShaCompressChip, ShaCompressControlChip, ShaExtendChip, ShaExtendControlChip,
             },
+            uint256::Uint256MulChip,
+            uint256_ops::Uint256OpsChip,
+            weierstrass::{WeierstrassAddAssignChip, WeierstrassDoubleAssignChip},
         },
     };
     pub use sp1_curves::{
@@ -213,14 +212,6 @@ pub enum RiscvAir<F: PrimeField32> {
     ByteLookup(ByteChip<F>),
     /// A lookup table for range operations.
     RangeLookup(RangeChip<F>),
-    /// A table for initializing the global memory state.
-    MemoryGlobalInit(MemoryGlobalChip),
-    /// A table for finalizing the global memory state.
-    MemoryGlobalFinal(MemoryGlobalChip),
-    /// A table for initializing the global page prot state.
-    PageProtGlobalInit(PageProtGlobalChip),
-    /// A table for finalizing the global page prot state.
-    PageProtGlobalFinal(PageProtGlobalChip),
     /// A table for the local memory state.
     MemoryLocal(MemoryLocalChip),
     /// A table for bumping memory timestamps.
@@ -231,16 +222,6 @@ pub enum RiscvAir<F: PrimeField32> {
     PageProtLocal(PageProtLocalChip),
     /// A table for bumping the state timestamps.
     StateBump(StateBumpChip),
-    /// A table for all the syscall invocations.
-    SyscallCore(SyscallChip<SupervisorMode>),
-    /// A table for all the syscall invocations (user mode).
-    SyscallCoreUser(SyscallChip<UserMode>),
-    /// A table for all the precompile invocations.
-    SyscallPrecompile(SyscallChip<SupervisorMode>),
-    /// A table for all the precompile invocations (user mode).
-    SyscallPrecompileUser(SyscallChip<UserMode>),
-    /// A table for all the global interactions.
-    Global(GlobalChip),
     /// A precompile for sha256 extend.
     Sha256Extend(ShaExtendChip),
     /// A controller for sha256 extend.
@@ -339,6 +320,16 @@ pub enum RiscvAir<F: PrimeField32> {
     Poseidon2(Poseidon2Chip<SupervisorMode>),
     /// A precompile for Poseidon2 permutation (user mode).
     Poseidon2User(Poseidon2Chip<UserMode>),
+    /// A chip for the merkle tree traversal.
+    MerkleTreeTraversal(MerkleTreeTraversalChip),
+    /// A chip for hashing a page into its leaf digest.
+    LeafHash(LeafHashChip),
+    /// A controller for the leaf hash chip.
+    LeafHashControl(LeafHashControlChip),
+    /// A controller for the hint read syscall.
+    HintReadControl(HintReadControlChip),
+    /// A chip for the hint read per-word writes.
+    HintRead(HintReadChip),
 }
 
 impl<F: PrimeField32> RiscvAir<F> {
@@ -459,10 +450,6 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::SigReturn(SigReturnChip::default()),
             RiscvAir::Poseidon2(Poseidon2Chip::<SupervisorMode>::new()),
             RiscvAir::Poseidon2User(Poseidon2Chip::<UserMode>::new()),
-            RiscvAir::SyscallCore(SyscallChip::<SupervisorMode>::core()),
-            RiscvAir::SyscallCoreUser(SyscallChip::<UserMode>::core()),
-            RiscvAir::SyscallPrecompile(SyscallChip::<SupervisorMode>::precompile()),
-            RiscvAir::SyscallPrecompileUser(SyscallChip::<UserMode>::precompile()),
             RiscvAir::DivRem(DivRemChip::<SupervisorMode>::default()),
             RiscvAir::DivRemUser(DivRemChip::<UserMode>::default()),
             RiscvAir::Add(AddChip::<SupervisorMode>::default()),
@@ -523,14 +510,14 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::PageProt(PageProtChip::default()),
             RiscvAir::PageProtLocal(PageProtLocalChip::default()),
             RiscvAir::StateBump(StateBumpChip::new()),
-            RiscvAir::MemoryGlobalInit(MemoryGlobalChip::new(MemoryChipType::Initialize)),
-            RiscvAir::MemoryGlobalFinal(MemoryGlobalChip::new(MemoryChipType::Finalize)),
-            RiscvAir::PageProtGlobalInit(PageProtGlobalChip::new(MemoryChipType::Initialize)),
-            RiscvAir::PageProtGlobalFinal(PageProtGlobalChip::new(MemoryChipType::Finalize)),
             RiscvAir::MemoryLocal(MemoryLocalChip::new()),
-            RiscvAir::Global(GlobalChip),
             RiscvAir::ByteLookup(ByteChip::default()),
             RiscvAir::RangeLookup(RangeChip::default()),
+            RiscvAir::MerkleTreeTraversal(MerkleTreeTraversalChip::new()),
+            RiscvAir::LeafHash(LeafHashChip::new()),
+            RiscvAir::LeafHashControl(LeafHashControlChip::new()),
+            RiscvAir::HintReadControl(HintReadControlChip::new()),
+            RiscvAir::HintRead(HintReadChip::new()),
         ]
         .into_iter()
         .map(Chip::new)
@@ -557,14 +544,11 @@ impl<F: PrimeField32> RiscvAir<F> {
 
         let preprocessed_chips = BTreeSet::from([Program, ByteLookup, RangeLookup]);
 
-        let base_precompile_cluster =
-            extend_base(&preprocessed_chips, [SyscallPrecompile, MemoryLocal, Global]);
+        let base_precompile_cluster = extend_base(&preprocessed_chips, [MemoryLocal]);
 
         #[cfg(feature = "mprotect")]
-        let base_precompile_cluster_user = extend_base(
-            &preprocessed_chips,
-            [SyscallPrecompileUser, MemoryLocal, PageProtLocal, Global],
-        );
+        let base_precompile_cluster_user =
+            extend_base(&preprocessed_chips, [MemoryLocal, PageProtLocal]);
 
         let precompile_clusters = [
             [Sha256Extend, Sha256ExtendControl].as_slice(),
@@ -626,7 +610,6 @@ impl<F: PrimeField32> RiscvAir<F> {
         let core_cluster = extend_base(
             &preprocessed_chips,
             [
-                SyscallCore,
                 DivRem,
                 Add,
                 Addi,
@@ -656,7 +639,6 @@ impl<F: PrimeField32> RiscvAir<F> {
                 MemoryBump,
                 StateBump,
                 MemoryLocal,
-                Global,
             ],
         );
 
@@ -664,7 +646,6 @@ impl<F: PrimeField32> RiscvAir<F> {
         let core_cluster_user = extend_base(
             &preprocessed_chips,
             [
-                SyscallCoreUser,
                 DivRemUser,
                 AddUser,
                 AddiUser,
@@ -700,33 +681,28 @@ impl<F: PrimeField32> RiscvAir<F> {
                 PageProtLocal,
                 InstructionFetch,
                 InstructionDecode,
-                Global,
             ],
         );
 
-        let memory_boundary_cluster =
-            extend_base(&preprocessed_chips, [MemoryGlobalInit, MemoryGlobalFinal, Global]);
+        let memory_cluster =
+            extend_base(&preprocessed_chips, [LeafHash, LeafHashControl, MerkleTreeTraversal]);
 
         #[cfg(feature = "mprotect")]
-        let memory_boundary_cluster_user = extend_base(
-            &preprocessed_chips,
-            [MemoryGlobalInit, MemoryGlobalFinal, PageProtGlobalInit, PageProtGlobalFinal, Global],
-        );
+        let memory_cluster_user =
+            extend_base(&preprocessed_chips, [LeafHash, LeafHashControl, MerkleTreeTraversal]);
 
         // Chip sets that may be included in extended versions of the baseline core cluster.
         let core_cluster_exts = [
-            [MemoryGlobalInit, MemoryGlobalFinal].as_slice(),
             [Bls12381Fp].as_slice(),
             [Bn254Fp].as_slice(),
             [Sha256Extend, Sha256ExtendControl, Sha256Compress, Sha256CompressControl].as_slice(),
             [Uint256Ops].as_slice(),
             [Poseidon2].as_slice(),
+            [HintRead, HintReadControl].as_slice(),
         ];
 
         #[cfg(feature = "mprotect")]
         let core_cluster_exts_user = [
-            [MemoryGlobalInit, MemoryGlobalFinal, PageProtGlobalInit, PageProtGlobalFinal]
-                .as_slice(),
             [Bls12381FpUser].as_slice(),
             [Bn254FpUser].as_slice(),
             [Sha256Extend, Sha256ExtendControlUser, Sha256Compress, Sha256CompressControlUser]
@@ -747,15 +723,7 @@ impl<F: PrimeField32> RiscvAir<F> {
 
         let core_cluster_special = extend_base(
             &core_cluster,
-            [
-                MemoryGlobalInit,
-                MemoryGlobalFinal,
-                Sha256Extend,
-                Sha256ExtendControl,
-                Sha256Compress,
-                Sha256CompressControl,
-                Uint256Ops,
-            ],
+            [Sha256Extend, Sha256ExtendControl, Sha256Compress, Sha256CompressControl, Uint256Ops],
         );
 
         #[cfg(feature = "mprotect")]
@@ -768,10 +736,6 @@ impl<F: PrimeField32> RiscvAir<F> {
         let core_cluster_special_user = extend_base(
             &core_cluster_user,
             [
-                MemoryGlobalInit,
-                MemoryGlobalFinal,
-                PageProtGlobalInit,
-                PageProtGlobalFinal,
                 Sha256Extend,
                 Sha256ExtendControlUser,
                 Sha256Compress,
@@ -783,14 +747,14 @@ impl<F: PrimeField32> RiscvAir<F> {
         // Collect all clusters and replace the IDs by chips.
         let chip_clusters = core_clusters
             .chain(core::iter::once(core_cluster_special))
-            .chain(core::iter::once(memory_boundary_cluster))
+            .chain(core::iter::once(memory_cluster))
             .chain(precompile_clusters);
 
         #[cfg(feature = "mprotect")]
         let chip_clusters = chip_clusters
             .chain(core_clusters_user)
             .chain(core::iter::once(core_cluster_special_user))
-            .chain(core::iter::once(memory_boundary_cluster_user))
+            .chain(core::iter::once(memory_cluster_user))
             .chain(precompile_clusters_user);
 
         let chip_clusters = chip_clusters
@@ -1148,24 +1112,6 @@ impl<F: PrimeField32> RiscvAir<F> {
         costs.insert(sig_return.name().to_string(), sig_return.cost());
         chips.push(sig_return);
 
-        let syscall_core = Chip::new(RiscvAir::SyscallCore(SyscallChip::<SupervisorMode>::core()));
-        costs.insert(syscall_core.name().to_string(), syscall_core.cost());
-        chips.push(syscall_core);
-
-        let syscall_core = Chip::new(RiscvAir::SyscallCoreUser(SyscallChip::<UserMode>::core()));
-        costs.insert(syscall_core.name().to_string(), syscall_core.cost());
-        chips.push(syscall_core);
-
-        let syscall_precompile =
-            Chip::new(RiscvAir::SyscallPrecompile(SyscallChip::<SupervisorMode>::precompile()));
-        costs.insert(syscall_precompile.name().to_string(), syscall_precompile.cost());
-        chips.push(syscall_precompile);
-
-        let syscall_precompile =
-            Chip::new(RiscvAir::SyscallPrecompileUser(SyscallChip::<UserMode>::precompile()));
-        costs.insert(syscall_precompile.name().to_string(), syscall_precompile.cost());
-        chips.push(syscall_precompile);
-
         let div_rem = Chip::new(RiscvAir::DivRem(DivRemChip::<SupervisorMode>::default()));
         costs.insert(div_rem.name().to_string(), div_rem.cost());
         chips.push(div_rem);
@@ -1406,37 +1352,9 @@ impl<F: PrimeField32> RiscvAir<F> {
         costs.insert(state_bump.name().to_string(), state_bump.cost());
         chips.push(state_bump);
 
-        let memory_global_init = Chip::new(RiscvAir::MemoryGlobalInit(MemoryGlobalChip::new(
-            MemoryChipType::Initialize,
-        )));
-        costs.insert(memory_global_init.name().to_string(), memory_global_init.cost());
-        chips.push(memory_global_init);
-
-        let memory_global_finalize =
-            Chip::new(RiscvAir::MemoryGlobalFinal(MemoryGlobalChip::new(MemoryChipType::Finalize)));
-        costs.insert(memory_global_finalize.name().to_string(), memory_global_finalize.cost());
-        chips.push(memory_global_finalize);
-
-        let page_prot_global_init = Chip::new(RiscvAir::PageProtGlobalInit(
-            PageProtGlobalChip::new(MemoryChipType::Initialize),
-        ));
-        costs.insert(page_prot_global_init.name().to_string(), page_prot_global_init.cost());
-        chips.push(page_prot_global_init);
-
-        let page_prot_global_finalize = Chip::new(RiscvAir::PageProtGlobalFinal(
-            PageProtGlobalChip::new(MemoryChipType::Finalize),
-        ));
-        costs
-            .insert(page_prot_global_finalize.name().to_string(), page_prot_global_finalize.cost());
-        chips.push(page_prot_global_finalize);
-
         let memory_local = Chip::new(RiscvAir::MemoryLocal(MemoryLocalChip::new()));
         costs.insert(memory_local.name().to_string(), memory_local.cost());
         chips.push(memory_local);
-
-        let global = Chip::new(RiscvAir::Global(GlobalChip));
-        costs.insert(global.name().to_string(), global.cost());
-        chips.push(global);
 
         let byte = Chip::new(RiscvAir::ByteLookup(ByteChip::default()));
         costs.insert(byte.name().to_string(), byte.cost());
@@ -1453,6 +1371,27 @@ impl<F: PrimeField32> RiscvAir<F> {
         let poseidon2_user = Chip::new(RiscvAir::Poseidon2User(Poseidon2Chip::<UserMode>::new()));
         costs.insert(poseidon2_user.name().to_string(), poseidon2_user.cost());
         chips.push(poseidon2_user);
+
+        let merkle_tree_traversal =
+            Chip::new(RiscvAir::MerkleTreeTraversal(MerkleTreeTraversalChip::new()));
+        costs.insert(merkle_tree_traversal.name().to_string(), merkle_tree_traversal.cost());
+        chips.push(merkle_tree_traversal);
+
+        let leaf_hash = Chip::new(RiscvAir::LeafHash(LeafHashChip::new()));
+        costs.insert(leaf_hash.name().to_string(), leaf_hash.cost());
+        chips.push(leaf_hash);
+
+        let leaf_hash_control = Chip::new(RiscvAir::LeafHashControl(LeafHashControlChip::new()));
+        costs.insert(leaf_hash_control.name().to_string(), leaf_hash_control.cost());
+        chips.push(leaf_hash_control);
+
+        let hint_read_control = Chip::new(RiscvAir::HintReadControl(HintReadControlChip::new()));
+        costs.insert(hint_read_control.name().to_string(), hint_read_control.cost());
+        chips.push(hint_read_control);
+
+        let hint_read = Chip::new(RiscvAir::HintRead(HintReadChip::new()));
+        costs.insert(hint_read.name().to_string(), hint_read.cost());
+        chips.push(hint_read);
 
         assert_eq!(chips.len(), costs.len(), "chips and costs must have the same length",);
 
@@ -1519,8 +1458,6 @@ impl<F: PrimeField32> RiscvAir<F> {
                 (RiscvAirId::BranchUser, record.branch_events.len()),
                 (RiscvAirId::JalUser, record.jal_events.len()),
                 (RiscvAirId::JalrUser, record.jalr_events.len()),
-                (RiscvAirId::Global, record.global_interaction_events.len()),
-                (RiscvAirId::SyscallCore, record.syscall_events.len()),
                 (RiscvAirId::SyscallInstrsUser, record.syscall_events.len()),
                 (RiscvAirId::InstructionDecode, record.instruction_fetch_events.len()),
                 (RiscvAirId::InstructionFetch, record.instruction_fetch_events.len()),
@@ -1562,8 +1499,6 @@ impl<F: PrimeField32> RiscvAir<F> {
                 (RiscvAirId::Branch, record.branch_events.len()),
                 (RiscvAirId::Jal, record.jal_events.len()),
                 (RiscvAirId::Jalr, record.jalr_events.len()),
-                (RiscvAirId::Global, record.global_interaction_events.len()),
-                (RiscvAirId::SyscallCore, record.syscall_events.len()),
                 (RiscvAirId::SyscallInstrs, record.syscall_events.len()),
             ]
         }
@@ -1654,16 +1589,7 @@ impl From<RiscvAirDiscriminants> for RiscvAirId {
             RiscvAirDiscriminants::TrapExec => RiscvAirId::TrapExec,
             RiscvAirDiscriminants::TrapMem => RiscvAirId::TrapMem,
             RiscvAirDiscriminants::ByteLookup => RiscvAirId::Byte,
-            RiscvAirDiscriminants::MemoryGlobalInit => RiscvAirId::MemoryGlobalInit,
-            RiscvAirDiscriminants::MemoryGlobalFinal => RiscvAirId::MemoryGlobalFinalize,
-            RiscvAirDiscriminants::PageProtGlobalInit => RiscvAirId::PageProtGlobalInit,
-            RiscvAirDiscriminants::PageProtGlobalFinal => RiscvAirId::PageProtGlobalFinalize,
             RiscvAirDiscriminants::MemoryLocal => RiscvAirId::MemoryLocal,
-            RiscvAirDiscriminants::SyscallCore => RiscvAirId::SyscallCore,
-            RiscvAirDiscriminants::SyscallCoreUser => RiscvAirId::SyscallCoreUser,
-            RiscvAirDiscriminants::SyscallPrecompile => RiscvAirId::SyscallPrecompile,
-            RiscvAirDiscriminants::SyscallPrecompileUser => RiscvAirId::SyscallPrecompileUser,
-            RiscvAirDiscriminants::Global => RiscvAirId::Global,
             RiscvAirDiscriminants::Sha256Extend => RiscvAirId::ShaExtend,
             RiscvAirDiscriminants::Sha256Compress => RiscvAirId::ShaCompress,
             RiscvAirDiscriminants::Ed25519Add => RiscvAirId::EdAddAssign,
@@ -1715,6 +1641,11 @@ impl From<RiscvAirDiscriminants> for RiscvAirId {
             RiscvAirDiscriminants::Poseidon2User => RiscvAirId::Poseidon2User,
             RiscvAirDiscriminants::AluX0 => RiscvAirId::AluX0,
             RiscvAirDiscriminants::AluX0User => RiscvAirId::AluX0User,
+            RiscvAirDiscriminants::MerkleTreeTraversal => RiscvAirId::MerkleTreeTraversal,
+            RiscvAirDiscriminants::LeafHash => RiscvAirId::LeafHash,
+            RiscvAirDiscriminants::LeafHashControl => RiscvAirId::LeafHashControl,
+            RiscvAirDiscriminants::HintReadControl => RiscvAirId::HintReadControl,
+            RiscvAirDiscriminants::HintRead => RiscvAirId::HintRead,
         }
     }
 }

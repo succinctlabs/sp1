@@ -309,75 +309,6 @@ impl SP1Verifier {
             }
         }
 
-        // Memory initialization & finalization constraints.
-        //
-        // Initialization:
-        // - `previous_init_addr` should be zero.
-        // - `previous_finalize_addr` should be zero.
-        // - `previous_init_page_idx` should be zero.
-        // - `previous_finalize_page_idx` should be zero.
-        //
-        // Transition:
-        // - The `previous_init_addr` should equal `last_init_addr` of the previous shard.
-        // - The `previous_finalize_addr` should equal `last_finalize_addr` of the previous shard.
-        // - The `previous_init_page_idx` should be `last_init_page_idx` of the previous shard.
-        // - The `previous_finalize_page_idx` is `last_finalize_page_idx` of the previous shard.
-        //
-        // Finalization:
-        // - The final `last_init_addr` should be non-zero.
-        // - The final `last_finalize_addr` should be non-zero.
-        //
-        // Internal Constraints:
-        // - Inside the shard proof, it is constrained that the addresses are of valid u16 limbs.
-        let mut last_init_addr_prev = [SP1Field::zero(); 3];
-        let mut last_finalize_addr_prev = [SP1Field::zero(); 3];
-        let mut last_init_page_idx_prev = [SP1Field::zero(); 3];
-        let mut last_finalize_page_idx_prev = [SP1Field::zero(); 3];
-
-        for shard_proof in proof.0.iter() {
-            let public_values: &PublicValues<[_; 4], [_; 3], [_; 4], _> =
-                shard_proof.public_values.as_slice().borrow();
-
-            if public_values.previous_init_addr != last_init_addr_prev {
-                return Err(MachineVerifierError::InvalidPublicValues(
-                    "previous_init_addr != last_init_addr_prev",
-                ));
-            } else if public_values.previous_finalize_addr != last_finalize_addr_prev {
-                return Err(MachineVerifierError::InvalidPublicValues(
-                    "previous_finalize_addr != last_finalize_addr_prev",
-                ));
-            } else if public_values.previous_init_page_idx != last_init_page_idx_prev {
-                return Err(MachineVerifierError::InvalidPublicValues(
-                    "previous_init_page_idx != last_init_page_idx_prev",
-                ));
-            } else if public_values.previous_finalize_page_idx != last_finalize_page_idx_prev {
-                return Err(MachineVerifierError::InvalidPublicValues(
-                    "previous_finalize_page_idx != last_finalize_page_idx_prev",
-                ));
-            } else if public_values.is_untrusted_programs_enabled
-                != vk.untrusted_config.enable_untrusted_programs
-            {
-                return Err(MachineVerifierError::InvalidPublicValues(
-                    "public_values.is_untrusted_programs_enabled != vk.untrusted_config.enable_untrusted_programs",
-                ));
-            }
-
-            last_init_addr_prev = public_values.last_init_addr;
-            last_finalize_addr_prev = public_values.last_finalize_addr;
-            last_init_page_idx_prev = public_values.last_init_page_idx;
-            last_finalize_page_idx_prev = public_values.last_finalize_page_idx;
-        }
-        if last_init_addr_prev == [SP1Field::zero(); 3] {
-            return Err(MachineVerifierError::InvalidPublicValues(
-                "the zero address was never initialized",
-            ));
-        }
-        if last_finalize_addr_prev == [SP1Field::zero(); 3] {
-            return Err(MachineVerifierError::InvalidPublicValues(
-                "the zero address was never finalized",
-            ));
-        }
-
         // Public values and program configuration for untrusted programs.
         // Constraints:
         // - `enable_trap_handler` is equal between the `vk` and the public values.
@@ -492,21 +423,6 @@ impl SP1Verifier {
         // Verify that the number of shards is not too large.
         if proof.0.len() >= 1 << MAX_LOG_NUMBER_OF_SHARDS {
             return Err(MachineVerifierError::TooManyShards);
-        }
-
-        // Verify the global cumulative sum is correct.
-        let initial_global_cumulative_sum = vk.initial_global_cumulative_sum;
-        let mut cumulative_sum = initial_global_cumulative_sum;
-        for shard_proof in proof.0.iter() {
-            let public_values: &PublicValues<[_; 4], [_; 3], [_; 4], _> =
-                shard_proof.public_values.as_slice().borrow();
-
-            cumulative_sum = cumulative_sum + public_values.global_cumulative_sum;
-        }
-        if !cumulative_sum.is_zero() {
-            return Err(MachineVerifierError::InvalidPublicValues(
-                "global cumulative sum is not zero",
-            ));
         }
 
         // Verify the shard proofs.

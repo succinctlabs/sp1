@@ -3,7 +3,6 @@ use itertools::Itertools;
 use slop_alloc::mem::DeviceMemory;
 use slop_futures::queue::Worker;
 use slop_tensor::{Dimensions, Tensor};
-use sp1_core_machine::global::GLOBAL_OFFSET_POS_COPY;
 use std::collections::{BTreeMap, BTreeSet};
 use std::future::ready;
 use std::marker::PhantomData;
@@ -112,6 +111,7 @@ fn fill_buf(dst: *mut u32, val: u32, len: usize, max_log_row_count: u32, backend
     }
 }
 
+#[allow(dead_code)]
 fn count_and_add(dst: *mut u32, src: *const Felt, len: usize, backend: &TaskScope) {
     let args = args!(dst, src, len);
     const BLOCK_DIM: usize = 16;
@@ -127,6 +127,7 @@ fn count_and_add(dst: *mut u32, src: *const Felt, len: usize, backend: &TaskScop
     }
 }
 
+#[allow(dead_code)]
 fn sum_to_trace(dst: *mut Felt, src: *const u32, backend: &TaskScope) {
     let args = args!(dst, src);
     const BLOCK_DIM: usize = 128;
@@ -555,39 +556,12 @@ async fn allocate_and_initialize_traces(
     })
 }
 
-fn update_global_dependencies(
-    dense_data: &mut Buffer<Felt, TaskScope>,
-    main_table_index: &BTreeMap<String, TraceOffset>,
-) {
-    let global_trace_offset = main_table_index.get("Global").unwrap();
-    let global_dependencies_offset = global_trace_offset.dense_offset.start
-        + global_trace_offset.poly_size * GLOBAL_OFFSET_POS_COPY;
-    let len = global_trace_offset.poly_size;
-    let byte_trace_offset = main_table_index.get("Byte").unwrap().dense_offset.start;
-
-    let backend = dense_data.backend().clone();
-    let mut cnt_buf = Tensor::<u32, TaskScope>::zeros_in([320], backend.clone());
-
-    count_and_add(
-        cnt_buf.as_mut_ptr(),
-        unsafe { dense_data.as_ptr().add(global_dependencies_offset) },
-        len,
-        &backend,
-    );
-
-    sum_to_trace(
-        unsafe { dense_data.as_mut_ptr().add(byte_trace_offset) },
-        cnt_buf.as_ptr(),
-        &backend,
-    );
-}
-
 async fn copy_main_jagged_traces(
     traces: BTreeMap<String, Trace<TaskScope>>,
     jagged_traces: &mut JaggedTraceMle<Felt, TaskScope>,
     log_stacking_height: u32,
     max_log_row_count: u32,
-    global_dependencies_opt: bool,
+    _global_dependencies_opt: bool,
 ) {
     // At this point, all traces are on device. Now we need to copy them into the Jagged MLE struct.
     let JaggedMle { dense_data: trace_dense_data, col_index, start_indices, column_heights } =
@@ -641,10 +615,6 @@ async fn copy_main_jagged_traces(
     *main_table_index = new_main_table_index;
     *main_padding = final_main_padding;
     *main_padding_col_count = final_main_padding_col_count;
-
-    if main_table_index.contains_key("Global") && global_dependencies_opt {
-        update_global_dependencies(dense_data, main_table_index);
-    }
 
     // Shrink the len of the dense data to match the actual size.
     unsafe {

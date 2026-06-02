@@ -7,9 +7,12 @@
 use std::sync::Arc;
 
 use futures::stream::{FuturesUnordered, StreamExt};
+use slop_algebra::PrimeField32;
 use slop_challenger::IopCtx;
 use slop_futures::pipeline::{AsyncEngine, AsyncWorker, Pipeline};
-use sp1_core_executor::{ExecutionError, ExecutionRecord, Program, SP1CoreOpts};
+use sp1_core_executor::{
+    ExecutionError, ExecutionRecord, Program, SP1CoreOpts, SHARD_KIND_EXECUTION, SHARD_KIND_MERKLE,
+};
 use sp1_core_machine::executor::trace_chunk;
 use sp1_hypercube::{air::ShardRange, prover::ProverSemaphore};
 use sp1_primitives::{SP1Field, SP1GlobalContext};
@@ -35,6 +38,16 @@ use super::{SendSpliceTask, SplicingTask, SplicingWorker};
 /// AsyncEngine alias for the new chunk-splicing pipeline.
 pub type SpliceChunkEngine<A, W, C> =
     AsyncEngine<SpliceChunkTask<W>, Result<(), ExecutionError>, SpliceChunkWorker<A, W, C>>;
+
+/// Broadcast to every shard task once the chunk's commitments are ordered:
+/// the commitments plus shard counts only known after splicing completes.
+struct ChunkProveData {
+    commitments: Vec<<SP1GlobalContext as IopCtx>::Digest>,
+    num_execution_shards: u32,
+    num_merkle_shards: u32,
+    prev_root: [u32; 8],
+    cur_root: [u32; 8],
+}
 
 /// One per-chunk task to be processed by [`SpliceChunkWorker`].
 pub struct SpliceChunkTask<W: WorkerClient> {
@@ -131,16 +144,18 @@ where
             async move { inner.call_streaming(splicing_task, payload_for_splice, cuts_tx).await }
         });
 
-        // Broadcasts the ordered global commitments to every shard task.
-        let (commits_tx, commits_rx) =
-            watch::channel::<Option<Arc<Vec<<SP1GlobalContext as IopCtx>::Digest>>>>(None);
+        // Broadcasts the ordered global commitments + shard counts to every shard task.
+        let (commits_tx, commits_rx) = watch::channel::<Option<Arc<ChunkProveData>>>(None);
+        let chunk_idx = payload_arc.chunk_idx as u32;
 
         let mut commit_jobs: JoinSet<(CommitKind, u32, <SP1GlobalContext as IopCtx>::Digest)> =
             JoinSet::new();
         let mut shard_jobs: JoinSet<Result<(), ExecutionError>> = JoinSet::new();
 
         // Receive the shard cuts.
+        let mut num_execution_shards: u32 = 0;
         while let Some(cut) = cuts_rx.recv().await {
+            num_execution_shards += 1;
             let seed = ExecutionRecord::from_shard_data(
                 program.clone(),
                 proof_nonce,
@@ -168,8 +183,9 @@ where
                 let opts_c = opts.clone();
                 let chunk = cut.chunk.clone();
                 let range = cut.range;
+                let shard_index = cut.shard_index;
                 shard_jobs.spawn(async move {
-                    let rec = tokio::task::spawn_blocking(move || {
+                    let mut rec = tokio::task::spawn_blocking(move || {
                         let (_, rec, _) =
                             trace_chunk::<SP1Field>(prog, opts_c, chunk, proof_nonce, seed)?;
                         Ok::<_, ExecutionError>(rec)
@@ -181,9 +197,18 @@ where
                     rx.changed()
                         .await
                         .map_err(|_| ExecutionError::Other("commits sender dropped".into()))?;
-                    let commitments: Arc<Vec<_>> =
-                        rx.borrow().as_ref().expect("commits_tx sent Some").clone();
-                    let proof = Box::new(prover.prove_shard(&rec, &commitments, permits).await);
+                    let data = rx.borrow().as_ref().expect("commits_tx sent Some").clone();
+                    rec.trace_chunk_idx = chunk_idx;
+                    rec.shard_kind = SHARD_KIND_EXECUTION;
+                    rec.shard_index = shard_index;
+                    rec.num_execution_shards = data.num_execution_shards;
+                    rec.num_merkle_shards = data.num_merkle_shards;
+                    rec.prev_root = data.prev_root;
+                    rec.cur_root = data.cur_root;
+                    rec.public_values.prev_merkle_root = data.prev_root;
+                    rec.public_values.merkle_root = data.cur_root;
+                    let proof =
+                        Box::new(prover.prove_shard(&rec, &data.commitments, permits).await);
                     tx.send(ProofData::InMemory { kind: ProofKind::Execution, range, proof })
                         .await
                         .map_err(|e| ExecutionError::Other(format!("send proof: {e}")))?;
@@ -208,8 +233,21 @@ where
                 self.permits.clone(),
             )
             .await;
+        // Roots bracketing this chunk's memory update, broadcast to every shard.
+        let (prev_root, cur_root) = merkle_seed
+            .merkle_proof_record
+            .as_ref()
+            .map(|m| {
+                (
+                    m.proof.prev_root.map(|x| x.as_canonical_u32()),
+                    m.proof.cur_root.map(|x| x.as_canonical_u32()),
+                )
+            })
+            .unwrap_or_default();
+
         // TODO(rkm): cut the merkle proof accordingly with the `SplitOpts`.
         let merkle_records: Vec<ExecutionRecord> = vec![merkle_seed];
+        let num_merkle_shards = merkle_records.len() as u32;
 
         // Generate the global commitments from each merkle shard.
         for (m, rec) in merkle_records.iter().enumerate() {
@@ -223,19 +261,31 @@ where
             });
         }
         // Generate the proof for each merkle shard.
-        for rec in merkle_records.into_iter() {
+        for (m_idx, mut rec) in merkle_records.into_iter().enumerate() {
             let prover = self.core_prover.clone();
             let permits = self.permits.clone();
             let tx = prove_shard_tx.clone();
             let mut rx = commits_rx.clone();
+            let shard_index = m_idx as u32;
             shard_jobs.spawn(async move {
                 // TODO(rkm): generate the dependencies here.
                 rx.changed()
                     .await
                     .map_err(|_| ExecutionError::Other("commits sender dropped".into()))?;
-                let commitments: Arc<Vec<_>> =
-                    rx.borrow().as_ref().expect("commits_tx sent Some").clone();
-                let proof = Box::new(prover.prove_shard(&rec, &commitments, permits).await);
+                let data = rx.borrow().as_ref().expect("commits_tx sent Some").clone();
+                rec.trace_chunk_idx = chunk_idx;
+                rec.shard_kind = SHARD_KIND_MERKLE;
+                rec.shard_index = shard_index;
+                rec.num_execution_shards = data.num_execution_shards;
+                rec.num_merkle_shards = data.num_merkle_shards;
+                rec.prev_root = data.prev_root;
+                rec.cur_root = data.cur_root;
+                rec.public_values.prev_merkle_root = data.prev_root;
+                rec.public_values.merkle_root = data.cur_root;
+                if m_idx == 0 {
+                    rec.public_values.is_first_merkle_shard = 1;
+                }
+                let proof = Box::new(prover.prove_shard(&rec, &data.commitments, permits).await);
                 tx.send(ProofData::InMemory {
                     kind: ProofKind::Merkle,
                     range: ShardRange::default(),
@@ -256,7 +306,13 @@ where
         }
         // Sort the commitments, and send it in order.
         let commitments = order_commitments(commits);
-        let _ = commits_tx.send(Some(Arc::new(commitments)));
+        let _ = commits_tx.send(Some(Arc::new(ChunkProveData {
+            commitments,
+            num_execution_shards,
+            num_merkle_shards,
+            prev_root,
+            cur_root,
+        })));
         drop(commits_tx);
 
         // Drain shard jobs — each emits its own proof on completion.

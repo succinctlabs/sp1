@@ -2,7 +2,6 @@ use std::{borrow::Borrow, collections::BTreeMap, io, sync::Arc};
 
 use crate::executor::trace_chunk;
 use crate::riscv::RiscvAir;
-use hashbrown::HashSet;
 use thiserror::Error;
 
 use slop_algebra::PrimeField32;
@@ -10,17 +9,15 @@ use slop_challenger::IopCtx;
 use sp1_hypercube::{
     air::{PublicValues, PROOF_NONCE_NUM_WORDS},
     prover::{AirProver, PcsProof, ProvingKey, SimpleProver},
-    MachineProof, MachineRecord, ShardContext,
+    MachineProof, ShardContext,
 };
 
 use crate::io::SP1Stdin;
 use sp1_core_executor::{SP1CoreOpts, SplitOpts};
 
 use sp1_core_executor::{
-    chunked_memory_init_events,
-    events::{MemoryInitializeFinalizeEvent, MemoryRecord},
-    CompressedMemory, CompressedPages, CycleResult, ExecutionError, ExecutionRecord, Program,
-    SP1Context, SplicedMinimalTrace, SplicingVMEnum,
+    CycleResult, ExecutionError, ExecutionRecord, Program, SP1Context, SplicedMinimalTrace,
+    SplicingVMEnum,
 };
 use sp1_core_executor_runner::MinimalExecutorRunner;
 use sp1_jit::{MinimalTrace, TraceChunk};
@@ -41,7 +38,7 @@ where
     F: PrimeField32,
 {
     let machine = RiscvAir::<F>::machine();
-    let split_opts = SplitOpts::new(&opts, program.instructions.len(), false);
+    let _split_opts = SplitOpts::new(&opts, program.instructions.len(), false);
 
     // Phase 1: Run MinimalExecutorRunner to generate trace chunks
     let mut minimal_executor = MinimalExecutorRunner::new(
@@ -67,59 +64,22 @@ where
 
     // Phase 2: Splice chunks and trace them to generate records
     let mut all_records = Vec::new();
-    let mut deferred =
-        ExecutionRecord::new(program.clone(), proof_nonce, opts.global_dependencies_opt);
-    let mut touched_addresses = HashSet::new();
-    let mut touched_pages = HashSet::new();
 
     for chunk in trace_chunks {
         // Splice the chunk into shards
-        let spliced_traces = splice_chunk_sequential(
-            program.clone(),
-            chunk,
-            proof_nonce,
-            opts.clone(),
-            &mut touched_addresses,
-            &mut touched_pages,
-        );
+        let spliced_traces =
+            splice_chunk_sequential(program.clone(), chunk, proof_nonce, opts.clone());
 
         // Trace each spliced chunk to generate execution records
-        for (is_last, spliced) in spliced_traces {
+        for (_is_last, spliced) in spliced_traces {
             let record =
                 ExecutionRecord::new(program.clone(), proof_nonce, opts.global_dependencies_opt);
-            let (done, mut record, final_registers) =
+            let (_done, record, _final_registers) =
                 trace_chunk::<F>(program.clone(), opts.clone(), spliced, proof_nonce, record)
                     .map_err(SP1CoreProverError::ExecutionError)?;
 
-            if done {
-                // Insert global memory events for the last record
-                emit_globals(
-                    &minimal_executor,
-                    &mut record,
-                    final_registers,
-                    touched_addresses.clone(),
-                    touched_pages.clone(),
-                );
-            }
-
-            // Handle deferral
-            deferred.append(&mut record.defer(&opts.retained_events_presets));
-            let can_pack = done
-                && record.estimated_trace_area <= split_opts.pack_trace_threshold
-                && deferred.global_memory_initialize_events.len()
-                    <= split_opts.combine_memory_threshold
-                && deferred.global_memory_finalize_events.len()
-                    <= split_opts.combine_memory_threshold
-                && deferred.global_page_prot_initialize_events.len()
-                    <= split_opts.combine_page_prot_threshold
-                && deferred.global_page_prot_finalize_events.len()
-                    <= split_opts.combine_page_prot_threshold;
-            let deferred_records =
-                deferred.split(done || is_last, &mut record, can_pack, &split_opts);
-
             // Generate dependencies and collect records
             let mut records = vec![record];
-            records.extend(deferred_records);
             machine.generate_dependencies(records.iter_mut(), None);
             all_records.extend(records);
         }
@@ -127,81 +87,6 @@ where
 
     let cycles = minimal_executor.global_clk();
     Ok((all_records, cycles))
-}
-
-/// Postprocess into an existing [`ExecutionRecord`],
-/// consisting of all the [`MemoryInitializeFinalizeEvent`]s.
-#[tracing::instrument(name = "emit globals", skip_all)]
-pub fn emit_globals(
-    minimal_executor: &MinimalExecutorRunner,
-    record: &mut ExecutionRecord,
-    final_registers: [MemoryRecord; 32],
-    mut touched_addresses: HashSet<u64>,
-    _touched_pages: HashSet<u64>,
-) {
-    // Add all the finalize addresses to the touched addresses.
-    touched_addresses.extend(minimal_executor.program().memory_image.keys().copied());
-
-    record.global_memory_initialize_events.extend(
-        final_registers
-            .iter()
-            .enumerate()
-            .filter(|(_, e)| e.timestamp != 0)
-            .map(|(i, _)| MemoryInitializeFinalizeEvent::initialize(i as u64, 0)),
-    );
-
-    record.global_memory_finalize_events.extend(
-        final_registers.iter().enumerate().filter(|(_, e)| e.timestamp != 0).map(|(i, entry)| {
-            MemoryInitializeFinalizeEvent::finalize(i as u64, entry.value, entry.timestamp)
-        }),
-    );
-
-    let hint_init_events: Vec<MemoryInitializeFinalizeEvent> = minimal_executor
-        .hints()
-        .iter()
-        .flat_map(|(addr, value)| chunked_memory_init_events(*addr, value))
-        .collect::<Vec<_>>();
-    let hint_addrs = hint_init_events.iter().map(|event| event.addr).collect::<HashSet<_>>();
-
-    // Initialize the all the hints written during execution.
-    record.global_memory_initialize_events.extend(hint_init_events);
-
-    // Initialize the memory addresses that were touched during execution.
-    // We don't initialize the memory addresses that were in the program image, since they were
-    // initialized in the MemoryProgram chip.
-    let memory_init_events = touched_addresses
-        .iter()
-        .filter(|addr| !minimal_executor.program().memory_image.contains_key(*addr))
-        .filter(|addr| !hint_addrs.contains(*addr))
-        .map(|addr| MemoryInitializeFinalizeEvent::initialize(*addr, 0));
-    record.global_memory_initialize_events.extend(memory_init_events);
-
-    // Ensure all the hinted addresses are initialized.
-    touched_addresses.extend(hint_addrs);
-
-    // Finalize the memory addresses that were touched during execution.
-    for addr in &touched_addresses {
-        let entry = minimal_executor.get_memory_value(*addr);
-
-        record.global_memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize(
-            *addr,
-            entry.value,
-            entry.clk,
-        ));
-    }
-}
-
-/// Get set of addresses that were hinted.
-#[must_use]
-pub fn get_hint_event_addrs(minimal_executor: &MinimalExecutorRunner) -> HashSet<u64> {
-    let events = minimal_executor
-        .hints()
-        .iter()
-        .flat_map(|(addr, value)| chunked_memory_init_events(*addr, value))
-        .collect::<Vec<_>>();
-    let hint_event_addrs = events.iter().map(|event| event.addr).collect::<HashSet<_>>();
-
-    hint_event_addrs
 }
 
 /// Prove a program with the given inputs using SimpleProver.
@@ -231,15 +116,7 @@ where
         let proof = prover.prove_shard(pk.clone(), record).await;
         let public_values: &PublicValues<[GC::F; 4], [GC::F; 3], [GC::F; 4], GC::F> =
             proof.public_values.as_slice().borrow();
-        shard_proofs.insert(
-            (
-                public_values.initial_timestamp,
-                public_values.last_timestamp,
-                public_values.previous_init_addr,
-                public_values.previous_finalize_addr,
-            ),
-            proof,
-        );
+        shard_proofs.insert((public_values.initial_timestamp, public_values.last_timestamp), proof);
     }
 
     let shard_proofs = shard_proofs.into_values().collect();
@@ -255,20 +132,9 @@ fn splice_chunk_sequential<T: MinimalTrace>(
     chunk: T,
     proof_nonce: [u32; sp1_hypercube::air::PROOF_NONCE_NUM_WORDS],
     opts: SP1CoreOpts,
-    touched_addresses: &mut HashSet<u64>,
-    touched_pages: &mut HashSet<u64>,
 ) -> Vec<(bool, SplicedMinimalTrace<T>)> {
     let mut result = Vec::new();
-    let mut compressed_touched = CompressedMemory::new();
-    let mut compressed_touched_pages = CompressedPages::new();
-    let mut vm = SplicingVMEnum::new(
-        &chunk,
-        program.clone(),
-        &mut compressed_touched,
-        &mut compressed_touched_pages,
-        proof_nonce,
-        opts,
-    );
+    let mut vm = SplicingVMEnum::new(&chunk, program.clone(), proof_nonce, opts);
 
     let mut last_splice = SplicedMinimalTrace::new_full_trace(chunk.clone());
     let start_num_mem_reads = chunk.num_mem_reads();
@@ -302,8 +168,6 @@ fn splice_chunk_sequential<T: MinimalTrace>(
         }
     }
 
-    touched_addresses.extend(compressed_touched.is_set());
-    touched_pages.extend(compressed_touched_pages.is_set());
     result
 }
 

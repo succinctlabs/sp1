@@ -212,6 +212,10 @@ where
         <A as MachineAir<F>>::num_rows(&self.air, input)
     }
 
+    fn main_width(&self) -> usize {
+        self.air.main_width()
+    }
+
     fn generate_trace(&self, input: &A::Record, output: &mut A::Record) -> RowMajorMatrix<F> {
         self.air.generate_trace(input, output)
     }
@@ -223,6 +227,27 @@ where
         buffer: &mut [std::mem::MaybeUninit<F>],
     ) {
         self.air.generate_trace_into(input, output, buffer);
+    }
+
+    fn global_width(&self) -> usize {
+        self.air.global_width()
+    }
+
+    fn generate_global_trace(
+        &self,
+        input: &A::Record,
+        output: &mut A::Record,
+    ) -> Option<RowMajorMatrix<F>> {
+        self.air.generate_global_trace(input, output)
+    }
+
+    fn generate_global_trace_into(
+        &self,
+        input: &A::Record,
+        output: &mut A::Record,
+        buffer: &mut [std::mem::MaybeUninit<F>],
+    ) {
+        self.air.generate_global_trace_into(input, output, buffer);
     }
 
     fn generate_dependencies(&self, input: &A::Record, output: &mut A::Record) {

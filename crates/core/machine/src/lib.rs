@@ -22,7 +22,6 @@ pub mod alu;
 pub mod bytes;
 pub mod control_flow;
 pub mod executor;
-pub mod global;
 pub mod io;
 pub mod memory;
 pub mod merkle_prover;

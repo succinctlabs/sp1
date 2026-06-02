@@ -3,9 +3,9 @@ use std::sync::Arc;
 use clap::Parser;
 use slop_algebra::AbstractField;
 use sp1_core_executor::{
-    minimal::arch::portable::MinimalExecutor as PortableMinimalExecutor, CompressedMemory,
-    CompressedPages, CycleResult, MinimalExecutor, Program, SP1CoreOpts, ShardData,
-    SplicedMinimalTrace, SplicingVM, SupervisorMode, MERKLE_PAGE_BYTES, MERKLE_PAGE_WORDS,
+    minimal::arch::portable::MinimalExecutor as PortableMinimalExecutor, CycleResult,
+    MinimalExecutor, Program, SP1CoreOpts, ShardData, SplicedMinimalTrace, SplicingVM,
+    SupervisorMode, MERKLE_PAGE_BYTES, MERKLE_PAGE_WORDS,
 };
 use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir};
 use sp1_hypercube::{
@@ -691,16 +691,8 @@ fn execute_minimal_splice_inner(
 
     for (chunk_idx, chunk) in chunks.iter().enumerate() {
         println!("Starting {:?} chunk", chunk_idx);
-        let mut touched_addresses = CompressedMemory::new();
-        let mut touched_pages = CompressedPages::new();
-        let mut vm: SplicingVM<'_, SupervisorMode> = SplicingVM::new(
-            chunk,
-            program.clone(),
-            &mut touched_addresses,
-            &mut touched_pages,
-            [0u32; 4],
-            opts.clone(),
-        );
+        let mut vm: SplicingVM<'_, SupervisorMode> =
+            SplicingVM::new(chunk, program.clone(), [0u32; 4], opts.clone());
 
         // Set the dirty page information.
         vm.set_dirty_pages(&chunk_dirty_pages[chunk_idx], &chunk_dirty_pages_final[chunk_idx]);

@@ -71,10 +71,6 @@ impl<GC: IopCtx<F = SP1Field, EF = SP1ExtensionField> + FieldHasher, Proof>
         let deferred_proof = prev_deferred_proof + self.vks_and_proofs.len() as u64;
         ShardRange {
             timestamp_range: (1, 1),
-            initialized_address_range: (0, 0),
-            finalized_address_range: (0, 0),
-            initialized_page_index_range: (0, 0),
-            finalized_page_index_range: (0, 0),
             deferred_proof_range: (prev_deferred_proof, deferred_proof),
         }
     }
@@ -216,16 +212,6 @@ where
         // Set initial_pc, end_pc, initial_shard, and end_shard to be the hinted values.
         deferred_public_values.pc_start = end_pc;
         deferred_public_values.next_pc = end_pc;
-        // Set the init and finalize addresss to be the hinted values.
-        deferred_public_values.previous_init_addr = core::array::from_fn(|_| zero);
-        deferred_public_values.last_init_addr = core::array::from_fn(|_| zero);
-        deferred_public_values.previous_finalize_addr = core::array::from_fn(|_| zero);
-        deferred_public_values.last_finalize_addr = core::array::from_fn(|_| zero);
-        // Set the init and finalize page index to be the hinted values.
-        deferred_public_values.previous_init_page_idx = core::array::from_fn(|_| zero);
-        deferred_public_values.last_init_page_idx = core::array::from_fn(|_| zero);
-        deferred_public_values.previous_finalize_page_idx = core::array::from_fn(|_| zero);
-        deferred_public_values.last_finalize_page_idx = core::array::from_fn(|_| zero);
         deferred_public_values.initial_timestamp = [zero, zero, zero, one];
         deferred_public_values.last_timestamp = [zero, zero, zero, one];
 

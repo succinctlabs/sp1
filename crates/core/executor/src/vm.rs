@@ -11,8 +11,8 @@ use crate::{
         },
         syscall::{sp1_ecall_handler, SyscallRuntime},
     },
-    ExecutionError, ExecutionMode, Instruction, Opcode, Program, Register, RetainedEventsPreset,
-    SP1CoreOpts, SupervisorMode, SyscallCode, TrapError, UserMode, CLK_INC as CLK_INC_32, HALT_PC,
+    ExecutionError, ExecutionMode, Instruction, Opcode, Program, Register, SP1CoreOpts,
+    SupervisorMode, SyscallCode, TrapError, UserMode, CLK_INC as CLK_INC_32, HALT_PC,
     PC_INC as PC_INC_32,
 };
 use hashbrown::HashMap;
@@ -25,7 +25,7 @@ use sp1_jit::{MemReads, MinimalTrace};
 use sp1_primitives::consts::{LOG_PAGE_SIZE, PROT_EXEC, PROT_READ, PROT_WRITE};
 
 pub(crate) mod gas;
-pub(crate) mod memory;
+// pub(crate) mod memory;
 pub(crate) mod results;
 pub(crate) mod shapes;
 pub(crate) mod syscall;
@@ -54,8 +54,6 @@ pub struct CoreVM<'a, M: ExecutionMode> {
     next_clk: u64,
     /// The program that is being executed.
     pub program: Arc<Program>,
-    /// The syscalls that are not marked as external, ie. they stay in the same shard.
-    pub(crate) retained_syscall_codes: Vec<SyscallCode>,
     /// The options to configure the VM, mostly for syscall / shard handling.
     pub opts: SP1CoreOpts,
     /// The end clk of the trace chunk.
@@ -94,13 +92,6 @@ impl<'a, M: ExecutionMode> CoreVM<'a, M> {
         };
         let start_pc = trace.pc_start();
 
-        let retained_syscall_codes = opts
-            .retained_events_presets
-            .iter()
-            .flat_map(RetainedEventsPreset::syscall_codes)
-            .copied()
-            .collect();
-
         tracing::trace!("start_clk: {}", start_clk);
         tracing::trace!("start_pc: {}", start_pc);
         tracing::trace!("trace.clk_end(): {}", trace.clk_end());
@@ -117,7 +108,6 @@ impl<'a, M: ExecutionMode> CoreVM<'a, M> {
             next_pc: start_pc.wrapping_add(PC_INC),
             next_clk: start_clk.wrapping_add(CLK_INC),
             exit_code: 0,
-            retained_syscall_codes,
             opts,
             clk_end: trace.clk_end(),
             public_value_digest: [0; PV_DIGEST_NUM_WORDS],
@@ -1078,13 +1068,6 @@ impl<'a, M: ExecutionMode> CoreVM<'a, M> {
     /// Get the memory reads iterator.
     pub fn mem_reads(&mut self) -> &mut MemReads<'a> {
         &mut self.mem_reads
-    }
-
-    /// Check if the syscall is retained.
-    #[inline]
-    #[must_use]
-    pub fn is_retained_syscall(&self, syscall_code: SyscallCode) -> bool {
-        self.retained_syscall_codes.contains(&syscall_code)
     }
 
     /// Check if the trace has ended.

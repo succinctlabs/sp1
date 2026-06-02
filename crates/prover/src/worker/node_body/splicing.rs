@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use sp1_core_executor::{
-    CompressedMemory, CompressedPages, CycleResult, ExecutionError, Program, SP1CoreOpts,
-    SplicedMinimalTrace, SplicingVMEnum,
+    CycleResult, ExecutionError, Program, SP1CoreOpts, SplicedMinimalTrace, SplicingVMEnum,
 };
 use sp1_hypercube::air::{ShardBoundary, ShardRange};
 use sp1_jit::{MinimalTrace, TraceChunkRaw, MERKLE_PAGE_WORDS};
@@ -76,9 +75,7 @@ impl<A: ArtifactClient> SplicingWorker<A> {
         join_set.spawn_blocking(
             move || {
             let _guard = span.enter();
-            let mut touched_addresses = CompressedMemory::new();
-            let mut touched_pages = CompressedPages::new();
-            let mut vm = SplicingVMEnum::new(&chunk, program.clone(), &mut touched_addresses, &mut touched_pages, common_prover_input.nonce, opts);
+            let mut vm = SplicingVMEnum::new(&chunk, program.clone(),  common_prover_input.nonce, opts);
 
             // SAFETY: If `dirty_page_ids` is empty, then no memory access
             // are done in the chunk, so the `on_access` will never fire.
@@ -91,10 +88,6 @@ impl<A: ArtifactClient> SplicingWorker<A> {
             let mut shard_index: u32 = 0;
                 let mut boundary = ShardBoundary {
                     timestamp: start_clk,
-                    initialized_address: 0,
-                    finalized_address: 0,
-                    initialized_page_index: 0,
-                    finalized_page_index: 0,
                     deferred_proof: num_deferred_proofs as u64,
                 };
             loop {
@@ -111,10 +104,6 @@ impl<A: ArtifactClient> SplicingWorker<A> {
                             end_clk = vm.clk();
                             let end = ShardBoundary {
                                 timestamp: end_clk,
-                                initialized_address: 0,
-                                finalized_address: 0,
-                                initialized_page_index: 0,
-                                finalized_page_index: 0,
                                 deferred_proof: num_deferred_proofs as u64,
                             };
                             // Get the range of the shard.
@@ -145,10 +134,6 @@ impl<A: ArtifactClient> SplicingWorker<A> {
                             end_clk = vm.clk();
                             let end = ShardBoundary {
                                 timestamp: end_clk,
-                                initialized_address: 0,
-                                finalized_address: 0,
-                                initialized_page_index: 0,
-                                finalized_page_index: 0,
                                 deferred_proof: num_deferred_proofs as u64,
                             };
                             // Get the range of the shard.
@@ -181,10 +166,6 @@ impl<A: ArtifactClient> SplicingWorker<A> {
                         end_clk = vm.clk();
                         let end = ShardBoundary {
                             timestamp: end_clk,
-                            initialized_address: 0,
-                            finalized_address: 0,
-                            initialized_page_index: 0,
-                            finalized_page_index: 0,
                             deferred_proof: num_deferred_proofs as u64,
                         };
                         // Get the range of the shard.

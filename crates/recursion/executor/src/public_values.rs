@@ -69,30 +69,6 @@ pub struct RecursionPublicValues<T> {
     /// The last timestamp.
     pub last_timestamp: [T; 4],
 
-    /// Previous MemoryInit address.
-    pub previous_init_addr: [T; 3],
-
-    /// Last MemoryInit address.
-    pub last_init_addr: [T; 3],
-
-    /// Previous MemoryFinalize address.
-    pub previous_finalize_addr: [T; 3],
-
-    /// Last MemoryFinalize address.
-    pub last_finalize_addr: [T; 3],
-
-    /// Previous PageProtInit page index.
-    pub previous_init_page_idx: [T; 3],
-
-    /// Last PageProtInit page index.
-    pub last_init_page_idx: [T; 3],
-
-    /// Previous PageProtFinalize page index.
-    pub previous_finalize_page_idx: [T; 3],
-
-    /// Last PageProtFinalize page index.
-    pub last_finalize_page_idx: [T; 3],
-
     /// Start state of reconstruct_deferred_digest.
     pub start_reconstruct_deferred_digest: [T; POSEIDON_NUM_WORDS],
 
@@ -136,11 +112,11 @@ pub struct RecursionPublicValues<T> {
     /// Whether `COMMIT_DEFERRED` syscall has been called up to this shard.
     pub commit_deferred_syscall: T,
 
-    /// The digest of all the previous public values elements.
-    pub digest: [T; DIGEST_SIZE],
-
     /// The nonce used for this proof.
     pub proof_nonce: [T; PROOF_NONCE_NUM_WORDS],
+
+    /// The digest of all the previous public values elements.
+    pub digest: [T; DIGEST_SIZE],
 }
 
 /// Converts the public values to an array of elements.
@@ -160,56 +136,12 @@ impl<F: Copy> RecursionPublicValues<F> {
     {
         let initial_timestamp = timestamp_from_limbs(&self.initial_timestamp);
         let last_timestamp = timestamp_from_limbs(&self.last_timestamp);
-        let previous_init_addr = self
-            .previous_init_addr
-            .iter()
-            .rev()
-            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64);
-        let last_init_addr = self
-            .last_init_addr
-            .iter()
-            .rev()
-            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64);
-        let previous_finalize_addr = self
-            .previous_finalize_addr
-            .iter()
-            .rev()
-            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64);
-        let last_finalize_addr = self
-            .last_finalize_addr
-            .iter()
-            .rev()
-            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64);
-        let previous_init_page_idx = self
-            .previous_init_page_idx
-            .iter()
-            .rev()
-            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64);
-        let last_init_page_idx = self
-            .last_init_page_idx
-            .iter()
-            .rev()
-            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64);
-        let previous_finalize_page_idx = self
-            .previous_finalize_page_idx
-            .iter()
-            .rev()
-            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64);
-        let last_finalize_page_idx = self
-            .last_finalize_page_idx
-            .iter()
-            .rev()
-            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64);
 
         let prev_deferred_proof = self.prev_deferred_proof.as_canonical_u64();
         let deferred_proof = self.deferred_proof.as_canonical_u64();
 
         ShardRange {
             timestamp_range: (initial_timestamp, last_timestamp),
-            initialized_address_range: (previous_init_addr, last_init_addr),
-            finalized_address_range: (previous_finalize_addr, last_finalize_addr),
-            initialized_page_index_range: (previous_init_page_idx, last_init_page_idx),
-            finalized_page_index_range: (previous_finalize_page_idx, last_finalize_page_idx),
             deferred_proof_range: (prev_deferred_proof, deferred_proof),
         }
     }

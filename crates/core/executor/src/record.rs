@@ -1,14 +1,15 @@
 use crate::{
     events::{TrapExecEvent, TrapMemInstrEvent},
-    MerkleProofRecord,
+    MerkleProofRecord, ShardData,
 };
 use deepsize2::DeepSizeOf;
 use hashbrown::HashMap;
 use slop_air::AirBuilder;
 use slop_algebra::{AbstractField, Field, PrimeField, PrimeField32};
+use slop_merkle_tree::batch_update::Tag;
 use sp1_hypercube::{
     air::{
-        AirInteraction, BaseAirBuilder, InteractionScope, MachineAir, PublicValues, SP1AirBuilder,
+        BaseAirBuilder, InteractionScope, MachineAir, PublicValues, SP1AirBuilder,
         PROOF_NONCE_NUM_WORDS, PV_DIGEST_NUM_WORDS, SP1_PROOF_NUM_PV_ELTS,
     },
     septic_digest::SepticDigest,
@@ -17,8 +18,6 @@ use sp1_hypercube::{
 };
 use std::{
     borrow::Borrow,
-    iter::once,
-    mem::take,
     sync::{Arc, Mutex},
 };
 
@@ -26,14 +25,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     events::{
-        AluEvent, BranchEvent, ByteLookupEvent, ByteRecord, GlobalInteractionEvent,
-        InstructionDecodeEvent, InstructionFetchEvent, JumpEvent, MemInstrEvent,
-        MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryRecordEnum,
-        PageProtInitializeFinalizeEvent, PageProtLocalEvent, PrecompileEvent, PrecompileEvents,
-        SyscallEvent, UTypeEvent,
+        AluEvent, BranchEvent, ByteLookupEvent, ByteRecord, InstructionDecodeEvent,
+        InstructionFetchEvent, JumpEvent, MemInstrEvent, MemoryLocalEvent, MemoryRecordEnum,
+        PageProtLocalEvent, PrecompileEvent, PrecompileEvents, SyscallEvent, UTypeEvent,
     },
     program::Program,
-    ByteOpcode, Instruction, RetainedEventsPreset, RiscvAirId, SplitOpts, SyscallCode,
+    ByteOpcode, Instruction, RiscvAirId, SplitOpts, SyscallCode,
 };
 
 /// A record of the execution of a program.
@@ -99,22 +96,12 @@ pub struct ExecutionRecord {
     pub byte_lookups: HashMap<ByteLookupEvent, usize>,
     /// A trace of the precompile events.
     pub precompile_events: PrecompileEvents,
-    /// A trace of the global memory initialize events.
-    pub global_memory_initialize_events: Vec<MemoryInitializeFinalizeEvent>,
-    /// A trace of the global memory finalize events.
-    pub global_memory_finalize_events: Vec<MemoryInitializeFinalizeEvent>,
-    /// A trace of the global page prot initialize events.
-    pub global_page_prot_initialize_events: Vec<PageProtInitializeFinalizeEvent>,
-    /// A trace of the global page prot finalize events.
-    pub global_page_prot_finalize_events: Vec<PageProtInitializeFinalizeEvent>,
     /// A trace of all the shard's local memory events.
     pub cpu_local_memory_access: Vec<MemoryLocalEvent>,
     /// A trace of all the local page prot events.
     pub cpu_local_page_prot_access: Vec<PageProtLocalEvent>,
     /// A trace of all the syscall events.
     pub syscall_events: Vec<(SyscallEvent, RTypeRecord)>,
-    /// A trace of all the global interaction events.
-    pub global_interaction_events: Vec<GlobalInteractionEvent>,
     /// A trace of all instruction fetch events.
     pub instruction_fetch_events: Vec<(InstructionFetchEvent, MemoryAccessRecord)>,
     /// A trace of all instruction decode events.
@@ -125,8 +112,6 @@ pub struct ExecutionRecord {
     pub trap_load_store_events: Vec<(TrapMemInstrEvent, ITypeRecord)>,
     /// The global culmulative sum.
     pub global_cumulative_sum: Arc<Mutex<SepticDigest<u32>>>,
-    /// The global interaction event count.
-    pub global_interaction_event_count: u32,
     /// Memory records used to bump the timestamp of the register memory access.
     pub bump_memory_events: Vec<(MemoryRecordEnum, u64, bool)>,
     /// Record where the `clk >> 24` or `pc >> 16` has incremented.
@@ -151,9 +136,30 @@ pub struct ExecutionRecord {
     pub exit_code: u32,
     /// Use optimized `generate_dependencies` for global chip.
     pub global_dependencies_opt: bool,
+    /// The shard data for the core shard.
+    pub shard_data: Option<ShardData>,
     /// The batch merkle proof for a merkle shard.
     pub merkle_proof_record: Option<MerkleProofRecord>,
+    /// Index of the trace chunk this shard belongs to.
+    pub trace_chunk_idx: u32,
+    /// `0` = core (execution) shard, `1` = merkle shard.
+    pub shard_kind: u32,
+    /// Number of core (execution) shards in this trace chunk.
+    pub num_execution_shards: u32,
+    /// Number of merkle shards in this trace chunk.
+    pub num_merkle_shards: u32,
+    /// This shard's index within its trace chunk.
+    pub shard_index: u32,
+    /// Merkle root before this chunk's update, in `u32` form.
+    pub prev_root: [u32; 8],
+    /// Merkle root after this chunk's update, in `u32` form.
+    pub cur_root: [u32; 8],
 }
+
+/// `shard_kind` value for a core (execution) shard.
+pub const SHARD_KIND_EXECUTION: u32 = 0;
+/// `shard_kind` value for a merkle shard.
+pub const SHARD_KIND_MERKLE: u32 = 1;
 
 impl ExecutionRecord {
     /// Create a new [`ExecutionRecord`].
@@ -225,9 +231,6 @@ impl ExecutionRecord {
         result.memory_store_half_events.reserve(reservation_size);
         result.memory_store_word_events.reserve(reservation_size);
         result.memory_store_double_events.reserve(reservation_size);
-        result.global_memory_initialize_events.reserve(reservation_size);
-        result.global_memory_finalize_events.reserve(reservation_size);
-        result.global_interaction_events.reserve(reservation_size);
         result.byte_lookups.reserve(reservation_size);
 
         result.public_values.proof_nonce = proof_nonce;
@@ -244,15 +247,17 @@ impl ExecutionRecord {
         result
     }
 
-    /// TODO(rkm): a stub constructor.
+    /// Construct an [`ExecutionRecord`] carrying a `ShardData`.
     #[must_use]
     pub fn from_shard_data(
         program: Arc<Program>,
         proof_nonce: [u32; PROOF_NONCE_NUM_WORDS],
         global_dependencies_opt: bool,
-        _shard_data: crate::splicing::ShardData,
+        shard_data: ShardData,
     ) -> Self {
-        Self::new(program, proof_nonce, global_dependencies_opt)
+        let mut record = Self::new(program, proof_nonce, global_dependencies_opt);
+        record.shard_data = Some(shard_data);
+        record
     }
 
     /// Construct an [`ExecutionRecord`] carrying a prepared batch Merkle proof.
@@ -268,260 +273,11 @@ impl ExecutionRecord {
         record
     }
 
-    /// Take out events from the [`ExecutionRecord`] that should be deferred to a separate shard.
-    ///
-    /// Note: we usually defer events that would increase the recursion cost significantly if
-    /// included in every shard.
-    #[must_use]
-    pub fn defer<'a>(
-        &mut self,
-        retain_presets: impl IntoIterator<Item = &'a RetainedEventsPreset>,
-    ) -> ExecutionRecord {
-        let mut execution_record = ExecutionRecord::new(
-            self.program.clone(),
-            self.public_values.proof_nonce,
-            self.global_dependencies_opt,
-        );
-        execution_record.precompile_events = std::mem::take(&mut self.precompile_events);
-
-        // Take back the events that should be retained.
-        self.precompile_events.events.extend(
-            retain_presets.into_iter().flat_map(RetainedEventsPreset::syscall_codes).filter_map(
-                |code| execution_record.precompile_events.events.remove(code).map(|x| (*code, x)),
-            ),
-        );
-
-        execution_record.global_memory_initialize_events =
-            std::mem::take(&mut self.global_memory_initialize_events);
-        execution_record.global_memory_finalize_events =
-            std::mem::take(&mut self.global_memory_finalize_events);
-        execution_record.global_page_prot_initialize_events =
-            std::mem::take(&mut self.global_page_prot_initialize_events);
-        execution_record.global_page_prot_finalize_events =
-            std::mem::take(&mut self.global_page_prot_finalize_events);
-        execution_record
-    }
-
-    /// Splits the deferred [`ExecutionRecord`] into multiple [`ExecutionRecord`]s, each which
-    /// contain a "reasonable" number of deferred events.
+    /// Splits the deferred [`ExecutionRecord`] into multiple [`ExecutionRecord`]s.
+    /// TODO(rkm): implement this to split up the merkle proving.
     #[allow(clippy::too_many_lines)]
-    pub fn split(
-        &mut self,
-        done: bool,
-        last_record: &mut ExecutionRecord,
-        can_pack_global_memory: bool,
-        opts: &SplitOpts,
-    ) -> Vec<ExecutionRecord> {
-        let mut shards = Vec::new();
-
-        let precompile_events = take(&mut self.precompile_events);
-
-        for (syscall_code, events) in precompile_events.into_iter() {
-            let threshold: usize = opts.syscall_threshold[syscall_code];
-
-            let chunks = events.chunks_exact(threshold);
-            if done {
-                let remainder = chunks.remainder().to_vec();
-                if !remainder.is_empty() {
-                    let mut execution_record = ExecutionRecord::new(
-                        self.program.clone(),
-                        self.public_values.proof_nonce,
-                        self.global_dependencies_opt,
-                    );
-                    execution_record.precompile_events.insert(syscall_code, remainder);
-                    execution_record.public_values.update_initialized_state(
-                        self.program.pc_start_abs,
-                        self.program.enable_untrusted_programs,
-                        self.program.trap_context,
-                        self.program.untrusted_memory,
-                    );
-                    shards.push(execution_record);
-                }
-            } else {
-                self.precompile_events.insert(syscall_code, chunks.remainder().to_vec());
-            }
-            let mut event_shards = chunks
-                .map(|chunk| {
-                    let mut execution_record = ExecutionRecord::new(
-                        self.program.clone(),
-                        self.public_values.proof_nonce,
-                        self.global_dependencies_opt,
-                    );
-                    execution_record.precompile_events.insert(syscall_code, chunk.to_vec());
-                    execution_record.public_values.update_initialized_state(
-                        self.program.pc_start_abs,
-                        self.program.enable_untrusted_programs,
-                        self.program.trap_context,
-                        self.program.untrusted_memory,
-                    );
-                    execution_record
-                })
-                .collect::<Vec<_>>();
-            shards.append(&mut event_shards);
-        }
-
-        if done {
-            // If there are no precompile shards, and `last_record` is Some, pack the memory events
-            // into the last record.
-            let pack_memory_events_into_last_record = can_pack_global_memory && shards.is_empty();
-            let mut blank_record = ExecutionRecord::new(
-                self.program.clone(),
-                self.public_values.proof_nonce,
-                self.global_dependencies_opt,
-            );
-
-            // Clone the public values of the last record to update the last record's public values.
-            let last_record_public_values = last_record.public_values;
-
-            // Update the state of the blank record
-            blank_record
-                .public_values
-                .update_finalized_state_from_public_values(&last_record_public_values);
-
-            // If `last_record` is None, use a blank record to store the memory events.
-            let mem_record_ref =
-                if pack_memory_events_into_last_record { last_record } else { &mut blank_record };
-
-            let mut init_page_idx = 0;
-            let mut finalize_page_idx = 0;
-
-            // Put all of the page prot init and finalize events into the last record.
-            if !self.global_page_prot_initialize_events.is_empty()
-                || !self.global_page_prot_finalize_events.is_empty()
-            {
-                self.global_page_prot_initialize_events.sort_by_key(|event| event.page_idx);
-                self.global_page_prot_finalize_events.sort_by_key(|event| event.page_idx);
-
-                let init_iter = self.global_page_prot_initialize_events.iter();
-                let finalize_iter = self.global_page_prot_finalize_events.iter();
-                let mut init_remaining = init_iter.as_slice();
-                let mut finalize_remaining = finalize_iter.as_slice();
-
-                while !init_remaining.is_empty() || !finalize_remaining.is_empty() {
-                    let capacity = 2 * opts.page_prot;
-                    let init_to_take = init_remaining.len().min(capacity);
-                    let finalize_to_take = finalize_remaining.len().min(capacity - init_to_take);
-
-                    let finalize_to_take = if init_to_take < capacity {
-                        finalize_to_take.max(finalize_remaining.len().min(capacity - init_to_take))
-                    } else {
-                        0
-                    };
-
-                    let page_prot_init_chunk = &init_remaining[..init_to_take];
-                    let page_prot_finalize_chunk = &finalize_remaining[..finalize_to_take];
-
-                    mem_record_ref
-                        .global_page_prot_initialize_events
-                        .extend_from_slice(page_prot_init_chunk);
-                    mem_record_ref.public_values.previous_init_page_idx = init_page_idx;
-                    if let Some(last_event) = page_prot_init_chunk.last() {
-                        init_page_idx = last_event.page_idx;
-                    }
-                    mem_record_ref.public_values.last_init_page_idx = init_page_idx;
-
-                    mem_record_ref
-                        .global_page_prot_finalize_events
-                        .extend_from_slice(page_prot_finalize_chunk);
-                    mem_record_ref.public_values.previous_finalize_page_idx = finalize_page_idx;
-                    if let Some(last_event) = page_prot_finalize_chunk.last() {
-                        finalize_page_idx = last_event.page_idx;
-                    }
-                    mem_record_ref.public_values.last_finalize_page_idx = finalize_page_idx;
-
-                    // Because page prot events are non empty, we set the page protect active flag
-                    mem_record_ref.public_values.is_untrusted_programs_enabled = true as u32;
-
-                    init_remaining = &init_remaining[init_to_take..];
-                    finalize_remaining = &finalize_remaining[finalize_to_take..];
-
-                    // Ensure last record has same proof nonce as other shards
-                    mem_record_ref.public_values.proof_nonce = self.public_values.proof_nonce;
-                    mem_record_ref.global_dependencies_opt = self.global_dependencies_opt;
-
-                    if !pack_memory_events_into_last_record {
-                        // If not packing memory events into the last record, add 'last_record_ref'
-                        // to the returned records. `take` replaces `blank_program` with the
-                        // default.
-                        shards.push(take(mem_record_ref));
-
-                        // Reset the last record so its program is the correct one. (The default
-                        // program provided by `take` contains no
-                        // instructions.)
-                        mem_record_ref.program = self.program.clone();
-                        // Reset the public values execution state to match the last record state.
-                        mem_record_ref
-                            .public_values
-                            .update_finalized_state_from_public_values(&last_record_public_values);
-                    }
-                }
-            }
-
-            self.global_memory_initialize_events.sort_by_key(|event| event.addr);
-            self.global_memory_finalize_events.sort_by_key(|event| event.addr);
-
-            let mut init_addr = 0;
-            let mut finalize_addr = 0;
-
-            let mut mem_init_remaining = self.global_memory_initialize_events.as_slice();
-            let mut mem_finalize_remaining = self.global_memory_finalize_events.as_slice();
-
-            while !mem_init_remaining.is_empty() || !mem_finalize_remaining.is_empty() {
-                let capacity = 2 * opts.memory;
-                let init_to_take = mem_init_remaining.len().min(capacity);
-                let finalize_to_take = mem_finalize_remaining.len().min(capacity - init_to_take);
-
-                let finalize_to_take = if init_to_take < capacity {
-                    finalize_to_take.max(mem_finalize_remaining.len().min(capacity - init_to_take))
-                } else {
-                    0
-                };
-
-                let mem_init_chunk = &mem_init_remaining[..init_to_take];
-                let mem_finalize_chunk = &mem_finalize_remaining[..finalize_to_take];
-
-                mem_record_ref.global_memory_initialize_events.extend_from_slice(mem_init_chunk);
-                mem_record_ref.public_values.previous_init_addr = init_addr;
-                if let Some(last_event) = mem_init_chunk.last() {
-                    init_addr = last_event.addr;
-                }
-                mem_record_ref.public_values.last_init_addr = init_addr;
-
-                mem_record_ref.global_memory_finalize_events.extend_from_slice(mem_finalize_chunk);
-                mem_record_ref.public_values.previous_finalize_addr = finalize_addr;
-                if let Some(last_event) = mem_finalize_chunk.last() {
-                    finalize_addr = last_event.addr;
-                }
-                mem_record_ref.public_values.last_finalize_addr = finalize_addr;
-
-                mem_record_ref.public_values.proof_nonce = self.public_values.proof_nonce;
-                mem_record_ref.global_dependencies_opt = self.global_dependencies_opt;
-
-                mem_init_remaining = &mem_init_remaining[init_to_take..];
-                mem_finalize_remaining = &mem_finalize_remaining[finalize_to_take..];
-
-                if !pack_memory_events_into_last_record {
-                    mem_record_ref.public_values.previous_init_page_idx = init_page_idx;
-                    mem_record_ref.public_values.last_init_page_idx = init_page_idx;
-                    mem_record_ref.public_values.previous_finalize_page_idx = finalize_page_idx;
-                    mem_record_ref.public_values.last_finalize_page_idx = finalize_page_idx;
-
-                    // If not packing memory events into the last record, add 'last_record_ref'
-                    // to the returned records. `take` replaces `blank_program` with the default.
-                    shards.push(take(mem_record_ref));
-
-                    // Reset the last record so its program is the correct one. (The default program
-                    // provided by `take` contains no instructions.)
-                    mem_record_ref.program = self.program.clone();
-                    // Reset the public values execution state to match the last record state.
-                    mem_record_ref
-                        .public_values
-                        .update_finalized_state_from_public_values(&last_record_public_values);
-                }
-            }
-        }
-
-        shards
+    pub fn split(&mut self, _done: bool, _opts: &SplitOpts) -> Vec<ExecutionRecord> {
+        Vec::new()
     }
 
     /// Return the number of rows needed for a chip, according to the proof shape specified in the
@@ -603,19 +359,13 @@ impl ExecutionRecord {
         self.jalr_events.clear();
         self.byte_lookups.clear();
         self.precompile_events = PrecompileEvents::default();
-        self.global_memory_initialize_events.clear();
-        self.global_memory_finalize_events.clear();
-        self.global_page_prot_initialize_events.clear();
-        self.global_page_prot_finalize_events.clear();
         self.cpu_local_memory_access.clear();
         self.cpu_local_page_prot_access.clear();
         self.syscall_events.clear();
-        self.global_interaction_events.clear();
         self.instruction_fetch_events.clear();
         self.instruction_decode_events.clear();
         let mut cumulative_sum = self.global_cumulative_sum.lock().unwrap();
         *cumulative_sum = SepticDigest::default();
-        self.global_interaction_event_count = 0;
         self.bump_memory_events.clear();
         self.bump_state_events.clear();
         let _ = self.public_values.reset();
@@ -816,15 +566,6 @@ impl MachineRecord for ExecutionRecord {
         for (syscall_code, events) in self.precompile_events.iter() {
             stats.insert(format!("syscall {syscall_code:?}"), events.len());
         }
-
-        stats.insert(
-            "global_memory_initialize_events".to_string(),
-            self.global_memory_initialize_events.len(),
-        );
-        stats.insert(
-            "global_memory_finalize_events".to_string(),
-            self.global_memory_finalize_events.len(),
-        );
         stats.insert("local_memory_access_events".to_string(), self.cpu_local_memory_access.len());
         stats.insert(
             "local_page_prot_access_events".to_string(),
@@ -841,18 +582,6 @@ impl MachineRecord for ExecutionRecord {
     fn append(&mut self, other: &mut ExecutionRecord) {
         self.cpu_event_count += other.cpu_event_count;
         other.cpu_event_count = 0;
-        self.public_values.global_count += other.public_values.global_count;
-        other.public_values.global_count = 0;
-        self.public_values.global_init_count += other.public_values.global_init_count;
-        other.public_values.global_init_count = 0;
-        self.public_values.global_finalize_count += other.public_values.global_finalize_count;
-        other.public_values.global_finalize_count = 0;
-        self.public_values.global_page_prot_init_count +=
-            other.public_values.global_page_prot_init_count;
-        other.public_values.global_page_prot_init_count = 0;
-        self.public_values.global_page_prot_finalize_count +=
-            other.public_values.global_page_prot_finalize_count;
-        other.public_values.global_page_prot_finalize_count = 0;
         self.estimated_trace_area += other.estimated_trace_area;
         other.estimated_trace_area = 0;
         self.alu_x0_events.append(&mut other.alu_x0_events);
@@ -887,22 +616,13 @@ impl MachineRecord for ExecutionRecord {
         } else {
             self.add_byte_lookup_events_from_maps(vec![&other.byte_lookups]);
         }
-
-        self.global_memory_initialize_events.append(&mut other.global_memory_initialize_events);
-        self.global_memory_finalize_events.append(&mut other.global_memory_finalize_events);
-        self.global_page_prot_initialize_events
-            .append(&mut other.global_page_prot_initialize_events);
-        self.global_page_prot_finalize_events.append(&mut other.global_page_prot_finalize_events);
         self.cpu_local_memory_access.append(&mut other.cpu_local_memory_access);
         self.cpu_local_page_prot_access.append(&mut other.cpu_local_page_prot_access);
-        self.global_interaction_events.append(&mut other.global_interaction_events);
     }
 
     /// Retrieves the public values.  This method is needed for the `MachineRecord` trait, since
     fn public_values<F: AbstractField>(&self) -> Vec<F> {
-        let mut public_values = self.public_values;
-        public_values.global_cumulative_sum = *self.global_cumulative_sum.lock().unwrap();
-        public_values.to_vec()
+        self.public_values.to_vec()
     }
 
     /// Constrains the public values.
@@ -926,11 +646,7 @@ impl MachineRecord for ExecutionRecord {
         Self::eval_exit_code(public_values, builder);
         Self::eval_committed_value_digest(public_values, builder);
         Self::eval_deferred_proofs_digest(public_values, builder);
-        Self::eval_global_sum(public_values, builder);
-        Self::eval_global_memory_init(public_values, builder);
-        Self::eval_global_memory_finalize(public_values, builder);
-        Self::eval_global_page_prot_init(public_values, builder);
-        Self::eval_global_page_prot_finalize(public_values, builder);
+        Self::eval_merkle_root(public_values, builder);
         #[cfg(feature = "mprotect")]
         Self::eval_trap_handler(public_values, builder);
     }
@@ -1166,26 +882,6 @@ impl ExecutionRecord {
             .when(public_values.is_first_execution_shard.into())
             .assert_zero(public_values.prev_exit_code);
 
-        // Check `previous_init_addr == 0`.
-        builder
-            .when(public_values.is_first_execution_shard.into())
-            .assert_all_zero(public_values.previous_init_addr);
-
-        // Check `previous_finalize_addr == 0`.
-        builder
-            .when(public_values.is_first_execution_shard.into())
-            .assert_all_zero(public_values.previous_finalize_addr);
-
-        // Check `previous_init_page_idx == 0`
-        builder
-            .when(public_values.is_first_execution_shard.into())
-            .assert_all_zero(public_values.previous_init_page_idx);
-
-        // Check `previous_finalize_page_idx == 0`
-        builder
-            .when(public_values.is_first_execution_shard.into())
-            .assert_all_zero(public_values.previous_finalize_page_idx);
-
         // Check `prev_commit_syscall == 0`.
         builder
             .when(public_values.is_first_execution_shard.into())
@@ -1357,7 +1053,7 @@ impl ExecutionRecord {
     }
 
     #[allow(clippy::type_complexity)]
-    fn eval_global_sum<AB: SP1AirBuilder>(
+    fn eval_merkle_root<AB: SP1AirBuilder>(
         public_values: &PublicValues<
             [AB::PublicVar; 4],
             [AB::PublicVar; 3],
@@ -1366,202 +1062,22 @@ impl ExecutionRecord {
         >,
         builder: &mut AB,
     ) {
-        let initial_sum = SepticDigest::<AB::F>::zero().0;
-        builder.send(
-            AirInteraction::new(
-                once(AB::Expr::zero())
-                    .chain(initial_sum.x.0.into_iter().map(Into::into))
-                    .chain(initial_sum.y.0.into_iter().map(Into::into))
-                    .collect(),
-                AB::Expr::one(),
-                InteractionKind::GlobalAccumulation,
-            ),
-            InteractionScope::Local,
+        builder.send_merkle_traversal(
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            AB::Expr::from_canonical_u8(Tag::InitRoot as u8),
+            public_values.prev_merkle_root,
+            public_values.is_first_merkle_shard,
+            InteractionScope::Global,
         );
-        builder.receive(
-            AirInteraction::new(
-                once(public_values.global_count.into())
-                    .chain(public_values.global_cumulative_sum.0.x.0.map(Into::into))
-                    .chain(public_values.global_cumulative_sum.0.y.0.map(Into::into))
-                    .collect(),
-                AB::Expr::one(),
-                InteractionKind::GlobalAccumulation,
-            ),
-            InteractionScope::Local,
-        );
-    }
 
-    #[allow(clippy::type_complexity)]
-    fn eval_global_memory_init<AB: SP1AirBuilder>(
-        public_values: &PublicValues<
-            [AB::PublicVar; 4],
-            [AB::PublicVar; 3],
-            [AB::PublicVar; 4],
-            AB::PublicVar,
-        >,
-        builder: &mut AB,
-    ) {
-        // Check the addresses are of valid u16 limbs.
-        for i in 0..3 {
-            builder.send_byte(
-                AB::Expr::from_canonical_u32(ByteOpcode::Range as u32),
-                public_values.previous_init_addr[i].into(),
-                AB::Expr::from_canonical_u32(16),
-                AB::Expr::zero(),
-                AB::Expr::one(),
-            );
-            builder.send_byte(
-                AB::Expr::from_canonical_u32(ByteOpcode::Range as u32),
-                public_values.last_init_addr[i].into(),
-                AB::Expr::from_canonical_u32(16),
-                AB::Expr::zero(),
-                AB::Expr::one(),
-            );
-        }
-
-        builder.send(
-            AirInteraction::new(
-                once(AB::Expr::zero())
-                    .chain(public_values.previous_init_addr.into_iter().map(Into::into))
-                    .chain(once(AB::Expr::one()))
-                    .collect(),
-                AB::Expr::one(),
-                InteractionKind::MemoryGlobalInitControl,
-            ),
-            InteractionScope::Local,
-        );
-        builder.receive(
-            AirInteraction::new(
-                once(public_values.global_init_count.into())
-                    .chain(public_values.last_init_addr.into_iter().map(Into::into))
-                    .chain(once(AB::Expr::one()))
-                    .collect(),
-                AB::Expr::one(),
-                InteractionKind::MemoryGlobalInitControl,
-            ),
-            InteractionScope::Local,
-        );
-    }
-
-    #[allow(clippy::type_complexity)]
-    fn eval_global_memory_finalize<AB: SP1AirBuilder>(
-        public_values: &PublicValues<
-            [AB::PublicVar; 4],
-            [AB::PublicVar; 3],
-            [AB::PublicVar; 4],
-            AB::PublicVar,
-        >,
-        builder: &mut AB,
-    ) {
-        // Check the addresses are of valid u16 limbs.
-        for i in 0..3 {
-            builder.send_byte(
-                AB::Expr::from_canonical_u32(ByteOpcode::Range as u32),
-                public_values.previous_finalize_addr[i].into(),
-                AB::Expr::from_canonical_u32(16),
-                AB::Expr::zero(),
-                AB::Expr::one(),
-            );
-            builder.send_byte(
-                AB::Expr::from_canonical_u32(ByteOpcode::Range as u32),
-                public_values.last_finalize_addr[i].into(),
-                AB::Expr::from_canonical_u32(16),
-                AB::Expr::zero(),
-                AB::Expr::one(),
-            );
-        }
-
-        builder.send(
-            AirInteraction::new(
-                once(AB::Expr::zero())
-                    .chain(public_values.previous_finalize_addr.into_iter().map(Into::into))
-                    .chain(once(AB::Expr::one()))
-                    .collect(),
-                AB::Expr::one(),
-                InteractionKind::MemoryGlobalFinalizeControl,
-            ),
-            InteractionScope::Local,
-        );
-        builder.receive(
-            AirInteraction::new(
-                once(public_values.global_finalize_count.into())
-                    .chain(public_values.last_finalize_addr.into_iter().map(Into::into))
-                    .chain(once(AB::Expr::one()))
-                    .collect(),
-                AB::Expr::one(),
-                InteractionKind::MemoryGlobalFinalizeControl,
-            ),
-            InteractionScope::Local,
-        );
-    }
-
-    #[allow(clippy::type_complexity)]
-    fn eval_global_page_prot_init<AB: SP1AirBuilder>(
-        public_values: &PublicValues<
-            [AB::PublicVar; 4],
-            [AB::PublicVar; 3],
-            [AB::PublicVar; 4],
-            AB::PublicVar,
-        >,
-        builder: &mut AB,
-    ) {
-        builder.assert_bool(public_values.is_untrusted_programs_enabled.into());
-        builder.send(
-            AirInteraction::new(
-                once(AB::Expr::zero())
-                    .chain(public_values.previous_init_page_idx.into_iter().map(Into::into))
-                    .chain(once(AB::Expr::one()))
-                    .collect(),
-                public_values.is_untrusted_programs_enabled.into(),
-                InteractionKind::PageProtGlobalInitControl,
-            ),
-            InteractionScope::Local,
-        );
-        builder.receive(
-            AirInteraction::new(
-                once(public_values.global_page_prot_init_count.into())
-                    .chain(public_values.last_init_page_idx.into_iter().map(Into::into))
-                    .chain(once(AB::Expr::one()))
-                    .collect(),
-                public_values.is_untrusted_programs_enabled.into(),
-                InteractionKind::PageProtGlobalInitControl,
-            ),
-            InteractionScope::Local,
-        );
-    }
-
-    #[allow(clippy::type_complexity)]
-    fn eval_global_page_prot_finalize<AB: SP1AirBuilder>(
-        public_values: &PublicValues<
-            [AB::PublicVar; 4],
-            [AB::PublicVar; 3],
-            [AB::PublicVar; 4],
-            AB::PublicVar,
-        >,
-        builder: &mut AB,
-    ) {
-        builder.assert_bool(public_values.is_untrusted_programs_enabled.into());
-        builder.send(
-            AirInteraction::new(
-                once(AB::Expr::zero())
-                    .chain(public_values.previous_finalize_page_idx.into_iter().map(Into::into))
-                    .chain(once(AB::Expr::one()))
-                    .collect(),
-                public_values.is_untrusted_programs_enabled.into(),
-                InteractionKind::PageProtGlobalFinalizeControl,
-            ),
-            InteractionScope::Local,
-        );
-        builder.receive(
-            AirInteraction::new(
-                once(public_values.global_page_prot_finalize_count.into())
-                    .chain(public_values.last_finalize_page_idx.into_iter().map(Into::into))
-                    .chain(once(AB::Expr::one()))
-                    .collect(),
-                public_values.is_untrusted_programs_enabled.into(),
-                InteractionKind::PageProtGlobalFinalizeControl,
-            ),
-            InteractionScope::Local,
+        builder.receive_merkle_traversal(
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            AB::Expr::from_canonical_u8(Tag::FinalRoot as u8),
+            public_values.merkle_root,
+            public_values.is_first_merkle_shard,
+            InteractionScope::Global,
         );
     }
 

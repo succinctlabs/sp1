@@ -160,50 +160,6 @@ impl MemoryRecordEnum {
     }
 }
 
-/// Memory Initialize/Finalize Event.
-///
-/// This object encapsulates the information needed to prove a memory initialize or finalize
-/// operation. This includes the address, value, and the timestamp.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, DeepSizeOf)]
-#[repr(C)]
-pub struct MemoryInitializeFinalizeEvent {
-    /// The address.
-    pub addr: u64,
-    /// The value.
-    pub value: u64,
-    /// The timestamp.
-    pub timestamp: u64,
-}
-
-/// Page prot Initialize/Finalize Event.
-///
-/// This object encapsulates the information needed to prove a page prot initialize or finalize
-/// operation. This includes the page index, page prot, and timestamp.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, DeepSizeOf)]
-#[repr(C)]
-pub struct PageProtInitializeFinalizeEvent {
-    /// The page index.
-    pub page_idx: u64,
-    /// The page prot.
-    pub page_prot: u8,
-    /// The timestamp.
-    pub timestamp: u64,
-}
-
-impl PageProtInitializeFinalizeEvent {
-    /// Creates a new [``PageProtInitializeFinalizeEvent``] for an initialization.
-    #[must_use]
-    pub const fn initialize(page_idx: u64, page_prot: u8) -> Self {
-        Self { page_idx, page_prot, timestamp: 0 }
-    }
-
-    /// Creates a new [``PageProtInitializeFinalizeEvent``] for a finalization.
-    #[must_use]
-    pub const fn finalize_from_record(page_idx: u64, record: &PageProtRecord) -> Self {
-        Self { page_idx, page_prot: record.page_prot, timestamp: record.timestamp }
-    }
-}
-
 impl MemoryReadRecord {
     /// Creates a new [``MemoryReadRecord``].
     #[must_use]
@@ -262,26 +218,6 @@ impl MemoryRecordEnum {
             MemoryRecordEnum::Read(record) => record.value,
             MemoryRecordEnum::Write(record) => record.prev_value,
         }
-    }
-}
-
-impl MemoryInitializeFinalizeEvent {
-    /// Creates a new [``MemoryInitializeFinalizeEvent``] for an initialization.
-    #[must_use]
-    pub const fn initialize(addr: u64, value: u64) -> Self {
-        Self { addr, value, timestamp: 0 }
-    }
-
-    /// Creates a new [``MemoryInitializeFinalizeEvent``] for a finalization.
-    #[must_use]
-    pub const fn finalize_from_record(addr: u64, record: &MemoryEntry) -> Self {
-        Self { addr, value: record.value, timestamp: record.timestamp }
-    }
-
-    /// Creates a new [``MemoryInitializeFinalizeEvent``].
-    #[must_use]
-    pub const fn finalize(addr: u64, value: u64, timestamp: u64) -> Self {
-        Self { addr, value, timestamp }
     }
 }
 

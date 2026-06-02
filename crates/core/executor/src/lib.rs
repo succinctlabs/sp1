@@ -40,7 +40,6 @@ pub use tracing::{TracingVM, TracingVMEnum};
 mod vm;
 pub use vm::{
     gas::get_complexity_mapping,
-    memory::{CompressedMemory, CompressedPages},
     results::CycleResult,
     results::TrapResult,
     shapes::{MAXIMUM_CYCLE_AREA, MAXIMUM_PADDING_AREA},
@@ -68,7 +67,6 @@ mod program;
 mod record;
 mod register;
 mod report;
-mod retain;
 mod state;
 pub mod subproof;
 mod syscall_code;
@@ -87,7 +85,6 @@ pub use program::*;
 pub use record::*;
 pub use register::*;
 pub use report::*;
-pub use retain::*;
 pub use state::*;
 pub use utils::*;
 

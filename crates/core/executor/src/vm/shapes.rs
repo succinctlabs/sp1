@@ -30,7 +30,6 @@ pub struct ShapeChecker<M: ExecutionMode> {
     trace_area: u64,
     max_height: u64,
     is_commit_on: bool,
-    pub(crate) syscall_sent: bool,
     // The start of the most recent shard according to the shape checking logic.
     shard_start_clk: u64,
     /// The maximum trace size and table height to allow.
@@ -64,7 +63,6 @@ impl<M: ExecutionMode> ShapeChecker<M> {
             trace_area: preprocessed_trace_area + MAXIMUM_PADDING_AREA + MAXIMUM_CYCLE_AREA,
             max_height: 0,
             is_commit_on: false,
-            syscall_sent: false,
             shard_start_clk,
             heights: EnumMap::default(),
             sharding_threshold: elem_threshold,
@@ -91,11 +89,6 @@ impl<M: ExecutionMode> ShapeChecker<M> {
     pub fn handle_mem_event(&mut self, _addr: u64, clk: u64) {
         let is_first_read_this_shard = self.shard_start_clk > clk;
         self.local_mem_counts += is_first_read_this_shard as u64;
-    }
-
-    #[inline]
-    pub fn local_mem_syscall_rr(&mut self) {
-        self.local_mem_counts += self.syscall_sent as u64;
     }
 
     #[inline]
@@ -154,18 +147,11 @@ impl<M: ExecutionMode> ShapeChecker<M> {
 
     fn update_heights_and_area(&mut self, bump_clk_high: bool, needs_state_bump: bool) {
         let touched_addresses: u64 = std::mem::take(&mut self.local_mem_counts);
-        let syscall_sent = std::mem::take(&mut self.syscall_sent);
 
         // Increment for each touched address in memory local
         self.trace_area += touched_addresses * self.costs[RiscvAirId::MemoryLocal];
         self.heights[RiscvAirId::MemoryLocal] += touched_addresses;
         self.max_height = self.max_height.max(self.heights[RiscvAirId::MemoryLocal]);
-
-        // Increment for all the global interactions
-        self.trace_area +=
-            self.costs[RiscvAirId::Global] * (2 * touched_addresses + syscall_sent as u64);
-        self.heights[RiscvAirId::Global] += 2 * touched_addresses + syscall_sent as u64;
-        self.max_height = self.max_height.max(self.heights[RiscvAirId::Global]);
 
         // Increment by if bump_clk_high is needed
         if bump_clk_high {
@@ -181,28 +167,6 @@ impl<M: ExecutionMode> ShapeChecker<M> {
             self.heights[RiscvAirId::StateBump] += 1;
             self.max_height = self.max_height.max(self.heights[RiscvAirId::StateBump]);
         }
-
-        if syscall_sent {
-            // Increment if the syscall is retained
-            self.trace_area += self.costs[RiscvAirId::SyscallCore];
-            self.heights[RiscvAirId::SyscallCore] += 1;
-            self.max_height = self.max_height.max(self.heights[RiscvAirId::SyscallCore]);
-        }
-    }
-
-    #[inline]
-    pub fn syscall_sent(&mut self) {
-        self.syscall_sent = true;
-    }
-
-    #[inline]
-    pub fn get_syscall_sent(&self) -> bool {
-        self.syscall_sent
-    }
-
-    #[inline]
-    pub fn set_syscall_sent(&mut self, syscall_sent: bool) {
-        self.syscall_sent = syscall_sent;
     }
 
     /// Set the start clock of the shard.
@@ -230,7 +194,6 @@ impl ShapeChecker<SupervisorMode> {
     /// # Arguments
     ///
     /// * `instruction`: The instruction that is being handled.
-    /// * `syscall_sent`: Whether a syscall was sent during this cycle.
     /// * `bump_clk_high`: Whether the clk's top 24 bits incremented during this cycle.
     /// * `is_alu_x0`: Whether the instruction is an ALU instruction with `rd = x0`.
     /// * `is_load_x0`: Whether the instruction is a load of x0, if so the riscv air id is `LoadX0`.
@@ -294,9 +257,6 @@ impl ShapeChecker<UserMode> {
 
     fn update_heights_and_area_prot(&mut self, num_page_prot_accesses: usize) {
         let touched_pages: u64 = std::mem::take(&mut self.local_page_prot_counts);
-        self.trace_area += self.costs[RiscvAirId::Global] * 2 * touched_pages;
-        self.heights[RiscvAirId::Global] += 2 * touched_pages;
-        self.max_height = self.max_height.max(self.heights[RiscvAirId::Global]);
 
         // Increment for each page prot access
         let prev_count = self.heights[RiscvAirId::PageProt];

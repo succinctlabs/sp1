@@ -32,8 +32,8 @@ fn cbindgen_builder() -> cbindgen::Builder {
             "sp1-core-machine",
         ])
         .rename_item("KoalaBear", "KoalaBearP3")
-        .include_item("GlobalInteractionEvent")
-        .include_item("GlobalCols")
+        // .include_item("GlobalInteractionEvent")
+        // .include_item("GlobalCols")
         .include_item("MemoryAccessColsChips")
         .include_item("Poseidon2Instr")
         .include_item("Poseidon2PreprocessedColsWide")

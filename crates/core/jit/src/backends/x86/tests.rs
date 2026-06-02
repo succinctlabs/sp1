@@ -1461,6 +1461,12 @@ mod dirty_pages {
         backend.end_instr();
     }
 
+    /// `emit_dirty_pages` always appends the page-0 register page. Memory-focused
+    /// tests use non-zero pages, so return only the memory pages (`page_id != 0`).
+    fn emit_mem_pages(func: &mut crate::JitFunction<AnonymousMemory>) -> Vec<crate::DirtyPage> {
+        func.emit_dirty_pages().pages.into_iter().filter(|p| p.page_id != 0).collect()
+    }
+
     /// Writes to two distinct pages with duplicates in between should record exactly those
     /// two page_ids in first-touch order; the value written must also land in memory.
     #[test]
@@ -1617,27 +1623,27 @@ mod dirty_pages {
     /// reading them directly from JIT memory at emit time.
     #[test]
     fn emit_captures_final_contents() {
-        let mut backend = new_backend_multipage(1);
+        let mut backend = new_backend_multipage(2);
         load_imm(&mut backend, RiscRegister::X1, 0x999);
 
-        // Store 0x999 (32-bit) at address 0. Only the low 32 bits of word 0 are affected.
+        // Store 0x999 (32-bit) at page 1, word 0. Only the low 32 bits are affected.
         backend.start_instr();
-        backend.sw(RiscRegister::X0, RiscRegister::X1, 0);
+        backend.sw(RiscRegister::X0, RiscRegister::X1, PAGE_BYTES);
 
         let mut func = backend.finalize::<AnonymousMemory>().expect("finalize");
 
-        // Seed page 0 with distinct values per word so we can tell which word is which.
+        // Seed page 1 with distinct values per word so we can tell which word is which.
         for i in 0..MERKLE_PAGE_WORDS {
-            seed_u64(&mut func, (i * 8) as u64, 0x1_0000 + i as u64);
+            seed_u64(&mut func, PAGE_BYTES + (i * 8) as u64, 0x1_0000 + i as u64);
         }
 
         let mut trace_buf = MmapMut::map_anon(trace_capacity(Some(10_000))).expect("trace buf");
         unsafe { func.call(trace_buf.as_mut_ptr()) };
 
-        let dirty = func.emit_dirty_pages();
-        assert_eq!(dirty.pages.len(), 1);
-        let page = &dirty.pages[0];
-        assert_eq!(page.page_id, 0);
+        let mem = emit_mem_pages(&mut func);
+        assert_eq!(mem.len(), 1);
+        let page = &mem[0];
+        assert_eq!(page.page_id, 1);
 
         // Final contents: word 0's low 32 bits = 0x999, high 32 bits untouched (= high 32
         // bits of the seed, which is 0). All other words unchanged.
@@ -1651,15 +1657,15 @@ mod dirty_pages {
     /// chunk starts clean.
     #[test]
     fn emit_dirty_pages_resets_tracker() {
-        let mut backend = new_backend_multipage(1);
+        let mut backend = new_backend_multipage(2);
         load_imm(&mut backend, RiscRegister::X1, 0x1234);
-        emit_sw(&mut backend, RiscRegister::X0, RiscRegister::X1, 0);
+        emit_sw(&mut backend, RiscRegister::X0, RiscRegister::X1, PAGE_BYTES);
 
         let mut func = finalize_and_run(backend);
-        assert_eq!(func.dirty.list_slice(), vec![0]);
+        assert_eq!(func.dirty.list_slice(), vec![1]);
 
-        let dirty = func.emit_dirty_pages();
-        assert_eq!(dirty.pages.len(), 1);
+        let mem = emit_mem_pages(&mut func);
+        assert_eq!(mem.len(), 1);
 
         assert!(func.dirty.list_len == 0);
         assert!(func.dirty.bitset.iter().all(|&w| w == 0));
@@ -1669,22 +1675,23 @@ mod dirty_pages {
     /// with final contents matching the seeded value (unchanged by the read).
     #[test]
     fn read_only_page_final_contents_equal_seed() {
-        let mut backend = new_backend_multipage(1);
+        let mut backend = new_backend_multipage(2);
 
         backend.start_instr();
-        backend.lw(RiscRegister::X1, RiscRegister::X0, 0);
+        backend.lw(RiscRegister::X1, RiscRegister::X0, PAGE_BYTES);
 
         let mut func = backend.finalize::<AnonymousMemory>().expect("finalize");
         for i in 0..MERKLE_PAGE_WORDS {
-            seed_u64(&mut func, (i * 8) as u64, 0x2_0000 + i as u64);
+            seed_u64(&mut func, PAGE_BYTES + (i * 8) as u64, 0x2_0000 + i as u64);
         }
 
         let mut trace_buf = MmapMut::map_anon(trace_capacity(Some(10_000))).expect("buf");
         unsafe { func.call(trace_buf.as_mut_ptr()) };
 
-        let dirty = func.emit_dirty_pages();
-        assert_eq!(dirty.pages.len(), 1);
-        let page = &dirty.pages[0];
+        let mem = emit_mem_pages(&mut func);
+        assert_eq!(mem.len(), 1);
+        let page = &mem[0];
+        assert_eq!(page.page_id, 1);
 
         for i in 0..MERKLE_PAGE_WORDS {
             assert_eq!(page.final_contents[i], 0x2_0000 + i as u64);
@@ -1780,24 +1787,24 @@ mod dirty_pages {
     /// carry-over from the first run's tracking state.
     #[test]
     fn second_run_after_reset_has_fresh_tracking() {
-        let mut backend = new_backend_multipage(2);
+        let mut backend = new_backend_multipage(3);
         load_imm(&mut backend, RiscRegister::X1, 0x1234);
         load_imm(&mut backend, RiscRegister::X2, 0x5678);
-        emit_sw(&mut backend, RiscRegister::X0, RiscRegister::X1, 0);
+        emit_sw(&mut backend, RiscRegister::X0, RiscRegister::X1, PAGE_BYTES);
         backend.start_instr();
-        backend.sw(RiscRegister::X0, RiscRegister::X2, PAGE_BYTES);
+        backend.sw(RiscRegister::X0, RiscRegister::X2, 2 * PAGE_BYTES);
 
         let mut func = backend.finalize::<AnonymousMemory>().expect("finalize");
 
         // --- Run 1 ---
         let mut buf1 = MmapMut::map_anon(trace_capacity(Some(10_000))).expect("buf1");
         unsafe { func.call(buf1.as_mut_ptr()) };
-        let d1 = func.emit_dirty_pages();
+        let mem1 = emit_mem_pages(&mut func);
 
-        assert_eq!(d1.pages.len(), 2);
-        let pages1: std::collections::HashSet<u32> = d1.pages.iter().map(|p| p.page_id).collect();
-        assert!(pages1.contains(&0));
+        assert_eq!(mem1.len(), 2);
+        let pages1: std::collections::HashSet<u32> = mem1.iter().map(|p| p.page_id).collect();
         assert!(pages1.contains(&1));
+        assert!(pages1.contains(&2));
 
         // --- Reset memory + state. Tracker was already reset by emit_dirty_pages. ---
         func.reset();
@@ -1807,12 +1814,12 @@ mod dirty_pages {
         // --- Run 2 ---
         let mut buf2 = MmapMut::map_anon(trace_capacity(Some(10_000))).expect("buf2");
         unsafe { func.call(buf2.as_mut_ptr()) };
-        let d2 = func.emit_dirty_pages();
+        let mem2 = emit_mem_pages(&mut func);
 
-        assert_eq!(d2.pages.len(), 2);
-        let pages2: std::collections::HashSet<u32> = d2.pages.iter().map(|p| p.page_id).collect();
-        assert!(pages2.contains(&0));
+        assert_eq!(mem2.len(), 2);
+        let pages2: std::collections::HashSet<u32> = mem2.iter().map(|p| p.page_id).collect();
         assert!(pages2.contains(&1));
+        assert!(pages2.contains(&2));
     }
 
     /// For every page_id in the list, its bit in the bitset must be set. Conversely, no

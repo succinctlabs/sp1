@@ -407,7 +407,7 @@ impl<M: JitMemory> JitFunction<M> {
         // (`&mut self`). All reads are read-only; the underlying mmap is stable for this call.
         let mem_addr = mem_ptr as usize;
 
-        let pages: Vec<merkle::DirtyPage> = if list_len < PARALLEL_THRESHOLD {
+        let mut pages: Vec<merkle::DirtyPage> = if list_len < PARALLEL_THRESHOLD {
             list_slice
                 .iter()
                 .map(|&page_id| merkle::DirtyPage {
@@ -429,6 +429,12 @@ impl<M: JitMemory> JitFunction<M> {
                 })
                 .collect()
         };
+
+        // Page 0 holds the register file in words 0..32.
+        debug_assert!(!list_slice.contains(&0), "page 0 dirtied by a memory touch");
+        let mut register_page = [0u64; MERKLE_PAGE_WORDS];
+        register_page[..32].copy_from_slice(&self.registers);
+        pages.push(merkle::DirtyPage { page_id: 0, final_contents: register_page });
 
         self.dirty.reset();
         merkle::DirtyPages { pages }

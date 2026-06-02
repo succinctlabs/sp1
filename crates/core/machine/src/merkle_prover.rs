@@ -92,7 +92,9 @@ pub fn build_merkle_proof_record(input: MerkleProvingInput) -> MerkleProofRecord
     updates.sort_unstable_by_key(|u| u.idx);
 
     let proof = batch_update(default_leaf, &leaves, &updates, MERKLE_TREE_HEIGHT).to_merkle_proof();
-    MerkleProofRecord { payload: input.payload, proof }
+    let prev_leaves = input.prev_leaves.to_vec();
+    let new_leaves = input.new_leaves.to_vec();
+    MerkleProofRecord { payload: input.payload, proof, prev_leaves, new_leaves }
 }
 
 /// GPU-friendly batch args derived from a chunk's input.

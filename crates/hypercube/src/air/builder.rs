@@ -14,7 +14,10 @@ use slop_uni_stark::{
 use strum::{Display, EnumIter};
 
 use super::{interaction::AirInteraction, BinomialExtension};
-use crate::{lookup::InteractionKind, septic_extension::SepticExtension, ConstraintSumcheckFolder};
+use crate::{
+    lookup::InteractionKind, septic_extension::SepticExtension, ConstraintSumcheckFolder,
+    DIGEST_SIZE,
+};
 
 /// The scope of an interaction.
 #[derive(
@@ -245,6 +248,96 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
 
         self.receive(
             AirInteraction::new(values, multiplicity.into(), InteractionKind::Syscall),
+            scope,
+        );
+    }
+
+    /// Sends a merkle tree traversal operation.
+    #[allow(clippy::too_many_arguments)]
+    fn send_merkle_traversal(
+        &mut self,
+        height: impl Into<Self::Expr>,
+        idx: impl Into<Self::Expr>,
+        tag: impl Into<Self::Expr>,
+        node: [impl Into<Self::Expr>; DIGEST_SIZE],
+        multiplicity: impl Into<Self::Expr>,
+        scope: InteractionScope,
+    ) {
+        let values = once(height.into())
+            .chain(once(idx.into()))
+            .chain(once(tag.into()))
+            .chain(node.map(Into::into))
+            .collect::<Vec<_>>();
+
+        self.send(
+            AirInteraction::new(values, multiplicity.into(), InteractionKind::MerkleTreeTraversal),
+            scope,
+        );
+    }
+
+    /// Receives a merkle tree traversal operation.
+    #[allow(clippy::too_many_arguments)]
+    fn receive_merkle_traversal(
+        &mut self,
+        height: impl Into<Self::Expr>,
+        idx: impl Into<Self::Expr>,
+        tag: impl Into<Self::Expr>,
+        node: [impl Into<Self::Expr>; DIGEST_SIZE],
+        multiplicity: impl Into<Self::Expr>,
+        scope: InteractionScope,
+    ) {
+        let values = once(height.into())
+            .chain(once(idx.into()))
+            .chain(once(tag.into()))
+            .chain(node.map(Into::into))
+            .collect::<Vec<_>>();
+
+        self.receive(
+            AirInteraction::new(values, multiplicity.into(), InteractionKind::MerkleTreeTraversal),
+            scope,
+        );
+    }
+
+    /// Sends a leaf-hash sponge state.
+    fn send_leaf_hash(
+        &mut self,
+        page_id: impl Into<Self::Expr>,
+        is_init: impl Into<Self::Expr>,
+        block: impl Into<Self::Expr>,
+        state: [impl Into<Self::Expr>; DIGEST_SIZE],
+        multiplicity: impl Into<Self::Expr>,
+        scope: InteractionScope,
+    ) {
+        let values = once(page_id.into())
+            .chain(once(is_init.into()))
+            .chain(once(block.into()))
+            .chain(state.map(Into::into))
+            .collect::<Vec<_>>();
+
+        self.send(
+            AirInteraction::new(values, multiplicity.into(), InteractionKind::LeafHash),
+            scope,
+        );
+    }
+
+    /// Receives a leaf-hash sponge state.
+    fn receive_leaf_hash(
+        &mut self,
+        page_id: impl Into<Self::Expr>,
+        is_init: impl Into<Self::Expr>,
+        block: impl Into<Self::Expr>,
+        state: [impl Into<Self::Expr>; DIGEST_SIZE],
+        multiplicity: impl Into<Self::Expr>,
+        scope: InteractionScope,
+    ) {
+        let values = once(page_id.into())
+            .chain(once(is_init.into()))
+            .chain(once(block.into()))
+            .chain(state.map(Into::into))
+            .collect::<Vec<_>>();
+
+        self.receive(
+            AirInteraction::new(values, multiplicity.into(), InteractionKind::LeafHash),
             scope,
         );
     }

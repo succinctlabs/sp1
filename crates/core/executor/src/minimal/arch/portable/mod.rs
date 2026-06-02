@@ -635,7 +635,7 @@ impl<M: ExecutionMode> MinimalExecutor<M> {
                 page_ids.push(pid);
             }
         }
-        let pages: Vec<DirtyPage> = page_ids
+        let mut pages: Vec<DirtyPage> = page_ids
             .into_iter()
             .map(|page_id| {
                 let mut final_contents = [0u64; MERKLE_PAGE_WORDS];
@@ -646,6 +646,13 @@ impl<M: ExecutionMode> MinimalExecutor<M> {
                 DirtyPage { page_id, final_contents }
             })
             .collect();
+
+        // Page 0 holds the register file in words 0..32.
+        debug_assert!(!pages.iter().any(|p| p.page_id == 0));
+        let mut register_page = [0u64; MERKLE_PAGE_WORDS];
+        register_page[..32].copy_from_slice(&self.registers);
+        pages.push(DirtyPage { page_id: 0, final_contents: register_page });
+
         DirtyPages { pages }
     }
 

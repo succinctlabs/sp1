@@ -1,10 +1,5 @@
-use crate::{
-    cost_and_height_per_syscall, rv64im_costs, utils::trunc_32, RetainedEventsPreset, RiscvAirId,
-    SyscallCode, BYTE_NUM_ROWS, RANGE_NUM_ROWS,
-};
-use enum_map::EnumMap;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashSet, env};
+use std::env;
 
 const MAX_SHARD_SIZE: usize = 1 << 24;
 
@@ -80,8 +75,6 @@ pub struct SP1CoreOpts {
     pub shard_size: usize,
     /// The threshold that determines when to split the shard.
     pub sharding_threshold: ShardingThreshold,
-    /// Preset collections of events to retain in a shard instead of deferring.
-    pub retained_events_presets: HashSet<RetainedEventsPreset>,
     /// Use optimized `generate_dependencies` for global chip.
     pub global_dependencies_opt: bool,
     /// Recompute GKR trace
@@ -126,15 +119,6 @@ impl Default for SP1CoreOpts {
 
         let sharding_threshold = ShardingThreshold { element_threshold, height_threshold };
 
-        let mut retained_events_presets = HashSet::new();
-        retained_events_presets.insert(RetainedEventsPreset::Bls12381Field);
-        retained_events_presets.insert(RetainedEventsPreset::Bn254Field);
-        retained_events_presets.insert(RetainedEventsPreset::Sha256);
-        retained_events_presets.insert(RetainedEventsPreset::Poseidon2);
-        retained_events_presets.insert(RetainedEventsPreset::U256Ops);
-        retained_events_presets.insert(RetainedEventsPreset::Secp256k1);
-        retained_events_presets.insert(RetainedEventsPreset::Keccak);
-
         Self {
             minimal_trace_chunk_threshold,
             gas_trace_chunk_threshold,
@@ -143,7 +127,6 @@ impl Default for SP1CoreOpts {
             memory_limit,
             shard_size,
             sharding_threshold,
-            retained_events_presets,
             global_dependencies_opt: false,
             recompute_gkr_trace: false,
         }
@@ -156,86 +139,16 @@ pub struct SplitOpts {
     /// The threshold for combining the memory and page prot init/finalize events in to the current
     /// shard in terms of the estimated trace area of the shard.
     pub pack_trace_threshold: u64,
-    /// The threshold for combining the memory init/finalize events in to the current shard in
-    /// terms of the number of memory init/finalize events.
-    pub combine_memory_threshold: usize,
-    /// The threshold for combining the page prot init/finalize events in to the current shard in
-    /// terms of the number of page prot init/finalize events.
-    pub combine_page_prot_threshold: usize,
-    /// The threshold for syscall codes.
-    pub syscall_threshold: EnumMap<SyscallCode, usize>,
-    /// The threshold for memory events.
-    pub memory: usize,
-    /// The threshold for page prot events.
-    pub page_prot: usize,
+    // TODO(rkm): add split opts for merkle proving
 }
 
 impl SplitOpts {
     /// Create a new [`SplitOpts`] with the given [`SP1CoreOpts`] and the program size.
     #[must_use]
-    pub fn new(opts: &SP1CoreOpts, program_size: usize, page_protect_allowed: bool) -> Self {
-        let costs = rv64im_costs();
-
-        let mut available_trace_area = opts.sharding_threshold.element_threshold;
-        let mut fixed_trace_area = 0;
-        fixed_trace_area += program_size.next_multiple_of(32) * costs[&RiscvAirId::Program];
-        fixed_trace_area += BYTE_NUM_ROWS as usize * costs[&RiscvAirId::Byte];
-        fixed_trace_area += RANGE_NUM_ROWS as usize * costs[&RiscvAirId::Range];
-
-        assert!(
-            available_trace_area >= fixed_trace_area as u64,
-            "SP1CoreOpts's element threshold is too low"
-        );
-
-        available_trace_area -= fixed_trace_area as u64;
-
-        let max_height = opts.sharding_threshold.height_threshold;
-
-        let syscall_threshold = EnumMap::from_fn(|syscall_code: SyscallCode| {
-            if syscall_code.should_send() == 0 || syscall_code.as_air_id().is_none() {
-                return 0;
-            }
-
-            let (cost_per_syscall, max_height_per_syscall) =
-                cost_and_height_per_syscall(syscall_code, &costs, page_protect_allowed);
-            let element_threshold = trunc_32(available_trace_area as usize / cost_per_syscall);
-            let height_threshold = trunc_32(max_height as usize / max_height_per_syscall);
-
-            element_threshold.min(height_threshold)
-        });
-
-        let cost_per_memory = costs[&RiscvAirId::MemoryGlobalInit] + costs[&RiscvAirId::Global];
-        let memory = trunc_32(
-            (available_trace_area as usize / cost_per_memory).min(max_height as usize) / 2,
-        );
-        let cost_per_page_prot =
-            costs[&RiscvAirId::PageProtGlobalInit] + costs[&RiscvAirId::Global];
-        let page_prot = trunc_32(
-            (available_trace_area as usize / cost_per_page_prot).min(max_height as usize) / 2,
-        );
-
+    pub fn new(opts: &SP1CoreOpts, _program_size: usize, _page_protect_allowed: bool) -> Self {
         // Allocate `2/3` of the trace area to the usual trace area.
         let pack_trace_threshold = 2 * opts.sharding_threshold.element_threshold / 3;
-        // Allocate `3/10` of the trace area to `MemoryGlobal` and `PageProtGlobal`.
-        let mut combine_memory_threshold =
-            trunc_32(3 * opts.sharding_threshold.element_threshold as usize / cost_per_memory / 40);
-        let mut combine_page_prot_threshold = trunc_32(
-            3 * opts.sharding_threshold.element_threshold as usize / cost_per_page_prot / 40,
-        );
 
-        // If page protection is off, use the `3/10` of the trace area for `MemoryGlobal` only.
-        if !page_protect_allowed {
-            combine_memory_threshold *= 2;
-            combine_page_prot_threshold = 0;
-        }
-
-        Self {
-            pack_trace_threshold,
-            combine_memory_threshold,
-            combine_page_prot_threshold,
-            syscall_threshold,
-            memory,
-            page_prot,
-        }
+        Self { pack_trace_threshold }
     }
 }

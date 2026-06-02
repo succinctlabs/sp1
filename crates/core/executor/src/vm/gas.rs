@@ -1,9 +1,9 @@
 use crate::{
-    events::{MemoryRecord, NUM_PAGE_PROT_ENTRIES_PER_ROW_EXEC},
-    CompressedMemory, ExecutionReport, Instruction, Opcode, RiscvAirId, SyscallCode,
+    events::NUM_PAGE_PROT_ENTRIES_PER_ROW_EXEC, ExecutionReport, Instruction, Opcode, RiscvAirId,
+    SyscallCode,
 };
 use enum_map::EnumMap;
-use hashbrown::{HashMap, HashSet};
+use hashbrown::HashMap;
 use std::str::FromStr;
 
 use super::shapes::riscv_air_id_from_opcode_flag;
@@ -21,9 +21,6 @@ pub struct ReportGenerator {
     pub(crate) local_mem_counts: u64,
     /// The number of local page prot accesses during this cycle.
     pub(crate) local_page_prot_counts: u64,
-    is_last_read_external: CompressedMemory,
-    /// Whether the last page prot access was external, ie: it was read from a deferred precompile.
-    is_last_page_prot_access_external: HashMap<u64, bool>,
 
     trace_cost_lookup: EnumMap<RiscvAirId, u64>,
 
@@ -51,8 +48,6 @@ impl ReportGenerator {
             syscall_sent: false,
             local_mem_counts: 0,
             local_page_prot_counts: 0,
-            is_last_read_external: CompressedMemory::new(),
-            is_last_page_prot_access_external: HashMap::new(),
             page_prot_entry_count: 0,
             enable_untrusted_programs,
             shard_start_clk,
@@ -204,18 +199,10 @@ impl ReportGenerator {
     }
 
     #[inline]
-    pub fn handle_mem_event(&mut self, addr: u64, clk: u64) {
+    pub fn handle_mem_event(&mut self, _addr: u64, clk: u64) {
         // Round down to the nearest 8-byte aligned address.
-        let addr = if addr > 31 { addr & !0b111 } else { addr };
-
-        let is_external = self.syscall_sent;
-
         let is_first_read_this_shard = self.shard_start_clk > clk;
-
-        let is_last_read_external = self.is_last_read_external.insert(addr, is_external);
-
-        self.local_mem_counts +=
-            (is_first_read_this_shard || (is_last_read_external && !is_external)) as u64;
+        self.local_mem_counts += (is_first_read_this_shard) as u64;
     }
 
     #[inline]
@@ -224,15 +211,9 @@ impl ReportGenerator {
     }
 
     #[inline]
-    pub fn handle_page_prot_event(&mut self, page_idx: u64, clk: u64) {
-        let is_external = self.syscall_sent;
+    pub fn handle_page_prot_event(&mut self, _page_idx: u64, clk: u64) {
         let is_first_read_this_shard = self.shard_start_clk > clk;
-        let is_last_page_prot_access_external =
-            self.is_last_page_prot_access_external.insert(page_idx, is_external).unwrap_or(false);
-
-        self.local_page_prot_counts += (is_first_read_this_shard
-            || (is_last_page_prot_access_external && !is_external))
-            as u64;
+        self.local_page_prot_counts += (is_first_read_this_shard) as u64;
     }
 
     #[inline]
@@ -281,38 +262,6 @@ impl ReportGenerator {
         self.syscall_sent = syscall_sent;
     }
 
-    #[inline]
-    pub fn add_global_init_and_finalize_counts(
-        &mut self,
-        final_registers: &[MemoryRecord; 32],
-        mut touched_addresses: HashSet<u64>,
-        hint_init_events_addrs: &HashSet<u64>,
-        memory_image_addrs: &[u64],
-    ) {
-        touched_addresses.extend(memory_image_addrs);
-
-        // Add init for registers
-        self.system_chips_counts[RiscvAirId::MemoryGlobalInit] += 32;
-
-        // Add finalize for registers
-        self.system_chips_counts[RiscvAirId::MemoryGlobalFinalize] +=
-            final_registers.iter().enumerate().filter(|(_, e)| e.timestamp != 0).count() as u64;
-
-        // Add memory init events
-        self.system_chips_counts[RiscvAirId::MemoryGlobalInit] +=
-            hint_init_events_addrs.len() as u64;
-
-        let memory_init_events = touched_addresses
-            .iter()
-            .filter(|addr| !memory_image_addrs.contains(*addr))
-            .filter(|addr| !hint_init_events_addrs.contains(*addr));
-        self.system_chips_counts[RiscvAirId::MemoryGlobalInit] += memory_init_events.count() as u64;
-
-        touched_addresses.extend(hint_init_events_addrs.clone());
-        self.system_chips_counts[RiscvAirId::MemoryGlobalFinalize] +=
-            touched_addresses.len() as u64;
-    }
-
     /// Increment the trace area for the given instruction.
     ///
     /// # Arguments
@@ -337,20 +286,16 @@ impl ReportGenerator {
     /// Update system chip counts based on the current cycle's state.
     fn update_system_chip_counts(&mut self, bump_clk_high: bool, needs_state_bump: bool) {
         let touched_addresses: u64 = std::mem::take(&mut self.local_mem_counts);
-        let syscall_sent = std::mem::take(&mut self.syscall_sent);
 
         let bump_clk_high_num_events = 32 * bump_clk_high as u64;
         self.system_chips_counts[RiscvAirId::MemoryBump] += bump_clk_high_num_events;
         self.system_chips_counts[RiscvAirId::MemoryLocal] += touched_addresses;
         self.system_chips_counts[RiscvAirId::StateBump] += needs_state_bump as u64;
-        self.system_chips_counts[RiscvAirId::Global] += 2 * touched_addresses + syscall_sent as u64;
-        self.system_chips_counts[RiscvAirId::SyscallCore] += syscall_sent as u64;
     }
 
     /// Update system chip counts based on the current cycle's page count state.
     pub fn update_page_chip_counts(&mut self) {
         let touched_pages: u64 = std::mem::take(&mut self.local_page_prot_counts);
-        self.system_chips_counts[RiscvAirId::Global] += 2 * touched_pages;
         self.system_chips_counts[RiscvAirId::PageProtLocal] += touched_pages;
     }
 

@@ -10,13 +10,12 @@ use slop_matrix::Matrix;
 use slop_maybe_rayon::prelude::{
     IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
-use sp1_core_executor::{events::GlobalInteractionEvent, ExecutionRecord, Program};
+use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::{
     air::{AirInteraction, InteractionScope, MachineAir, SP1AirBuilder},
     InteractionKind,
 };
-use sp1_primitives::consts::split_page_idx;
 
 pub const NUM_LOCAL_PAGE_PROT_ENTRIES_PER_ROW: usize = 1;
 pub(crate) const NUM_PAGE_PROT_LOCAL_INIT_COLS: usize = size_of::<PageProtLocalCols<u8>>();
@@ -92,44 +91,7 @@ impl<F: PrimeField32> MachineAir<F> for PageProtLocalChip {
         Some(next_multiple_of_32(nb_rows, size_log2))
     }
 
-    fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        let mut events = Vec::new();
-
-        input.get_local_page_prot_events().for_each(|page_prot_event| {
-            let page_idx = split_page_idx(page_prot_event.page_idx);
-
-            events.push(GlobalInteractionEvent {
-                message: [
-                    (page_prot_event.initial_page_prot_access.timestamp >> 24) as u32,
-                    (page_prot_event.initial_page_prot_access.timestamp & 0xFFFFFF) as u32,
-                    page_idx[0] as u32,
-                    page_idx[1] as u32,
-                    page_idx[2] as u32,
-                    page_prot_event.initial_page_prot_access.page_prot as u32,
-                    0,
-                    0,
-                ],
-                is_receive: true,
-                kind: InteractionKind::PageProtAccess as u8,
-            });
-            events.push(GlobalInteractionEvent {
-                message: [
-                    (page_prot_event.final_page_prot_access.timestamp >> 24) as u32,
-                    (page_prot_event.final_page_prot_access.timestamp & 0xFFFFFF) as u32,
-                    page_idx[0] as u32,
-                    page_idx[1] as u32,
-                    page_idx[2] as u32,
-                    page_prot_event.final_page_prot_access.page_prot as u32,
-                    0,
-                    0,
-                ],
-                is_receive: false,
-                kind: InteractionKind::PageProtAccess as u8,
-            });
-        });
-
-        output.global_interaction_events.extend(events);
-    }
+    fn generate_dependencies(&self, _input: &Self::Record, _output: &mut Self::Record) {}
 
     fn generate_trace_into(
         &self,
@@ -240,50 +202,6 @@ where
                     values.clone(),
                     local.is_real.into(),
                     InteractionKind::PageProtAccess,
-                ),
-                InteractionScope::Local,
-            );
-
-            // Send the "receive interaction" to the global table.
-            builder.send(
-                AirInteraction::new(
-                    vec![
-                        local.initial_clk_high.into(),
-                        local.initial_clk_low.into(),
-                        local.page_idx[0].into(),
-                        local.page_idx[1].into(),
-                        local.page_idx[2].into(),
-                        local.initial_page_prot.into(),
-                        AB::Expr::zero(),
-                        AB::Expr::zero(),
-                        AB::Expr::zero(),
-                        AB::Expr::one(),
-                        AB::Expr::from_canonical_u8(InteractionKind::PageProtAccess as u8),
-                    ],
-                    local.is_real.into(),
-                    InteractionKind::Global,
-                ),
-                InteractionScope::Local,
-            );
-
-            // Send the "send interaction" to the global table.
-            builder.send(
-                AirInteraction::new(
-                    vec![
-                        local.final_clk_high.into(),
-                        local.final_clk_low.into(),
-                        local.page_idx[0].into(),
-                        local.page_idx[1].into(),
-                        local.page_idx[2].into(),
-                        local.final_page_prot.into(),
-                        AB::Expr::zero(),
-                        AB::Expr::zero(),
-                        AB::Expr::one(),
-                        AB::Expr::zero(),
-                        AB::Expr::from_canonical_u8(InteractionKind::PageProtAccess as u8),
-                    ],
-                    local.is_real.into(),
-                    InteractionKind::Global,
                 ),
                 InteractionScope::Local,
             );

@@ -45,7 +45,7 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
     ///   record such as byte lookup requests.
     fn generate_trace(&self, input: &Self::Record, output: &mut Self::Record) -> RowMajorMatrix<F> {
         let padded_nb_rows = self.num_rows(input).unwrap();
-        let num_columns = <Self as BaseAir<F>>::width(self);
+        let num_columns = Self::main_width(self);
         let mut values: Vec<F> = Vec::with_capacity(padded_nb_rows * num_columns);
         self.generate_trace_into(input, output, values.spare_capacity_mut());
 
@@ -61,6 +61,11 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
         self.generate_trace(input, output);
     }
 
+    /// The main width of the trace.
+    fn main_width(&self) -> usize {
+        <Self as BaseAir<F>>::width(self)
+    }
+
     /// Generate the trace into a slice of `MaybeUninit<F>`.
     fn generate_trace_into(
         &self,
@@ -68,6 +73,42 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
         output: &mut Self::Record,
         buffer: &mut [MaybeUninit<F>],
     );
+
+    /// Generate the global trace.
+    fn generate_global_trace(
+        &self,
+        input: &Self::Record,
+        output: &mut Self::Record,
+    ) -> Option<RowMajorMatrix<F>> {
+        if self.global_width() == 0 {
+            return None;
+        }
+
+        let padded_nb_rows = self.num_rows(input).unwrap();
+        let num_columns = Self::global_width(self);
+        let mut values: Vec<F> = Vec::with_capacity(padded_nb_rows * num_columns);
+        self.generate_global_trace_into(input, output, values.spare_capacity_mut());
+
+        unsafe {
+            values.set_len(padded_nb_rows * num_columns);
+        }
+
+        Some(RowMajorMatrix::new(values, num_columns))
+    }
+
+    /// Generate the global trace into the buffer.
+    fn generate_global_trace_into(
+        &self,
+        _input: &Self::Record,
+        _output: &mut Self::Record,
+        _: &mut [MaybeUninit<F>],
+    ) {
+    }
+
+    /// The width of the global trace.
+    fn global_width(&self) -> usize {
+        0
+    }
 
     /// Whether this execution record contains events for this air.
     fn included(&self, shard: &Self::Record) -> bool;

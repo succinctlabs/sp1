@@ -31,52 +31,43 @@ pub enum InteractionKind {
     Program = 2,
 
     /// Interaction with the byte lookup table for byte operations.
-    Byte = 5,
+    Byte = 3,
 
     /// Interaction with the current CPU state.
-    State = 7,
+    State = 4,
 
     /// Interaction with a syscall.
-    Syscall = 8,
-
-    /// Interaction with the global table.
-    Global = 9,
+    Syscall = 5,
 
     /// Interaction with the `ShaExtend` chip.
-    ShaExtend = 10,
+    ShaExtend = 6,
 
     /// Interaction with the `ShaCompress` chip.
-    ShaCompress = 11,
+    ShaCompress = 7,
 
     /// Interaction with the `Keccak` chip.
-    Keccak = 12,
-
-    /// Interaction to accumulate the global interaction digests.
-    GlobalAccumulation = 13,
-
-    /// Interaction with the `MemoryGlobalInit` chip.
-    MemoryGlobalInitControl = 14,
-
-    /// Interaction with the `MemoryGlobalFinalize` chip.
-    MemoryGlobalFinalizeControl = 15,
+    Keccak = 8,
 
     /// Interaction with the instruction fetch table.
-    InstructionFetch = 16,
+    InstructionFetch = 9,
 
     /// Interaction with the instruction decode table.
-    InstructionDecode = 17,
+    InstructionDecode = 10,
 
     /// Interaction with the page prot chip.
-    PageProt = 18,
+    PageProt = 11,
 
     /// Interaction with the page prot chip.
-    PageProtAccess = 19,
+    PageProtAccess = 12,
 
-    /// Interaction with the `PageProtGlobalInit` chip.
-    PageProtGlobalInitControl = 20,
+    /// Interaction for the merkle tree traversal.
+    MerkleTreeTraversal = 13,
 
-    /// Interaction with the `PageProtGlobalFinalize` chip.
-    PageProtGlobalFinalizeControl = 21,
+    /// Interaction for the leaf hash computation.
+    LeafHash = 14,
+
+    /// Interaction for the hint-read state machine (control chip <-> per-word chip).
+    HintRead = 15,
 }
 
 impl InteractionKind {
@@ -89,19 +80,16 @@ impl InteractionKind {
             InteractionKind::Byte,
             InteractionKind::State,
             InteractionKind::Syscall,
-            InteractionKind::Global,
             InteractionKind::ShaExtend,
             InteractionKind::ShaCompress,
             InteractionKind::Keccak,
-            InteractionKind::GlobalAccumulation,
-            InteractionKind::MemoryGlobalInitControl,
-            InteractionKind::MemoryGlobalFinalizeControl,
             InteractionKind::InstructionFetch,
             InteractionKind::InstructionDecode,
             InteractionKind::PageProtAccess,
-            InteractionKind::PageProtGlobalInitControl,
-            InteractionKind::PageProtGlobalFinalizeControl,
             InteractionKind::PageProt,
+            InteractionKind::MerkleTreeTraversal,
+            InteractionKind::LeafHash,
+            InteractionKind::HintRead,
         ]
     }
 
@@ -116,22 +104,18 @@ impl InteractionKind {
             InteractionKind::Syscall => 9,
             InteractionKind::Program => 16,
             InteractionKind::Byte => 4,
-            InteractionKind::Global => 11,
-
             InteractionKind::ShaCompress => 25,
             InteractionKind::Keccak => 106,
-            InteractionKind::GlobalAccumulation => 15,
-
             InteractionKind::InstructionFetch => 22,
             InteractionKind::InstructionDecode => 19,
+            InteractionKind::MerkleTreeTraversal => 11,
+            InteractionKind::LeafHash => 11,
+            // [clk_high, clk_low, ptr (3 limbs), index]
+            InteractionKind::HintRead => 6,
             InteractionKind::ShaExtend
             | InteractionKind::PageProt
             | InteractionKind::PageProtAccess => 6,
-            InteractionKind::State
-            | InteractionKind::PageProtGlobalInitControl
-            | InteractionKind::PageProtGlobalFinalizeControl
-            | InteractionKind::MemoryGlobalInitControl
-            | InteractionKind::MemoryGlobalFinalizeControl => 5,
+            InteractionKind::State => 5,
         }
     }
 
@@ -140,13 +124,7 @@ impl InteractionKind {
     pub fn appears_in_eval_public_values(&self) -> bool {
         matches!(
             self,
-            InteractionKind::Byte
-                | InteractionKind::State
-                | InteractionKind::MemoryGlobalFinalizeControl
-                | InteractionKind::MemoryGlobalInitControl
-                | InteractionKind::PageProtGlobalFinalizeControl
-                | InteractionKind::PageProtGlobalInitControl
-                | InteractionKind::GlobalAccumulation
+            InteractionKind::Byte | InteractionKind::State | InteractionKind::MerkleTreeTraversal
         )
     }
 }
@@ -224,23 +202,16 @@ impl Display for InteractionKind {
             InteractionKind::Byte => write!(f, "Byte"),
             InteractionKind::State => write!(f, "State"),
             InteractionKind::Syscall => write!(f, "Syscall"),
-            InteractionKind::Global => write!(f, "Global"),
             InteractionKind::ShaExtend => write!(f, "ShaExtend"),
             InteractionKind::ShaCompress => write!(f, "ShaCompress"),
             InteractionKind::Keccak => write!(f, "Keccak"),
-            InteractionKind::GlobalAccumulation => write!(f, "GlobalAccumulation"),
-            InteractionKind::MemoryGlobalInitControl => write!(f, "MemoryGlobalInitControl"),
-            InteractionKind::MemoryGlobalFinalizeControl => {
-                write!(f, "MemoryGlobalFinalizeControl")
-            }
             InteractionKind::InstructionFetch => write!(f, "InstructionFetch"),
             InteractionKind::InstructionDecode => write!(f, "InstructionDecode"),
             InteractionKind::PageProt => write!(f, "PageProt"),
             InteractionKind::PageProtAccess => write!(f, "PageProtAccess"),
-            InteractionKind::PageProtGlobalInitControl => write!(f, "PageProtGlobalInitControl"),
-            InteractionKind::PageProtGlobalFinalizeControl => {
-                write!(f, "PageProtGlobalFinalizeControl")
-            }
+            InteractionKind::MerkleTreeTraversal => write!(f, "MerkleTreeTraversal"),
+            InteractionKind::LeafHash => write!(f, "LeafHash"),
+            InteractionKind::HintRead => write!(f, "HintRead"),
         }
     }
 }
