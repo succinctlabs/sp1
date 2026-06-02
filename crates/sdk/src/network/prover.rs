@@ -18,8 +18,8 @@ use crate::{
         signer::NetworkSigner,
         tee::{client::Client as TeeClient, verify_tee_proof},
         Error, NetworkMode, DEFAULT_AUCTION_TIMEOUT_DURATION, DEFAULT_GAS_LIMIT,
-        MAINNET_EXPLORER_URL, MAINNET_RPC_URL, PRIVATE_EXPLORER_URL, PRIVATE_NETWORK_RPC_URL,
-        RESERVED_EXPLORER_URL, RESERVED_RPC_URL, TEE_NETWORK_RPC_URL,
+        MAINNET_EXPLORER_URL, MAINNET_RPC_URL, MARKET_PRICE_BUFFER_PCT, PRIVATE_EXPLORER_URL,
+        PRIVATE_NETWORK_RPC_URL, RESERVED_EXPLORER_URL, RESERVED_RPC_URL, TEE_NETWORK_RPC_URL,
     },
     prover::{verify_proof, BaseProveRequest, SendFutureResult},
     ProofFromNetwork, Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey,
@@ -886,10 +886,43 @@ impl NetworkProver {
                         let max_price_per_pgu_value = if let Some(max_price_per_pgu) = max_price_per_pgu {
                             max_price_per_pgu
                         } else {
-                            auction_params
-                                .max_price_per_pgu
-                                .parse::<u64>()
-                                .expect("invalid max_price_per_pgu")
+                            // Default to the network's current market wei/PGU plus the
+                            // configured buffer so the effective USD ceiling tracks
+                            // PROVE moves. If the RPC is unavailable, use the
+                            // server-supplied `auction_params.max_price_per_pgu`.
+                            match self.client.get_market_price_per_pgu().await {
+                                Ok(market) => {
+                                    let buffered =
+                                        market.wei.saturating_mul(MARKET_PRICE_BUFFER_PCT) / 100;
+                                    u64::try_from(buffered).map_err(|_| {
+                                        anyhow::anyhow!(
+                                            "buffered market_price_per_pgu overflows u64: {buffered}"
+                                        )
+                                    })?
+                                }
+                                Err(err) => {
+                                    // Unimplemented is the expected signal from older
+                                    // deploys; anything else suggests misconfiguration
+                                    // the operator should see.
+                                    let unimplemented = err
+                                        .chain()
+                                        .filter_map(|e| e.downcast_ref::<tonic::Status>())
+                                        .any(|s| s.code() == tonic::Code::Unimplemented);
+                                    if unimplemented {
+                                        tracing::debug!(?err, "GetMarketPricePerPgu unimplemented; using server-supplied default");
+                                    } else {
+                                        tracing::warn!(?err, "GetMarketPricePerPgu failed; using server-supplied default");
+                                    }
+                                    auction_params.max_price_per_pgu.parse::<u64>().map_err(
+                                        |e| {
+                                            anyhow::anyhow!(
+                                                "invalid max_price_per_pgu {:?}: {e}",
+                                                auction_params.max_price_per_pgu
+                                            )
+                                        },
+                                    )?
+                                }
+                            }
                         };
                         let base_fee = auction_params
                             .base_fee

@@ -45,6 +45,21 @@ pub struct GetProvePriceResponse {
     pub percent_change_24h: ::prost::alloc::string::String,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct GetMarketPricePerPguRequest {}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetMarketPricePerPguResponse {
+    /// The current market price per prover gas unit (PGU), denominated in PROVE wei, as a
+    /// base-10 integer string (no decimal point). Derived from the network's USD pricing
+    /// target divided by the live PROVE/USD reading, so the wei value floats inversely with
+    /// PROVE/USD. Callers apply their own buffer before passing it as
+    /// `RequestProofRequestBody.max_price_per_pgu`.
+    #[prost(string, tag = "1")]
+    pub price: ::prost::alloc::string::String,
+    /// The unix timestamp when the underlying PROVE/USD reading was last updated.
+    #[prost(int64, tag = "2")]
+    pub last_updated: i64,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
 pub struct GetPriceInfoRequest {}
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct GetPriceInfoResponse {

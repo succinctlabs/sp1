@@ -36,6 +36,7 @@ use crate::network::proto::{
         CancelRequestRequestBody as AuctionCancelRequestRequestBody,
         GetBalanceRequest as AuctionGetBalanceRequest,
         GetFilteredProofRequestsRequest as AuctionGetFilteredProofRequestsRequest,
+        GetMarketPricePerPguRequest as AuctionGetMarketPricePerPguRequest,
         GetNonceRequest as AuctionGetNonceRequest, GetProgramRequest as AuctionGetProgramRequest,
         GetProofRequestParamsRequest as AuctionGetProofRequestParamsRequest,
         GetProofRequestStatusRequest as AuctionGetProofRequestStatusRequest,
@@ -69,6 +70,15 @@ use crate::network::proto::{
     GetProofRequestStatusResponse,
     RequestProofResponse,
 };
+
+/// Current market `max_price_per_pgu` returned by [`NetworkClient::get_market_price_per_pgu`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MarketPrice {
+    /// Anchored cap in PROVE wei per PGU.
+    pub wei: u128,
+    /// Unix timestamp (seconds) of the upstream PROVE/USD reading the cap was anchored to.
+    pub as_of: u64,
+}
 
 /// A client for interacting with the network.
 #[derive(Clone)]
@@ -361,6 +371,37 @@ impl NetworkClient {
                 .await
             }
             NetworkMode::Reserved => Ok(GetProofRequestParamsResponse::Unsupported),
+        }
+    }
+
+    /// Returns the current market price per prover gas unit. The wei value floats
+    /// inversely with PROVE/USD; callers apply their own buffer before passing it as
+    /// `max_price_per_pgu`. Mainnet (auction) mode only.
+    pub async fn get_market_price_per_pgu(&self) -> Result<MarketPrice> {
+        match self.network_mode {
+            NetworkMode::Mainnet => {
+                self.with_retry(
+                    || async {
+                        let mut rpc = self.auction_prover_network_client().await?;
+                        let response = rpc
+                            .get_market_price_per_pgu(AuctionGetMarketPricePerPguRequest {})
+                            .await?
+                            .into_inner();
+                        let wei = response.price.parse::<u128>().with_context(|| {
+                            format!("invalid market_price_per_pgu wei: {:?}", response.price)
+                        })?;
+                        let as_of = u64::try_from(response.last_updated).with_context(|| {
+                            format!("invalid market_price last_updated: {}", response.last_updated)
+                        })?;
+                        Ok(MarketPrice { wei, as_of })
+                    },
+                    "getting market price per PGU",
+                )
+                .await
+            }
+            NetworkMode::Reserved => {
+                Err(anyhow::anyhow!("get_market_price_per_pgu is not supported in Reserved mode"))
+            }
         }
     }
 
