@@ -78,7 +78,11 @@ where
         context: &mut C,
     ) -> Result<ZkStackedPcsConstraintData<GC, C>, ZkStackedVerifierError> {
         let num_claims = commitments_and_claims.len();
-        assert!(num_claims > 0, "must have at least one claim");
+        if num_claims == 0 {
+            return Err(ZkStackedVerifierError::IncorrectShape(
+                "must have at least one claim".to_string(),
+            ));
+        }
 
         let ZkStackedPcsProof {
             rlc_eval_proof,

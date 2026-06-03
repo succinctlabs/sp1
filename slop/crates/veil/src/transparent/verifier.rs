@@ -34,6 +34,8 @@ pub enum VerifyError {
     GroupOracleCountMismatch { group_idx: usize, expected: usize, actual: usize },
     #[error("MLE claim group {group_idx}, oracle {oracle_idx}: user-claimed eval does not match the proof's recovered eval")]
     EvalClaimMismatch { group_idx: usize, oracle_idx: usize },
+    #[error("proof has MLE-eval claims but the verifier was constructed without a PCS verifier")]
+    MissingPcsVerifier,
     #[error(transparent)]
     PcsError(
         StackedVerifierError<
@@ -213,10 +215,7 @@ impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>> TransparentVerifierCtx<GC> {
                     actual: self.pcs_proofs.len(),
                 });
             }
-            let pcs_verifier = self
-                .pcs_verifier
-                .as_ref()
-                .expect("MLE-eval claims exist but no PCS verifier was configured");
+            let pcs_verifier = self.pcs_verifier.as_ref().ok_or(VerifyError::MissingPcsVerifier)?;
 
             for (group_idx, (group, pcs_proof)) in
                 self.mle_claims.iter().zip(&self.pcs_proofs).enumerate()

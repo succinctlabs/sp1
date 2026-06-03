@@ -138,11 +138,9 @@ pub fn prove_from_batched_inputs<GC: ZkIopCtx, MK: ZkMerkleizer<GC>>(
     let mut current_batched_eval_claim = batched_eval_claim;
     let mut commit_phase_values = vec![];
 
-    assert_eq!(
-        current_mle.num_variables(),
-        eval_point.dimension() as u32,
-        "eval point dimension mismatch"
-    );
+    if current_mle.num_variables() != eval_point.dimension() as u32 {
+        return Err(BasefoldProverError::IncorrectShape);
+    }
 
     // Main Basefold reduction loop
     for _ in 0..eval_point.dimension() {
@@ -364,7 +362,9 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkBasefoldProver<GC, MK> {
             .map(|mle| {
                 let guts = mle.guts();
                 let sizes = guts.sizes();
-                assert_eq!(sizes.len(), 2, "Expected a 2D tensor");
+                if sizes.len() != 2 {
+                    return Err(BasefoldProverError::IncorrectShape);
+                }
 
                 let num_rows = sizes[0];
                 let num_cols = sizes[1];
@@ -372,7 +372,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkBasefoldProver<GC, MK> {
                 // Calculate next power of two for the first dimension
                 let padded_num_rows = num_rows.next_power_of_two();
 
-                if padded_num_rows == num_rows {
+                Ok(if padded_num_rows == num_rows {
                     // Already a power of two, no padding needed
                     mle
                 } else {
@@ -382,9 +382,9 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkBasefoldProver<GC, MK> {
 
                     // Create RowMajorMatrix and convert to Tensor, then to MLE
                     Arc::new(Mle::new(RowMajorMatrix::new(padded_vec, num_cols).into()))
-                }
+                })
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, _>>()?;
 
         let padded_mles_message: Message<Mle<GC::F, CpuBackend>> = padded_mles.into();
 

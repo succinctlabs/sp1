@@ -14,8 +14,20 @@ use slop_commit::Message;
 use slop_matrix::dense::RowMajorMatrix;
 use slop_merkle_tree::{ComputeTcsOpenings, TensorCsProver};
 use slop_tensor::Tensor;
+use thiserror::Error;
 
 use std::iter::repeat_with;
+
+/// Error returned by [`zk_hadamard_product_commitment`].
+#[derive(Debug, Error)]
+pub enum ZkHadamardCommitError<E: std::error::Error + 'static> {
+    /// The merkleizer failed while committing the input tensors.
+    #[error(transparent)]
+    Merkleizer(E),
+    /// The three input vectors did not have matching, positive lengths.
+    #[error("invalid Hadamard input shape: {0}")]
+    InvalidShape(String),
+}
 
 // Setup constants---choose for target bits of security
 pub(in crate::zk::hadamard_product) const EVAL_SCHEDULE: [usize; 1] = [2];
@@ -123,15 +135,25 @@ pub fn zk_hadamard_product_commitment<
     merkleizer: &MK,
 ) -> Result<
     (GC::Digest, ZkHadamardProductProverSecretData<GC, MK::ProverData, Code>),
-    MK::ProverError,
+    ZkHadamardCommitError<MK::ProverError>,
 >
 where
     rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
 {
     let n = a_vec.len();
-    assert_eq!(b_vec.len(), n, "b_vec must have the same length as a_vec");
-    assert_eq!(c_vec.len(), n, "c_vec must have the same length as a_vec");
-    assert!(n > 0, "Vectors must have positive length");
+    if b_vec.len() != n || c_vec.len() != n {
+        return Err(ZkHadamardCommitError::InvalidShape(format!(
+            "a_vec, b_vec, c_vec must have equal length (got {}, {}, {})",
+            n,
+            b_vec.len(),
+            c_vec.len()
+        )));
+    }
+    if n == 0 {
+        return Err(ZkHadamardCommitError::InvalidShape(
+            "input vectors must be non-empty".to_string(),
+        ));
+    }
 
     // Step 1: Encode [a, b, c] with base code C + additive mask r_+
     let (abc_tensor, secrets) = zk_vector_encode::<GC, RNG, Code>(
@@ -154,7 +176,9 @@ where
 
     // Step 3: Build message with both tensors and merkleize
     let to_merkleize_message: Message<Tensor<GC::F>> = vec![abc_tensor, r_times_tensor].into();
-    let (commitment, merkle_tree) = merkleizer.commit_tensors(to_merkleize_message.clone())?;
+    let (commitment, merkle_tree) = merkleizer
+        .commit_tensors(to_merkleize_message.clone())
+        .map_err(ZkHadamardCommitError::Merkleizer)?;
 
     // Step 4: Build commitment data
     let abc_commitment_data = ZkVectorProverData {

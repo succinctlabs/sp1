@@ -235,10 +235,10 @@ where
             &betas,
         )?;
 
-        if proof.final_poly
-            != proof.univariate_messages.last().unwrap()[0]
-                + *betas.last().unwrap() * proof.univariate_messages.last().unwrap()[1]
-        {
+        let last_message =
+            proof.univariate_messages.last().ok_or(BaseFoldVerifierError::IncorrectShape)?;
+        let last_beta = betas.last().ok_or(BaseFoldVerifierError::IncorrectShape)?;
+        if proof.final_poly != last_message[0] + *last_beta * last_message[1] {
             return Err(BaseFoldVerifierError::SumcheckFinalPolyMismatch);
         }
 
@@ -319,7 +319,7 @@ where
                     .map(GC::EF::from_base_slice)
                     .collect::<Vec<_>>()
                     .try_into()
-                    .unwrap();
+                    .map_err(|_| BaseFoldVerifierError::IncorrectShape)?;
 
                 // Check that the folded evaluation is consistent with the FRI query proof opening.
                 if evals[*index % 2] != *folded_eval {

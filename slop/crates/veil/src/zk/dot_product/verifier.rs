@@ -131,7 +131,12 @@ where
     // Check revealed evaluations via Horner over all columns.
     // Work directly on the base field slice to avoid an expensive Tensor clone + into_extension.
     let base_slice = revealed_evals.as_slice();
-    let [_num_evals, base_width]: [usize; 2] = revealed_evals.sizes().try_into().unwrap();
+    let [_num_evals, base_width]: [usize; 2] = revealed_evals.sizes().try_into().map_err(|_| {
+        ZkDotProductError::InconsistentProofShape(
+            revealed_evals.sizes().to_vec(),
+            "revealed evaluations tensor must be 2-dimensional".to_string(),
+        )
+    })?;
     let ext_width = base_width / d;
 
     for (i, &expected) in encoded_at_indices.iter().enumerate() {

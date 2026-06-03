@@ -358,16 +358,16 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
             .read_next(6)
             .map_err(|_| ZkVerifierError::InvalidMulConstrProofShape)?
             .try_into()
-            .unwrap();
+            .map_err(|_| ZkVerifierError::InvalidMulConstrProofShape)?;
         self.constrain_mul_triple(
-            a1.try_into_index().unwrap(),
-            b1.try_into_index().unwrap(),
-            c1.try_into_index().unwrap(),
+            a1.try_into_index().ok_or(ZkVerifierError::InvalidMulConstrProofShape)?,
+            b1.try_into_index().ok_or(ZkVerifierError::InvalidMulConstrProofShape)?,
+            c1.try_into_index().ok_or(ZkVerifierError::InvalidMulConstrProofShape)?,
         );
         self.constrain_mul_triple(
-            a2.try_into_index().unwrap(),
-            b2.try_into_index().unwrap(),
-            c2.try_into_index().unwrap(),
+            a2.try_into_index().ok_or(ZkVerifierError::InvalidMulConstrProofShape)?,
+            b2.try_into_index().ok_or(ZkVerifierError::InvalidMulConstrProofShape)?,
+            c2.try_into_index().ok_or(ZkVerifierError::InvalidMulConstrProofShape)?,
         );
 
         let mul_len = self.borrow().mul_constraints.len();

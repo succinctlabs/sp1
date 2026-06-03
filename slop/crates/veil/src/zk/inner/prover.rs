@@ -7,6 +7,7 @@ use crate::zk::dot_product::{
 use crate::zk::error_correcting_code::{RsFromCoefficients, RsInterpolation};
 use crate::zk::hadamard_product::{
     zk_hadamard_and_dots_proof, zk_hadamard_product_commitment, ZkHadamardAndDotsTotalProof,
+    ZkHadamardCommitError,
 };
 use derive_where::derive_where;
 use rand::distributions::{Distribution, Standard};
@@ -99,6 +100,9 @@ pub enum ZkProveError<PcsErr: Error + 'static, MerkErr: Error + 'static> {
     /// multiplicative constraints.
     #[error(transparent)]
     Merkleizer(MerkErr),
+    /// A constraint subroutine was handed inputs of an inconsistent shape.
+    #[error("invalid constraint input shape: {0}")]
+    InvalidShape(String),
 }
 
 /// Handle to a [`ZkProverContextInner`] that provides shared mutable access.
@@ -730,7 +734,10 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
         >(
             &mul_vecs[0], &mul_vecs[1], &mul_vecs[2], rng, merkleizer
         )
-        .map_err(ZkProveError::Merkleizer)?;
+        .map_err(|e| match e {
+            ZkHadamardCommitError::Merkleizer(e) => ZkProveError::Merkleizer(e),
+            ZkHadamardCommitError::InvalidShape(s) => ZkProveError::InvalidShape(s),
+        })?;
 
         // Sample RLC coefficient
         let rlc_coeff: GC::EF = {
