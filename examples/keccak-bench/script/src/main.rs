@@ -1,9 +1,9 @@
-use powdr_autoprecompiles::PgoConfig;
+use powdr_autoprecompiles::{PgoData, PgoType};
 use clap::Parser;
 use sp1_sdk::prelude::*;
 use sp1_sdk::ProverClient;
 use std::sync::Arc;
-use sp1_core_machine::autoprecompiles::sp1_powdr_config;
+use sp1_core_machine::autoprecompiles::sp1_configs;
 use sp1_core_machine::autoprecompiles::execution_profile_from_program;
 use sp1_core_machine::autoprecompiles::CompiledProgram;
 use sp1_core_executor::Program;
@@ -45,9 +45,10 @@ async fn main() {
         let program = Arc::new(Program::from(&ELF).unwrap());
         let execution_profile = execution_profile_from_program(program, stdin.clone());
         let path = std::path::Path::new("apc_candidates");
-        let config = sp1_powdr_config(args.apcs as u64, 0).with_apc_candidates_dir(path);
-        let pgo_config = PgoConfig::Cell(execution_profile, None);
-        let compiled_program = CompiledProgram::new(&ELF, config, pgo_config);
+        let (generate, select) = sp1_configs(args.apcs as u64, 0, PgoType::Cell);
+        let generate = generate.with_apc_candidates_dir(path);
+        let pgo_data = PgoData::Cell(execution_profile, None);
+        let compiled_program = CompiledProgram::new(&ELF, generate, select, pgo_data);
 
         compiled_program
             .apcs_and_stats

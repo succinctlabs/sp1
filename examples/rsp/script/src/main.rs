@@ -1,9 +1,9 @@
-use powdr_autoprecompiles::PgoConfig;
+use powdr_autoprecompiles::{PgoData, PgoType};
 use sp1_build::include_elf;
 use sp1_build::Elf;
 use sp1_core_executor::Program;
 use sp1_core_machine::autoprecompiles::execution_profile_from_program;
-use sp1_core_machine::autoprecompiles::sp1_powdr_config;
+use sp1_core_machine::autoprecompiles::sp1_configs;
 use sp1_core_machine::autoprecompiles::CompiledProgram;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_sdk::prelude::*;
@@ -83,9 +83,10 @@ async fn main() {
 
             println!("[powdr] Generating APCs...");
             let path = std::path::Path::new("apc_candidates");
-            let config = sp1_powdr_config(1, 0).with_apc_candidates_dir(path);
-            let pgo_config = PgoConfig::Cell(execution_profile, None);
-            let _compiled_program = CompiledProgram::new(&ELF, config, pgo_config);
+            let (generate, select) = sp1_configs(1, 0, PgoType::Cell);
+            let generate = generate.with_apc_candidates_dir(path);
+            let pgo_data = PgoData::Cell(execution_profile, None);
+            let _compiled_program = CompiledProgram::new(&ELF, generate, select, pgo_data);
 
             println!("[powdr] Done!");
         }
@@ -106,9 +107,10 @@ async fn main() {
 
                 println!("[powdr] Generating {} APCs...", apcs);
                 let path = std::path::Path::new("apc_candidates");
-                let config = sp1_powdr_config(apcs as u64, 0).with_apc_candidates_dir(path);
-                let pgo_config = PgoConfig::Cell(execution_profile, None);
-                let compiled_program = CompiledProgram::new(&ELF, config, pgo_config);
+                let (generate, select) = sp1_configs(apcs as u64, 0, PgoType::Cell);
+                let generate = generate.with_apc_candidates_dir(path);
+                let pgo_data = PgoData::Cell(execution_profile, None);
+                let compiled_program = CompiledProgram::new(&ELF, generate, select, pgo_data);
                 println!("[powdr] Done! ({:.2}s)", stage_start.elapsed().as_secs_f64());
 
                 compiled_program
