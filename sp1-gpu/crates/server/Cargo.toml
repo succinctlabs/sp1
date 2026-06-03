@@ -33,7 +33,7 @@ tikv-jemallocator = { version = "0.6", features = ["profiling", "stats"] }
 workspace = true
 
 [features]
-experimental = ["sp1-prover/experimental"]
+experimental = ["sp1-prover/experimental", "sp1-gpu-prover/experimental"]
 mprotect = [
   "experimental",
   "sp1-core-executor/mprotect",
