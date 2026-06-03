@@ -1,6 +1,6 @@
 use crate::zk::inner::{
     ConstraintContextInnerExt, PcsMultiEvalClaim, VerifierValue, ZkCnstrAndReadingCtxInner,
-    ZkIopCtx, ZkPcsVerificationError, ZkPcsVerifier, ZkProtocolProof, ZkVerificationContext,
+    ZkIopCtx, ZkPcsVerificationError, ZkPcsVerifier, ZkVerificationContext,
 };
 use derive_where::derive_where;
 use itertools::Itertools;
@@ -270,10 +270,8 @@ pub struct ZkStackedPcsConstraintData<GC: IopCtx, C: ConstraintContextInnerExt<G
     pub claims: Vec<ZkStackedPcsClaimData<GC, C>>,
 }
 
-impl<GC: ZkIopCtx, C: ConstraintContextInnerExt<GC::EF>> ZkProtocolProof<GC, C>
-    for ZkStackedPcsConstraintData<GC, C>
-{
-    fn build_constraints(self) {
+impl<GC: ZkIopCtx, C: ConstraintContextInnerExt<GC::EF>> ZkStackedPcsConstraintData<GC, C> {
+    pub fn build_constraints(self) {
         let mut context = self.claims[0].evals[0].as_ref().clone();
 
         let num_original = 1 << self.log_num_cols;

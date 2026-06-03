@@ -1,5 +1,5 @@
 use rayon::prelude::*;
-use slop_algebra::{AbstractField, TwoAdicField};
+use slop_algebra::TwoAdicField;
 use slop_dft::p3::{Radix2DitParallel, TwoAdicSubgroupDft};
 use slop_matrix::{dense::RowMajorMatrix, Matrix};
 
@@ -29,6 +29,7 @@ where
     }
 
     /// Assumes output is a codeword and decodes to the original coefficients (by truncation)
+    #[cfg(test)]
     fn decode(output: &[K], input_length: usize) -> Vec<K> {
         let mut all_coeffs = Radix2DitParallel.idft(output.to_vec());
         all_coeffs.truncate(input_length);
@@ -45,6 +46,7 @@ where
         Radix2DitParallel.dft_batch(input).to_row_major_matrix()
     }
 
+    #[cfg(test)]
     fn batch_decode(output: RowMajorMatrix<K>, input_length: usize) -> RowMajorMatrix<K> {
         let num_cols = output.width();
 

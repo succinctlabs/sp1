@@ -1,7 +1,7 @@
 // ZK Stacked PCS Prover implementation
 use crate::zk::inner::{
     MerkleProverData, PcsMultiEvalClaim, ProverValue, ZkIopCtx, ZkMerkleizer, ZkPcsCommitmentError,
-    ZkPcsProver, ZkProtocolProof, ZkProverContext,
+    ZkPcsProver, ZkProverContext,
 };
 use derive_where::derive_where;
 use itertools::Itertools;

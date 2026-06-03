@@ -190,6 +190,7 @@ where
 ///
 /// Combines multiple `dot_vecs` into a single RLC vector, then delegates to
 /// [`verify_zk_dot_product`]. This is the verifier counterpart to [`zk_dot_products_proof`].
+#[cfg(test)]
 pub fn verify_zk_dot_products<GC: IopCtx, Code: ZkCode<GC::EF>>(
     commitment: &GC::Digest,
     dot_vecs: &[Vec<GC::EF>],

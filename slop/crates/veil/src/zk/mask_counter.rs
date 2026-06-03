@@ -1,7 +1,7 @@
 use slop_algebra::Dorroh;
 use slop_challenger::FieldChallenger;
 
-use crate::compiler::{ConstraintCtx, ReadingCtx, SendingCtx, TranscriptReadError};
+use crate::compiler::{ConstraintCtx, ReadingCtx, TranscriptReadError};
 use crate::zk::inner::MaskCounterContext;
 use crate::zk::verifier_ctx::MleCommit;
 use crate::zk::ZkIopCtx;
@@ -12,7 +12,7 @@ pub type MaskCounterExpr<GC: ZkIopCtx> = Dorroh<GC::EF, MaskCounterContext<GC>>;
 
 /// A counting context for determining the mask length needed by a ZK proof.
 ///
-/// Implements `ReadingCtx` + `SendingCtx` + `ConstraintCtx` so it can be used with the
+/// Implements `ReadingCtx` + `ConstraintCtx` so it can be used with the
 /// public interface (compiler sumcheck, etc.) to count how many transcript elements will be used.
 pub struct MaskCounter<GC: ZkIopCtx> {
     inner: MaskCounterContext<GC>,

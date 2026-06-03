@@ -1,5 +1,4 @@
 #![allow(clippy::disallowed_types)]
-#![allow(dead_code)]
 
 //! Hadamard benchmark sweep across multiple parameter configurations.
 //!
@@ -10,7 +9,10 @@
 use std::fs::File;
 use std::io::Write;
 
-include!("common.rs");
+#[path = "common.rs"]
+#[allow(dead_code)]
+mod common;
+use common::*;
 
 struct BenchResult {
     std_prover: Duration,

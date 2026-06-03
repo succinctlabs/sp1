@@ -1,4 +1,4 @@
-#![allow(clippy::disallowed_types, clippy::disallowed_methods, dead_code)]
+#![allow(clippy::disallowed_types, clippy::disallowed_methods)]
 use crate::zk::error_correcting_code::RsInterpolation;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha20Rng;

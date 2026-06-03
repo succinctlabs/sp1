@@ -12,6 +12,7 @@ use crate::zk::error_correcting_code::{MultiplicativeCode, ZkCode};
 use slop_algebra::{AbstractExtensionField, AbstractField, TwoAdicField};
 use slop_challenger::{CanObserve, CanSampleBits, FieldChallenger, IopCtx};
 
+#[cfg(test)]
 use super::ZkHadamardTotalProof;
 use super::{ZkHadamardAndDotsTotalProof, ZkHadamardProductProof, EVAL_SCHEDULE};
 
@@ -183,6 +184,7 @@ where
 ///
 /// This is a convenience wrapper that calls `verify_zk_hadamard_product_pre_reveal`, samples indices,
 /// and then calls `verify_zk_hadamard_product_reveal`.
+#[cfg(test)]
 pub fn verify_zk_hadamard_product<GC: IopCtx, Code>(
     commitment: &GC::Digest,
     total_proof: &ZkHadamardTotalProof<GC, Code>,

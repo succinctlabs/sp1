@@ -37,6 +37,7 @@ where
         )
     }
 
+    #[cfg(test)]
     fn decode(output: &[K], input_length: usize) -> Vec<K> {
         let num_rows = output.len();
         let out_log_size = num_rows.trailing_zeros() as usize;
@@ -72,6 +73,7 @@ where
             .to_row_major_matrix()
     }
 
+    #[cfg(test)]
     fn batch_decode(output: RowMajorMatrix<K>, input_length: usize) -> RowMajorMatrix<K> {
         let num_cols = output.width();
         let num_rows = output.height();

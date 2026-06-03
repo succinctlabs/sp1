@@ -352,6 +352,7 @@ pub fn zk_dot_product_proof<
 ///
 /// Combines multiple `dot_vecs` into a single RLC vector, then delegates to
 /// [`zk_dot_product_proof`]. All `dot_vecs` must have the same length as the committed vectors.
+#[cfg(test)]
 pub fn zk_dot_products_proof<
     GC: IopCtx,
     MK: TensorCsProver<GC, CpuBackend> + ComputeTcsOpenings<GC, CpuBackend>,

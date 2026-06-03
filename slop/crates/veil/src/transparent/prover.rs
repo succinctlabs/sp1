@@ -91,7 +91,6 @@ struct OracleEntry<GC: IopCtx, MK: ComputeTcsOpenings<GC, CpuBackend>> {
 /// by index; their `prover_data` is fetched from `oracle_store` at `prove()` time.
 struct PendingEvalClaims<EF> {
     oracle_indices: Vec<usize>,
-    evals: Vec<EF>,
     point: Point<EF>,
 }
 
@@ -317,13 +316,11 @@ where
         claims: Vec<(Self::MleOracle, Self::Expr)>,
         point: Point<Self::Challenge>,
     ) {
-        let mut oracle_indices = Vec::with_capacity(claims.len());
-        let mut evals = Vec::with_capacity(claims.len());
-        for (oracle, eval) in claims {
-            oracle_indices.push(oracle.idx);
-            evals.push(eval);
-        }
-        self.pending_eval_claims.push(PendingEvalClaims { oracle_indices, evals, point });
+        // The transparent prover discharges these via `prove_trusted_evaluation`, which
+        // ignores the claimed evals (the verifier checks them against the proof's embedded
+        // batch evaluations), so only the oracle indices and opening point are retained.
+        let oracle_indices = claims.into_iter().map(|(oracle, _eval)| oracle.idx).collect();
+        self.pending_eval_claims.push(PendingEvalClaims { oracle_indices, point });
     }
 }
 

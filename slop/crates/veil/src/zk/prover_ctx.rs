@@ -123,10 +123,6 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
     ) -> Self {
         Self { inner, pcs_prover, replay: ProverReplay::default() }
     }
-
-    fn into_inner(self) -> ZkProverContext<GC, PC::Merkelizer, PC::PcsProverData> {
-        self.inner
-    }
 }
 
 // ============================================================================

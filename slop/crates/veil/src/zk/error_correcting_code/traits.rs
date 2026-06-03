@@ -9,6 +9,7 @@ pub trait ErrorCorrectingCode<K: Clone + Send + Sync>: std::fmt::Debug + Clone +
 
     fn batch_encode(input: RowMajorMatrix<K>, output_length: usize) -> RowMajorMatrix<K>;
 
+    #[cfg(test)]
     fn batch_decode(output: RowMajorMatrix<K>, input_length: usize) -> RowMajorMatrix<K>;
 
     fn encode(input: &[K], output_length: usize) -> Vec<K> {
@@ -17,6 +18,7 @@ pub trait ErrorCorrectingCode<K: Clone + Send + Sync>: std::fmt::Debug + Clone +
         output_matrix.values
     }
 
+    #[cfg(test)]
     fn decode(output: &[K], input_length: usize) -> Vec<K> {
         let output_matrix = RowMajorMatrix::new(output.to_vec(), 1);
         let input_matrix = Self::batch_decode(output_matrix, input_length);

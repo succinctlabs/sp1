@@ -3,6 +3,7 @@ use crate::zk::dot_product::{
     ZkDotProductPreReveal, ZkDotProductProof, ZkVectorProverData,
 };
 use crate::zk::error_correcting_code::{CodeParametersForZk, MultiplicativeCode, ZkCode};
+#[cfg(test)]
 use itertools::Itertools;
 use rand::{CryptoRng, Rng};
 use serde::{Deserialize, Serialize};
@@ -41,6 +42,7 @@ where
 /// Complete Hadamard product proof: algebraic proof data + Merkle openings.
 ///
 /// This is the output of [`zk_hadamard_product_proof`] and input to [`verify_zk_hadamard_product`].
+#[cfg(test)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "", deserialize = ""))]
 pub struct ZkHadamardTotalProof<GC: IopCtx, Code>
@@ -237,6 +239,7 @@ where
 /// Second phase of the zero-knowledge Hadamard product proof: reveal evaluations and generate merkle proofs.
 ///
 /// Returns the proof and the revealed data.
+#[cfg(test)]
 #[allow(clippy::type_complexity)]
 pub(in crate::zk::hadamard_product) fn zk_hadamard_product_reveal<
     GC: IopCtx,
@@ -263,6 +266,7 @@ pub(in crate::zk::hadamard_product) fn zk_hadamard_product_reveal<
 /// Generates the zero-knowledge Hadamard product proof (standalone, without dot products).
 ///
 /// Returns the proof and the revealed data (Merkle openings).
+#[cfg(test)]
 #[allow(clippy::type_complexity)]
 pub fn zk_hadamard_product_proof<
     GC: IopCtx,
@@ -355,6 +359,7 @@ where
 }
 
 /// Computes the Hadamard (elementwise) product of two vectors.
+#[cfg(test)]
 pub fn hadamard_product<K>(a_vec: &[K], b_vec: &[K]) -> Vec<K>
 where
     K: AbstractField + Copy,
