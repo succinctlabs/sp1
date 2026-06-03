@@ -24,16 +24,6 @@ pub enum ZkPcsCommitmentError {
     CommitmentFailed(String),
 }
 
-/// Default error type for PCS `prove_multi_eval` failures. Concrete impls may
-/// substitute their own typed error via the [`ZkPcsProver::ProveError`]
-/// associated type.
-#[derive(Debug, Error)]
-pub enum ZkPcsProveError {
-    /// The PCS proof generation failed.
-    #[error("PCS prove_multi_eval failed: {0}")]
-    Failed(String),
-}
-
 /// Error type for PCS verification failures.
 #[derive(Debug, Clone, Error)]
 pub enum ZkPcsVerificationError {

@@ -7,7 +7,7 @@ use slop_algebra::Dorroh;
 use slop_alloc::CpuBackend;
 use slop_challenger::{FieldChallenger, IopCtx};
 use slop_commit::Message;
-use slop_merkle_tree::TensorCsProver;
+use slop_merkle_tree::{ComputeTcsOpenings, TensorCsProver};
 use slop_multilinear::{Mle, Point};
 use thiserror::Error;
 
@@ -38,14 +38,12 @@ pub type ZkProverCtxInitError<GC: ZkIopCtx, PC: PcsProverConfig<GC>> =
 /// satisfies this trait. Pass it as a separate generic `MK: ZkMerkleizer<GC>` on
 /// prover-side structs and functions instead of baking it into `ZkIopCtx`.
 pub trait ZkMerkleizer<GC: IopCtx>:
-    TensorCsProver<GC, CpuBackend> + slop_merkle_tree::ComputeTcsOpenings<GC, CpuBackend> + Default
+    TensorCsProver<GC, CpuBackend> + ComputeTcsOpenings<GC, CpuBackend> + Default
 {
 }
 
 impl<MK, GC: IopCtx> ZkMerkleizer<GC> for MK where
-    MK: TensorCsProver<GC, CpuBackend>
-        + slop_merkle_tree::ComputeTcsOpenings<GC, CpuBackend>
-        + Default
+    MK: TensorCsProver<GC, CpuBackend> + ComputeTcsOpenings<GC, CpuBackend> + Default
 {
 }
 
@@ -78,7 +76,7 @@ pub type ProverTranscriptElement<GC: ZkIopCtx, PC: PcsProverConfig<GC>> =
 pub struct ZkProverCtx<GC: ZkIopCtx, PC: PcsProverConfig<GC>> {
     inner: ZkProverContext<GC, PC::Merkelizer, PC::PcsProverData>,
     pcs_prover: Option<PC::PcsProver>,
-    /// Replay log backing the prover's [`ReadingCtx`] impl (the "new flow").
+    /// Replay log backing the prover's [`ReadingCtx`].
     ///
     /// During the `SendingCtx` (compute) pass we record, in order, every
     /// transcript handle returned by `send_*`, every sampled challenge, and
@@ -261,7 +259,7 @@ fn log_num_polynomials<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD>(
 }
 
 // ============================================================================
-// ReadingCtx impl (prototype, "new flow")
+// ReadingCtx impl
 // ============================================================================
 //
 // Pure record/replay over the buffers populated during the `SendingCtx` pass.
@@ -327,11 +325,9 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
     where
         Standard: Distribution<GC::EF>,
     {
-        // The "new flow"'s `verify` drains `replay.sent` by move, but the old flow
-        // records sends and never replays — so release the recorded handles here.
+        // Release the recorded handles here in case.
         // They each hold an `Rc` clone of the inner context; left dangling, they'd
         // force `inner.prove` to deep-clone the context instead of unwrapping it.
-        // (No-op in the new flow: the queue is already empty.)
         self.replay.sent.clear();
         self.inner.prove(rng, self.pcs_prover.as_ref())
     }

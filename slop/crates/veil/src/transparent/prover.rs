@@ -144,7 +144,7 @@ where
     /// Accumulated MLE-eval claim groups to be discharged at `prove()` time; one
     /// entry per `assert_mle_multi_eval` call.
     pending_eval_claims: Vec<PendingEvalClaims<GC::EF>>,
-    /// Replay log backing the prover's [`ReadingCtx`] impl (the "new flow").
+    /// Replay log backing the prover's [`ReadingCtx`] impl.
     /// Records, in order, every value sent and challenge sampled during the
     /// `SendingCtx` pass, so the unified `verify` body can be replayed on the prover
     /// without re-deriving (or advancing) Fiat-Shamir. Oracles need no buffer: their
@@ -405,7 +405,7 @@ where
 }
 
 // ============================================================================
-// ReadingCtx impl (prototype, "new flow")
+// ReadingCtx impl
 // ============================================================================
 //
 // Pure record/replay over the buffers populated during the `SendingCtx` pass.

@@ -354,7 +354,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkBasefoldProver<GC, MK> {
                 let eq_sum: GC::EF = eq_evals_slice
                     .iter()
                     .zip_eq(data_chunk.iter())
-                    .map(|(eq, &b)| *eq * GC::EF::from(b))
+                    .map(|(eq, &b)| <GC::EF as core::ops::Mul<GC::F>>::mul(*eq, b))
                     .sum();
                 data_alpha * eq_sum
             };
