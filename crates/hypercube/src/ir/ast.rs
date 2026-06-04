@@ -394,11 +394,13 @@ impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
 
 /// The Clean-native channel-call form of one **byte** interaction — the statement the circuit `main`
 /// emits in place of the generic `⟨.send, .byte …, mult⟩` list entry. SP1's `send_byte(op, a, b, c)`
-/// with multiplicity `g` becomes `byteChannel.gatedReceive g ⟨op, g * a, b', c⟩` (a *pull* of the
+/// with multiplicity `g` becomes `byteChannel.gatedReceive g ⟨op, a, b', c⟩` (a *pull* of the
 /// preprocessed `ByteChip`; the sign flip is the send/receive duality, `Foundations/Channels.lean`).
-/// The looked-up value `a` is **folded** `g * a` so a padding row (`g = 0`) reads the always-valid
-/// `(op, 0, w, 0)`; the bit-width column `b`, when a literal, is rendered `Expression.const ((b:ℕ):ZMod p)`
-/// so it matches `byteRowSpec_range`'s `((n:ℕ):ZMod p)` shape (`Foundations/ByteTable.lean`).
+/// The looked-up value `a` is passed **raw**, multiplicity-gated by `g` on `toRawGated` — faithful to
+/// SP1's `send_byte(…, is_real)`, whose LogUp term is `g / fingerprint(values)`, so a padding row
+/// (`g = 0`) drops out of the sum entirely and its values are unconstrained (no `g * a` fold). The
+/// bit-width column `b`, when a literal, is rendered `Expression.const ((b:ℕ):ZMod p)` so it matches
+/// `byteRowSpec_range`'s `((n:ℕ):ZMod p)` shape (`Foundations/ByteTable.lean`).
 fn byte_channel_call<F: Field>(
     it: &AirInteraction<ExprRef<F>>,
     mapping: &HashMap<usize, String>,
@@ -418,7 +420,7 @@ fn byte_channel_call<F: Field>(
     };
     format!(
         "byteChannel.gatedReceive {gate} \
-         (⟨{op}, {gate} * {a}, {b_field}, {c}⟩ : ByteRow (Expression (ZMod p)))"
+         (⟨{op}, {a}, {b_field}, {c}⟩ : ByteRow (Expression (ZMod p)))"
     )
 }
 

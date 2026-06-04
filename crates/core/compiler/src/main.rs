@@ -797,7 +797,7 @@ fn emit_operation(
             let chan_list = if comps.channel_calls.is_empty() {
                 "[]"
             } else {
-                "[byteChannel.toRaw]"
+                "[byteChannel.toRawGated]"
             };
             println!("instance elaborated : ElaboratedCircuit (ZMod p) Inputs unit where");
             println!("  name := \"SP1CleanNative.{operation_name}\"");
