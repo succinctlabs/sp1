@@ -30,6 +30,7 @@ pub struct NetworkProveBuilder<'a> {
     pub(crate) verifier: Option<Address>,
     pub(crate) treasury: Option<Address>,
     pub(crate) max_price_per_pgu: Option<u64>,
+    pub(crate) max_price_buffer_pct: Option<u64>,
     pub(crate) auction_timeout: Option<Duration>,
     pub(crate) private_stdin: bool,
 }
@@ -143,6 +144,17 @@ impl NetworkProveBuilder<'_> {
         self
     }
 
+    /// Override the buffer applied to the market price when defaulting
+    /// `max_price_per_pgu`, expressed as a percentage. Default is
+    /// [`crate::network::DEFAULT_MAX_PRICE_BUFFER_PCT`] (120%). Ignored when
+    /// [`Self::max_price_per_pgu`] is set explicitly. If `market_price * pct / 100`
+    /// overflows `u64`, the SDK silently falls back to the server-supplied default.
+    #[must_use]
+    pub fn max_price_buffer_pct(mut self, pct: u64) -> Self {
+        self.max_price_buffer_pct = Some(pct);
+        self
+    }
+
     /// Sets the auction timeout for the proof request.
     #[must_use]
     pub fn auction_timeout(mut self, auction_timeout: Duration) -> Self {
@@ -180,6 +192,7 @@ impl NetworkProveBuilder<'_> {
             self.verifier,
             self.treasury,
             self.max_price_per_pgu,
+            self.max_price_buffer_pct,
             self.private_stdin,
         ))
     }
@@ -224,6 +237,7 @@ impl<'a> ProveRequest<'a, NetworkProver> for NetworkProveBuilder<'a> {
             self.verifier,
             self.treasury,
             self.max_price_per_pgu,
+            self.max_price_buffer_pct,
             self.auction_timeout,
             self.private_stdin,
         ))

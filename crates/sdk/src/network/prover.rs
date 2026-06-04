@@ -18,7 +18,7 @@ use crate::{
         signer::NetworkSigner,
         tee::{client::Client as TeeClient, verify_tee_proof},
         Error, NetworkMode, DEFAULT_AUCTION_TIMEOUT_DURATION, DEFAULT_GAS_LIMIT,
-        MAINNET_EXPLORER_URL, MAINNET_RPC_URL, MARKET_PRICE_BUFFER_PCT, PRIVATE_EXPLORER_URL,
+        DEFAULT_MAX_PRICE_BUFFER_PCT, MAINNET_EXPLORER_URL, MAINNET_RPC_URL, PRIVATE_EXPLORER_URL,
         PRIVATE_NETWORK_RPC_URL, RESERVED_EXPLORER_URL, RESERVED_RPC_URL, TEE_NETWORK_RPC_URL,
     },
     prover::{verify_proof, BaseProveRequest, SendFutureResult},
@@ -100,6 +100,7 @@ impl Prover for NetworkProver {
             verifier: None,
             treasury: None,
             max_price_per_pgu: None,
+            max_price_buffer_pct: None,
             auction_timeout: None,
             private_stdin: false,
         }
@@ -602,6 +603,7 @@ impl NetworkProver {
         verifier: Option<Address>,
         treasury: Option<Address>,
         max_price_per_pgu: Option<u64>,
+        max_price_buffer_pct: Option<u64>,
         private_stdin: bool,
     ) -> Result<B256> {
         let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
@@ -616,6 +618,7 @@ impl NetworkProver {
                 verifier,
                 treasury,
                 max_price_per_pgu,
+                max_price_buffer_pct,
             )
             .await?;
 
@@ -661,6 +664,7 @@ impl NetworkProver {
         verifier: Option<Address>,
         treasury: Option<Address>,
         max_price_per_pgu: Option<u64>,
+        max_price_buffer_pct: Option<u64>,
         auction_timeout: Option<Duration>,
         private_stdin: bool,
     ) -> Result<SP1ProofWithPublicValues> {
@@ -687,6 +691,7 @@ impl NetworkProver {
                     verifier,
                     treasury,
                     max_price_per_pgu,
+                    max_price_buffer_pct,
                     private_stdin,
                 )
                 .await?;
@@ -848,7 +853,7 @@ impl NetworkProver {
     /// 1. If the parameter is explicitly set by the requester, use the specified value.
     /// 2. Otherwise, use the default values fetched from the network RPC.
     #[allow(unused_variables)]
-    #[allow(clippy::unused_async)]
+    #[allow(clippy::unused_async, clippy::too_many_arguments)]
     async fn get_auction_request_params(
         &self,
         mode: SP1ProofMode,
@@ -857,6 +862,7 @@ impl NetworkProver {
         verifier: Option<Address>,
         treasury: Option<Address>,
         max_price_per_pgu: Option<u64>,
+        max_price_buffer_pct: Option<u64>,
     ) -> Result<(Address, Address, Address, Address, u64, u64, Vec<u8>)> {
         match self.network_mode {
             NetworkMode::Mainnet => {
@@ -888,8 +894,11 @@ impl NetworkProver {
                             v
                         } else {
                             let market = self.client.get_market_price_per_pgu().await;
+                            let buffer_pct = max_price_buffer_pct
+                                .unwrap_or(DEFAULT_MAX_PRICE_BUFFER_PCT);
                             default_max_price_per_pgu(
                                 market,
+                                buffer_pct,
                                 &auction_params.max_price_per_pgu,
                             )?
                         };
@@ -935,16 +944,17 @@ impl From<SP1ProofMode> for ProofMode {
 }
 
 /// Compute the default `max_price_per_pgu` when the caller didn't set one. Applies the
-/// [`MARKET_PRICE_BUFFER_PCT`] buffer to the freshly-fetched market price; on RPC error
-/// (including `Unimplemented` from older deploys) or when the buffered value overflows
-/// `u64`, falls back to `server_default`.
+/// `buffer_pct` buffer to the freshly-fetched market price; on RPC error (including
+/// `Unimplemented` from older deploys) or when the buffered value overflows `u64`, falls
+/// back to `server_default`.
 fn default_max_price_per_pgu(
     market: Result<crate::network::MarketPrice>,
+    buffer_pct: u64,
     server_default: &str,
 ) -> Result<u64> {
     match market {
         Ok(m) => {
-            let buffered = m.wei.saturating_mul(MARKET_PRICE_BUFFER_PCT) / 100;
+            let buffered = m.wei.saturating_mul(u128::from(buffer_pct)) / 100;
             if let Ok(v) = u64::try_from(buffered) {
                 Ok(v)
             } else {
@@ -993,21 +1003,28 @@ mod tests {
     #[test]
     fn buffer_applied_to_market() {
         // 1000 wei * 120 / 100 = 1200.
-        let got = default_max_price_per_pgu(Ok(market(1000)), "0").unwrap();
+        let got = default_max_price_per_pgu(Ok(market(1000)), 120, "0").unwrap();
         assert_eq!(got, 1200);
+    }
+
+    #[test]
+    fn custom_buffer_pct_applied() {
+        // Caller can override the buffer; 1000 * 150 / 100 = 1500.
+        let got = default_max_price_per_pgu(Ok(market(1000)), 150, "0").unwrap();
+        assert_eq!(got, 1500);
     }
 
     #[test]
     fn unimplemented_falls_back_to_server_default() {
         let status = tonic::Status::new(tonic::Code::Unimplemented, "old deploy");
-        let got = default_max_price_per_pgu(Err(status.into()), "500").unwrap();
+        let got = default_max_price_per_pgu(Err(status.into()), 120, "500").unwrap();
         assert_eq!(got, 500);
     }
 
     #[test]
     fn overflow_falls_back_to_server_default() {
         // u128::MAX * 120 saturates to u128::MAX; /100 is still well beyond u64::MAX.
-        let got = default_max_price_per_pgu(Ok(market(u128::MAX)), "750").unwrap();
+        let got = default_max_price_per_pgu(Ok(market(u128::MAX)), 120, "750").unwrap();
         assert_eq!(got, 750);
     }
 }
