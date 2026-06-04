@@ -76,7 +76,8 @@ use crate::network::proto::{
 pub struct MarketPrice {
     /// Anchored cap in PROVE wei per PGU.
     pub wei: u128,
-    /// Unix timestamp (seconds) of the upstream PROVE/USD reading the cap was anchored to.
+    /// Unix timestamp (seconds) the `wei` value applies to. Advances whenever any input
+    /// that feeds it moves.
     pub as_of: u64,
 }
 
@@ -390,8 +391,8 @@ impl NetworkClient {
                         let wei = response.price.parse::<u128>().with_context(|| {
                             format!("invalid market_price_per_pgu wei: {:?}", response.price)
                         })?;
-                        let as_of = u64::try_from(response.last_updated).with_context(|| {
-                            format!("invalid market_price last_updated: {}", response.last_updated)
+                        let as_of = u64::try_from(response.as_of).with_context(|| {
+                            format!("invalid market_price as_of: {}", response.as_of)
                         })?;
                         Ok(MarketPrice { wei, as_of })
                     },
