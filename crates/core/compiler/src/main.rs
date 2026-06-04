@@ -13,7 +13,10 @@ use sp1_core_machine::{
 };
 use sp1_hypercube::{
     air::MachineAir,
-    ir::{ConstraintCompiler, ExprExtRef, ExprRef, Func, IrVar, Shape},
+    ir::{
+        refs_of_shape, BindId, ConstraintCompiler, ExprExtRef, ExprRef, Func, IrVar, LeanBinding,
+        Shape, SubCallTerm,
+    },
 };
 use sp1_primitives::SP1Field;
 
@@ -161,6 +164,112 @@ fn apply_main_mapping(line: &str, mapping: &HashMap<usize, String>) -> String {
         out = out.replace(&format!("Main[{idx}]"), path);
     }
     out
+}
+
+/// Dead-code-eliminate `bindings` for one emitted def: return, in original (topological) order,
+/// only the bindings transitively reachable from `roots` via their `deps`. A `CallVal` header is
+/// pulled in whenever one of its output leaves is reached. Guarantees the def carries no unused
+/// `let` (Lean's `linter.unusedVariables` would otherwise fail the zero-warning build).
+fn dce_filter<'a>(bindings: &'a [LeanBinding], roots: &[BindId]) -> Vec<&'a LeanBinding> {
+    let by_id: HashMap<BindId, usize> =
+        bindings.iter().enumerate().map(|(i, b)| (b.id, i)).collect();
+    let mut reachable: HashSet<BindId> = HashSet::new();
+    let mut worklist: Vec<BindId> = roots.to_vec();
+    while let Some(id) = worklist.pop() {
+        if !reachable.insert(id) {
+            continue;
+        }
+        if let Some(&i) = by_id.get(&id) {
+            worklist.extend(bindings[i].deps.iter().copied());
+        }
+    }
+    bindings.iter().filter(|b| reachable.contains(&b.id)).collect()
+}
+
+/// The roots of an `asserts`/`interactions` def: the bindings read by its own list entries plus
+/// those read by its sub-call argument terms.
+fn list_roots(own: &[(String, Vec<BindId>)], subs: &[SubCallTerm]) -> Vec<BindId> {
+    own.iter()
+        .flat_map(|(_, d)| d.iter().copied())
+        .chain(subs.iter().flat_map(|s| s.deps.iter().copied()))
+        .collect()
+}
+
+/// Render the return expression of an `asserts`/`interactions` def: `Sub0.x … ++ Sub1.x … ++ [own…]`
+/// (a bare `[own…]` when there are no sub-calls; an empty `[]` list when there are no own entries).
+/// `Main[idx]` tokens are left in place for `emit_def` to substitute.
+fn build_list_tail(subs: &[SubCallTerm], own: &[(String, Vec<BindId>)]) -> String {
+    let mut s = String::new();
+    for sub in subs {
+        s.push_str(&sub.text);
+        s.push_str(" ++ ");
+    }
+    s.push_str("[\n");
+    for (own_str, _) in own {
+        s.push_str(&format!("    {own_str},\n"));
+    }
+    s.push_str("  ]");
+    s
+}
+
+/// Whether `name` occurs in `haystack` as a whole identifier token (not as a sub-token of a longer
+/// identifier — so param `b` is *not* matched inside `cols.b_low_bytes` or `.byte`, but *is* matched
+/// in `b[0]`). Used to decide which params a given def actually references.
+fn token_present(haystack: &str, name: &str) -> bool {
+    let bytes = haystack.as_bytes();
+    let is_word = |c: u8| c.is_ascii_alphanumeric() || c == b'_';
+    let mut from = 0;
+    while let Some(pos) = haystack[from..].find(name) {
+        let start = from + pos;
+        let end = start + name.len();
+        let before_ok = start == 0 || !is_word(bytes[start - 1]);
+        let after_ok = end == bytes.len() || !is_word(bytes[end]);
+        if before_ok && after_ok {
+            return true;
+        }
+        from = start + 1;
+    }
+    false
+}
+
+/// Emit one `@[irreducible] def <name> {F}[Field F][CoeHead F ℕ] (<params>) : <ret_ty> :=` followed
+/// by the DCE'd `let`-chain reachable from `roots`, then `tail`. `main_map` substitutes `Main[idx]`
+/// column tokens (empty for operations). A param this def does not reference is rendered `_<name>` —
+/// params are shared across the `asserts`/`interactions`/`value` defs and fixed by the call sites,
+/// so (unlike `let`s) they can't be dropped; the `_` prefix keeps the zero-warning build.
+#[allow(clippy::print_stdout)]
+fn emit_def(
+    name: &str,
+    params: &[(String, String)],
+    ret_ty: &str,
+    bindings: &[LeanBinding],
+    roots: &[BindId],
+    tail: &str,
+    main_map: &HashMap<usize, String>,
+) {
+    let kept = dce_filter(bindings, roots);
+    let mapped_tail = apply_main_mapping(tail, main_map);
+    // The text this def actually emits — to decide which params it references.
+    let body: String = kept
+        .iter()
+        .map(|b| apply_main_mapping(&b.text, main_map))
+        .chain(std::iter::once(mapped_tail.clone()))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    println!("@[irreducible] def {name} {{F : Type}} [Field F] [CoeHead F ℕ]");
+    for (pn, pt) in params {
+        if token_present(&body, pn) {
+            println!("  ({pn} : {pt})");
+        } else {
+            println!("  (_{pn} : {pt})");
+        }
+    }
+    println!("  : {ret_ty} :=");
+    for b in &kept {
+        println!("  let {}", apply_main_mapping(&b.text, main_map));
+    }
+    println!("  {mapped_tail}");
 }
 
 #[derive(ValueEnum, Clone, Debug)]
@@ -311,8 +420,7 @@ fn compile_chip(chip_name: &str, output_format: &OutputFormat, reuse_struct: &[S
             let mut mapping = HashMap::new();
             map_main(&cols_shape, "cols", &mut mapping);
 
-            let (steps, asserts, interactions, num_calls) =
-                builder.ast().to_lean_components(&Default::default());
+            let comps = builder.ast().to_lean_components(&Default::default());
 
             println!();
             println!("-- Generated Lean code for chip {}Chip", chip_name);
@@ -329,24 +437,29 @@ fn compile_chip(chip_name: &str, output_format: &OutputFormat, reuse_struct: &[S
 
             println!("namespace {struct_name}");
             println!();
-            println!("@[irreducible] def constraints {{F : Type}} [Field F] [CoeHead F ℕ]");
-            println!("  (cols : {})", cols_shape.to_lean_type());
-            println!("  : SP1Constraints F :=");
 
-            for step in steps {
-                println!("  {}", apply_main_mapping(&step, &mapping));
-            }
+            // A chip body is always `Shape::Unit` → no `value` def, just `asserts`/`interactions`.
+            let params = vec![("cols".to_string(), cols_shape.to_lean_type())];
 
-            let calls_constraints: String = (0..num_calls).map(|i| format!("CS{i} ++ ")).collect();
-            println!("  {calls_constraints}⟨[");
-            for assert in asserts {
-                println!("    {},", apply_main_mapping(&assert, &mapping));
-            }
-            println!("  ], [");
-            for interaction in interactions {
-                println!("    {},", apply_main_mapping(&interaction, &mapping));
-            }
-            println!("  ]⟩");
+            emit_def(
+                "asserts",
+                &params,
+                "List F",
+                &comps.bindings,
+                &list_roots(&comps.asserts, &comps.sub_asserts),
+                &build_list_tail(&comps.sub_asserts, &comps.asserts),
+                &mapping,
+            );
+            println!();
+            emit_def(
+                "interactions",
+                &params,
+                "List (Interaction F)",
+                &comps.bindings,
+                &list_roots(&comps.interactions, &comps.sub_interactions),
+                &build_list_tail(&comps.sub_interactions, &comps.interactions),
+                &mapping,
+            );
 
             println!();
             println!("end {struct_name}");
@@ -476,16 +589,14 @@ fn emit_operation(
                 .into_iter()
                 .map(|(k, v)| (k, rename_c_to_cc(v)))
                 .collect();
-            let (steps, asserts, interactions, num_calls) =
-                operation.body.to_lean_components(&input_mapping);
+            let comps = operation.body.to_lean_components(&input_mapping);
 
             println!();
 
             // Emit the operation's column struct(s) (nested structs first) so the generated
-            // module is self-contained: struct definition(s) followed by `constraints`. Structs
-            // named via `--reuse-struct` are provided by `import` (an operation composing a
-            // sub-operation reuses the sub-operation's already-extracted column struct), so they
-            // are skipped from emission.
+            // module is self-contained. Structs named via `--reuse-struct` are provided by `import`
+            // (a composing operation reuses the sub-operation's already-extracted column struct),
+            // so they are skipped from emission.
             let skip: HashSet<String> = reuse_struct.iter().cloned().collect();
             let mut struct_defs: Vec<(String, String)> = Vec::new();
             for (_, _, param) in &operation.decl.input {
@@ -500,51 +611,55 @@ fn emit_operation(
             println!("namespace {operation_name}");
             println!();
 
-            // Field-generic, clean-native header. `[CoeHead F ℕ]` backs the `ByteOpcode.ofNat`
-            // coercion for dynamic opcodes (e.g. Bitwise); harmless for constant-opcode ops.
-            println!("@[irreducible] def constraints {{F : Type}} [Field F] [CoeHead F ℕ]");
-            for (param_name, _, param) in &operation.decl.input {
-                println!(
-                    "  ({} : {})",
-                    // In Mathlib, c[i] is pre-defined...
-                    if param_name == "c" { "cc" } else { param_name },
-                    param.to_lean_type()
+            // Field-generic, clean-native params shared by the `asserts`/`interactions`/`value`
+            // defs. `[CoeHead F ℕ]` (added per def in `emit_def`) backs the `ByteOpcode.ofNat`
+            // coercion for dynamic opcodes (e.g. Bitwise). The `c` parameter is renamed to `cc`
+            // (Mathlib pre-defines `c[i]`).
+            let params: Vec<(String, String)> = operation
+                .decl
+                .input
+                .iter()
+                .map(|(pn, _, p)| {
+                    (if pn == "c" { "cc".to_string() } else { pn.clone() }, p.to_lean_type())
+                })
+                .collect();
+            let no_map: HashMap<usize, String> = HashMap::new();
+
+            emit_def(
+                "asserts",
+                &params,
+                "List F",
+                &comps.bindings,
+                &list_roots(&comps.asserts, &comps.sub_asserts),
+                &build_list_tail(&comps.sub_asserts, &comps.asserts),
+                &no_map,
+            );
+            println!();
+            emit_def(
+                "interactions",
+                &params,
+                "List (Interaction F)",
+                &comps.bindings,
+                &list_roots(&comps.interactions, &comps.sub_interactions),
+                &build_list_tail(&comps.sub_interactions, &comps.interactions),
+                &no_map,
+            );
+
+            // A value-returning operation also emits `value` (the deterministic output that was the
+            // `.1` of the old pair return); `Shape::Unit` operations have none.
+            if let Some(value_ty) = operation.decl.value_lean_type() {
+                let mut value_roots: Vec<BindId> = Vec::new();
+                refs_of_shape(&operation.decl.output, &mut value_roots);
+                println!();
+                emit_def(
+                    "value",
+                    &params,
+                    &value_ty,
+                    &comps.bindings,
+                    &value_roots,
+                    &operation.decl.output.to_lean_constructor(&input_mapping),
+                    &no_map,
                 );
-            }
-
-            println!("  : {} :=", operation.decl.to_output_lean_type());
-
-            for step in steps {
-                println!("  {}", step)
-            }
-
-            let calls_constraints: String = (0..num_calls).map(|i| format!("CS{i} ++ ")).collect();
-            match operation.decl.output {
-                Shape::Unit => {
-                    println!("  {calls_constraints}⟨[");
-                    for assert in asserts {
-                        println!("    {},", assert);
-                    }
-                    println!("  ], [");
-                    for interaction in interactions {
-                        println!("    {},", interaction);
-                    }
-                    println!("  ]⟩");
-                }
-                _ => {
-                    println!(
-                        "  ⟨{}, {calls_constraints}⟨[",
-                        operation.decl.output.to_lean_constructor(&input_mapping)
-                    );
-                    for assert in asserts {
-                        println!("    {},", assert);
-                    }
-                    println!("  ], [");
-                    for interaction in interactions {
-                        println!("    {},", interaction);
-                    }
-                    println!("  ]⟩⟩");
-                }
             }
 
             println!();

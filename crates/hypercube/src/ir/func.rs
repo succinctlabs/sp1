@@ -71,11 +71,13 @@ impl<F: Field, EF: ExtensionField<F>> FuncDecl<ExprRef<F>, ExprExtRef<EF>> {
         mapping
     }
 
-    /// The function output's corresponding Lean type in sp1-lean.
-    pub fn to_output_lean_type(&self) -> String {
+    /// The Lean type of this function's `value` def — the deterministic output that used to be the
+    /// `.1` of the old `T × SP1Constraints F` return. `None` for `Shape::Unit` outputs, which have
+    /// no `value` def (only `asserts` / `interactions`).
+    pub fn value_lean_type(&self) -> Option<String> {
         match self.output {
-            Shape::Unit => "SP1Constraints F".to_string(),
-            _ => format!("{} × SP1Constraints F", self.output.to_lean_type()),
+            Shape::Unit => None,
+            _ => Some(self.output.to_lean_type()),
         }
     }
 }

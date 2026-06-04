@@ -92,6 +92,18 @@ impl<F: Field, EF: ExtensionField<F>> Shape<ExprRef<F>, ExprExtRef<EF>> {
         }
     }
 
+    /// Like [`Self::output_leaves`] but returning the leaf [`ExprRef`]s instead of their rendered
+    /// names, so callers can both render a leaf (`expr_to_lean_string`) and read its SSA index (to
+    /// form the binding id that drives per-function dead-code elimination).
+    pub fn output_leaf_refs(&self) -> Vec<ExprRef<F>> {
+        match self {
+            Shape::Expr(expr) => vec![*expr],
+            Shape::Word(word) => word.to_vec(),
+            Shape::Array(vals) => vals.iter().flat_map(|x| x.output_leaf_refs()).collect(),
+            _ => unimplemented!("output_leaf_refs only supports Expr/Word/Array outputs"),
+        }
+    }
+
     /// Calculates the full variable name that corresponds to `InputArg(x)`.
     ///
     /// For example,
