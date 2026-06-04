@@ -6,7 +6,8 @@ mod mask_counter;
 mod prover_ctx;
 mod verifier_ctx;
 
-pub use inner::{ZkPcsProver, ZkPcsVerifier, ZkProof};
+pub use inner::{ZkPcsProver, ZkPcsVerifier, ZkProof, ZkProveError};
+pub use prover_ctx::ZkProverCtxInitError;
 pub mod stacked_pcs;
 
 pub use mask_counter::*;

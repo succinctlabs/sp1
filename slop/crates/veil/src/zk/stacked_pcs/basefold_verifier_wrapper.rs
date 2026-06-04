@@ -86,7 +86,7 @@ where
     /// Verifies a Basefold proof for a pre-batched, extension-field MLE evaluation.
     ///
     /// This is the counterpart to
-    /// [`prove_from_batched_inputs`](crate::basefold_prover_wrapper::prove_from_batched_inputs)
+    /// [`prove_from_batched_inputs`](crate::zk::stacked_pcs::basefold_prover_wrapper::prove_from_batched_inputs)
     /// on the prover side. The commitment is over a base-field tensor whose columns are the
     /// base-field components of the extension-field MLE coefficients.
     ///
@@ -235,10 +235,10 @@ where
             &betas,
         )?;
 
-        if proof.final_poly
-            != proof.univariate_messages.last().unwrap()[0]
-                + *betas.last().unwrap() * proof.univariate_messages.last().unwrap()[1]
-        {
+        let last_message =
+            proof.univariate_messages.last().ok_or(BaseFoldVerifierError::IncorrectShape)?;
+        let last_beta = betas.last().ok_or(BaseFoldVerifierError::IncorrectShape)?;
+        if proof.final_poly != last_message[0] + *last_beta * last_message[1] {
             return Err(BaseFoldVerifierError::SumcheckFinalPolyMismatch);
         }
 
@@ -319,7 +319,7 @@ where
                     .map(GC::EF::from_base_slice)
                     .collect::<Vec<_>>()
                     .try_into()
-                    .unwrap();
+                    .map_err(|_| BaseFoldVerifierError::IncorrectShape)?;
 
                 // Check that the folded evaluation is consistent with the FRI query proof opening.
                 if evals[*index % 2] != *folded_eval {
@@ -375,7 +375,7 @@ where
 /// before verifier takes ownership).
 ///
 /// The `num_encoding_variables` value is fixed here and all subsequent
-/// [`commit_mle`](crate::zk::ZkProverCtx::commit_mle) and
+/// [`commit_mle`](crate::compiler::SendingCtx::commit_mle) and
 /// [`read_oracle`](crate::compiler::ReadingCtx::read_oracle) calls must use a matching
 /// `num_encoding_variables` (inferred from the MLE size for `commit_mle`, or passed
 /// directly for `read_oracle`).
@@ -402,7 +402,7 @@ where
     let fri_config = FriConfig::default_fri_config();
     let basefold_verifier = BasefoldVerifier::<GC>::new(fri_config, num_expected_commitments);
     let basefold_prover = BasefoldProver::new(&basefold_verifier);
-    let zk_basefold_prover = ZkBasefoldProver::new(basefold_prover);
+    let zk_basefold_prover = ZkBasefoldProver::new(basefold_prover, num_encoding_variables);
     let stacked_verifier = StackedPcsVerifier::new(basefold_verifier, num_encoding_variables);
     let zk_stacked_verifier = ZkStackedPcsVerifier::new(stacked_verifier);
     (zk_basefold_prover, zk_stacked_verifier)

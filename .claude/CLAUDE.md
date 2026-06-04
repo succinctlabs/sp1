@@ -25,6 +25,8 @@ cargo fmt --all -- --check
 cargo clippy -p <crate-name> --all-targets --all-features -- -D warnings -A incomplete-features
 ```
 
+- **IMPORTANT: When clearing clippy warnings, fix the underlying issue rather than silencing it. Never add a clippy `allow` macro (e.g. `#[allow(...)]` or `#![allow(...)]`) without first asking the user for permission** — a warning often reveals a real code issue worth addressing.
+
 ## Code Style Preferences
 
 ### Dependency Management
