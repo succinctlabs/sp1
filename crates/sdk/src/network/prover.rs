@@ -936,7 +936,8 @@ impl From<SP1ProofMode> for ProofMode {
 
 /// Compute the default `max_price_per_pgu` when the caller didn't set one. Applies the
 /// [`MARKET_PRICE_BUFFER_PCT`] buffer to the freshly-fetched market price; on RPC error
-/// (including `Unimplemented` from older deploys), falls back to `server_default`.
+/// (including `Unimplemented` from older deploys) or when the buffered value overflows
+/// `u64`, falls back to `server_default`.
 fn default_max_price_per_pgu(
     market: Result<crate::network::MarketPrice>,
     server_default: &str,
@@ -944,9 +945,15 @@ fn default_max_price_per_pgu(
     match market {
         Ok(m) => {
             let buffered = m.wei.saturating_mul(MARKET_PRICE_BUFFER_PCT) / 100;
-            u64::try_from(buffered).map_err(|_| {
-                anyhow::anyhow!("buffered market_price_per_pgu overflows u64: {buffered}")
-            })
+            if let Ok(v) = u64::try_from(buffered) {
+                Ok(v)
+            } else {
+                tracing::warn!(
+                    buffered,
+                    "buffered market_price_per_pgu overflows u64; using server-supplied default"
+                );
+                parse_server_default(server_default)
+            }
         }
         Err(err) => {
             // `Unimplemented` is the expected signal from older deploys; anything else
@@ -963,11 +970,15 @@ fn default_max_price_per_pgu(
             } else {
                 tracing::warn!(?err, "GetMarketPricePerPgu failed; using server-supplied default");
             }
-            server_default
-                .parse::<u64>()
-                .map_err(|e| anyhow::anyhow!("invalid max_price_per_pgu {server_default:?}: {e}"))
+            parse_server_default(server_default)
         }
     }
+}
+
+fn parse_server_default(server_default: &str) -> Result<u64> {
+    server_default
+        .parse::<u64>()
+        .map_err(|e| anyhow::anyhow!("invalid max_price_per_pgu {server_default:?}: {e}"))
 }
 
 #[cfg(test)]
@@ -994,9 +1005,9 @@ mod tests {
     }
 
     #[test]
-    fn overflow_returns_error_without_panic() {
+    fn overflow_falls_back_to_server_default() {
         // u128::MAX * 120 saturates to u128::MAX; /100 is still well beyond u64::MAX.
-        let err = default_max_price_per_pgu(Ok(market(u128::MAX)), "0").unwrap_err();
-        assert!(err.to_string().contains("overflows u64"));
+        let got = default_max_price_per_pgu(Ok(market(u128::MAX)), "750").unwrap();
+        assert_eq!(got, 750);
     }
 }
