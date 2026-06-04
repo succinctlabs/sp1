@@ -348,50 +348,6 @@ pub fn zk_dot_product_proof<
     Ok(ZkDotTotalProof { proof, proximity_check_proof: revealed_data })
 }
 
-/// Generates a proof for multiple dot vectors against a batch of committed vectors using RLC.
-///
-/// Combines multiple `dot_vecs` into a single RLC vector, then delegates to
-/// [`zk_dot_product_proof`]. All `dot_vecs` must have the same length as the committed vectors.
-#[cfg(test)]
-pub fn zk_dot_products_proof<
-    GC: IopCtx,
-    MK: TensorCsProver<GC, CpuBackend> + ComputeTcsOpenings<GC, CpuBackend>,
-    Code: ZkCode<GC::EF>,
->(
-    dot_vecs: &[Vec<GC::EF>],
-    commitment: GC::Digest,
-    commitment_data: ZkVectorProverData<GC, MK::ProverData, Code>,
-    challenger: &mut GC::Challenger,
-    merkleizer: &MK,
-) -> Result<ZkDotTotalProof<GC, Code>, MK::ProverError> {
-    assert!(!dot_vecs.is_empty(), "dot_vecs cannot be empty");
-    let expected_len = commitment_data.in_vecs[0].len();
-    assert!(
-        dot_vecs.iter().all(|v| v.len() == expected_len),
-        "All dot_vecs must have the same length as the committed vectors"
-    );
-
-    let rlc_coeff: GC::EF = challenger.sample_ext_element();
-
-    let (rlc_vec, _) = dot_vecs.iter().skip(1).fold(
-        (dot_vecs[0].clone(), GC::EF::one()),
-        |(acc_vec, factor), next_vec| {
-            let new_factor = factor * rlc_coeff;
-            let new_vec =
-                acc_vec.iter().zip(next_vec.iter()).map(|(a, b)| *a + new_factor * *b).collect();
-            (new_vec, new_factor)
-        },
-    );
-
-    zk_dot_product_proof::<GC, MK, Code>(
-        &rlc_vec,
-        &commitment,
-        commitment_data,
-        challenger,
-        merkleizer,
-    )
-}
-
 // ============================================================================
 // UTILITIES
 // ============================================================================

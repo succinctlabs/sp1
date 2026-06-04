@@ -12,8 +12,6 @@ use crate::zk::error_correcting_code::{MultiplicativeCode, ZkCode};
 use slop_algebra::{AbstractExtensionField, AbstractField, TwoAdicField};
 use slop_challenger::{CanObserve, CanSampleBits, FieldChallenger, IopCtx};
 
-#[cfg(test)]
-use super::ZkHadamardTotalProof;
 use super::{ZkHadamardAndDotsTotalProof, ZkHadamardProductProof, EVAL_SCHEDULE};
 
 #[derive(Debug, Clone, Error)]
@@ -178,34 +176,6 @@ where
     }
 
     Ok(())
-}
-
-/// Verifies a zero-knowledge Hadamard product proof.
-///
-/// This is a convenience wrapper that calls `verify_zk_hadamard_product_pre_reveal`, samples indices,
-/// and then calls `verify_zk_hadamard_product_reveal`.
-#[cfg(test)]
-pub fn verify_zk_hadamard_product<GC: IopCtx, Code>(
-    commitment: &GC::Digest,
-    total_proof: &ZkHadamardTotalProof<GC, Code>,
-    challenger: &mut GC::Challenger,
-) -> Result<(), ZkHadamardProductError>
-where
-    GC::EF: TwoAdicField,
-    Code: MultiplicativeCode<GC::EF> + ZkCode<GC::EF>,
-{
-    let proof = &total_proof.proof;
-    let rho_times = verify_zk_hadamard_product_pre_reveal(commitment, proof, challenger)?;
-    let revealed_indices = repeat_with(|| challenger.sample_bits(proof.parameters.code_log_length))
-        .take(proof.parameters.multi_evals(&EVAL_SCHEDULE))
-        .collect::<Vec<_>>();
-    verify_zk_hadamard_product_reveal(
-        commitment,
-        proof,
-        &total_proof.proximity_check_proof,
-        rho_times,
-        &revealed_indices,
-    )
 }
 
 /// Combined verification for Hadamard product and a batched dot product with shared indices.

@@ -37,24 +37,6 @@ where
         )
     }
 
-    #[cfg(test)]
-    fn decode(output: &[K], input_length: usize) -> Vec<K> {
-        let num_rows = output.len();
-        let out_log_size = num_rows.trailing_zeros() as usize;
-        let padded_in_length = input_length.next_power_of_two();
-        let in_log_size = padded_in_length.trailing_zeros() as usize;
-
-        let inverse_ft = Radix2DitParallel.coset_lde(
-            output.to_vec(),
-            0,
-            K::one() / K::two_adic_generator(out_log_size + 1),
-        );
-        let mut decimated =
-            inverse_ft.into_iter().step_by(1 << (out_log_size - in_log_size)).collect::<Vec<_>>();
-        decimated.truncate(input_length);
-        decimated
-    }
-
     fn batch_encode(mut input: RowMajorMatrix<K>, output_length: usize) -> RowMajorMatrix<K> {
         let num_cols = input.width();
         let num_rows = input.height();
@@ -71,29 +53,6 @@ where
                 K::two_adic_generator(out_log_size + 1),
             )
             .to_row_major_matrix()
-    }
-
-    #[cfg(test)]
-    fn batch_decode(output: RowMajorMatrix<K>, input_length: usize) -> RowMajorMatrix<K> {
-        let num_cols = output.width();
-        let num_rows = output.height();
-        let out_log_size = num_rows.trailing_zeros() as usize;
-        let padded_in_length = input_length.next_power_of_two();
-        let in_log_size = padded_in_length.trailing_zeros() as usize;
-
-        let inverse_ft = Radix2DitParallel.coset_lde_batch(
-            output,
-            0,
-            K::one() / K::two_adic_generator(out_log_size + 1),
-        );
-        let decimated = inverse_ft
-            .rows()
-            .step_by(1 << (out_log_size - in_log_size))
-            .flatten()
-            .collect::<Vec<_>>();
-        let mut result = RowMajorMatrix::new(decimated, num_cols);
-        result.values.truncate(input_length * num_cols);
-        result
     }
 }
 
@@ -157,6 +116,50 @@ mod tests {
     use rand::{thread_rng, Rng};
     use slop_koala_bear::KoalaBear;
 
+    /// Test-only inverse of [`RsInterpolation::encode`].
+    fn decode<K: TwoAdicField>(output: &[K], input_length: usize) -> Vec<K> {
+        let num_rows = output.len();
+        let out_log_size = num_rows.trailing_zeros() as usize;
+        let padded_in_length = input_length.next_power_of_two();
+        let in_log_size = padded_in_length.trailing_zeros() as usize;
+
+        let inverse_ft = Radix2DitParallel.coset_lde(
+            output.to_vec(),
+            0,
+            K::one() / K::two_adic_generator(out_log_size + 1),
+        );
+        let mut decimated =
+            inverse_ft.into_iter().step_by(1 << (out_log_size - in_log_size)).collect::<Vec<_>>();
+        decimated.truncate(input_length);
+        decimated
+    }
+
+    /// Test-only batched inverse of [`RsInterpolation::batch_encode`].
+    fn batch_decode<K: TwoAdicField>(
+        output: RowMajorMatrix<K>,
+        input_length: usize,
+    ) -> RowMajorMatrix<K> {
+        let num_cols = output.width();
+        let num_rows = output.height();
+        let out_log_size = num_rows.trailing_zeros() as usize;
+        let padded_in_length = input_length.next_power_of_two();
+        let in_log_size = padded_in_length.trailing_zeros() as usize;
+
+        let inverse_ft = Radix2DitParallel.coset_lde_batch(
+            output,
+            0,
+            K::one() / K::two_adic_generator(out_log_size + 1),
+        );
+        let decimated = inverse_ft
+            .rows()
+            .step_by(1 << (out_log_size - in_log_size))
+            .flatten()
+            .collect::<Vec<_>>();
+        let mut result = RowMajorMatrix::new(decimated, num_cols);
+        result.values.truncate(input_length * num_cols);
+        result
+    }
+
     #[test]
     fn test_encode_decode_inverse() {
         let mut rng = thread_rng();
@@ -175,7 +178,7 @@ mod tests {
         assert_eq!(encoded.len(), output_length);
 
         // Decode
-        let decoded = RsInterpolation::decode(&encoded, input_length);
+        let decoded = decode(&encoded, input_length);
 
         // Verify decode is the inverse of encode
         assert_eq!(decoded.len(), input_length);
@@ -204,7 +207,7 @@ mod tests {
         assert_eq!(encoded.width(), num_vectors);
 
         // Batch decode
-        let decoded = RsInterpolation::batch_decode(encoded, input_length);
+        let decoded = batch_decode(encoded, input_length);
 
         // Verify decode is the inverse of encode
         assert_eq!(decoded.height(), input_length);

@@ -3,8 +3,6 @@ use crate::zk::dot_product::{
     ZkDotProductPreReveal, ZkDotProductProof, ZkVectorProverData,
 };
 use crate::zk::error_correcting_code::{CodeParametersForZk, MultiplicativeCode, ZkCode};
-#[cfg(test)]
-use itertools::Itertools;
 use rand::{CryptoRng, Rng};
 use serde::{Deserialize, Serialize};
 use slop_algebra::{AbstractField, TwoAdicField};
@@ -49,20 +47,6 @@ where
     /// phi = (C*)^{-1}(Ca' · Cb' - Cc' + rho_times · C*r'_×)
     pub(in crate::zk::hadamard_product) phi: Vec<GC::EF>,
     pub(in crate::zk::hadamard_product) parameters: CodeParametersForZk<GC::EF, Code>,
-}
-
-/// Complete Hadamard product proof: algebraic proof data + Merkle openings.
-///
-/// This is the output of [`zk_hadamard_product_proof`] and input to [`verify_zk_hadamard_product`].
-#[cfg(test)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(bound(serialize = "", deserialize = ""))]
-pub struct ZkHadamardTotalProof<GC: IopCtx, Code>
-where
-    Code: MultiplicativeCode<GC::EF> + ZkCode<GC::EF>,
-{
-    pub(in crate::zk::hadamard_product) proof: ZkHadamardProductProof<GC, Code>,
-    pub(in crate::zk::hadamard_product) proximity_check_proof: MerkleOpeningProof<GC>,
 }
 
 /// Complete Hadamard + dot product proof: both algebraic proofs + shared Merkle openings.
@@ -260,61 +244,6 @@ where
     ZkHadamardProductPreReveal { gamma, phi, abc_commitment_data, parameters }
 }
 
-/// Second phase of the zero-knowledge Hadamard product proof: reveal evaluations and generate merkle proofs.
-///
-/// Returns the proof and the revealed data.
-#[cfg(test)]
-#[allow(clippy::type_complexity)]
-pub(in crate::zk::hadamard_product) fn zk_hadamard_product_reveal<
-    GC: IopCtx,
-    MK: TensorCsProver<GC, CpuBackend> + ComputeTcsOpenings<GC, CpuBackend>,
-    Code: MultiplicativeCode<GC::EF> + ZkCode<GC::EF>,
->(
-    pre_reveal: ZkHadamardProductPreReveal<GC, MK::ProverData, Code>,
-    revealed_indices: &[usize],
-    merkleizer: &MK,
-) -> Result<(ZkHadamardProductProof<GC, Code>, MerkleOpeningProof<GC>), MK::ProverError> {
-    let ZkHadamardProductPreReveal { gamma, phi, abc_commitment_data, parameters } = pre_reveal;
-
-    let revealed_evals = merkleizer
-        .compute_openings_at_indices(abc_commitment_data.to_merkleize_message, revealed_indices);
-    let merkle_paths =
-        merkleizer.prove_openings_at_indices(abc_commitment_data.merkle_tree, revealed_indices)?;
-
-    let proof = ZkHadamardProductProof { gamma, phi, parameters };
-    let revealed_data = MerkleOpeningProof { revealed_evals, merkle_paths };
-
-    Ok((proof, revealed_data))
-}
-
-/// Generates the zero-knowledge Hadamard product proof (standalone, without dot products).
-///
-/// Returns the proof and the revealed data (Merkle openings).
-#[cfg(test)]
-#[allow(clippy::type_complexity)]
-pub fn zk_hadamard_product_proof<
-    GC: IopCtx,
-    MK: TensorCsProver<GC, CpuBackend> + ComputeTcsOpenings<GC, CpuBackend>,
-    Code: MultiplicativeCode<GC::EF> + ZkCode<GC::EF>,
->(
-    commitment: GC::Digest,
-    prover_secret_data: ZkHadamardProductProverSecretData<GC, MK::ProverData, Code>,
-    challenger: &mut GC::Challenger,
-    merkleizer: &MK,
-) -> Result<ZkHadamardTotalProof<GC, Code>, MK::ProverError>
-where
-    GC::EF: TwoAdicField,
-{
-    let pre_reveal = zk_hadamard_product_pre_reveal(commitment, prover_secret_data, challenger);
-    let revealed_indices =
-        repeat_with(|| challenger.sample_bits(pre_reveal.parameters.code_log_length))
-            .take(pre_reveal.parameters.multi_evals(&EVAL_SCHEDULE))
-            .collect::<Vec<_>>();
-    let (proof, revealed_data) =
-        zk_hadamard_product_reveal(pre_reveal, &revealed_indices, merkleizer)?;
-    Ok(ZkHadamardTotalProof { proof, proximity_check_proof: revealed_data })
-}
-
 /// Combined proof for Hadamard product and a batched dot product with shared indices.
 ///
 /// Generates proofs for both the Hadamard product relation (a * b = c)
@@ -380,13 +309,4 @@ where
         dot_proof,
         proximity_check_proof: revealed_data,
     })
-}
-
-/// Computes the Hadamard (elementwise) product of two vectors.
-#[cfg(test)]
-pub fn hadamard_product<K>(a_vec: &[K], b_vec: &[K]) -> Vec<K>
-where
-    K: AbstractField + Copy,
-{
-    a_vec.iter().zip_eq(b_vec.iter()).map(|(a, b)| *a * *b).collect()
 }

@@ -28,14 +28,6 @@ where
         Radix2DitParallel.dft(fft_input)
     }
 
-    /// Assumes output is a codeword and decodes to the original coefficients (by truncation)
-    #[cfg(test)]
-    fn decode(output: &[K], input_length: usize) -> Vec<K> {
-        let mut all_coeffs = Radix2DitParallel.idft(output.to_vec());
-        all_coeffs.truncate(input_length);
-        all_coeffs
-    }
-
     fn batch_encode(mut input: RowMajorMatrix<K>, output_length: usize) -> RowMajorMatrix<K> {
         let num_cols = input.width();
 
@@ -44,19 +36,6 @@ where
 
         // Apply DFT to each column
         Radix2DitParallel.dft_batch(input).to_row_major_matrix()
-    }
-
-    #[cfg(test)]
-    fn batch_decode(output: RowMajorMatrix<K>, input_length: usize) -> RowMajorMatrix<K> {
-        let num_cols = output.width();
-
-        // Apply inverse DFT to each column
-        let mut all_coeffs = Radix2DitParallel.idft_batch(output);
-
-        // Truncate to input_length rows per column
-        all_coeffs.values.truncate(input_length * num_cols);
-
-        all_coeffs
     }
 
     /// Evaluates the polynomial at specific points of the two-adic subgroup via Horner's method.
@@ -88,6 +67,30 @@ mod tests {
     use rand::{thread_rng, Rng};
     use slop_koala_bear::KoalaBear;
 
+    /// Assumes `output` is a codeword and decodes to the original coefficients (by truncation).
+    /// Test-only inverse of [`RsFromCoefficients::encode`].
+    fn decode<K: TwoAdicField>(output: &[K], input_length: usize) -> Vec<K> {
+        let mut all_coeffs = Radix2DitParallel.idft(output.to_vec());
+        all_coeffs.truncate(input_length);
+        all_coeffs
+    }
+
+    /// Test-only batched inverse of [`RsFromCoefficients::batch_encode`].
+    fn batch_decode<K: TwoAdicField>(
+        output: RowMajorMatrix<K>,
+        input_length: usize,
+    ) -> RowMajorMatrix<K> {
+        let num_cols = output.width();
+
+        // Apply inverse DFT to each column
+        let mut all_coeffs = Radix2DitParallel.idft_batch(output);
+
+        // Truncate to input_length rows per column
+        all_coeffs.values.truncate(input_length * num_cols);
+
+        all_coeffs
+    }
+
     #[test]
     fn test_encode_decode_inverse() {
         let mut rng = thread_rng();
@@ -106,7 +109,7 @@ mod tests {
         assert_eq!(encoded.len(), output_length);
 
         // Decode
-        let decoded = RsFromCoefficients::decode(&encoded, input_length);
+        let decoded = decode(&encoded, input_length);
 
         // Verify decode is the inverse of encode
         assert_eq!(decoded.len(), input_length);
@@ -135,7 +138,7 @@ mod tests {
         assert_eq!(encoded.width(), num_vectors);
 
         // Batch decode
-        let decoded = RsFromCoefficients::batch_decode(encoded, input_length);
+        let decoded = batch_decode(encoded, input_length);
 
         // Verify decode is the inverse of encode
         assert_eq!(decoded.height(), input_length);
