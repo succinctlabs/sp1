@@ -86,7 +86,7 @@ where
     /// Verifies a Basefold proof for a pre-batched, extension-field MLE evaluation.
     ///
     /// This is the counterpart to
-    /// [`prove_from_batched_inputs`](crate::basefold_prover_wrapper::prove_from_batched_inputs)
+    /// [`prove_from_batched_inputs`](crate::zk::stacked_pcs::basefold_prover_wrapper::prove_from_batched_inputs)
     /// on the prover side. The commitment is over a base-field tensor whose columns are the
     /// base-field components of the extension-field MLE coefficients.
     ///
@@ -375,7 +375,7 @@ where
 /// before verifier takes ownership).
 ///
 /// The `num_encoding_variables` value is fixed here and all subsequent
-/// [`commit_mle`](crate::zk::ZkProverCtx::commit_mle) and
+/// [`commit_mle`](crate::compiler::SendingCtx::commit_mle) and
 /// [`read_oracle`](crate::compiler::ReadingCtx::read_oracle) calls must use a matching
 /// `num_encoding_variables` (inferred from the MLE size for `commit_mle`, or passed
 /// directly for `read_oracle`).

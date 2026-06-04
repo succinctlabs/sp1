@@ -5,7 +5,7 @@ use thiserror::Error;
 use crate::compiler::{ConstraintCtx, ReadingCtx, SendingCtx, TranscriptReadError};
 
 /// Sumcheck verification errors, shaped to mirror
-/// [`slop_sumcheck::verifier::SumcheckError`]. The specific round-failure
+/// [`slop_sumcheck::SumcheckError`]. The specific round-failure
 /// variants only surface in eager-checking backends (transparent); deferred
 /// backends (ZK) accumulate the failure into a flag surfaced at `ctx.verify()`.
 #[derive(Debug, Error)]

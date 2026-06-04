@@ -208,7 +208,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkBasefoldProver<GC, MK> {
 
     /// Generate an evaluation proof for a single claim on one committed MLE.
     ///
-    /// Thin wrapper around [`zk_generate_eval_proof_for_mles`] for the single-MLE case.
+    /// Thin wrapper around [`Self::zk_generate_eval_proof_for_mles`] for the single-MLE case.
     #[allow(clippy::type_complexity)]
     pub fn zk_generate_eval_proof_for_mle(
         &self,

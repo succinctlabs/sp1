@@ -46,7 +46,7 @@ where
 {
     /// Verifies a ZK stacked PCS proof for a single evaluation claim.
     ///
-    /// Thin wrapper around [`verify_zk_stacked_pcs_batched`] for the single-commitment case.
+    /// Thin wrapper around [`Self::verify_zk_stacked_pcs_batched`] for the single-commitment case.
     pub fn verify_zk_stacked_pcs<C: ZkCnstrAndReadingCtxInner<GC>>(
         &self,
         commitment: &GC::Digest,
