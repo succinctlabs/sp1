@@ -293,6 +293,9 @@ fn emit_main(comps: &LeanComponents, params: &[(String, String)]) {
     for (_, d) in &comps.channel_calls {
         roots.extend(d.iter().copied());
     }
+    for t in &comps.sub_circuit_calls {
+        roots.extend(t.deps.iter().copied());
+    }
     let kept = dce_filter(&comps.bindings, &roots);
 
     // The text this `main` references, to decide which params to destructure — an unreferenced
@@ -301,6 +304,7 @@ fn emit_main(comps: &LeanComponents, params: &[(String, String)]) {
     let body: String = kept
         .iter()
         .map(|b| binding_to_let(&b.text))
+        .chain(comps.sub_circuit_calls.iter().map(|t| t.text.clone()))
         .chain(comps.channel_calls.iter().map(|(s, _)| s.clone()))
         .chain(comps.asserts.iter().map(|(s, _)| format!("{s} === 0")))
         .collect::<Vec<_>>()
@@ -314,6 +318,11 @@ fn emit_main(comps: &LeanComponents, params: &[(String, String)]) {
     }
     for b in &kept {
         println!("  let {}", binding_to_let(&b.text));
+    }
+    // Sub-operation `assertion <name>.circuit ⟨…⟩` calls come before the own asserts (mirroring SP1's
+    // `eval`, which runs the sub-`eval`s, then appends the op's own assertions).
+    for t in &comps.sub_circuit_calls {
+        println!("  {}", t.text);
     }
     for (call, _) in &comps.channel_calls {
         println!("  {call}");
@@ -333,7 +342,10 @@ enum OutputFormat {
     /// do-block (asserts as `=== 0`, byte sends as `byteChannel.gatedReceive`), and the
     /// `ElaboratedCircuit` instance + `@[circuit_norm]` rfl-lemmas. The faithful artifact the
     /// gadget's soundness/completeness run against directly (no separate `asserts`/`interactions`
-    /// bridge). Only byte-bus, `Shape::Unit` (pure-assertion) leaf operations are supported.
+    /// bridge). Supports byte-bus, `Shape::Unit` (pure-assertion) operations, including composed ones:
+    /// a sub-operation call is emitted as a Clean `assertion <sub>.circuit ⟨…⟩` (the sub must itself be
+    /// circuit-emitted). Value-returning ops, and channel aggregation from a bus-carrying sub-op, are
+    /// not yet supported.
     LeanCircuit,
 }
 
@@ -742,10 +754,11 @@ fn emit_operation(
                 .collect();
             let comps = operation.body.to_lean_components(&input_mapping);
 
-            // Circuit emission is only sound for byte-bus, pure-assertion (`Shape::Unit`) leaves: a
-            // value-returning op needs its `populate`/witness `main` (not present in `eval`); a
-            // composed op needs subcircuit emission; a State/Memory/Program interaction needs its
-            // channel. Bail loudly rather than emit wrong code.
+            // Circuit emission is sound for byte-bus, pure-assertion (`Shape::Unit`) ops, composed
+            // ones included (sub-calls become `assertion <sub>.circuit ⟨…⟩`). It is NOT sound for a
+            // value-returning op (needs its `populate`/witness `main`, not present in `eval`) or a
+            // State/Memory/Program interaction (needs its channel). Bail loudly rather than emit wrong
+            // code.
             if !matches!(operation.decl.output, Shape::Unit) {
                 eprintln!(
                     "Error: --format lean-circuit: '{operation_name}' returns a value (not \
@@ -753,13 +766,12 @@ fn emit_operation(
                 );
                 std::process::exit(1);
             }
-            if !comps.sub_asserts.is_empty() || !comps.sub_interactions.is_empty() {
-                eprintln!(
-                    "Error: --format lean-circuit: '{operation_name}' composes sub-operations; \
-                     subcircuit emission not yet supported."
-                );
-                std::process::exit(1);
-            }
+            // A composed op is emitted by composing each sub-operation's `FormalAssertion` as a Clean
+            // `assertion <sub>.circuit ⟨…⟩` (see `emit_main` / `comps.sub_circuit_calls`). The sub-op
+            // must itself be `--format lean-circuit`-emitted (so `<sub>.circuit` exists). Channel
+            // aggregation from a *bus-carrying* sub-op into the parent's `ElaboratedCircuit` is not yet
+            // implemented, so only the parent's *own* byte interactions are reflected in the channel
+            // lists below; composing a sub-op that sends on a bus would need that aggregation.
             if comps.channel_calls.len() != comps.interactions.len() {
                 eprintln!(
                     "Error: --format lean-circuit: '{operation_name}' has non-byte interactions \
