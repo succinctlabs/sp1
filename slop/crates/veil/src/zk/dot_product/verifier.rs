@@ -131,7 +131,12 @@ where
     // Check revealed evaluations via Horner over all columns.
     // Work directly on the base field slice to avoid an expensive Tensor clone + into_extension.
     let base_slice = revealed_evals.as_slice();
-    let [_num_evals, base_width]: [usize; 2] = revealed_evals.sizes().try_into().unwrap();
+    let [_num_evals, base_width]: [usize; 2] = revealed_evals.sizes().try_into().map_err(|_| {
+        ZkDotProductError::InconsistentProofShape(
+            revealed_evals.sizes().to_vec(),
+            "revealed evaluations tensor must be 2-dimensional".to_string(),
+        )
+    })?;
     let ext_width = base_width / d;
 
     for (i, &expected) in encoded_at_indices.iter().enumerate() {
@@ -184,74 +189,4 @@ where
     }
 
     verify_zk_dot_product_reveal(proof, &revealed_data.revealed_evals, rlc_coeff, &revealed_indices)
-}
-
-/// Verifies a dot product proof against multiple dot vectors using RLC.
-///
-/// Combines multiple `dot_vecs` into a single RLC vector, then delegates to
-/// [`verify_zk_dot_product`]. This is the verifier counterpart to [`zk_dot_products_proof`].
-pub fn verify_zk_dot_products<GC: IopCtx, Code: ZkCode<GC::EF>>(
-    commitment: &GC::Digest,
-    dot_vecs: &[Vec<GC::EF>],
-    total_proof: &ZkDotTotalProof<GC, Code>,
-    challenger: &mut GC::Challenger,
-) -> Result<(), ZkDotProductError>
-where
-    GC::EF: TwoAdicField,
-{
-    let proof = &total_proof.proof;
-
-    // Check that all dot_vecs have the same length as the proof's message length
-    let expected_len = proof.rlc_vec.len();
-    if dot_vecs.is_empty() {
-        return Err(ZkDotProductError::InconsistentProofShape(
-            vec![0, expected_len],
-            "dot_vecs is empty".to_string(),
-        ));
-    }
-    if !dot_vecs.iter().all(|v| v.len() == expected_len) {
-        return Err(ZkDotProductError::InconsistentProofShape(
-            dot_vecs.iter().map(|v| v.len()).collect(),
-            "not all dot_vecs have the expected length".to_string(),
-        ));
-    }
-
-    // Sample RLC coefficient
-    let rlc_coeff: GC::EF = challenger.sample_ext_element();
-
-    // Compute RLC of dot_vecs (same as in prover)
-    let (rlc_vec, _) = dot_vecs.iter().skip(1).fold(
-        (dot_vecs[0].clone(), GC::EF::one()),
-        |(acc_vec, factor), next_vec| {
-            let new_factor = factor * rlc_coeff;
-            let new_vec =
-                acc_vec.iter().zip(next_vec.iter()).map(|(a, b)| *a + new_factor * *b).collect();
-            (new_vec, new_factor)
-        },
-    );
-
-    // Verify using the split pre_reveal/reveal pipeline with RLC'd dot_vec
-    let rlc_coeff2 = verify_zk_dot_product_pre_reveal(commitment, &rlc_vec, proof, challenger)?;
-    let revealed_indices = repeat_with(|| challenger.sample_bits(proof.parameters.code_log_length))
-        .take(proof.parameters.evals(1))
-        .collect::<Vec<_>>();
-
-    let merkle_verifier: MerkleTreeTcs<GC> = MerkleTreeTcs::default();
-    if let Err(e) = merkle_verifier.verify_tensor_openings(
-        commitment,
-        &revealed_indices,
-        &total_proof.proximity_check_proof.revealed_evals,
-        total_proof.proximity_check_proof.revealed_evals.sizes()[1],
-        proof.parameters.code_log_length,
-        &total_proof.proximity_check_proof.merkle_paths,
-    ) {
-        return Err(ZkDotProductError::HashInconsistency(e));
-    }
-
-    verify_zk_dot_product_reveal(
-        proof,
-        &total_proof.proximity_check_proof.revealed_evals,
-        rlc_coeff2,
-        &revealed_indices,
-    )
 }

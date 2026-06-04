@@ -19,14 +19,18 @@ The key idea: queries to multilinear oracles are dealt with using a zk-PCS. The 
 To convert an existing IOP into a ZK protocol using VEIL:
 
 1. **Identify the transcript** — every value the prover sends, every oracle commitment, and every verifier challenge. Partition the field values into a sequence of messages.
-2. **Write a generic `read` function** over `ReadingCtx` — this replaces the verifier's transcript parsing and Fiat-Shamir reconstruction. Each message maps to `ctx.read_one()` (single element) or `ctx.read_next(n)` (multi-element). Oracle commitments become `ctx.read_oracle(num_encoding_variables, log_num_polynomials)`, and challenges become `ctx.sample()` or `ctx.sample_point(dim)`. All read values are automatically absorbed into the Fiat-Shamir transcript.
-3. **Write a generic `build_constraints` function** over `ConstraintCtx` — this encodes the verifier's checks. The `read_*` calls from step 2 return abstract `Expr` values that support arithmetic (`+`, `*`, etc.), so you can build polynomial expressions from them. Each verifier check becomes `ctx.assert_zero(expr)` or `ctx.assert_mle_eval(oracle, point, eval)`.
-4. **Write the prover** — adapt the original prover so that it calls `ctx.send_value(v)` or `ctx.send_values(&[v1, v2, ...])` (matching the message partition from step 1) and `ctx.commit_mle(...)` for oracles. Sent values are also automatically absorbed into the Fiat-Shamir transcript.
-5. **Putting it together**:
-   - **Mask counting**: `compute_mask_length::<GC, _>(read_all, |data, ctx| build_all_constraints(data, ctx))` — dry-run to determine the number of masks needed.
+2. **Write a unified `verify` function** over `ReadingCtx` — this single pass replaces the verifier's transcript parsing, Fiat-Shamir reconstruction, *and* check logic. Because `ReadingCtx: ConstraintCtx`, you read and constrain in the same function:
+   - Read messages with `ctx.read_one()` (single element) or `ctx.read_next(n)` (multi-element); read oracle commitments with `ctx.read_oracle(num_variables)`.
+   - Reconstruct challenges with `ctx.sample()` or `ctx.sample_point(dim)`.
+   - Emit the verifier's checks inline with `ctx.assert_zero(expr)` or `ctx.assert_mle_eval(oracle, point, eval)`.
+
+   The `read_*` calls return abstract `Expr` values that support arithmetic (`+`, `*`, etc.), so you build polynomial expressions directly from them. All reads are automatically absorbed into the Fiat-Shamir transcript. The same `verify` function runs in three roles: on the verifier, on the prover (replayed to emit constraints), and on the mask counter.
+3. **Write a `prove` function** over `SendingCtx` — adapt the original prover so that it calls `ctx.send_value(v)` or `ctx.send_values(&[v1, v2, ...])` (matching the message partition from step 1), `ctx.commit_mle(...)` for oracles, and `ctx.sample_point(dim)` for challenges. Sent and committed values are also automatically absorbed into the Fiat-Shamir transcript.
+4. **Putting it together**:
+   - **Mask counting**: `let mask_length = compute_mask_length::<GC>(num_encoding_variables, verify)` — dry-run the unified `verify` pass on a counting context to determine the number of masks needed.
    - **PCS setup** (if using oracles): `initialize_zk_prover_and_verifier(num_commitments, num_encoding_variables)` returns a `(pcs_prover, pcs_verifier)` pair.
-   - **Prover**: initialize with `ZkProverCtx::initialize_with_pcs(mask_length, pcs_prover, &mut rng)` (or `initialize_with_pcs_only_lin(...)` if no multiplicative constraints; or `initialize_without_pcs(...)` / `initialize_without_pcs_only_lin(...)` if no PCS). Run the prover logic (step 4), call `build_all_constraints(data, &mut prover_ctx)`, then `prover_ctx.prove(&mut rng)`.
-   - **Verifier**: `let mut verifier_ctx = ZkVerifierCtx::init(proof, Some(pcs_verifier))` (or `None`). Then `let data = read_all(&mut verifier_ctx)`, `build_all_constraints(data, &mut verifier_ctx)`, `verifier_ctx.verify()`.
+   - **Prover**: initialize with `ZkProverCtx::initialize_with_pcs(mask_length, pcs_prover, &mut rng)` (or `initialize_with_pcs_only_lin(...)` if no multiplicative constraints; or `initialize_without_pcs(...)` / `initialize_without_pcs_only_lin(...)` if no PCS). Run `prove(&mut prover_ctx, ...)` (step 3), replay `verify(&mut prover_ctx)` to emit the constraints, then `prover_ctx.prove(&mut rng)`.
+   - **Verifier**: `let mut verifier_ctx = ZkVerifierCtx::init(proof, Some(pcs_verifier))` (or `None`). Then run `verify(&mut verifier_ctx)` and `verifier_ctx.verify()`.
 
 ### Examples
 
