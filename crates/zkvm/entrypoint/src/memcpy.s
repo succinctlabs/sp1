@@ -246,7 +246,7 @@ memcpy:                                 # @memcpy
 	addi	a4, a4, -1
 	slli	a4, a4, 2
 1:
-	auipc	a5, %pcrel_hi(.LJTI0_0)                # Use PC-relative addressing in 64-bit mode
+	auipc	a5, %pcrel_hi(.LJTImemcpy0_0)          # Use PC-relative addressing in 64-bit mode
 	addi	a5, a5, %pcrel_lo(1b)
 	add	a4, a4, a5
 	lwu	a5, 0(a4)
@@ -767,7 +767,7 @@ memcpy:                                 # @memcpy
 	.size	memcpy, .Lfunc_end0-memcpy
 	.section	.rodata,"a",@progbits
 	.p2align	2, 0x0
-.LJTI0_0:
+.LJTImemcpy0_0:
 	.word	.LBBmemcpy0_13
 	.word	.LBBmemcpy0_35
 	.word	.LBBmemcpy0_29
