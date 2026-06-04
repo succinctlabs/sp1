@@ -81,6 +81,12 @@ pub struct LeanComponents {
     pub sub_asserts: Vec<SubCallTerm>,
     /// Sub-operation `.interactions <args>` terms, in call order.
     pub sub_interactions: Vec<SubCallTerm>,
+    /// Per **byte** interaction, the Clean-native channel-call form (`byteChannel.gatedReceive …`)
+    /// the circuit `main` emits, with its dep ids. Only byte interactions contribute here (the
+    /// `State`/`Memory`/`Program` buses are emitted as `main` calls only once those channels land),
+    /// so `channel_calls.len()` equals the number of byte interactions — the circuit emitter checks
+    /// this matches `interactions.len()` to confirm an op is byte-bus-only before emitting `main`.
+    pub channel_calls: Vec<(String, Vec<BindId>)>,
 }
 
 impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
@@ -242,6 +248,7 @@ impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
         let mut interactions: Vec<(String, Vec<BindId>)> = Vec::default();
         let mut sub_asserts: Vec<SubCallTerm> = Vec::default();
         let mut sub_interactions: Vec<SubCallTerm> = Vec::default();
+        let mut channel_calls: Vec<(String, Vec<BindId>)> = Vec::default();
         let mut calls: usize = 0;
 
         for opexpr in &self.operations {
@@ -280,6 +287,12 @@ impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
                             ),
                             refs_of_interaction(interaction),
                         ));
+                        if matches!(interaction.kind, InteractionKind::Byte) {
+                            channel_calls.push((
+                                byte_channel_call(interaction, mapping),
+                                refs_of_interaction(interaction),
+                            ));
+                        }
                     }
                     _ => {}
                 },
@@ -296,6 +309,12 @@ impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
                             ),
                             refs_of_interaction(interaction),
                         ));
+                        if matches!(interaction.kind, InteractionKind::Byte) {
+                            channel_calls.push((
+                                byte_channel_call(interaction, mapping),
+                                refs_of_interaction(interaction),
+                            ));
+                        }
                     }
                     _ => {}
                 },
@@ -362,8 +381,45 @@ impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
             }
         }
 
-        LeanComponents { bindings, asserts, interactions, sub_asserts, sub_interactions }
+        LeanComponents {
+            bindings,
+            asserts,
+            interactions,
+            sub_asserts,
+            sub_interactions,
+            channel_calls,
+        }
     }
+}
+
+/// The Clean-native channel-call form of one **byte** interaction — the statement the circuit `main`
+/// emits in place of the generic `⟨.send, .byte …, mult⟩` list entry. SP1's `send_byte(op, a, b, c)`
+/// with multiplicity `g` becomes `byteChannel.gatedReceive g ⟨op, g * a, b', c⟩` (a *pull* of the
+/// preprocessed `ByteChip`; the sign flip is the send/receive duality, `Foundations/Channels.lean`).
+/// The looked-up value `a` is **folded** `g * a` so a padding row (`g = 0`) reads the always-valid
+/// `(op, 0, w, 0)`; the bit-width column `b`, when a literal, is rendered `Expression.const ((b:ℕ):ZMod p)`
+/// so it matches `byteRowSpec_range`'s `((n:ℕ):ZMod p)` shape (`Foundations/ByteTable.lean`).
+fn byte_channel_call<F: Field>(
+    it: &AirInteraction<ExprRef<F>>,
+    mapping: &HashMap<usize, String>,
+) -> String {
+    debug_assert_eq!(it.values.len(), 4, "a byte interaction has arity 4 (op a b c)");
+    let op = it.values[0].to_lean_string(mapping);
+    let a = it.values[1].to_lean_string(mapping);
+    let b = it.values[2].to_lean_string(mapping);
+    let c = it.values[3].to_lean_string(mapping);
+    let gate = it.multiplicity.to_lean_string(mapping);
+    // A literal bit-width column is cast `((b:ℕ):ZMod p)` (the `byteRowSpec_range` shape); a non-literal
+    // (a real column) is already an `Expression` and is emitted bare.
+    let b_field = if !b.is_empty() && b.bytes().all(|ch| ch.is_ascii_digit()) {
+        format!("Expression.const (({b} : ℕ) : ZMod p)")
+    } else {
+        b
+    };
+    format!(
+        "byteChannel.gatedReceive {gate} \
+         (⟨{op}, {gate} * {a}, {b_field}, {c}⟩ : ByteRow (Expression (ZMod p)))"
+    )
 }
 
 /// The `BindId` read by a single expression reference; only an SSA `Expr(i)` is a binding (leaves

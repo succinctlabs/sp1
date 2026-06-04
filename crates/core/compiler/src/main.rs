@@ -15,7 +15,7 @@ use sp1_hypercube::{
     air::MachineAir,
     ir::{
         refs_of_shape, BindId, ConstraintCompiler, ExprExtRef, ExprRef, Func, IrVar, LeanBinding,
-        Shape, SubCallTerm,
+        LeanComponents, Shape, SubCallTerm,
     },
 };
 use sp1_primitives::SP1Field;
@@ -272,11 +272,69 @@ fn emit_def(
     println!("  {mapped_tail}");
 }
 
+/// Turn a `LeanBinding` text (`E5 : F := E4 * ((65536 : F)⁻¹)`) into a circuit-`main` `let` body:
+/// drop the `: F` value annotation (the `main` lets infer `Expression (ZMod p)`) and rewrite the
+/// inverse-constant's field token to `ZMod p`.
+fn binding_to_let(text: &str) -> String {
+    text.replacen(" : F := ", " := ", 1).replace(" : F)⁻¹)", " : ZMod p)⁻¹)")
+}
+
+/// Emit `def main (input : Var Inputs (ZMod p)) : Circuit (ZMod p) Unit := do …` for a byte-bus,
+/// pure-assertion leaf operation: destructure each referenced `eval` param (`let a := input.a`), the
+/// DCE'd `let` chain (the bindings reachable from the own asserts + byte sends), the byte sends
+/// (`byteChannel.gatedReceive …`), then each own assert as `<expr> === 0`. The bindings are the same
+/// `LeanComponents` the `asserts`/`interactions` defs render from; `binding_to_let` reshapes them.
+#[allow(clippy::print_stdout)]
+fn emit_main(comps: &LeanComponents, params: &[(String, String)]) {
+    let mut roots: Vec<BindId> = Vec::new();
+    for (_, d) in &comps.asserts {
+        roots.extend(d.iter().copied());
+    }
+    for (_, d) in &comps.channel_calls {
+        roots.extend(d.iter().copied());
+    }
+    let kept = dce_filter(&comps.bindings, &roots);
+
+    // The text this `main` references, to decide which params to destructure — an unreferenced
+    // `let p := input.p` would trip Lean's `linter.unusedVariables`, so a param the body never names
+    // is simply not destructured.
+    let body: String = kept
+        .iter()
+        .map(|b| binding_to_let(&b.text))
+        .chain(comps.channel_calls.iter().map(|(s, _)| s.clone()))
+        .chain(comps.asserts.iter().map(|(s, _)| format!("{s} === 0")))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    println!("def main (input : Var Inputs (ZMod p)) : Circuit (ZMod p) Unit := do");
+    for (pn, _) in params {
+        if token_present(&body, pn) {
+            println!("  let {pn} := input.{pn}");
+        }
+    }
+    for b in &kept {
+        println!("  let {}", binding_to_let(&b.text));
+    }
+    for (call, _) in &comps.channel_calls {
+        println!("  {call}");
+    }
+    for (assert, _) in &comps.asserts {
+        println!("  {assert} === 0");
+    }
+}
+
 #[derive(ValueEnum, Clone, Debug)]
 enum OutputFormat {
     Text,
     Json,
     Lean,
+    /// The Clean-native circuit form of an operation: its `Inputs` struct (the `eval` params
+    /// verbatim, the column struct nested as `cols`), the `main : Var Inputs → Circuit Unit`
+    /// do-block (asserts as `=== 0`, byte sends as `byteChannel.gatedReceive`), and the
+    /// `ElaboratedCircuit` instance + `@[circuit_norm]` rfl-lemmas. The faithful artifact the
+    /// gadget's soundness/completeness run against directly (no separate `asserts`/`interactions`
+    /// bridge). Only byte-bus, `Shape::Unit` (pure-assertion) leaf operations are supported.
+    LeanCircuit,
 }
 
 #[derive(Parser, Debug)]
@@ -464,6 +522,13 @@ fn compile_chip(chip_name: &str, output_format: &OutputFormat, reuse_struct: &[S
             println!();
             println!("end {struct_name}");
             println!();
+        }
+        OutputFormat::LeanCircuit => {
+            eprintln!(
+                "Error: --format lean-circuit is operation-only (chips compose sub-circuits; not \
+                 yet supported). Use --operation <Op>."
+            );
+            std::process::exit(1);
         }
         OutputFormat::Json => {
             println!("{}", serde_json::to_string_pretty(&builder.ast()).unwrap());
@@ -664,6 +729,95 @@ fn emit_operation(
 
             println!();
             println!("end {operation_name}");
+            println!();
+        }
+        OutputFormat::LeanCircuit => {
+            // Same input mapping / components / params as `Lean`, rendered as a circuit `main` plus
+            // its `Inputs` struct and `ElaboratedCircuit` instance instead of the two-list defs.
+            let input_mapping: HashMap<usize, String> = operation
+                .decl
+                .input_mapping()
+                .into_iter()
+                .map(|(k, v)| (k, rename_c_to_cc(v)))
+                .collect();
+            let comps = operation.body.to_lean_components(&input_mapping);
+
+            // Circuit emission is only sound for byte-bus, pure-assertion (`Shape::Unit`) leaves: a
+            // value-returning op needs its `populate`/witness `main` (not present in `eval`); a
+            // composed op needs subcircuit emission; a State/Memory/Program interaction needs its
+            // channel. Bail loudly rather than emit wrong code.
+            if !matches!(operation.decl.output, Shape::Unit) {
+                eprintln!(
+                    "Error: --format lean-circuit: '{operation_name}' returns a value (not \
+                     Shape::Unit); only pure-assertion leaves are supported."
+                );
+                std::process::exit(1);
+            }
+            if !comps.sub_asserts.is_empty() || !comps.sub_interactions.is_empty() {
+                eprintln!(
+                    "Error: --format lean-circuit: '{operation_name}' composes sub-operations; \
+                     subcircuit emission not yet supported."
+                );
+                std::process::exit(1);
+            }
+            if comps.channel_calls.len() != comps.interactions.len() {
+                eprintln!(
+                    "Error: --format lean-circuit: '{operation_name}' has non-byte interactions \
+                     ({} of {} byte); only the byte bus is supported.",
+                    comps.channel_calls.len(),
+                    comps.interactions.len()
+                );
+                std::process::exit(1);
+            }
+
+            let params: Vec<(String, String)> = operation
+                .decl
+                .input
+                .iter()
+                .map(|(pn, _, p)| {
+                    (if pn == "c" { "cc".to_string() } else { pn.clone() }, p.to_lean_type())
+                })
+                .collect();
+
+            println!();
+            // `Inputs`: the `eval` params verbatim (the column struct stays nested as `cols`,
+            // resolved from the imported `Extracted.<Op>` module).
+            println!("structure Inputs (F : Type) where");
+            for (pn, pt) in &params {
+                println!("  {pn} : {pt}");
+            }
+            println!("deriving ProvableStruct");
+            println!();
+
+            emit_main(&comps, &params);
+            println!();
+
+            // `ElaboratedCircuit` + the `@[circuit_norm]` rfl-lemmas; the omitted field obligations
+            // close by Clean's default tactics. A pure-assertion leaf has `localLength 0` / `()` output.
+            let chan_list = if comps.channel_calls.is_empty() {
+                "[]"
+            } else {
+                "[byteChannel.toRaw]"
+            };
+            println!("instance elaborated : ElaboratedCircuit (ZMod p) Inputs unit where");
+            println!("  name := \"SP1CleanNative.{operation_name}\"");
+            println!("  main := main");
+            println!("  localLength _ := 0");
+            println!("  output _ _ := ()");
+            println!("  channelsWithGuarantees := {chan_list}");
+            println!("  channelsWithRequirements := {chan_list}");
+            println!();
+            for which in ["channelsWithGuarantees", "channelsWithRequirements"] {
+                println!("set_option linter.unusedSectionVars false in");
+                println!("@[circuit_norm] lemma {which}_eq :");
+                println!(
+                    "    (ElaboratedCircuit.{which} Inputs unit : List (RawChannel (ZMod p)))"
+                );
+                println!("      = {chan_list} := rfl");
+            }
+            println!("set_option linter.unusedSectionVars false in");
+            println!("@[circuit_norm] lemma localLength_eq (x : Var Inputs (ZMod p)) :");
+            println!("    (elaborated (p := p)).localLength x = 0 := rfl");
             println!();
         }
         OutputFormat::Json => {
