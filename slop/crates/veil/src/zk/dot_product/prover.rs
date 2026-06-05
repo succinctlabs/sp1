@@ -1,5 +1,6 @@
 use crate::zk::error_correcting_code::{CodeParametersForZk, ZkCode};
 use itertools::Itertools;
+use rand::distributions::{Distribution, Standard};
 use rand::{CryptoRng, Rng};
 use serde::{Deserialize, Serialize};
 use slop_algebra::AbstractField;
@@ -96,7 +97,7 @@ pub fn zk_vector_encode<GC: IopCtx, RNG: CryptoRng + Rng, Code: ZkCode<GC::EF>>(
     padding_schedule: &[usize],
 ) -> (Tensor<GC::F>, ZkVectorPreProverData<GC, Code>)
 where
-    rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
+    Standard: Distribution<GC::EF>,
 {
     assert!(!in_vecs.is_empty(), "Must provide at least one input vector");
     let length = in_vecs[0].len();
@@ -158,12 +159,11 @@ pub(in crate::zk::dot_product) fn zk_vector_merkleize<
     to_merkleize: Tensor<GC::F>,
     secrets: ZkVectorPreProverData<GC, Code>,
     merkleizer: &MK,
-) -> (GC::Digest, ZkVectorProverData<GC, MK::ProverData, Code>) {
+) -> Result<(GC::Digest, ZkVectorProverData<GC, MK::ProverData, Code>), MK::ProverError> {
     let to_merkleize_message: Message<Tensor<GC::F>> = vec![to_merkleize].into();
 
     // Build Merkle tree
-    let (commitment, merkle_tree) =
-        merkleizer.commit_tensors(to_merkleize_message.clone()).unwrap();
+    let (commitment, merkle_tree) = merkleizer.commit_tensors(to_merkleize_message.clone())?;
 
     let commitment_data = ZkVectorProverData {
         merkle_tree,
@@ -174,12 +174,13 @@ pub(in crate::zk::dot_product) fn zk_vector_merkleize<
         parameters: secrets.parameters,
     };
 
-    (commitment, commitment_data)
+    Ok((commitment, commitment_data))
 }
 
 /// Commits to a batch of vectors with a custom padding schedule (encode + merkleize in one step).
 ///
 /// Returns the commitment and data needed for proof generation.
+#[allow(clippy::type_complexity)]
 pub(in crate::zk::dot_product) fn zk_vector_commit<
     GC: IopCtx,
     MK: TensorCsProver<GC, CpuBackend> + ComputeTcsOpenings<GC, CpuBackend>,
@@ -190,9 +191,9 @@ pub(in crate::zk::dot_product) fn zk_vector_commit<
     rng: &mut RNG,
     merkleizer: &MK,
     padding_schedule: &[usize],
-) -> (GC::Digest, ZkVectorProverData<GC, MK::ProverData, Code>)
+) -> Result<(GC::Digest, ZkVectorProverData<GC, MK::ProverData, Code>), MK::ProverError>
 where
-    rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
+    Standard: Distribution<GC::EF>,
 {
     let (to_merkleize, pre_prover_data) =
         zk_vector_encode::<GC, RNG, Code>(in_vecs, rng, padding_schedule);
@@ -202,6 +203,7 @@ where
 /// Commits to a batch of vectors for zero-knowledge dot product (uses default padding schedule).
 ///
 /// Convenience wrapper for [`zk_vector_commit`] with padding schedule `&[1]`.
+#[allow(clippy::type_complexity)]
 pub fn zk_dot_product_commitment<
     GC: IopCtx,
     MK: TensorCsProver<GC, CpuBackend> + ComputeTcsOpenings<GC, CpuBackend>,
@@ -211,9 +213,9 @@ pub fn zk_dot_product_commitment<
     in_vecs: &[Vec<GC::EF>],
     rng: &mut RNG,
     merkleizer: &MK,
-) -> (GC::Digest, ZkVectorProverData<GC, MK::ProverData, Code>)
+) -> Result<(GC::Digest, ZkVectorProverData<GC, MK::ProverData, Code>), MK::ProverError>
 where
-    rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
+    Standard: Distribution<GC::EF>,
 {
     zk_vector_commit(in_vecs, rng, merkleizer, &[1])
 }
@@ -319,7 +321,7 @@ pub fn zk_dot_product_proof<
     commitment_data: ZkVectorProverData<GC, MK::ProverData, Code>,
     challenger: &mut GC::Challenger,
     merkleizer: &MK,
-) -> ZkDotTotalProof<GC, Code> {
+) -> Result<ZkDotTotalProof<GC, Code>, MK::ProverError> {
     let pre_reveal = zk_dot_product_pre_reveal(dot_vec, commitment, commitment_data, challenger);
 
     // Sample revealed indices
@@ -332,7 +334,7 @@ pub fn zk_dot_product_proof<
     let revealed_evals =
         merkleizer.compute_openings_at_indices(pre_reveal.to_merkleize_message, &revealed_indices);
     let merkle_paths =
-        merkleizer.prove_openings_at_indices(pre_reveal.merkle_tree, &revealed_indices).unwrap();
+        merkleizer.prove_openings_at_indices(pre_reveal.merkle_tree, &revealed_indices)?;
 
     let proof = ZkDotProductProof {
         claimed_dot_products: pre_reveal.claimed_dot_products,
@@ -343,50 +345,7 @@ pub fn zk_dot_product_proof<
     };
     let revealed_data = MerkleOpeningProof { revealed_evals, merkle_paths };
 
-    ZkDotTotalProof { proof, proximity_check_proof: revealed_data }
-}
-
-/// Generates a proof for multiple dot vectors against a batch of committed vectors using RLC.
-///
-/// Combines multiple `dot_vecs` into a single RLC vector, then delegates to
-/// [`zk_dot_product_proof`]. All `dot_vecs` must have the same length as the committed vectors.
-pub fn zk_dot_products_proof<
-    GC: IopCtx,
-    MK: TensorCsProver<GC, CpuBackend> + ComputeTcsOpenings<GC, CpuBackend>,
-    Code: ZkCode<GC::EF>,
->(
-    dot_vecs: &[Vec<GC::EF>],
-    commitment: GC::Digest,
-    commitment_data: ZkVectorProverData<GC, MK::ProverData, Code>,
-    challenger: &mut GC::Challenger,
-    merkleizer: &MK,
-) -> ZkDotTotalProof<GC, Code> {
-    assert!(!dot_vecs.is_empty(), "dot_vecs cannot be empty");
-    let expected_len = commitment_data.in_vecs[0].len();
-    assert!(
-        dot_vecs.iter().all(|v| v.len() == expected_len),
-        "All dot_vecs must have the same length as the committed vectors"
-    );
-
-    let rlc_coeff: GC::EF = challenger.sample_ext_element();
-
-    let (rlc_vec, _) = dot_vecs.iter().skip(1).fold(
-        (dot_vecs[0].clone(), GC::EF::one()),
-        |(acc_vec, factor), next_vec| {
-            let new_factor = factor * rlc_coeff;
-            let new_vec =
-                acc_vec.iter().zip(next_vec.iter()).map(|(a, b)| *a + new_factor * *b).collect();
-            (new_vec, new_factor)
-        },
-    );
-
-    zk_dot_product_proof::<GC, MK, Code>(
-        &rlc_vec,
-        &commitment,
-        commitment_data,
-        challenger,
-        merkleizer,
-    )
+    Ok(ZkDotTotalProof { proof, proximity_check_proof: revealed_data })
 }
 
 // ============================================================================
