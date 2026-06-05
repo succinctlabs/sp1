@@ -205,5 +205,9 @@ pub(crate) const DEFAULT_NUM_DEFERRED_WORKERS: usize = 4;
 pub(crate) const DEFAULT_DEFERRED_BUFFER_SIZE: usize = 2;
 
 // Default values for the gas executor config.
-pub(crate) const DEFAULT_NUM_GAS_EXECUTOR_WORKERS: usize = 4;
-pub(crate) const DEFAULT_GAS_EXECUTOR_BUFFER_SIZE: usize = 4;
+//
+// Matched to `DEFAULT_GAS_TRACE_CHUNK_SLOTS` (2): each in-flight gas chunk pins one SHM ring slot,
+// so only ~`gas_trace_chunk_slots` chunks can be processed concurrently. More workers than slots
+// would just sit idle, so the defaults are kept in step with the gas ring-buffer size.
+pub(crate) const DEFAULT_NUM_GAS_EXECUTOR_WORKERS: usize = 2;
+pub(crate) const DEFAULT_GAS_EXECUTOR_BUFFER_SIZE: usize = 2;
