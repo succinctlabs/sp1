@@ -82,8 +82,8 @@ pub(crate) const RESERVED_DEFAULT_CYCLE_LIMIT: u64 = 100_000_000;
 pub(crate) const DEFAULT_GAS_LIMIT: u64 = 1_000_000_000;
 pub(crate) const DEFAULT_TIMEOUT_SECS: u64 = 14400;
 
-/// Default buffer applied to the market price when defaulting `max_price_per_pgu`,
-/// expressed as a percentage. `120` = `1.20x`. The headroom absorbs short-term PROVE/USD
-/// volatility between quote and settlement so requests stay fillable. Callers can override
+/// Default buffer applied to the server-supplied `max_price_per_pgu` default, expressed
+/// as a percentage. `120` = `1.20x`. The headroom absorbs short-term price volatility
+/// between quote and settlement so requests stay fillable. Callers can override
 /// per-request via [`builder::NetworkProveBuilder::max_price_buffer_pct`].
 pub const DEFAULT_MAX_PRICE_BUFFER_PCT: u64 = 120;

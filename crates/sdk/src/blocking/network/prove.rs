@@ -144,11 +144,17 @@ impl NetworkProveBuilder<'_> {
         self
     }
 
-    /// Override the buffer applied to the market price when defaulting
-    /// `max_price_per_pgu`, expressed as a percentage. Default is
+    /// Override the buffer applied to the server-supplied `max_price_per_pgu` default,
+    /// expressed as a percentage. `150` = `1.50x`. Default is
     /// [`crate::network::DEFAULT_MAX_PRICE_BUFFER_PCT`] (120%). Ignored when
-    /// [`Self::max_price_per_pgu`] is set explicitly. If `market_price * pct / 100`
-    /// overflows `u64`, the SDK silently falls back to the server-supplied default.
+    /// [`Self::max_price_per_pgu`] is set explicitly.
+    ///
+    /// Values below `100` underbid the server's suggested cap and may leave the request
+    /// without takers; `0` produces a zero cap. If the buffered value overflows `u64`,
+    /// the SDK silently falls back to the unbuffered server default.
+    ///
+    /// Only relevant if the strategy is set to
+    /// [`crate::network::FulfillmentStrategy::Auction`].
     #[must_use]
     pub fn max_price_buffer_pct(mut self, pct: u64) -> Self {
         self.max_price_buffer_pct = Some(pct);

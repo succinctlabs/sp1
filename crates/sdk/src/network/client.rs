@@ -72,12 +72,14 @@ use crate::network::proto::{
 };
 
 /// Current market `max_price_per_pgu` returned by [`NetworkClient::get_market_price_per_pgu`].
+/// Returned to callers who want the raw market signal; the SDK's own auto-default path
+/// uses `GetProofRequestParams.max_price_per_pgu` instead and does not consume this type.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MarketPrice {
     /// Anchored cap in PROVE wei per PGU.
     pub wei: u128,
     /// Unix timestamp (seconds) the `wei` value applies to. Advances whenever any input
-    /// that feeds it moves.
+    /// that feeds it moves. Callers do their own staleness check; the SDK does not.
     pub as_of: u64,
 }
 
