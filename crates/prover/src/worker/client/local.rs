@@ -3,7 +3,8 @@ use std::{collections::BTreeMap, sync::Arc};
 use hashbrown::{HashMap, HashSet};
 use mti::prelude::{MagicTypeIdExt, V7};
 use sp1_prover_types::{
-    Artifact, ArtifactClient, ArtifactType, ProofRequestStatus, TaskStatus, TaskType,
+    Artifact, ArtifactClient, ArtifactType, ProofArtifacts, ProofRequestStatus, TaskStatus,
+    TaskType,
 };
 use tokio::sync::{mpsc, watch, RwLock};
 
@@ -28,13 +29,11 @@ pub struct LocalWorkerClientChannels {
 pub struct LocalWorkerClientInner {
     db: LocalDb,
     proof_index: ProofIndex,
-    /// Artifact ids submitted under each in-flight proof, recorded by
-    /// `submit_task`. On `complete_proof` they move to `pending_artifact_cleanup`.
-    proof_artifacts: RwLock<HashMap<ProofId, HashSet<String>>>,
-    /// Artifacts of completed proofs awaiting deletion. The worker client holds
-    /// no artifact-client handle, so `LocalWorkerClient::cleanup` drains this
-    /// with a client passed in by the owner (`SP1LocalNode`).
-    pending_artifact_cleanup: RwLock<HashSet<String>>,
+    /// Per-proof index of the artifacts each task references, recorded by
+    /// `submit_task`. Shared with the node's artifact client, which prunes it on
+    /// delete, so it only holds live artifacts; `cleanup` deletes whatever a
+    /// completed proof leaked.
+    artifact_index: ProofArtifacts,
     input_task_queues: HashMap<TaskType, mpsc::Sender<(TaskId, RawTaskRequest)>>,
     task_channels: RwLock<HashMap<TaskId, MessageChannelState>>,
 }
@@ -44,7 +43,7 @@ impl LocalWorkerClientInner {
         TaskId::new("local_worker".create_type_id::<V7>().to_string())
     }
 
-    fn init() -> (Self, LocalWorkerClientChannels) {
+    fn init(artifact_index: ProofArtifacts) -> (Self, LocalWorkerClientChannels) {
         let mut task_outputs = BTreeMap::new();
         let mut task_queues = HashMap::new();
         for task_type in [
@@ -70,17 +69,9 @@ impl LocalWorkerClientInner {
 
         let db = Arc::new(RwLock::new(HashMap::new()));
         let proof_index = Arc::new(RwLock::new(HashMap::new()));
-        let proof_artifacts = RwLock::new(HashMap::new());
-        let pending_artifact_cleanup = RwLock::new(HashSet::new());
         let task_channels = RwLock::new(HashMap::new());
-        let inner = Self {
-            db,
-            proof_index,
-            proof_artifacts,
-            pending_artifact_cleanup,
-            input_task_queues: task_queues,
-            task_channels,
-        };
+        let inner =
+            Self { db, proof_index, artifact_index, input_task_queues: task_queues, task_channels };
         (inner, LocalWorkerClientChannels { task_receivers: task_outputs })
     }
 }
@@ -93,7 +84,14 @@ impl LocalWorkerClient {
     /// Creates a new local worker client.
     #[must_use]
     pub fn init() -> (Self, LocalWorkerClientChannels) {
-        let (inner, channels) = LocalWorkerClientInner::init();
+        Self::init_with_index(ProofArtifacts::default())
+    }
+
+    /// Like [`init`](Self::init) but sharing `artifact_index` with the node's
+    /// artifact client, so a proof's artifacts are pruned as they are deleted.
+    #[must_use]
+    pub fn init_with_index(artifact_index: ProofArtifacts) -> (Self, LocalWorkerClientChannels) {
+        let (inner, channels) = LocalWorkerClientInner::init(artifact_index);
         (Self { inner: Arc::new(inner) }, channels)
     }
 
@@ -124,13 +122,12 @@ impl LocalWorkerClient {
         Ok(())
     }
 
-    /// Delete the artifacts of completed proofs (recorded by `submit_task`,
-    /// stashed by `complete_proof`). The worker client holds no artifact-client
-    /// handle, so the owner - `SP1LocalNode` - passes one in. Best-effort:
-    /// already-deleted artifacts are a no-op.
-    pub async fn cleanup(&self, artifact_client: &impl ArtifactClient) {
-        let ids: Vec<String> = self.inner.pending_artifact_cleanup.write().await.drain().collect();
-        for id in ids {
+    /// Delete the artifacts a completed proof leaked - whatever is still tracked
+    /// for it (most were already deleted inline during proving and pruned from
+    /// the shared index). The worker client shares the index but holds no
+    /// artifact-client handle, so the owner - `SP1LocalNode` - passes one in.
+    pub async fn cleanup(&self, proof_id: &ProofId, artifact_client: &impl ArtifactClient) {
+        for id in self.inner.artifact_index.take(&proof_id.to_string()) {
             let _ = artifact_client
                 .try_delete(&Artifact(id), ArtifactType::UnspecifiedArtifactType)
                 .await;
@@ -156,15 +153,12 @@ impl WorkerClient for LocalWorkerClient {
             .entry(task.context.proof_id.clone())
             .or_insert_with(HashSet::new)
             .insert(task_id.clone());
-        // Record the task's artifacts under this proof so they can be cleaned up
-        // once the proof completes (see `cleanup`).
-        {
-            let mut proof_artifacts = self.inner.proof_artifacts.write().await;
-            let entry =
-                proof_artifacts.entry(task.context.proof_id.clone()).or_insert_with(HashSet::new);
-            for artifact in task.inputs.iter().chain(task.outputs.iter()) {
-                entry.insert(artifact.0.clone());
-            }
+        // Record the task's artifacts under this proof. The shared index is
+        // pruned as artifacts are deleted, so it holds only live ones; `cleanup`
+        // deletes whatever the proof leaves behind.
+        let proof = task.context.proof_id.to_string();
+        for artifact in task.inputs.iter().chain(task.outputs.iter()) {
+            self.inner.artifact_index.track(&proof, &artifact.0);
         }
         // Create a db entry for the task.
         let (tx, rx) = watch::channel(TaskStatus::Pending);
@@ -193,12 +187,8 @@ impl WorkerClient for LocalWorkerClient {
         _status: ProofRequestStatus,
         _extra_data: impl Into<String> + Send,
     ) -> anyhow::Result<()> {
-        // Stash this proof's recorded artifacts for deletion by `cleanup`. Done
-        // before the index lookup below so it runs regardless of that result.
-        if let Some(ids) = self.inner.proof_artifacts.write().await.remove(&proof_id) {
-            self.inner.pending_artifact_cleanup.write().await.extend(ids);
-        }
-        // Remove the proof from the proof index.
+        // (Artifacts are released separately via `cleanup`, which the node calls
+        // with its artifact client.) Remove the proof from the proof index.
         let tasks = self
             .inner
             .proof_index
@@ -336,14 +326,14 @@ pub mod test_utils {
 
 #[cfg(test)]
 mod tests {
-    use sp1_prover_types::InMemoryArtifactClient;
+    use sp1_prover_types::{InMemoryArtifactClient, ProofArtifacts};
 
     use super::*;
     use crate::worker::{RequesterId, TaskContext};
 
-    fn controller_request(proof_id: &ProofId, artifact: &Artifact) -> RawTaskRequest {
+    fn controller_request(proof_id: &ProofId, artifacts: &[&Artifact]) -> RawTaskRequest {
         RawTaskRequest {
-            inputs: vec![artifact.clone()],
+            inputs: artifacts.iter().map(|a| (*a).clone()).collect(),
             outputs: vec![],
             context: TaskContext {
                 proof_id: proof_id.clone(),
@@ -354,50 +344,61 @@ mod tests {
         }
     }
 
-    /// Completing a proof (`complete_proof` + `cleanup`) must release all of its
-    /// task bookkeeping (`db`, `proof_index`) and delete its artifacts - and
-    /// proving many proofs on the reused client must not accumulate any of it.
-    /// This is the regression test for the per-proof leak in the local node.
+    /// Across many proofs on a reused client, the per-proof task bookkeeping
+    /// (`db`, `proof_index`) and the shared artifact index must all return to
+    /// empty: artifacts deleted inline are pruned from the index (no tombstones),
+    /// and `cleanup` deletes whatever a proof leaked. Regression test for the
+    /// per-proof leak in the local node.
     #[tokio::test]
     async fn proof_cleanup_releases_all_state() {
-        let (client, mut channels) = LocalWorkerClient::init();
-        let artifacts = InMemoryArtifactClient::default();
+        // Share one artifact index between the two clients, as SP1LocalNode does.
+        let index = ProofArtifacts::default();
+        let (client, mut channels) = LocalWorkerClient::init_with_index(index.clone());
+        let artifacts = InMemoryArtifactClient::with_index(index.clone());
         let controller_rx = channels.task_receivers.get_mut(&TaskType::Controller).unwrap();
 
         for i in 0..10 {
             let proof_id = ProofId::new(format!("proof-{i}"));
-            let artifact = artifacts.create_artifact().unwrap();
-            artifacts.upload_raw(&artifact, ArtifactType::Program, vec![0u8; 1024]).await.unwrap();
+            let inline = artifacts.create_artifact().unwrap();
+            let leaked = artifacts.create_artifact().unwrap();
+            for a in [&inline, &leaked] {
+                artifacts.upload_raw(a, ArtifactType::Program, vec![0u8; 1024]).await.unwrap();
+            }
 
             client
-                .submit_task(TaskType::Controller, controller_request(&proof_id, &artifact))
+                .submit_task(
+                    TaskType::Controller,
+                    controller_request(&proof_id, &[&inline, &leaked]),
+                )
                 .await
                 .unwrap();
             // Drain the bounded input queue so the next iteration can submit.
             controller_rx.recv().await.unwrap();
 
-            // The task and its artifact are now tracked.
+            // Both artifacts and the task bookkeeping are now tracked.
+            assert_eq!(index.len(), 2);
             assert_eq!(client.inner.proof_index.read().await.len(), 1);
             assert_eq!(client.inner.db.read().await.len(), 1);
-            assert!(artifacts.exists(&artifact, ArtifactType::Program).await.unwrap());
 
-            // Completing the proof and cleaning up must release everything.
+            // Deleting one inline (as the controller does mid-proof) prunes it
+            // from the shared index - no tombstone left behind.
+            artifacts.delete(&inline, ArtifactType::Program).await.unwrap();
+            assert_eq!(index.len(), 1, "index kept a tombstone for a deleted artifact");
+
+            // Completing the proof releases its task bookkeeping; cleanup deletes
+            // whatever it leaked.
             client
                 .complete_proof(proof_id.clone(), None, ProofRequestStatus::Completed, "")
                 .await
                 .unwrap();
-            client.cleanup(&artifacts).await;
+            client.cleanup(&proof_id, &artifacts).await;
 
+            assert!(index.is_empty(), "artifact index leaked after proof {i}");
             assert!(client.inner.db.read().await.is_empty(), "db leaked after proof {i}");
             assert!(client.inner.proof_index.read().await.is_empty(), "proof_index leaked");
-            assert!(client.inner.proof_artifacts.read().await.is_empty(), "proof_artifacts leaked");
             assert!(
-                client.inner.pending_artifact_cleanup.read().await.is_empty(),
-                "pending artifact cleanup leaked"
-            );
-            assert!(
-                !artifacts.exists(&artifact, ArtifactType::Program).await.unwrap(),
-                "artifact not deleted after proof {i}"
+                !artifacts.exists(&leaked, ArtifactType::Program).await.unwrap(),
+                "leaked artifact not deleted after proof {i}"
             );
         }
     }

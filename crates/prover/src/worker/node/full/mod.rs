@@ -236,11 +236,11 @@ impl SP1LocalNode {
             tracing::warn!("failed to release task bookkeeping for proof {proof_id}: {e}");
         }
 
-        // Delete every artifact the worker client recorded for this proof - the
-        // top-level inputs/outputs plus any intermediates the controller left
-        // behind (e.g. on an error path). Best-effort; most are already deleted
-        // inline during proving, so this is the backstop that bounds growth.
-        self.inner.worker_client.cleanup(&self.inner.artifact_client).await;
+        // Delete whatever artifacts this proof leaked - the index has already
+        // been pruned of everything deleted inline during proving, so this only
+        // hits the leftovers (e.g. on an error path). The backstop that bounds
+        // growth across proofs.
+        self.inner.worker_client.cleanup(&proof_id, &self.inner.artifact_client).await;
 
         result
     }
