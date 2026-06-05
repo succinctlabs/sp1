@@ -464,9 +464,16 @@ impl ArtifactClient for InMemoryArtifactClient {
         artifacts: &[impl ArtifactId],
         _artifact_type: ArtifactType,
     ) -> Result<()> {
-        let mut artifact_map = self.artifacts.write().await;
+        // Drop bytes first under the tokio lock, then prune the (independent)
+        // proof-artifact index. Splitting the critical sections keeps the tokio
+        // write lock from being held while we churn the index's std mutex.
+        {
+            let mut artifact_map = self.artifacts.write().await;
+            for artifact in artifacts {
+                artifact_map.remove(artifact.id());
+            }
+        }
         for artifact in artifacts {
-            artifact_map.remove(artifact.id());
             self.index.untrack(artifact.id());
         }
         Ok(())

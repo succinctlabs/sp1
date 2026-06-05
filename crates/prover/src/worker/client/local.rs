@@ -127,9 +127,19 @@ impl LocalWorkerClient {
     /// the shared index). The worker client shares the index but holds no
     /// artifact-client handle, so the owner - `SP1LocalNode` - passes one in.
     pub async fn cleanup(&self, proof_id: &ProofId, artifact_client: &impl ArtifactClient) {
-        for id in self.inner.artifact_index.take(&proof_id.to_string()) {
+        let leftovers: Vec<Artifact> = self
+            .inner
+            .artifact_index
+            .take(&proof_id.to_string())
+            .into_iter()
+            .map(Artifact)
+            .collect();
+        if !leftovers.is_empty() {
+            // One batch delete instead of N per-id calls (one tokio lock
+            // acquisition instead of N). Best-effort: if it fails, the proof is
+            // already untracked, so any leftover bytes are just unreferenced.
             let _ = artifact_client
-                .try_delete(&Artifact(id), ArtifactType::UnspecifiedArtifactType)
+                .delete_batch(&leftovers, ArtifactType::UnspecifiedArtifactType)
                 .await;
         }
     }
