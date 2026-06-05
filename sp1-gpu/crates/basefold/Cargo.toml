@@ -61,5 +61,11 @@ futures = { workspace = true }
 slop-futures = { workspace = true }
 tracing = { workspace = true }
 
+criterion = "0.5"
+
+[[bench]]
+name = "two_to_one"
+harness = false
+
 [lints]
 workspace = true

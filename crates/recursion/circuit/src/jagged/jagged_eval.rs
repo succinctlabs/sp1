@@ -1,11 +1,13 @@
 use std::marker::PhantomData;
 
 use rayon::ThreadPoolBuilder;
+use slop_algebra::AbstractField;
 use slop_jagged::{
     deinterleave_prefix_sums, BranchingProgram, JaggedLittlePolynomialVerifierParams,
-    JaggedSumcheckEvalProof,
+    JaggedSumcheckEvalProof, K, K1, K2,
 };
-use slop_multilinear::{Mle, Point};
+use slop_multilinear::{full_geq, partial_lagrange_blocking, Mle, Point};
+
 use sp1_primitives::{SP1ExtensionField, SP1Field};
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
@@ -31,18 +33,22 @@ impl<C: CircuitConfig> IntoSymbolic<C> for JaggedLittlePolynomialVerifierParams<
     }
 }
 
+/// The three jagged-evaluation points passed to [`RecursiveJaggedEvalConfig::jagged_evaluation`].
+pub struct JaggedEvalPoints {
+    pub z_row: Point<Ext<SP1Field, SP1ExtensionField>>,
+    pub z_col: Point<Ext<SP1Field, SP1ExtensionField>>,
+    pub z_trace: Point<Ext<SP1Field, SP1ExtensionField>>,
+}
+
+#[allow(clippy::type_complexity)]
 pub trait RecursiveJaggedEvalConfig<C: CircuitConfig, Chal>: Sized {
     type JaggedEvalProof;
 
-    #[allow(clippy::too_many_arguments)]
-    #[allow(clippy::type_complexity)]
     fn jagged_evaluation(
         &self,
         builder: &mut Builder<C>,
         params: &JaggedLittlePolynomialVerifierParams<Felt<SP1Field>>,
-        z_row: Point<Ext<SP1Field, SP1ExtensionField>>,
-        z_col: Point<Ext<SP1Field, SP1ExtensionField>>,
-        z_trace: Point<Ext<SP1Field, SP1ExtensionField>>,
+        points: JaggedEvalPoints,
         proof: &Self::JaggedEvalProof,
         challenger: &mut Chal,
     ) -> (SymbolicExt<SP1Field, SP1ExtensionField>, Vec<Felt<SP1Field>>);
@@ -57,12 +63,11 @@ impl<C: CircuitConfig> RecursiveJaggedEvalConfig<C, ()> for RecursiveTrivialJagg
         &self,
         _builder: &mut Builder<C>,
         params: &JaggedLittlePolynomialVerifierParams<Felt<SP1Field>>,
-        z_row: Point<Ext<SP1Field, SP1ExtensionField>>,
-        z_col: Point<Ext<SP1Field, SP1ExtensionField>>,
-        z_trace: Point<Ext<SP1Field, SP1ExtensionField>>,
+        points: JaggedEvalPoints,
         _proof: &Self::JaggedEvalProof,
         _challenger: &mut (),
     ) -> (SymbolicExt<SP1Field, SP1ExtensionField>, Vec<Felt<SP1Field>>) {
+        let JaggedEvalPoints { z_row, z_col, z_trace } = points;
         let params_ef = JaggedLittlePolynomialVerifierParams {
             col_prefix_sums: params
                 .col_prefix_sums
@@ -99,79 +104,223 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>>
         &self,
         builder: &mut Builder<C>,
         params: &JaggedLittlePolynomialVerifierParams<Felt<SP1Field>>,
-        z_row: Point<Ext<SP1Field, SP1ExtensionField>>,
-        z_col: Point<Ext<SP1Field, SP1ExtensionField>>,
-        z_trace: Point<Ext<SP1Field, SP1ExtensionField>>,
+        points: JaggedEvalPoints,
         proof: &Self::JaggedEvalProof,
         challenger: &mut SC::FriChallengerVariable,
     ) -> (SymbolicExt<SP1Field, SP1ExtensionField>, Vec<Felt<SP1Field>>) {
-        let z_row =
+        let JaggedEvalPoints { z_row, z_col, z_trace } = points;
+        // Mirror `slop_jagged::JaggedEvalSumcheckConfig::jagged_evaluation`.
+        // Flow (CPU and circuit must match step-for-step in FS order):
+        //   1. Sample α (combines assist + α·geq).
+        //   2. Observe partial_sumcheck.claimed_sum (the fused claim).
+        //   3. Verify the inner sumcheck.
+        //   4. Two-stage GKR (verify stage1, transition via ζ''', verify stage2).
+        //   5. Recover real_sum, reconcile via BP + geq evals at (curr, next).
+
+        let z_row_sym =
             <Point<Ext<SP1Field, SP1ExtensionField>> as IntoSymbolic<C>>::as_symbolic(&z_row);
-        let z_col =
+        let z_col_sym =
             <Point<Ext<SP1Field, SP1ExtensionField>> as IntoSymbolic<C>>::as_symbolic(&z_col);
-        let z_trace =
+        let z_trace_sym =
             <Point<Ext<SP1Field, SP1ExtensionField>> as IntoSymbolic<C>>::as_symbolic(&z_trace);
 
-        let JaggedSumcheckEvalProof { partial_sumcheck_proof } = proof;
-        // Calculate the partial lagrange from z_col point.
-        let z_col_partial_lagrange = Mle::blocking_partial_lagrange(&z_col);
-        let z_col_partial_lagrange = z_col_partial_lagrange.guts().as_slice();
+        let JaggedSumcheckEvalProof { partial_sumcheck_proof, two_stage_proof } = proof;
 
-        // Calculate the jagged eval from the branching program eval claims.
-        let jagged_eval = partial_sumcheck_proof.claimed_sum;
+        // Static shape constants — `col_prefix_sums.len() - 1` is the number
+        // of (curr, next) pairs the prover summed over, equal to the number
+        // of "real" columns.  `log_num_cols = z_col.dimension()`.
+        let num_real_pairs = params.col_prefix_sums.len() - 1;
+        let log_num_cols = z_col_sym.dimension();
+        let two_c = 1usize << log_num_cols;
+        // `log_m + 1` = the per-prefix-sum bit width (== col_prefix_sums[0].dimension()).
+        let prefix_sum_dim = params.col_prefix_sums[0].dimension();
 
-        challenger.observe_ext_element(builder, jagged_eval);
+        // ----- 1. Sample α. -----
+        let alpha_ext = challenger.sample_ext(builder);
+        let alpha: SymbolicExt<SP1Field, SP1ExtensionField> = alpha_ext.into();
 
-        builder.assert_ext_eq(jagged_eval, partial_sumcheck_proof.claimed_sum);
+        // ----- 2. Observe fused claim. -----
+        let fused_claim_ext: Ext<SP1Field, SP1ExtensionField> =
+            builder.eval(partial_sumcheck_proof.claimed_sum);
+        challenger.observe_ext_element(builder, fused_claim_ext);
 
-        // Verify the jagged eval proof.
-        builder.cycle_tracker_v2_enter("jagged eval - verify sumcheck");
+        // ----- 3. Verify the inner (assist + α·geq) sumcheck. -----
+        builder.cycle_tracker_v2_enter("jagged eval - verify inner sumcheck");
         verify_sumcheck::<C, SC>(builder, challenger, partial_sumcheck_proof);
         builder.cycle_tracker_v2_exit();
-        let proof_point = <Point<Ext<SP1Field, SP1ExtensionField>> as IntoSymbolic<C>>::as_symbolic(
-            &partial_sumcheck_proof.point_and_eval.0,
-        );
 
-        // Compute the jagged eval sc expected eval and assert it matches the proof's eval.
-        // De-interleave the proof point from interleaved [next, curr, next, curr, ...]
-        // to [curr..., next...] layout to match merged_prefix_sum ordering.
-        let (curr_ext, next_ext) =
-            deinterleave_prefix_sums(&partial_sumcheck_proof.point_and_eval.0);
-        let deinterleaved_point: Vec<_> =
-            curr_ext.to_vec().into_iter().chain(next_ext.to_vec()).collect();
+        // `ζ_sumcheck` = the point inner sumcheck reduces to.  Length `2·(log_m+1)`.
+        let zeta_sumcheck: Vec<SymbolicExt<SP1Field, SP1ExtensionField>> =
+            partial_sumcheck_proof.point_and_eval.0.iter().map(|x| (*x).into()).collect();
+        assert_eq!(zeta_sumcheck.len(), 2 * prefix_sum_dim);
 
-        let current_column_prefix_sums = params.col_prefix_sums.iter();
-        let next_column_prefix_sums = params.col_prefix_sums.iter().skip(1);
-        let mut prefix_sum_felts = Vec::new();
-        builder.cycle_tracker_v2_enter("jagged eval - calculate expected eval");
-        let mut jagged_eval_sc_expected_eval = current_column_prefix_sums
-            .zip(next_column_prefix_sums)
-            .zip(z_col_partial_lagrange.iter())
-            .map(|((current_column_prefix_sum, next_column_prefix_sum), z_col_eq_val)| {
-                assert!(current_column_prefix_sum.dimension() <= 30);
-                assert!(next_column_prefix_sum.dimension() <= 30);
+        // ----- 4. Two-stage GKR verification (mirrors CPU lines 100–203). -----
+        // λ1 is sampled but not actually used by the verifier — just drives FS.
+        let _lambda1 = challenger.sample_ext(builder);
 
-                let mut merged_prefix_sum = current_column_prefix_sum.clone();
-                merged_prefix_sum.extend(next_column_prefix_sum);
-
-                let (full_lagrange_eval, felt) = C::prefix_sum_checks(
-                    builder,
-                    merged_prefix_sum.to_vec(),
-                    deinterleaved_point.clone(),
-                );
-                prefix_sum_felts.push(felt);
-                *z_col_eq_val * full_lagrange_eval
-            })
-            .sum::<SymbolicExt<SP1Field, SP1ExtensionField>>();
+        builder.cycle_tracker_v2_enter("jagged eval - verify stage1 sumcheck");
+        verify_sumcheck::<C, SC>(builder, challenger, &two_stage_proof.stage1);
         builder.cycle_tracker_v2_exit();
-        let branching_program = BranchingProgram::new(z_row.clone(), z_trace.clone());
-        let (curr, next) = deinterleave_prefix_sums(&proof_point);
-        jagged_eval_sc_expected_eval *= branching_program.eval(&curr, &next);
+        challenger.observe_ext_element_slice(builder, &two_stage_proof.v);
 
-        builder
-            .assert_ext_eq(jagged_eval_sc_expected_eval, partial_sumcheck_proof.point_and_eval.1);
+        // Stage-1 consistency: `point_and_eval.1 == eq(z_col, stage1.point) · ∏ v_j`.
+        let stage1_point: Point<SymbolicExt<SP1Field, SP1ExtensionField>> =
+            <Point<Ext<SP1Field, SP1ExtensionField>> as IntoSymbolic<C>>::as_symbolic(
+                &two_stage_proof.stage1.point_and_eval.0,
+            );
+        let v_sym: Vec<SymbolicExt<SP1Field, SP1ExtensionField>> =
+            two_stage_proof.v.iter().map(|x| (*x).into()).collect();
+        assert_eq!(v_sym.len(), K2);
+        let eq_zcol_stage1 = Mle::<_>::full_lagrange_eval(&z_col_sym, &stage1_point);
+        let prod_v = v_sym
+            .iter()
+            .cloned()
+            .fold(SymbolicExt::<SP1Field, SP1ExtensionField>::one(), |acc, vj| acc * vj);
+        let stage1_point_eval_sym: SymbolicExt<SP1Field, SP1ExtensionField> =
+            two_stage_proof.stage1.point_and_eval.1.into();
+        builder.assert_ext_eq(eq_zcol_stage1 * prod_v, stage1_point_eval_sym);
 
-        (jagged_eval.into(), prefix_sum_felts)
+        // ζ''' challenge (log K_2 = 3 ext elements).
+        let log_k2 = K2.trailing_zeros() as usize;
+        let zeta_ppp: Point<SymbolicExt<SP1Field, SP1ExtensionField>> =
+            (0..log_k2).map(|_| challenger.sample_ext(builder).into()).collect();
+        // w = partial_lagrange(ζ'''), length K_2.
+        let w = partial_lagrange_blocking(&zeta_ppp);
+        let w_slice: &[SymbolicExt<SP1Field, SP1ExtensionField>] = w.as_buffer().as_slice();
+
+        // Stage-1 → stage-2 claim transition: stage2.claimed_sum == Σ w_j · v_j.
+        let stage2_claim_expected = w_slice
+            .iter()
+            .zip(v_sym.iter())
+            .fold(SymbolicExt::<SP1Field, SP1ExtensionField>::zero(), |acc, (wj, vj)| {
+                acc + *wj * *vj
+            });
+        let stage2_claimed_sum_sym: SymbolicExt<SP1Field, SP1ExtensionField> =
+            two_stage_proof.stage2.claimed_sum.into();
+        builder.assert_ext_eq(stage2_claim_expected, stage2_claimed_sum_sym);
+
+        // λ2 sampled but unused (drives FS only).
+        let _lambda2 = challenger.sample_ext(builder);
+
+        builder.cycle_tracker_v2_enter("jagged eval - verify stage2 sumcheck");
+        verify_sumcheck::<C, SC>(builder, challenger, &two_stage_proof.stage2);
+        builder.cycle_tracker_v2_exit();
+
+        challenger.observe_ext_element_slice(builder, &two_stage_proof.final_evals);
+
+        // Stage-2 final consistency:
+        //   stage2.point_and_eval.1 == eq(stage1.point, η) · Σ_j w_j · ∏_{j'} eq(z_padded[k], final_evals[k])
+        // where k = j·K1 + j', and z_padded = `zeta_sumcheck` left-padded with zeros to length K.
+        let eta_point: Point<SymbolicExt<SP1Field, SP1ExtensionField>> =
+            <Point<Ext<SP1Field, SP1ExtensionField>> as IntoSymbolic<C>>::as_symbolic(
+                &two_stage_proof.stage2.point_and_eval.0,
+            );
+        let eq_stage1_eta = Mle::<_>::full_lagrange_eval(&stage1_point, &eta_point);
+
+        // z_padded[K - 2·(log_m+1) .. K] = zeta_sumcheck; first slots are zero.
+        let k_actual = zeta_sumcheck.len();
+        assert!(k_actual <= K);
+        let mut z_padded: Vec<SymbolicExt<SP1Field, SP1ExtensionField>> =
+            vec![SymbolicExt::<SP1Field, SP1ExtensionField>::zero(); K];
+        z_padded[K - k_actual..].clone_from_slice(&zeta_sumcheck);
+
+        let final_evals_sym: Vec<SymbolicExt<SP1Field, SP1ExtensionField>> =
+            two_stage_proof.final_evals.iter().map(|x| (*x).into()).collect();
+        assert_eq!(final_evals_sym.len(), K);
+
+        let one_sym = SymbolicExt::<SP1Field, SP1ExtensionField>::one();
+        let mut inner_sum = SymbolicExt::<SP1Field, SP1ExtensionField>::zero();
+        for (j, &wj) in w_slice.iter().enumerate().take(K2) {
+            let mut prod = one_sym;
+            for jp in 0..K1 {
+                let kk = j * K1 + jp;
+                let zk = z_padded[kk];
+                let pk = final_evals_sym[kk];
+                // eq(zk, pk) = (1 - zk)(1 - pk) + zk · pk.
+                prod *= (one_sym - zk) * (one_sym - pk) + zk * pk;
+            }
+            inner_sum += wj * prod;
+        }
+        let stage2_point_eval_sym: SymbolicExt<SP1Field, SP1ExtensionField> =
+            two_stage_proof.stage2.point_and_eval.1.into();
+        builder.assert_ext_eq(eq_stage1_eta * inner_sum, stage2_point_eval_sym);
+
+        // ----- 5. Recover assist (real_sum) and reconcile via BP + geq. -----
+
+        // sum_z_first_n = sum_z_first_n_via_geq(num_real_pairs, z_col).
+        // n is a codegen-time constant; edges (n==0 or n>=2^c) collapse cleanly.
+        let sum_z_first_n: SymbolicExt<SP1Field, SP1ExtensionField> = if num_real_pairs == 0 {
+            SymbolicExt::<SP1Field, SP1ExtensionField>::zero()
+        } else if num_real_pairs >= two_c {
+            SymbolicExt::<SP1Field, SP1ExtensionField>::one()
+        } else {
+            let threshold_pt: Point<SymbolicExt<SP1Field, SP1ExtensionField>> = (0..log_num_cols)
+                .rev()
+                .map(|b| {
+                    let bit = ((num_real_pairs >> b) & 1) as u32;
+                    SymbolicExt::<SP1Field, SP1ExtensionField>::from_canonical_u32(bit)
+                })
+                .collect();
+            one_sym - full_geq(&threshold_pt, &z_col_sym)
+        };
+
+        // jagged_eval is what `jagged_evaluation` returns to the caller —
+        // the value of the dense MLE at the rotated point.
+        let fused_claim_sym: SymbolicExt<SP1Field, SP1ExtensionField> =
+            partial_sumcheck_proof.claimed_sum.into();
+        let jagged_eval = fused_claim_sym - alpha * sum_z_first_n;
+
+        // real_sum = stage1.claimed_sum − L(0, ζ_sumcheck) · (1 − sum_z_first_n).
+        let l_zero: SymbolicExt<SP1Field, SP1ExtensionField> =
+            zeta_sumcheck.iter().fold(one_sym, |acc, z| acc * (one_sym - *z));
+        let padded_contribution = l_zero * (one_sym - sum_z_first_n);
+        let stage1_claimed_sum_sym: SymbolicExt<SP1Field, SP1ExtensionField> =
+            two_stage_proof.stage1.claimed_sum.into();
+        let real_sum = stage1_claimed_sum_sym - padded_contribution;
+
+        // De-interleave the inner-sumcheck point into (curr, next) pieces.
+        let proof_point_sym =
+            <Point<Ext<SP1Field, SP1ExtensionField>> as IntoSymbolic<C>>::as_symbolic(
+                &partial_sumcheck_proof.point_and_eval.0,
+            );
+        let (curr, next) = deinterleave_prefix_sums(&proof_point_sym);
+
+        let assist_bp = BranchingProgram::new(z_row_sym.clone(), z_trace_sym.clone());
+        let assist_eval = assist_bp.eval(&curr, &next);
+
+        // `full_geq` over the deinterleaved halves (each of dim `log_m+1`).
+        let geq_eval = full_geq(&curr, &next);
+
+        let expected = real_sum * (assist_eval + alpha * geq_eval);
+        let partial_pe1_sym: SymbolicExt<SP1Field, SP1ExtensionField> =
+            partial_sumcheck_proof.point_and_eval.1.into();
+        builder.assert_ext_eq(expected, partial_pe1_sym);
+
+        // ----- prefix_sum_felts: one Felt per *real* column (i.e. the
+        //       first `num_real_cols == col_prefix_sums.len() - 1` entries
+        //       of `col_prefix_sums`).  The trailing prefix sum (total
+        //       area) is verified separately by the outer caller against
+        //       `final_area`; including it here would tip
+        //       `verify_trusted_evaluations`'s `zip_eq` against
+        //       `repeated_flattened_row_counts` (which has length
+        //       `num_real_cols`) off by one. -----
+
+        let num_real_cols = params.col_prefix_sums.len().saturating_sub(1);
+        let prefix_sum_felts: Vec<Felt<SP1Field>> = params
+            .col_prefix_sums
+            .iter()
+            .take(num_real_cols)
+            .map(|prefix_sum| {
+                // bits2num: high-bit first (mirrors prefix_sum_checks order).
+                let mut acc: Felt<_> = builder.constant(SP1Field::zero());
+                for bit in prefix_sum.iter() {
+                    acc = builder.eval(*bit + acc * SymbolicFelt::from_canonical_u32(2));
+                }
+                acc
+            })
+            .collect();
+
+        (jagged_eval, prefix_sum_felts)
     }
 }
 
@@ -199,7 +348,7 @@ mod tests {
     use crate::{
         challenger::DuplexChallengerVariable,
         jagged::jagged_eval::{
-            RecursiveJaggedEvalConfig, RecursiveJaggedEvalSumcheckConfig,
+            JaggedEvalPoints, RecursiveJaggedEvalConfig, RecursiveJaggedEvalSumcheckConfig,
             RecursiveTrivialJaggedEvalConfig,
         },
         witness::Witnessable,
@@ -231,9 +380,11 @@ mod tests {
             &recursive_jagged_evaluator,
             &mut builder,
             &verifier_params_variable,
-            z_row_variable,
-            z_col_variable,
-            z_trace_variable,
+            JaggedEvalPoints {
+                z_row: z_row_variable,
+                z_col: z_col_variable,
+                z_trace: z_trace_variable,
+            },
             &(),
             &mut (),
         );
@@ -296,9 +447,11 @@ mod tests {
                 &recursive_jagged_evaluator,
                 &mut builder,
                 &verifier_params_variable,
-                z_row_variable,
-                z_col_variable,
-                z_trace_variable,
+                JaggedEvalPoints {
+                    z_row: z_row_variable,
+                    z_col: z_col_variable,
+                    z_trace: z_trace_variable,
+                },
                 &jagged_eval_proof_variable,
                 &mut challenger_variable,
             );

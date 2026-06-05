@@ -115,3 +115,7 @@ extern "C" void* mle_fix_last_variable_koala_bear_ext_ext_constant_padding() {
 extern "C" void* mle_fix_last_variable_koala_bear_ext_ext_zero_padding() {
     return (void*)fixLastVariableZeroPadding<kb31_extension_t, kb31_extension_t>;
 }
+
+extern "C" void* mle_fix_last_variable_koala_bear_base_extension_zero_padding() {
+    return (void*)fixLastVariableZeroPadding<kb31_t, kb31_extension_t>;
+}

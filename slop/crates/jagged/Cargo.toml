@@ -40,3 +40,12 @@ num_cpus = { workspace = true }
 
 [dev-dependencies]
 slop-baby-bear = { workspace = true }
+criterion = "0.5"
+
+[[bench]]
+name = "eq_product"
+harness = false
+
+[[bench]]
+name = "two_stage_eq_product"
+harness = false

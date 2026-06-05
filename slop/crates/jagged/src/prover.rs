@@ -278,6 +278,69 @@ impl<GC: IopCtx, Proof, C: MultilinearPcsProver<GC, Proof>> JaggedProver<GC, Pro
                 challenger,
             )
         };
+
+        // Booleanity-batched sumcheck: reduces the 64 (curr + next) bit-MLE
+        // evaluation claims at the two-stage GKR's stage-2 point η to 32
+        // curr-bit claims at a fresh point `z_new`, and proves Booleanity
+        // of the 32 curr-bit MLEs.  Must follow `prove_jagged_evaluation`'s
+        // challenger state so the verifier's FS matches.
+        let boolean_batched_proof = {
+            use crate::jagged_assist::{BooleanityBatched, NUM_BITS, PREFIX_SUM_BITS};
+            use slop_multilinear::Mle;
+
+            let _span = tracing::debug_span!("boolean-batched sumcheck").entered();
+            debug_assert_eq!(NUM_BITS, PREFIX_SUM_BITS);
+
+            // η + 64 final_evals come straight out of the two-stage proof.
+            let two_stage = &jagged_eval_proof.two_stage_proof;
+            let eta: Point<GC::EF> = two_stage.stage2.point_and_eval.0.clone();
+
+            // Build the 32 curr-bit MLEs at full 2^c column-cube size.
+            let c = num_col_variables as usize;
+            let two_c = 1usize << c;
+            let prefix_sums = &params.col_prefix_sums_usize;
+            let num_real_cols = prefix_sums.len() - 1;
+            let max_prefix_sum = *prefix_sums.last().unwrap();
+            use rayon::prelude::*;
+            let curr_bits: Vec<Mle<GC::F>> = (0..NUM_BITS)
+                .into_par_iter()
+                .map(|b| {
+                    let table: Vec<GC::F> = (0..two_c)
+                        .map(|col| {
+                            if col < num_real_cols && ((prefix_sums[col] >> b) & 1) == 1 {
+                                GC::F::one()
+                            } else {
+                                GC::F::zero()
+                            }
+                        })
+                        .collect();
+                    Mle::from(table)
+                })
+                .collect();
+
+            // α (per-bit batch of 3 claims) + ρ_bit (5-dim cross-bit RLC
+            // point) drawn after the two-stage GKR's challenger state is
+            // fully consumed.  The eq(ρ_bit, b) weights align the booleanity
+            // sumcheck's final-eval claim with the (z_new, ρ_bit) point on
+            // the combined [NUM_BITS, 2^c] bits MLE — i.e., the eval claim
+            // we feed into the downstream 2-to-1 reduction.
+            use crate::jagged_assist::LOG_NUM_BITS;
+            let alpha: GC::EF = challenger.sample_ext_element();
+            let rho_bit: Point<GC::EF> = (0..LOG_NUM_BITS)
+                .map(|_| challenger.sample_ext_element())
+                .collect::<Vec<_>>()
+                .into();
+
+            BooleanityBatched::new(num_real_cols, max_prefix_sum).prove::<GC::F, GC::EF, _>(
+                &eta,
+                &curr_bits,
+                &two_stage.final_evals,
+                alpha,
+                &rho_bit,
+                challenger,
+            )
+        };
+
         let (row_counts, column_counts): (Rounds<_>, Rounds<_>) = prover_data
             .iter()
             .map(|data| {
@@ -313,6 +376,7 @@ impl<GC: IopCtx, Proof, C: MultilinearPcsProver<GC, Proof>> JaggedProver<GC, Pro
             pcs_proof,
             sumcheck_proof,
             jagged_eval_proof,
+            boolean_batched_proof,
             row_counts_and_column_counts,
             merkle_tree_commitments: original_commitments,
             expected_eval: component_poly_evals[0][0],

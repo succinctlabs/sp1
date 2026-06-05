@@ -21,4 +21,6 @@ extern "C" {
 
     pub fn fusedJaggedAssistSumcheck_kernel_duplex() -> KernelPtr;
     pub fn fusedJaggedAssistSumcheck_kernel_multi_field_32() -> KernelPtr;
+
+    pub fn bit_decompose_prefix_sums_kernel() -> KernelPtr;
 }

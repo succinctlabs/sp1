@@ -119,19 +119,6 @@ unsafe impl TracegenRecursionSelectKernel<SP1Field> for TaskScope {
 }
 
 /// # Safety
-pub unsafe trait TracegenRecursionPrefixSumChecksKernel<F> {
-    fn tracegen_recursion_prefix_sum_checks_kernel() -> KernelPtr;
-}
-
-unsafe impl TracegenRecursionPrefixSumChecksKernel<SP1Field> for TaskScope {
-    fn tracegen_recursion_prefix_sum_checks_kernel() -> KernelPtr {
-        unsafe {
-            sp1_gpu_sys::tracegen::recursion_prefix_sum_checks_generate_trace_koala_bear_kernel()
-        }
-    }
-}
-
-/// # Safety
 pub unsafe trait TracegenPreprocessedRecursionConvertKernel<F> {
     fn tracegen_preprocessed_recursion_convert_kernel() -> KernelPtr;
 }

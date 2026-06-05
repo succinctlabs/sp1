@@ -163,8 +163,12 @@ pub mod random {
         let entries = layout.entries();
         let total_preprocessed: usize = entries.iter().map(|(_, p, _, h)| p * h).sum();
         let total_main: usize = entries.iter().map(|(_, _, m, h)| m * h).sum();
-        let padded_preprocessed = total_preprocessed.next_multiple_of(stacking);
-        let padded_main = total_main.next_multiple_of(stacking);
+        // Match `TraceDenseData::from_chip_layout`: always keep at least one stacking-sized
+        // block per section, even when one side has no unpadded data (e.g. synth layouts with
+        // zero preprocessed width). Without `.max(stacking)` the buffer would be too small
+        // and the downstream from_chip_layout assertion would fire.
+        let padded_preprocessed = total_preprocessed.next_multiple_of(stacking).max(stacking);
+        let padded_main = total_main.next_multiple_of(stacking).max(stacking);
 
         let mut data = vec![F::zero(); padded_preprocessed + padded_main];
         for slot in &mut data[..total_preprocessed] {
@@ -242,6 +246,47 @@ pub mod random {
         let layout_with_heights = read_layout_from_json(path)?;
         Ok(random_jagged_trace_mle_from_layout(rng, &layout_with_heights, log_stacking_height))
     }
+
+    /// Build an [`AbstractChipLayoutWithHeights`] with `num_chips` synthetic chips. Each chip's
+    /// main width is drawn uniformly at random from `[min_cols, max_cols]`; preprocessed width
+    /// is zero; height is the same `height` for every chip.
+    ///
+    /// Used by the `synth` bench source to stress column-count scaling — lots of chips and
+    /// lots of columns, with row counts kept at the minimum so total trace area stays modest.
+    /// Names are `synth_NNNNN` (zero-padded so the BTreeMap iteration order matches the input
+    /// order, in case downstream code cares).
+    pub fn synth_chip_layout_random_widths<R: Rng>(
+        rng: &mut R,
+        num_chips: usize,
+        min_cols: usize,
+        max_cols: usize,
+        height: usize,
+    ) -> AbstractChipLayoutWithHeights {
+        assert!(num_chips > 0, "num_chips must be > 0");
+        assert!(min_cols > 0 && min_cols <= max_cols, "require 0 < min_cols <= max_cols");
+        assert!(height >= 2 && height.is_multiple_of(2), "height must be an even integer >= 2");
+        // Roughly half the chips are empty (height 0); the rest absorb the full
+        // area at double height so the total cell count is unchanged.  This
+        // models real shards more faithfully, where many chips contribute no
+        // rows and only a handful carry the work.  An empty trace at chip `i`
+        // produces a `(p[i] == p[i+1])` boundary in the column prefix sums,
+        // which is exactly what the dedup loop in `new_jagged_eval_sumcheck_poly_sync`
+        // collapses.
+        let full_height = height.saturating_mul(2);
+        // Give the first chip a non-zero preprocessed width so the preprocessed
+        // round isn't entirely empty (the jagged verifier rejects rounds whose
+        // area sums to zero).  The size is arbitrary but small enough to leave
+        // the column-count stress on the main round where the bench wants it.
+        let entries = (0..num_chips)
+            .map(|i| {
+                let w = rng.gen_range(min_cols..=max_cols);
+                let preprocessed_w = if i == 0 { min_cols.max(1) } else { 0 };
+                let row_h = if i != 0 && rng.gen_bool(0.5) { 0 } else { full_height };
+                (format!("synth_{i:05}"), preprocessed_w, w, row_h)
+            })
+            .collect();
+        AbstractChipLayoutWithHeights::new(entries)
+    }
 }
 
 /// Benchmark helpers shared across the per-crate Criterion benches. A single
@@ -267,6 +312,7 @@ pub mod bench_utils {
 
     use super::random::{
         random_jagged_trace_mle, random_jagged_trace_mle_from_layout, read_layout_from_json,
+        synth_chip_layout_random_widths,
     };
     use sp1_hypercube::air::{MachineAir, SP1_PROOF_NUM_PV_ELTS};
     use sp1_hypercube::prover::ProverSemaphore;
@@ -346,7 +392,27 @@ pub mod bench_utils {
         Json(String),
         /// Trace from an actual zkVM execution of a sample program.
         Real { name: &'static str, elf: &'static [u8] },
+        /// Synthetic many-chip trace: `num_chips` chips, each with a uniformly random main width
+        /// in `[min_cols, max_cols]` and a fixed `height`. Use to stress column-count scaling
+        /// without forcing a huge total trace area.
+        Synth(SynthParams),
     }
+
+    /// Parameters for [`TraceSource::Synth`]. See [`DEFAULT_SYNTH_PARAMS`] for the values used
+    /// when the user passes a bare `synth` CLI arg.
+    #[derive(Clone, Copy, Debug)]
+    pub struct SynthParams {
+        pub num_chips: usize,
+        pub min_cols: usize,
+        pub max_cols: usize,
+        pub height: usize,
+    }
+
+    /// Defaults for `synth` when no overrides are given: 200 chips × widths in [50, 10000] ×
+    /// minimum (32-row) heights. Picked to stress the column dimension (~1M total columns at
+    /// the uniform-width mean of ~5000) while keeping the dense trace under ~1 GB.
+    pub const DEFAULT_SYNTH_PARAMS: SynthParams =
+        SynthParams { num_chips: 200, min_cols: 50, max_cols: 10000, height: 32 };
 
     /// Detect a `random` / `random[:,]N[,N,...][,cluster=NAME]` arg. Returns `(sizes, cluster)`,
     /// where `sizes` is empty for plain `random` and `cluster` defaults to [`ChipCluster::Core`].
@@ -390,14 +456,67 @@ pub mod bench_utils {
         Some((sizes, cluster))
     }
 
+    /// Detect a `synth` / `synth[:,]K=V[,K=V...]` arg. Returns the parsed [`SynthParams`]
+    /// (starting from [`DEFAULT_SYNTH_PARAMS`] and overriding any explicit keys), or `None`
+    /// if the arg doesn't start with `synth`. Panics on inputs that start with `synth` but
+    /// don't match a known form, matching the strict behavior of [`parse_random_arg`].
+    ///
+    /// Accepted keys: `chips=N`, `cols=LO:HI`, `height=N`. Both `:` and `,` are accepted as
+    /// the leading separator after `synth`.
+    fn parse_synth_arg(arg: &str) -> Option<SynthParams> {
+        if arg == "synth" {
+            return Some(DEFAULT_SYNTH_PARAMS);
+        }
+        if !arg.starts_with("synth") {
+            return None;
+        }
+        let rest = arg
+            .strip_prefix("synth:")
+            .or_else(|| arg.strip_prefix("synth,"))
+            .unwrap_or_else(|| {
+                panic!(
+                    "invalid synth spec `{arg}`; expected `synth` or \
+                     `synth:chips=N[,cols=LO:HI][,height=N]`"
+                )
+            });
+        let mut params = DEFAULT_SYNTH_PARAMS;
+        for part in rest.split(',') {
+            let part = part.trim();
+            if let Some(v) = part.strip_prefix("chips=") {
+                params.num_chips =
+                    v.parse().unwrap_or_else(|_| panic!("invalid `chips=` value `{v}` in `{arg}`"));
+            } else if let Some(v) = part.strip_prefix("cols=") {
+                let (lo, hi) = v
+                    .split_once(':')
+                    .unwrap_or_else(|| panic!("`cols=` must be `LO:HI` (got `{v}` in `{arg}`)"));
+                params.min_cols =
+                    lo.parse().unwrap_or_else(|_| panic!("invalid `cols=` LO `{lo}` in `{arg}`"));
+                params.max_cols =
+                    hi.parse().unwrap_or_else(|_| panic!("invalid `cols=` HI `{hi}` in `{arg}`"));
+            } else if let Some(v) = part.strip_prefix("height=") {
+                params.height = v
+                    .parse()
+                    .unwrap_or_else(|_| panic!("invalid `height=` value `{v}` in `{arg}`"));
+            } else {
+                panic!(
+                    "unknown key in `{arg}`; expected `chips=N`, `cols=LO:HI`, or `height=N` \
+                     (got `{part}`)"
+                );
+            }
+        }
+        Some(params)
+    }
+
     impl TraceSource {
         /// Pick a source from CLI args, in priority order:
         ///
         /// 1. Any positional arg ending in `.json` → [`TraceSource::Json`] with that path.
         /// 2. Any positional arg matching `random` / `random:N` / `random:N1,N2,...` →
         ///    [`TraceSource::Random`] with the parsed log-area list (empty for default size).
-        /// 3. Any positional arg matching (substring) a known [`real_programs`] entry → that one.
-        /// 4. Otherwise → [`TraceSource::Random`] with the default size.
+        /// 3. Any positional arg matching `synth` / `synth:K=V[,K=V...]` →
+        ///    [`TraceSource::Synth`] with the parsed params.
+        /// 4. Any positional arg matching (substring) a known [`real_programs`] entry → that one.
+        /// 5. Otherwise → [`TraceSource::Random`] with the default size.
         ///
         /// This means `cargo bench --bench <name>` (no args) defaults to random; pass an explicit
         /// arg to override.
@@ -411,6 +530,9 @@ pub mod bench_utils {
             for arg in &positional {
                 if let Some((sizes, cluster)) = parse_random_arg(arg) {
                     return Self::Random { sizes, cluster };
+                }
+                if let Some(params) = parse_synth_arg(arg) {
+                    return Self::Synth(params);
                 }
             }
             for (name, elf) in real_programs() {
@@ -454,6 +576,12 @@ pub mod bench_utils {
             scope: &TaskScope,
             name: &'static str,
             elf: &'static [u8],
+            rng: &mut R,
+        ) -> Self::GeneratedData;
+
+        fn generate_synth_data<R: Rng>(
+            scope: &TaskScope,
+            params: SynthParams,
             rng: &mut R,
         ) -> Self::GeneratedData;
 
@@ -513,6 +641,21 @@ pub mod bench_utils {
                     })
                     .unwrap();
                 }
+                TraceSource::Synth(params) => {
+                    // Bench IDs we register (`synth/chips...`) don't contain the user's source
+                    // arg verbatim, so Criterion's substring CLI filter would drop them.
+                    *c = std::mem::take(c).with_benchmark_filter(BenchmarkFilter::AcceptAll);
+                    let SynthParams { num_chips, min_cols, max_cols, height } = params;
+                    run_sync_in_place(move |scope| {
+                        let data = Self::generate_synth_data(&scope, params, rng);
+                        let id = BenchmarkId::new(
+                            "synth",
+                            format!("chips{num_chips}_cols{min_cols}-{max_cols}_h{height}"),
+                        );
+                        f(c, id, &scope, rng, data);
+                    })
+                    .unwrap();
+                }
             }
         }
     }
@@ -561,6 +704,12 @@ pub mod bench_utils {
                 "SizeOnlyKind benches don't take a real source; pass `random` or `random:N[,N,...]`"
             )
         }
+
+        fn generate_synth_data<R: Rng>(_: &TaskScope, _: SynthParams, _: &mut R) -> u32 {
+            panic!(
+                "SizeOnlyKind benches don't take a synth source; pass `random` or `random:N[,N,...]`"
+            )
+        }
     }
 
     impl BenchKind for JaggedKind {
@@ -603,6 +752,26 @@ pub mod bench_utils {
             _rng: &mut R,
         ) -> JaggedTraceMle<Felt, TaskScope> {
             block_on_real_trace(scope, name, elf).device_mle
+        }
+
+        fn generate_synth_data<R: Rng>(
+            scope: &TaskScope,
+            params: SynthParams,
+            rng: &mut R,
+        ) -> JaggedTraceMle<Felt, TaskScope> {
+            let SynthParams { num_chips, min_cols, max_cols, height } = params;
+            let layout =
+                synth_chip_layout_random_widths(rng, num_chips, min_cols, max_cols, height);
+            let total_cols: usize = layout.entries().iter().map(|(_, p, m, _)| p + m).sum();
+            let total_cells: u64 =
+                layout.entries().iter().map(|(_, p, m, h)| ((p + m) * h) as u64).sum();
+            eprintln!(
+                "synth trace: {num_chips} chips, {total_cols} total columns, \
+                 {total_cells} total cells (2^{:.2})",
+                (total_cells as f64).log2(),
+            );
+            random_jagged_trace_mle_from_layout::<Felt, _>(rng, &layout, LOG_STACKING_HEIGHT)
+                .into_device(scope)
         }
     }
 
@@ -650,6 +819,16 @@ pub mod bench_utils {
             _rng: &mut R,
         ) -> RealTraceData {
             block_on_real_trace(scope, name, elf)
+        }
+
+        fn generate_synth_data<R: Rng>(_: &TaskScope, _: SynthParams, _: &mut R) -> RealTraceData {
+            // FullKind requires a `Machine` and chip-set referring to real chips
+            // (e.g. for cluster lookup / zerocheck codegen). Synth uses arbitrary chip names
+            // that don't exist on the machine, so this combination isn't meaningful.
+            panic!(
+                "FullKind benches don't support the synth source; use it only with \
+                 `commit` / `prove_trusted_evaluations`-style benches that take a JaggedKind"
+            )
         }
     }
 

@@ -3,7 +3,6 @@ mod alu_ext;
 mod convert;
 mod linear_layer;
 mod poseidon2_wide;
-mod prefix_sum_checks;
 mod sbox;
 mod select;
 
@@ -25,7 +24,6 @@ impl<const DEGREE: usize, const VAR_EVENTS_PER_ROW: usize> CudaTracegenAir<F>
             Self::Poseidon2SBox(chip) => chip.supports_device_preprocessed_tracegen(),
             Self::ExtFeltConvert(chip) => chip.supports_device_preprocessed_tracegen(),
             Self::Select(chip) => chip.supports_device_preprocessed_tracegen(),
-            Self::PrefixSumChecks(chip) => chip.supports_device_preprocessed_tracegen(),
             Self::PublicValues(_) => false,
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => false,
@@ -53,9 +51,6 @@ impl<const DEGREE: usize, const VAR_EVENTS_PER_ROW: usize> CudaTracegenAir<F>
                 chip.generate_preprocessed_trace_device(program, scope).await
             }
             Self::Select(chip) => chip.generate_preprocessed_trace_device(program, scope).await,
-            Self::PrefixSumChecks(chip) => {
-                chip.generate_preprocessed_trace_device(program, scope).await
-            }
             Self::PublicValues(_) => unimplemented!(),
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => unimplemented!(),
@@ -71,7 +66,6 @@ impl<const DEGREE: usize, const VAR_EVENTS_PER_ROW: usize> CudaTracegenAir<F>
             Self::Poseidon2SBox(chip) => chip.supports_device_main_tracegen(),
             Self::ExtFeltConvert(chip) => chip.supports_device_main_tracegen(),
             Self::Select(chip) => chip.supports_device_main_tracegen(),
-            Self::PrefixSumChecks(chip) => chip.supports_device_main_tracegen(),
             Self::PublicValues(_) => false,
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => false,
@@ -94,7 +88,6 @@ impl<const DEGREE: usize, const VAR_EVENTS_PER_ROW: usize> CudaTracegenAir<F>
             Self::Poseidon2SBox(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::ExtFeltConvert(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::Select(chip) => chip.generate_trace_device(input, output, scope).await,
-            Self::PrefixSumChecks(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::PublicValues(_) => unimplemented!(),
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => unimplemented!(),

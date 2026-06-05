@@ -89,6 +89,30 @@ __constant__ constexpr const uint8_t NEXT_TRANSITIONS_W8[2][8] = {
     {2, 3, 2, 3, 0, 1, 2, 3}, // next_ps=1
 };
 
+// Width-4 GEQ branching program (`next >= curr`). State index = (cso << 1) | saved.
+// Only the comparator portion of the assist BP — no addition, no z_row/z_index.
+// Initial state at the start of the prover's iteration is `(cso=1, saved=0) = 2`.
+// `GEQ_FINAL_ACCEPTING_STATE` is the only reachable accepting state after a Next
+// layer (saved is always reset to 0); the eval reads `state[2]` after backward DP.
+__device__ constexpr int GEQ_BP_WIDTH = 4;
+__device__ constexpr int GEQ_INITIAL_STATE_INDEX = 2;
+__device__ constexpr int GEQ_FINAL_ACCEPTING_STATE = 2;
+
+// Even layer (Curr): save the prefix_sum bit, keep `cso`.
+// `CURR_TRANSITIONS_GEQ[p][s_in] = s_out`.
+__constant__ constexpr const uint8_t CURR_TRANSITIONS_GEQ[2][4] = {
+    {0, 0, 2, 2}, // p=0: saved becomes 0
+    {1, 1, 3, 3}, // p=1: saved becomes 1
+};
+
+// Odd layer (Next): compare `saved` vs `n`. If equal, `cso` unchanged; else
+// `cso` becomes `n`. `saved` resets to 0.
+// `NEXT_TRANSITIONS_GEQ[n][s_in] = s_out`.
+__constant__ constexpr const uint8_t NEXT_TRANSITIONS_GEQ[2][4] = {
+    {0, 0, 2, 0}, // n=0
+    {2, 0, 2, 2}, // n=1
+};
+
 __constant__ constexpr const MemoryState TRANSITIONS[BIT_STATE_COUNT][MEMORY_STATE_COUNT] = {
     {COMP_SO_FAR_0__CARRY_0, FAIL, COMP_SO_FAR_1__CARRY_0, FAIL, FAIL},
     {COMP_SO_FAR_1__CARRY_0, FAIL, COMP_SO_FAR_1__CARRY_0, FAIL, FAIL},

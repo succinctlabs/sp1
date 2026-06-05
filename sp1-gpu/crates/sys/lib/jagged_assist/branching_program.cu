@@ -2,8 +2,30 @@
 #include "fields/kb31_extension_t.cuh"
 #include "fields/kb31_t.cuh"
 #include "challenger/challenger.cuh"
+#include "sum_and_reduce/reduce.cuh"
 #include <cooperative_groups.h>
+#include <cooperative_groups/reduce.h>
 #include <cstdio>
+
+// Pair-of-EF wrapper used for the fused (y0, yhalf) block reduction in the
+// jagged sumcheck Phase 1. Packing the two values lets us fold their two
+// independent `partialBlockReduce` calls into one — halving the syncs in
+// the per-round reduction and avoiding a redundant pass over shared memory.
+template<typename EF>
+struct EfPair {
+    EF a;
+    EF b;
+    __device__ __forceinline__ EfPair() {}
+    __device__ __forceinline__ EfPair(const EF& a_, const EF& b_) : a(a_), b(b_) {}
+    __device__ __forceinline__ EfPair operator+(const EfPair& other) const {
+        return EfPair(a + other.a, b + other.b);
+    }
+    __device__ __forceinline__ EfPair& operator+=(const EfPair& other) {
+        a += other.a;
+        b += other.b;
+        return *this;
+    }
+};
 
 // The points are stored in column major order.
 template<typename F>
@@ -430,24 +452,35 @@ __global__ void precomputePrefixStates(
     const EF *z_row, size_t z_row_length,
     const EF *z_index, size_t z_index_length,
     size_t num_columns,
-    EF *prefix_states  // [(num_layers+1) * WIDE_BP_WIDTH * num_columns]
+    EF *prefix_states,    // [(assist_num_layers+1) * WIDE_BP_WIDTH * num_columns]
+    EF *geq_prefix_states // [(geq_num_layers+1)    * GEQ_BP_WIDTH * num_columns]
 ) {
-    size_t num_layers = 2 * (max(z_row_length, z_index_length) + 1);
+    size_t assist_num_layers = 2 * (max(z_row_length, z_index_length) + 1);
+    size_t geq_num_layers = 2 * prefix_sum_length;
 
     for (size_t col = blockDim.x * blockIdx.x + threadIdx.x; col < num_columns; col += blockDim.x * gridDim.x) {
-        // Initialize success states at layer num_layers
+        // Initialize assist success states at the top layer.
         for (int s = 0; s < WIDE_BP_WIDTH; s++) {
             EF val = (s == WIDE_SUCCESS_STATE_0 || s == WIDE_SUCCESS_STATE_1) ? EF::one() : EF::zero();
-            prefix_states[(num_layers * WIDE_BP_WIDTH + s) * num_columns + col] = val;
+            prefix_states[(assist_num_layers * WIDE_BP_WIDTH + s) * num_columns + col] = val;
         }
-
         EF state[8];
         for (int s = 0; s < WIDE_BP_WIDTH; s++) {
             state[s] = (s == WIDE_SUCCESS_STATE_0 || s == WIDE_SUCCESS_STATE_1) ? EF::one() : EF::zero();
         }
 
-        // Backward DP
-        for (int layer = static_cast<int>(num_layers) - 1; layer >= 0; layer--) {
+        // Initialize geq success state: only `cso=1, saved=0` at the top layer.
+        EF geq_state[4];
+        for (int s = 0; s < GEQ_BP_WIDTH; s++) {
+            EF val = (s == GEQ_FINAL_ACCEPTING_STATE) ? EF::one() : EF::zero();
+            geq_state[s] = val;
+            geq_prefix_states[(geq_num_layers * GEQ_BP_WIDTH + s) * num_columns + col] = val;
+        }
+
+        // Backward DP. Iterates over the assist's layer range (possibly larger
+        // than the geq's, since assist's num_vars = max(z_row, z_index) may
+        // exceed prefix_sum_length). geq is only updated for `layer < geq_num_layers`.
+        for (int layer = static_cast<int>(assist_num_layers) - 1; layer >= 0; layer--) {
             int k = layer / 2;
             EF new_state[8];
             for (int s = 0; s < WIDE_BP_WIDTH; s++) {
@@ -513,6 +546,50 @@ __global__ void precomputePrefixStates(
                 state[s] = new_state[s];
                 prefix_states[(layer * WIDE_BP_WIDTH + s) * num_columns + col] = new_state[s];
             }
+
+            // Geq backward DP. Only updates layers inside the geq range; for
+            // upper layers (when assist_num_layers > geq_num_layers) the geq
+            // state remains at its initial success setup, which is correct.
+            //
+            // Boolean inputs simplify the transition: with `factor_0 = 1 - b`
+            // and `factor_1 = b`, only one of the two transition rows
+            // contributes per s_in. We branch on the bit value and gather
+            // from the selected row.
+            if (layer < static_cast<int>(geq_num_layers)) {
+                const uint32_t *src = (layer & 1) ? next_prefix_sums : current_prefix_sums;
+                const bool geq_bit = (k < static_cast<int>(prefix_sum_length)) &&
+                    (((src[col] >> k) & 1u) != 0u);
+                EF geq_new_state[4];
+                if (layer & 1) {
+                    if (geq_bit) {
+#pragma unroll
+                        for (int s_in = 0; s_in < GEQ_BP_WIDTH; s_in++) {
+                            geq_new_state[s_in] = geq_state[NEXT_TRANSITIONS_GEQ[1][s_in]];
+                        }
+                    } else {
+#pragma unroll
+                        for (int s_in = 0; s_in < GEQ_BP_WIDTH; s_in++) {
+                            geq_new_state[s_in] = geq_state[NEXT_TRANSITIONS_GEQ[0][s_in]];
+                        }
+                    }
+                } else {
+                    if (geq_bit) {
+#pragma unroll
+                        for (int s_in = 0; s_in < GEQ_BP_WIDTH; s_in++) {
+                            geq_new_state[s_in] = geq_state[CURR_TRANSITIONS_GEQ[1][s_in]];
+                        }
+                    } else {
+#pragma unroll
+                        for (int s_in = 0; s_in < GEQ_BP_WIDTH; s_in++) {
+                            geq_new_state[s_in] = geq_state[CURR_TRANSITIONS_GEQ[0][s_in]];
+                        }
+                    }
+                }
+                for (int s = 0; s < GEQ_BP_WIDTH; s++) {
+                    geq_state[s] = geq_new_state[s];
+                    geq_prefix_states[(layer * GEQ_BP_WIDTH + s) * num_columns + col] = geq_new_state[s];
+                }
+            }
         }
     }
 }
@@ -529,14 +606,16 @@ template<typename F, typename EF, typename Challenger>
 __global__ void fusedJaggedAssistSumcheck(
     // Read-only
     const EF *prefix_states,
+    const EF *geq_prefix_states,
     const EF *z_row, size_t z_row_length,
     const EF *z_index, size_t z_index_length,
     const uint32_t *current_prefix_sums, const uint32_t *next_prefix_sums, size_t prefix_sum_length,
     const EF *z_col_eq_vals,
     EF half,
+    EF combine_alpha,
     size_t num_columns, size_t num_rounds,
     // Read-write state
-    EF *suffix_vector, EF *round_claim,
+    EF *suffix_vector, EF *geq_suffix_vector, EF *round_claim,
     EF *intermediate_eq_full_evals,
     Challenger challenger,
     // Outputs
@@ -547,17 +626,21 @@ __global__ void fusedJaggedAssistSumcheck(
 {
     namespace cg = cooperative_groups;
     cg::grid_group grid = cg::this_grid();
+    auto block = cg::this_thread_block();
+    auto tile = cg::tiled_partition<32>(block);
 
     const int tid = threadIdx.x;
     const int bid = blockIdx.x;
     const int num_threads = blockDim.x;
 
     // Dynamic shared memory layout:
-    //   [0..8): shared_suffix (8 EF elements)
-    //   [8..8+blockDim.x): smem for block reduction (blockDim.x EF elements)
+    //   [0..8):      shared_suffix     (8 EF elements, assist BP)
+    //   [8..12):     shared_geq_suffix (4 EF elements, geq BP)
+    //   [12..12+bd): smem for block reduction (blockDim.x EF elements)
     extern __shared__ char dynamic_smem[];
     EF *shared_suffix = (EF*)dynamic_smem;
-    EF *smem = (EF*)(dynamic_smem + WIDE_BP_WIDTH * sizeof(EF));
+    EF *shared_geq_suffix = (EF*)(dynamic_smem + WIDE_BP_WIDTH * sizeof(EF));
+    EF *smem = (EF*)(dynamic_smem + (WIDE_BP_WIDTH + GEQ_BP_WIDTH) * sizeof(EF));
 
     F half_base = half.value[0];
     F half_sq = half_base * half_base;
@@ -566,9 +649,12 @@ __global__ void fusedJaggedAssistSumcheck(
         size_t layer = round;
         int k = static_cast<int>(layer / 2);
 
-        // Load suffix into shared memory
+        // Load both BPs' suffix vectors into shared memory.
         if (tid < WIDE_BP_WIDTH) {
             shared_suffix[tid] = suffix_vector[tid];
+        }
+        if (tid < GEQ_BP_WIDTH) {
+            shared_geq_suffix[tid] = geq_suffix_vector[tid];
         }
         __syncthreads();
 
@@ -647,6 +733,32 @@ __global__ void fusedJaggedAssistSumcheck(
                 y_half_raw = y_0_result + y_one;
             }
 
+            // Geq BP eval (width-4, 1-var eq factor at both even and odd layers).
+            // Both transition tables drive a single ms-indexed inner loop:
+            //   geq_y_0 = Σ geq_suffix[s] * geq_pstate[trans[0][s]]
+            //   geq_y_1 = Σ geq_suffix[s] * geq_pstate[trans[1][s]]
+            EF geq_pstate[GEQ_BP_WIDTH];
+            for (int s = 0; s < GEQ_BP_WIDTH; s++) {
+                geq_pstate[s] = geq_prefix_states[
+                    ((layer + 1) * GEQ_BP_WIDTH + s) * num_columns + col];
+            }
+            EF geq_y_0 = EF::zero();
+            EF geq_y_one = EF::zero();
+            if (layer % 2 == 0) {
+#pragma unroll
+                for (int s = 0; s < GEQ_BP_WIDTH; s++) {
+                    geq_y_0 += geq_pstate[CURR_TRANSITIONS_GEQ[0][s]] * shared_geq_suffix[s];
+                    geq_y_one += geq_pstate[CURR_TRANSITIONS_GEQ[1][s]] * shared_geq_suffix[s];
+                }
+            } else {
+#pragma unroll
+                for (int s = 0; s < GEQ_BP_WIDTH; s++) {
+                    geq_y_0 += geq_pstate[NEXT_TRANSITIONS_GEQ[0][s]] * shared_geq_suffix[s];
+                    geq_y_one += geq_pstate[NEXT_TRANSITIONS_GEQ[1][s]] * shared_geq_suffix[s];
+                }
+            }
+            EF geq_y_half_raw = geq_y_0 + geq_y_one;
+
             // Multiply by eq_eval, z_col_eq_val, and intermediate
             F ps_val_base;
             if (layer % 2 == 0) {
@@ -662,34 +774,25 @@ __global__ void fusedJaggedAssistSumcheck(
             EF intermed = intermediate_eq_full_evals[col];
             EF common = z_col_eq_val * intermed;
 
-            local_y0 += (y_0_result * eq_zero_base) * common;
-            local_yhalf += (y_half_raw * half_sq) * common;
+            // Fuse: per-col contribution is `(assist + combine_alpha * geq) * eq`.
+            EF fused_0 = y_0_result + combine_alpha * geq_y_0;
+            EF fused_half = y_half_raw + combine_alpha * geq_y_half_raw;
+
+            local_y0 += (fused_0 * eq_zero_base) * common;
+            local_yhalf += (fused_half * half_sq) * common;
         }
 
-        // Block reduction for y0 via shared memory
-        smem[tid] = local_y0;
-        __syncthreads();
-        for (int stride = num_threads / 2; stride > 0; stride >>= 1) {
-            if (tid < stride) {
-                smem[tid] += smem[tid + stride];
-            }
-            __syncthreads();
-        }
+        // Block reduction: fuse (y0, yhalf) into a single
+        // `partialBlockReduce<EfPair>` call. Compared to the prior
+        // back-to-back manual tree reductions (~16 `__syncthreads` per
+        // round), this is one warp shuffle + one `block.sync` + a tiny
+        // tree on 8 warp partials — 4 syncs total, with both values
+        // reduced in parallel through the same control path.
+        EfPair<EF> pair_block = partialBlockReduce(
+            block, tile, EfPair<EF>(local_y0, local_yhalf), (EfPair<EF>*)smem);
         if (tid == 0) {
-            block_partial_sums[2 * bid] = smem[0];
-        }
-
-        // Block reduction for yhalf via shared memory
-        smem[tid] = local_yhalf;
-        __syncthreads();
-        for (int stride = num_threads / 2; stride > 0; stride >>= 1) {
-            if (tid < stride) {
-                smem[tid] += smem[tid + stride];
-            }
-            __syncthreads();
-        }
-        if (tid == 0) {
-            block_partial_sums[2 * bid + 1] = smem[0];
+            block_partial_sums[2 * bid] = pair_block.a;
+            block_partial_sums[2 * bid + 1] = pair_block.b;
         }
 
         // Grid sync: all blocks have written their partial sums
@@ -776,9 +879,30 @@ __global__ void fusedJaggedAssistSumcheck(
             for (int s = 0; s < WIDE_BP_WIDTH; s++) {
                 suffix_vector[s] = res[s];
             }
+
+            // Update the geq suffix vector via the transposed DP step. Both
+            // even and odd layers use the same width-4 transition tables (no
+            // z_row / z_index dependency for the geq BP).
+            EF geq_suf[GEQ_BP_WIDTH];
+            for (int s = 0; s < GEQ_BP_WIDTH; s++) {
+                geq_suf[s] = geq_suffix_vector[s];
+            }
+            EF geq_res[GEQ_BP_WIDTH] = {EF::zero(), EF::zero(), EF::zero(), EF::zero()};
+            EF factor_1 = alpha;
+            EF factor_0 = EF::one() - alpha;
+            const uint8_t (*geq_trans)[GEQ_BP_WIDTH] =
+                (layer % 2 == 0) ? CURR_TRANSITIONS_GEQ : NEXT_TRANSITIONS_GEQ;
+#pragma unroll
+            for (int s_in = 0; s_in < GEQ_BP_WIDTH; s_in++) {
+                geq_res[geq_trans[0][s_in]] += geq_suf[s_in] * factor_0;
+                geq_res[geq_trans[1][s_in]] += geq_suf[s_in] * factor_1;
+            }
+            for (int s = 0; s < GEQ_BP_WIDTH; s++) {
+                geq_suffix_vector[s] = geq_res[s];
+            }
         }
 
-        // Grid sync: alpha and suffix vector updated
+        // Grid sync: alpha and suffix vectors updated
         grid.sync();
 
         // ===== Phase 3: fixLastVariable =====

@@ -91,7 +91,10 @@ add_subdirectory(lib/jagged_sumcheck)
 add_subdirectory(lib/logup_gkr)
 add_subdirectory(lib/merkle_tree)
 add_subdirectory(lib/mle)
+add_subdirectory(lib/eq_product_sumcheck)
+add_subdirectory(lib/two_stage_eq_product_sumcheck)
 add_subdirectory(lib/ntt)
+add_subdirectory(lib/product_sumcheck)
 add_subdirectory(lib/runtime)
 add_subdirectory(lib/scan)
 add_subdirectory(lib/sum_and_reduce)
@@ -118,7 +121,10 @@ set(ALL_CUDA_OBJECTS
     $<TARGET_OBJECTS:logup_gkr_objs>
     $<TARGET_OBJECTS:merkle_tree_objs>
     $<TARGET_OBJECTS:mle_objs>
+    $<TARGET_OBJECTS:eq_product_sumcheck_objs>
+    $<TARGET_OBJECTS:two_stage_eq_product_sumcheck_objs>
     $<TARGET_OBJECTS:ntt_objs>
+    $<TARGET_OBJECTS:product_sumcheck_objs>
     $<TARGET_OBJECTS:runtime_objs>
     $<TARGET_OBJECTS:scan_objs>
     $<TARGET_OBJECTS:sum_and_reduce_objs>

@@ -247,39 +247,6 @@ pub struct SelectInstr<F> {
 /// The event encoding the inputs and outputs of a select operation.
 pub type SelectEvent<F> = SelectIo<F>;
 
-/// The inputs and outputs to the operations for prefix sum checks.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PrefixSumChecksIo<V> {
-    pub zero: V,
-    pub one: V,
-    pub x1: Vec<V>,
-    pub x2: Vec<V>,
-    pub accs: Vec<V>,
-    pub field_accs: Vec<V>,
-}
-
-/// An instruction invoking the PrefixSumChecks operation.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct PrefixSumChecksInstr<F> {
-    pub addrs: PrefixSumChecksIo<Address<F>>,
-    pub acc_mults: Vec<F>,
-    pub field_acc_mults: Vec<F>,
-}
-
-/// The event encoding the inputs and outputs of an PrefixSumChecks operation.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[repr(C)]
-pub struct PrefixSumChecksEvent<F> {
-    pub x1: F,
-    pub x2: Block<F>,
-    pub zero: F,
-    pub one: Block<F>,
-    pub acc: Block<F>,
-    pub new_acc: Block<F>,
-    pub field_acc: F,
-    pub new_field_acc: F,
-}
-
 /// An instruction that will save the public values to the execution record and will commit to
 /// it's digest.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -668,44 +635,6 @@ where
 
                     UnsafeCell::raw_get(record.mem_var_events[offset + i].as_ptr())
                         .write(MemEvent { inner: Block::from(val) });
-                }
-            }
-            Instruction::PrefixSumChecks(ref instr) => {
-                let PrefixSumChecksInstr {
-                    addrs: PrefixSumChecksIo { zero, one, x1, x2, accs, field_accs },
-                    acc_mults: _,
-                    field_acc_mults: _,
-                } = instr.as_ref();
-                let zero = memory.mr_unchecked(*zero).val[0];
-                let one = memory.mr_unchecked(*one).val.ext::<EF>();
-                let x1_f = x1.iter().map(|addr| memory.mr_unchecked(*addr).val[0]).collect_vec();
-                let x2_ef =
-                    x2.iter().map(|addr| memory.mr_unchecked(*addr).val.ext::<EF>()).collect_vec();
-
-                let mut acc = EF::one();
-                let mut field_acc = F::zero();
-                for m in 0..x1_f.len() {
-                    let product = EF::from_base(x1_f[m]) * x2_ef[m];
-                    let lagrange_term = EF::one() - x1_f[m] - x2_ef[m] + product + product;
-                    let new_field_acc = x1_f[m] + field_acc * F::from_canonical_u32(2);
-                    let new_acc = acc * lagrange_term;
-
-                    UnsafeCell::raw_get(record.prefix_sum_checks_events[offset + m].as_ptr())
-                        .write(PrefixSumChecksEvent {
-                            zero,
-                            one: Block::from(one.as_base_slice()),
-                            x1: x1_f[m],
-                            x2: Block::from(x2_ef[m].as_base_slice()),
-                            acc: Block::from(acc.as_base_slice()),
-                            new_acc: Block::from(new_acc.as_base_slice()),
-                            field_acc,
-                            new_field_acc,
-                        });
-
-                    acc = new_acc;
-                    field_acc = new_field_acc;
-                    memory.mw_unchecked(accs[m], Block::from(acc.as_base_slice()));
-                    memory.mw_unchecked(field_accs[m], Block::from(field_acc));
                 }
             }
             Instruction::CommitPublicValues(ref instr) => {

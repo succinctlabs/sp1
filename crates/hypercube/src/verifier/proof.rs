@@ -209,12 +209,15 @@ pub fn create_dummy_recursion_proof(
 
     let stacked_proof = SP1PcsProof { basefold_proof, batch_evaluations };
 
-    let jagged_eval_proof =
-        JaggedSumcheckEvalProof { partial_sumcheck_proof: PartialSumcheckProof::dummy() };
+    let jagged_eval_proof = JaggedSumcheckEvalProof {
+        partial_sumcheck_proof: PartialSumcheckProof::dummy(),
+        two_stage_proof: slop_jagged::TwoStageEqProductProof::dummy(),
+    };
 
     let evaluation_proof = JaggedPcsProof {
         pcs_proof: stacked_proof,
         jagged_eval_proof,
+        boolean_batched_proof: slop_jagged::BooleanityBatchedProof::dummy(1),
         sumcheck_proof: PartialSumcheckProof::dummy(),
         merkle_tree_commitments: Rounds::default(),
         row_counts_and_column_counts: Rounds::default(),

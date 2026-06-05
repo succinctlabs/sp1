@@ -11,7 +11,7 @@ pub enum SumcheckError {
     #[error("invalid proof shape")]
     InvalidProofShape,
     #[error("sumcheck round inconsistency")]
-    SumcheckRoundInconsistency,
+    SumcheckRoundInconsistency(usize),
     #[error("inconsistency of prover message with claimed sum")]
     InconsistencyWithClaimedSum,
     #[error("inconsistency of proof with evaluation claim")]
@@ -62,7 +62,7 @@ pub fn partially_verify_sumcheck_proof<
     challenger.observe_constant_length_extension_slice(&first_poly.coefficients);
     let mut previous_poly = first_poly;
 
-    for poly in proof.univariate_polys.iter().skip(1) {
+    for (i, poly) in proof.univariate_polys.iter().skip(1).enumerate() {
         if poly.coefficients.len() != expected_degree + 1 {
             return Err(SumcheckError::InvalidProofShape);
         }
@@ -70,7 +70,7 @@ pub fn partially_verify_sumcheck_proof<
         alpha_point.add_dimension(alpha);
         let expected_eval = previous_poly.eval_at_point(alpha);
         if expected_eval != poly.eval_one_plus_eval_zero() {
-            return Err(SumcheckError::SumcheckRoundInconsistency);
+            return Err(SumcheckError::SumcheckRoundInconsistency(i + 1));
         }
         challenger.observe_constant_length_extension_slice(&poly.coefficients);
         previous_poly = poly;

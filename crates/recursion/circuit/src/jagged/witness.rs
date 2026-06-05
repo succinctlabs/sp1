@@ -16,17 +16,63 @@ use crate::{
 
 use super::verifier::JaggedPcsProofVariable;
 
-impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for JaggedSumcheckEvalProof<T> {
+impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for JaggedSumcheckEvalProof<T>
+where
+    slop_jagged::TwoStageEqProductProof<T>:
+        Witnessable<C, WitnessVariable = slop_jagged::TwoStageEqProductProof<T::WitnessVariable>>,
+{
     type WitnessVariable = JaggedSumcheckEvalProof<T::WitnessVariable>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         JaggedSumcheckEvalProof {
             partial_sumcheck_proof: self.partial_sumcheck_proof.read(builder),
+            two_stage_proof: self.two_stage_proof.read(builder),
         }
     }
 
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
         self.partial_sumcheck_proof.write(witness);
+        self.two_stage_proof.write(witness);
+    }
+}
+
+impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C>
+    for slop_jagged::TwoStageEqProductProof<T>
+{
+    type WitnessVariable = slop_jagged::TwoStageEqProductProof<T::WitnessVariable>;
+
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
+        slop_jagged::TwoStageEqProductProof {
+            stage1: self.stage1.read(builder),
+            v: self.v.read(builder),
+            stage2: self.stage2.read(builder),
+            final_evals: self.final_evals.read(builder),
+        }
+    }
+
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.stage1.write(witness);
+        self.v.write(witness);
+        self.stage2.write(witness);
+        self.final_evals.write(witness);
+    }
+}
+
+impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C>
+    for slop_jagged::BooleanityBatchedProof<T>
+{
+    type WitnessVariable = slop_jagged::BooleanityBatchedProof<T::WitnessVariable>;
+
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
+        slop_jagged::BooleanityBatchedProof {
+            partial_sumcheck_proof: self.partial_sumcheck_proof.read(builder),
+            final_evals: self.final_evals.read(builder),
+        }
+    }
+
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.partial_sumcheck_proof.write(witness);
+        self.final_evals.write(witness);
     }
 }
 
@@ -80,6 +126,7 @@ where
 
         let sumcheck_proof = self.sumcheck_proof.read(builder);
         let jagged_eval_proof = self.jagged_eval_proof.read(builder);
+        let boolean_batched_proof = self.boolean_batched_proof.read(builder);
         let pcs_proof = self.pcs_proof.read(builder);
 
         let row_counts = row_counts
@@ -95,6 +142,7 @@ where
             pcs_proof,
             sumcheck_proof,
             jagged_eval_proof,
+            boolean_batched_proof,
             params,
             column_counts,
             row_counts,
@@ -113,6 +161,7 @@ where
         params.write(witness);
         self.sumcheck_proof.write(witness);
         self.jagged_eval_proof.write(witness);
+        self.boolean_batched_proof.write(witness);
         self.pcs_proof.write(witness);
         self.row_counts_and_column_counts
             .clone()

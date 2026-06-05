@@ -13,7 +13,7 @@ use sp1_hypercube::{air::SP1AirBuilder, InteractionKind, MachineRecord, PROOF_MA
 use crate::{
     instruction::{HintBitsInstr, HintExt2FeltsInstr, HintInstr},
     public_values::RecursionPublicValues,
-    ExtFeltEvent, Instruction, Poseidon2LinearLayerEvent, Poseidon2SBoxEvent, PrefixSumChecksEvent,
+    ExtFeltEvent, Instruction, Poseidon2LinearLayerEvent, Poseidon2SBoxEvent,
 };
 
 use super::{
@@ -39,7 +39,6 @@ pub struct ExecutionRecord<F> {
     pub poseidon2_linear_layer_events: Vec<Poseidon2LinearLayerEvent<F>>,
     pub poseidon2_sbox_events: Vec<Poseidon2SBoxEvent<F>>,
     pub select_events: Vec<SelectEvent<F>>,
-    pub prefix_sum_checks_events: Vec<PrefixSumChecksEvent<F>>,
     pub commit_pv_hash_events: Vec<CommitPublicValuesEvent<F>>,
 }
 
@@ -58,7 +57,6 @@ pub struct UnsafeRecord<F> {
     pub poseidon2_linear_layer_events: Vec<MaybeUninit<UnsafeCell<Poseidon2LinearLayerEvent<F>>>>,
     pub poseidon2_sbox_events: Vec<MaybeUninit<UnsafeCell<Poseidon2SBoxEvent<F>>>>,
     pub select_events: Vec<MaybeUninit<UnsafeCell<SelectEvent<F>>>>,
-    pub prefix_sum_checks_events: Vec<MaybeUninit<UnsafeCell<PrefixSumChecksEvent<F>>>>,
     pub commit_pv_hash_events: Vec<MaybeUninit<UnsafeCell<CommitPublicValuesEvent<F>>>>,
 }
 
@@ -87,7 +85,6 @@ impl<F> UnsafeRecord<F> {
             poseidon2_linear_layer_events: std::mem::transmute(self.poseidon2_linear_layer_events),
             poseidon2_sbox_events: std::mem::transmute(self.poseidon2_sbox_events),
             select_events: std::mem::transmute(self.select_events),
-            prefix_sum_checks_events: std::mem::transmute(self.prefix_sum_checks_events),
             commit_pv_hash_events: std::mem::transmute(self.commit_pv_hash_events),
         }
     }
@@ -118,7 +115,6 @@ impl<F> UnsafeRecord<F> {
             ),
             poseidon2_sbox_events: create_uninit_vec(event_counts.poseidon2_sbox_events),
             select_events: create_uninit_vec(event_counts.select_events),
-            prefix_sum_checks_events: create_uninit_vec(event_counts.prefix_sum_checks_events),
             commit_pv_hash_events: create_uninit_vec(event_counts.commit_pv_hash_events),
         }
     }
@@ -138,7 +134,6 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
             ("poseidon2_linear_layer_events", self.poseidon2_linear_layer_events.len()),
             ("poseidon2_sbox_events", self.poseidon2_sbox_events.len()),
             ("select_events", self.select_events.len()),
-            ("prefix_sum_checks_events", self.prefix_sum_checks_events.len()),
             ("commit_pv_hash_events", self.commit_pv_hash_events.len()),
         ]
         .into_iter()
@@ -161,7 +156,6 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
             poseidon2_linear_layer_events,
             poseidon2_sbox_events,
             select_events,
-            prefix_sum_checks_events,
             commit_pv_hash_events,
         } = self;
         base_alu_events.append(&mut other.base_alu_events);
@@ -173,7 +167,6 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
         poseidon2_linear_layer_events.append(&mut other.poseidon2_linear_layer_events);
         poseidon2_sbox_events.append(&mut other.poseidon2_sbox_events);
         select_events.append(&mut other.select_events);
-        prefix_sum_checks_events.append(&mut other.prefix_sum_checks_events);
         commit_pv_hash_events.append(&mut other.commit_pv_hash_events);
     }
 
@@ -218,7 +211,6 @@ pub struct RecursionAirEventCount {
     pub poseidon2_linear_layer_events: usize,
     pub poseidon2_sbox_events: usize,
     pub select_events: usize,
-    pub prefix_sum_checks_events: usize,
     pub commit_pv_hash_events: usize,
 }
 
@@ -243,9 +235,6 @@ impl<F> AddAssign<&Instruction<F>> for RecursionAirEventCount {
                 output_addrs_mults,
                 input_addr: _, // No receive interaction for the hint operation
             }) => self.mem_var_events += output_addrs_mults.len(),
-            Instruction::PrefixSumChecks(instr) => {
-                self.prefix_sum_checks_events += instr.addrs.x1.len()
-            }
             Instruction::HintAddCurve(instr) => {
                 self.mem_var_events += instr.output_x_addrs_mults.len();
                 self.mem_var_events += instr.output_y_addrs_mults.len();

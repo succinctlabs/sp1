@@ -49,7 +49,6 @@ use sp1_recursion_machine::chips::{
         convert::ConvertChip, linear::Poseidon2LinearLayerChip, sbox::Poseidon2SBoxChip,
     },
     poseidon2_wide::Poseidon2WideChip,
-    prefix_sum_checks::PrefixSumChecksChip,
     public_values::PublicValuesChip,
     select::SelectChip,
 };
@@ -335,10 +334,6 @@ impl SP1RecursionProofShape {
                             (
                                 CompressAir::<SP1Field>::Poseidon2Wide(Poseidon2WideChip),
                                 150_448usize.next_multiple_of(32),
-                            ),
-                            (
-                                CompressAir::<SP1Field>::PrefixSumChecks(PrefixSumChecksChip),
-                                275_440usize.next_multiple_of(32),
                             ),
                             (
                                 CompressAir::<SP1Field>::Select(SelectChip),
@@ -779,7 +774,6 @@ pub fn max_count(a: RecursionAirEventCount, b: RecursionAirEventCount) -> Recurs
         ),
         poseidon2_sbox_events: max(a.poseidon2_sbox_events, b.poseidon2_sbox_events),
         select_events: max(a.select_events, b.select_events),
-        prefix_sum_checks_events: max(a.prefix_sum_checks_events, b.prefix_sum_checks_events),
         commit_pv_hash_events: max(a.commit_pv_hash_events, b.commit_pv_hash_events),
     }
 }
@@ -834,9 +828,6 @@ pub fn build_recursion_count_from_shape(
             .height(&CompressAir::<SP1Field>::Poseidon2SBox(Poseidon2SBoxChip))
             .unwrap_or(0),
         select_events: shape.height(&CompressAir::<SP1Field>::Select(SelectChip)).unwrap(),
-        prefix_sum_checks_events: shape
-            .height(&CompressAir::<SP1Field>::PrefixSumChecks(PrefixSumChecksChip))
-            .unwrap_or(0),
         commit_pv_hash_events: shape
             .height(&CompressAir::<SP1Field>::PublicValues(PublicValuesChip))
             .unwrap(),
@@ -853,7 +844,6 @@ pub fn build_shape_from_recursion_air_event_count(
         ext_alu_events,
         poseidon2_wide_events,
         select_events,
-        prefix_sum_checks_events,
         commit_pv_hash_events,
         ..
     } = event_count;
@@ -867,7 +857,6 @@ pub fn build_shape_from_recursion_air_event_count(
         (CompressAir::<SP1Field>::ExtAlu(ExtAluChip), ext_alu_events),
         (CompressAir::<SP1Field>::Poseidon2Wide(Poseidon2WideChip), poseidon2_wide_events),
         (CompressAir::<SP1Field>::Select(SelectChip), select_events),
-        (CompressAir::<SP1Field>::PrefixSumChecks(PrefixSumChecksChip), prefix_sum_checks_events),
         (CompressAir::<SP1Field>::PublicValues(PublicValuesChip), commit_pv_hash_events),
     ];
     SP1RecursionProofShape { shape: chips_and_heights.into_iter().collect() }

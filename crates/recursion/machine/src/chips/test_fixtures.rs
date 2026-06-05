@@ -18,8 +18,7 @@ use sp1_recursion_executor::{
     CommitPublicValuesInstr, ExecutionRecord, Executor, ExtAluInstr, ExtAluIo, ExtAluOpcode,
     ExtFeltInstr, Instruction, MemAccessKind, MemInstr, MemIo, Poseidon2Instr, Poseidon2Io,
     Poseidon2LinearLayerInstr, Poseidon2LinearLayerIo, Poseidon2SBoxInstr, Poseidon2SBoxIo,
-    PrefixSumChecksInstr, PrefixSumChecksIo, RecursionProgram, SelectInstr, SelectIo,
-    RECURSIVE_PROOF_NUM_PV_ELTS,
+    RecursionProgram, SelectInstr, SelectIo, RECURSIVE_PROOF_NUM_PV_ELTS,
 };
 use strum::VariantArray;
 use tokio::sync::OnceCell;
@@ -39,7 +38,6 @@ enum InsnTestable {
     Select,
     HintBits,
     HintAddCurve,
-    PrefixSumChecks,
     HintExt2Felts,
     CommitPublicValues,
     Hint,
@@ -61,7 +59,6 @@ impl InsnTestable {
             InsnTestable::Select => 3.0,
             InsnTestable::HintBits => 0.2,
             InsnTestable::HintAddCurve => 0.3,
-            InsnTestable::PrefixSumChecks => 4.0,
             InsnTestable::HintExt2Felts => 1.0,
             InsnTestable::CommitPublicValues => 0.0, // We insert a single one manually.
             InsnTestable::Hint => 3.0,
@@ -295,26 +292,6 @@ impl PartialTestProgram {
                     input1_y_addrs,
                     input2_x_addrs,
                     input2_y_addrs,
-                }))
-            }
-            InsnTestable::PrefixSumChecks => {
-                // Not sure how long these are usually. Pulled this out of thin air.
-                let len = self.rng.gen_range(0..8);
-                // `zero` and `one` are not 0 and 1, but it's probably fine.
-                let [zero, one] = core::array::from_fn(|_| self.addr_random());
-                let [x1, x2] = core::array::from_fn(|_| {
-                    core::iter::repeat_with(|| self.addr_random()).take(len).collect()
-                });
-                let [accs, field_accs] = core::array::from_fn(|_| {
-                    core::iter::repeat_with(|| self.alloc()).take(len).collect()
-                });
-                let [acc_mults, field_acc_mults] = core::array::from_fn(|_| {
-                    (&mut self.rng).sample_iter(Standard).take(len).collect()
-                });
-                Instruction::PrefixSumChecks(Box::new(PrefixSumChecksInstr {
-                    addrs: PrefixSumChecksIo { zero, one, x1, x2, accs, field_accs },
-                    acc_mults,
-                    field_acc_mults,
                 }))
             }
             InsnTestable::HintExt2Felts => {

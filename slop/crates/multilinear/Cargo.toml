@@ -31,3 +31,8 @@ num_cpus = { workspace = true }
 slop-baby-bear = { workspace = true }
 rand = { workspace = true }
 serde_json = { workspace = true }
+criterion = "0.5"
+
+[[bench]]
+name = "two_to_one"
+harness = false

@@ -43,6 +43,7 @@ sp1-hypercube = { workspace = true }
 thiserror = "1.0"
 tracing = { workspace = true }
 tokio = { workspace = true }
+rayon = { workspace = true }
 
 [features]
 default = []
@@ -70,6 +71,10 @@ criterion = "0.5"
 
 [[bench]]
 name = "prove_trusted_evaluations"
+harness = false
+
+[[bench]]
+name = "verify_trusted_evaluations"
 harness = false
 
 [lints]

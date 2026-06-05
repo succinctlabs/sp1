@@ -5,7 +5,6 @@ add_library(tracegen_objs OBJECT
     recursion/convert.cu
     recursion/linear_layer.cu
     recursion/poseidon2_wide.cu
-    recursion/prefix_sum_checks.cu
     recursion/sbox.cu
     recursion/select.cu
     riscv/global.cu

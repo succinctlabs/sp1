@@ -6469,6 +6469,7 @@ dependencies = [
 name = "slop-jagged"
 version = "6.2.3"
 dependencies = [
+ "criterion",
  "derive-where",
  "futures",
  "itertools 0.14.0",
@@ -6560,6 +6561,7 @@ dependencies = [
 name = "slop-multilinear"
 version = "6.2.3"
 dependencies = [
+ "criterion",
  "derive-where",
  "futures",
  "num_cpus",
@@ -7064,6 +7066,7 @@ dependencies = [
 name = "sp1-gpu-basefold"
 version = "6.2.3"
 dependencies = [
+ "criterion",
  "futures",
  "itertools 0.14.0",
  "rand 0.8.6",
@@ -7211,7 +7214,9 @@ dependencies = [
  "slop-tensor",
  "sp1-gpu-challenger",
  "sp1-gpu-cudart",
+ "sp1-gpu-jagged-sumcheck",
  "sp1-gpu-tracing",
+ "sp1-gpu-utils",
  "sp1-primitives",
  "sp1-prover",
  "tokio",
@@ -7472,6 +7477,7 @@ version = "6.2.3"
 dependencies = [
  "criterion",
  "rand 0.8.6",
+ "rayon",
  "serial_test",
  "slop-algebra",
  "slop-alloc",

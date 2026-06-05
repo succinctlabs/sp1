@@ -65,8 +65,6 @@ fn cbindgen_builder() -> cbindgen::Builder {
         .include_item("NUM_LINEAR_ENTRIES_PER_ROW")
         .include_item("NUM_SBOX_ENTRIES_PER_ROW")
         .include_item("PERMUTATION_WIDTH")
-        .include_item("PrefixSumChecksEvent")
-        .include_item("PrefixSumChecksCols")
         .with_namespace("sp1_gpu_sys")
         .with_crate(env::var("CARGO_MANIFEST_DIR").unwrap())
 }

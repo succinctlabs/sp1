@@ -511,7 +511,7 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
 
         // Use sync GPU jagged evaluation proof
         let jagged_eval_proof = tracing::debug_span!("jagged evaluation proof").in_scope(|| {
-            prove_jagged_evaluation_sync::<Felt, Ext, GC::Challenger, PC::DeviceChallenger>(
+            prove_jagged_evaluation_sync::<GC::Challenger, PC::DeviceChallenger>(
                 &params,
                 &z_row,
                 &z_col,
@@ -521,6 +521,47 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
                 &backend,
             )
         });
+
+        // Booleanity-batched sumcheck — GPU prove.  Must run immediately
+        // after the inner jagged eval proof and *before* any further
+        // challenger observations (component_poly_evals, column_evals,
+        // basefold) so that the verifier's FS slot for α/β + the c
+        // sumcheck rounds lines up.
+        let boolean_batched_proof = tracing::debug_span!("boolean-batched sumcheck (gpu)")
+            .in_scope(|| {
+                use slop_jagged::{LOG_NUM_BITS, NUM_BITS, PREFIX_SUM_BITS};
+                use sp1_gpu_jagged_assist::prove_boolean_batched_gpu;
+                debug_assert_eq!(NUM_BITS, PREFIX_SUM_BITS);
+
+                let two_stage = &jagged_eval_proof.two_stage_proof;
+                let eta = two_stage.stage2.point_and_eval.0.clone();
+                let final_evals = &two_stage.final_evals;
+                let v_curr: Vec<GC::EF> =
+                    (0..NUM_BITS).map(|b| final_evals[2 * (PREFIX_SUM_BITS - 1 - b) + 1]).collect();
+                let v_next: Vec<GC::EF> =
+                    (0..NUM_BITS).map(|b| final_evals[2 * (PREFIX_SUM_BITS - 1 - b)]).collect();
+
+                let c = num_col_variables as usize;
+                let prefix_sums = &params.col_prefix_sums_usize;
+
+                let alpha: GC::EF = challenger.sample_ext_element();
+                let rho_bit: slop_multilinear::Point<GC::EF> = (0..LOG_NUM_BITS)
+                    .map(|_| challenger.sample_ext_element())
+                    .collect::<Vec<_>>()
+                    .into();
+
+                prove_boolean_batched_gpu(
+                    &eta,
+                    prefix_sums,
+                    c,
+                    &v_curr,
+                    &v_next,
+                    alpha,
+                    &rho_bit,
+                    challenger,
+                    &backend,
+                )
+            });
 
         let (row_counts, column_counts): (Rounds<_>, Rounds<_>) = prover_data
             .iter()
@@ -589,6 +630,7 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
             pcs_proof: stacked_basefold_proof.into(),
             sumcheck_proof,
             jagged_eval_proof,
+            boolean_batched_proof,
             row_counts_and_column_counts,
             merkle_tree_commitments: original_commitments,
             expected_eval: component_poly_evals[0],

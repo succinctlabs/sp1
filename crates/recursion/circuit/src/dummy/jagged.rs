@@ -2,7 +2,7 @@ use slop_algebra::AbstractField;
 use slop_alloc::CpuBackend;
 use slop_basefold::BasefoldProof;
 use slop_commit::Rounds;
-use slop_jagged::{JaggedPcsProof, JaggedSumcheckEvalProof};
+use slop_jagged::{JaggedPcsProof, JaggedSumcheckEvalProof, K, K1, K2, NUM_BITS};
 use slop_merkle_tree::{MerkleTreeOpeningAndProof, MerkleTreeTcsProof};
 use slop_multilinear::MleEval;
 use slop_tensor::Tensor;
@@ -100,13 +100,8 @@ pub fn dummy_pcs_proof(
     let total_trace = log2_ceil_usize(
         log_stacking_height_multiples.iter().sum::<usize>() * (1 << log_stacking_height),
     );
-    let total_num_variables = total_trace;
 
     let partial_sumcheck_proof = dummy_sumcheck_proof(total_trace, 2);
-
-    let eval_sumcheck_proof = dummy_sumcheck_proof(2 * (total_num_variables + 1), 2);
-
-    let jagged_eval_proof = JaggedSumcheckEvalProof { partial_sumcheck_proof: eval_sumcheck_proof };
 
     let new_column_counts: Rounds<Vec<usize>> = column_counts
         .into_iter()
@@ -124,9 +119,42 @@ pub fn dummy_pcs_proof(
         .map(|cc| cc.iter().map(|&c| (0, c)).collect())
         .collect();
 
+    // Total columns across all rounds (including the trailing 2 padding cols
+    // per round).  Matches `num_real_cols = usize_prefix_sums.len() - 1` on
+    // the slop verifier side.
+    let total_cols: usize = new_column_counts.iter().flat_map(|cc| cc.iter()).sum();
+    let num_col_variables = total_cols.next_power_of_two().max(2).trailing_zeros() as usize;
+
+    // Inner jagged-eval sumcheck (fused assist + α·geq): degree 2 over
+    // `2 · params.col_prefix_sums[0].dimension()` variables.  The prefix-sum
+    // dimension is `total_trace + 1` (= `log_m + 1`).
+    let prefix_sum_dim = total_trace + 1;
+    let eval_sumcheck_proof = dummy_sumcheck_proof(2 * prefix_sum_dim, 2);
+
+    // TwoStageEqProductProof shape (must match what the recursion verifier
+    // walks): stage1 has degree K2+1 over `num_col_variables` variables;
+    // stage2 has degree K1+1.  We deliberately do NOT use slop's
+    // `TwoStageEqProductProof::dummy()` (which produces empty stages).
+    let two_stage_proof = slop_jagged::TwoStageEqProductProof::<InnerChallenge> {
+        stage1: dummy_sumcheck_proof(num_col_variables, K2 + 1),
+        v: vec![InnerChallenge::zero(); K2],
+        stage2: dummy_sumcheck_proof(num_col_variables, K1 + 1),
+        final_evals: vec![InnerChallenge::zero(); K],
+    };
+
+    let jagged_eval_proof =
+        JaggedSumcheckEvalProof { partial_sumcheck_proof: eval_sumcheck_proof, two_stage_proof };
+
+    // BooleanityBatchedProof: degree 3, `num_col_variables` variables.
+    let boolean_batched_proof = slop_jagged::BooleanityBatchedProof::<InnerChallenge> {
+        partial_sumcheck_proof: dummy_sumcheck_proof(num_col_variables, 3),
+        final_evals: vec![InnerChallenge::zero(); NUM_BITS],
+    };
+
     JaggedPcsProof {
         pcs_proof: stacked_proof,
         jagged_eval_proof,
+        boolean_batched_proof,
         sumcheck_proof: partial_sumcheck_proof,
         merkle_tree_commitments: vec![dummy_hash(); NUM_SP1_COMMITMENTS].into_iter().collect(),
         row_counts_and_column_counts,

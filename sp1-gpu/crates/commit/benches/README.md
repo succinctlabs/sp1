@@ -34,6 +34,13 @@ cargo bench -p sp1-gpu-commit --bench commit -- /path/to/layout.json
 # Available programs: fibonacci, fibonacci_blake3, ed25519, keccak256, sha2,
 # ssz_withdrawals, tendermint, groth16, groth16_blake3, plonk, plonk_blake3.
 cargo bench -p sp1-gpu-commit --bench commit -- real/keccak256
+
+# Synthetic many-chip stress (defaults: 200 chips × widths in [50,10000] × height 32).
+# Stresses the column-count dimension without forcing a huge total trace area.
+cargo bench -p sp1-gpu-commit --bench commit -- synth
+
+# Synth with overrides (any subset of chips=N, cols=LO:HI, height=N).
+cargo bench -p sp1-gpu-commit --bench commit -- synth:chips=500,cols=100:5000,height=32
 ```
 
 ## Disclaimer on synthetic data

@@ -14,11 +14,6 @@ use sp1_recursion_executor::{RecursionPublicValues, D, PERMUTATION_WIDTH};
 pub trait CircuitV2Builder<C: Config> {
     fn bits2num_v2_f(&mut self, bits: impl IntoIterator<Item = Felt<SP1Field>>) -> Felt<SP1Field>;
     fn num2bits_v2_f(&mut self, num: Felt<SP1Field>, num_bits: usize) -> Vec<Felt<SP1Field>>;
-    fn prefix_sum_checks_v2(
-        &mut self,
-        point_1: Vec<Felt<SP1Field>>,
-        point_2: Vec<Ext<SP1Field, SP1ExtensionField>>,
-    ) -> (Ext<SP1Field, SP1ExtensionField>, Felt<SP1Field>);
     fn poseidon2_permute_v2(
         &mut self,
         state: [Felt<SP1Field>; PERMUTATION_WIDTH],
@@ -108,34 +103,6 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
         self.assert_felt_eq(x, num);
 
         output
-    }
-
-    /// A version of the `prefix_sum_checks` that uses the LagrangeEval precompile.
-    fn prefix_sum_checks_v2(
-        &mut self,
-        point_1: Vec<Felt<SP1Field>>,
-        point_2: Vec<Ext<SP1Field, SP1ExtensionField>>,
-    ) -> (Ext<SP1Field, SP1ExtensionField>, Felt<SP1Field>) {
-        let len = point_1.len();
-        assert_eq!(point_1.len(), point_2.len());
-        // point_1 is current and next prefix sum merged
-        assert_eq!(len % 2, 0);
-        let output: Vec<Ext<_, _>> = std::iter::from_fn(|| Some(self.uninit())).take(len).collect();
-        let field_accs: Vec<Felt<_>> =
-            std::iter::from_fn(|| Some(self.uninit())).take(len).collect();
-        let one: Ext<_, _> = self.uninit();
-        let zero: Felt<_> = self.uninit();
-        self.push_op(DslIr::ImmE(one, SP1ExtensionField::one()));
-        self.push_op(DslIr::ImmF(zero, SP1Field::zero()));
-        self.push_op(DslIr::CircuitV2PrefixSumChecks(Box::new((
-            zero,
-            one,
-            output.clone(),
-            field_accs.clone(),
-            point_1,
-            point_2,
-        ))));
-        (output[len - 1], field_accs[len / 2 - 1])
     }
 
     /// Applies the Poseidon2 permutation to the given array.

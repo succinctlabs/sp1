@@ -107,6 +107,7 @@ EOF
 BENCHES=(
     "sp1-gpu-zerocheck:zerocheck"
     "sp1-gpu-shard-prover:prove_trusted_evaluations"
+    "sp1-gpu-shard-prover:verify_trusted_evaluations"
     "sp1-gpu-jagged-sumcheck:jagged"
     "sp1-gpu-jagged-sumcheck:hadamard"
     "sp1-gpu-commit:commit"

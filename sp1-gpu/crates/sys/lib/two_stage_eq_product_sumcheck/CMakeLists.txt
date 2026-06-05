@@ -1,0 +1,4 @@
+add_library(two_stage_eq_product_sumcheck_objs OBJECT
+    two_stage_eq_product_sumcheck.cu
+)
+target_link_libraries(two_stage_eq_product_sumcheck_objs PRIVATE sp1_gpu_common)

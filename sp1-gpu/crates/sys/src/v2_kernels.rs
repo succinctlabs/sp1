@@ -67,6 +67,73 @@ extern "C" {
     pub fn mle_fix_last_variable_koala_bear_ext_ext_constant_padding() -> KernelPtr;
 
     pub fn mle_fix_last_variable_koala_bear_ext_ext_zero_padding() -> KernelPtr;
+    pub fn mle_fix_last_variable_koala_bear_base_extension_zero_padding() -> KernelPtr;
+
+    // Product sumcheck round-0 sum-as-poly kernels (base-field input only).
+    pub fn product_sumcheck_sum_as_poly_base_2_kernel() -> KernelPtr;
+    pub fn product_sumcheck_sum_as_poly_base_4_kernel() -> KernelPtr;
+    pub fn product_sumcheck_sum_as_poly_base_8_kernel() -> KernelPtr;
+    pub fn product_sumcheck_sum_as_poly_base_16_kernel() -> KernelPtr;
+    pub fn product_sumcheck_sum_as_poly_base_32_kernel() -> KernelPtr;
+    pub fn product_sumcheck_sum_as_poly_base_64_kernel() -> KernelPtr;
+
+    // Simple (thread-per-x_top) fused fix-and-sum, used for small K (K ∈ {2, 4, 8}).
+    pub fn product_sumcheck_fix_and_sum_base_2_kernel() -> KernelPtr;
+    pub fn product_sumcheck_fix_and_sum_base_4_kernel() -> KernelPtr;
+    pub fn product_sumcheck_fix_and_sum_base_8_kernel() -> KernelPtr;
+    pub fn product_sumcheck_fix_and_sum_ext_2_kernel() -> KernelPtr;
+    pub fn product_sumcheck_fix_and_sum_ext_4_kernel() -> KernelPtr;
+    pub fn product_sumcheck_fix_and_sum_ext_8_kernel() -> KernelPtr;
+
+    // Cooperative (K-threads-per-tile, TPB = 256/K) fused fix-and-sum, used for large K
+    // (K ∈ {16, 32, 64}) where the simple kernel spills.
+    pub fn product_sumcheck_fix_and_sum_coop_base_16_kernel() -> KernelPtr;
+    pub fn product_sumcheck_fix_and_sum_coop_base_32_kernel() -> KernelPtr;
+    pub fn product_sumcheck_fix_and_sum_coop_base_64_kernel() -> KernelPtr;
+    pub fn product_sumcheck_fix_and_sum_coop_ext_16_kernel() -> KernelPtr;
+    pub fn product_sumcheck_fix_and_sum_coop_ext_32_kernel() -> KernelPtr;
+    pub fn product_sumcheck_fix_and_sum_coop_ext_64_kernel() -> KernelPtr;
+
+    // Eq-prefixed product sumcheck (K=64) — Option 1 of the two-stage-GKR shape.
+    pub fn eq_product_sum_as_poly_base_64_coop_kernel() -> KernelPtr;
+    pub fn eq_product_sum_as_poly_ext_64_coop_kernel() -> KernelPtr;
+    pub fn eq_prefix_fold_kernel() -> KernelPtr;
+    pub fn eq_product_fix_and_sum_base_64_coop_kernel() -> KernelPtr;
+    pub fn eq_product_fix_and_sum_ext_64_coop_kernel() -> KernelPtr;
+
+    // Two-stage-GKR Option 2 — all five (K_1, K_2) splits of K = 64.
+    pub fn build_b_mles_2_32_kernel() -> KernelPtr;
+    pub fn build_b_mles_4_16_kernel() -> KernelPtr;
+    pub fn build_b_mles_8_8_kernel() -> KernelPtr;
+    pub fn build_b_mles_16_4_kernel() -> KernelPtr;
+    pub fn build_b_mles_32_2_kernel() -> KernelPtr;
+
+    pub fn two_stage_stage1_sum_as_poly_ext_2_kernel() -> KernelPtr;
+    pub fn two_stage_stage1_fix_and_sum_ext_2_kernel() -> KernelPtr;
+    pub fn two_stage_stage1_sum_as_poly_ext_4_kernel() -> KernelPtr;
+    pub fn two_stage_stage1_fix_and_sum_ext_4_kernel() -> KernelPtr;
+    pub fn two_stage_stage1_sum_as_poly_ext_8_kernel() -> KernelPtr;
+    pub fn two_stage_stage1_fix_and_sum_ext_8_kernel() -> KernelPtr;
+    pub fn two_stage_stage1_sum_as_poly_ext_16_kernel() -> KernelPtr;
+    pub fn two_stage_stage1_fix_and_sum_ext_16_kernel() -> KernelPtr;
+    pub fn two_stage_stage1_sum_as_poly_ext_32_kernel() -> KernelPtr;
+    pub fn two_stage_stage1_fix_and_sum_ext_32_kernel() -> KernelPtr;
+
+    pub fn two_stage_stage2_sum_as_poly_base_2_32_kernel() -> KernelPtr;
+    pub fn two_stage_stage2_fix_and_sum_base_2_32_kernel() -> KernelPtr;
+    pub fn two_stage_stage2_fix_and_sum_ext_2_32_kernel() -> KernelPtr;
+    pub fn two_stage_stage2_sum_as_poly_base_4_16_kernel() -> KernelPtr;
+    pub fn two_stage_stage2_fix_and_sum_base_4_16_kernel() -> KernelPtr;
+    pub fn two_stage_stage2_fix_and_sum_ext_4_16_kernel() -> KernelPtr;
+    pub fn two_stage_stage2_sum_as_poly_base_8_8_kernel() -> KernelPtr;
+    pub fn two_stage_stage2_fix_and_sum_base_8_8_kernel() -> KernelPtr;
+    pub fn two_stage_stage2_fix_and_sum_ext_8_8_kernel() -> KernelPtr;
+    pub fn two_stage_stage2_sum_as_poly_base_16_4_kernel() -> KernelPtr;
+    pub fn two_stage_stage2_fix_and_sum_base_16_4_kernel() -> KernelPtr;
+    pub fn two_stage_stage2_fix_and_sum_ext_16_4_kernel() -> KernelPtr;
+    pub fn two_stage_stage2_sum_as_poly_base_32_2_kernel() -> KernelPtr;
+    pub fn two_stage_stage2_fix_and_sum_base_32_2_kernel() -> KernelPtr;
+    pub fn two_stage_stage2_fix_and_sum_ext_32_2_kernel() -> KernelPtr;
 
     // ******** LogUp GKR kernels - Round operations ********
     pub fn logup_gkr_sum_as_poly_circuit_layer() -> KernelPtr;
@@ -96,6 +163,14 @@ extern "C" {
     pub fn jagged_sum_as_poly() -> KernelPtr;
     pub fn jagged_fix_and_sum() -> KernelPtr;
     pub fn padded_hadamard_fix_and_sum() -> KernelPtr;
+
+    // ******** Boolean-batched sumcheck kernels ********
+    pub fn boolean_inc_table_kernel() -> KernelPtr;
+    pub fn boolean_sum_as_poly_half_kernel() -> KernelPtr;
+    pub fn boolean_curr_bits_ext_kernel() -> KernelPtr;
+
+    // ******** Two-to-one Option-2 sumcheck kernels ********
+    pub fn two_to_one_sum_as_poly_zero_kernel() -> KernelPtr;
 
     // Populate restrict eq
     pub fn populate_restrict_eq_host(

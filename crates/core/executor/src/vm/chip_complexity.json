@@ -76,7 +76,6 @@
     "BaseAlu": 5,
     "ExtAlu": 17,
     "Poseidon2WideDeg3": 164,
-    "PrefixSumChecks": 7,
     "Select": 3,
     "PublicValues": 8,
     "Poseidon2LinearLayer": 3,

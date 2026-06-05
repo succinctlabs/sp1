@@ -2,8 +2,11 @@ use std::{iter::repeat_n, marker::PhantomData};
 
 use itertools::{izip, Itertools};
 use slop_algebra::AbstractField;
-use slop_jagged::{JaggedLittlePolynomialVerifierParams, JaggedSumcheckEvalProof};
-use slop_multilinear::{Mle, MleEval, Point};
+use slop_jagged::{
+    BooleanityBatchedProof, IncBranchingProgram, JaggedLittlePolynomialVerifierParams,
+    JaggedSumcheckEvalProof, LOG_NUM_BITS, NUM_BITS, PREFIX_SUM_BITS,
+};
+use slop_multilinear::{partial_lagrange_blocking, Mle, MleEval, Point};
 use slop_sumcheck::PartialSumcheckProof;
 use sp1_primitives::{SP1ExtensionField, SP1Field};
 use sp1_recursion_compiler::{
@@ -18,10 +21,156 @@ use crate::{
     },
     challenger::FieldChallengerVariable,
     sumcheck::{evaluate_mle_ext, verify_sumcheck},
+    symbolic::IntoSymbolic,
     CircuitConfig, SP1FieldConfigVariable,
 };
 
-use super::jagged_eval::{RecursiveJaggedEvalConfig, RecursiveJaggedEvalSumcheckConfig};
+use super::jagged_eval::{
+    JaggedEvalPoints, RecursiveJaggedEvalConfig, RecursiveJaggedEvalSumcheckConfig,
+};
+
+/// MSB-first bit-decomposition of an integer as a `Point<SymbolicExt>` (matches
+/// `Point::from_usize`).
+fn int_as_ext_point(value: usize, dim: usize) -> Point<SymbolicExt<SP1Field, SP1ExtensionField>> {
+    (0..dim)
+        .rev()
+        .map(|b| {
+            let bit = ((value >> b) & 1) as u32;
+            SymbolicExt::<SP1Field, SP1ExtensionField>::from_canonical_u32(bit)
+        })
+        .collect()
+}
+
+/// In-circuit analogue of `slop_jagged::BooleanityBatched`.  Holds the two
+/// integer-ish parameters (`num_real_cols` and the MSB-first bit-decomp of
+/// `max_prefix_sum`); the `verify_in_circuit` method takes the per-protocol-run
+/// values (proof, η, two-stage finals, α, ρ_bit) as arguments.
+pub(crate) struct RecursiveBooleanityBatched<'a> {
+    pub num_real_cols: usize,
+    pub max_prefix_sum_bits: &'a Point<Felt<SP1Field>>,
+}
+
+impl<'a> RecursiveBooleanityBatched<'a> {
+    pub(crate) fn new(
+        num_real_cols: usize,
+        max_prefix_sum_bits: &'a Point<Felt<SP1Field>>,
+    ) -> Self {
+        Self { num_real_cols, max_prefix_sum_bits }
+    }
+}
+
+impl<'a> RecursiveBooleanityBatched<'a> {
+    /// In-circuit analogue of `slop_jagged::BooleanityBatched::verify`.
+    /// Returns `(combined_point, p_claim)` where `combined_point = z_new ⧺ ρ_bit`
+    /// and `p_claim = Σ_b eq(ρ_bit, b) · p_b(z_new)`.
+    pub(crate) fn verify_in_circuit<C: CircuitConfig, SC: SP1FieldConfigVariable<C>>(
+        &self,
+        builder: &mut Builder<C>,
+        challenger: &mut SC::FriChallengerVariable,
+        proof: &BooleanityBatchedProof<Ext<SP1Field, SP1ExtensionField>>,
+        two_stage: &slop_jagged::TwoStageEqProductProof<Ext<SP1Field, SP1ExtensionField>>,
+        alpha: SymbolicExt<SP1Field, SP1ExtensionField>,
+        rho_bit: &Point<SymbolicExt<SP1Field, SP1ExtensionField>>,
+    ) -> (Point<SymbolicExt<SP1Field, SP1ExtensionField>>, SymbolicExt<SP1Field, SP1ExtensionField>)
+    {
+        let RecursiveBooleanityBatched { num_real_cols, max_prefix_sum_bits } = *self;
+        // η from the two-stage GKR's stage-2 sumcheck point, lifted to SymbolicExt.
+        let z: Point<SymbolicExt<SP1Field, SP1ExtensionField>> =
+            <Point<Ext<SP1Field, SP1ExtensionField>> as IntoSymbolic<C>>::as_symbolic(
+                &two_stage.stage2.point_and_eval.0,
+            );
+        let z = &z;
+        // Same split as the CPU `slop_jagged::split_two_stage_finals`.
+        let v_curr: Vec<SymbolicExt<SP1Field, SP1ExtensionField>> = (0..NUM_BITS)
+            .map(|b| two_stage.final_evals[2 * (PREFIX_SUM_BITS - 1 - b) + 1].into())
+            .collect();
+        let v_next: Vec<SymbolicExt<SP1Field, SP1ExtensionField>> = (0..NUM_BITS)
+            .map(|b| two_stage.final_evals[2 * (PREFIX_SUM_BITS - 1 - b)].into())
+            .collect();
+        let v_next = v_next.as_slice();
+        let v_curr = v_curr.as_slice();
+        assert_eq!(proof.final_evals.len(), NUM_BITS);
+        assert_eq!(v_next.len(), NUM_BITS);
+        assert_eq!(v_curr.len(), NUM_BITS);
+        assert_eq!(rho_bit.dimension(), LOG_NUM_BITS);
+        assert!(num_real_cols >= 1);
+
+        let c = z.dimension();
+        let zero = SymbolicExt::<SP1Field, SP1ExtensionField>::zero();
+
+        // eq_rho[b] = eq(ρ_bit, b) — partial_lagrange table over the 5-dim ρ_bit.
+        let eq_rho_tensor = partial_lagrange_blocking(rho_bit);
+        let eq_rho: &[SymbolicExt<SP1Field, SP1ExtensionField>] =
+            eq_rho_tensor.as_buffer().as_slice();
+
+        // eq_at_boundary = eq(z, num_real_cols - 1).
+        let boundary_pt = int_as_ext_point(num_real_cols - 1, c);
+        let eq_at_boundary = Mle::full_lagrange_eval(&boundary_pt, z);
+
+        let alpha_sq = alpha * alpha;
+
+        // λ[b] = bit b (LSB-indexed) of max_prefix_sum, lifted from the bit-Felts.
+        // `max_prefix_sum_bits` is the MSB-first Point<Felt>; bit b lives at
+        // index `prefix_sum_dim - 1 - b`.  Bits b >= prefix_sum_dim are zero.
+        let prefix_sum_dim = max_prefix_sum_bits.dimension();
+        assert!(prefix_sum_dim <= NUM_BITS);
+        let lambda: Vec<SymbolicExt<SP1Field, SP1ExtensionField>> = (0..NUM_BITS)
+            .map(|b| {
+                if b < prefix_sum_dim {
+                    let felt = *max_prefix_sum_bits[prefix_sum_dim - 1 - b];
+                    SymbolicExt::<SP1Field, SP1ExtensionField>::Base(SymbolicFelt::from(felt))
+                } else {
+                    zero
+                }
+            })
+            .collect();
+
+        // Initial claim check.
+        let expected_initial_claim: SymbolicExt<SP1Field, SP1ExtensionField> = (0..NUM_BITS)
+            .map(|b| eq_rho[b] * (v_next[b] + alpha_sq * v_curr[b] - lambda[b] * eq_at_boundary))
+            .fold(zero, |acc, term| acc + term);
+        let claimed_sum_sym: SymbolicExt<SP1Field, SP1ExtensionField> =
+            proof.partial_sumcheck_proof.claimed_sum.into();
+        builder.assert_ext_eq(expected_initial_claim, claimed_sum_sym);
+
+        // Verify the inner sumcheck (degree 3 over c variables).
+        verify_sumcheck::<C, SC>(builder, challenger, &proof.partial_sumcheck_proof);
+
+        // Final consistency check at z_new = proof.point_and_eval.0.
+        let z_new_sym: Point<SymbolicExt<SP1Field, SP1ExtensionField>> =
+            <Point<Ext<SP1Field, SP1ExtensionField>> as IntoSymbolic<C>>::as_symbolic(
+                &proof.partial_sumcheck_proof.point_and_eval.0,
+            );
+
+        // inc_zn = IncBranchingProgram::new(c, num_real_cols).eval(z, z_new).
+        let inc_bp = IncBranchingProgram::new(c, num_real_cols);
+        let inc_zn = inc_bp.eval(z, &z_new_sym);
+
+        // eq_zn = eq(z, z_new).
+        let eq_zn = Mle::full_lagrange_eval(z, &z_new_sym);
+
+        let final_evals_sym: Vec<SymbolicExt<SP1Field, SP1ExtensionField>> =
+            proof.final_evals.iter().map(|x| (*x).into()).collect();
+
+        let eq_times_evals =
+            (0..NUM_BITS).map(|b| eq_rho[b] * final_evals_sym[b]).collect::<Vec<_>>();
+
+        let sum_p: SymbolicExt<SP1Field, SP1ExtensionField> = eq_times_evals.iter().copied().sum();
+        let sum_p_sq: SymbolicExt<SP1Field, SP1ExtensionField> =
+            eq_times_evals.iter().zip(final_evals_sym.iter()).map(|(a, b)| *a * *b).sum();
+
+        let aa_minus_a = alpha_sq - alpha;
+        let expected_final = (inc_zn + aa_minus_a * eq_zn) * sum_p + alpha * eq_zn * sum_p_sq;
+        let point_eval_sym: SymbolicExt<SP1Field, SP1ExtensionField> =
+            proof.partial_sumcheck_proof.point_and_eval.1.into();
+        builder.assert_ext_eq(expected_final, point_eval_sym);
+
+        // combined_point = z_new ⧺ ρ_bit; p_claim = sum_p.
+        let combined_point: Point<SymbolicExt<SP1Field, SP1ExtensionField>> =
+            z_new_sym.iter().copied().chain(rho_bit.iter().copied()).collect::<Vec<_>>().into();
+        (combined_point, sum_p)
+    }
+}
 
 pub struct RecursivePcsImpl<C, SC, P> {
     _marker: PhantomData<(C, SC, P)>,
@@ -31,6 +180,11 @@ pub struct JaggedPcsProofVariable<Proof, Digest> {
     pub params: JaggedLittlePolynomialVerifierParams<Felt<SP1Field>>,
     pub sumcheck_proof: PartialSumcheckProof<Ext<SP1Field, SP1ExtensionField>>,
     pub jagged_eval_proof: JaggedSumcheckEvalProof<Ext<SP1Field, SP1ExtensionField>>,
+    /// Booleanity-batched sumcheck — read so the witness shape matches the
+    /// host proof, but not yet verified by the recursive verifier (the
+    /// host-side verifier handles it; recursion will catch up in a follow-up).
+    pub boolean_batched_proof:
+        slop_jagged::BooleanityBatchedProof<Ext<SP1Field, SP1ExtensionField>>,
     pub pcs_proof: RecursiveStackedPcsProof<Proof, SP1Field, SP1ExtensionField>,
     pub column_counts: Vec<Vec<usize>>,
     pub row_counts: Vec<Vec<Felt<SP1Field>>>,
@@ -45,18 +199,25 @@ pub struct RecursiveJaggedPcsVerifier<SC: SP1FieldConfigVariable<C>, C: CircuitC
     pub jagged_evaluator: RecursiveJaggedEvalSumcheckConfig<SC>,
 }
 
+/// Per-round commitment data: the round digests + the cumulative column-count
+/// offsets that say where each round's "artificial" padding column lives in
+/// the flattened evaluation-claims vector.
+pub struct RoundCommitments<'a, D> {
+    pub commitments: &'a [D],
+    pub insertion_points: &'a [usize],
+}
+
 impl<SC: SP1FieldConfigVariable<C>, C: CircuitConfig> RecursiveJaggedPcsVerifier<SC, C> {
-    #[allow(clippy::too_many_arguments)]
     pub fn verify_trusted_evaluations(
         &self,
         builder: &mut Builder<C>,
-        commitments: &[SC::DigestVariable],
+        round_commits: RoundCommitments<'_, SC::DigestVariable>,
         point: Point<Ext<SP1Field, SP1ExtensionField>>,
         evaluation_claims: &[MleEval<Ext<SP1Field, SP1ExtensionField>>],
         proof: &JaggedPcsProofVariable<RecursiveBasefoldProof<C, SC>, SC::DigestVariable>,
-        insertion_points: &[usize],
         challenger: &mut SC::FriChallengerVariable,
     ) -> Vec<Felt<SP1Field>> {
+        let RoundCommitments { commitments, insertion_points } = round_commits;
         let JaggedPcsProofVariable {
             pcs_proof,
             sumcheck_proof,
@@ -131,9 +292,7 @@ impl<SC: SP1FieldConfigVariable<C>, C: CircuitConfig> RecursiveJaggedPcsVerifier
         let (jagged_eval, prefix_sum_felts) = self.jagged_evaluator.jagged_evaluation(
             builder,
             params,
-            z_row,
-            z_col,
-            sumcheck_proof.point_and_eval.0.clone(),
+            JaggedEvalPoints { z_row, z_col, z_trace: sumcheck_proof.point_and_eval.0.clone() },
             jagged_eval_proof,
             challenger,
         );
@@ -165,6 +324,85 @@ impl<SC: SP1FieldConfigVariable<C>, C: CircuitConfig> RecursiveJaggedPcsVerifier
 
         // Compute the expected evaluation of the dense trace polynomial.
         builder.assert_ext_eq(jagged_eval * *expected_eval, sumcheck_proof.point_and_eval.1);
+
+        // ----- Booleanity-batched sumcheck + inline aux MLE eval check. -----
+        //
+        // Mirrors CPU `slop_jagged::verifier::verify_trusted_evaluations`: the
+        // CPU samples (α, ρ_bit), runs `verify_boolean_batched` to reduce the
+        // 64 (curr+next) two-stage finals at η to a combined claim
+        // `p_claim` at `(z_new, ρ_bit)` on the `[NUM_BITS, 2^c]` curr-bit
+        // MLE, then verifies that `p_claim` matches the deterministic eval
+        // of that MLE — computed from the *public* `usize_prefix_sums`
+        // (already represented in `params.col_prefix_sums` as MSB-first
+        // bit-Felts).  No second_stream_data is sent; the verifier
+        // reconstructs the MLE inline.
+        builder.cycle_tracker_v2_enter("jagged - booleanity-batched verify");
+        let two_stage = &jagged_eval_proof.two_stage_proof;
+
+        let alpha_bb: SymbolicExt<SP1Field, SP1ExtensionField> =
+            challenger.sample_ext(builder).into();
+        let rho_bit: Point<SymbolicExt<SP1Field, SP1ExtensionField>> =
+            (0..LOG_NUM_BITS).map(|_| challenger.sample_ext(builder).into()).collect();
+
+        let max_prefix_sum_bits = params.col_prefix_sums.iter().last().unwrap().clone();
+        let num_real_cols = params.col_prefix_sums.len() - 1;
+        let (combined_point, p_claim) =
+            RecursiveBooleanityBatched::new(num_real_cols, &max_prefix_sum_bits)
+                .verify_in_circuit::<C, SC>(
+                    builder,
+                    challenger,
+                    &proof.boolean_batched_proof,
+                    two_stage,
+                    alpha_bb,
+                    &rho_bit,
+                );
+        builder.cycle_tracker_v2_exit();
+
+        // Inline aux MLE eval check.  The combined_point = z_new ⧺ ρ_bit.
+        // The deterministic curr-bit MLE eval at (z_new, ρ_bit) is
+        //   Σ_{col<num_real_cols} eq(z_new, col)
+        //     · Σ_{b<NUM_BITS} eq(ρ_bit, b) · bit_b(usize_prefix_sums[col])
+        // and `params.col_prefix_sums[col]` is the MSB-first bit-Felt
+        // decomposition we use to read those bits in-circuit.
+        builder.cycle_tracker_v2_enter("jagged - inline aux MLE eval check");
+        let c = num_real_cols.next_power_of_two().ilog2() as usize;
+        debug_assert_eq!(combined_point.dimension(), c + LOG_NUM_BITS);
+        let z_new_sym: Point<SymbolicExt<SP1Field, SP1ExtensionField>> =
+            combined_point.iter().take(c).copied().collect::<Vec<_>>().into();
+
+        // eq_z_new[col] = eq(z_new, col) — partial Lagrange table.
+        let eq_z_new_tensor = partial_lagrange_blocking(&z_new_sym);
+        let mut eq_z_new_reduced = Vec::with_capacity(eq_z_new_tensor.total_len());
+        for eq_elem in eq_z_new_tensor.as_buffer().as_slice() {
+            let eq_elem: Ext<_, _> = builder.eval(*eq_elem);
+            builder.reduce_e(eq_elem);
+            eq_z_new_reduced.push(eq_elem);
+        }
+
+        // eq_rho[b] = eq(ρ_bit, b).
+        let eq_rho_tensor = partial_lagrange_blocking(&rho_bit);
+        let mut eq_rho_reduced = Vec::with_capacity(eq_rho_tensor.total_len());
+        for eq_elem in eq_rho_tensor.as_buffer().as_slice() {
+            let eq_elem: Ext<_, _> = builder.eval(*eq_elem);
+            builder.reduce_e(eq_elem);
+            eq_rho_reduced.push(eq_elem);
+        }
+
+        let zero = SymbolicExt::<SP1Field, SP1ExtensionField>::zero();
+        let mut expected_p_claim = zero;
+        for (col, ps_bits) in params.col_prefix_sums.iter().enumerate().take(num_real_cols) {
+            let prefix_sum_dim = ps_bits.dimension();
+            let mut bit_contribution = zero;
+            for b in 0..NUM_BITS {
+                if b < prefix_sum_dim {
+                    let bit_felt = *ps_bits[prefix_sum_dim - 1 - b];
+                    bit_contribution += eq_rho_reduced[b] * SymbolicFelt::from(bit_felt);
+                }
+            }
+            expected_p_claim += eq_z_new_reduced[col] * bit_contribution;
+        }
+        builder.assert_ext_eq(expected_p_claim, p_claim);
+        builder.cycle_tracker_v2_exit();
 
         // Verify the evaluation proof.
         let evaluation_point = sumcheck_proof.point_and_eval.0.clone();
@@ -215,11 +453,10 @@ impl<'a, SC: SP1FieldConfigVariable<C>, C: CircuitConfig>
 
         self.jagged_pcs_verifier.verify_trusted_evaluations(
             builder,
-            commitments,
+            RoundCommitments { commitments, insertion_points: &insertion_points },
             point,
             evaluation_claims,
             proof,
-            &insertion_points,
             challenger,
         )
     }

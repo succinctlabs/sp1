@@ -1,19 +1,33 @@
 use serde::{Deserialize, Serialize};
 use slop_algebra::{ExtensionField, Field};
 use slop_challenger::FieldChallenger;
-use slop_multilinear::{Mle, Point};
+use slop_multilinear::{full_geq, Point};
 use slop_sumcheck::{partially_verify_sumcheck_proof, PartialSumcheckProof, SumcheckError};
 use std::{fmt::Debug, marker::PhantomData};
 use thiserror::Error;
 
 use crate::{
-    deinterleave_prefix_sums, interleave_prefix_sums, poly::BranchingProgram,
+    deinterleave_prefix_sums,
+    jagged_assist::{
+        geq::sum_z_first_n_via_geq,
+        two_stage_jagged::{lagrange_eval_at_zero_merged, zeta_padded, K1, K2},
+    },
+    poly::BranchingProgram,
+    two_stage_eq_product_verifier::{
+        verify_two_stage_eq_product, TwoStageEqError, TwoStageEqProductProof,
+    },
     JaggedLittlePolynomialVerifierParams,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JaggedSumcheckEvalProof<F> {
     pub partial_sumcheck_proof: PartialSumcheckProof<F>,
+    /// Two-stage-GKR proof that replaces the verifier's per-column
+    /// `full_lagrange_eval` loop. To check the claimed sum of the previous sumcheck proof,
+    /// the verifier would have to do the sum `sum_{i in cols} eq(z, i)eq(z', x[i])`, where
+    /// the `x[i]` are a vector of `NUM_BITS*2` bits. The two-stage proof delegates this computation
+    /// to the prover via a two-layer, high-fan-in GKR proof.
+    pub two_stage_proof: TwoStageEqProductProof<F>,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -29,12 +43,19 @@ pub enum JaggedEvalSumcheckError<F: Field> {
     IncorrectShape,
     #[error("jagged evaluation does not match the claimed sumcheck sum")]
     IncorrectEvaluation,
+    #[error("jagged 'remainder' two-stage proof verification failed")]
+    TwoStageProofVerificationFailed(#[from] TwoStageEqError<F>),
 }
 
 impl<F> JaggedEvalSumcheckConfig<F>
 where
     F: Field,
 {
+    /// Verifies the jagged evaluation proof against the given parameters.
+    ///
+    /// Returns: the evaluation of the "full" jagged polynomial at the given point, the new random
+    /// point at which which the current/next prefix sum Mles are evaluated, and the claimed values
+    /// of the prefix sum Mles.
     pub fn jagged_evaluation<EF: ExtensionField<F>, Challenger: FieldChallenger<F>>(
         params: &JaggedLittlePolynomialVerifierParams<F>,
         z_row: &Point<EF>,
@@ -42,27 +63,21 @@ where
         z_trace: &Point<EF>,
         proof: &JaggedSumcheckEvalProof<EF>,
         challenger: &mut Challenger,
-    ) -> Result<EF, JaggedEvalSumcheckError<EF>> {
-        let JaggedSumcheckEvalProof { partial_sumcheck_proof } = proof;
-        // Calculate the partial lagrange from z_col point.
-        let z_col_partial_lagrange = Mle::blocking_partial_lagrange(z_col);
-        let z_col_partial_lagrange = z_col_partial_lagrange.guts().as_slice();
-
-        let jagged_eval = partial_sumcheck_proof.claimed_sum;
-
-        challenger.observe_ext_element(jagged_eval);
-
-        // Check the evaluation is the claimed sum of the sumcheck.
-        if jagged_eval != partial_sumcheck_proof.claimed_sum {
-            return Err(JaggedEvalSumcheckError::IncorrectEvaluation);
-        }
+    ) -> Result<(EF, Point<EF>, Vec<EF>), JaggedEvalSumcheckError<EF>> {
+        let JaggedSumcheckEvalProof { partial_sumcheck_proof, two_stage_proof } = proof;
 
         // Check that the `col_prefix_sums` is non-empty.
         if params.col_prefix_sums.is_empty() {
             return Err(JaggedEvalSumcheckError::IncorrectShape);
         }
 
-        // Verify the jagged eval proof.
+        // Sample alpha (combines the assist and geq claims), then observe the
+        // fused claimed_sum — mirrors the prover's order so both FS states agree.
+        let alpha: EF = challenger.sample_ext_element();
+        let fused_claim = partial_sumcheck_proof.claimed_sum;
+        challenger.observe_ext_element(fused_claim);
+
+        // Verify the inner (assist + α · geq) sumcheck.
         let result = partially_verify_sumcheck_proof(
             partial_sumcheck_proof,
             challenger,
@@ -74,63 +89,56 @@ where
             return Err(JaggedEvalSumcheckError::SumcheckError(result));
         }
 
-        if params.col_prefix_sums.len() - 1 > z_col_partial_lagrange.len() {
-            return Err(JaggedEvalSumcheckError::IncorrectShape);
-        }
+        // Recover the assist part from the fused claim.
+        let num_real_pairs = params.col_prefix_sums.len() - 1;
+        let sum_z_first_n: EF = sum_z_first_n_via_geq::<F, EF>(num_real_pairs, z_col);
+        let jagged_eval = fused_claim - alpha * sum_z_first_n;
 
-        // Compute the jagged eval sc expected eval and assert it matches the proof's eval.
-        let current_column_prefix_sums = params.col_prefix_sums.iter();
-        let next_column_prefix_sums = params.col_prefix_sums.iter().skip(1);
-        let mut is_first_column = true;
-        let mut prev_merged_prefix_sum = Point::<F>::default();
-        let mut prev_full_lagrange_eval = EF::zero();
-        let mut jagged_eval_sc_expected_eval = current_column_prefix_sums
-            .zip(next_column_prefix_sums)
-            .zip(z_col_partial_lagrange.iter())
-            .try_fold(
-                EF::zero(),
-                |acc, ((current_column_prefix_sum, next_column_prefix_sum), z_col_eq_val)| {
-                    if current_column_prefix_sum.dimension() != next_column_prefix_sum.dimension() {
-                        return Err(JaggedEvalSumcheckError::IncorrectShape);
-                    }
+        // The inner sumcheck's claim about `Σ_col z_col_eq[col] · L(merged[col], ζ_sumcheck) · BP.eval`
+        // lives in `partial_sumcheck_proof.point_and_eval.1`. We split it as
+        //
+        //   point_and_eval.1 = real_sum · BP.eval(curr, next),
+        //
+        // and replace the old per-col loop that computed `real_sum` directly
+        // with a two-stage-GKR verification: prover claims `full_hypercube_sum
+        // = real_sum + L(0, ζ_sumcheck) · (1 − sum_z_first_n)`, we verify the
+        // two-stage transcripts + K final bit-MLE evals, then recover
+        // `real_sum` by subtracting the closed-form padded term.
+        let zeta_sumcheck: Vec<EF> =
+            partial_sumcheck_proof.point_and_eval.0.iter().copied().collect();
+        let log_num_cols = z_col.dimension();
 
-                    // The assert in this function call is never triggered, since the two points are checked
-                    // above to have the same dimension.
-                    let merged_prefix_sum =
-                        interleave_prefix_sums(current_column_prefix_sum, next_column_prefix_sum);
+        // ----- Two-stage GKR verification. -----
+        // Verifies both transcripts, the stage-1→stage-2 claim transition, and the stage-2
+        // eval claim re-derivation from the K announced p_k(η)'s, returning the verified
+        // `stage1.claimed_sum`, as well as the η and the announced p_k(η)'s on success.
+        let z_padded = zeta_padded(&zeta_sumcheck);
 
-                    if merged_prefix_sum.dimension()
-                        != partial_sumcheck_proof.point_and_eval.0.dimension()
-                    {
-                        return Err(JaggedEvalSumcheckError::IncorrectShape);
-                    }
+        let (stage1_claimed_sum, eta, final_evals) = verify_two_stage_eq_product::<F, EF, _>(
+            two_stage_proof,
+            z_col,
+            &z_padded,
+            K1,
+            K2,
+            log_num_cols,
+            challenger,
+        )?;
 
-                    let full_lagrange_eval =
-                        if prev_merged_prefix_sum == merged_prefix_sum && !is_first_column {
-                            prev_full_lagrange_eval
-                        } else {
-                            let full_lagrange_eval = Mle::full_lagrange_eval(
-                                &merged_prefix_sum,
-                                &partial_sumcheck_proof.point_and_eval.0,
-                            );
-                            prev_full_lagrange_eval = full_lagrange_eval;
-                            full_lagrange_eval
-                        };
+        // Recover `real_sum` by subtracting the closed-form padded contribution.
+        let l_zero = lagrange_eval_at_zero_merged(&zeta_sumcheck);
+        let padded_contribution = l_zero * (EF::one() - sum_z_first_n);
+        let real_sum = stage1_claimed_sum - padded_contribution;
 
-                    prev_merged_prefix_sum = merged_prefix_sum;
-                    is_first_column = false;
-
-                    Ok(acc + *z_col_eq_val * full_lagrange_eval)
-                },
-            )?;
-
-        let branching_program = BranchingProgram::new(z_row.clone(), z_trace.clone());
+        let assist_bp = BranchingProgram::new(z_row.clone(), z_trace.clone());
 
         // The assert that occurs in `deinterleav_prefix_sums` is guaranteed not to trigger because
         // the shape check has already checked that the dimension of this point is equal to `merged_prefix_sum.dimension()`
         // which is constructed as the interleaving of two points of the same dimension.
         let (curr, next) = deinterleave_prefix_sums(&partial_sumcheck_proof.point_and_eval.0);
-        jagged_eval_sc_expected_eval *= branching_program.eval(&curr, &next);
+        let assist_eval = assist_bp.eval(&curr, &next);
+        let mut jagged_eval_sc_expected_eval = real_sum;
+        let geq_eval = full_geq(&curr, &next);
+        jagged_eval_sc_expected_eval *= assist_eval + alpha * geq_eval;
 
         if jagged_eval_sc_expected_eval != partial_sumcheck_proof.point_and_eval.1 {
             Err(JaggedEvalSumcheckError::JaggedEvaluationFailed(
@@ -138,7 +146,7 @@ where
                 partial_sumcheck_proof.point_and_eval.1,
             ))
         } else {
-            Ok(jagged_eval)
+            Ok((jagged_eval, eta, final_evals))
         }
     }
 }

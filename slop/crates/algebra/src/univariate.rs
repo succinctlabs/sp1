@@ -16,6 +16,17 @@ impl<K: Field> UnivariatePolynomial<K> {
         result.extend(&self.coefficients[..]);
         Self::new(result)
     }
+
+    /// Pad the coefficient vector to at least `len` entries with `K::zero()`.
+    /// Useful when downstream consumers (e.g. sumcheck verifiers) expect a
+    /// fixed coefficient-vector length irrespective of the polynomial's
+    /// actual degree.
+    pub fn pad_to(mut self, len: usize) -> Self {
+        if self.coefficients.len() < len {
+            self.coefficients.resize(len, K::zero());
+        }
+        self
+    }
 }
 
 /// Basic univariate polynomial operations.
@@ -76,6 +87,24 @@ impl<K: Field> Add for UnivariatePolynomial<K> {
                 + *rhs.coefficients.get(i).unwrap_or(&K::zero());
         }
         UnivariatePolynomial::new(new_coeffs)
+    }
+}
+
+/// Product of two univariate polynomials (school-book multiplication).
+impl<K: Field> Mul<UnivariatePolynomial<K>> for UnivariatePolynomial<K> {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        if self.coefficients.is_empty() || rhs.coefficients.is_empty() {
+            return Self::new(vec![]);
+        }
+        let mut coeffs = vec![K::zero(); self.coefficients.len() + rhs.coefficients.len() - 1];
+        for (i, a) in self.coefficients.iter().enumerate() {
+            for (j, b) in rhs.coefficients.iter().enumerate() {
+                coeffs[i + j] += *a * *b;
+            }
+        }
+        UnivariatePolynomial::new(coeffs)
     }
 }
 

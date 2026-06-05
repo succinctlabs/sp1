@@ -101,18 +101,33 @@ __global__ void partial_lagrange_eval_step(
     }
 }
 
+// Compute `partial_lagrange` for one or more points in a single launch.
+//
+// Layout: `point` is a contiguous `num_points * total_num_variables` array
+// (point `p` lives at `point + p * total_num_variables`); `output` is a
+// contiguous `num_points * (1 << total_num_variables)` array with point `p`'s
+// eq-table at offset `p * (1 << total_num_variables)`.
+//
+// The grid is 2D — `blockIdx.y` selects the point, `blockIdx.x` / `threadIdx.x`
+// stride over the `1 << total_num_variables` index space.  For `num_points=1`
+// (the common case) the y-grid is just 1 and per-thread work is identical to
+// the original single-point kernel.
 template <typename F, typename EF>
-__global__ void
-partial_lagrange_naive(EF* __restrict__ output, EF* point, size_t total_num_variables) {
+__global__ void partial_lagrange_naive(
+    EF* __restrict__ output, EF* point, size_t total_num_variables, size_t num_points
+) {
+    size_t point_idx = blockIdx.y;
+    EF* p = point + point_idx * total_num_variables;
+    EF* out = output + point_idx * (1ULL << total_num_variables);
     for (size_t i = blockDim.x * blockIdx.x + threadIdx.x; i < (1 << total_num_variables);
          i += blockDim.x * gridDim.x) {
         EF value = EF::one();
         for (size_t k = 0; k < total_num_variables; k++) {
             bool bit = ((i >> (total_num_variables - 1 - k)) & 1) != 0;
-            EF z = EF::load(point, k);
+            EF z = EF::load(p, k);
             value *= bit ? z : (EF::one() - z);
         }
-        EF::store(output, i, value);
+        EF::store(out, i, value);
     }
 }
 

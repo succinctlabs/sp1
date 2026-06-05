@@ -1,6 +1,6 @@
 use std::{
     mem::ManuallyDrop,
-    ops::{Add, Deref, DerefMut},
+    ops::{Add, Deref, DerefMut, Mul, Sub},
 };
 
 use rayon::prelude::*;
@@ -311,8 +311,8 @@ impl<T> Mle<T, CpuBackend> {
     /// sumcheck.
     pub fn full_lagrange_eval<EF>(point_1: &Point<T>, point_2: &Point<EF>) -> EF
     where
-        T: AbstractField,
-        EF: AbstractExtensionField<T>,
+        T: Clone,
+        EF: AbstractField + Sub<T, Output = EF> + Mul<T, Output = EF>,
     {
         assert_eq!(point_1.dimension(), point_2.dimension());
 

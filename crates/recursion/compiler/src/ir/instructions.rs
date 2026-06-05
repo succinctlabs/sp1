@@ -249,18 +249,6 @@ pub enum DslIr<C: Config> {
         )>,
     ),
 
-    /// Executes full lagrange eval as well as computes field element that corresponds to input bit
-    /// representation.
-    CircuitV2PrefixSumChecks(
-        Box<(
-            Felt<SP1Field>,
-            Ext<SP1Field, SP1ExtensionField>,
-            Vec<Ext<SP1Field, SP1ExtensionField>>,
-            Vec<Felt<SP1Field>>,
-            Vec<Felt<SP1Field>>,
-            Vec<Ext<SP1Field, SP1ExtensionField>>,
-        )>,
-    ),
     /// Select's a variable based on a condition. (select(cond, true_val, false_val) => output).
     /// Should only be used when target is a gnark circuit.
     CircuitSelectV(Var<C::N>, Var<C::N>, Var<C::N>, Var<C::N>),

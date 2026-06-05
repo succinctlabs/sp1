@@ -74,12 +74,50 @@ impl<F: DeviceCopy + Field> DevicePoint<F> {
         unsafe {
             eq.assume_init();
             let block_dim = 256;
-            let grid_dim = ((1 << dimension) as u32).div_ceil(block_dim);
-            let args = args!(eq.as_mut_ptr(), self.as_ptr(), dimension);
+            let grid_dim_x = ((1 << dimension) as u32).div_ceil(block_dim);
+            let num_points: usize = 1;
+            let args = args!(eq.as_mut_ptr(), self.as_ptr(), dimension, num_points);
             self.backend()
                 .launch_kernel(
                     <TaskScope as PartialLagrangeKernel<F>>::partial_lagrange_kernel(),
-                    grid_dim,
+                    (grid_dim_x, 1, 1),
+                    block_dim,
+                    &args,
+                    0,
+                )
+                .unwrap();
+        }
+        DeviceMle::new(eq)
+    }
+
+    /// Computes partial Lagrange tables for `num_points` points in a single
+    /// kernel launch.
+    ///
+    /// `self` is the concatenation of `num_points` points, each of dimension
+    /// `point_dim` (so `self.dimension() == num_points * point_dim`).
+    /// Returns a `DeviceMle<F>` of shape `[num_points, 2^point_dim]`: row
+    /// `p` is the partial Lagrange table for point `p`.
+    pub fn partial_lagrange_batched(&self, point_dim: usize, num_points: usize) -> DeviceMle<F>
+    where
+        TaskScope: PartialLagrangeKernel<F>,
+    {
+        assert_eq!(
+            self.dimension(),
+            num_points * point_dim,
+            "concatenated point dimension does not match num_points * point_dim",
+        );
+        let num_elements = 1usize << point_dim;
+        let mut eq =
+            DeviceTensor::with_sizes_in([num_points, num_elements], self.backend().clone());
+        unsafe {
+            eq.assume_init();
+            let block_dim: u32 = 256;
+            let grid_dim_x = (num_elements as u32).div_ceil(block_dim);
+            let args = args!(eq.as_mut_ptr(), self.as_ptr(), point_dim, num_points);
+            self.backend()
+                .launch_kernel(
+                    <TaskScope as PartialLagrangeKernel<F>>::partial_lagrange_kernel(),
+                    (grid_dim_x, num_points as u32, 1),
                     block_dim,
                     &args,
                     0,

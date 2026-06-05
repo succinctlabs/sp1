@@ -419,36 +419,6 @@ where
         }))
     }
 
-    fn prefix_sum_checks(
-        &mut self,
-        zero: Felt<SP1Field>,
-        one: Ext<SP1Field, SP1ExtensionField>,
-        accs: Vec<Ext<SP1Field, SP1ExtensionField>>,
-        field_accs: Vec<Felt<SP1Field>>,
-        x1: Vec<Felt<SP1Field>>,
-        x2: Vec<Ext<SP1Field, SP1ExtensionField>>,
-    ) -> Instruction<SP1Field> {
-        // First, write to the addresses in `accs`.
-        let acc_write_addrs: Vec<_> = accs.clone().into_iter().map(|r| r.write(self)).collect();
-        let field_acc_write_addrs = field_accs.clone().into_iter().map(|r| r.write(self)).collect();
-        // Then, read from the addresses in `accs`.
-        let _: Vec<_> = accs.iter().take(accs.len() - 1).map(|r| r.read(self)).collect();
-        let _: Vec<_> =
-            field_accs.iter().take(field_accs.len() - 1).map(|r| r.read(self)).collect();
-        Instruction::PrefixSumChecks(Box::new(PrefixSumChecksInstr {
-            addrs: PrefixSumChecksIo {
-                zero: zero.read(self),
-                one: one.read(self),
-                x1: x1.into_iter().map(|r| r.read(self)).collect(),
-                x2: x2.into_iter().map(|r| r.read(self)).collect(),
-                accs: acc_write_addrs,
-                field_accs: field_acc_write_addrs,
-            },
-            acc_mults: vec![SP1Field::zero(); accs.len()],
-            field_acc_mults: vec![SP1Field::zero(); field_accs.len()],
-        }))
-    }
-
     fn commit_public_values(
         &mut self,
         public_values: &RecursionPublicValues<Felt<SP1Field>>,
@@ -598,9 +568,6 @@ where
             }
             DslIr::CircuitV2HintBitsF(output, value) => {
                 f(self.hint_bit_decomposition(value, output))
-            }
-            DslIr::CircuitV2PrefixSumChecks(data) => {
-                f(self.prefix_sum_checks(data.0, data.1, data.2, data.3, data.4, data.5))
             }
             DslIr::CircuitV2CommitPublicValues(public_values) => {
                 f(self.commit_public_values(&public_values))
@@ -762,18 +729,6 @@ where
                 | Instruction::Hint(HintInstr { output_addrs_mults, .. }) => {
                     output_addrs_mults.iter_mut().for_each(|(addr, mult)| backfill((mult, addr)));
                 }
-                Instruction::PrefixSumChecks(instr) => {
-                    let PrefixSumChecksInstr {
-                        addrs: PrefixSumChecksIo { accs, field_accs, .. },
-                        acc_mults,
-                        field_acc_mults,
-                    } = instr.as_mut();
-                    acc_mults.iter_mut().zip(accs).for_each(|(mult, addr)| backfill((mult, addr)));
-                    field_acc_mults
-                        .iter_mut()
-                        .zip(field_accs)
-                        .for_each(|(mult, addr)| backfill((mult, addr)));
-                }
                 Instruction::HintExt2Felts(HintExt2FeltsInstr { output_addrs_mults, .. }) => {
                     output_addrs_mults.iter_mut().for_each(|(addr, mult)| backfill((mult, addr)));
                 }
@@ -880,7 +835,6 @@ const fn instr_name<F>(instr: &Instruction<F>) -> &'static str {
         Instruction::Poseidon2SBox(_) => "Poseidon2SBox",
         Instruction::Select(_) => "Select",
         Instruction::HintBits(_) => "HintBits",
-        Instruction::PrefixSumChecks(_) => "PrefixSumChecks",
         Instruction::Print(_) => "Print",
         Instruction::HintExt2Felts(_) => "HintExt2Felts",
         Instruction::Hint(_) => "Hint",

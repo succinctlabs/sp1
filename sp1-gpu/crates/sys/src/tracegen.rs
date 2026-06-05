@@ -11,7 +11,6 @@ extern "C" {
     pub fn recursion_poseidon2_wide_generate_trace_koala_bear_kernel() -> KernelPtr;
     pub fn recursion_select_generate_preprocessed_trace_koala_bear_kernel() -> KernelPtr;
     pub fn recursion_select_generate_trace_koala_bear_kernel() -> KernelPtr;
-    pub fn recursion_prefix_sum_checks_generate_trace_koala_bear_kernel() -> KernelPtr;
     pub fn recursion_convert_generate_preprocessed_trace_koala_bear_kernel() -> KernelPtr;
     pub fn recursion_convert_generate_trace_koala_bear_kernel() -> KernelPtr;
     pub fn recursion_linear_layer_generate_preprocessed_trace_koala_bear_kernel() -> KernelPtr;

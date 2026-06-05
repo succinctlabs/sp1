@@ -54,5 +54,17 @@ harness = false
 name = "hadamard"
 harness = false
 
+[[bench]]
+name = "product"
+harness = false
+
+[[bench]]
+name = "eq_product"
+harness = false
+
+[[bench]]
+name = "two_stage_eq_product"
+harness = false
+
 [lints]
 workspace = true

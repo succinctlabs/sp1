@@ -14,7 +14,6 @@ use crate::chips::{
         sbox::{Poseidon2SBoxChip, NUM_SBOX_ENTRIES_PER_ROW},
     },
     poseidon2_wide::Poseidon2WideChip,
-    prefix_sum_checks::PrefixSumChecksChip,
     public_values::{PublicValuesChip, PUB_VALUES_LOG_HEIGHT},
     select::SelectChip,
 };
@@ -41,7 +40,6 @@ pub enum RecursionAir<
     Poseidon2SBox(Poseidon2SBoxChip),
     ExtFeltConvert(ConvertChip),
     Select(SelectChip),
-    PrefixSumChecks(PrefixSumChecksChip),
     PublicValues(PublicValuesChip),
 }
 
@@ -73,7 +71,6 @@ impl<
             RecursionAir::Poseidon2LinearLayer(Poseidon2LinearLayerChip),
             RecursionAir::Poseidon2SBox(Poseidon2SBoxChip),
             RecursionAir::ExtFeltConvert(ConvertChip),
-            RecursionAir::PrefixSumChecks(PrefixSumChecksChip),
             RecursionAir::Select(SelectChip),
             RecursionAir::PublicValues(PublicValuesChip),
         ]
@@ -93,7 +90,6 @@ impl<
             RecursionAir::BaseAlu(BaseAluChip),
             RecursionAir::ExtAlu(ExtAluChip),
             RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>),
-            RecursionAir::PrefixSumChecks(PrefixSumChecksChip),
             RecursionAir::Select(SelectChip),
             RecursionAir::PublicValues(PublicValuesChip),
         ]
@@ -167,7 +163,6 @@ impl<
                 Self::ExtFeltConvert(ConvertChip),
                 heights.ext_felt_conversion_events.div_ceil(NUM_CONVERT_ENTRIES_PER_ROW),
             ),
-            (Self::PrefixSumChecks(PrefixSumChecksChip), heights.prefix_sum_checks_events),
             (Self::Select(SelectChip), heights.select_events),
             (Self::PublicValues(PublicValuesChip), 1 << PUB_VALUES_LOG_HEIGHT),
         ]

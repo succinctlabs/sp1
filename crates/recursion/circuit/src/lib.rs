@@ -3,7 +3,6 @@ use challenger::{
     MultiField32ChallengerVariable,
 };
 use hash::{FieldHasherVariable, Poseidon2SP1FieldHasherVariable};
-use itertools::izip;
 use slop_algebra::{AbstractExtensionField, AbstractField, PrimeField32};
 use slop_bn254::Bn254Fr;
 use slop_challenger::IopCtx;
@@ -14,7 +13,7 @@ use sp1_hypercube::operations::poseidon2::{NUM_EXTERNAL_ROUNDS, NUM_INTERNAL_ROU
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
     config::{InnerConfig, OuterConfig},
-    ir::{Builder, Config, DslIr, Ext, Felt, SymbolicExt, SymbolicFelt, Var, Variable},
+    ir::{Builder, Config, DslIr, Ext, Felt, SymbolicFelt, Var, Variable},
 };
 use sp1_recursion_executor::{RecursionPublicValues, DIGEST_SIZE, NUM_BITS, PERMUTATION_WIDTH};
 use std::iter::{repeat, zip};
@@ -86,13 +85,6 @@ pub trait CircuitConfig: Config {
         input: Felt<SP1Field>,
         power_bits: Vec<Self::Bit>,
     ) -> Felt<SP1Field>;
-
-    #[allow(clippy::type_complexity)]
-    fn prefix_sum_checks(
-        builder: &mut Builder<Self>,
-        x1: Vec<Felt<SP1Field>>,
-        x2: Vec<Ext<SP1Field, SP1ExtensionField>>,
-    ) -> (Ext<SP1Field, SP1ExtensionField>, Felt<SP1Field>);
 
     fn num2bits(
         builder: &mut Builder<Self>,
@@ -208,14 +200,6 @@ impl CircuitConfig for InnerConfig {
             power_f = builder.eval(power_f * power_f);
         }
         result
-    }
-
-    fn prefix_sum_checks(
-        builder: &mut Builder<Self>,
-        x1: Vec<Felt<SP1Field>>,
-        x2: Vec<Ext<SP1Field, SP1ExtensionField>>,
-    ) -> (Ext<SP1Field, SP1ExtensionField>, Felt<SP1Field>) {
-        builder.prefix_sum_checks_v2(x1, x2)
     }
 
     fn num2bits(
@@ -368,31 +352,6 @@ impl CircuitConfig for WrapConfig {
             power_f = builder.eval(power_f * power_f);
         }
         result
-    }
-
-    fn prefix_sum_checks(
-        builder: &mut Builder<Self>,
-        point_1: Vec<Felt<SP1Field>>,
-        point_2: Vec<Ext<SP1Field, SP1ExtensionField>>,
-    ) -> (Ext<SP1Field, SP1ExtensionField>, Felt<SP1Field>) {
-        let mut acc: Ext<_, _> = builder.uninit();
-        builder.push_op(DslIr::ImmE(acc, SP1ExtensionField::one()));
-        let mut acc_felt: Felt<_> = builder.uninit();
-        builder.push_op(DslIr::ImmF(acc_felt, SP1Field::zero()));
-        let one: Felt<_> = builder.constant(SP1Field::one());
-        for (i, (x1, x2)) in izip!(point_1.clone(), point_2).enumerate() {
-            let prod = builder.uninit();
-            builder.push_op(DslIr::MulEF(prod, x2, x1));
-            let lagrange_term: Ext<_, _> = builder.eval(SymbolicExt::one() - x1 - x2 + prod + prod);
-            // Check that x1 is boolean.
-            builder.assert_felt_eq(x1 * (x1 - one), SymbolicFelt::zero());
-            acc = builder.eval(acc * lagrange_term);
-            // Only need felt of first half of point_1 (current prefix sum).
-            if i < point_1.len() / 2 {
-                acc_felt = builder.eval(x1 + acc_felt * SymbolicFelt::from_canonical_u32(2));
-            }
-        }
-        (acc, acc_felt)
     }
 
     fn num2bits(
@@ -633,25 +592,6 @@ impl CircuitConfig for OuterConfig {
             builder.assign(power_f, power_f * power_f);
         }
         result
-    }
-
-    fn prefix_sum_checks(
-        builder: &mut Builder<Self>,
-        point_1: Vec<Felt<SP1Field>>,
-        point_2: Vec<Ext<SP1Field, SP1ExtensionField>>,
-    ) -> (Ext<SP1Field, SP1ExtensionField>, Felt<SP1Field>) {
-        let acc: Ext<_, _> = builder.uninit();
-        builder.push_op(DslIr::ImmE(acc, SP1ExtensionField::one()));
-        let mut acc_felt: Felt<_> = builder.uninit();
-        builder.push_op(DslIr::ImmF(acc_felt, SP1Field::zero()));
-        for (i, (x1, x2)) in izip!(point_1.clone(), point_2).enumerate() {
-            builder.push_op(DslIr::EqEval(x1, x2, acc));
-            // Only need felt of first half of point_1 (current prefix sum).
-            if i < point_1.len() / 2 {
-                acc_felt = builder.eval(x1 + acc_felt * SymbolicFelt::from_canonical_u32(2));
-            }
-        }
-        (acc, acc_felt)
     }
 
     fn num2bits(

@@ -76,9 +76,6 @@ impl<F> RawProgram<Instruction<F>> {
                                     output_addrs_mults,
                                     input_addr: _, // No receive interaction for the hint operation
                                 }) => incr(&mut counts.mem_var_events, output_addrs_mults.len()),
-                                Instruction::PrefixSumChecks(instr) => {
-                                    incr(&mut counts.prefix_sum_checks_events, instr.addrs.x1.len())
-                                }
                                 Instruction::HintAddCurve(instr) => incr(
                                     &mut counts.mem_var_events,
                                     instr.output_x_addrs_mults.len()
