@@ -889,18 +889,19 @@ impl NetworkProver {
                         } else {
                             Address::from_slice(&auction_params.treasury)
                         };
-                        // Skip the market RPC when there's an explicit override.
                         let max_price_per_pgu_value = if let Some(v) = max_price_per_pgu {
                             v
                         } else {
-                            let market = self.client.get_market_price_per_pgu().await;
-                            let buffer_pct = max_price_buffer_pct
-                                .unwrap_or(DEFAULT_MAX_PRICE_BUFFER_PCT);
-                            default_max_price_per_pgu(
-                                market,
-                                buffer_pct,
-                                &auction_params.max_price_per_pgu,
-                            )?
+                            let base = auction_params.max_price_per_pgu.parse::<u64>().map_err(
+                                |e| {
+                                    anyhow::anyhow!(
+                                        "invalid max_price_per_pgu {:?}: {e}",
+                                        auction_params.max_price_per_pgu
+                                    )
+                                },
+                            )?;
+                            let pct = max_price_buffer_pct.unwrap_or(DEFAULT_MAX_PRICE_BUFFER_PCT);
+                            buffer_max_price_per_pgu(base, pct)
                         };
                         let base_fee = auction_params
                             .base_fee
@@ -943,88 +944,38 @@ impl From<SP1ProofMode> for ProofMode {
     }
 }
 
-/// Compute the default `max_price_per_pgu` when the caller didn't set one. Applies the
-/// `buffer_pct` buffer to the freshly-fetched market price; on RPC error (including
-/// `Unimplemented` from older deploys) or when the buffered value overflows `u64`, falls
-/// back to `server_default`.
-fn default_max_price_per_pgu(
-    market: Result<crate::network::MarketPrice>,
-    buffer_pct: u64,
-    server_default: &str,
-) -> Result<u64> {
-    match market {
-        Ok(m) => {
-            let buffered = m.wei.saturating_mul(u128::from(buffer_pct)) / 100;
-            if let Ok(v) = u64::try_from(buffered) {
-                Ok(v)
-            } else {
-                tracing::warn!(
-                    buffered,
-                    "buffered market_price_per_pgu overflows u64; using server-supplied default"
-                );
-                parse_server_default(server_default)
-            }
-        }
-        Err(err) => {
-            // `Unimplemented` is the expected signal from older deploys; anything else
-            // suggests misconfiguration the operator should see.
-            let unimplemented = err
-                .chain()
-                .filter_map(|e| e.downcast_ref::<tonic::Status>())
-                .any(|s| s.code() == tonic::Code::Unimplemented);
-            if unimplemented {
-                tracing::debug!(
-                    ?err,
-                    "GetMarketPricePerPgu unimplemented; using server-supplied default"
-                );
-            } else {
-                tracing::warn!(?err, "GetMarketPricePerPgu failed; using server-supplied default");
-            }
-            parse_server_default(server_default)
-        }
-    }
-}
-
-fn parse_server_default(server_default: &str) -> Result<u64> {
-    server_default
-        .parse::<u64>()
-        .map_err(|e| anyhow::anyhow!("invalid max_price_per_pgu {server_default:?}: {e}"))
+/// Apply a percentage buffer to the server-supplied `max_price_per_pgu` default. If the
+/// buffered value overflows `u64`, log and return `base` unchanged.
+fn buffer_max_price_per_pgu(base: u64, buffer_pct: u64) -> u64 {
+    let buffered = u128::from(base).saturating_mul(u128::from(buffer_pct)) / 100;
+    u64::try_from(buffered).unwrap_or_else(|_| {
+        tracing::warn!(
+            buffered,
+            "buffered max_price_per_pgu overflows u64; using server-supplied default"
+        );
+        base
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::network::MarketPrice;
-
-    fn market(wei: u128) -> MarketPrice {
-        MarketPrice { wei, as_of: 0 }
-    }
 
     #[test]
-    fn buffer_applied_to_market() {
-        // 1000 wei * 120 / 100 = 1200.
-        let got = default_max_price_per_pgu(Ok(market(1000)), 120, "0").unwrap();
-        assert_eq!(got, 1200);
+    fn buffer_applied_to_base() {
+        // 1000 * 120 / 100 = 1200.
+        assert_eq!(buffer_max_price_per_pgu(1000, 120), 1200);
     }
 
     #[test]
     fn custom_buffer_pct_applied() {
         // Caller can override the buffer; 1000 * 150 / 100 = 1500.
-        let got = default_max_price_per_pgu(Ok(market(1000)), 150, "0").unwrap();
-        assert_eq!(got, 1500);
+        assert_eq!(buffer_max_price_per_pgu(1000, 150), 1500);
     }
 
     #[test]
-    fn unimplemented_falls_back_to_server_default() {
-        let status = tonic::Status::new(tonic::Code::Unimplemented, "old deploy");
-        let got = default_max_price_per_pgu(Err(status.into()), 120, "500").unwrap();
-        assert_eq!(got, 500);
-    }
-
-    #[test]
-    fn overflow_falls_back_to_server_default() {
-        // u128::MAX * 120 saturates to u128::MAX; /100 is still well beyond u64::MAX.
-        let got = default_max_price_per_pgu(Ok(market(u128::MAX)), 120, "750").unwrap();
-        assert_eq!(got, 750);
+    fn overflow_returns_base() {
+        // u64::MAX * u64::MAX saturates to u128::MAX; /100 is well beyond u64::MAX.
+        assert_eq!(buffer_max_price_per_pgu(u64::MAX, u64::MAX), u64::MAX);
     }
 }
