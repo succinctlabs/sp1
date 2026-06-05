@@ -196,9 +196,23 @@ impl WorkerClient for LocalWorkerClient {
             .await
             .remove(&proof_id)
             .ok_or_else(|| anyhow::anyhow!("proof does not exist for id {proof_id}"))?;
-        // Prune the db for all tasks that are related to this proof and clean them up.
-        for task_id in tasks {
-            self.inner.db.write().await.remove(&task_id);
+        // Prune the db and any message channels for the proof's tasks. Two
+        // short critical sections rather than one holding both writer locks
+        // (avoids nesting and keeps each scope's hold time bounded by
+        // hashmap removes, not the loop body). `update_task_status` removes
+        // a task's channel when it reaches a terminal status; doing it here
+        // too covers tasks that never did (e.g. an error mid-proof).
+        {
+            let mut db = self.inner.db.write().await;
+            for task_id in &tasks {
+                db.remove(task_id);
+            }
+        }
+        {
+            let mut channels = self.inner.task_channels.write().await;
+            for task_id in &tasks {
+                channels.remove(task_id);
+            }
         }
         Ok(())
     }
@@ -365,7 +379,7 @@ mod tests {
                 artifacts.upload_raw(a, ArtifactType::Program, vec![0u8; 1024]).await.unwrap();
             }
 
-            client
+            let task_id = client
                 .submit_task(
                     TaskType::Controller,
                     controller_request(&proof_id, &[&inline, &leaked]),
@@ -374,11 +388,16 @@ mod tests {
                 .unwrap();
             // Drain the bounded input queue so the next iteration can submit.
             controller_rx.recv().await.unwrap();
+            // Send a task message - this lazily creates a `task_channels` entry
+            // that `update_task_status` would normally clean up on a terminal
+            // status, but won't if the task never reaches one.
+            client.send_task_message(&task_id, vec![1, 2, 3]).await.unwrap();
 
-            // Both artifacts and the task bookkeeping are now tracked.
+            // Bookkeeping, artifact index, and task channel are all populated.
             assert_eq!(index.len(), 2);
             assert_eq!(client.inner.proof_index.read().await.len(), 1);
             assert_eq!(client.inner.db.read().await.len(), 1);
+            assert_eq!(client.inner.task_channels.read().await.len(), 1);
 
             // Deleting one inline (as the controller does mid-proof) prunes it
             // from the shared index - no tombstone left behind.
@@ -396,6 +415,10 @@ mod tests {
             assert!(index.is_empty(), "artifact index leaked after proof {i}");
             assert!(client.inner.db.read().await.is_empty(), "db leaked after proof {i}");
             assert!(client.inner.proof_index.read().await.is_empty(), "proof_index leaked");
+            assert!(
+                client.inner.task_channels.read().await.is_empty(),
+                "task_channels leaked after proof {i}",
+            );
             assert!(
                 !artifacts.exists(&leaked, ArtifactType::Program).await.unwrap(),
                 "leaked artifact not deleted after proof {i}"
