@@ -22,8 +22,14 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
     /// The program that defines the control flow of the machine.
     type Program: MachineProgram<F>;
 
+    /// Customizes the program for the machine.
+    fn customize_program(&self, program: Self::Program) -> Self::Program {
+        // By default, the machine does not customize the program.
+        program
+    }
+
     /// A unique identifier for this AIR as part of a machine.
-    fn name(&self) -> &'static str;
+    fn name(&self) -> &str;
 
     /// A list of column names. The length should equal `self.width()`.
     fn column_names(&self) -> Vec<String> {

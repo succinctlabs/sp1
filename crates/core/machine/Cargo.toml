@@ -27,8 +27,12 @@ slop-uni-stark = { workspace = true }
 sp1-derive = { workspace = true }
 sp1-primitives = { workspace = true }
 sp1-jit = { workspace = true }
-
 struct-reflection = { workspace = true }
+powdr-autoprecompiles.workspace = true
+powdr-number = { workspace = true }
+powdr-expression = { workspace = true }
+powdr-constraint-solver = { workspace = true }
+powdr-riscv-elf = { workspace = true }
 
 slop-futures = { workspace = true }
 futures = { workspace = true }
@@ -47,7 +51,7 @@ num_cpus = { workspace = true }
 tempfile = { workspace = true }
 tracing = { workspace = true }
 tracing-forest = { workspace = true, features = ["ansi", "smallvec"] }
-tracing-subscriber = { workspace = true, features = ["std", "env-filter"] }
+tracing-subscriber = { workspace = true, features = ["std", "env-filter", "json"] }
 strum = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 hashbrown = { workspace = true, features = ["serde", "inline-more"] }
@@ -58,6 +62,7 @@ sp1-core-executor-runner = { workspace = true }
 sp1-curves = { workspace = true }
 tokio = { workspace = true, features = ["rt", "sync"] }
 static_assertions = { workspace = true }
+sp1-build = { workspace = true }
 
 [dev-dependencies]
 rand = { workspace = true }
@@ -79,6 +84,7 @@ sp1-hypercube = { workspace = true }
 sp1-primitives = { workspace = true }
 
 [features]
+default = []
 debug = []
 bigint-rug = ["sp1-curves/bigint-rug"]
 mprotect = [
@@ -86,6 +92,7 @@ mprotect = [
   "sp1-core-executor-runner/mprotect",
   "sp1-hypercube/mprotect",
 ]
+apc = []
 
 [lib]
 path = "src/lib.rs"

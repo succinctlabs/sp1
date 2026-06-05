@@ -797,7 +797,7 @@ pub mod tests {
         type Record = ExecutionRecord;
         type Program = Program;
 
-        fn name(&self) -> &'static str {
+        fn name(&self) -> &str {
             match self {
                 Self::Chip1(chip) => <ZerocheckTestChip1 as MachineAir<F>>::name(chip),
                 Self::Chip2(chip) => <ZerocheckTestChip2 as MachineAir<F>>::name(chip),

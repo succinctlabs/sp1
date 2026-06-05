@@ -31,3 +31,4 @@ mprotect = [
     "sp1-core-executor/mprotect",
     "sp1-hypercube/mprotect",
 ]
+apc = ["sp1-core-machine/apc"]

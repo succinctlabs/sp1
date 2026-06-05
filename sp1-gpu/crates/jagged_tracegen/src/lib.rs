@@ -39,8 +39,8 @@ use sp1_gpu_utils::{Felt, JaggedMle, JaggedTraceMle, TraceDenseData, TraceOffset
 pub mod test_utils;
 
 // ------------- The following logic is mostly copied from crates/tracegen/src/lib.rs -------------
-// TODO: is this a reasonable upper bound on number of columns per trace? ~16k
-pub const MAX_COLS_PER_TRACE: usize = 1 << 14;
+// Pre-allocated upper bound on columns per trace. Only costs 1 MB of GPU memory.
+pub const MAX_COLS_PER_TRACE: usize = 1 << 18;
 pub const CORE_MAX_TRACE_SIZE: u32 = (ELEMENT_THRESHOLD + (ELEMENT_THRESHOLD >> 1)) as u32;
 
 /// The output of the host phase of the tracegen.

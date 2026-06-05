@@ -11,13 +11,13 @@ use sp1_core_machine::air::{MemoryAirBuilder, SP1CoreAirBuilder};
 use sp1_core_machine::operations::{
     AddrAddOperation, AddressSlicePageProtOperation, SyscallAddrOperation,
 };
-use sp1_core_machine::riscv::{WeierstrassAddAssignChip, WeierstrassDoubleAssignChip};
+use sp1_core_machine::riscv::{RiscvAir, WeierstrassAddAssignChip, WeierstrassDoubleAssignChip};
 use sp1_core_machine::syscall::precompiles::weierstrass::{
     WeierstrassAddAssignCols, WeierstrassDoubleAssignCols,
 };
 use sp1_core_machine::utils::limbs_to_words;
 use sp1_core_machine::{
-    riscv::{KeccakPermuteChip, RiscvAir},
+    riscv::{air::RiscvAir as RiscvAirWithoutApcs, KeccakPermuteChip},
     syscall::precompiles::keccak256::{columns::KeccakMemCols, constants::rc_value_bit},
 };
 use sp1_core_machine::{TrustMode, UserMode};
@@ -59,24 +59,49 @@ pub trait BlockAir<AB: AirBuilder>: Air<AB> + MachineAir<F> + 'static + Send + S
 impl<'a> BlockAir<SymbolicProverFolder<'a>> for RiscvAir<F> {
     fn num_blocks(&self) -> usize {
         match self {
-            RiscvAir::KeccakP(keccak) => keccak.num_blocks(),
-            RiscvAir::Secp256k1Add(secp256k1_add) => secp256k1_add.num_blocks(),
-            RiscvAir::Secp256k1AddUser(secp256k1_add) => secp256k1_add.num_blocks(),
-            RiscvAir::Secp256k1Double(secp256k1_double) => secp256k1_double.num_blocks(),
-            RiscvAir::Secp256k1DoubleUser(secp256k1_double) => secp256k1_double.num_blocks(),
+            RiscvAir::Riscv(riscv_air) => riscv_air.num_blocks(),
+            RiscvAir::Apc(_) => 1,
+        }
+    }
+
+    fn eval_block(&self, builder: &mut SymbolicProverFolder<'a>, index: usize) {
+        match self {
+            RiscvAir::Riscv(riscv_air) => riscv_air.eval_block(builder, index),
+            RiscvAir::Apc(apc_chip) => {
+                assert!(index == 0);
+                apc_chip.eval(builder);
+            }
+        }
+    }
+}
+
+impl<'a> BlockAir<SymbolicProverFolder<'a>> for RiscvAirWithoutApcs<F> {
+    fn num_blocks(&self) -> usize {
+        match self {
+            RiscvAirWithoutApcs::KeccakP(keccak) => keccak.num_blocks(),
+            RiscvAirWithoutApcs::Secp256k1Add(secp256k1_add) => secp256k1_add.num_blocks(),
+            RiscvAirWithoutApcs::Secp256k1AddUser(secp256k1_add) => secp256k1_add.num_blocks(),
+            RiscvAirWithoutApcs::Secp256k1Double(secp256k1_double) => secp256k1_double.num_blocks(),
+            RiscvAirWithoutApcs::Secp256k1DoubleUser(secp256k1_double) => {
+                secp256k1_double.num_blocks()
+            }
             _ => 1,
         }
     }
 
     fn eval_block(&self, builder: &mut SymbolicProverFolder<'a>, index: usize) {
         match self {
-            RiscvAir::KeccakP(keccak) => keccak.eval_block(builder, index),
-            RiscvAir::Secp256k1Add(secp256k1_add) => secp256k1_add.eval_block(builder, index),
-            RiscvAir::Secp256k1AddUser(secp256k1_add) => secp256k1_add.eval_block(builder, index),
-            RiscvAir::Secp256k1Double(secp256k1_double) => {
+            RiscvAirWithoutApcs::KeccakP(keccak) => keccak.eval_block(builder, index),
+            RiscvAirWithoutApcs::Secp256k1Add(secp256k1_add) => {
+                secp256k1_add.eval_block(builder, index)
+            }
+            RiscvAirWithoutApcs::Secp256k1AddUser(secp256k1_add) => {
+                secp256k1_add.eval_block(builder, index)
+            }
+            RiscvAirWithoutApcs::Secp256k1Double(secp256k1_double) => {
                 secp256k1_double.eval_block(builder, index)
             }
-            RiscvAir::Secp256k1DoubleUser(secp256k1_double) => {
+            RiscvAirWithoutApcs::Secp256k1DoubleUser(secp256k1_double) => {
                 secp256k1_double.eval_block(builder, index)
             }
             _ => {

@@ -507,7 +507,7 @@ pub struct FinalVmState {
 }
 
 impl FinalVmState {
-    pub fn new<'a, 'b, M: sp1_core_executor::ExecutionMode>(vm: &'a CoreVM<'b, M>) -> Self {
+    pub fn new<'a, 'b, M: sp1_core_executor::ExecutionMode, S>(vm: &'a CoreVM<'b, M, S>) -> Self {
         let registers = *vm.registers();
         let timestamp = vm.clk();
         let pc = vm.pc();
