@@ -236,20 +236,11 @@ impl SP1LocalNode {
             tracing::warn!("failed to release task bookkeeping for proof {proof_id}: {e}");
         }
 
-        // Always delete the per-proof input/output artifacts (best-effort), so a
-        // failed proof does not leave its ELF/stdin/output in the artifact store.
-        let _ = self.inner.artifact_client.try_delete(&elf_artifact, ArtifactType::Program).await;
-        let _ = self.inner.artifact_client.try_delete(&stdin_artifact, ArtifactType::Stdin).await;
-        let _ = self
-            .inner
-            .artifact_client
-            .try_delete(&output_artifact, ArtifactType::UnspecifiedArtifactType)
-            .await;
-        let _ = self
-            .inner
-            .artifact_client
-            .try_delete(&proof_nonce_artifact, ArtifactType::UnspecifiedArtifactType)
-            .await;
+        // Delete every artifact the worker client recorded for this proof - the
+        // top-level inputs/outputs plus any intermediates the controller left
+        // behind (e.g. on an error path). Best-effort; most are already deleted
+        // inline during proving, so this is the backstop that bounds growth.
+        self.inner.worker_client.cleanup(&self.inner.artifact_client).await;
 
         result
     }

@@ -2,7 +2,9 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use hashbrown::{HashMap, HashSet};
 use mti::prelude::{MagicTypeIdExt, V7};
-use sp1_prover_types::{ProofRequestStatus, TaskStatus, TaskType};
+use sp1_prover_types::{
+    Artifact, ArtifactClient, ArtifactType, ProofRequestStatus, TaskStatus, TaskType,
+};
 use tokio::sync::{mpsc, watch, RwLock};
 
 use crate::worker::{
@@ -26,6 +28,13 @@ pub struct LocalWorkerClientChannels {
 pub struct LocalWorkerClientInner {
     db: LocalDb,
     proof_index: ProofIndex,
+    /// Artifact ids submitted under each in-flight proof, recorded by
+    /// `submit_task`. On `complete_proof` they move to `pending_artifact_cleanup`.
+    proof_artifacts: RwLock<HashMap<ProofId, HashSet<String>>>,
+    /// Artifacts of completed proofs awaiting deletion. The worker client holds
+    /// no artifact-client handle, so `LocalWorkerClient::cleanup` drains this
+    /// with a client passed in by the owner (`SP1LocalNode`).
+    pending_artifact_cleanup: RwLock<HashSet<String>>,
     input_task_queues: HashMap<TaskType, mpsc::Sender<(TaskId, RawTaskRequest)>>,
     task_channels: RwLock<HashMap<TaskId, MessageChannelState>>,
 }
@@ -61,8 +70,17 @@ impl LocalWorkerClientInner {
 
         let db = Arc::new(RwLock::new(HashMap::new()));
         let proof_index = Arc::new(RwLock::new(HashMap::new()));
+        let proof_artifacts = RwLock::new(HashMap::new());
+        let pending_artifact_cleanup = RwLock::new(HashSet::new());
         let task_channels = RwLock::new(HashMap::new());
-        let inner = Self { db, proof_index, input_task_queues: task_queues, task_channels };
+        let inner = Self {
+            db,
+            proof_index,
+            proof_artifacts,
+            pending_artifact_cleanup,
+            input_task_queues: task_queues,
+            task_channels,
+        };
         (inner, LocalWorkerClientChannels { task_receivers: task_outputs })
     }
 }
@@ -105,6 +123,19 @@ impl LocalWorkerClient {
 
         Ok(())
     }
+
+    /// Delete the artifacts of completed proofs (recorded by `submit_task`,
+    /// stashed by `complete_proof`). The worker client holds no artifact-client
+    /// handle, so the owner - `SP1LocalNode` - passes one in. Best-effort:
+    /// already-deleted artifacts are a no-op.
+    pub async fn cleanup(&self, artifact_client: &impl ArtifactClient) {
+        let ids: Vec<String> = self.inner.pending_artifact_cleanup.write().await.drain().collect();
+        for id in ids {
+            let _ = artifact_client
+                .try_delete(&Artifact(id), ArtifactType::UnspecifiedArtifactType)
+                .await;
+        }
+    }
 }
 
 impl Clone for LocalWorkerClient {
@@ -125,6 +156,16 @@ impl WorkerClient for LocalWorkerClient {
             .entry(task.context.proof_id.clone())
             .or_insert_with(HashSet::new)
             .insert(task_id.clone());
+        // Record the task's artifacts under this proof so they can be cleaned up
+        // once the proof completes (see `cleanup`).
+        {
+            let mut proof_artifacts = self.inner.proof_artifacts.write().await;
+            let entry =
+                proof_artifacts.entry(task.context.proof_id.clone()).or_insert_with(HashSet::new);
+            for artifact in task.inputs.iter().chain(task.outputs.iter()) {
+                entry.insert(artifact.0.clone());
+            }
+        }
         // Create a db entry for the task.
         let (tx, rx) = watch::channel(TaskStatus::Pending);
         self.inner.db.write().await.insert(task_id.clone(), (tx, rx));
@@ -152,6 +193,11 @@ impl WorkerClient for LocalWorkerClient {
         _status: ProofRequestStatus,
         _extra_data: impl Into<String> + Send,
     ) -> anyhow::Result<()> {
+        // Stash this proof's recorded artifacts for deletion by `cleanup`. Done
+        // before the index lookup below so it runs regardless of that result.
+        if let Some(ids) = self.inner.proof_artifacts.write().await.remove(&proof_id) {
+            self.inner.pending_artifact_cleanup.write().await.extend(ids);
+        }
         // Remove the proof from the proof index.
         let tasks = self
             .inner
