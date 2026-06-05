@@ -333,3 +333,72 @@ pub mod test_utils {
         worker_client
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use sp1_prover_types::InMemoryArtifactClient;
+
+    use super::*;
+    use crate::worker::{RequesterId, TaskContext};
+
+    fn controller_request(proof_id: &ProofId, artifact: &Artifact) -> RawTaskRequest {
+        RawTaskRequest {
+            inputs: vec![artifact.clone()],
+            outputs: vec![],
+            context: TaskContext {
+                proof_id: proof_id.clone(),
+                parent_id: None,
+                parent_context: None,
+                requester_id: RequesterId::new("test"),
+            },
+        }
+    }
+
+    /// Completing a proof (`complete_proof` + `cleanup`) must release all of its
+    /// task bookkeeping (`db`, `proof_index`) and delete its artifacts - and
+    /// proving many proofs on the reused client must not accumulate any of it.
+    /// This is the regression test for the per-proof leak in the local node.
+    #[tokio::test]
+    async fn proof_cleanup_releases_all_state() {
+        let (client, mut channels) = LocalWorkerClient::init();
+        let artifacts = InMemoryArtifactClient::default();
+        let controller_rx = channels.task_receivers.get_mut(&TaskType::Controller).unwrap();
+
+        for i in 0..10 {
+            let proof_id = ProofId::new(format!("proof-{i}"));
+            let artifact = artifacts.create_artifact().unwrap();
+            artifacts.upload_raw(&artifact, ArtifactType::Program, vec![0u8; 1024]).await.unwrap();
+
+            client
+                .submit_task(TaskType::Controller, controller_request(&proof_id, &artifact))
+                .await
+                .unwrap();
+            // Drain the bounded input queue so the next iteration can submit.
+            controller_rx.recv().await.unwrap();
+
+            // The task and its artifact are now tracked.
+            assert_eq!(client.inner.proof_index.read().await.len(), 1);
+            assert_eq!(client.inner.db.read().await.len(), 1);
+            assert!(artifacts.exists(&artifact, ArtifactType::Program).await.unwrap());
+
+            // Completing the proof and cleaning up must release everything.
+            client
+                .complete_proof(proof_id.clone(), None, ProofRequestStatus::Completed, "")
+                .await
+                .unwrap();
+            client.cleanup(&artifacts).await;
+
+            assert!(client.inner.db.read().await.is_empty(), "db leaked after proof {i}");
+            assert!(client.inner.proof_index.read().await.is_empty(), "proof_index leaked");
+            assert!(client.inner.proof_artifacts.read().await.is_empty(), "proof_artifacts leaked");
+            assert!(
+                client.inner.pending_artifact_cleanup.read().await.is_empty(),
+                "pending artifact cleanup leaked"
+            );
+            assert!(
+                !artifacts.exists(&artifact, ArtifactType::Program).await.unwrap(),
+                "artifact not deleted after proof {i}"
+            );
+        }
+    }
+}
