@@ -442,6 +442,7 @@ fn compile_chip(chip_name: &str, output_format: &OutputFormat, reuse_struct: &[S
                     "Subw"        => m::alu::add_sub::subw::SubwCols<ExprRef<F>, Sup>,
                     "Lt"          => m::alu::lt::LtCols<ExprRef<F>, Sup>,
                     "Mul"         => m::alu::mul::MulCols<ExprRef<F>, Sup>,
+                    "AluX0"       => m::alu::alu_x0::AluX0Cols<ExprRef<F>, Sup>,
                     "ShiftLeft"   => m::alu::sll::ShiftLeftCols<ExprRef<F>, Sup>,
                     "ShiftRight"  => m::alu::sr::ShiftRightCols<ExprRef<F>, Sup>,
                     "DivRem"      => m::alu::divrem::DivRemCols<ExprRef<F>, Sup>,

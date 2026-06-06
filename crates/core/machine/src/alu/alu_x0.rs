@@ -14,8 +14,9 @@ use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord},
     ByteOpcode, ExecutionRecord, Opcode, Program, CLK_INC, PC_INC,
 };
-use sp1_derive::AlignedBorrow;
+use sp1_derive::{AlignedBorrow, IntoShape};
 use sp1_hypercube::air::MachineAir;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
@@ -44,7 +45,7 @@ pub struct AluX0Chip<M: TrustMode> {
 }
 
 /// The column layout for `AluX0Chip`.
-#[derive(AlignedBorrow, Default, Clone, Copy)]
+#[derive(AlignedBorrow, Default, StructReflection, Clone, Copy, IntoShape)]
 #[repr(C)]
 pub struct AluX0Cols<T, M: TrustMode> {
     /// The current shard, timestamp, program counter of the CPU.
