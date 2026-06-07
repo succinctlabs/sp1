@@ -81,6 +81,11 @@ pub struct LeanComponents {
     pub sub_asserts: Vec<SubCallTerm>,
     /// Sub-operation `.interactions <args>` terms, in call order.
     pub sub_interactions: Vec<SubCallTerm>,
+    /// Sub-operation `assertion <name>.circuit ⟨<args>⟩` terms (the Clean-native circuit form of a
+    /// composed sub-call), in call order. The circuit `main` emits these in place of the
+    /// `sub_asserts`/`sub_interactions` append chain. Only pure-assertion (`Shape::Unit`) sub-ops are
+    /// emitted this way; the circuit emitter bails on a value-returning sub-call.
+    pub sub_circuit_calls: Vec<SubCallTerm>,
     /// Per **byte** interaction, the Clean-native channel-call form (`byteChannel.gatedReceive …`)
     /// the circuit `main` emits, with its dep ids. Only byte interactions contribute here (the
     /// `State`/`Memory`/`Program` buses are emitted as `main` calls only once those channels land),
@@ -248,6 +253,7 @@ impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
         let mut interactions: Vec<(String, Vec<BindId>)> = Vec::default();
         let mut sub_asserts: Vec<SubCallTerm> = Vec::default();
         let mut sub_interactions: Vec<SubCallTerm> = Vec::default();
+        let mut sub_circuit_calls: Vec<SubCallTerm> = Vec::default();
         let mut channel_calls: Vec<(String, Vec<BindId>)> = Vec::default();
         let mut calls: usize = 0;
 
@@ -322,10 +328,13 @@ impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
                     // Build the trailing ` <inputs…>` shared by `.asserts`/`.interactions`/`.value`,
                     // along with the bindings those inputs read (drives DCE of each call term).
                     let mut args = String::new();
+                    let mut arg_list: Vec<String> = Vec::new();
                     let mut arg_deps: Vec<BindId> = Vec::new();
                     for input in &decl.input {
+                        let arg = input.2.to_lean_constructor(mapping);
                         args.push(' ');
-                        args.push_str(&input.2.to_lean_constructor(mapping));
+                        args.push_str(&arg);
+                        arg_list.push(arg);
                         refs_of_shape(&input.2, &mut arg_deps);
                     }
 
@@ -335,6 +344,13 @@ impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
                     });
                     sub_interactions.push(SubCallTerm {
                         text: format!("{}.interactions{args}", decl.name),
+                        deps: arg_deps.clone(),
+                    });
+                    // The Clean-native circuit form: compose the sub-op's `FormalAssertion` as a true
+                    // Clean `assertion` whose `Inputs` record is the same `<args>`, comma-separated.
+                    // Only meaningful for `Shape::Unit` sub-ops (the circuit emitter enforces this).
+                    sub_circuit_calls.push(SubCallTerm {
+                        text: format!("assertion {}.circuit ⟨{}⟩", decl.name, arg_list.join(", ")),
                         deps: arg_deps.clone(),
                     });
 
@@ -387,6 +403,7 @@ impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
             interactions,
             sub_asserts,
             sub_interactions,
+            sub_circuit_calls,
             channel_calls,
         }
     }
