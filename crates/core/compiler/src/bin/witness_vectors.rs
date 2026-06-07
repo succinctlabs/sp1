@@ -29,7 +29,7 @@ use slop_algebra::{AbstractField, PrimeField32};
 use sp1_core_executor::events::ByteLookupEvent;
 use sp1_core_machine::operations::{
     AddOperation, AddwOperation, IsZeroOperation, IsZeroWordOperation, LtOperationUnsigned,
-    SubOperation, SubwOperation,
+    MulOperation, SubOperation, SubwOperation,
 };
 use sp1_primitives::{consts::u64_to_u16_limbs, SP1Field};
 
@@ -267,6 +267,51 @@ fn subw_vectors() -> Value {
     json!({ "operation": "SubwOperation", "vectors": vectors })
 }
 
+/// `MulOperation::populate(blu, b, c, is_mulh, is_mulhsu, is_mulw)` computes the 16-byte schoolbook
+/// product + 16 column carries (with the sign/zero-extended byte streams), the `U16toU8` low-byte
+/// decompositions of `b`/`c`, the three MSB columns, and the two sign-extend selectors. The product
+/// columns depend on the sign flags `(is_mulh, is_mulhsu)`; `product_msb` is gated on `is_mulw`. We
+/// cover the four distinct one-hot flag settings (MUL/MULHU share `(f,f,f)`).
+fn mul_vectors() -> Value {
+    let battery = u64_battery();
+    let n = battery.len();
+    let flag_combos =
+        [(false, false, false), (true, false, false), (false, true, false), (false, false, true)];
+    let mut vectors = Vec::new();
+    for (i, &b) in battery.iter().enumerate() {
+        for &c in &[battery[i], battery[(i + 1) % n], battery[(i + 7) % n]] {
+            for &(is_mulh, is_mulhsu, is_mulw) in &flag_combos {
+                let mut cols = MulOperation::<F>::default();
+                let mut blu = Vec::<ByteLookupEvent>::new();
+                cols.populate(&mut blu, b, c, is_mulh, is_mulhsu, is_mulw);
+                vectors.push(json!({
+                    "inputs": { "b": b, "c": c, "is_mulh": is_mulh as u8,
+                        "is_mulhsu": is_mulhsu as u8, "is_mulw": is_mulw as u8 },
+                    "b_limbs": u64_to_u16_limbs(b),
+                    "c_limbs": u64_to_u16_limbs(c),
+                    "is_mulh": is_mulh as u8,
+                    "is_mulhsu": is_mulhsu as u8,
+                    "is_mulw": is_mulw as u8,
+                    "carry": limbs(&cols.carry),
+                    "product": limbs(&cols.product),
+                    // `U16toU8Operation::low_bytes` is private; it is exactly `limb & 0xFF` per limb
+                    // (`populate_u16_to_u8_safe`), so recompute it from the operand limbs.
+                    "b_lower_byte": u64_to_u16_limbs(b).iter().map(|l| (l & 0xFF) as u32)
+                        .collect::<Vec<u32>>(),
+                    "c_lower_byte": u64_to_u16_limbs(c).iter().map(|l| (l & 0xFF) as u32)
+                        .collect::<Vec<u32>>(),
+                    "b_msb": cols.b_msb.as_canonical_u32(),
+                    "c_msb": cols.c_msb.as_canonical_u32(),
+                    "product_msb": cols.product_msb.msb.as_canonical_u32(),
+                    "b_sign_extend": cols.b_sign_extend.as_canonical_u32(),
+                    "c_sign_extend": cols.c_sign_extend.as_canonical_u32(),
+                }));
+            }
+        }
+    }
+    json!({ "operation": "MulOperation", "vectors": vectors })
+}
+
 fn main() {
     let args = Args::parse();
     let out = match args.operation.as_str() {
@@ -287,6 +332,7 @@ fn main() {
         "IsZeroWordOperation" => is_zero_word_vectors(),
         "AddwOperation" => addw_vectors(),
         "SubwOperation" => subw_vectors(),
+        "MulOperation" => mul_vectors(),
         other => {
             eprintln!("Error: operation '{other}' has no witness-vector dumper yet");
             std::process::exit(1);
