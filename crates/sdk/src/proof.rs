@@ -4,13 +4,16 @@
 #![allow(missing_docs)]
 #![allow(clippy::double_parens)] // For some reason we need this to use EnumTryAs
 
-use std::{fmt::Debug, fs::File, path::Path};
+use std::{fmt::Debug, fs::File, path::Path, str::FromStr};
 
 use anyhow::{Context, Result};
+use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 use sp1_hypercube::create_dummy_recursion_proof;
 use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::{Groth16Bn254Proof, HashableKey, PlonkBn254Proof, SP1VerifyingKey};
+
+use crate::{SP1VerificationError, StatusCode};
 
 // Re-export the types from the verifier crate in order to avoid importing the verifier crate
 // for downstream dependencies.
@@ -44,6 +47,28 @@ pub(crate) fn verify_mock_public_inputs(
         );
     }
 
+    Ok(())
+}
+
+/// Enforce the requested exit status against a mock Plonk/Groth16 proof's encoded exit code.
+///
+/// Mock Plonk and Groth16 proofs encode the program's exit code in `public_inputs[2]`. The real
+/// verifier checks this against the caller's expected [`StatusCode`] (defaulting to
+/// [`StatusCode::SUCCESS`] when `None`); this mirrors that check so a mock proof cannot satisfy an
+/// exit status it does not actually encode (e.g. the same proof verifying as both `SUCCESS` and
+/// `PANIC`).
+pub(crate) fn verify_mock_exit_code(
+    public_inputs: &[String; 5],
+    status_code: Option<StatusCode>,
+) -> Result<(), SP1VerificationError> {
+    let status_code = status_code.unwrap_or(StatusCode::SUCCESS);
+    let exit_code = BigUint::from_str(&public_inputs[2])
+        .map_err(|_| SP1VerificationError::InvalidPublicValues)?;
+    let exit_code =
+        u32::try_from(&exit_code).map_err(|_| SP1VerificationError::InvalidPublicValues)?;
+    if !status_code.is_accepted_code(exit_code) {
+        return Err(SP1VerificationError::UnexpectedExitCode(exit_code));
+    }
     Ok(())
 }
 
@@ -201,7 +226,7 @@ impl SP1ProofWithPublicValues {
     ///
     ///     let client = ProverClient::builder().cpu().build().await;
     ///     let pk = client.setup(elf.clone()).await.unwrap();
-    ///     let (public_values, _) = client.execute(elf, stdin).await.unwrap();
+    ///     let (public_values, report) = client.execute(elf, stdin).await.unwrap();
     ///
     ///     // Create a mock Plonk proof.
     ///     let mock_proof = SP1ProofWithPublicValues::create_mock_proof(
@@ -209,6 +234,7 @@ impl SP1ProofWithPublicValues {
     ///         public_values,
     ///         SP1ProofMode::Plonk,
     ///         SP1_CIRCUIT_VERSION,
+    ///         report.exit_code,
     ///     );
     /// });
     /// ```
@@ -219,6 +245,7 @@ impl SP1ProofWithPublicValues {
         public_values: SP1PublicValues,
         mode: SP1ProofMode,
         sp1_version: &str,
+        exit_code: u64,
     ) -> Self {
         let sp1_version = sp1_version.to_string();
         match mode {
@@ -242,7 +269,7 @@ impl SP1ProofWithPublicValues {
                 // Create mock Plonk proof with correct public inputs.
                 // public_inputs[0]: vkey_hash
                 // public_inputs[1]: committed_values_digest (public_values hash)
-                // public_inputs[2]: exit_code (0 for success)
+                // public_inputs[2]: exit_code (the program's real exit code from execution)
                 // public_inputs[3]: vk_root (0 for mock)
                 // public_inputs[4]: proof_nonce (0 for mock)
                 let vkey_hash = vk.hash_bn254().to_string();
@@ -252,9 +279,9 @@ impl SP1ProofWithPublicValues {
                         public_inputs: [
                             vkey_hash,
                             committed_values_digest,
-                            "0".to_string(), // exit_code
-                            "0".to_string(), // vk_root (mock)
-                            "0".to_string(), // proof_nonce (mock)
+                            exit_code.to_string(), // exit_code (from execution)
+                            "0".to_string(),       // vk_root (mock)
+                            "0".to_string(),       // proof_nonce (mock)
                         ],
                         encoded_proof: String::new(),
                         raw_proof: String::new(),
@@ -269,7 +296,7 @@ impl SP1ProofWithPublicValues {
                 // Create mock Groth16 proof with correct public inputs.
                 // public_inputs[0]: vkey_hash
                 // public_inputs[1]: committed_values_digest (public_values hash)
-                // public_inputs[2]: exit_code (0 for success)
+                // public_inputs[2]: exit_code (the program's real exit code from execution)
                 // public_inputs[3]: vk_root (0 for mock)
                 // public_inputs[4]: proof_nonce (0 for mock)
                 let vkey_hash = vk.hash_bn254().to_string();
@@ -279,9 +306,9 @@ impl SP1ProofWithPublicValues {
                         public_inputs: [
                             vkey_hash,
                             committed_values_digest,
-                            "0".to_string(), // exit_code
-                            "0".to_string(), // vk_root (mock)
-                            "0".to_string(), // proof_nonce (mock)
+                            exit_code.to_string(), // exit_code (from execution)
+                            "0".to_string(),       // vk_root (mock)
+                            "0".to_string(),       // proof_nonce (mock)
                         ],
                         encoded_proof: String::new(),
                         raw_proof: String::new(),

@@ -16,7 +16,7 @@ use sp1_prover::{
 };
 
 use crate::{
-    proof::verify_mock_public_inputs,
+    proof::{verify_mock_exit_code, verify_mock_public_inputs},
     prover::{BaseProveRequest, ProveRequest},
     Prover, SP1Proof, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerificationError, StatusCode,
 };
@@ -89,20 +89,24 @@ impl Prover for MockProver {
         &self,
         proof: &SP1ProofWithPublicValues,
         vkey: &SP1VerifyingKey,
-        _status_code: Option<StatusCode>,
+        status_code: Option<StatusCode>,
     ) -> Result<(), SP1VerificationError> {
         match &proof.proof {
             SP1Proof::Plonk(PlonkBn254Proof { public_inputs, .. }) => {
                 // Verify the mock Plonk proof by checking public inputs match.
                 // For mock proofs, the encoded_proof is empty, so we only verify the public inputs.
                 verify_mock_public_inputs(vkey, &proof.public_values, public_inputs)
-                    .map_err(SP1VerificationError::Plonk)
+                    .map_err(SP1VerificationError::Plonk)?;
+                // Enforce the expected exit status, mirroring the real verifier.
+                verify_mock_exit_code(public_inputs, status_code)
             }
             SP1Proof::Groth16(Groth16Bn254Proof { public_inputs, .. }) => {
                 // Verify the mock Groth16 proof by checking public inputs match.
                 // For mock proofs, the encoded_proof is empty, so we only verify the public inputs.
                 verify_mock_public_inputs(vkey, &proof.public_values, public_inputs)
-                    .map_err(SP1VerificationError::Groth16)
+                    .map_err(SP1VerificationError::Groth16)?;
+                // Enforce the expected exit status, mirroring the real verifier.
+                verify_mock_exit_code(public_inputs, status_code)
             }
             _ => Ok(()),
         }
@@ -134,13 +138,14 @@ impl<'a> IntoFuture for MockProveRequest<'a> {
             req.context_builder = context_builder;
 
             // Spawn blocking under the hood.
-            let (public_values, _) = req.await?;
+            let (public_values, report) = req.await?;
 
             Ok(SP1ProofWithPublicValues::create_mock_proof(
                 &pk.vk,
                 public_values,
                 mode,
                 prover.version(),
+                report.exit_code,
             ))
         })
     }
@@ -148,7 +153,9 @@ impl<'a> IntoFuture for MockProveRequest<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{prover::ProveRequest, utils::setup_logger, MockProver, Prover, SP1Stdin};
+    use crate::{
+        prover::ProveRequest, utils::setup_logger, MockProver, Prover, SP1Stdin, StatusCode,
+    };
 
     /// Test mock proof creation and verification for all proof types.
     #[tokio::test]
@@ -310,5 +317,55 @@ mod tests {
         // Verification should fail because public_values hash won't match.
         let result = prover.verify(&proof, &pk.vk, None);
         assert!(result.is_err(), "Verification should fail with tampered public values");
+    }
+
+    /// Regression test for #2817: a successful program's mock Plonk proof must verify as `SUCCESS`
+    /// (and under the `None` default) but be rejected when `PANIC` is expected, so the same proof
+    /// cannot satisfy two different exit statuses.
+    #[tokio::test]
+    async fn test_mock_plonk_proof_enforces_exit_status() {
+        setup_logger();
+        let prover = MockProver::new().await;
+        let pk =
+            prover.setup(test_artifacts::FIBONACCI_ELF).await.expect("failed to setup proving key");
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&10usize);
+        let proof =
+            prover.prove(&pk, stdin).plonk().await.expect("failed to create mock Plonk proof");
+
+        // The program exits successfully (exit code 0).
+        prover.verify(&proof, &pk.vk, None).expect("default verify should accept exit code 0");
+        prover
+            .verify(&proof, &pk.vk, Some(StatusCode::SUCCESS))
+            .expect("SUCCESS verify should accept exit code 0");
+
+        // The same proof must NOT verify when PANIC is expected.
+        assert!(
+            prover.verify(&proof, &pk.vk, Some(StatusCode::PANIC)).is_err(),
+            "a SUCCESS mock proof must not verify under expected PANIC status"
+        );
+    }
+
+    /// Regression test for #2817: same as the Plonk case, for Groth16 mock proofs.
+    #[tokio::test]
+    async fn test_mock_groth16_proof_enforces_exit_status() {
+        setup_logger();
+        let prover = MockProver::new().await;
+        let pk =
+            prover.setup(test_artifacts::FIBONACCI_ELF).await.expect("failed to setup proving key");
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&10usize);
+        let proof =
+            prover.prove(&pk, stdin).groth16().await.expect("failed to create mock Groth16 proof");
+
+        prover.verify(&proof, &pk.vk, None).expect("default verify should accept exit code 0");
+        prover
+            .verify(&proof, &pk.vk, Some(StatusCode::SUCCESS))
+            .expect("SUCCESS verify should accept exit code 0");
+
+        assert!(
+            prover.verify(&proof, &pk.vk, Some(StatusCode::PANIC)).is_err(),
+            "a SUCCESS mock proof must not verify under expected PANIC status"
+        );
     }
 }
