@@ -71,11 +71,6 @@ where
         self.values_break_points.len() - 1
     }
 
-    /// Gets the current number of values stored.
-    pub fn current_length(&self) -> usize {
-        *self.values_break_points.last().expect("values_break_points should never be empty")
-    }
-
     /// Generates the dot product vector from RLC'ing a set of linear constraints.
     pub fn generate_rlc_dot_vector(
         &self,
@@ -95,6 +90,7 @@ where
     }
 
     /// Converts a single constraint to a dot product vector for debugging.
+    #[cfg(sp1_debug_constraints)]
     pub fn single_constraint_to_dot_vector(
         &self,
         constraint: &TranscriptLinConstraint<K>,
@@ -409,19 +405,6 @@ pub struct PcsCommitmentEntry<D> {
     pub log_num_polys: usize,
 }
 
-/// An evaluation claim for a committed MLE.
-///
-/// Associates a commitment with an evaluation point and the claimed evaluation value.
-#[derive(Clone)]
-pub struct PcsEvalClaim<K, Expr> {
-    /// Index of the commitment being evaluated
-    pub commitment_index: MleCommitmentIndex,
-    /// The evaluation point
-    pub point: Point<K>,
-    /// Expression representing the claimed evaluation value
-    pub eval_expr: Expr,
-}
-
 /// A batched evaluation claim for multiple committed MLEs at the same point.
 ///
 /// Groups several commitments that are all evaluated at a common point,
@@ -434,25 +417,4 @@ pub struct PcsMultiEvalClaim<K, Expr> {
     pub point: Point<K>,
     /// Expressions representing the claimed evaluation values (one per commitment)
     pub eval_exprs: Vec<Expr>,
-}
-
-/// Groups items by a key, preserving insertion order of first appearance.
-///
-/// Returns a `Vec` of `(key, items)` pairs where items sharing the same key
-/// are collected together. The order of groups follows the first appearance
-/// of each key in the input.
-pub fn group_claims_by_key<T, K: PartialEq>(
-    items: Vec<T>,
-    key_fn: impl Fn(&T) -> K,
-) -> Vec<(K, Vec<T>)> {
-    let mut groups: Vec<(K, Vec<T>)> = Vec::new();
-    for item in items {
-        let k = key_fn(&item);
-        if let Some(group) = groups.iter_mut().find(|(gk, _)| *gk == k) {
-            group.1.push(item);
-        } else {
-            groups.push((k, vec![item]));
-        }
-    }
-    groups
 }
