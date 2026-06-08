@@ -22,12 +22,7 @@ impl ConstraintDebugger {
         Self { names: vec![] }
     }
 
-    /// Called when a single constraint is added.
-    pub fn on_constraint_added(&mut self) {
-        self.names.push(None);
-    }
-
-    /// Called when multiple constraints are added.
+    /// Called when constraints are added.
     pub fn on_constraints_added(&mut self, count: usize) {
         self.names.extend(std::iter::repeat_n(None, count));
     }

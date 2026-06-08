@@ -1,6 +1,6 @@
 use crate::zk::inner::{
     ConstraintContextInnerExt, PcsMultiEvalClaim, VerifierValue, ZkCnstrAndReadingCtxInner,
-    ZkIopCtx, ZkPcsVerificationError, ZkPcsVerifier, ZkProtocolProof, ZkVerificationContext,
+    ZkIopCtx, ZkPcsVerificationError, ZkPcsVerifier, ZkVerificationContext,
 };
 use derive_where::derive_where;
 use itertools::Itertools;
@@ -46,7 +46,7 @@ where
 {
     /// Verifies a ZK stacked PCS proof for a single evaluation claim.
     ///
-    /// Thin wrapper around [`verify_zk_stacked_pcs_batched`] for the single-commitment case.
+    /// Thin wrapper around [`Self::verify_zk_stacked_pcs_batched`] for the single-commitment case.
     pub fn verify_zk_stacked_pcs<C: ZkCnstrAndReadingCtxInner<GC>>(
         &self,
         commitment: &GC::Digest,
@@ -78,7 +78,11 @@ where
         context: &mut C,
     ) -> Result<ZkStackedPcsConstraintData<GC, C>, ZkStackedVerifierError> {
         let num_claims = commitments_and_claims.len();
-        assert!(num_claims > 0, "must have at least one claim");
+        if num_claims == 0 {
+            return Err(ZkStackedVerifierError::IncorrectShape(
+                "must have at least one claim".to_string(),
+            ));
+        }
 
         let ZkStackedPcsProof {
             rlc_eval_proof,
@@ -122,22 +126,20 @@ where
         }
 
         // Step 2: Sample shared RLC point (dimension = log_num_data_cols)
-        let rlc_point = {
-            let mut challenger = context.challenger();
+        let rlc_point = context.with_challenger(|challenger| {
             let coords: Vec<GC::EF> =
                 (0..log_num_data_cols).map(|_| challenger.sample_ext_element()).collect();
             Point::new(coords.into())
-        };
+        });
 
         // Step 3: Sample batching challenge α
-        let batching_challenge: GC::EF = {
-            let mut challenger = context.challenger();
-            challenger.sample_ext_element()
-        };
+        let batching_challenge: GC::EF = context.with_challenger(|c| c.sample_ext_element());
 
         // Step 4: Observe combined padding and eval claim
-        context.challenger().observe_ext_element_slice(&rlc_padding_vec);
-        context.challenger().observe_ext_element(rlc_eval_claim);
+        context.with_challenger(|c| {
+            c.observe_ext_element_slice(&rlc_padding_vec);
+            c.observe_ext_element(rlc_eval_claim);
+        });
 
         // Precompute α powers and eq evals
         let alpha_powers: Vec<GC::EF> = batching_challenge.powers().take(num_claims + 1).collect();
@@ -203,14 +205,17 @@ where
 
         // Step 7: Verify basefold proof with all commitments
         let commitments: Vec<GC::Digest> = commitments_and_claims.iter().map(|(c, _)| *c).collect();
-        if let Err(e) = self.verify_trusted_ext_mle_evaluation(
-            &commitments,
-            eval_point,
-            rlc_eval_claim,
-            &rlc_eval_proof,
-            compute_batch_evals,
-            &mut context.challenger(),
-        ) {
+        let pcs_result = context.with_challenger(|challenger| {
+            self.verify_trusted_ext_mle_evaluation(
+                &commitments,
+                eval_point,
+                rlc_eval_claim,
+                &rlc_eval_proof,
+                compute_batch_evals,
+                challenger,
+            )
+        });
+        if let Err(e) = pcs_result {
             return Err(ZkStackedVerifierError::PcsError(e));
         }
 
@@ -269,10 +274,8 @@ pub struct ZkStackedPcsConstraintData<GC: IopCtx, C: ConstraintContextInnerExt<G
     pub claims: Vec<ZkStackedPcsClaimData<GC, C>>,
 }
 
-impl<GC: ZkIopCtx, C: ConstraintContextInnerExt<GC::EF>> ZkProtocolProof<GC, C>
-    for ZkStackedPcsConstraintData<GC, C>
-{
-    fn build_constraints(self) {
+impl<GC: ZkIopCtx, C: ConstraintContextInnerExt<GC::EF>> ZkStackedPcsConstraintData<GC, C> {
+    pub fn build_constraints(self) {
         let mut context = self.claims[0].evals[0].as_ref().clone();
 
         let num_original = 1 << self.log_num_cols;
@@ -326,6 +329,10 @@ where
     GC::F: TwoAdicField,
 {
     type Proof = ZkStackedPcsProof<GC>;
+
+    fn num_encoding_variables(&self) -> u32 {
+        self.inner.log_stacking_height
+    }
 
     fn verify_multi_eval(
         &self,

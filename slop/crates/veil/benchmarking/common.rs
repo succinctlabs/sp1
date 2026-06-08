@@ -1,38 +1,43 @@
-// Shared benchmark helpers. Included by benchmarking binaries via include!().
-// Do not add #![...] attributes or fn main() here.
+// Shared benchmark helpers, used by the benchmark example/test binaries via
+// `#[path = "common.rs"] mod common;`. Each binary exercises only a subset of
+// these helpers, so the module is declared `#[allow(dead_code)]` at each use site.
+// Items consumed by the binaries are re-exported (`pub`) for `use common::*;`.
 
-use std::time::{Duration, Instant};
+// Re-exported so `use common::*;` brings them into the binaries' scope, mirroring
+// what these helpers' call sites rely on.
+pub use std::time::{Duration, Instant};
+
+pub use rand::SeedableRng;
+pub use rand_chacha::ChaCha20Rng;
+pub use slop_algebra::AbstractField;
+pub use slop_challenger::{CanObserve, IopCtx};
+pub use slop_sumcheck::{partially_verify_sumcheck_proof, reduce_sumcheck_to_evaluation};
 
 use bincode::serialized_size;
-use rand::SeedableRng;
-use rand_chacha::ChaCha20Rng;
-use slop_algebra::AbstractField;
 use slop_basefold::{BasefoldVerifier, FriConfig};
 use slop_basefold_prover::BasefoldProver;
-use slop_challenger::{CanObserve, IopCtx};
-use slop_commit::Rounds;
+use slop_commit::{Message, Rounds};
 use slop_jagged::{HadamardProduct, LongMle};
 use slop_koala_bear::KoalaBearDegree4Duplex;
 use slop_matrix::dense::RowMajorMatrix;
 use slop_merkle_tree::Poseidon2KoalaBear16Prover;
 use slop_multilinear::{Mle, MultilinearPcsProver, Point};
 use slop_stacked::{StackedPcsProver, StackedPcsVerifier};
-use slop_sumcheck::{partially_verify_sumcheck_proof, reduce_sumcheck_to_evaluation};
-use slop_veil::compiler::{ConstraintCtx, ReadingCtx};
+use slop_veil::compiler::{ReadingCtx, SendingCtx};
 use slop_veil::protocols::sumcheck::{SumcheckInputClaim, SumcheckParam};
 use slop_veil::zk::stacked_pcs::{initialize_zk_prover_and_verifier, StackedPcsZkProverCtx};
 use slop_veil::zk::{compute_mask_length, ZkProverCtx, ZkVerifierCtx};
 
-type GC = KoalaBearDegree4Duplex;
-type F = <GC as IopCtx>::F;
-type EF = <GC as IopCtx>::EF;
+pub type GC = KoalaBearDegree4Duplex;
+pub type F = <GC as IopCtx>::F;
+pub type EF = <GC as IopCtx>::EF;
 type MK = Poseidon2KoalaBear16Prover;
 
 // ============================================================================
 // Data generation
 // ============================================================================
 
-fn generate_random_mle(rng: &mut impl rand::Rng, num_vars: u32) -> (Mle<F>, Mle<EF>, EF) {
+pub fn generate_random_mle(rng: &mut impl rand::Rng, num_vars: u32) -> (Mle<F>, Mle<EF>, EF) {
     let original_mle = Mle::<F>::rand(rng, 1, num_vars);
     let ef_data: Vec<EF> = original_mle.guts().as_slice().iter().map(|&x| EF::from(x)).collect();
     let mle_ef = Mle::new(RowMajorMatrix::new(ef_data, 1).into());
@@ -41,7 +46,7 @@ fn generate_random_mle(rng: &mut impl rand::Rng, num_vars: u32) -> (Mle<F>, Mle<
 }
 
 #[allow(clippy::type_complexity)]
-fn generate_random_hadamard_product(
+pub fn generate_random_hadamard_product(
     rng: &mut impl rand::Rng,
     num_vars: u32,
 ) -> (Mle<F>, Mle<F>, HadamardProduct<F, EF>, EF) {
@@ -66,34 +71,18 @@ fn generate_random_hadamard_product(
 }
 
 // ============================================================================
-// Single MLE: read / build_constraints / run_standard / run_zk
+// Single MLE: verify / run_standard / run_zk
 // ============================================================================
 
-fn single_mle_read<C: ReadingCtx>(
-    ctx: &mut C,
-    num_encoding_variables: u32,
-    log_num_polynomials: u32,
-    num_variables: u32,
-) -> (C::MleOracle, slop_veil::protocols::sumcheck::SumcheckView<C>) {
-    let oracle = ctx.read_oracle(num_encoding_variables, log_num_polynomials).unwrap();
-    let param = SumcheckParam::new(num_variables, 1);
-    let view = param.read(ctx).unwrap();
-    (oracle, view)
-}
-
-fn single_mle_build_constraints<C: ConstraintCtx>(
-    ctx: &mut C,
-    oracle: C::MleOracle,
-    claim: C::Extension,
-    view: slop_veil::protocols::sumcheck::SumcheckView<C>,
-) {
-    let point: Point<C::Challenge> = Point::from(view.out_claim.point.clone());
-    ctx.assert_mle_eval(oracle, point, view.out_claim.claimed_eval.clone());
+fn single_mle_verify<C: ReadingCtx>(ctx: &mut C, num_variables: u32, claim: C::Extension) {
+    let oracle = ctx.read_oracle(num_variables).unwrap();
     let in_claim = SumcheckInputClaim::from_value(claim);
-    view.build_constraints(&in_claim, ctx).unwrap();
+    let out_claim = SumcheckParam::new(num_variables, 1).verify(&in_claim, ctx).unwrap();
+    let point: Point<C::Challenge> = Point::from(out_claim.point.clone());
+    ctx.assert_mle_eval(oracle, point, out_claim.claimed_eval);
 }
 
-fn run_standard_single(
+pub fn run_standard_single(
     original_mle: &Mle<F>,
     mle_ef: &Mle<EF>,
     claim: EF,
@@ -108,9 +97,10 @@ fn run_standard_single(
 
         let basefold_prover = BasefoldProver::<GC, MK>::new(&basefold_verifier);
         let batch_size = 1usize << log_num_polynomials;
-        let stacked_prover = StackedPcsProver::new(basefold_prover, num_encoding_variables, batch_size);
+        let stacked_prover =
+            StackedPcsProver::new(basefold_prover, num_encoding_variables, batch_size);
 
-        let mle_message = slop_commit::Message::from(vec![original_mle.clone()]);
+        let mle_message = Message::from(vec![original_mle.clone()]);
         let (commitment, prover_data, _) = stacked_prover.commit_multilinears(mle_message).unwrap();
 
         let mut prover_challenger = GC::default_challenger();
@@ -153,7 +143,8 @@ fn run_standard_single(
         .unwrap();
 
         let (eval_point, eval_claim) = sumcheck_proof.point_and_eval.clone();
-        let round_area = (1usize << num_variables).next_multiple_of(1usize << num_encoding_variables);
+        let round_area =
+            (1usize << num_variables).next_multiple_of(1usize << num_encoding_variables);
         stacked_verifier
             .verify_trusted_evaluation(
                 &[commitment],
@@ -171,12 +162,11 @@ fn run_standard_single(
     (prover_time, verifier_time)
 }
 
-fn run_zk_single(
+pub fn run_zk_single(
     original_mle: &Mle<F>,
     mle_ef: &Mle<EF>,
     claim: EF,
     num_encoding_variables: u32,
-    log_num_polynomials: u32,
     num_variables: u32,
     rng: &mut ChaCha20Rng,
 ) -> (Duration, Duration) {
@@ -188,21 +178,21 @@ fn run_zk_single(
     let (zkproof, prover_time) = {
         let prover_start = Instant::now();
 
-        let masks_length = compute_mask_length::<GC, _>(
-            |ctx| single_mle_read(ctx, num_encoding_variables, log_num_polynomials, num_variables),
-            |(oracle, view), ctx| single_mle_build_constraints(ctx, oracle, claim, view),
-        );
+        let masks_length = compute_mask_length::<GC>(num_encoding_variables, |ctx| {
+            single_mle_verify(ctx, num_variables, claim);
+        });
 
         let mut ctx: StackedPcsZkProverCtx<GC, MK> =
-            ZkProverCtx::initialize_with_pcs_only_lin(masks_length, pcs_prover, rng);
+            ZkProverCtx::initialize_with_pcs_only_lin(masks_length, pcs_prover, rng)
+                .expect("zk init failed");
 
-        let commit = ctx.commit_mle(original_mle.clone(), log_num_polynomials, rng).unwrap();
+        ctx.commit_mle(Message::from(original_mle.clone()), rng).unwrap();
 
         let in_claim = SumcheckInputClaim::from_value(claim);
-        let view = param.prove(&in_claim, mle_ef.clone(), &mut ctx);
-        single_mle_build_constraints(&mut ctx, commit, claim, view);
+        param.prove(&in_claim, mle_ef.clone(), &mut ctx);
+        single_mle_verify(&mut ctx, num_variables, claim);
 
-        let zkproof = ctx.prove(rng);
+        let zkproof = ctx.prove(rng).expect("zk prove failed");
         (zkproof, prover_start.elapsed())
     };
 
@@ -210,9 +200,7 @@ fn run_zk_single(
         let verifier_start = Instant::now();
 
         let mut ctx = ZkVerifierCtx::init(zkproof, Some(zk_stacked_verifier));
-        let (oracle, view) =
-            single_mle_read(&mut ctx, num_encoding_variables, log_num_polynomials, num_variables);
-        single_mle_build_constraints(&mut ctx, oracle, claim, view);
+        single_mle_verify(&mut ctx, num_variables, claim);
         ctx.verify().expect("Failed to verify");
 
         verifier_start.elapsed()
@@ -222,48 +210,24 @@ fn run_zk_single(
 }
 
 // ============================================================================
-// Hadamard: read / build_constraints / run_standard / run_zk
+// Hadamard: verify / run_standard / run_zk
 // ============================================================================
 
-struct HadamardReadData<C: ConstraintCtx> {
-    ci_base: C::MleOracle,
-    ci_ext: C::MleOracle,
-    view: slop_veil::protocols::sumcheck::SumcheckView<C>,
-}
-
-fn hadamard_read<C: ReadingCtx>(
-    ctx: &mut C,
-    num_encoding_variables: u32,
-    log_num_polynomials: u32,
-    num_variables: u32,
-) -> HadamardReadData<C> {
-    let ci_base = ctx.read_oracle(num_encoding_variables, log_num_polynomials).unwrap();
-    let ci_ext = ctx.read_oracle(num_encoding_variables, log_num_polynomials).unwrap();
-    let param = SumcheckParam::with_component_evals(num_variables, 2, 2);
-    let view = param.read(ctx).unwrap();
-    HadamardReadData { ci_base, ci_ext, view }
-}
-
-fn hadamard_build_constraints<C: ConstraintCtx>(
-    ctx: &mut C,
-    claim: C::Extension,
-    data: HadamardReadData<C>,
-) {
-    let point: Point<C::Challenge> = Point::from(data.view.out_claim.point.clone());
-    let base_eval = data.view.out_claim.component_evals[0][0].clone();
-    let ext_eval = data.view.out_claim.component_evals[0][1].clone();
-    ctx.assert_a_times_b_equals_c(
-        base_eval.clone(),
-        ext_eval.clone(),
-        data.view.out_claim.claimed_eval.clone(),
-    )
-    .unwrap();
-    ctx.assert_mle_multi_eval(vec![(data.ci_base, base_eval), (data.ci_ext, ext_eval)], point);
+fn hadamard_verify<C: ReadingCtx>(ctx: &mut C, num_variables: u32, claim: C::Extension) {
+    let ci_base = ctx.read_oracle(num_variables).unwrap();
+    let ci_ext = ctx.read_oracle(num_variables).unwrap();
     let in_claim = SumcheckInputClaim::from_value(claim);
-    data.view.build_constraints(&in_claim, ctx).unwrap();
+    let out_claim =
+        SumcheckParam::with_component_evals(num_variables, 2, 2).verify(&in_claim, ctx).unwrap();
+    let point: Point<C::Challenge> = Point::from(out_claim.point.clone());
+    let base_eval = out_claim.component_evals[0][0].clone();
+    let ext_eval = out_claim.component_evals[0][1].clone();
+    ctx.assert_a_times_b_equals_c(base_eval.clone(), ext_eval.clone(), out_claim.claimed_eval)
+        .unwrap();
+    ctx.assert_mle_multi_eval(vec![(ci_base, base_eval), (ci_ext, ext_eval)], point);
 }
 
-fn run_standard_hadamard(
+pub fn run_standard_hadamard(
     mle_1: &Mle<F>,
     mle_2: &Mle<F>,
     hadamard_product: HadamardProduct<F, EF>,
@@ -279,14 +243,13 @@ fn run_standard_hadamard(
 
         let basefold_prover = BasefoldProver::<GC, MK>::new(&basefold_verifier);
         let batch_size = 1usize << log_num_polynomials;
-        let stacked_prover = StackedPcsProver::new(basefold_prover, num_encoding_variables, batch_size);
+        let stacked_prover =
+            StackedPcsProver::new(basefold_prover, num_encoding_variables, batch_size);
 
-        let (commitment_1, prover_data_1, _) = stacked_prover
-            .commit_multilinears(slop_commit::Message::from(vec![mle_1.clone()]))
-            .unwrap();
-        let (commitment_2, prover_data_2, _) = stacked_prover
-            .commit_multilinears(slop_commit::Message::from(vec![mle_2.clone()]))
-            .unwrap();
+        let (commitment_1, prover_data_1, _) =
+            stacked_prover.commit_multilinears(Message::from(vec![mle_1.clone()])).unwrap();
+        let (commitment_2, prover_data_2, _) =
+            stacked_prover.commit_multilinears(Message::from(vec![mle_2.clone()])).unwrap();
 
         let mut challenger = GC::default_challenger();
         challenger.observe(commitment_1);
@@ -372,13 +335,12 @@ fn run_standard_hadamard(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn run_zk_hadamard(
+pub fn run_zk_hadamard(
     mle_1: &Mle<F>,
     mle_2: &Mle<F>,
     hadamard_product: HadamardProduct<F, EF>,
     claim: EF,
     num_encoding_variables: u32,
-    log_num_polynomials: u32,
     num_variables: u32,
     rng: &mut ChaCha20Rng,
 ) -> (Duration, Duration, u64) {
@@ -390,23 +352,22 @@ fn run_zk_hadamard(
     let (zkproof, prover_time) = {
         let prover_start = Instant::now();
 
-        let masks_length = compute_mask_length::<GC, _>(
-            |ctx| hadamard_read(ctx, num_encoding_variables, log_num_polynomials, num_variables),
-            |data, ctx| hadamard_build_constraints(ctx, claim, data),
-        );
+        let masks_length = compute_mask_length::<GC>(num_encoding_variables, |ctx| {
+            hadamard_verify(ctx, num_variables, claim);
+        });
 
         let mut ctx: StackedPcsZkProverCtx<GC, MK> =
-            ZkProverCtx::initialize_with_pcs(masks_length, pcs_prover, rng);
+            ZkProverCtx::initialize_with_pcs(masks_length, pcs_prover, rng)
+                .expect("zk init failed");
 
-        let ci_base = ctx.commit_mle(mle_1.clone(), log_num_polynomials, rng).unwrap();
-        let ci_ext = ctx.commit_mle(mle_2.clone(), log_num_polynomials, rng).unwrap();
+        ctx.commit_mle(Message::from(mle_1.clone()), rng).unwrap();
+        ctx.commit_mle(Message::from(mle_2.clone()), rng).unwrap();
 
         let in_claim = SumcheckInputClaim::from_value(claim);
-        let view = param.prove(&in_claim, hadamard_product, &mut ctx);
-        let data = HadamardReadData { ci_base, ci_ext, view };
-        hadamard_build_constraints(&mut ctx, claim, data);
+        param.prove(&in_claim, hadamard_product, &mut ctx);
+        hadamard_verify(&mut ctx, num_variables, claim);
 
-        let zkproof = ctx.prove(rng);
+        let zkproof = ctx.prove(rng).expect("zk prove failed");
         (zkproof, prover_start.elapsed())
     };
 
@@ -416,9 +377,7 @@ fn run_zk_hadamard(
         let verifier_start = Instant::now();
 
         let mut ctx = ZkVerifierCtx::init(zkproof, Some(zk_stacked_verifier));
-        let data =
-            hadamard_read(&mut ctx, num_encoding_variables, log_num_polynomials, num_variables);
-        hadamard_build_constraints(&mut ctx, claim, data);
+        hadamard_verify(&mut ctx, num_variables, claim);
         ctx.verify().expect("Failed to verify");
 
         verifier_start.elapsed()
@@ -431,7 +390,7 @@ fn run_zk_hadamard(
 // Utilities
 // ============================================================================
 
-fn median(samples: &mut [Duration]) -> Duration {
+pub fn median(samples: &mut [Duration]) -> Duration {
     samples.sort();
     let n = samples.len();
     if n % 2 == 1 {
@@ -441,7 +400,7 @@ fn median(samples: &mut [Duration]) -> Duration {
     }
 }
 
-fn stddev_ms(samples: &[Duration]) -> f64 {
+pub fn stddev_ms(samples: &[Duration]) -> f64 {
     let n = samples.len() as f64;
     let mean = samples.iter().map(|d| d.as_secs_f64()).sum::<f64>() / n;
     let variance =

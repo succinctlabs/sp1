@@ -73,6 +73,13 @@ pub enum ExecutionError {
     #[error("SP1 program consumes too much memory")]
     TooMuchMemory(),
 
+    /// The child executor process was killed by an external signal (e.g. the OS / cgroup
+    /// OOM-killer), not by exceeding its own memory budget. Kept distinct from
+    /// [`ExecutionError::TooMuchMemory`] (the program's fault) so host-pressure kills aren't
+    /// mislabelled as the program's own.
+    #[error("child executor process was killed externally")]
+    ChildKilled(),
+
     /// A generic error.
     #[error("{0}")]
     Other(String),
