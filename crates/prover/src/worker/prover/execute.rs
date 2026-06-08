@@ -181,10 +181,17 @@ pub async fn execute_with_options_and_machine(
     let calculate_gas = context.calculate_gas;
     let nonce = context.proof_nonce;
     let max_cycles = context.max_cycles;
+    // Gas estimation chunks at its own dedicated cadence, decoupled from
+    // `minimal_trace_chunk_threshold`. The metered gas depends on the chunk size (each chunk is
+    // treated as a shard for memory-boundary accounting), so it must not track the memory-only
+    // knob that #2793 shrank. See `GAS_TRACE_CHUNK_THRESHOLD`.
     let minimal_trace_chunk_threshold =
-        if context.calculate_gas { Some(opts.minimal_trace_chunk_threshold) } else { None };
+        if context.calculate_gas { Some(opts.gas_trace_chunk_threshold) } else { None };
     let memory_limit = opts.memory_limit;
-    let trace_chunk_slots = opts.trace_chunk_slots;
+    // The gas path uses its own (smaller) slot count: gas chunks are 8× larger, so the SHM ring is
+    // bounded by `gas_trace_chunk_slots × ~2.2 GiB`. This is the standalone gas-estimation run;
+    // proving uses `trace_chunk_slots` on a different path and is unaffected.
+    let trace_chunk_slots = opts.gas_trace_chunk_slots;
     let gas_engine =
         initialize_gas_engine(&executor_config, program.clone(), nonce, opts, calculate_gas);
 
@@ -419,6 +426,42 @@ mod tests {
             pv.blake3_hash(),
             digest.to_vec(),
             "blake3 guest digest must match pv.blake3_hash() (gas=on)",
+        );
+    }
+
+    /// The metered gas must not depend on `minimal_trace_chunk_threshold`, which is a memory-only
+    /// knob (#2793 shrank it 8x). Gas chunks at the dedicated `gas_trace_chunk_threshold` cadence,
+    /// so changing the memory threshold must leave the gas estimate unchanged.
+    #[tokio::test]
+    async fn test_gas_independent_of_memory_chunk_threshold() {
+        async fn gas_with(min_chunk_threshold: u64) -> u64 {
+            let program = Arc::new(Program::from(&test_artifacts::FIBONACCI_ELF).unwrap());
+            let mut stdin = SP1Stdin::new();
+            stdin.write(&100_000usize);
+
+            let opts = SP1CoreOpts {
+                minimal_trace_chunk_threshold: min_chunk_threshold,
+                ..SP1CoreOpts::default()
+            };
+            let executor_config = SP1ExecutorConfig::default();
+
+            let mut context_builder = SP1ContextBuilder::new();
+            context_builder.calculate_gas(true);
+            let context = context_builder.build();
+
+            let (_pv, _digest, report) =
+                execute_with_options(program, stdin, context, opts, executor_config).await.unwrap();
+            report.gas().expect("gas should be present when calculate_gas is true")
+        }
+
+        // A tiny memory threshold forces many memory chunks but must not change gas, because the
+        // gas path ignores it in favor of `gas_trace_chunk_threshold`.
+        let tiny = gas_with(1000).await;
+        let default = gas_with(SP1CoreOpts::default().minimal_trace_chunk_threshold).await;
+        assert_eq!(
+            tiny, default,
+            "gas changed with minimal_trace_chunk_threshold ({tiny} vs {default}); \
+             the memory knob is leaking into metered gas",
         );
     }
 }
