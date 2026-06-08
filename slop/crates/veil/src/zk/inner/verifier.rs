@@ -1,5 +1,4 @@
-use std::cell::{Ref, RefCell, RefMut};
-use std::rc::Rc;
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::compiler::TranscriptReadError;
 use crate::zk::dot_product::{dot_product, verify_zk_dot_product, ZkDotProductError};
@@ -23,8 +22,8 @@ use super::{
 /// Handle to a [`ZkVerificationContextInner`] that provides shared mutable access.
 /// This is the main type users interact with for verifying zero-knowledge proofs.
 ///
-/// The handle wraps the inner context in `Rc<RefCell<>>` to allow elements
-/// to hold references back to the context.
+/// The handle wraps the inner context in `Arc<Mutex<>>` to allow elements
+/// to hold references back to the context, while remaining `Send + Sync`.
 ///
 /// # Type Parameters
 /// * `GC` - The ZK IOP context type; `GC::PcsProof` is the PCS proof type.
@@ -32,7 +31,7 @@ use super::{
 /// Contains a challenger which can be accessed using self.borrow_mut().challenger
 #[derive(Clone)]
 pub struct ZkVerificationContext<GC: ZkIopCtx> {
-    inner: Rc<RefCell<ZkVerificationContextInner<GC>>>,
+    inner: Arc<Mutex<ZkVerificationContextInner<GC>>>,
 }
 
 /// Verification context that accumulates constraints during verification.
@@ -166,19 +165,19 @@ impl<GC: ZkIopCtx> ZkProof<GC> {
             proof: self.proof,
         };
 
-        ZkVerificationContext { inner: Rc::new(RefCell::new(inner)) }
+        ZkVerificationContext { inner: Arc::new(Mutex::new(inner)) }
     }
 }
 
 impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
-    /// Borrow the inner context mutably and return a guard.
-    pub fn borrow_mut(&self) -> RefMut<'_, ZkVerificationContextInner<GC>> {
-        self.inner.borrow_mut()
+    /// Lock the inner context mutably and return a guard.
+    pub fn borrow_mut(&self) -> MutexGuard<'_, ZkVerificationContextInner<GC>> {
+        self.inner.lock().expect("ZkVerificationContext mutex poisoned")
     }
 
-    /// Borrow the inner context immutably and return a guard.
-    pub fn borrow(&self) -> Ref<'_, ZkVerificationContextInner<GC>> {
-        self.inner.borrow()
+    /// Lock the inner context and return a guard.
+    pub fn borrow(&self) -> MutexGuard<'_, ZkVerificationContextInner<GC>> {
+        self.inner.lock().expect("ZkVerificationContext mutex poisoned")
     }
 
     // Read the next message of expected length, observe it, and return its block index and length.
@@ -267,14 +266,14 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
 
         // Extract the inner context, cloning if there are still outstanding references
         // (e.g., from VerifierElements that haven't been dropped yet)
-        let mut inner = match Rc::try_unwrap(self.inner) {
-            Ok(refcell) => refcell.into_inner(),
-            Err(rc) => {
+        let mut inner = match Arc::try_unwrap(self.inner) {
+            Ok(mutex) => mutex.into_inner().expect("ZkVerificationContext mutex poisoned"),
+            Err(arc) => {
                 eprintln!(
                     "WARNING: ZkVerificationContext has outstanding references (likely from VerifierElements). \
                      Cloning inner context. Consider dropping VerifierElements before calling verify."
                 );
-                rc.borrow().clone()
+                arc.lock().expect("ZkVerificationContext mutex poisoned").clone()
             }
         };
 
@@ -359,16 +358,16 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
             .read_next(6)
             .map_err(|_| ZkVerifierError::InvalidMulConstrProofShape)?
             .try_into()
-            .unwrap();
+            .map_err(|_| ZkVerifierError::InvalidMulConstrProofShape)?;
         self.constrain_mul_triple(
-            a1.try_into_index().unwrap(),
-            b1.try_into_index().unwrap(),
-            c1.try_into_index().unwrap(),
+            a1.try_into_index().ok_or(ZkVerifierError::InvalidMulConstrProofShape)?,
+            b1.try_into_index().ok_or(ZkVerifierError::InvalidMulConstrProofShape)?,
+            c1.try_into_index().ok_or(ZkVerifierError::InvalidMulConstrProofShape)?,
         );
         self.constrain_mul_triple(
-            a2.try_into_index().unwrap(),
-            b2.try_into_index().unwrap(),
-            c2.try_into_index().unwrap(),
+            a2.try_into_index().ok_or(ZkVerifierError::InvalidMulConstrProofShape)?,
+            b2.try_into_index().ok_or(ZkVerifierError::InvalidMulConstrProofShape)?,
+            c2.try_into_index().ok_or(ZkVerifierError::InvalidMulConstrProofShape)?,
         );
 
         let mul_len = self.borrow().mul_constraints.len();
@@ -418,6 +417,10 @@ pub struct NoPcsVerifier;
 impl<GC: ZkIopCtx> ZkPcsVerifier<GC> for NoPcsVerifier {
     type Proof = GC::PcsProof;
 
+    fn num_encoding_variables(&self) -> u32 {
+        panic!("NoPcsVerifier::num_encoding_variables should never be called")
+    }
+
     fn verify_multi_eval(
         &self,
         _ctx: &mut ZkVerificationContext<GC>,
@@ -466,8 +469,8 @@ impl<GC: ZkIopCtx> ZkCnstrAndReadingCtxInner<GC> for ZkVerificationContext<GC> {
         Ok((0..len).map(|i| self.add_expr([block_index, i].into())).collect())
     }
 
-    fn challenger(&mut self) -> RefMut<'_, GC::Challenger> {
-        RefMut::map(self.borrow_mut(), |inner| &mut inner.challenger)
+    fn with_challenger<R>(&mut self, f: impl FnOnce(&mut GC::Challenger) -> R) -> R {
+        f(&mut self.borrow_mut().challenger)
     }
 
     fn read_next_pcs_commitment(
@@ -494,41 +497,4 @@ impl<GC: ZkIopCtx> ZkCnstrAndReadingCtxInner<GC> for ZkVerificationContext<GC> {
 
         Some(MleCommitmentIndex::new(idx))
     }
-}
-
-#[derive(Debug, Eq, PartialEq, Error)]
-#[error("invalid proof shape")]
-pub struct ZKProtocolShapeError;
-
-/// Trait for protocol parameters that know how to read proof values from transcript.
-///
-/// This trait is implemented on protocol parameter structs and produces
-/// self-contained proof structs that include the parameters.
-///
-/// The returned proof contains `VerifierElement<GC>` since `read_proof_from_transcript`
-/// reads from the verifier context.
-pub trait ZkProtocolParameters<GC: ZkIopCtx, C: ZkCnstrAndReadingCtxInner<GC>> {
-    /// The proof type produced by reading from transcript.
-    /// Must implement `ZkProtocolProof` so it can generate its own constraints.
-    type Proof: ZkProtocolProof<GC, C>;
-
-    /// Reads proof values from transcript, reconstructs Fiat-Shamir state,
-    /// and returns a self-contained proof that includes these parameters.
-    fn read_proof_from_transcript(&self, context: &mut C) -> Option<Self::Proof>;
-}
-
-/// Trait for self-contained proofs that can generate their own constraints.
-///
-/// Proofs implementing this trait contain all necessary data (including parameters)
-/// to generate linear constraints without additional inputs.
-///
-/// Generic over ConstraintContextOuter to be uniform across prover and verifier.
-pub trait ZkProtocolProof<GC: ZkIopCtx, C: ConstraintContextInnerExt<GC::EF>>:
-    std::fmt::Debug + Clone
-{
-    /// Builds and asserts constraints for this proof using the element's expression type.
-    ///
-    /// This method consumes `self` to ensure all stored elements are dropped after
-    /// building constraints, which releases references to the context.
-    fn build_constraints(self);
 }

@@ -1,7 +1,9 @@
 #![allow(clippy::disallowed_types)]
-#![allow(dead_code)]
 
-include!("common.rs");
+#[path = "common.rs"]
+#[allow(dead_code)]
+mod common;
+use common::*;
 
 // ============================================================================
 // Single MLE benchmark
@@ -52,7 +54,6 @@ fn benchmark_zk_vs_standard_sumcheck_with_pcs() {
         &mle_ef,
         claim,
         num_encoding_variables,
-        log_num_polynomials,
         num_variables,
         &mut rng,
     );
@@ -118,7 +119,6 @@ fn benchmark_zk_vs_standard_hadamard_sumcheck_with_pcs() {
         hadamard_product,
         claim,
         num_encoding_variables,
-        log_num_polynomials,
         num_variables,
         &mut rng,
     );
