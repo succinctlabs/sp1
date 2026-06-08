@@ -901,7 +901,11 @@ impl NetworkProver {
                                 },
                             )?;
                             let pct = max_price_buffer_pct.unwrap_or(DEFAULT_MAX_PRICE_BUFFER_PCT);
-                            buffer_max_price_per_pgu(base, pct)
+                            let buffered = buffer_max_price_per_pgu(base, pct);
+                            // Align to the network's auction tick when advertised. `tick_size == 0`
+                            // means an older RPC that predates the field — leave the value as-is so
+                            // the bidder still rounds it on intake.
+                            align_to_tick(buffered, auction_params.tick_size)
                         };
                         let base_fee = auction_params
                             .base_fee
@@ -957,6 +961,15 @@ fn buffer_max_price_per_pgu(base: u64, buffer_pct: u64) -> u64 {
     })
 }
 
+/// Floor `value` to a multiple of `tick`. A tick of `0` or `1` returns `value` unchanged,
+/// so older RPCs that don't advertise a tick — or future envs without one — are no-ops.
+fn align_to_tick(value: u64, tick: u64) -> u64 {
+    if tick <= 1 {
+        return value;
+    }
+    value - (value % tick)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -977,5 +990,18 @@ mod tests {
     fn overflow_returns_base() {
         // u64::MAX * u64::MAX saturates to u128::MAX; /100 is well beyond u64::MAX.
         assert_eq!(buffer_max_price_per_pgu(u64::MAX, u64::MAX), u64::MAX);
+    }
+
+    #[test]
+    fn align_floors_to_tick() {
+        // 1_234_567_890 floored to a 10M tick.
+        assert_eq!(align_to_tick(1_234_567_890, 10_000_000), 1_230_000_000);
+    }
+
+    #[test]
+    fn align_zero_tick_is_no_op() {
+        // Older RPCs return tick_size=0; must pass the buffered value through unchanged.
+        assert_eq!(align_to_tick(1_234_567_890, 0), 1_234_567_890);
+        assert_eq!(align_to_tick(1_234_567_890, 1), 1_234_567_890);
     }
 }

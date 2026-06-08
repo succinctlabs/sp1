@@ -818,6 +818,10 @@ pub struct GetProofRequestParamsResponse {
     /// The default treasury address.
     #[prost(bytes = "vec", tag = "7")]
     pub treasury: ::prost::alloc::vec::Vec<u8>,
+    /// Auction tick size in wei per PGU. Bids and `max_price_per_pgu` must be a multiple
+    /// of this value to be accepted.
+    #[prost(uint64, tag = "8")]
+    pub tick_size: u64,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct GetNonceRequest {
