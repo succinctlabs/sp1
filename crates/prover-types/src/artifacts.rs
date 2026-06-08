@@ -331,10 +331,67 @@ pub trait ArtifactClient: Send + Sync + Clone + 'static {
     }
 }
 
+/// A proof-scoped index of live in-memory artifacts, shared between the local
+/// worker client (which records a proof's artifacts as it submits tasks) and
+/// [`InMemoryArtifactClient`] (which drops them as they are deleted). Because the
+/// deleter maintains it, it only ever holds artifacts that are still live - so it
+/// stays bounded - and `take` returns whatever a proof leaked so it can be freed.
+#[derive(Clone, Default)]
+pub struct ProofArtifacts(Arc<std::sync::Mutex<ProofArtifactsInner>>);
+
+#[derive(Default)]
+struct ProofArtifactsInner {
+    by_proof: HashMap<String, HashSet<String>>,
+    of_artifact: HashMap<String, String>,
+}
+
+impl ProofArtifacts {
+    /// Record `artifact` as belonging to `proof`.
+    pub fn track(&self, proof: &str, artifact: &str) {
+        let mut g = self.0.lock().unwrap();
+        g.by_proof.entry(proof.to_owned()).or_default().insert(artifact.to_owned());
+        g.of_artifact.insert(artifact.to_owned(), proof.to_owned());
+    }
+
+    /// Drop `artifact` from the index (called when it is deleted).
+    pub fn untrack(&self, artifact: &str) {
+        let mut g = self.0.lock().unwrap();
+        if let Some(proof) = g.of_artifact.remove(artifact) {
+            if let Some(set) = g.by_proof.get_mut(&proof) {
+                set.remove(artifact);
+                if set.is_empty() {
+                    g.by_proof.remove(&proof);
+                }
+            }
+        }
+    }
+
+    /// Remove and return the artifacts still tracked for `proof` (the ones it
+    /// leaked - everything else was already deleted and untracked).
+    pub fn take(&self, proof: &str) -> HashSet<String> {
+        let mut g = self.0.lock().unwrap();
+        let ids = g.by_proof.remove(proof).unwrap_or_default();
+        for id in &ids {
+            g.of_artifact.remove(id);
+        }
+        ids
+    }
+
+    /// Total number of tracked (live) artifacts across all proofs.
+    pub fn len(&self) -> usize {
+        self.0.lock().unwrap().of_artifact.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
 #[derive(Clone)]
 pub struct InMemoryArtifactClient {
     artifacts: Arc<RwLock<HashMap<String, Vec<u8>>>>,
     refs: Arc<Mutex<HashMap<String, HashSet<String>>>>,
+    index: ProofArtifacts,
 }
 
 impl fmt::Debug for InMemoryArtifactClient {
@@ -345,9 +402,16 @@ impl fmt::Debug for InMemoryArtifactClient {
 
 impl InMemoryArtifactClient {
     pub fn new() -> Self {
+        Self::with_index(ProofArtifacts::default())
+    }
+
+    /// Create a client whose deletions also prune `index`. Share one index with
+    /// the local worker client so a proof's artifacts drop out as they go.
+    pub fn with_index(index: ProofArtifacts) -> Self {
         Self {
             artifacts: Arc::new(RwLock::new(HashMap::new())),
             refs: Arc::new(Mutex::new(HashMap::new())),
+            index,
         }
     }
 }
@@ -390,8 +454,8 @@ impl ArtifactClient for InMemoryArtifactClient {
     }
 
     async fn delete(&self, artifact: &impl ArtifactId, _artifact_type: ArtifactType) -> Result<()> {
-        let mut artifacts = self.artifacts.write().await;
-        artifacts.remove(artifact.id());
+        self.artifacts.write().await.remove(artifact.id());
+        self.index.untrack(artifact.id());
         Ok(())
     }
 
@@ -400,9 +464,17 @@ impl ArtifactClient for InMemoryArtifactClient {
         artifacts: &[impl ArtifactId],
         _artifact_type: ArtifactType,
     ) -> Result<()> {
-        let mut artifact_map = self.artifacts.write().await;
+        // Drop bytes first under the tokio lock, then prune the (independent)
+        // proof-artifact index. Splitting the critical sections keeps the tokio
+        // write lock from being held while we churn the index's std mutex.
+        {
+            let mut artifact_map = self.artifacts.write().await;
+            for artifact in artifacts {
+                artifact_map.remove(artifact.id());
+            }
+        }
         for artifact in artifacts {
-            artifact_map.remove(artifact.id());
+            self.index.untrack(artifact.id());
         }
         Ok(())
     }
