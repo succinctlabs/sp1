@@ -119,6 +119,69 @@ impl Prover for NetworkProver {
     }
 }
 
+/// Returns `true` if the error is a wait-loop terminal failure that the auction fallback path
+/// should retry against high-availability provers. The retry is single-shot — guarded by
+/// `whitelist.is_none()` at the call site, which is set on retry — so adding a variant here
+/// cannot produce an unbounded retry loop.
+///
+/// Soft-reverts (`RequestReverted`) are deliberately NOT retryable. STF revert reasons are a mix
+/// of request-deterministic (e.g. insufficient balance, public-values hash mismatch) and
+/// prover-specific (e.g. `ProverNotInWhitelist`, `AuctioneerMismatch`, `MaxPricePerPguExceeded`).
+/// The SDK cannot distinguish reasons at this layer, so we treat reverts as terminal by default to
+/// avoid re-burning PROVE on the request-deterministic cases. Callers who want HA-retry on revert
+/// can inspect the error themselves and re-call `prove`.
+fn should_retry_with_ha_fallback(error: &Error) -> bool {
+    matches!(
+        error,
+        Error::RequestUnfulfillable { .. }
+            | Error::RequestTimedOut { .. }
+            | Error::RequestAuctionTimedOut { .. }
+            | Error::RequestExpired { .. }
+    )
+}
+
+/// Maps the post-RPC status to a public outcome. Pure logic, kept separate from the RPC path so
+/// the decision boundaries are unit-testable without mocking transport.
+///
+/// Priority (matches the inline order in `process_proof_status` prior to this extraction):
+///   1. `FulfillmentStatus::Fulfilled` -> `Ok((proof, Fulfilled))` even past deadline
+///   2. `ExecutionStatus::Unexecutable` -> `Error::RequestUnexecutable`
+///   3. `FulfillmentStatus::Unfulfillable` -> `Error::RequestUnfulfillable`
+///   4. `FulfillmentStatus::Reverted` -> `Error::RequestReverted`
+///   5. `FulfillmentStatus::Expired` -> `Error::RequestExpired`
+///   6. `deadline_exceeded` -> `Error::RequestTimedOut`
+///   7. otherwise (Unspecified, Requested, Assigned) -> `Ok((None, status))` for the caller to poll
+fn decide_status_outcome(
+    request_id: B256,
+    execution_status: ExecutionStatus,
+    fulfillment_status: FulfillmentStatus,
+    maybe_proof: Option<SP1ProofWithPublicValues>,
+    deadline_exceeded: bool,
+) -> Result<(Option<SP1ProofWithPublicValues>, FulfillmentStatus)> {
+    if fulfillment_status == FulfillmentStatus::Fulfilled {
+        return Ok((maybe_proof, fulfillment_status));
+    }
+    if execution_status == ExecutionStatus::Unexecutable {
+        return Err(Error::RequestUnexecutable { request_id: request_id.to_vec() }.into());
+    }
+    match fulfillment_status {
+        FulfillmentStatus::Unfulfillable => {
+            return Err(Error::RequestUnfulfillable { request_id: request_id.to_vec() }.into());
+        }
+        FulfillmentStatus::Reverted => {
+            return Err(Error::RequestReverted { request_id: request_id.to_vec() }.into());
+        }
+        FulfillmentStatus::Expired => {
+            return Err(Error::RequestExpired { request_id: request_id.to_vec() }.into());
+        }
+        _ => {}
+    }
+    if deadline_exceeded {
+        return Err(Error::RequestTimedOut { request_id: request_id.to_vec() }.into());
+    }
+    Ok((None, fulfillment_status))
+}
+
 impl NetworkProver {
     /// Creates a new [`NetworkProver`] with the given signer and network mode.
     ///
@@ -349,31 +412,22 @@ impl NetworkProver {
         let (status, maybe_proof): (GetProofRequestStatusResponse, Option<ProofFromNetwork>) =
             self.client.get_proof_request_status(request_id, remaining_timeout).await?;
 
-        let maybe_proof = maybe_proof.map(Into::into);
+        let maybe_proof: Option<SP1ProofWithPublicValues> = maybe_proof.map(Into::into);
 
         let execution_status = ExecutionStatus::try_from(status.execution_status()).unwrap();
         let fulfillment_status = FulfillmentStatus::try_from(status.fulfillment_status()).unwrap();
 
-        // Check fulfillment before the deadline — a fulfilled proof should be
-        // returned even if polled after the deadline has passed.
-        if fulfillment_status == FulfillmentStatus::Fulfilled {
-            return Ok((maybe_proof, fulfillment_status));
-        }
-        if execution_status == ExecutionStatus::Unexecutable {
-            return Err(Error::RequestUnexecutable { request_id: request_id.to_vec() }.into());
-        }
-        if fulfillment_status == FulfillmentStatus::Unfulfillable {
-            return Err(Error::RequestUnfulfillable { request_id: request_id.to_vec() }.into());
-        }
-
-        // Only check the deadline for requests that are still in progress.
         let current_time =
             std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
-        if current_time > status.deadline() {
-            return Err(Error::RequestTimedOut { request_id: request_id.to_vec() }.into());
-        }
+        let deadline_exceeded = current_time > status.deadline();
 
-        Ok((None, fulfillment_status))
+        decide_status_outcome(
+            request_id,
+            execution_status,
+            fulfillment_status,
+            maybe_proof,
+            deadline_exceeded,
+        )
     }
 
     /// Requests a proof from the prover network, returning the request ID.
@@ -722,12 +776,8 @@ impl NetworkProver {
                     // Check if this is a Mainnet auction request that we can retry.
                     if self.network_mode == NetworkMode::Mainnet {
                         if let Some(network_error) = e.downcast_ref::<Error>() {
-                            if matches!(
-                                network_error,
-                                Error::RequestUnfulfillable { .. }
-                                    | Error::RequestTimedOut { .. }
-                                    | Error::RequestAuctionTimedOut { .. }
-                            ) && strategy == FulfillmentStrategy::Auction
+                            if should_retry_with_ha_fallback(network_error)
+                                && strategy == FulfillmentStrategy::Auction
                                 && whitelist.is_none()
                             {
                                 tracing::warn!(
@@ -929,5 +979,163 @@ impl From<SP1ProofMode> for ProofMode {
             SP1ProofMode::Plonk => Self::Plonk,
             SP1ProofMode::Groth16 => Self::Groth16,
         }
+    }
+}
+
+#[cfg(test)]
+mod decision_tests {
+    use super::*;
+
+    fn rid() -> B256 {
+        B256::from([0xab; 32])
+    }
+
+    #[test]
+    fn fulfilled_takes_precedence_over_unexecutable_and_deadline() {
+        // Per #2737 ordering: a Fulfilled proof should be returned even if both Unexecutable
+        // and the deadline are concurrent — the proof is in hand.
+        let (proof, status) = decide_status_outcome(
+            rid(),
+            ExecutionStatus::Unexecutable,
+            FulfillmentStatus::Fulfilled,
+            None,
+            true,
+        )
+        .unwrap();
+        assert!(proof.is_none());
+        assert_eq!(status, FulfillmentStatus::Fulfilled);
+    }
+
+    #[test]
+    fn fulfilled_returns_proof() {
+        let (proof, status) = decide_status_outcome(
+            rid(),
+            ExecutionStatus::Executed,
+            FulfillmentStatus::Fulfilled,
+            None,
+            false,
+        )
+        .unwrap();
+        assert!(proof.is_none());
+        assert_eq!(status, FulfillmentStatus::Fulfilled);
+    }
+
+    #[test]
+    fn unexecutable_maps_to_request_unexecutable() {
+        let err = decide_status_outcome(
+            rid(),
+            ExecutionStatus::Unexecutable,
+            FulfillmentStatus::Assigned,
+            None,
+            false,
+        )
+        .unwrap_err();
+        assert!(matches!(err.downcast_ref::<Error>(), Some(Error::RequestUnexecutable { .. })));
+    }
+
+    #[test]
+    fn unfulfillable_maps_to_request_unfulfillable() {
+        let err = decide_status_outcome(
+            rid(),
+            ExecutionStatus::Executed,
+            FulfillmentStatus::Unfulfillable,
+            None,
+            false,
+        )
+        .unwrap_err();
+        assert!(matches!(err.downcast_ref::<Error>(), Some(Error::RequestUnfulfillable { .. })));
+    }
+
+    #[test]
+    fn reverted_maps_to_request_reverted() {
+        let err = decide_status_outcome(
+            rid(),
+            ExecutionStatus::Executed,
+            FulfillmentStatus::Reverted,
+            None,
+            false,
+        )
+        .unwrap_err();
+        let net = err.downcast_ref::<Error>().expect("network error");
+        assert!(matches!(net, Error::RequestReverted { .. }));
+        assert!(net.to_string().contains("soft-reverted"));
+    }
+
+    #[test]
+    fn expired_maps_to_request_expired() {
+        let err = decide_status_outcome(
+            rid(),
+            ExecutionStatus::Executed,
+            FulfillmentStatus::Expired,
+            None,
+            false,
+        )
+        .unwrap_err();
+        let net = err.downcast_ref::<Error>().expect("network error");
+        assert!(matches!(net, Error::RequestExpired { .. }));
+        assert!(net.to_string().contains("expired"));
+    }
+
+    #[test]
+    fn deadline_exceeded_maps_to_request_timed_out_for_in_progress_states() {
+        for fs in [
+            FulfillmentStatus::UnspecifiedFulfillmentStatus,
+            FulfillmentStatus::Requested,
+            FulfillmentStatus::Assigned,
+        ] {
+            let err = decide_status_outcome(rid(), ExecutionStatus::Executed, fs, None, true)
+                .unwrap_err();
+            assert!(
+                matches!(err.downcast_ref::<Error>(), Some(Error::RequestTimedOut { .. })),
+                "fs={fs:?} should map to RequestTimedOut when deadline exceeded",
+            );
+        }
+    }
+
+    #[test]
+    fn polling_states_return_ok_with_status() {
+        for fs in [
+            FulfillmentStatus::UnspecifiedFulfillmentStatus,
+            FulfillmentStatus::Requested,
+            FulfillmentStatus::Assigned,
+        ] {
+            let (proof, status) =
+                decide_status_outcome(rid(), ExecutionStatus::Executed, fs, None, false).unwrap();
+            assert!(proof.is_none());
+            assert_eq!(status, fs);
+        }
+    }
+
+    #[test]
+    fn ha_fallback_retries_expired_but_not_reverted() {
+        let request_id = rid().to_vec();
+        // Expired joins the existing retryable set.
+        assert!(should_retry_with_ha_fallback(&Error::RequestExpired {
+            request_id: request_id.clone()
+        }));
+        assert!(should_retry_with_ha_fallback(&Error::RequestUnfulfillable {
+            request_id: request_id.clone()
+        }));
+        assert!(should_retry_with_ha_fallback(&Error::RequestTimedOut {
+            request_id: request_id.clone()
+        }));
+        assert!(should_retry_with_ha_fallback(&Error::RequestAuctionTimedOut {
+            request_id: request_id.clone()
+        }));
+        // Reverted is terminal — STF soft-revert is deterministic on the request.
+        assert!(!should_retry_with_ha_fallback(&Error::RequestReverted {
+            request_id: request_id.clone()
+        }));
+        // RequestUnexecutable also stays out of the retry set (pre-existing behavior).
+        assert!(!should_retry_with_ha_fallback(&Error::RequestUnexecutable { request_id }));
+    }
+
+    #[test]
+    fn error_display_strings_for_new_variants() {
+        let request_id = vec![0xde, 0xad, 0xbe, 0xef];
+        let reverted = Error::RequestReverted { request_id: request_id.clone() }.to_string();
+        assert_eq!(reverted, "Proof request 0xdeadbeef was soft-reverted by the vApp STF");
+        let expired = Error::RequestExpired { request_id }.to_string();
+        assert_eq!(expired, "Proof request 0xdeadbeef expired before a proof was submitted");
     }
 }

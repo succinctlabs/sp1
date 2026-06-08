@@ -254,3 +254,75 @@ impl From<auction_types::GetProofRequestParamsResponse> for GetProofRequestParam
         Self::Auction(response)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    // Regression guard: the RPC can now return FulfillmentStatus values 5 (REVERTED)
+    // and 6 (EXPIRED). Older SDKs without these variants hit
+    // `FulfillmentStatus::try_from(i).unwrap()` in prover.rs and panicked. These
+    // tests pin the wire numbers + string names for both the `base` and `auction`
+    // proto trees so they stay in sync with network-services/proto/types.proto.
+
+    use super::{auction_types, base_types};
+
+    #[test]
+    fn base_fulfillment_status_reverted_and_expired_wire_values() {
+        assert_eq!(
+            base_types::FulfillmentStatus::try_from(5_i32).unwrap(),
+            base_types::FulfillmentStatus::Reverted,
+        );
+        assert_eq!(
+            base_types::FulfillmentStatus::try_from(6_i32).unwrap(),
+            base_types::FulfillmentStatus::Expired,
+        );
+        assert_eq!(base_types::FulfillmentStatus::Reverted.as_str_name(), "REVERTED");
+        assert_eq!(base_types::FulfillmentStatus::Expired.as_str_name(), "EXPIRED");
+        assert_eq!(
+            base_types::FulfillmentStatus::from_str_name("REVERTED"),
+            Some(base_types::FulfillmentStatus::Reverted),
+        );
+        assert_eq!(
+            base_types::FulfillmentStatus::from_str_name("EXPIRED"),
+            Some(base_types::FulfillmentStatus::Expired),
+        );
+    }
+
+    #[test]
+    fn auction_fulfillment_status_reverted_and_expired_wire_values() {
+        assert_eq!(
+            auction_types::FulfillmentStatus::try_from(5_i32).unwrap(),
+            auction_types::FulfillmentStatus::Reverted,
+        );
+        assert_eq!(
+            auction_types::FulfillmentStatus::try_from(6_i32).unwrap(),
+            auction_types::FulfillmentStatus::Expired,
+        );
+        assert_eq!(auction_types::FulfillmentStatus::Reverted.as_str_name(), "REVERTED");
+        assert_eq!(auction_types::FulfillmentStatus::Expired.as_str_name(), "EXPIRED");
+        assert_eq!(
+            auction_types::FulfillmentStatus::from_str_name("REVERTED"),
+            Some(auction_types::FulfillmentStatus::Reverted),
+        );
+        assert_eq!(
+            auction_types::FulfillmentStatus::from_str_name("EXPIRED"),
+            Some(auction_types::FulfillmentStatus::Expired),
+        );
+    }
+
+    #[test]
+    fn fulfillment_status_numeric_values_match_across_trees() {
+        // Both proto trees describe the same wire format. If a future regen drifts
+        // one tree's discriminant out of sync, the runtime selection in `mod.rs`
+        // would produce mismatched semantics — pin the equality directly.
+        assert_eq!(
+            base_types::FulfillmentStatus::Reverted as i32,
+            auction_types::FulfillmentStatus::Reverted as i32,
+        );
+        assert_eq!(
+            base_types::FulfillmentStatus::Expired as i32,
+            auction_types::FulfillmentStatus::Expired as i32,
+        );
+        assert_eq!(base_types::FulfillmentStatus::Reverted as i32, 5);
+        assert_eq!(base_types::FulfillmentStatus::Expired as i32, 6);
+    }
+}

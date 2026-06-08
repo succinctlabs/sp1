@@ -4466,6 +4466,11 @@ pub enum FulfillmentStatus {
     Fulfilled = 3,
     /// The request cannot be fulfilled.
     Unfulfillable = 4,
+    /// The Clear was soft-reverted by the vApp STF. Terminal; no balance impact.
+    Reverted = 5,
+    /// Request sat at ASSIGNED past its deadline without the prover ever submitting
+    /// a proof. Terminal; STF never received a Clear for it. No balance impact.
+    Expired = 6,
 }
 impl FulfillmentStatus {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -4479,6 +4484,8 @@ impl FulfillmentStatus {
             Self::Assigned => "ASSIGNED",
             Self::Fulfilled => "FULFILLED",
             Self::Unfulfillable => "UNFULFILLABLE",
+            Self::Reverted => "REVERTED",
+            Self::Expired => "EXPIRED",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -4489,6 +4496,8 @@ impl FulfillmentStatus {
             "ASSIGNED" => Some(Self::Assigned),
             "FULFILLED" => Some(Self::Fulfilled),
             "UNFULFILLABLE" => Some(Self::Unfulfillable),
+            "REVERTED" => Some(Self::Reverted),
+            "EXPIRED" => Some(Self::Expired),
             _ => None,
         }
     }
