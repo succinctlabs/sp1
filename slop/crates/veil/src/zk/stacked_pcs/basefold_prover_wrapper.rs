@@ -32,7 +32,7 @@
 //! let basefold_prover: BasefoldProver<GC, C> = /* ... */;
 //!
 //! // Wrap it to get ZK capabilities
-//! let zk_prover = ZkBasefoldProver::new(basefold_prover);
+//! let zk_prover = ZkBasefoldProver::new(basefold_prover, num_encoding_variables);
 //!
 //! // The wrapper implements MultilinearPcsBatchProver, so you can use it
 //! // for standard commitment operations
@@ -138,11 +138,9 @@ pub fn prove_from_batched_inputs<GC: ZkIopCtx, MK: ZkMerkleizer<GC>>(
     let mut current_batched_eval_claim = batched_eval_claim;
     let mut commit_phase_values = vec![];
 
-    assert_eq!(
-        current_mle.num_variables(),
-        eval_point.dimension() as u32,
-        "eval point dimension mismatch"
-    );
+    if current_mle.num_variables() != eval_point.dimension() as u32 {
+        return Err(BasefoldProverError::IncorrectShape);
+    }
 
     // Main Basefold reduction loop
     for _ in 0..eval_point.dimension() {
@@ -200,8 +198,7 @@ pub fn prove_from_batched_inputs<GC: ZkIopCtx, MK: ZkMerkleizer<GC>>(
         let proof = basefold_prover
             .tcs_prover
             .prove_openings_at_indices(tcs_prover_data, &query_indices)
-            .map_err(BaseFoldConfigProverError::<GC, MK>::TcsCommitError)
-            .unwrap();
+            .map_err(BaseFoldConfigProverError::<GC, MK>::TcsCommitError)?;
         component_polynomials_query_openings_and_proofs
             .push(MerkleTreeOpeningAndProof::<GC> { values, proof });
     }
@@ -250,12 +247,17 @@ pub fn prove_from_batched_inputs<GC: ZkIopCtx, MK: ZkMerkleizer<GC>>(
 pub struct ZkBasefoldProver<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> {
     /// The underlying BasefoldProver instance
     pub inner: BasefoldProver<GC, MK>,
+    /// The fixed number of encoding variables (stacking height) this PCS commits at.
+    /// Mirrors the verifier's `StackedPcsVerifier::log_stacking_height`; used to recover
+    /// `log_num_polynomials = mle.num_variables() - num_encoding_variables` at commit time.
+    pub num_encoding_variables: u32,
 }
 
 impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkBasefoldProver<GC, MK> {
-    /// Create a new ZkBasefoldProver wrapping a BasefoldProver
-    pub fn new(inner: BasefoldProver<GC, MK>) -> Self {
-        Self { inner }
+    /// Create a new ZkBasefoldProver wrapping a BasefoldProver, committing at a fixed
+    /// `num_encoding_variables` (stacking height).
+    pub fn new(inner: BasefoldProver<GC, MK>, num_encoding_variables: u32) -> Self {
+        Self { inner, num_encoding_variables }
     }
 
     /// Prove evaluations using custom pre-batched inputs over the extension field.
@@ -360,7 +362,9 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkBasefoldProver<GC, MK> {
             .map(|mle| {
                 let guts = mle.guts();
                 let sizes = guts.sizes();
-                assert_eq!(sizes.len(), 2, "Expected a 2D tensor");
+                if sizes.len() != 2 {
+                    return Err(BasefoldProverError::IncorrectShape);
+                }
 
                 let num_rows = sizes[0];
                 let num_cols = sizes[1];
@@ -368,7 +372,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkBasefoldProver<GC, MK> {
                 // Calculate next power of two for the first dimension
                 let padded_num_rows = num_rows.next_power_of_two();
 
-                if padded_num_rows == num_rows {
+                Ok(if padded_num_rows == num_rows {
                     // Already a power of two, no padding needed
                     mle
                 } else {
@@ -378,9 +382,9 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkBasefoldProver<GC, MK> {
 
                     // Create RowMajorMatrix and convert to Tensor, then to MLE
                     Arc::new(Mle::new(RowMajorMatrix::new(padded_vec, num_cols).into()))
-                }
+                })
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, _>>()?;
 
         let padded_mles_message: Message<Mle<GC::F, CpuBackend>> = padded_mles.into();
 

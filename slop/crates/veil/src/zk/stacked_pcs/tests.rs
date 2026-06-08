@@ -1,9 +1,10 @@
-use crate::zk::inner::{
-    compute_mask_length, ConstraintContextInnerExt, MleCommitmentIndex, ZkCnstrAndReadingCtxInner,
-};
+use crate::compiler::{ConstraintCtx, ReadingCtx};
+use crate::zk::compute_mask_length;
+use crate::zk::inner::{ConstraintContextInnerExt, MleCommitmentIndex, ZkCnstrAndReadingCtxInner};
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use slop_challenger::IopCtx;
+use slop_commit::Message;
 use slop_koala_bear::KoalaBearDegree4Duplex;
 use slop_merkle_tree::Poseidon2KoalaBear16Prover;
 use slop_multilinear::{Mle, Point};
@@ -76,20 +77,22 @@ fn run_zk_stacked_pcs_test(num_encoding_variables: u32, log_num_polynomials: u32
     let (zk_basefold_prover, zk_stacked_verifier) =
         initialize_zk_prover_and_verifier::<GC, MK>(1, num_encoding_variables);
 
-    let masks_length = compute_mask_length::<GC, _, _, _>(
-        |ctx| read_all(ctx, num_encoding_variables as usize, log_num_polynomials as usize),
-        |data, ctx| build_all_constraints(data, &eval_point, ctx),
-    );
+    let masks_length = compute_mask_length::<GC>(num_encoding_variables, |ctx| {
+        let oracle = ctx.read_oracle(num_variables).expect("read_oracle failed");
+        let claim = ctx.read_one().expect("read eval claim failed");
+        ctx.assert_mle_eval(oracle, eval_point.clone(), claim);
+    });
 
     // Prover Side
     let prover_start = std::time::Instant::now();
     let zkproof = {
         let mut prover_context: StackedPcsZkProverContext<GC, MK> =
-            StackedPcsZkProverContext::initialize_only_lin_constraints(masks_length, &mut rng);
+            StackedPcsZkProverContext::initialize_only_lin_constraints(masks_length, &mut rng)
+                .expect("zk init failed");
 
         let commitment_index = prover_context
             .commit_mle(
-                original_mle.clone(),
+                Message::from(original_mle),
                 log_num_polynomials as usize,
                 &zk_basefold_prover,
                 &mut rng,
@@ -101,7 +104,7 @@ fn run_zk_stacked_pcs_test(num_encoding_variables: u32, log_num_polynomials: u32
         let transcript_data = PcsTranscriptData { commitment_index, eval_claim: claim };
         build_all_constraints(transcript_data, &eval_point, &mut prover_context);
 
-        prover_context.prove(&mut rng, Some(&zk_basefold_prover))
+        prover_context.prove(&mut rng, Some(&zk_basefold_prover)).expect("zk prove failed")
     };
     if verbose {
         eprintln!("Prover time: {:?}", prover_start.elapsed());

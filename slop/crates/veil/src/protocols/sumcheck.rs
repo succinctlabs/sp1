@@ -5,7 +5,7 @@ use thiserror::Error;
 use crate::compiler::{ConstraintCtx, ReadingCtx, SendingCtx, TranscriptReadError};
 
 /// Sumcheck verification errors, shaped to mirror
-/// [`slop_sumcheck::verifier::SumcheckError`]. The specific round-failure
+/// [`slop_sumcheck::SumcheckError`]. The specific round-failure
 /// variants only surface in eager-checking backends (transparent); deferred
 /// backends (ZK) accumulate the failure into a flag surfaced at `ctx.verify()`.
 #[derive(Debug, Error)]
@@ -36,8 +36,8 @@ pub struct SumcheckParam {
 }
 
 /// "The sum of the composition polynomial over `{0,1}^n` equals `claimed_sum`."
-/// Not transmitted on the transcript; supplied by the caller to `build_constraints`
-/// as a public constant or an upstream protocol's output claim.
+/// Not transmitted on the transcript; supplied by the caller to `verify` as a
+/// public constant or an upstream protocol's output claim.
 #[derive(Clone)]
 pub struct SumcheckInputClaim<C: ConstraintCtx> {
     pub claimed_sum: C::Expr,
@@ -66,13 +66,6 @@ pub struct SumcheckOutputClaim<C: ConstraintCtx> {
     /// Per-poly component evals: `component_evals[i][j]` = component `j` of
     /// batched poly `i`, with inner lengths from `poly_component_counts`.
     pub component_evals: Vec<Vec<C::Expr>>,
-}
-
-/// Returned by `prove` / `read`. The output claim plus the per-round univariate
-/// coefficients `build_constraints` needs.
-pub struct SumcheckView<C: ConstraintCtx> {
-    pub out_claim: SumcheckOutputClaim<C>,
-    pub(crate) univariate_poly_coeffs: Vec<Vec<C::Expr>>,
 }
 
 impl SumcheckParam {
@@ -105,37 +98,71 @@ impl SumcheckParam {
         self.poly_component_counts.len()
     }
 
-    /// Read the sumcheck proof from the transcript. The input claim is passed
-    /// separately to `build_constraints`, not read from the transcript.
-    pub fn read<C: ReadingCtx>(&self, ctx: &mut C) -> Result<SumcheckView<C>, SumcheckError> {
-        if self.num_variables == 0 {
+    /// Reads the sumcheck proof from the transcript *and* emits the round-
+    /// consistency constraints in a single pass, returning the reduced output
+    /// claim. Used by the verifier and — via a non-challenger-touching replay
+    /// [`ReadingCtx`] — by the prover, so this body is the sole source of truth
+    /// for the protocol's transcript layout and constraints.
+    pub fn verify<C: ReadingCtx>(
+        &self,
+        in_claim: &SumcheckInputClaim<C>,
+        ctx: &mut C,
+    ) -> Result<SumcheckOutputClaim<C>, SumcheckError> {
+        self.verify_batched(std::slice::from_ref(in_claim), C::Challenge::one(), ctx)
+    }
+
+    /// RLC-batched counterpart of [`Self::verify`]. Each round ties
+    /// `eval(0)+eval(1)` of that round's univariate to the running claim, then
+    /// folds the claim forward to `poly(alpha)`. The final round ties the last
+    /// univariate at its alpha to the transcript's `claimed_eval`. `lambda` is
+    /// the RLC coefficient the prover used.
+    pub fn verify_batched<C: ReadingCtx>(
+        &self,
+        in_claims: &[SumcheckInputClaim<C>],
+        lambda: C::Challenge,
+        ctx: &mut C,
+    ) -> Result<SumcheckOutputClaim<C>, SumcheckError> {
+        if self.num_variables == 0 || in_claims.is_empty() {
             return Err(SumcheckError::InvalidProofShape);
         }
+        let num_variables = self.num_variables as usize;
 
-        let mut alphas = Vec::with_capacity(self.num_variables as usize);
-        let mut univariate_poly_coeffs = Vec::with_capacity(self.num_variables as usize);
+        // The running claim starts as rlc(in_claims, lambda). Expression-level
+        // Horner: feeding the reversed claims to `poly_eval` yields
+        // `claims[0]*lambda^(N-1) + ... + claims[N-1]`.
+        let reversed_claims: Vec<C::Expr> =
+            in_claims.iter().rev().map(|c| c.claimed_sum.clone()).collect();
+        let mut running_claim = C::poly_eval(&reversed_claims, lambda);
 
-        for _ in 0..self.num_variables {
+        let mut alphas = Vec::with_capacity(num_variables);
+        for round in 0..num_variables {
             let coeffs = ctx.read_next(self.degree + 1)?;
+            let consistency = C::eval_one_plus_eval_zero(&coeffs) - running_claim;
+            let err = if round == 0 {
+                SumcheckError::InconsistencyWithClaimedSum
+            } else {
+                SumcheckError::SumcheckRoundInconsistency
+            };
+            ctx.assert_zero(consistency).map_err(|_| err)?;
+
             let alpha = ctx.sample();
+            running_claim = C::poly_eval(&coeffs, alpha);
             alphas.push(alpha);
-            univariate_poly_coeffs.push(coeffs);
         }
 
-        // Alphas are collected outer-to-inner, reverse for point representation.
+        // Alphas collected outer-to-inner; reverse for the point convention.
         alphas.reverse();
 
         let claimed_eval = ctx.read_one()?;
+        ctx.assert_zero(running_claim - claimed_eval.clone())
+            .map_err(|_| SumcheckError::InconsistencyWithEval)?;
 
         let mut component_evals = Vec::with_capacity(self.poly_component_counts.len());
         for &count in &self.poly_component_counts {
             component_evals.push(if count > 0 { ctx.read_next(count)? } else { vec![] });
         }
 
-        Ok(SumcheckView {
-            out_claim: SumcheckOutputClaim { point: alphas, claimed_eval, component_evals },
-            univariate_poly_coeffs,
-        })
+        Ok(SumcheckOutputClaim { point: alphas, claimed_eval, component_evals })
     }
 
     /// Single-poly prove: thin wrapper around [`Self::prove_batched`] with a
@@ -145,7 +172,7 @@ impl SumcheckParam {
         in_claim: &SumcheckInputClaim<C>,
         poly: impl SumcheckPolyFirstRound<C::Extension>,
         ctx: &mut C,
-    ) -> SumcheckView<C> {
+    ) -> SumcheckOutputClaim<C> {
         assert_eq!(
             self.num_polys(),
             1,
@@ -154,16 +181,18 @@ impl SumcheckParam {
         self.prove_batched(std::slice::from_ref(in_claim), C::Extension::one(), vec![poly], ctx)
     }
 
-    /// Multi-poly RLC-batched prove. Each round emits the Horner-in-`lambda`
-    /// RLC of the per-poly univariates. `in_claims.len() == polys.len() ==
-    /// self.num_polys()`.
+    /// Multi-poly RLC-batched prove. Each round sends the Horner-in-`lambda`
+    /// RLC of the per-poly univariates and samples the round's `alpha`.
+    /// Constraints are *not* emitted here — they're emitted when the caller (or
+    /// the prover's verify-replay) runs [`Self::verify`] / [`Self::verify_batched`]
+    /// on the same transcript. `in_claims.len() == polys.len() == self.num_polys()`.
     pub fn prove_batched<C: SendingCtx>(
         &self,
         in_claims: &[SumcheckInputClaim<C>],
         lambda: C::Extension,
         polys: Vec<impl SumcheckPolyFirstRound<C::Extension>>,
         ctx: &mut C,
-    ) -> SumcheckView<C> {
+    ) -> SumcheckOutputClaim<C> {
         assert!(self.num_variables >= 1);
         assert_eq!(
             in_claims.len(),
@@ -184,7 +213,6 @@ impl SumcheckParam {
             in_claims.iter().map(|c| ctx.to_value(&c.claimed_sum)).collect();
 
         let mut point = Vec::new();
-        let mut univariate_poly_coeffs = Vec::new();
 
         // First round.
         let mut per_poly_unis: Vec<_> = polys
@@ -193,7 +221,7 @@ impl SumcheckParam {
             .map(|(poly, claim)| poly.sum_as_poly_in_last_t_variables(Some(*claim), 1))
             .collect();
         let mut rlc_uni = rlc_univariate_polynomials(&per_poly_unis, lambda);
-        univariate_poly_coeffs.push(ctx.send_values(&rlc_uni.coefficients));
+        ctx.send_values(&rlc_uni.coefficients);
         let mut alpha: C::Challenge = ctx.sample();
         point.push(alpha);
         let mut cursors: Vec<_> =
@@ -209,21 +237,20 @@ impl SumcheckParam {
                 .map(|(cur, rc)| cur.sum_as_poly_in_last_variable(Some(rc)))
                 .collect();
             rlc_uni = rlc_univariate_polynomials(&per_poly_unis, lambda);
-            univariate_poly_coeffs.push(ctx.send_values(&rlc_uni.coefficients));
+            ctx.send_values(&rlc_uni.coefficients);
             alpha = ctx.sample();
             point.push(alpha);
             cursors = cursors.into_iter().map(|cur| cur.fix_last_variable(alpha.into())).collect();
         }
 
-        // Point was collected outer-to-inner, reverse to match convention
+        // Point collected outer-to-inner; reverse to match convention.
         point.reverse();
 
-        // Send the final claimed evaluation (RLC of per-poly final evals, also
-        // reproducible from `univariate_poly_coeffs.last()` at `alpha`).
+        // Send the final claimed evaluation (RLC of per-poly final evals).
         let eval = rlc_uni.eval_at_point(alpha.into());
         let claimed_eval = ctx.send_value(eval);
 
-        // Send per-poly component evaluations (nested in the view).
+        // Send per-poly component evaluations.
         let mut component_evals = Vec::with_capacity(self.poly_component_counts.len());
         for (cursor, &expected_count) in cursors.iter().zip(&self.poly_component_counts) {
             if expected_count > 0 {
@@ -241,65 +268,6 @@ impl SumcheckParam {
             }
         }
 
-        SumcheckView {
-            out_claim: SumcheckOutputClaim { point, claimed_eval, component_evals },
-            univariate_poly_coeffs,
-        }
-    }
-}
-
-impl<C: ConstraintCtx> SumcheckView<C> {
-    /// Non-batched round-consistency constraints. Thin wrapper around
-    /// [`Self::build_constraints_batched`] with one claim and `lambda = 1`.
-    pub fn build_constraints(
-        self,
-        in_claim: &SumcheckInputClaim<C>,
-        ctx: &mut C,
-    ) -> Result<(), SumcheckError> {
-        self.build_constraints_batched(std::slice::from_ref(in_claim), C::Challenge::one(), ctx)
-    }
-
-    /// Emit RLC-batched round-consistency constraints: round 0 ties
-    /// `rlc(in_claims, lambda)` to the first univariate, intermediates chain
-    /// via `poly_{i-1}(alpha_{i-1}) == eval(0) + eval(1)` of `poly_i`, and the
-    /// final round ties the last univariate at `alpha` to `claimed_eval`.
-    /// `lambda` is the same RLC coefficient the prover used.
-    pub fn build_constraints_batched(
-        self,
-        in_claims: &[SumcheckInputClaim<C>],
-        lambda: C::Challenge,
-        ctx: &mut C,
-    ) -> Result<(), SumcheckError> {
-        let num_variables = self.univariate_poly_coeffs.len();
-        if num_variables == 0 || in_claims.is_empty() {
-            return Err(SumcheckError::InvalidProofShape);
-        }
-
-        // Round 0: rlc(in_claims, lambda) == eval(0) + eval(1) of first univariate.
-        //
-        // Expression-level Horner: claims[0] * lambda^(N-1) + ... + claims[N-1].
-        // We reuse `C::poly_eval`, which computes `c_0 + c_1*x + ... + c_{n-1}*x^{n-1}`,
-        // so feeding the reversed claims to it yields the desired Horner form.
-        let reversed_claims: Vec<C::Expr> =
-            in_claims.iter().rev().map(|c| c.claimed_sum.clone()).collect();
-        let rlc_claim = C::poly_eval(&reversed_claims, lambda);
-        let first_round = C::eval_one_plus_eval_zero(&self.univariate_poly_coeffs[0]) - rlc_claim;
-        ctx.assert_zero(first_round).map_err(|_| SumcheckError::InconsistencyWithClaimedSum)?;
-
-        // Intermediate rounds: poly_{i-1}(alpha_{i-1}) == eval(0) + eval(1) of poly_i.
-        for i in 1..num_variables {
-            let alpha = self.out_claim.point[num_variables - i];
-            let lhs = C::poly_eval(&self.univariate_poly_coeffs[i - 1], alpha);
-            let rhs = C::eval_one_plus_eval_zero(&self.univariate_poly_coeffs[i]);
-            ctx.assert_zero(lhs - rhs).map_err(|_| SumcheckError::SumcheckRoundInconsistency)?;
-        }
-
-        // Final round: last poly evaluated at alpha == claimed_eval.
-        let alpha = self.out_claim.point[0];
-        let final_eval = C::poly_eval(&self.univariate_poly_coeffs[num_variables - 1], alpha);
-        ctx.assert_zero(final_eval - self.out_claim.claimed_eval)
-            .map_err(|_| SumcheckError::InconsistencyWithEval)?;
-
-        Ok(())
+        SumcheckOutputClaim { point, claimed_eval, component_evals }
     }
 }
