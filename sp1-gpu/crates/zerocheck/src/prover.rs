@@ -293,6 +293,116 @@ pub struct VirtualGeqStateC {
     pub eq_coefficient: Ext,
 }
 
+/// Shard-static per-chip column layout entry. Mirrors
+/// `ChipColumnLayoutEntry` in `sys/include/jagged_assist/chip_layouts.cuh`.
+/// Uploaded once at shard init; consumed by the device chip-layouts kernel
+/// every round.
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct ChipColumnLayoutEntry {
+    pub prep_col_idx: u32,
+    pub main_col_idx: u32,
+    pub prep_width: u32,
+    pub main_width: u32,
+}
+
+/// Per-shard structural tracker of `column_heights` — captures the small
+/// amount of state the host actually needs to drive per-round dispatch
+/// without ever shadowing the full `column_heights` array.
+///
+/// Three observations make this small:
+///   - Chip widths are shard-static.
+///   - All columns of a chip share a height (uniform within chip — built
+///     that way at trace init and preserved by `h.div_ceil(4)*2`); so each
+///     chip needs at most two height values (one for prep, one for main).
+///   - The remaining "padding" columns between sections are
+///     data-dependent but small in count (1 between prep/main for the
+///     standard tracegen + `from_chip_layout` paths; the structural tracker
+///     handles arbitrary counts).
+///
+/// The tracker is initialised by a single setup-time download of
+/// `column_heights` (which would happen anyway — every other shard-init
+/// download draws from the same stream sync). Every subsequent fold
+/// advances it via `h.div_ceil(4)*2` element-wise on these tiny vectors —
+/// the host does no per-round work proportional to `column_heights.len()`.
+///
+/// The device buffer `column_heights` stays the source of truth for the
+/// fold kernel and the chip-layouts kernel; the tracker is the source of
+/// truth for everything the *host* needs (input_length, new_total_length,
+/// chip_heights for dispatch building).
+pub struct ShardLayoutTracker {
+    /// Per-chip prep / main pair heights. Either may be zero (chip has no
+    /// prep or no main cols). Indexed by `chip_idx`.
+    pub chip_prep_h_pair: Vec<u32>,
+    pub chip_main_h_pair: Vec<u32>,
+    /// Padding columns between the chip prep and chip main sections.
+    /// Typically one entry; the structural tracker handles arbitrary
+    /// counts to match the real tracegen path's "fill to next
+    /// stacking-multiple" loop.
+    pub prep_padding_h_pair: Vec<u32>,
+    /// Padding columns at the tail of the main section. Often empty.
+    pub main_padding_h_pair: Vec<u32>,
+    /// Shard-static chip widths, indexed by chip_idx.
+    pub chip_prep_w: Vec<u32>,
+    pub chip_main_w: Vec<u32>,
+}
+
+impl ShardLayoutTracker {
+    /// Apply one fold's `h.div_ceil(4)*2` recurrence to every tracked
+    /// height — mirrors what `jagged_fold_metadata` does element-wise to
+    /// the device-resident `column_heights`. Constant per-chip work plus
+    /// a few-element padding loop.
+    #[inline]
+    pub fn fold(&mut self) {
+        for h in self
+            .chip_prep_h_pair
+            .iter_mut()
+            .chain(self.chip_main_h_pair.iter_mut())
+            .chain(self.prep_padding_h_pair.iter_mut())
+            .chain(self.main_padding_h_pair.iter_mut())
+        {
+            *h = h.div_ceil(4) * 2;
+        }
+    }
+
+    /// Total `column_heights` sum in pair units — the loop bound the fold
+    /// kernel uses. Matches `Σ column_heights` exactly given the
+    /// invariants above.
+    #[inline]
+    pub fn total_length_pair(&self) -> u32 {
+        let chip_sum: u32 = self
+            .chip_prep_w
+            .iter()
+            .zip(self.chip_prep_h_pair.iter())
+            .map(|(w, h)| w * h)
+            .sum::<u32>()
+            + self
+                .chip_main_w
+                .iter()
+                .zip(self.chip_main_h_pair.iter())
+                .map(|(w, h)| w * h)
+                .sum::<u32>();
+        let padding_sum: u32 = self.prep_padding_h_pair.iter().sum::<u32>()
+            + self.main_padding_h_pair.iter().sum::<u32>();
+        chip_sum + padding_sum
+    }
+
+    /// Per-chip *chip-row* height in element units, used by host-side
+    /// dispatch builders. Returns the main height if the chip has main
+    /// cols, else the prep height, else 0 — matches every per-chip
+    /// kernel's row-count convention.
+    #[inline]
+    pub fn chip_height_elements(&self, chip_idx: usize) -> u32 {
+        if self.chip_main_w[chip_idx] > 0 {
+            self.chip_main_h_pair[chip_idx] * 2
+        } else if self.chip_prep_w[chip_idx] > 0 {
+            self.chip_prep_h_pair[chip_idx] * 2
+        } else {
+            0
+        }
+    }
+}
+
 /// A per-chunk view into the flat machine-wide bytecode buffers
 /// (`MachineBytecode`). Holds raw device pointers, not owned allocations —
 /// the backing memory lives in the `MachineBytecode` that contains this
@@ -574,9 +684,23 @@ pub(crate) struct ZeroCheckJaggedPoly<'b, K: Field> {
     pub powers_of_alpha: Buffer<Ext, TaskScope>,
     pub gkr_powers: Buffer<Ext, TaskScope>,
     pub powers_of_lambda: Buffer<Ext, TaskScope>,
-    pub chip_main_ptrs: Vec<u64>,
-    pub chip_preprocessed_ptrs: Vec<u64>,
-    pub chip_heights: Vec<u32>,
+    /// Structural tracker of `column_heights` for everything the *host*
+    /// derives per round (input_length, new_total_length, chip_heights for
+    /// dispatch). Not a per-element shadow — see `ShardLayoutTracker` for
+    /// the storage shape and invariants. Initialised by a single setup-
+    /// time download; advanced per fold via `fold()` (constant work per
+    /// chip plus a tiny padding loop).
+    pub layout_tracker: ShardLayoutTracker,
+    /// Shard-static per-chip column layout (prep/main col indices + widths).
+    /// Uploaded once at setup; consumed by the device chip-layouts kernel
+    /// every round to compute `chip_layouts_dev`.
+    pub chip_column_layouts_dev: Buffer<ChipColumnLayoutEntry, TaskScope>,
+    /// Device-resident `ChipLayoutC[chip_idx]` consumed directly by every
+    /// per-chip kernel (sequential / column_tile / gkr_sweep / geq). Written
+    /// by the device chip-layouts kernel each round from the device-side
+    /// `start_indices` + `column_heights` + shard-static
+    /// `chip_column_layouts_dev`. Never round-trips to host.
+    pub chip_layouts_dev: Buffer<ChipLayoutC, TaskScope>,
     /// Per-chip shift into the cluster's reversed `powers_of_alpha` table:
     /// `max_num_constraints - chip.num_constraints`. The compiled bytecode
     /// stores chip-relative alpha indices; this shift is applied at launch
@@ -616,9 +740,20 @@ pub(crate) struct ZeroCheckJaggedPoly<'b, K: Field> {
     // `extend_from_host_slice()`. These caches hold the prior round's
     // buffer and refill in place; only re-allocate when the new payload
     // exceeds the cached capacity.
-    pub cached_chip_layouts_buf: Option<Buffer<ChipLayoutC, TaskScope>>,
     pub cached_seq_dispatch: [Option<Buffer<BlockDispatchC, TaskScope>>; 2],
     pub cached_gkr_dispatch: Option<Buffer<BlockDispatchC, TaskScope>>,
+
+    // ---- Fold-metadata scan bookkeeping (per-shard, sized once) ----
+    //
+    // `jagged_fold_metadata` is a multi-block decoupled-lookback scan; it
+    // needs three small auxiliary buffers (`block_counter`, `flags`,
+    // `scan_values`). Sized once for `ceil(n_columns / SECTION_SIZE)` and
+    // reset in place per fold. The fold transforms column heights but
+    // leaves `n_columns` itself unchanged across rounds, so this single
+    // allocation suffices for the whole shard.
+    pub scan_block_counter: Buffer<u32, TaskScope>,
+    pub scan_flags: Buffer<u32, TaskScope>,
+    pub scan_values: Buffer<u32, TaskScope>,
 }
 
 /// Shard-static data for one fused-kernel tier (low-reg / high-reg).
@@ -731,7 +866,31 @@ where
 {
     let scope = data.dense().backend();
 
-    let (chip_main_ptrs, chip_preprocessed_ptrs, chip_heights) = compute_chip_offsets(data, chips);
+    // Build the per-chip host tracker once and derive the initial round's
+    // chip_layouts from it. The tracker is updated per fold via the
+    // `h.div_ceil(4)*2` recurrence — same transformation the device's fold
+    // applies to `column_heights` element-wise — so the host stays in
+    // lockstep without ever downloading from device.
+    // Structural tracker of `column_heights` for the small amount of
+    // per-round host work (length + dispatch heights). One setup download;
+    // every subsequent fold advances it via `h.div_ceil(4)*2` on a few
+    // KB-scale vectors — no per-round GPU sync.
+    let layout_tracker = build_layout_tracker(chips, data);
+
+    // Shard-static per-chip column layout entries, uploaded once. The
+    // device chip-layouts kernel consumes them every round to write
+    // `chip_layouts_dev` from the post-fold `start_indices` /
+    // `column_heights` — keeping the per-chip ptr/height derivation
+    // entirely on device.
+    let chip_column_layouts_host = build_chip_column_layouts(chips);
+    let chip_column_layouts_dev =
+        DeviceBuffer::from_host_slice(&chip_column_layouts_host, scope).unwrap().into_inner();
+    let mut chip_layouts_dev =
+        Buffer::<ChipLayoutC, _>::with_capacity_in(chips.len(), scope.clone());
+    // SAFETY: the chip-layouts kernel writes every slot before any
+    // downstream kernel reads `chip_layouts_dev[chip_idx]`.
+    unsafe { chip_layouts_dev.assume_init() };
+    launch_chip_layouts_kernel(data, &chip_column_layouts_dev, &mut chip_layouts_dev);
 
     // Per-chip launch-time shift into the reversed `powers_of_alpha` table.
     let max_num_constraints =
@@ -832,6 +991,21 @@ where
         None
     };
 
+    // Fold-metadata scan bookkeeping. `n_columns` is invariant across
+    // folds (the fold transforms column heights but leaves the column
+    // count unchanged), so a single allocation sized for it suffices for
+    // every round.
+    let section_size =
+        unsafe { sp1_gpu_cudart::sys::kernels::jagged_fold_metadata_section_size() } as usize;
+    let initial_n_blocks = data.column_heights.len().div_ceil(section_size).max(1);
+    let scan_block_counter = {
+        let mut b = Buffer::<u32, _>::with_capacity_in(1, scope.clone());
+        b.write_bytes(0, std::mem::size_of::<u32>()).unwrap();
+        b
+    };
+    let scan_flags = Buffer::<u32, _>::with_capacity_in(initial_n_blocks + 1, scope.clone());
+    let scan_values = Buffer::<u32, _>::with_capacity_in(initial_n_blocks + 1, scope.clone());
+
     ZeroCheckJaggedPoly {
         data: Cow::Borrowed(data),
         compiled: compiled_chips_dev,
@@ -844,9 +1018,9 @@ where
         powers_of_alpha: powers_of_alpha_device,
         gkr_powers: gkr_powers_device,
         powers_of_lambda: powers_of_lambda_device,
-        chip_main_ptrs,
-        chip_preprocessed_ptrs,
-        chip_heights,
+        layout_tracker,
+        chip_column_layouts_dev,
+        chip_layouts_dev,
         chip_alpha_offset,
         seq_tiers,
         chip_geq_state_dev,
@@ -855,9 +1029,11 @@ where
         n_geq_chips,
         chip_gkr_info_dev,
         gkr_active_chips,
-        cached_chip_layouts_buf: None,
         cached_seq_dispatch: [None, None],
         cached_gkr_dispatch: None,
+        scan_block_counter,
+        scan_flags,
+        scan_values,
     }
 }
 
@@ -1069,78 +1245,154 @@ fn compute_padded_row_adjustment(
     padded_row_adjustment
 }
 
-/// Compute the per-chip main/preprocessed trace pointers within the jagged
-/// dense buffer, using the jagged structure's `start_indices` and
-/// `column_heights` (in pair units) as the source of truth:
-///   main_ptr = startIndices[total_prep_cols + has_prep_padding + main_idx] << 1
+/// Build the shard-static `ChipColumnLayoutEntry` array — per-chip
+/// column indices + widths within the flat `column_heights` array. Chip
+/// widths don't change across rounds, so this runs once and lives on device
+/// for every subsequent fold.
 ///
-/// The dense_offset values from `update_offset` (used by JaggedTraceMle's
-/// table indices after a fold) silently drift from the actual jagged layout
-/// when fold padding introduces extra elements at column ends — using
-/// start_indices avoids that whole class of bugs.
-///
-/// Returns (main_ptrs, preprocessed_ptrs, heights), all in element units of
-/// the underlying buffer type (Felt before round 0, Ext after).
-fn compute_chip_offsets<A, K: Field>(
-    data: &JaggedTraceMle<K, TaskScope>,
-    chips: &BTreeSet<Chip<Felt, A>>,
-) -> (Vec<u64>, Vec<u64>, Vec<u32>)
+/// Layout convention (matching v1's evaluate_zerocheck): all chip prep
+/// columns at the front, then one prep-padding column, then all chip main
+/// columns. The padding column's height is data-dependent but it doesn't
+/// belong to any chip; the device chip-layouts kernel reads its prefix-sum
+/// contribution implicitly via `start_indices[main_col_idx]`.
+fn build_chip_column_layouts<A>(chips: &BTreeSet<Chip<Felt, A>>) -> Vec<ChipColumnLayoutEntry>
 where
     A: MachineAir<Felt>,
 {
-    let column_heights = &data.0.column_heights;
-    // start_indices in pair units derived from column_heights (cumulative).
-    let mut starts: Vec<u64> = Vec::with_capacity(column_heights.len() + 1);
-    starts.push(0);
-    let mut acc: u64 = 0;
-    for &h in column_heights.iter() {
-        acc += h as u64;
-        starts.push(acc);
-    }
-
     let total_prep_widths: usize = chips.iter().map(|c| c.preprocessed_width()).sum();
-    // Match v1's kernel convention: always assume a single prep-padding
-    // column sits between prep cols and main cols. v1's evaluate_zerocheck
-    // hardcodes `total_num_preprocessed_column + 1 + main_idx` for the same
-    // reason. In practice padded prep is always rounded up so this column
-    // exists.
     let main_section_start_col: usize = total_prep_widths + 1;
 
-    let mut prep_ptrs = Vec::with_capacity(chips.len());
-    let mut main_ptrs = Vec::with_capacity(chips.len());
-    let mut heights = Vec::with_capacity(chips.len());
-
+    let mut out = Vec::with_capacity(chips.len());
     let mut cum_prep: usize = 0;
     let mut cum_main: usize = 0;
     for chip in chips.iter() {
-        let prep_w = chip.preprocessed_width();
-        let main_w = chip.width();
-
-        let prep_col_idx = cum_prep;
-        let main_col_idx = main_section_start_col + cum_main;
-
-        let prep_ptr = if prep_w > 0 { starts[prep_col_idx] * 2 } else { 0 };
-        let main_ptr = if main_w > 0 { starts[main_col_idx] * 2 } else { 0 };
-
-        // Column stride in element units. Prefer main if present (chip has
-        // main cols), else prep. Chips with neither shouldn't reach here.
-        let height = if main_w > 0 {
-            column_heights[main_col_idx] * 2
-        } else if prep_w > 0 {
-            column_heights[prep_col_idx] * 2
-        } else {
-            0
-        };
-
-        prep_ptrs.push(prep_ptr);
-        main_ptrs.push(main_ptr);
-        heights.push(height);
-
-        cum_prep += prep_w;
-        cum_main += main_w;
+        let prep_w = chip.preprocessed_width() as u32;
+        let main_w = chip.width() as u32;
+        out.push(ChipColumnLayoutEntry {
+            prep_col_idx: cum_prep as u32,
+            main_col_idx: (main_section_start_col + cum_main) as u32,
+            prep_width: prep_w,
+            main_width: main_w,
+        });
+        cum_prep += prep_w as usize;
+        cum_main += main_w as usize;
     }
+    out
+}
 
-    (main_ptrs, prep_ptrs, heights)
+/// Launch the device chip-layouts kernel — reads device-resident
+/// `start_indices` + `column_heights` at sparse per-chip positions, writes
+/// `chip_layouts_dev[chip_idx]`. Async on the stream; no host sync.
+fn launch_chip_layouts_kernel<K: Field>(
+    data: &JaggedTraceMle<K, TaskScope>,
+    chip_column_layouts_dev: &Buffer<ChipColumnLayoutEntry, TaskScope>,
+    chip_layouts_dev: &mut Buffer<ChipLayoutC, TaskScope>,
+) {
+    let n_chips = chip_column_layouts_dev.len() as u32;
+    // CUDA rejects grid_dim = 0; an empty chip set means no per-chip work
+    // anywhere downstream, so there's nothing to compute.
+    if n_chips == 0 {
+        return;
+    }
+    let scope = data.dense().backend();
+    const BLOCK: u32 = 128;
+    let n_blocks = n_chips.div_ceil(BLOCK);
+    unsafe {
+        let args = args!(
+            data.0.start_indices.as_ptr(),
+            data.0.column_heights.as_ptr(),
+            chip_column_layouts_dev.as_ptr(),
+            n_chips,
+            chip_layouts_dev.as_mut_ptr()
+        );
+        scope
+            .launch_kernel(
+                sp1_gpu_cudart::sys::kernels::jagged_chip_layouts_kernel(),
+                (n_blocks, 1u32, 1u32),
+                (BLOCK, 1u32, 1u32),
+                &args,
+                0,
+            )
+            .unwrap();
+    }
+}
+
+/// Build the initial `ShardLayoutTracker` for a shard.
+///
+/// Chip widths are shard-static. Per-chip prep / main heights come from the
+/// trace's table indices (host-known, no device sync). Padding column
+/// heights need a single setup-time download of `column_heights` — the
+/// padding section is data-dependent but small in column count, and the
+/// download happens alongside other setup-time syncs (no extra cost).
+/// From this point on the tracker advances entirely on host via the
+/// `h.div_ceil(4)*2` recurrence — zero per-round device round-trips.
+fn build_layout_tracker<A>(
+    chips: &BTreeSet<Chip<Felt, A>>,
+    data: &JaggedTraceMle<Felt, TaskScope>,
+) -> ShardLayoutTracker
+where
+    A: MachineAir<Felt>,
+{
+    let chip_prep_w: Vec<u32> = chips.iter().map(|c| c.preprocessed_width() as u32).collect();
+    let chip_main_w: Vec<u32> = chips.iter().map(|c| c.width() as u32).collect();
+    let chip_prep_h_pair: Vec<u32> = chips
+        .iter()
+        .map(|chip| {
+            if chip.preprocessed_width() > 0 {
+                let off = data.dense_data.preprocessed_table_index.get(chip.name()).unwrap();
+                (off.poly_size as u32) / 2
+            } else {
+                0
+            }
+        })
+        .collect();
+    let chip_main_h_pair: Vec<u32> = chips
+        .iter()
+        .map(|chip| {
+            if chip.width() > 0 {
+                let off = data.dense_data.main_table_index.get(chip.name()).unwrap();
+                (off.poly_size as u32) / 2
+            } else {
+                0
+            }
+        })
+        .collect();
+
+    // Padding column counts come from `TraceDenseData`'s explicit
+    // `{prep,main}_padding_col_count` fields — both construction paths
+    // (real `jagged_tracegen` and `from_chip_layout`) set them at trace
+    // build time, so the host doesn't have to guess at the structure
+    // (the real path emits more than one padding column when the "fill to
+    // next stacking-multiple" loop allocates several).
+    let n_prep_padding = data.dense_data.prep_padding_col_count;
+    let n_main_padding = data.dense_data.main_padding_col_count;
+    let total_prep_w: usize = chip_prep_w.iter().sum::<u32>() as usize;
+    let total_main_w: usize = chip_main_w.iter().sum::<u32>() as usize;
+
+    // One setup-time download to seed the padding sections. Per-fold work
+    // is the tiny `h.div_ceil(4)*2` recurrence in `ShardLayoutTracker::fold`
+    // — no further round-trips.
+    let column_heights: Vec<u32> = unsafe { data.0.column_heights.copy_into_host_vec() };
+    debug_assert_eq!(
+        column_heights.len(),
+        total_prep_w + n_prep_padding + total_main_w + n_main_padding,
+        "TraceDenseData padding col counts disagree with column_heights structure",
+    );
+    let prep_padding_start = total_prep_w;
+    let prep_padding_end = prep_padding_start + n_prep_padding;
+    let main_padding_start = prep_padding_end + total_main_w;
+    let prep_padding_h_pair: Vec<u32> =
+        column_heights[prep_padding_start..prep_padding_end].to_vec();
+    let main_padding_h_pair: Vec<u32> = column_heights[main_padding_start..].to_vec();
+
+    ShardLayoutTracker {
+        chip_prep_h_pair,
+        chip_main_h_pair,
+        prep_padding_h_pair,
+        main_padding_h_pair,
+        chip_prep_w,
+        chip_main_w,
+    }
 }
 
 // ============================================================================
@@ -1213,17 +1465,12 @@ where
     // `chip_idx` ∈ 0..n_active_chips. Empty chips still get a slot (with
     // zeroed height), but the dispatch builder below emits no entries for
     // them, so the kernel never reads those slots.
-    let chip_layouts: Vec<ChipLayoutC> = (0..poly.compiled.len())
-        .map(|i| ChipLayoutC {
-            main_ptr: poly.chip_main_ptrs[i],
-            preprocessed_ptr: poly.chip_preprocessed_ptrs[i],
-            height: poly.chip_heights[i],
-            _pad: 0,
-        })
-        .collect();
-    // Reuse the cached chip_layouts buffer; refill in place (grow-only).
-    let chip_layouts_ptr =
-        refill_buffer(&mut poly.cached_chip_layouts_buf, &chip_layouts, backend).as_ptr();
+    //
+    // `chip_layouts_dev` is the source of truth — written each round by
+    // the device chip-layouts kernel from the post-fold `start_indices` +
+    // `column_heights`. Every per-chip kernel (sequential / column_tile /
+    // gkr_sweep / geq) reads it by `chip_idx` with no host round-trip.
+    let chip_layouts_ptr = poly.chip_layouts_dev.as_ptr();
 
     // ---- Walk active chips for ColumnTile fallback launches ----
     //
@@ -1231,20 +1478,21 @@ where
     // Geq inputs all live on device — built at shard init in
     // `initialize_zerocheck_poly`, mutated in place by
     // `zerocheck_fix_geq_state` each round — so no per-round host iteration.
-    let mut ct_launches: Vec<(u32, &ChunkDeviceBufs, u64, u64, u32, u32)> = Vec::new();
+    //
+    // ColumnTile now reads `(main_ptr, preprocessed_ptr, height)` directly
+    // from `chip_layouts_dev[chip_idx]` inside the kernel — host only needs
+    // per-chip `row_count` to decide whether to emit a launch and to size
+    // the grid.
+    let mut ct_launches: Vec<(u32, &ChunkDeviceBufs, u32)> = Vec::new();
     for chip in poly.compiled.iter() {
         let chip_idx = chip.chip_idx;
-        let row_count = poly.chip_heights[chip_idx as usize] / 2;
+        let row_count = poly.layout_tracker.chip_height_elements(chip_idx as usize) / 2;
         if row_count == 0 {
             continue;
         }
-        let main_ptr = poly.chip_main_ptrs[chip_idx as usize];
-        let preprocessed_ptr = poly.chip_preprocessed_ptrs[chip_idx as usize];
-        let height = poly.chip_heights[chip_idx as usize];
-
         for chunk in chip.chunks.iter() {
             if let ChunkKind::ColumnTile = chunk.kind {
-                ct_launches.push((chip_idx, chunk, preprocessed_ptr, main_ptr, height, row_count));
+                ct_launches.push((chip_idx, chunk, row_count));
             }
         }
     }
@@ -1258,7 +1506,7 @@ where
     for (t, tier) in poly.seq_tiers.iter().enumerate() {
         let tile = block_size_for(t) * ROWS_PER_THREAD;
         for (chunk_idx_in_tier, &chip_idx) in tier.chip_indices.iter().enumerate() {
-            let row_count = poly.chip_heights[chip_idx as usize] / 2;
+            let row_count = poly.layout_tracker.chip_height_elements(chip_idx as usize) / 2;
             if row_count == 0 {
                 continue;
             }
@@ -1286,7 +1534,7 @@ where
     let gkr_tile: u32 = GKR_BLOCK_SIZE * ROWS_PER_THREAD;
     let mut gkr_dispatch: Vec<BlockDispatchC> = Vec::new();
     for &chip_idx in poly.gkr_active_chips.iter() {
-        let row_count = poly.chip_heights[chip_idx as usize] / 2;
+        let row_count = poly.layout_tracker.chip_height_elements(chip_idx as usize) / 2;
         if row_count == 0 {
             continue;
         }
@@ -1307,7 +1555,7 @@ where
     }
     let mut ct_slots: Vec<(usize, u32)> = Vec::with_capacity(ct_launches.len());
     let ct_block_size: u32 = 128; // unchanged for ColumnTile fallback
-    for &(_, chunk, _, _, _, row_count) in &ct_launches {
+    for &(_, chunk, row_count) in &ct_launches {
         let total = chunk.n_terms as u64 * row_count as u64;
         let n_blocks = if total == 0 {
             0
@@ -1376,9 +1624,7 @@ where
 
     // Launch any remaining ColumnTile chunks individually (typically zero
     // for current SP1 workloads).
-    for (i, &(chip_idx, chunk, preprocessed_ptr, main_ptr, height, row_count)) in
-        ct_launches.iter().enumerate()
-    {
+    for (i, &(chip_idx, chunk, row_count)) in ct_launches.iter().enumerate() {
         let (slot, n_blocks) = ct_slots[i];
         if n_blocks == 0 {
             continue;
@@ -1388,9 +1634,7 @@ where
             backend,
             chunk,
             trace_ptr,
-            preprocessed_ptr,
-            main_ptr,
-            height,
+            chip_layouts_ptr,
             &poly.public_values,
             &poly.powers_of_alpha,
             poly.chip_alpha_offset[chip_idx as usize],
@@ -1546,9 +1790,7 @@ fn launch_chunk_into<K: Field>(
     scope: &TaskScope,
     chunk: &ChunkDeviceBufs,
     trace_ptr: *const K,
-    preprocessed_ptr: u64,
-    main_ptr: u64,
-    height: u32,
+    chip_layouts_ptr: *const ChipLayoutC,
     public_values: &Buffer<Felt, TaskScope>,
     powers_of_alpha: &Buffer<Ext, TaskScope>,
     chip_alpha_offset: u32,
@@ -1590,9 +1832,7 @@ fn launch_chunk_into<K: Field>(
                 chunk.consts,
                 chunk.publics,
                 trace_ptr,
-                preprocessed_ptr,
-                main_ptr,
-                height,
+                chip_layouts_ptr,
                 public_values.as_ptr(),
                 powers_of_alpha_shifted,
                 partial_lagrange_ptr,
@@ -1632,7 +1872,29 @@ where
     let (rest, last) = input.zeta.split_at(input.zeta.dimension() - 1);
     let last = *last[0];
 
-    let new_data = evaluate_jagged_fix_last_variable(&input.data, point);
+    // Per-fold lengths derived from the structural host tracker — no GPU
+    // sync. The tracker holds per-chip prep/main heights + the few padding
+    // column heights; `total_length_pair()` is O(n_chips) and matches
+    // `Σ column_heights` exactly given the per-chip uniformity invariant.
+    let input_length = input.layout_tracker.total_length_pair();
+    let mut layout_tracker = input.layout_tracker;
+    layout_tracker.fold();
+    let new_total_length = layout_tracker.total_length_pair() * 2;
+
+    let mut scan_block_counter = input.scan_block_counter;
+    let mut scan_flags = input.scan_flags;
+    let mut scan_values = input.scan_values;
+    let new_data = evaluate_jagged_fix_last_variable(
+        &input.data,
+        point,
+        input_length,
+        new_total_length,
+        crate::primitives::FoldMetadataScratch {
+            block_counter: &mut scan_block_counter,
+            flags: &mut scan_flags,
+            scan_values: &mut scan_values,
+        },
+    );
     let eq = (Ext::one() - last) * (Ext::one() - point) + last * point;
     let eq_adjustment = input.eq_adjustment * eq;
 
@@ -1657,52 +1919,13 @@ where
         }
     }
 
-    // After fold, the jagged layout may pad some columns (fold kernel adds 2
-    // ext slots when `column_height_pairs % 4 != 0`). The `update_offset`
-    // path used by `evaluate_jagged_fix_last_variable` to rewrite the
-    // `dense_offset` ranges silently DRIFTS from the real column stride in
-    // those cases — `update_offset` uses `poly_size.div_ceil(4) * 2`, the
-    // actual stride uses `column_height_pairs.div_ceil(4) * 4`. Compute
-    // ptrs/heights from the new jagged structure's `column_heights` instead.
-    let column_heights = &new_data.0.column_heights;
-    let mut starts: Vec<u64> = Vec::with_capacity(column_heights.len() + 1);
-    starts.push(0);
-    let mut acc: u64 = 0;
-    for &h in column_heights.iter() {
-        acc += h as u64;
-        starts.push(acc);
-    }
-
-    let total_prep_widths: usize = input.compiled.iter().map(|c| c.prep_width as usize).sum();
-    // See `compute_chip_offsets`: match v1's `+1` convention.
-    let main_section_start_col: usize = total_prep_widths + 1;
-
-    let mut chip_main_ptrs = Vec::with_capacity(input.compiled.len());
-    let mut chip_preprocessed_ptrs = Vec::with_capacity(input.compiled.len());
-    let mut chip_heights: Vec<u32> = Vec::with_capacity(input.compiled.len());
-
-    let mut cum_prep: usize = 0;
-    let mut cum_main: usize = 0;
-    for c in input.compiled.iter() {
-        let prep_w = c.prep_width as usize;
-        let main_w = c.main_width as usize;
-        let prep_col_idx = cum_prep;
-        let main_col_idx = main_section_start_col + cum_main;
-        let prep_ptr = if prep_w > 0 { starts[prep_col_idx] * 2 } else { 0 };
-        let main_ptr = if main_w > 0 { starts[main_col_idx] * 2 } else { 0 };
-        let height = if main_w > 0 {
-            (column_heights[main_col_idx]) * 2
-        } else if prep_w > 0 {
-            (column_heights[prep_col_idx]) * 2
-        } else {
-            0
-        };
-        chip_preprocessed_ptrs.push(prep_ptr);
-        chip_main_ptrs.push(main_ptr);
-        chip_heights.push(height);
-        cum_prep += prep_w;
-        cum_main += main_w;
-    }
+    // Re-derive `chip_layouts_dev` on the device from the post-fold
+    // `start_indices` + `column_heights`. The fold-metadata kernel above
+    // has already updated those; this one-launch step writes
+    // `chip_layouts_dev[chip_idx]` for every per-chip kernel to consume —
+    // no host involvement after the metadata launches.
+    let mut chip_layouts_dev = input.chip_layouts_dev;
+    launch_chip_layouts_kernel(&new_data, &input.chip_column_layouts_dev, &mut chip_layouts_dev);
 
     ZeroCheckJaggedPoly {
         data: Cow::Owned(new_data),
@@ -1716,9 +1939,9 @@ where
         powers_of_alpha: input.powers_of_alpha,
         gkr_powers: input.gkr_powers,
         powers_of_lambda: input.powers_of_lambda,
-        chip_main_ptrs,
-        chip_preprocessed_ptrs,
-        chip_heights,
+        layout_tracker,
+        chip_column_layouts_dev: input.chip_column_layouts_dev,
+        chip_layouts_dev,
         chip_alpha_offset: input.chip_alpha_offset,
         seq_tiers: input.seq_tiers,
         chip_geq_state_dev: input.chip_geq_state_dev,
@@ -1727,9 +1950,11 @@ where
         n_geq_chips: input.n_geq_chips,
         chip_gkr_info_dev: input.chip_gkr_info_dev,
         gkr_active_chips: input.gkr_active_chips,
-        cached_chip_layouts_buf: input.cached_chip_layouts_buf,
         cached_seq_dispatch: input.cached_seq_dispatch,
         cached_gkr_dispatch: input.cached_gkr_dispatch,
+        scan_block_counter,
+        scan_flags,
+        scan_values,
     }
 }
 
@@ -1771,7 +1996,10 @@ where
     A: ZerocheckAir<Felt, Ext>,
     C: FieldChallenger<Felt>,
 {
-    let data_input_heights = &trace_mle.column_heights;
+    // Download `trace_mle.column_heights` once for the per-column demux at
+    // the bottom of this function. This is the shard's input height vector
+    // — set at trace construction and not mutated through the rounds.
+    let data_input_heights: Vec<u32> = unsafe { trace_mle.column_heights.copy_into_host_vec() };
     let initial_heights = trace_mle
         .dense_data
         .main_table_index
@@ -1975,4 +2203,131 @@ where
     };
     let shard_open_values = ShardOpenedValues { chips: opened_values };
     (shard_open_values, partial_sumcheck_proof)
+}
+
+#[cfg(test)]
+mod layout_tracker_tests {
+    use super::ShardLayoutTracker;
+
+    /// Build a tracker + matching `column_heights` for a synthetic shard
+    /// layout. `chips` gives `(prep_width, main_width, prep_height_pair,
+    /// main_height_pair)` per chip; `prep_padding` / `main_padding` give
+    /// arbitrary-length padding column heights (matching the multi-col case
+    /// the real tracegen path can emit).
+    fn synthetic(
+        chips: &[(u32, u32, u32, u32)],
+        prep_padding: &[u32],
+        main_padding: &[u32],
+    ) -> (ShardLayoutTracker, Vec<u32>) {
+        let chip_prep_w: Vec<u32> = chips.iter().map(|c| c.0).collect();
+        let chip_main_w: Vec<u32> = chips.iter().map(|c| c.1).collect();
+        let chip_prep_h_pair: Vec<u32> = chips.iter().map(|c| c.2).collect();
+        let chip_main_h_pair: Vec<u32> = chips.iter().map(|c| c.3).collect();
+        let prep_padding_h_pair: Vec<u32> = prep_padding.to_vec();
+        let main_padding_h_pair: Vec<u32> = main_padding.to_vec();
+
+        // Reconstruct the column_heights array that the device would hold:
+        // [chip0 prep cols, ..., chipN prep cols, prep_padding cols, chip0
+        //  main cols, ..., chipN main cols, main_padding cols].
+        let mut column_heights = Vec::new();
+        for (w, h) in chip_prep_w.iter().zip(chip_prep_h_pair.iter()) {
+            for _ in 0..*w {
+                column_heights.push(*h);
+            }
+        }
+        column_heights.extend(prep_padding_h_pair.iter().copied());
+        for (w, h) in chip_main_w.iter().zip(chip_main_h_pair.iter()) {
+            for _ in 0..*w {
+                column_heights.push(*h);
+            }
+        }
+        column_heights.extend(main_padding_h_pair.iter().copied());
+
+        let tracker = ShardLayoutTracker {
+            chip_prep_h_pair,
+            chip_main_h_pair,
+            prep_padding_h_pair,
+            main_padding_h_pair,
+            chip_prep_w,
+            chip_main_w,
+        };
+        (tracker, column_heights)
+    }
+
+    #[test]
+    fn total_length_matches_column_heights_sum() {
+        // Three chips, one prep-padding col, no main-padding (matches the
+        // v1 +1 convention the production tests exercise).
+        let (tracker, column_heights) =
+            synthetic(&[(3, 7, 12, 12), (5, 4, 8, 8), (0, 2, 0, 16)], &[5], &[]);
+        assert_eq!(tracker.total_length_pair(), column_heights.iter().sum::<u32>());
+    }
+
+    #[test]
+    fn total_length_matches_with_multi_col_prep_padding() {
+        // The bug we just fixed — real tracegen's `next_multiple > offset`
+        // branch can emit multiple prep-padding cols. With the old hardcoded
+        // `+1` convention `total_length_pair()` would miss the extras and
+        // give the fold kernel a too-small `length` arg.
+        let (tracker, column_heights) =
+            synthetic(&[(3, 7, 12, 12), (5, 4, 8, 8)], &[1024, 1024, 1024, 512], &[]);
+        assert_eq!(tracker.total_length_pair(), column_heights.iter().sum::<u32>());
+    }
+
+    #[test]
+    fn total_length_matches_with_main_padding() {
+        let (tracker, column_heights) = synthetic(&[(2, 3, 10, 10), (1, 1, 4, 4)], &[6], &[3, 1]);
+        assert_eq!(tracker.total_length_pair(), column_heights.iter().sum::<u32>());
+    }
+
+    #[test]
+    fn fold_stays_in_lockstep_with_element_wise_transform() {
+        let (mut tracker, mut column_heights) = synthetic(
+            &[(3, 7, 13, 14), (5, 4, 9, 6), (0, 2, 0, 17)],
+            &[1024, 1024, 1024, 511],
+            &[3, 1],
+        );
+        // Each round: device applies `h.div_ceil(4)*2` element-wise to
+        // `column_heights`; tracker.fold() applies the same recurrence to
+        // its per-section buffers. Verify they stay in lockstep across the
+        // full fold sequence.
+        for _round in 0..25 {
+            tracker.fold();
+            for h in column_heights.iter_mut() {
+                *h = h.div_ceil(4) * 2;
+            }
+            assert_eq!(
+                tracker.total_length_pair(),
+                column_heights.iter().sum::<u32>(),
+                "tracker drifted from device-equivalent column_heights",
+            );
+        }
+    }
+
+    #[test]
+    fn chip_height_elements_uses_main_when_present_else_prep() {
+        let (tracker, _) = synthetic(
+            // (prep_w, main_w, prep_h_pair, main_h_pair)
+            &[
+                (3, 7, 10, 20), // main present → uses main height
+                (5, 0, 8, 0),   // prep-only → uses prep height
+                (0, 4, 0, 12),  // main-only → uses main height
+            ],
+            &[5],
+            &[],
+        );
+        assert_eq!(tracker.chip_height_elements(0), 40); // 20 * 2
+        assert_eq!(tracker.chip_height_elements(1), 16); // 8 * 2
+        assert_eq!(tracker.chip_height_elements(2), 24); // 12 * 2
+    }
+
+    #[test]
+    fn empty_padding_sections_are_handled() {
+        // `from_chip_layout` skips emitting a padding column when the
+        // corresponding padding size is zero — tracker must handle the
+        // 0-length padding vec without panic.
+        let (tracker, column_heights) = synthetic(&[(2, 3, 10, 10)], &[], &[]);
+        assert_eq!(tracker.total_length_pair(), column_heights.iter().sum::<u32>());
+        assert_eq!(tracker.total_length_pair(), 2 * 10 + 3 * 10);
+    }
 }

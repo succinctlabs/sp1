@@ -29,6 +29,7 @@ use sp1_gpu_air::ir::{
 use sp1_gpu_air::{EF, F};
 use sp1_gpu_cudart::sys::kernels::zerocheck_column_tile_kb_kernel;
 use sp1_gpu_cudart::{args, run_sync_in_place, DeviceBuffer};
+use sp1_gpu_zerocheck::prover::ChipLayoutC;
 
 // LinearWeightedSum DAG mixing constants, publics, AddF *and* SubF:
 //   c0: 3·l0 + 5·l1 + 7·l2          (constants, AddF only)
@@ -284,14 +285,24 @@ fn run_gpu(
         }
 
         let n_terms: u32 = bc.terms.len() as u32;
-        let preprocessed_ptr: u64 = 0;
-        let main_ptr: u64 = 0;
-        let height_u: u32 = height as u32;
         let row_start: u32 = 0;
         let row_count: u32 = n_rows as u32;
 
-        // SAFETY: every device buffer above lives in `scope`, outlives
-        // the launch; the kernel signature matches `column_tile.cuh`.
+        // Build a `ChipLayout[]` sized so `chip_idx` indexes into it. All
+        // earlier slots are zero-filled placeholders; the test only
+        // dispatches the chip at `chip_idx` and the kernel reads
+        // `chip_layouts[chip_idx]`.
+        let zero_layout = ChipLayoutC { main_ptr: 0, preprocessed_ptr: 0, height: 0, _pad: 0 };
+        let mut chip_layouts_host = vec![zero_layout; chip_idx as usize + 1];
+        chip_layouts_host[chip_idx as usize] =
+            ChipLayoutC { main_ptr: 0, preprocessed_ptr: 0, height: height as u32, _pad: 0 };
+        let d_chip_layouts = DeviceBuffer::from_host_slice(&chip_layouts_host, &scope).unwrap();
+
+        // SAFETY: every device buffer above lives in `scope`, outlives the
+        // launch; the kernel signature matches `column_tile.cuh` after the
+        // JaggedMle device-resident `chip_layouts` migration (per-chip
+        // pointers + height are read from `chip_layouts[chip_idx]`, not
+        // passed as scalar args).
         unsafe {
             let a = args!(
                 d_terms.as_ptr(),
@@ -300,9 +311,7 @@ fn run_gpu(
                 d_consts.as_ptr(),
                 d_publics.as_ptr(),
                 d_trace.as_ptr(),
-                preprocessed_ptr,
-                main_ptr,
-                height_u,
+                d_chip_layouts.as_ptr(),
                 d_public_values.as_ptr(),
                 d_powers.as_ptr(),
                 d_partial_lagrange.as_ptr(),

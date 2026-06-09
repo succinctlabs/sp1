@@ -83,6 +83,22 @@ extern "C" {
     pub fn zerocheck_pad_adj_512_kernel() -> KernelPtr;
     pub fn zerocheck_pad_adj_1024_kernel() -> KernelPtr;
 
+    // JaggedMle fold-metadata: one fused multi-block kernel reads
+    // `column_heights`, writes `new_column_heights` (= `h.div_ceil(4)*2`
+    // element-wise) and `new_start_indices` (= exclusive prefix sum) — all
+    // on device, no host round-trip. Uses decoupled-lookback to handle any
+    // n_columns. See `include/jagged_assist/fold_metadata.cuh` for the
+    // caller-init contract on `block_counter`, `flags`, `scan_values`.
+    pub fn jagged_fold_metadata_kernel() -> KernelPtr;
+    pub fn jagged_fold_metadata_block_dim() -> u32;
+    pub fn jagged_fold_metadata_section_size() -> u32;
+
+    // JaggedMle chip-layouts: reads `start_indices` + `column_heights` at
+    // the sparse per-chip positions described by `ChipColumnLayoutEntry`,
+    // writes per-chip `ChipLayout[chip_idx]` + `chip_heights[chip_idx]`.
+    // One thread per chip. See `include/jagged_assist/chip_layouts.cuh`.
+    pub fn jagged_chip_layouts_kernel() -> KernelPtr;
+
     // Jagged Zerocheck Kernels
     pub fn jagged_constraint_poly_eval_32_koala_bear_kernel() -> KernelPtr;
     pub fn jagged_constraint_poly_eval_64_koala_bear_kernel() -> KernelPtr;
