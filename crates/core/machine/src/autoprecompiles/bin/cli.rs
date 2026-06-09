@@ -1,11 +1,9 @@
 use clap::{CommandFactory, Parser, Subcommand};
 use eyre::Result;
 use metrics_tracing_context::MetricsLayer;
-use powdr_autoprecompiles::{pgo::pgo_config, PgoType};
+use powdr_autoprecompiles::{pgo::pgo_data, PgoType};
 use sp1_core_machine::{
-    autoprecompiles::{
-        compile_guest, execution_profile_from_guest, sp1_powdr_config, CompiledProgram,
-    },
+    autoprecompiles::{compile_guest, execution_profile_from_guest, sp1_configs, CompiledProgram},
     io::SP1Stdin,
 };
 use std::{io, path::PathBuf};
@@ -59,13 +57,14 @@ fn main() -> Result<(), io::Error> {
 fn run_command(command: Commands) {
     match command {
         Commands::Compile { guest, autoprecompiles, skip, pgo, input, apc_candidates_dir } => {
-            let mut config = sp1_powdr_config(autoprecompiles as u64, skip as u64);
+            let (mut generate, select) = sp1_configs(autoprecompiles as u64, skip as u64, pgo);
             if let Some(apc_candidates_dir) = apc_candidates_dir {
-                config = config.with_apc_candidates_dir(apc_candidates_dir);
+                generate = generate.with_apc_candidates_dir(apc_candidates_dir);
             }
-            let execution_profile = execution_profile_from_guest(&guest, stdin_from(input));
-            let pgo_config = pgo_config(pgo, None, execution_profile);
-            let program = compile_guest(&guest, config, pgo_config);
+            let stdin = stdin_from(input);
+            let execution_profile = execution_profile_from_guest(&guest, stdin);
+            let pgo_data = pgo_data(pgo, None, execution_profile);
+            let program = compile_guest(&guest, generate, select, pgo_data);
             // `cbor` file written to the guest folder
             write_program_to_file(program, &format!("{guest}_compiled.cbor")).unwrap();
         }
