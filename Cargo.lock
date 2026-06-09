@@ -1636,17 +1636,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "blake2b_simd"
-version = "1.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b79834656f71332577234b50bfc009996f7449e0c056884e6a02492ded0ca2f3"
-dependencies = [
- "arrayref",
- "arrayvec",
- "constant_time_eq",
-]
-
-[[package]]
 name = "blake3"
 version = "1.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1680,30 +1669,17 @@ dependencies = [
 
 [[package]]
 name = "bls12_381"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3c196a77437e7cc2fb515ce413a6401291578b5afc8ecb29a3c7ab957f05941"
-dependencies = [
- "ff 0.12.1",
- "group 0.12.1",
- "pairing 0.22.0",
- "rand_core 0.6.4",
- "subtle",
-]
-
-[[package]]
-name = "bls12_381"
 version = "0.8.0"
 source = "git+https://github.com/sp1-patches/bls12_381?tag=patch-0.8.0-sp1-6.2.0#9e4e2ae4780d3d69cecbec000f5e814df2392468"
 dependencies = [
  "cfg-if",
  "digest 0.10.7",
- "ff 0.13.1",
- "group 0.13.0",
+ "ff",
+ "group",
  "hex",
- "pairing 0.23.0",
+ "pairing",
  "rand_core 0.6.4",
- "sp1-lib 6.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp1-lib 6.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "subtle",
 ]
 
@@ -2786,9 +2762,9 @@ dependencies = [
  "base16ct",
  "crypto-bigint",
  "digest 0.10.7",
- "ff 0.13.1",
+ "ff",
  "generic-array 0.14.9",
- "group 0.13.0",
+ "group",
  "hkdf",
  "pem-rfc7468",
  "pkcs8",
@@ -2944,17 +2920,6 @@ dependencies = [
  "cfg-if",
  "rustix",
  "windows-sys 0.59.0",
-]
-
-[[package]]
-name = "ff"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d013fc25338cc558c5c2cfbad646908fb23591e2404481826742b651c9af7160"
-dependencies = [
- "bitvec",
- "rand_core 0.6.4",
- "subtle",
 ]
 
 [[package]]
@@ -3279,23 +3244,11 @@ dependencies = [
 
 [[package]]
 name = "group"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5dfbfb3a6cfbd390d5c9564ab283a0349b9b9fcd46a706c1eb10e0db70bfbac7"
-dependencies = [
- "ff 0.12.1",
- "memuse",
- "rand_core 0.6.4",
- "subtle",
-]
-
-[[package]]
-name = "group"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f0f9ef7462f7c099f518d754361858f86d8a07af53ba9af0fe635bbccb151a63"
 dependencies = [
- "ff 0.13.1",
+ "ff",
  "rand_core 0.6.4",
  "subtle",
 ]
@@ -3347,29 +3300,6 @@ dependencies = [
  "cfg-if",
  "crunchy",
  "zerocopy",
-]
-
-[[package]]
-name = "halo2"
-version = "0.1.0-beta.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a23c779b38253fe1538102da44ad5bd5378495a61d2c4ee18d64eaa61ae5995"
-dependencies = [
- "halo2_proofs",
-]
-
-[[package]]
-name = "halo2_proofs"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e925780549adee8364c7f2b685c753f6f3df23bde520c67416e93bf615933760"
-dependencies = [
- "blake2b_simd",
- "ff 0.12.1",
- "group 0.12.1",
- "pasta_curves 0.4.1",
- "rand_core 0.6.4",
- "rayon",
 ]
 
 [[package]]
@@ -3981,20 +3911,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "jubjub"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a575df5f985fe1cd5b2b05664ff6accfc46559032b954529fd225a2168d27b0f"
-dependencies = [
- "bitvec",
- "bls12_381 0.7.1",
- "ff 0.12.1",
- "group 0.12.1",
- "rand_core 0.6.4",
- "subtle",
-]
-
-[[package]]
 name = "k256"
 version = "0.13.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4019,7 +3935,7 @@ dependencies = [
  "elliptic-curve",
  "hex",
  "sha2 0.10.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp1-lib 6.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp1-lib 6.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -4061,8 +3977,8 @@ name = "kzg-rs"
 version = "0.2.8"
 source = "git+https://github.com/succinctlabs/kzg-rs?tag=v0.2.8-sp1-6.2.0#2d48f8b948746d5cfa62ce7421369278a1c2e405"
 dependencies = [
- "bls12_381 0.8.0",
- "ff 0.13.1",
+ "bls12_381",
+ "ff",
  "hex",
  "serde_arrays",
  "sha2 0.10.9 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4141,9 +4057,9 @@ dependencies = [
 
 [[package]]
 name = "libzkevm"
-version = "6.2.0"
+version = "6.2.4"
 dependencies = [
- "bls12_381 0.8.0",
+ "bls12_381",
  "k256 0.13.4 (git+https://github.com/sp1-patches/elliptic-curves?tag=patch-k256-13.4-sp1-6.2.0)",
  "kzg-rs",
  "num-bigint-dig",
@@ -4271,12 +4187,6 @@ checksum = "714098028fe011992e1c3962653c96b2d578c4b4bce9036e15ff220319b1e0e3"
 dependencies = [
  "libc",
 ]
-
-[[package]]
-name = "memuse"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d97bbf43eb4f088f8ca469930cde17fa036207c9a5e02ccc5107c4e8b17c964"
 
 [[package]]
 name = "merlin"
@@ -4718,7 +4628,7 @@ dependencies = [
  "hex",
  "primeorder 0.13.1",
  "sha2 0.10.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp1-lib 6.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp1-lib 6.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -4755,7 +4665,7 @@ version = "0.4.3-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2077757c7cb514202ccb5368f521f23f5709c720599e6545c683c66e0a52d2d8"
 dependencies = [
- "ff 0.13.1",
+ "ff",
  "num-bigint 0.4.6",
  "p3-field",
  "p3-poseidon2",
@@ -4991,20 +4901,11 @@ dependencies = [
 
 [[package]]
 name = "pairing"
-version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "135590d8bdba2b31346f9cd1fb2a912329f5135e832a4f422942eb6ead8b6b3b"
-dependencies = [
- "group 0.12.1",
-]
-
-[[package]]
-name = "pairing"
 version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81fec4625e73cf41ef4bb6846cafa6d44736525f442ba45e407c4a000a13996f"
 dependencies = [
- "group 0.13.0",
+ "group",
 ]
 
 [[package]]
@@ -5056,36 +4957,6 @@ dependencies = [
  "redox_syscall",
  "smallvec",
  "windows-link",
-]
-
-[[package]]
-name = "pasta_curves"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5cc65faf8e7313b4b1fbaa9f7ca917a0eed499a9663be71477f87993604341d8"
-dependencies = [
- "blake2b_simd",
- "ff 0.12.1",
- "group 0.12.1",
- "lazy_static",
- "rand 0.8.6",
- "static_assertions",
- "subtle",
-]
-
-[[package]]
-name = "pasta_curves"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d3e57598f73cc7e1b2ac63c79c517b31a0877cd7c402cdcaa311b5208de7a095"
-dependencies = [
- "blake2b_simd",
- "ff 0.13.1",
- "group 0.13.0",
- "lazy_static",
- "rand 0.8.6",
- "static_assertions",
- "subtle",
 ]
 
 [[package]]
@@ -6603,9 +6474,9 @@ dependencies = [
 
 [[package]]
 name = "slop-algebra"
-version = "6.2.0"
+version = "6.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2987d60942c83511c5819afdd9ca83a9723fed072c43d5e1144393beebbce49c"
+checksum = "00314224ceced0f2cbd45abd20536e9387c723985d05b8685e8785b0fe3409ce"
 dependencies = [
  "itertools 0.14.0",
  "p3-field",
@@ -6617,7 +6488,7 @@ name = "slop-alloc"
 version = "6.2.4"
 dependencies = [
  "serde",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "thiserror 1.0.69",
 ]
 
@@ -6628,10 +6499,10 @@ dependencies = [
  "lazy_static",
  "p3-baby-bear",
  "serde",
- "slop-algebra 6.2.0",
- "slop-challenger 6.2.0",
- "slop-poseidon2 6.2.0",
- "slop-symmetric 6.2.0",
+ "slop-algebra 6.2.4",
+ "slop-challenger 6.2.4",
+ "slop-poseidon2 6.2.4",
+ "slop-symmetric 6.2.4",
 ]
 
 [[package]]
@@ -6641,15 +6512,15 @@ dependencies = [
  "derive-where",
  "itertools 0.14.0",
  "serde",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-alloc",
  "slop-baby-bear",
- "slop-bn254 6.2.0",
- "slop-challenger 6.2.0",
- "slop-koala-bear 6.2.0",
+ "slop-bn254 6.2.4",
+ "slop-challenger 6.2.4",
+ "slop-koala-bear 6.2.4",
  "slop-merkle-tree",
  "slop-multilinear",
- "slop-primitives 6.2.0",
+ "slop-primitives 6.2.4",
  "slop-tensor",
  "slop-utils",
  "thiserror 1.0.69",
@@ -6664,17 +6535,17 @@ dependencies = [
  "itertools 0.14.0",
  "rand 0.8.6",
  "serde",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-alloc",
  "slop-baby-bear",
  "slop-basefold",
- "slop-bn254 6.2.0",
- "slop-challenger 6.2.0",
+ "slop-bn254 6.2.4",
+ "slop-challenger 6.2.4",
  "slop-commit",
  "slop-dft",
  "slop-fri",
  "slop-futures",
- "slop-koala-bear 6.2.0",
+ "slop-koala-bear 6.2.4",
  "slop-merkle-tree",
  "slop-multilinear",
  "slop-tensor",
@@ -6685,29 +6556,28 @@ dependencies = [
 name = "slop-bn254"
 version = "6.2.4"
 dependencies = [
- "ff 0.13.1",
+ "ff",
  "p3-bn254-fr",
  "serde",
- "slop-algebra 6.2.0",
- "slop-challenger 6.2.0",
- "slop-poseidon2 6.2.0",
- "slop-symmetric 6.2.0",
+ "slop-algebra 6.2.4",
+ "slop-challenger 6.2.4",
+ "slop-poseidon2 6.2.4",
+ "slop-symmetric 6.2.4",
 ]
 
 [[package]]
 name = "slop-bn254"
-version = "6.2.0"
+version = "6.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b3ca8edc31419a3e33a9f4b9e11f072caf5fd6e2b32f2b9fcaa5b0863f3da66"
+checksum = "5398ee7e1dd84faa4144b71f9dc4bacaafb13b2667bcd08b7850756e72fc7632"
 dependencies = [
- "ff 0.13.1",
+ "ff",
  "p3-bn254-fr",
  "serde",
- "slop-algebra 6.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "slop-challenger 6.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "slop-poseidon2 6.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "slop-symmetric 6.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "zkhash",
+ "slop-algebra 6.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-challenger 6.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-poseidon2 6.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-symmetric 6.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -6717,21 +6587,21 @@ dependencies = [
  "futures",
  "p3-challenger",
  "serde",
- "slop-algebra 6.2.0",
- "slop-symmetric 6.2.0",
+ "slop-algebra 6.2.4",
+ "slop-symmetric 6.2.4",
 ]
 
 [[package]]
 name = "slop-challenger"
-version = "6.2.0"
+version = "6.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "144e5c2ed52b6499792c98262b8bbeb435c361d005caa6f2a6c9ecb8529915b4"
+checksum = "75cd94d7bf435f998c28bc055c4b0fa1b451e7dae4b0dbea82fb23dd4a37c6e7"
 dependencies = [
  "futures",
  "p3-challenger",
  "serde",
- "slop-algebra 6.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "slop-symmetric 6.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-algebra 6.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-symmetric 6.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -6749,7 +6619,7 @@ version = "6.2.4"
 dependencies = [
  "p3-dft",
  "serde",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-alloc",
  "slop-matrix",
  "slop-tensor",
@@ -6787,21 +6657,21 @@ dependencies = [
  "rand 0.8.6",
  "rayon",
  "serde",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-alloc",
  "slop-baby-bear",
  "slop-basefold",
  "slop-basefold-prover",
- "slop-bn254 6.2.0",
- "slop-challenger 6.2.0",
+ "slop-bn254 6.2.4",
+ "slop-challenger 6.2.4",
  "slop-commit",
  "slop-futures",
- "slop-koala-bear 6.2.0",
+ "slop-koala-bear 6.2.4",
  "slop-merkle-tree",
  "slop-multilinear",
  "slop-stacked",
  "slop-sumcheck",
- "slop-symmetric 6.2.0",
+ "slop-symmetric 6.2.4",
  "slop-tensor",
  "slop-utils",
  "thiserror 1.0.69",
@@ -6822,25 +6692,25 @@ dependencies = [
  "lazy_static",
  "p3-koala-bear",
  "serde",
- "slop-algebra 6.2.0",
- "slop-challenger 6.2.0",
- "slop-poseidon2 6.2.0",
- "slop-symmetric 6.2.0",
+ "slop-algebra 6.2.4",
+ "slop-challenger 6.2.4",
+ "slop-poseidon2 6.2.4",
+ "slop-symmetric 6.2.4",
 ]
 
 [[package]]
 name = "slop-koala-bear"
-version = "6.2.0"
+version = "6.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75ca44a6d3457836c6a1685dcb27b3f64c0b6f555ade06dd2a8fda5003e7594e"
+checksum = "9b03d39f8c4605527970396a1a74c8e72b2adc265431fa004161aadfcfb123ff"
 dependencies = [
  "lazy_static",
  "p3-koala-bear",
  "serde",
- "slop-algebra 6.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "slop-challenger 6.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "slop-poseidon2 6.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "slop-symmetric 6.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-algebra 6.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-challenger 6.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-poseidon2 6.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-symmetric 6.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -6866,17 +6736,17 @@ dependencies = [
  "p3-merkle-tree",
  "rand 0.8.6",
  "serde",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-alloc",
  "slop-baby-bear",
- "slop-bn254 6.2.0",
- "slop-challenger 6.2.0",
+ "slop-bn254 6.2.4",
+ "slop-challenger 6.2.4",
  "slop-commit",
  "slop-futures",
- "slop-koala-bear 6.2.0",
+ "slop-koala-bear 6.2.4",
  "slop-matrix",
- "slop-poseidon2 6.2.0",
- "slop-symmetric 6.2.0",
+ "slop-poseidon2 6.2.4",
+ "slop-symmetric 6.2.4",
  "slop-tensor",
  "slop-utils",
  "thiserror 1.0.69",
@@ -6893,10 +6763,10 @@ dependencies = [
  "rayon",
  "serde",
  "serde_json",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-alloc",
  "slop-baby-bear",
- "slop-challenger 6.2.0",
+ "slop-challenger 6.2.4",
  "slop-commit",
  "slop-futures",
  "slop-matrix",
@@ -6909,12 +6779,12 @@ version = "6.2.4"
 dependencies = [
  "futures",
  "rand 0.8.6",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-alloc",
  "slop-baby-bear",
  "slop-basefold",
  "slop-basefold-prover",
- "slop-challenger 6.2.0",
+ "slop-challenger 6.2.4",
  "slop-commit",
  "slop-merkle-tree",
  "slop-multilinear",
@@ -6930,9 +6800,9 @@ dependencies = [
 
 [[package]]
 name = "slop-poseidon2"
-version = "6.2.0"
+version = "6.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3386c5935d822f8621a19f305dffdcae3d9a1956a7b657a7f8893438abf22526"
+checksum = "a17a10d1cfa6f7a18cc62d4348b0612d49eb14b7aeb289a6a14252676c04dd77"
 dependencies = [
  "p3-poseidon2",
 ]
@@ -6941,16 +6811,16 @@ dependencies = [
 name = "slop-primitives"
 version = "6.2.4"
 dependencies = [
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
 ]
 
 [[package]]
 name = "slop-primitives"
-version = "6.2.0"
+version = "6.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d20475296d399080467eb486e6063967e85d3d13200301275e56541c356f96bd"
+checksum = "62cc9b1ba7261571e853287064780a6e7f489f024d544e6344d6004f243cdf81"
 dependencies = [
- "slop-algebra 6.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-algebra 6.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -6960,10 +6830,10 @@ dependencies = [
  "futures",
  "itertools 0.14.0",
  "rand 0.8.6",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-alloc",
  "slop-baby-bear",
- "slop-challenger 6.2.0",
+ "slop-challenger 6.2.4",
  "slop-merkle-tree",
  "slop-multilinear",
  "slop-pgspcs",
@@ -6980,12 +6850,12 @@ dependencies = [
  "itertools 0.14.0",
  "rand 0.8.6",
  "serde",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-alloc",
  "slop-baby-bear",
  "slop-basefold",
  "slop-basefold-prover",
- "slop-challenger 6.2.0",
+ "slop-challenger 6.2.4",
  "slop-commit",
  "slop-futures",
  "slop-merkle-tree",
@@ -7003,10 +6873,10 @@ dependencies = [
  "rand 0.8.6",
  "rayon",
  "serde",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-alloc",
  "slop-baby-bear",
- "slop-challenger 6.2.0",
+ "slop-challenger 6.2.4",
  "slop-multilinear",
  "thiserror 1.0.69",
 ]
@@ -7020,9 +6890,9 @@ dependencies = [
 
 [[package]]
 name = "slop-symmetric"
-version = "6.2.0"
+version = "6.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "580a4f683c60b000b7ac8ca3fcd200a2a70f4caf2e43268f9089323534d15ecc"
+checksum = "362b7c414a3b5abee0d84e7418520b24d928f03bc02e0a1a05a09cf49a6a7ab8"
 dependencies = [
  "p3-symmetric",
 ]
@@ -7038,7 +6908,7 @@ dependencies = [
  "rayon",
  "serde",
  "serde_json",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-alloc",
  "slop-baby-bear",
  "slop-futures",
@@ -7075,23 +6945,23 @@ dependencies = [
  "rand_chacha 0.3.1",
  "rayon",
  "serde",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-alloc",
  "slop-basefold",
  "slop-basefold-prover",
- "slop-challenger 6.2.0",
+ "slop-challenger 6.2.4",
  "slop-commit",
  "slop-dft",
  "slop-futures",
  "slop-jagged",
- "slop-koala-bear 6.2.0",
+ "slop-koala-bear 6.2.4",
  "slop-matrix",
  "slop-merkle-tree",
  "slop-multilinear",
- "slop-poseidon2 6.2.0",
+ "slop-poseidon2 6.2.4",
  "slop-stacked",
  "slop-sumcheck",
- "slop-symmetric 6.2.0",
+ "slop-symmetric 6.2.4",
  "slop-tensor",
  "slop-utils",
  "thiserror 1.0.69",
@@ -7109,15 +6979,15 @@ dependencies = [
  "rand 0.8.6",
  "rayon",
  "serde",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-alloc",
  "slop-baby-bear",
  "slop-basefold",
- "slop-challenger 6.2.0",
+ "slop-challenger 6.2.4",
  "slop-commit",
  "slop-dft",
  "slop-jagged",
- "slop-koala-bear 6.2.0",
+ "slop-koala-bear 6.2.4",
  "slop-matrix",
  "slop-merkle-tree",
  "slop-multilinear",
@@ -7176,7 +7046,7 @@ dependencies = [
  "chrono",
  "clap",
  "dirs",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
 ]
 
 [[package]]
@@ -7209,7 +7079,7 @@ dependencies = [
  "slop-air",
  "sp1-core-machine",
  "sp1-hypercube",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
 ]
 
 [[package]]
@@ -7238,13 +7108,13 @@ dependencies = [
  "serde_arrays",
  "serde_json",
  "slop-air",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-maybe-rayon",
- "slop-symmetric 6.2.0",
+ "slop-symmetric 6.2.4",
  "sp1-curves",
  "sp1-hypercube",
  "sp1-jit",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "sp1-zkvm",
  "strum",
  "subenum",
@@ -7271,7 +7141,7 @@ dependencies = [
  "sp1-core-executor-runner-binary",
  "sp1-core-machine",
  "sp1-jit",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "sysinfo 0.30.13",
  "test-artifacts",
  "tracing",
@@ -7311,10 +7181,10 @@ dependencies = [
  "serde",
  "serde_json",
  "slop-air",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-alloc",
  "slop-basefold",
- "slop-challenger 6.2.0",
+ "slop-challenger 6.2.4",
  "slop-futures",
  "slop-keccak-air",
  "slop-matrix",
@@ -7329,7 +7199,7 @@ dependencies = [
  "sp1-derive",
  "sp1-hypercube",
  "sp1-jit",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "static_assertions",
  "struct-reflection",
  "strum",
@@ -7357,7 +7227,7 @@ dependencies = [
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-hypercube",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "sp1-prover",
  "sp1-prover-types",
  "thiserror 1.0.69",
@@ -7380,9 +7250,9 @@ dependencies = [
  "rand 0.8.6",
  "rug",
  "serde",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "snowbridge-amcl",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "typenum",
 ]
 
@@ -7399,18 +7269,14 @@ dependencies = [
 name = "sp1-gpu-air"
 version = "6.2.4"
 dependencies = [
- "itertools 0.14.0",
  "lazy_static",
  "slop-air",
- "slop-algebra 6.2.0",
- "slop-koala-bear 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-matrix",
  "sp1-core-executor",
  "sp1-core-machine",
- "sp1-curves",
  "sp1-hypercube",
- "sp1-primitives 6.2.0",
- "sp1-recursion-machine",
+ "sp1-primitives 6.2.4",
 ]
 
 [[package]]
@@ -7422,21 +7288,21 @@ dependencies = [
  "rand 0.8.6",
  "serde",
  "serial_test",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-alloc",
  "slop-basefold",
  "slop-basefold-prover",
- "slop-bn254 6.2.0",
- "slop-challenger 6.2.0",
+ "slop-bn254 6.2.4",
+ "slop-challenger 6.2.4",
  "slop-commit",
  "slop-dft",
  "slop-futures",
- "slop-koala-bear 6.2.0",
+ "slop-koala-bear 6.2.4",
  "slop-merkle-tree",
  "slop-multilinear",
- "slop-poseidon2 6.2.0",
+ "slop-poseidon2 6.2.4",
  "slop-stacked",
- "slop-symmetric 6.2.0",
+ "slop-symmetric 6.2.4",
  "slop-tensor",
  "sp1-core-machine",
  "sp1-gpu-challenger",
@@ -7448,7 +7314,7 @@ dependencies = [
  "sp1-gpu-tracegen",
  "sp1-gpu-utils",
  "sp1-hypercube",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "sp1-recursion-circuit",
  "sp1-recursion-compiler",
  "sp1-sdk",
@@ -7462,15 +7328,15 @@ dependencies = [
 name = "sp1-gpu-challenger"
 version = "6.2.4"
 dependencies = [
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-alloc",
- "slop-challenger 6.2.0",
- "slop-koala-bear 6.2.0",
- "slop-poseidon2 6.2.0",
- "slop-symmetric 6.2.0",
+ "slop-challenger 6.2.4",
+ "slop-koala-bear 6.2.4",
+ "slop-poseidon2 6.2.4",
+ "slop-symmetric 6.2.4",
  "sp1-gpu-cudart",
  "sp1-hypercube",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "tokio",
 ]
 
@@ -7482,16 +7348,16 @@ dependencies = [
  "itertools 0.14.0",
  "rand 0.8.6",
  "serial_test",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-alloc",
- "slop-challenger 6.2.0",
+ "slop-challenger 6.2.4",
  "slop-dft",
  "slop-futures",
  "slop-jagged",
- "slop-koala-bear 6.2.0",
+ "slop-koala-bear 6.2.4",
  "slop-merkle-tree",
  "slop-stacked",
- "slop-symmetric 6.2.0",
+ "slop-symmetric 6.2.4",
  "slop-tensor",
  "sp1-core-machine",
  "sp1-gpu-basefold",
@@ -7503,7 +7369,7 @@ dependencies = [
  "sp1-gpu-tracegen",
  "sp1-gpu-utils",
  "sp1-hypercube",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "sp1-recursion-circuit",
  "sp1-recursion-compiler",
  "sp1-sdk",
@@ -7522,21 +7388,21 @@ dependencies = [
  "itertools 0.14.0",
  "pin-project",
  "rand 0.8.6",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-alloc",
  "slop-basefold",
- "slop-challenger 6.2.0",
+ "slop-challenger 6.2.4",
  "slop-commit",
  "slop-futures",
  "slop-jagged",
- "slop-koala-bear 6.2.0",
+ "slop-koala-bear 6.2.4",
  "slop-multilinear",
  "slop-stacked",
  "slop-sumcheck",
  "slop-tensor",
  "sp1-gpu-sys",
  "sp1-hypercube",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "thiserror 1.0.69",
  "tokio",
  "tracing",
@@ -7551,21 +7417,21 @@ dependencies = [
  "rand 0.8.6",
  "serde",
  "serial_test",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-alloc",
  "slop-basefold",
- "slop-bn254 6.2.0",
- "slop-challenger 6.2.0",
+ "slop-bn254 6.2.4",
+ "slop-challenger 6.2.4",
  "slop-commit",
  "slop-jagged",
- "slop-koala-bear 6.2.0",
+ "slop-koala-bear 6.2.4",
  "slop-multilinear",
  "slop-sumcheck",
  "slop-tensor",
  "sp1-gpu-challenger",
  "sp1-gpu-cudart",
  "sp1-gpu-tracing",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "sp1-prover",
  "tokio",
  "tracing",
@@ -7582,9 +7448,9 @@ dependencies = [
  "rand 0.8.6",
  "rayon",
  "serial_test",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-alloc",
- "slop-challenger 6.2.0",
+ "slop-challenger 6.2.4",
  "slop-futures",
  "slop-jagged",
  "slop-multilinear",
@@ -7618,9 +7484,9 @@ dependencies = [
  "serde_json",
  "serial_test",
  "slop-air",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-alloc",
- "slop-challenger 6.2.0",
+ "slop-challenger 6.2.4",
  "slop-futures",
  "slop-jagged",
  "slop-multilinear",
@@ -7658,19 +7524,19 @@ dependencies = [
  "serde_json",
  "serial_test",
  "slop-air",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-alloc",
  "slop-basefold-prover",
- "slop-bn254 6.2.0",
- "slop-challenger 6.2.0",
+ "slop-bn254 6.2.4",
+ "slop-challenger 6.2.4",
  "slop-commit",
  "slop-dft",
  "slop-futures",
- "slop-koala-bear 6.2.0",
+ "slop-koala-bear 6.2.4",
  "slop-merkle-tree",
  "slop-multilinear",
  "slop-sumcheck",
- "slop-symmetric 6.2.0",
+ "slop-symmetric 6.2.4",
  "slop-tensor",
  "sp1-core-executor",
  "sp1-core-machine",
@@ -7680,7 +7546,7 @@ dependencies = [
  "sp1-gpu-utils",
  "sp1-gpu-zerocheck",
  "sp1-hypercube",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "sp1-recursion-circuit",
  "sp1-sdk",
  "test-artifacts",
@@ -7696,17 +7562,17 @@ name = "sp1-gpu-merkle-tree"
 version = "6.2.4"
 dependencies = [
  "serial_test",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-alloc",
- "slop-bn254 6.2.0",
- "slop-challenger 6.2.0",
+ "slop-bn254 6.2.4",
+ "slop-challenger 6.2.4",
  "slop-commit",
  "slop-futures",
- "slop-koala-bear 6.2.0",
+ "slop-koala-bear 6.2.4",
  "slop-merkle-tree",
  "slop-multilinear",
  "slop-stacked",
- "slop-symmetric 6.2.0",
+ "slop-symmetric 6.2.4",
  "slop-tensor",
  "sp1-core-machine",
  "sp1-gpu-cudart",
@@ -7715,7 +7581,7 @@ dependencies = [
  "sp1-gpu-tracegen",
  "sp1-gpu-utils",
  "sp1-hypercube",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "sp1-recursion-circuit",
  "sp1-recursion-compiler",
  "test-artifacts",
@@ -7740,7 +7606,7 @@ dependencies = [
  "rand 0.8.6",
  "serde",
  "serde_json",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-gpu-cudart",
@@ -7748,7 +7614,7 @@ dependencies = [
  "sp1-gpu-shard-prover",
  "sp1-gpu-tracing",
  "sp1-hypercube",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "sp1-prover",
  "sp1-prover-types",
  "sp1-recursion-circuit",
@@ -7770,13 +7636,14 @@ version = "6.2.4"
 dependencies = [
  "clap",
  "serde",
- "slop-algebra 6.2.0",
+ "slop-air",
+ "slop-algebra 6.2.4",
  "slop-basefold",
- "slop-bn254 6.2.0",
- "slop-challenger 6.2.0",
+ "slop-bn254 6.2.4",
+ "slop-challenger 6.2.4",
  "slop-futures",
  "slop-jagged",
- "slop-koala-bear 6.2.0",
+ "slop-koala-bear 6.2.4",
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-gpu-air",
@@ -7790,7 +7657,7 @@ dependencies = [
  "sp1-gpu-shard-prover",
  "sp1-gpu-tracegen",
  "sp1-hypercube",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "sp1-prover",
  "sp1-prover-types",
  "sysinfo 0.31.4",
@@ -7809,7 +7676,7 @@ dependencies = [
  "sp1-cuda",
  "sp1-gpu-cudart",
  "sp1-gpu-prover",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "sp1-prover",
  "sp1-prover-types",
  "sp1-recursion-gnark-ffi",
@@ -7825,11 +7692,13 @@ version = "6.2.4"
 dependencies = [
  "criterion",
  "rand 0.8.6",
+ "serde_json",
  "serial_test",
- "slop-algebra 6.2.0",
+ "slop-air",
+ "slop-algebra 6.2.4",
  "slop-alloc",
  "slop-basefold",
- "slop-challenger 6.2.0",
+ "slop-challenger 6.2.4",
  "slop-commit",
  "slop-futures",
  "slop-jagged",
@@ -7852,7 +7721,7 @@ dependencies = [
  "sp1-gpu-utils",
  "sp1-gpu-zerocheck",
  "sp1-hypercube",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "sp1-recursion-circuit",
  "sp1-recursion-compiler",
  "test-artifacts",
@@ -7869,10 +7738,10 @@ dependencies = [
  "cbindgen",
  "cmake",
  "pathdiff",
- "slop-koala-bear 6.2.0",
+ "slop-koala-bear 6.2.4",
  "sp1-core-executor",
  "sp1-core-machine",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "sp1-recursion-executor",
  "sp1-recursion-machine",
 ]
@@ -7885,18 +7754,18 @@ dependencies = [
  "rand 0.8.6",
  "rayon",
  "slop-air",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-alloc",
  "slop-futures",
- "slop-koala-bear 6.2.0",
+ "slop-koala-bear 6.2.4",
  "slop-multilinear",
- "slop-symmetric 6.2.0",
+ "slop-symmetric 6.2.4",
  "slop-tensor",
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-gpu-cudart",
  "sp1-hypercube",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "sp1-recursion-executor",
  "sp1-recursion-machine",
  "tokio",
@@ -7918,14 +7787,14 @@ version = "6.2.4"
 dependencies = [
  "rand 0.8.6",
  "serial_test",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-alloc",
- "slop-koala-bear 6.2.0",
+ "slop-koala-bear 6.2.4",
  "slop-stacked",
  "slop-tensor",
  "sp1-gpu-cudart",
  "sp1-gpu-prover",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "sp1-recursion-circuit",
  "sp1-recursion-compiler",
  "sp1-sdk",
@@ -7941,12 +7810,12 @@ dependencies = [
  "rand 0.8.6",
  "serial_test",
  "slop-air",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-alloc",
- "slop-challenger 6.2.0",
+ "slop-challenger 6.2.4",
  "slop-commit",
  "slop-futures",
- "slop-koala-bear 6.2.0",
+ "slop-koala-bear 6.2.4",
  "slop-matrix",
  "slop-multilinear",
  "slop-stacked",
@@ -7962,7 +7831,7 @@ dependencies = [
  "sp1-gpu-tracegen",
  "sp1-gpu-utils",
  "sp1-hypercube",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "sp1-recursion-circuit",
  "sp1-recursion-compiler",
  "sp1-sdk",
@@ -7998,28 +7867,28 @@ dependencies = [
  "rayon-scan",
  "serde",
  "slop-air",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-alloc",
  "slop-basefold",
  "slop-basefold-prover",
- "slop-bn254 6.2.0",
- "slop-challenger 6.2.0",
+ "slop-bn254 6.2.4",
+ "slop-challenger 6.2.4",
  "slop-commit",
  "slop-futures",
  "slop-jagged",
- "slop-koala-bear 6.2.0",
+ "slop-koala-bear 6.2.4",
  "slop-matrix",
  "slop-merkle-tree",
  "slop-multilinear",
- "slop-poseidon2 6.2.0",
+ "slop-poseidon2 6.2.4",
  "slop-stacked",
  "slop-sumcheck",
- "slop-symmetric 6.2.0",
+ "slop-symmetric 6.2.4",
  "slop-tensor",
  "slop-uni-stark",
  "slop-whir",
  "sp1-derive",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "sp1-zkvm",
  "struct-reflection",
  "strum",
@@ -8040,7 +7909,7 @@ dependencies = [
  "memfd",
  "memmap2",
  "serde",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "tracing",
  "uuid",
 ]
@@ -8052,19 +7921,19 @@ dependencies = [
  "bincode",
  "elliptic-curve",
  "serde",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
 ]
 
 [[package]]
 name = "sp1-lib"
-version = "6.2.0"
+version = "6.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d1ce7f8d6098c930fb0c03c60f1c8b0ef61b6625811b210b2c694801ceb62f78"
+checksum = "9281c105496b6b8d20b25f0be936242e5b747cc7711a68706ffbb3719d16145d"
 dependencies = [
  "bincode",
  "elliptic-curve",
  "serde",
- "sp1-primitives 6.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp1-primitives 6.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -8079,12 +7948,12 @@ dependencies = [
  "dotenv",
  "rand 0.8.6",
  "rustyline",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-cuda",
  "sp1-hypercube",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "sp1-prover",
  "sp1-prover-types",
  "sp1-sdk",
@@ -8107,20 +7976,20 @@ dependencies = [
  "num-bigint 0.4.6",
  "serde",
  "sha2 0.10.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "slop-algebra 6.2.0",
- "slop-bn254 6.2.0",
- "slop-challenger 6.2.0",
- "slop-koala-bear 6.2.0",
- "slop-poseidon2 6.2.0",
- "slop-primitives 6.2.0",
- "slop-symmetric 6.2.0",
+ "slop-algebra 6.2.4",
+ "slop-bn254 6.2.4",
+ "slop-challenger 6.2.4",
+ "slop-koala-bear 6.2.4",
+ "slop-poseidon2 6.2.4",
+ "slop-primitives 6.2.4",
+ "slop-symmetric 6.2.4",
 ]
 
 [[package]]
 name = "sp1-primitives"
-version = "6.2.0"
+version = "6.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03476134330b0677d5eee5dec288cf2b0f883511c7496e55dcc9c15cf8debb47"
+checksum = "cd38fbc3cf2e151b1d899919def510c80e7f6ca7b8fe7fdaac0e6614cd2bd286"
 dependencies = [
  "bincode",
  "blake3",
@@ -8131,13 +8000,13 @@ dependencies = [
  "num-bigint 0.4.6",
  "serde",
  "sha2 0.10.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "slop-algebra 6.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "slop-bn254 6.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "slop-challenger 6.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "slop-koala-bear 6.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "slop-poseidon2 6.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "slop-primitives 6.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "slop-symmetric 6.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-algebra 6.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-bn254 6.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-challenger 6.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-koala-bear 6.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-poseidon2 6.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-primitives 6.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-symmetric 6.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -8168,22 +8037,22 @@ dependencies = [
  "serial_test",
  "sha2 0.10.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "slop-air",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-basefold",
- "slop-bn254 6.2.0",
- "slop-challenger 6.2.0",
+ "slop-bn254 6.2.4",
+ "slop-challenger 6.2.4",
  "slop-futures",
  "slop-jagged",
  "slop-multilinear",
  "slop-stacked",
- "slop-symmetric 6.2.0",
+ "slop-symmetric 6.2.4",
  "sp1-core-executor",
  "sp1-core-executor-runner",
  "sp1-core-machine",
  "sp1-derive",
  "sp1-hypercube",
  "sp1-jit",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "sp1-prover-types",
  "sp1-recursion-circuit",
  "sp1-recursion-compiler",
@@ -8218,7 +8087,7 @@ dependencies = [
  "serde",
  "sp1-core-machine",
  "sp1-hypercube",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "tokio",
  "tonic 0.12.3",
  "tonic-build",
@@ -8236,29 +8105,29 @@ dependencies = [
  "rayon",
  "serde",
  "slop-air",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-alloc",
  "slop-basefold",
  "slop-basefold-prover",
- "slop-bn254 6.2.0",
- "slop-challenger 6.2.0",
+ "slop-bn254 6.2.4",
+ "slop-challenger 6.2.4",
  "slop-commit",
  "slop-dft",
  "slop-jagged",
- "slop-koala-bear 6.2.0",
+ "slop-koala-bear 6.2.4",
  "slop-matrix",
  "slop-merkle-tree",
  "slop-multilinear",
  "slop-stacked",
  "slop-sumcheck",
- "slop-symmetric 6.2.0",
+ "slop-symmetric 6.2.4",
  "slop-tensor",
  "slop-whir",
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-derive",
  "sp1-hypercube",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "sp1-recursion-compiler",
  "sp1-recursion-executor",
  "sp1-recursion-gnark-ffi",
@@ -8277,12 +8146,12 @@ dependencies = [
  "itertools 0.14.0",
  "rand 0.8.6",
  "serde",
- "slop-algebra 6.2.0",
- "slop-bn254 6.2.0",
- "slop-symmetric 6.2.0",
+ "slop-algebra 6.2.4",
+ "slop-bn254 6.2.4",
+ "slop-symmetric 6.2.4",
  "sp1-core-machine",
  "sp1-hypercube",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "sp1-recursion-executor",
  "tracing",
  "vec_map",
@@ -8298,10 +8167,10 @@ dependencies = [
  "itertools 0.14.0",
  "range-set-blaze",
  "serde",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-maybe-rayon",
- "slop-poseidon2 6.2.0",
- "slop-symmetric 6.2.0",
+ "slop-poseidon2 6.2.4",
+ "slop-symmetric 6.2.4",
  "smallvec",
  "sp1-derive",
  "sp1-hypercube",
@@ -8332,10 +8201,10 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "slop-algebra 6.2.0",
- "slop-symmetric 6.2.0",
+ "slop-algebra 6.2.4",
+ "slop-symmetric 6.2.4",
  "sp1-hypercube",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "sp1-recursion-compiler",
  "sp1-verifier",
  "tempfile",
@@ -8349,16 +8218,16 @@ dependencies = [
  "itertools 0.14.0",
  "rand 0.8.6",
  "slop-air",
- "slop-algebra 6.2.0",
+ "slop-algebra 6.2.4",
  "slop-basefold",
- "slop-challenger 6.2.0",
+ "slop-challenger 6.2.4",
  "slop-matrix",
  "slop-maybe-rayon",
- "slop-symmetric 6.2.0",
+ "slop-symmetric 6.2.4",
  "sp1-core-machine",
  "sp1-derive",
  "sp1-hypercube",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "sp1-recursion-executor",
  "strum",
  "tokio",
@@ -8401,7 +8270,7 @@ dependencies = [
  "sp1-core-machine",
  "sp1-cuda",
  "sp1-hypercube",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "sp1-prover",
  "sp1-prover-types",
  "sp1-recursion-executor",
@@ -8438,12 +8307,12 @@ dependencies = [
  "serde",
  "serial_test",
  "sha2 0.10.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "slop-algebra 6.2.0",
- "slop-challenger 6.2.0",
- "slop-primitives 6.2.0",
- "slop-symmetric 6.2.0",
+ "slop-algebra 6.2.4",
+ "slop-challenger 6.2.4",
+ "slop-primitives 6.2.4",
+ "slop-symmetric 6.2.4",
  "sp1-hypercube",
- "sp1-primitives 6.2.0",
+ "sp1-primitives 6.2.4",
  "sp1-recursion-executor",
  "sp1-recursion-machine",
  "sp1-sdk",
@@ -8468,9 +8337,9 @@ dependencies = [
  "libm",
  "rand 0.8.6",
  "sha2 0.10.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "slop-algebra 6.2.0",
- "sp1-lib 6.2.0",
- "sp1-primitives 6.2.0",
+ "slop-algebra 6.2.4",
+ "sp1-lib 6.2.4",
+ "sp1-primitives 6.2.4",
 ]
 
 [[package]]
@@ -8579,7 +8448,7 @@ dependencies = [
  "num-bigint 0.4.6",
  "rand 0.8.6",
  "rustc-hex",
- "sp1-lib 6.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp1-lib 6.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -8888,7 +8757,7 @@ source = "git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.2
 dependencies = [
  "cfg-if",
  "crunchy",
- "sp1-lib 6.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp1-lib 6.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -10426,36 +10295,9 @@ dependencies = [
 
 [[package]]
 name = "zkevm-build-sdk"
-version = "6.2.0"
+version = "6.2.4"
 dependencies = [
  "sp1-build",
-]
-
-[[package]]
-name = "zkhash"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4352d1081da6922701401cdd4cbf29a2723feb4cfabb5771f6fee8e9276da1c7"
-dependencies = [
- "ark-ff 0.4.2",
- "ark-std 0.4.0",
- "bitvec",
- "blake2",
- "bls12_381 0.7.1",
- "byteorder",
- "cfg-if",
- "group 0.12.1",
- "group 0.13.0",
- "halo2",
- "hex",
- "jubjub",
- "lazy_static",
- "pasta_curves 0.5.1",
- "rand 0.8.6",
- "serde",
- "sha2 0.10.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "sha3",
- "subtle",
 ]
 
 [[package]]

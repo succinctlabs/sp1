@@ -205,7 +205,7 @@ pub fn jagged_gkr_layer_to_device(
         jagged_dense_device,
         DeviceBuffer::from_host(&jagged.col_index, backend).unwrap().into_inner(),
         DeviceBuffer::from_host(&jagged.start_indices, backend).unwrap().into_inner(),
-        jagged.column_heights,
+        DeviceBuffer::from_host(&jagged.column_heights, backend).unwrap().into_inner(),
     )
 }
 
@@ -221,7 +221,7 @@ pub fn jagged_gkr_layer_to_host(
         jagged_dense_host,
         DeviceBuffer::from_raw(jagged.col_index).to_host().unwrap().into(),
         DeviceBuffer::from_raw(jagged.start_indices).to_host().unwrap().into(),
-        jagged.column_heights,
+        DeviceBuffer::from_raw(jagged.column_heights).to_host().unwrap().into(),
     )
 }
 
@@ -243,7 +243,7 @@ pub fn jagged_first_gkr_layer_to_device(
         jagged_dense_device,
         DeviceBuffer::from_host(&jagged.col_index, backend).unwrap().into_inner(),
         DeviceBuffer::from_host(&jagged.start_indices, backend).unwrap().into_inner(),
-        jagged.column_heights,
+        DeviceBuffer::from_host(&jagged.column_heights, backend).unwrap().into_inner(),
     )
 }
 
@@ -260,7 +260,7 @@ pub fn jagged_first_gkr_layer_to_host(
         jagged_dense_host,
         DeviceBuffer::from_raw(jagged.col_index).to_host().unwrap().into(),
         DeviceBuffer::from_raw(jagged.start_indices).to_host().unwrap().into(),
-        jagged.column_heights,
+        DeviceBuffer::from_raw(jagged.column_heights).to_host().unwrap().into(),
     )
 }
 
@@ -309,8 +309,12 @@ pub fn random_first_layer<R: Rng>(
     let denominator = Tensor::<Ext>::rand(rng, [2, 1, height << 1]);
     let layer_data = JaggedFirstGkrLayer::new(numerator, denominator, height);
 
-    let jagged_mle =
-        JaggedMle::new(layer_data, col_index, interaction_start_indices, interaction_row_counts);
+    let jagged_mle = JaggedMle::new(
+        layer_data,
+        col_index,
+        interaction_start_indices,
+        Buffer::from(interaction_row_counts),
+    );
 
     FirstGkrLayer { jagged_mle, num_interaction_variables, num_row_variables }
 }
@@ -360,7 +364,7 @@ pub fn random_layer<R: Rng>(
             jagged_gkr_layer,
             col_index,
             interaction_start_indices,
-            interaction_row_counts,
+            Buffer::from(interaction_row_counts),
         ),
         num_interaction_variables,
         num_row_variables,

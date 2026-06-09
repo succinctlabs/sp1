@@ -45,6 +45,20 @@ pub struct GetProvePriceResponse {
     pub percent_change_24h: ::prost::alloc::string::String,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct GetMarketPricePerPguRequest {}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetMarketPricePerPguResponse {
+    /// The network's current price per prover gas unit (PGU), denominated in PROVE wei, as
+    /// a base-10 integer string (no decimal point). Callers apply their own buffer before
+    /// passing it as `RequestProofRequestBody.max_price_per_pgu`.
+    #[prost(string, tag = "1")]
+    pub price: ::prost::alloc::string::String,
+    /// Unix timestamp this price applies to. Advances whenever any input that feeds
+    /// `price` moves.
+    #[prost(int64, tag = "2")]
+    pub as_of: i64,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
 pub struct GetPriceInfoRequest {}
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct GetPriceInfoResponse {
@@ -804,6 +818,10 @@ pub struct GetProofRequestParamsResponse {
     /// The default treasury address.
     #[prost(bytes = "vec", tag = "7")]
     pub treasury: ::prost::alloc::vec::Vec<u8>,
+    /// Auction tick size in wei per PGU. Bids and `max_price_per_pgu` must be a multiple
+    /// of this value to be accepted.
+    #[prost(uint64, tag = "8")]
+    pub tick_size: u64,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct GetNonceRequest {
