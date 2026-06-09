@@ -1,4 +1,3 @@
-use crate::data::{InfoBuffer, JaggedDenseInfo};
 use slop_algebra::{AbstractField, ExtensionField, Field};
 use slop_alloc::{Backend, Buffer, CpuBackend, HasBackend, Slice};
 use slop_commit::Rounds;
@@ -6,19 +5,15 @@ use slop_commit::Rounds;
 use slop_multilinear::{MleEval, Point};
 use slop_tensor::{Tensor, TensorView};
 
+use sp1_gpu_cudart::sys::kernels::{fix_last_variable_jagged_ext, fix_last_variable_jagged_felt};
 use sp1_gpu_cudart::sys::runtime::KernelPtr;
-use sp1_gpu_cudart::sys::v2_kernels::{
-    fix_last_variable_jagged_ext, fix_last_variable_jagged_felt, fix_last_variable_jagged_info,
-    initialize_jagged_info,
-};
 use sp1_gpu_cudart::{
     args, dot_along_dim_view, DeviceBuffer, DevicePoint, DeviceTensor, TaskScope,
 };
-use sp1_gpu_utils::{Ext, Felt, JaggedMle, JaggedTraceMle, TraceDenseData, TraceOffset};
+use sp1_gpu_utils::{Ext, Felt, JaggedTraceMle, TraceDenseData, TraceOffset};
 use std::collections::BTreeMap;
-use std::iter::once;
 
-pub trait JaggedFixLastVariableKernel<K: Field> {
+pub(crate) trait JaggedFixLastVariableKernel<K: Field> {
     fn jagged_fix_last_variable_kernel() -> KernelPtr;
 }
 
@@ -35,7 +30,7 @@ impl JaggedFixLastVariableKernel<Ext> for TaskScope {
 }
 
 #[inline(always)]
-pub fn evaluate_jagged_fix_last_variable<F: Field>(
+pub(crate) fn evaluate_jagged_fix_last_variable<F: Field>(
     jagged_mle: &JaggedTraceMle<F, TaskScope>,
     value: Ext,
 ) -> JaggedTraceMle<Ext, TaskScope>
@@ -107,6 +102,12 @@ where
     let grid_size = (grid_size_x, 1, 1);
     let block_dim = BLOCK_SIZE;
 
+    // SAFETY: `next_jagged_mle` is freshly allocated with capacity sized to
+    // `total_length`; the kernel below writes every element before any later
+    // reader (no host read until the next round consumes it). The `args!`
+    // tuple matches `fix_last_variable_jagged_<felt|ext>`'s C signature in
+    // `sys/include/zerocheck/jagged_mle.cuh`. Both jagged-MLE raw views borrow
+    // from buffers held for the launch's lifetime by the enclosing scope.
     unsafe {
         next_jagged_mle.dense_data.dense.assume_init();
         next_jagged_mle.col_index.assume_init();
@@ -125,6 +126,18 @@ where
     next_jagged_mle
 }
 
+/// Evaluate every column of `traces` (preprocessed + main, in that order) at
+/// `point` and return the per-column evaluations as host-side
+/// [`Ext`] values.
+///
+/// Per chip: compute the row partial-Lagrange table for `point`, slice the
+/// chip's flat region out of the trace's dense backing buffer via a
+/// `TensorView`, and dot-product each column with the partial Lagrange along
+/// the row dimension. The aggregated result is one [`Ext`] per (chip,
+/// column), concatenated in the order
+/// `preprocessed_table_index ∪ main_table_index`.
+///
+/// Chips whose dense region is empty are skipped (no contribution).
 #[inline(always)]
 pub fn evaluate_traces(traces: &JaggedTraceMle<Felt, TaskScope>, point: &Point<Ext>) -> Vec<Ext> {
     let trace_data = traces.dense();
@@ -147,6 +160,12 @@ pub fn evaluate_traces(traces: &JaggedTraceMle<Felt, TaskScope>, point: &Point<E
         if index.dense_offset.start == index.dense_offset.end {
             continue;
         }
+        // SAFETY: `dense_offset.start` is a valid in-bounds offset into the
+        // contiguous `trace_data.dense` buffer by construction (the offsets
+        // describe disjoint regions inside the same buffer); `num_polys *
+        // poly_size` equals the region's length, so the resulting
+        // `TensorView` aliases exactly that chip's slice. The view borrows
+        // through `chip_ptr`, which outlives this loop iteration.
         let chip_ptr = unsafe { trace_ptr.add(index.dense_offset.start) };
         let chip_view = unsafe {
             TensorView::from_raw_parts(
@@ -162,6 +181,19 @@ pub fn evaluate_traces(traces: &JaggedTraceMle<Felt, TaskScope>, point: &Point<E
     DeviceBuffer::from_raw(result_buffer).to_host().unwrap()
 }
 
+/// Evaluate every column of `jagged_mle` at `point` by iteratively folding
+/// the trailing variable on device, returning one [`Ext`] per column.
+///
+/// Equivalent in result to running `MleEval::eval_at_point` per column on the
+/// host, but folds the whole jagged trace in place via repeated
+/// `fix_last_variable_jagged_felt`/`_ext` kernel launches — one per variable
+/// in `point`, walking from the last variable down to the first. After the
+/// chain the dense data holds, for each non-empty column, the four
+/// (a, b, c, d) coefficients of the residual extension element packed
+/// contiguously, from which the column's evaluation is read directly.
+///
+/// Used by the test/bench paths that need a host-visible "expected" set of
+/// column evaluations to compare against the prover's opening transcript.
 pub fn evaluate_jagged_columns(
     jagged_mle: &JaggedTraceMle<Felt, TaskScope>,
     point: Point<Ext>,
@@ -187,101 +219,15 @@ pub fn evaluate_jagged_columns(
     evals
 }
 
-pub fn initialize_jagged_dense_info(
-    heights: Vec<u32>,
-    values: Vec<u64>,
-    backend: &TaskScope,
-) -> JaggedDenseInfo<TaskScope> {
-    let buffer_start_idx = once(0)
-        .chain(heights.iter().scan(0u32, |acc, x| {
-            *acc += x;
-            Some(*acc)
-        }))
-        .collect::<Buffer<_>>();
-    let start_idx_device =
-        DeviceBuffer::from_host(&buffer_start_idx, backend).unwrap().into_inner();
-    let values = DeviceBuffer::from_host(&Buffer::from(values), backend).unwrap().into_inner();
-
-    let num_blocks = heights.len();
-    assert_eq!(heights.len(), values.len());
-
-    let total_len = buffer_start_idx.last().unwrap() * 2;
-    let info_buffer =
-        Buffer::<u64, TaskScope>::with_capacity_in(total_len as usize, backend.clone());
-    let info_cols_buffer =
-        Buffer::<u32, TaskScope>::with_capacity_in(total_len as usize / 2, backend.clone());
-
-    let mut jagged_info =
-        JaggedMle::new(InfoBuffer::new(info_buffer), info_cols_buffer, start_idx_device, heights);
-
-    const BLOCK_SIZE: usize = 256;
-    const CHUNK_SIZE: usize = 1 << 16;
-    let grid_size_x = (total_len as usize / 2).div_ceil(CHUNK_SIZE);
-    let grid_size = (grid_size_x, 1, 1);
-    let block_dim = BLOCK_SIZE;
-
-    unsafe {
-        jagged_info.dense_data.assume_init();
-        jagged_info.col_index.assume_init();
-        let args =
-            args!(jagged_info.as_mut_raw(), values.as_ptr(), total_len / 2, num_blocks as u32);
-        backend.launch_kernel(initialize_jagged_info(), grid_size, block_dim, &args, 0).unwrap();
-    }
-
-    JaggedDenseInfo(jagged_info)
-}
-
-pub fn evaluate_jagged_info_fix_last_variable(
-    jagged_info: JaggedDenseInfo<TaskScope>,
-) -> JaggedDenseInfo<TaskScope> {
-    let backend = jagged_info.dense_data.backend();
-    let input_heights = &jagged_info.column_heights;
-
-    let length = input_heights.iter().sum::<u32>();
-    let output_heights =
-        input_heights.iter().map(|height| height.div_ceil(4) * 2).collect::<Vec<u32>>();
-    let new_start_idx = once(0)
-        .chain(output_heights.iter().scan(0u32, |acc, x| {
-            *acc += x;
-            Some(*acc)
-        }))
-        .collect::<Vec<_>>();
-    let new_total_length = *new_start_idx.last().unwrap() * 2;
-    let buffer_start_idx = Buffer::from(new_start_idx);
-    let output_start_idx =
-        DeviceBuffer::from_host(&buffer_start_idx, backend).unwrap().into_inner();
-    let new_data =
-        Buffer::<u64, TaskScope>::with_capacity_in(new_total_length as usize, backend.clone());
-    let new_cols = Buffer::<u32, TaskScope>::with_capacity_in(
-        (new_total_length / 2) as usize,
-        backend.clone(),
-    );
-
-    let mut next_jagged_info = JaggedDenseInfo::new(
-        InfoBuffer { data: new_data },
-        new_cols,
-        output_start_idx,
-        output_heights,
-    );
-
-    const BLOCK_SIZE: usize = 256;
-    const CHUNK_SIZE: usize = 1 << 16;
-    let grid_size_x = (length as usize).div_ceil(CHUNK_SIZE).max(256);
-    let grid_size = (grid_size_x, 1, 1);
-    let block_dim = BLOCK_SIZE;
-
-    unsafe {
-        next_jagged_info.dense_data.assume_init();
-        next_jagged_info.col_index.assume_init();
-        let args = args!(jagged_info.as_raw(), next_jagged_info.as_mut_raw(), length);
-        backend
-            .launch_kernel(fix_last_variable_jagged_info(), grid_size, block_dim, &args, 0)
-            .unwrap();
-    }
-
-    next_jagged_info
-}
-
+/// Evaluate a jagged MLE at `(z_row, z_col)` using a chunked GPU kernel,
+/// returning the device-side per-column accumulator tensor.
+///
+/// The work is partitioned into `CHUNK_SIZE`-row blocks fed through `kernel`
+/// (the field-specialised `jagged_eval_kernel_chunked_<felt|ext>`); each
+/// block writes its partial into a (block, column) tensor that the caller
+/// is expected to reduce along the block dimension. `total_length` is the
+/// sum of all column heights and selects the kernel grid; `num_cols` sizes
+/// the column dimension of the output.
 pub fn evaluate_jagged_mle_chunked<F: Field>(
     jagged_mle: JaggedTraceMle<F, TaskScope>,
     z_row: Point<Ext, TaskScope>,
@@ -411,7 +357,7 @@ mod tests {
     use slop_multilinear::Mle;
     use slop_multilinear::Point;
     use sp1_gpu_cudart::run_sync_in_place;
-    use sp1_gpu_cudart::sys::v2_kernels::jagged_eval_kernel_chunked_felt;
+    use sp1_gpu_cudart::sys::kernels::jagged_eval_kernel_chunked_felt;
     use sp1_gpu_cudart::{DeviceBuffer, DevicePoint};
     use sp1_hypercube::log2_ceil_usize;
     use sp1_primitives::SP1Field;

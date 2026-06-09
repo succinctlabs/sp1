@@ -9,8 +9,7 @@ use slop_alloc::{Buffer, HasBackend};
 use slop_multilinear::Point;
 use slop_tensor::Tensor;
 use sp1_gpu_cudart::{
-    args, sys::v2_kernels::logup_gkr_populate_last_circuit_layer, DeviceBuffer, DevicePoint,
-    TaskScope,
+    args, sys::kernels::logup_gkr_populate_last_circuit_layer, DeviceBuffer, DevicePoint, TaskScope,
 };
 use sp1_hypercube::{air::MachineAir, Chip};
 use tracing::instrument;

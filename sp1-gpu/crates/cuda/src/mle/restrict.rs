@@ -3,12 +3,12 @@ use std::sync::Arc;
 use slop_algebra::{ExtensionField, Field};
 use slop_multilinear::MleEval;
 use sp1_gpu_sys::{
-    runtime::KernelPtr,
-    v2_kernels::{
+    kernels::{
         fix_last_variable_ext_ext_kernel, fix_last_variable_felt_ext_kernel,
         mle_fix_last_variable_koala_bear_base_extension_constant_padding,
         mle_fix_last_variable_koala_bear_ext_ext_constant_padding,
     },
+    runtime::KernelPtr,
 };
 use sp1_primitives::{SP1ExtensionField, SP1Field};
 

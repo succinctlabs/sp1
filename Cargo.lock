@@ -7046,18 +7046,14 @@ dependencies = [
 name = "sp1-gpu-air"
 version = "6.2.4"
 dependencies = [
- "itertools 0.14.0",
  "lazy_static",
  "slop-air",
  "slop-algebra",
- "slop-koala-bear",
  "slop-matrix",
  "sp1-core-executor",
  "sp1-core-machine",
- "sp1-curves",
  "sp1-hypercube",
  "sp1-primitives",
- "sp1-recursion-machine",
 ]
 
 [[package]]
@@ -7417,6 +7413,7 @@ version = "6.2.4"
 dependencies = [
  "clap",
  "serde",
+ "slop-air",
  "slop-algebra",
  "slop-basefold",
  "slop-bn254",
@@ -7472,7 +7469,9 @@ version = "6.2.4"
 dependencies = [
  "criterion",
  "rand 0.8.6",
+ "serde_json",
  "serial_test",
+ "slop-air",
  "slop-algebra",
  "slop-alloc",
  "slop-basefold",

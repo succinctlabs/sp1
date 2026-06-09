@@ -21,7 +21,7 @@ use slop_alloc::{Backend, Buffer, HasBackend, Slice};
 use slop_challenger::IopCtx;
 use slop_jagged::JaggedProverData;
 use slop_multilinear::Mle;
-use sp1_gpu_cudart::sys::v2_kernels::{
+use sp1_gpu_cudart::sys::kernels::{
     count_and_add_kernel, fill_buffer, generate_col_index, generate_start_indices,
     sum_to_trace_kernel,
 };
@@ -1035,7 +1035,7 @@ mod tests {
     use serial_test::serial;
     use slop_algebra::AbstractField;
     use slop_alloc::{Buffer, GLOBAL_CPU_BACKEND};
-    use sp1_gpu_cudart::sys::v2_kernels::jagged_eval_kernel_chunked_felt;
+    use sp1_gpu_cudart::sys::kernels::jagged_eval_kernel_chunked_felt;
     use sp1_gpu_cudart::{
         run_in_place, DeviceBuffer, DevicePoint, DeviceTensor, PinnedBuffer, TaskScope,
     };

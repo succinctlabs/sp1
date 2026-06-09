@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, sync::Arc};
 
-use sp1_gpu_air::{air_block::BlockAir, codegen_cuda_eval, SymbolicProverFolder};
+use sp1_gpu_air::ir::DagBuilder;
 use sp1_gpu_challenger::{DuplexChallenger, MultiField32Challenger};
 use sp1_gpu_cudart::{PinnedBuffer, TaskScope};
 
@@ -68,17 +68,11 @@ where
     PC: CudaShardProverComponents<GC>,
     PC::P: CudaTcsProver<GC>,
     PC::Air: CudaTracegenAir<GC::F>
-        + for<'a> BlockAir<SymbolicProverFolder<'a>>
+        + for<'a> slop_air::Air<DagBuilder<'a>>
         + ZerocheckAir<GC::F, GC::EF>
         + std::fmt::Debug,
 {
     let machine = verifier.machine().clone();
-
-    let mut cache = BTreeMap::new();
-    for chip in machine.chips() {
-        let result = codegen_cuda_eval(chip.air.as_ref());
-        cache.insert(chip.air.name().to_string(), result);
-    }
 
     let log_stacking_height = verifier.log_stacking_height();
     let max_log_row_count = verifier.max_log_row_count();
@@ -116,7 +110,6 @@ where
         max_trace_size,
         scope,
         all_interactions,
-        cache,
         recompute_first_layer,
         recompute_first_layer,
     )
