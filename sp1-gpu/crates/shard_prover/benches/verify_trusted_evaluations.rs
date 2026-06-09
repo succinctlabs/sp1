@@ -22,7 +22,6 @@ use slop_futures::queue::WorkerQueue;
 use slop_jagged::JaggedPcsVerifier;
 use slop_multilinear::{MleEval, MultilinearPcsChallenger};
 use sp1_core_machine::riscv::RiscvAir;
-use sp1_gpu_air::codegen_cuda_eval;
 use sp1_gpu_basefold::FriCudaProver;
 use sp1_gpu_commit::commit_multilinears;
 use sp1_gpu_cudart::{DeviceTensor, PinnedBuffer, TaskScope};
@@ -92,12 +91,6 @@ fn run_verify_trusted_evaluations<R: Rng>(
         all_interactions.insert(chip.name().to_string(), Arc::new(device_interactions));
     }
 
-    let mut all_zerocheck_programs = BTreeMap::new();
-    for chip in machine.chips().iter() {
-        let result = codegen_cuda_eval(chip.air.as_ref());
-        all_zerocheck_programs.insert(chip.name().to_string(), result);
-    }
-
     let trace_buffers = Arc::new(WorkerQueue::new(vec![PinnedBuffer::<Felt>::with_capacity(
         CORE_MAX_TRACE_SIZE as usize,
     )]));
@@ -110,7 +103,6 @@ fn run_verify_trusted_evaluations<R: Rng>(
         CORE_MAX_TRACE_SIZE as usize,
         scope.clone(),
         all_interactions,
-        all_zerocheck_programs,
         false,
         false,
     );

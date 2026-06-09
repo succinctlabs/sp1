@@ -17,6 +17,7 @@ use sp1_gpu_cudart::TaskScope;
 use sp1_gpu_jagged_tracegen::test_utils::bench_utils::{
     with_trace_source, FullKind, RealTraceData,
 };
+use sp1_gpu_jagged_tracegen::test_utils::tracegen_setup::CORE_MAX_LOG_ROW_COUNT;
 use sp1_gpu_utils::{Ext, Felt, TestGC};
 use sp1_gpu_zerocheck::primitives::evaluate_jagged_columns;
 use sp1_gpu_zerocheck::prover::{upload_machine_bytecode, zerocheck};
