@@ -35,7 +35,7 @@ MEMORY
      * the reserved input region near the top of memory. */
     /* lld accepts r/w/x/!. The GNU `a` (allocate) and `i` (init) attrs
      * are implicit for any non-discarded section. */
-    RAM (rwx) : ORIGIN = 0x78000000, LENGTH = 0x1C00000000  /* MAX_MEMORY - INPUT_REGION - STACK_TOP */
+    RAM (rwx) : ORIGIN = 0x78000000, LENGTH = 0x1B88000000  /* MAX_MEMORY - INPUT_REGION - STACK_TOP */
 }
 
 SECTIONS
