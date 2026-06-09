@@ -18,8 +18,8 @@ use crate::{
         signer::NetworkSigner,
         tee::{client::Client as TeeClient, verify_tee_proof},
         Error, NetworkMode, DEFAULT_AUCTION_TIMEOUT_DURATION, DEFAULT_GAS_LIMIT,
-        MAINNET_EXPLORER_URL, MAINNET_RPC_URL, PRIVATE_EXPLORER_URL, PRIVATE_NETWORK_RPC_URL,
-        RESERVED_EXPLORER_URL, RESERVED_RPC_URL, TEE_NETWORK_RPC_URL,
+        DEFAULT_MAX_PRICE_BUFFER_PCT, MAINNET_EXPLORER_URL, MAINNET_RPC_URL, PRIVATE_EXPLORER_URL,
+        PRIVATE_NETWORK_RPC_URL, RESERVED_EXPLORER_URL, RESERVED_RPC_URL, TEE_NETWORK_RPC_URL,
     },
     prover::{verify_proof, BaseProveRequest, SendFutureResult},
     ProofFromNetwork, Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey,
@@ -100,6 +100,7 @@ impl Prover for NetworkProver {
             verifier: None,
             treasury: None,
             max_price_per_pgu: None,
+            max_price_buffer_pct: None,
             auction_timeout: None,
             private_stdin: false,
         }
@@ -602,6 +603,7 @@ impl NetworkProver {
         verifier: Option<Address>,
         treasury: Option<Address>,
         max_price_per_pgu: Option<u64>,
+        max_price_buffer_pct: Option<u64>,
         private_stdin: bool,
     ) -> Result<B256> {
         let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
@@ -616,6 +618,7 @@ impl NetworkProver {
                 verifier,
                 treasury,
                 max_price_per_pgu,
+                max_price_buffer_pct,
             )
             .await?;
 
@@ -661,6 +664,7 @@ impl NetworkProver {
         verifier: Option<Address>,
         treasury: Option<Address>,
         max_price_per_pgu: Option<u64>,
+        max_price_buffer_pct: Option<u64>,
         auction_timeout: Option<Duration>,
         private_stdin: bool,
     ) -> Result<SP1ProofWithPublicValues> {
@@ -687,6 +691,7 @@ impl NetworkProver {
                     verifier,
                     treasury,
                     max_price_per_pgu,
+                    max_price_buffer_pct,
                     private_stdin,
                 )
                 .await?;
@@ -848,7 +853,7 @@ impl NetworkProver {
     /// 1. If the parameter is explicitly set by the requester, use the specified value.
     /// 2. Otherwise, use the default values fetched from the network RPC.
     #[allow(unused_variables)]
-    #[allow(clippy::unused_async)]
+    #[allow(clippy::unused_async, clippy::too_many_arguments)]
     async fn get_auction_request_params(
         &self,
         mode: SP1ProofMode,
@@ -857,6 +862,7 @@ impl NetworkProver {
         verifier: Option<Address>,
         treasury: Option<Address>,
         max_price_per_pgu: Option<u64>,
+        max_price_buffer_pct: Option<u64>,
     ) -> Result<(Address, Address, Address, Address, u64, u64, Vec<u8>)> {
         match self.network_mode {
             NetworkMode::Mainnet => {
@@ -883,13 +889,23 @@ impl NetworkProver {
                         } else {
                             Address::from_slice(&auction_params.treasury)
                         };
-                        let max_price_per_pgu_value = if let Some(max_price_per_pgu) = max_price_per_pgu {
-                            max_price_per_pgu
+                        let max_price_per_pgu_value = if let Some(v) = max_price_per_pgu {
+                            v
                         } else {
-                            auction_params
-                                .max_price_per_pgu
-                                .parse::<u64>()
-                                .expect("invalid max_price_per_pgu")
+                            let base = auction_params.max_price_per_pgu.parse::<u64>().map_err(
+                                |e| {
+                                    anyhow::anyhow!(
+                                        "invalid max_price_per_pgu {:?}: {e}",
+                                        auction_params.max_price_per_pgu
+                                    )
+                                },
+                            )?;
+                            let pct = max_price_buffer_pct.unwrap_or(DEFAULT_MAX_PRICE_BUFFER_PCT);
+                            let buffered = buffer_max_price_per_pgu(base, pct);
+                            // Align to the network's auction tick when advertised. `tick_size == 0`
+                            // means an older RPC that predates the field — leave the value as-is so
+                            // the bidder still rounds it on intake.
+                            align_to_tick(buffered, auction_params.tick_size)
                         };
                         let base_fee = auction_params
                             .base_fee
@@ -929,5 +945,63 @@ impl From<SP1ProofMode> for ProofMode {
             SP1ProofMode::Plonk => Self::Plonk,
             SP1ProofMode::Groth16 => Self::Groth16,
         }
+    }
+}
+
+/// Apply a percentage buffer to the server-supplied `max_price_per_pgu` default. If the
+/// buffered value overflows `u64`, log and return `base` unchanged.
+fn buffer_max_price_per_pgu(base: u64, buffer_pct: u64) -> u64 {
+    let buffered = u128::from(base).saturating_mul(u128::from(buffer_pct)) / 100;
+    u64::try_from(buffered).unwrap_or_else(|_| {
+        tracing::warn!(
+            buffered,
+            "buffered max_price_per_pgu overflows u64; using server-supplied default"
+        );
+        base
+    })
+}
+
+/// Floor `value` to a multiple of `tick`. A tick of `0` or `1` returns `value` unchanged,
+/// so older RPCs that don't advertise a tick — or future envs without one — are no-ops.
+fn align_to_tick(value: u64, tick: u64) -> u64 {
+    if tick <= 1 {
+        return value;
+    }
+    value - (value % tick)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn buffer_applied_to_base() {
+        // 1000 * 120 / 100 = 1200.
+        assert_eq!(buffer_max_price_per_pgu(1000, 120), 1200);
+    }
+
+    #[test]
+    fn custom_buffer_pct_applied() {
+        // Caller can override the buffer; 1000 * 150 / 100 = 1500.
+        assert_eq!(buffer_max_price_per_pgu(1000, 150), 1500);
+    }
+
+    #[test]
+    fn overflow_returns_base() {
+        // u64::MAX * u64::MAX saturates to u128::MAX; /100 is well beyond u64::MAX.
+        assert_eq!(buffer_max_price_per_pgu(u64::MAX, u64::MAX), u64::MAX);
+    }
+
+    #[test]
+    fn align_floors_to_tick() {
+        // 1_234_567_890 floored to a 10M tick.
+        assert_eq!(align_to_tick(1_234_567_890, 10_000_000), 1_230_000_000);
+    }
+
+    #[test]
+    fn align_zero_tick_is_no_op() {
+        // Older RPCs return tick_size=0; must pass the buffered value through unchanged.
+        assert_eq!(align_to_tick(1_234_567_890, 0), 1_234_567_890);
+        assert_eq!(align_to_tick(1_234_567_890, 1), 1_234_567_890);
     }
 }
