@@ -155,7 +155,7 @@ sp1-gpu-zerocheck = { version = "6.2.4", path = "sp1-gpu/crates/zerocheck" }
 p3-air = "=0.4.3-succinct"
 p3-baby-bear = "=0.4.3-succinct"
 p3-bn254-fr = "=0.4.3-succinct"
-p3-challenger = "=0.4.3-succinct"
+p3-challenger = "=0.5.3"
 p3-commit = "=0.4.3-succinct"
 p3-dft = "=0.4.3-succinct"
 p3-field = "=0.4.3-succinct"
