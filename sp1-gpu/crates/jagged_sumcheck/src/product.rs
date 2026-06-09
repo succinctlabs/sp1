@@ -25,8 +25,7 @@ use slop_challenger::FieldChallenger;
 use slop_multilinear::{Mle, MleBaseBackend};
 use slop_sumcheck::PartialSumcheckProof;
 use slop_tensor::Tensor;
-use sp1_gpu_cudart::sys::runtime::{Dim3, KernelPtr};
-use sp1_gpu_cudart::sys::v2_kernels::{
+use sp1_gpu_cudart::sys::kernels::{
     mle_fix_last_variable_koala_bear_base_extension_zero_padding,
     mle_fix_last_variable_koala_bear_ext_ext_zero_padding,
     product_sumcheck_fix_and_sum_base_2_kernel, product_sumcheck_fix_and_sum_base_4_kernel,
@@ -41,6 +40,7 @@ use sp1_gpu_cudart::sys::v2_kernels::{
     product_sumcheck_sum_as_poly_base_32_kernel, product_sumcheck_sum_as_poly_base_4_kernel,
     product_sumcheck_sum_as_poly_base_64_kernel, product_sumcheck_sum_as_poly_base_8_kernel,
 };
+use sp1_gpu_cudart::sys::runtime::{Dim3, KernelPtr};
 use sp1_gpu_cudart::{args, DeviceTensor, TaskScope};
 use sp1_gpu_utils::{Ext, Felt};
 

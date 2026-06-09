@@ -22,13 +22,13 @@ use slop_challenger::FieldChallenger;
 use slop_multilinear::{Mle, Point};
 use slop_sumcheck::PartialSumcheckProof;
 use slop_tensor::{Dimensions, Tensor};
-use sp1_gpu_cudart::sys::runtime::{Dim3, KernelPtr};
-use sp1_gpu_cudart::sys::v2_kernels::{
+use sp1_gpu_cudart::sys::kernels::{
     eq_product_fix_and_sum_base_64_coop_kernel, eq_product_fix_and_sum_ext_64_coop_kernel,
     eq_product_sum_as_poly_base_64_coop_kernel,
     mle_fix_last_variable_koala_bear_base_extension_zero_padding,
     mle_fix_last_variable_koala_bear_ext_ext_zero_padding,
 };
+use sp1_gpu_cudart::sys::runtime::{Dim3, KernelPtr};
 use sp1_gpu_cudart::{args, DeviceBuffer, DevicePoint, DeviceTensor, TaskScope};
 use sp1_gpu_utils::{Ext, Felt};
 

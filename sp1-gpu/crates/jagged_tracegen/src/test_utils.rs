@@ -69,13 +69,19 @@ pub mod random {
     ///   {"name": "Memory", "preprocessed_width": 0, "main_width": 32, "height": 512}
     /// ]
     /// ```
+    ///
+    /// Entries are sorted by `name` on load. The downstream cluster is a
+    /// `BTreeSet<Chip>` (chip-name order) and the prover's per-chip trace
+    /// offset computation walks it in that order; the synthesized trace must
+    /// match. Sorting here makes the loader robust to any input array order.
     pub fn read_layout_from_json(
         path: impl AsRef<Path>,
     ) -> std::io::Result<AbstractChipLayoutWithHeights> {
         let file = std::fs::File::open(path)?;
         let reader = std::io::BufReader::new(file);
-        let entries: Vec<ChipEntry> = serde_json::from_reader(reader)
+        let mut entries: Vec<ChipEntry> = serde_json::from_reader(reader)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        entries.sort_by(|a, b| a.name.cmp(&b.name));
         Ok(AbstractChipLayoutWithHeights::new(
             entries
                 .into_iter()
@@ -805,6 +811,16 @@ pub mod bench_utils {
             let layout = read_layout_from_json(path).expect("failed to read JSON layout");
             let machine = RiscvAir::<Felt>::machine();
             let cluster = cluster_from_json_layout(&machine, &layout);
+            // The synthesized trace lays columns out in `layout` order, while
+            // the prover walks the cluster (`BTreeSet<Chip>`) order. They must
+            // agree or per-chip trace offsets are wrong. `read_layout_from_json`
+            // sorts by name to match `BTreeSet` iteration; assert it here so a
+            // future change to `Chip`'s ordering fails loudly instead of
+            // silently corrupting the trace.
+            assert!(
+                cluster.iter().map(|c| c.name()).eq(layout.chip_names()),
+                "JSON layout column order must match cluster (BTreeSet) iteration order",
+            );
             let device_mle =
                 random_jagged_trace_mle_from_layout::<Felt, _>(rng, &layout, LOG_STACKING_HEIGHT)
                     .into_device(scope);

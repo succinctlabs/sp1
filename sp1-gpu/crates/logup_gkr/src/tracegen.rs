@@ -9,8 +9,7 @@ use slop_alloc::{Buffer, HasBackend};
 use slop_multilinear::Point;
 use slop_tensor::Tensor;
 use sp1_gpu_cudart::{
-    args, sys::v2_kernels::logup_gkr_populate_last_circuit_layer, DeviceBuffer, DevicePoint,
-    TaskScope,
+    args, sys::kernels::logup_gkr_populate_last_circuit_layer, DeviceBuffer, DevicePoint, TaskScope,
 };
 use sp1_hypercube::{air::MachineAir, Chip};
 use tracing::instrument;
@@ -152,11 +151,13 @@ pub fn generate_first_layer<'a>(
     let height = numerator.sizes()[2] / 2;
     let jagged_layer = JaggedFirstGkrLayer { numerator, denominator, height };
 
+    let interaction_row_counts_dev =
+        DeviceBuffer::from_host_slice(&interaction_row_counts, backend).unwrap().into_inner();
     let jagged_mle = JaggedMle::new(
         jagged_layer,
         interaction_data,
         interaction_start_indices,
-        interaction_row_counts,
+        interaction_row_counts_dev,
     );
 
     let num_interaction_variables = interaction_offset.next_power_of_two().ilog2();
