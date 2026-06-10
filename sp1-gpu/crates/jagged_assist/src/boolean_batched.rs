@@ -21,7 +21,7 @@ use slop_jagged::{BooleanityBatchedProof, LOG_NUM_BITS};
 use slop_multilinear::{Mle, Point};
 use slop_sumcheck::PartialSumcheckProof;
 use slop_tensor::Tensor;
-use sp1_gpu_cudart::sys::v2_kernels::{
+use sp1_gpu_cudart::sys::kernels::{
     boolean_curr_bits_ext_kernel, boolean_inc_table_kernel, boolean_sum_as_poly_half_kernel,
 };
 use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, DevicePoint, DeviceTensor, TaskScope};

@@ -13,7 +13,7 @@ use slop_tensor::Tensor;
 use sp1_gpu_cudart::DevicePoint;
 use sp1_gpu_cudart::{
     args,
-    sys::v2_kernels::{
+    sys::kernels::{
         logup_gkr_first_sum_as_poly_circuit_layer as first_sum_as_poly_layer_circuit_layer_kernel,
         logup_gkr_fix_and_sum_circuit_layer as fix_and_sum_circuit_layer_kernel,
         logup_gkr_fix_and_sum_first_layer as fix_and_sum_first_layer_kernel,
@@ -272,12 +272,10 @@ fn fix_and_sum_first_layer(
     let backend = poly.layer.jagged_mle.backend();
     let height = poly.layer.jagged_mle.dense_data.height >> 1;
 
-    // Compute the next layer's start indices and column heights.
-    let (output_interaction_start_indices, output_interaction_row_counts) =
-        poly.layer.jagged_mle.next_start_indices_and_column_heights();
-    let output_height = output_interaction_start_indices.last().copied().unwrap() as usize;
-    let output_interaction_start_indices =
-        DeviceBuffer::from_host(&output_interaction_start_indices, backend).unwrap().into_inner();
+    // Compute the next layer's start indices and column heights on device.
+    let (output_interaction_start_indices, output_interaction_row_counts, output_height_u32) =
+        poly.layer.jagged_mle.next_start_indices_and_column_heights_dev();
+    let output_height = output_height_u32 as usize;
 
     // Create a new layer
     let output_layer: Tensor<Ext, TaskScope> =
@@ -517,14 +515,12 @@ fn fix_and_sum_materialized_round(
             } else {
                 let eq_row = poly.eq_row.fix_last_variable_constant_padding(alpha, Ext::zero());
 
-                let (output_interaction_start_indices, output_interaction_row_counts) =
-                    circuit.jagged_mle.next_start_indices_and_column_heights();
-                let output_height =
-                    output_interaction_start_indices.last().copied().unwrap() as usize;
-                let output_interaction_start_indices =
-                    DeviceBuffer::from_host(&output_interaction_start_indices, backend)
-                        .unwrap()
-                        .into_inner();
+                let (
+                    output_interaction_start_indices,
+                    output_interaction_row_counts,
+                    output_height_u32,
+                ) = circuit.jagged_mle.next_start_indices_and_column_heights_dev();
+                let output_height = output_height_u32 as usize;
 
                 // Create a new layer
                 let output_layer: Tensor<Ext, TaskScope> =

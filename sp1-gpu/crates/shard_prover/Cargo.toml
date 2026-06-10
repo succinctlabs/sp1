@@ -25,6 +25,7 @@ sp1-gpu-jagged-tracegen = { workspace = true }
 sp1-gpu-logup-gkr = { workspace = true }
 
 # slop
+slop-air = { workspace = true }
 slop-alloc = { workspace = true }
 slop-algebra = { workspace = true }
 slop-multilinear = { workspace = true }
@@ -44,6 +45,7 @@ thiserror = "1.0"
 tracing = { workspace = true }
 tokio = { workspace = true }
 rayon = { workspace = true }
+serde_json = "1.0"
 
 [features]
 default = []

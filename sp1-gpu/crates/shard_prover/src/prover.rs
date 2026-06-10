@@ -9,8 +9,7 @@ use slop_jagged::{
     JaggedProverError, PrefixSumsMaxLogRowCount,
 };
 use slop_multilinear::{MleEval, MultilinearPcsVerifier, Point};
-use sp1_gpu_air::air_block::BlockAir;
-use sp1_gpu_air::SymbolicProverFolder;
+use sp1_gpu_air::ir::{ChunkBudget, DagBuilder};
 use sp1_gpu_basefold::{CudaStackedPcsProverData, DeviceGrindingChallenger, FriCudaProver};
 use sp1_gpu_challenger::FromHostChallengerSync;
 use sp1_gpu_cudart::PinnedBuffer;
@@ -22,8 +21,7 @@ use sp1_gpu_logup_gkr::{prove_logup_gkr, CudaLogUpGkrOptions, Interactions};
 use sp1_gpu_merkle_tree::{CudaTcsProver, SingleLayerMerkleTreeProverError};
 use sp1_gpu_tracegen::CudaTracegenAir;
 use sp1_gpu_utils::{Ext, Felt, JaggedTraceMle};
-use sp1_gpu_zerocheck::zerocheck;
-use sp1_gpu_zerocheck::CudaEvalResult;
+use sp1_gpu_zerocheck::prover::{upload_machine_bytecode, zerocheck, MachineBytecode};
 use sp1_hypercube::prover::ZerocheckAir;
 use sp1_hypercube::{
     air::{MachineAir, MachineProgram},
@@ -31,7 +29,7 @@ use sp1_hypercube::{
     Machine, MachineVerifyingKey, ShardProof,
 };
 use sp1_hypercube::{SP1PcsProof, ShardContextImpl};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::iter::once;
 use std::vec;
 use std::{marker::PhantomData, sync::Arc};
@@ -43,7 +41,7 @@ pub trait CudaShardProverComponents<GC: IopCtx>: Send + Sync + 'static {
     type P: CudaTcsProver<GC>;
     type Air: CudaTracegenAir<GC::F>
         + ZerocheckAir<Felt, Ext>
-        + for<'a> BlockAir<SymbolicProverFolder<'a>>;
+        + for<'a> slop_air::Air<DagBuilder<'a>>;
     type C: MultilinearPcsVerifier<GC> + Send + Sync;
     /// The device challenger type used for GPU-based challenger operations.
     type DeviceChallenger: sp1_gpu_jagged_assist::AsMutRawChallenger
@@ -64,7 +62,7 @@ impl<GC: IopCtx, PC: CudaShardProverComponents<GC>> Clone for CudaShardProver<GC
     }
 }
 
-impl<GC: IopCtx, PC: CudaShardProverComponents<GC>> CudaShardProver<GC, PC> {
+impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>> CudaShardProver<GC, PC> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         trace_buffers: Arc<WorkerQueue<PinnedBuffer<GC::F>>>,
@@ -74,10 +72,15 @@ impl<GC: IopCtx, PC: CudaShardProverComponents<GC>> CudaShardProver<GC, PC> {
         max_trace_size: usize,
         backend: TaskScope,
         all_interactions: BTreeMap<String, Arc<Interactions<GC::F, TaskScope>>>,
-        all_zerocheck_programs: BTreeMap<String, CudaEvalResult>,
         recompute_first_layer: bool,
         drop_ldes: bool,
     ) -> Self {
+        // Compile + upload the whole machine's zerocheck bytecode once.
+        // It's machine-stable, so every shard reuses this single upload.
+        let machine_bytecode = {
+            let chip_set: BTreeSet<_> = machine.chips().iter().cloned().collect();
+            Arc::new(upload_machine_bytecode(&chip_set, ChunkBudget::recommended(), &backend))
+        };
         Self {
             inner: Arc::new(CudaShardProverInner {
                 trace_buffers,
@@ -87,7 +90,7 @@ impl<GC: IopCtx, PC: CudaShardProverComponents<GC>> CudaShardProver<GC, PC> {
                 max_trace_size,
                 backend,
                 all_interactions,
-                all_zerocheck_programs,
+                machine_bytecode,
                 recompute_first_layer,
                 drop_ldes,
                 _marker: PhantomData,
@@ -139,7 +142,11 @@ pub(crate) struct CudaShardProverInner<GC: IopCtx, PC: CudaShardProverComponents
     pub max_trace_size: usize,
     pub backend: TaskScope,
     pub all_interactions: BTreeMap<String, Arc<Interactions<GC::F, TaskScope>>>,
-    pub all_zerocheck_programs: BTreeMap<String, CudaEvalResult>,
+    /// The whole machine's DAG-native bytecode, compiled and uploaded to
+    /// the GPU once at prover construction. The bytecode is machine-stable
+    /// (cluster-independent — see `compile_chips`), so every shard reuses
+    /// this single upload instead of re-compiling + re-uploading per shard.
+    pub machine_bytecode: Arc<MachineBytecode>,
     pub recompute_first_layer: bool,
     pub drop_ldes: bool,
     pub _marker: PhantomData<GC>,
@@ -709,12 +716,15 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
         // Get the challenge for batching the evaluations from the GKR proof.
         let gkr_opening_batch_challenge = challenger.sample_ext_element::<GC::EF>();
 
-        // Generate the zerocheck proof.
+        // Generate the zerocheck proof via the DAG-native fused-kernel path.
+        // The bytecode is compiled + uploaded once per machine at prover
+        // construction (see `machine_bytecode`); `zerocheck` just selects
+        // this shard's chips from it.
         let (shard_open_values, zerocheck_partial_sumcheck_proof) =
             tracing::debug_span!("zerocheck").in_scope(|| {
                 zerocheck(
                     shard_chips,
-                    &self.all_zerocheck_programs,
+                    &self.machine_bytecode,
                     traces,
                     batching_challenge,
                     gkr_opening_batch_challenge,
@@ -805,7 +815,6 @@ mod tests {
     use slop_tensor::Tensor;
     use sp1_core_machine::io::SP1Stdin;
     use sp1_core_machine::riscv::RiscvAir;
-    use sp1_gpu_air::codegen_cuda_eval;
     use sp1_gpu_cudart::run_in_place;
     use sp1_gpu_jagged_tracegen::test_utils::tracegen_setup::{
         self, CORE_MAX_LOG_ROW_COUNT, LOG_STACKING_HEIGHT,
@@ -869,12 +878,6 @@ mod tests {
                 all_interactions.insert(chip.name().to_string(), Arc::new(device_interactions));
             }
 
-            let mut cache = BTreeMap::new();
-            for chip in machine.chips().iter() {
-                let result = codegen_cuda_eval(chip.air.as_ref());
-                cache.insert(chip.name().to_string(), result);
-            }
-
             let num_workers = 1;
             let mut trace_buffers = Vec::with_capacity(num_workers);
             for _ in 0..num_workers {
@@ -882,11 +885,15 @@ mod tests {
                 trace_buffers.push(buffer);
             }
 
+            let machine_bytecode = {
+                let chip_set: BTreeSet<_> = machine.chips().iter().cloned().collect();
+                Arc::new(upload_machine_bytecode(&chip_set, ChunkBudget::recommended(), &scope))
+            };
             let shard_prover_inner: CudaShardProverInner<TestGC, TestProverComponentsImpl> =
                 CudaShardProverInner {
                     trace_buffers: Arc::new(WorkerQueue::new(trace_buffers)),
                     all_interactions,
-                    all_zerocheck_programs: cache,
+                    machine_bytecode,
                     max_log_row_count: CORE_MAX_LOG_ROW_COUNT,
                     basefold_prover,
                     max_trace_size: CORE_MAX_TRACE_SIZE as usize,

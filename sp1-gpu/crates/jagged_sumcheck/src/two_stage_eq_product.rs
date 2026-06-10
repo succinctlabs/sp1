@@ -28,8 +28,7 @@ use slop_jagged::TwoStageEqProductProof;
 use slop_multilinear::{Mle, Point};
 use slop_sumcheck::PartialSumcheckProof;
 use slop_tensor::{Dimensions, Tensor};
-use sp1_gpu_cudart::sys::runtime::{Dim3, KernelPtr};
-use sp1_gpu_cudart::sys::v2_kernels::{
+use sp1_gpu_cudart::sys::kernels::{
     build_b_mles_16_4_kernel, build_b_mles_2_32_kernel, build_b_mles_32_2_kernel,
     build_b_mles_4_16_kernel, build_b_mles_8_8_kernel,
     mle_fix_last_variable_koala_bear_base_extension_zero_padding,
@@ -48,6 +47,7 @@ use sp1_gpu_cudart::sys::v2_kernels::{
     two_stage_stage2_sum_as_poly_base_32_2_kernel, two_stage_stage2_sum_as_poly_base_4_16_kernel,
     two_stage_stage2_sum_as_poly_base_8_8_kernel,
 };
+use sp1_gpu_cudart::sys::runtime::{Dim3, KernelPtr};
 use sp1_gpu_cudart::{args, DeviceBuffer, DevicePoint, DeviceTensor, TaskScope};
 use sp1_gpu_utils::{Ext, Felt};
 

@@ -14,7 +14,7 @@ use slop_alloc::Buffer;
 use slop_challenger::FieldChallenger;
 use slop_multilinear::Point;
 use slop_tensor::Tensor;
-use sp1_gpu_cudart::sys::v2_kernels::two_to_one_sum_as_poly_zero_kernel;
+use sp1_gpu_cudart::sys::kernels::two_to_one_sum_as_poly_zero_kernel;
 use sp1_gpu_cudart::{args, DeviceMle, DevicePoint, DeviceTensor, TaskScope};
 use sp1_gpu_utils::{Ext, Felt};
 
