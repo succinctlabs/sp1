@@ -48,7 +48,8 @@ const FD_PUBLIC_VALUES: u32 = 13;
 #[no_mangle]
 pub unsafe extern "C" fn read_input(buf_ptr: *mut *const u8, buf_size: *mut usize) {
     if buf_ptr.is_null() || buf_size.is_null() {
-        crate::halt::abort();
+        // `abort()` semantics (the alias itself is zkvm-target-only).
+        crate::halt::zkvm_halt(1);
     }
 
     // Cache the (ptr, len) of the first successful read so subsequent calls

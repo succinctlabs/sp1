@@ -37,6 +37,11 @@ pub unsafe extern "C" fn zkvm_secp256k1_verify(
             return ZKVM_EOK;
         }
     };
+    // Plain-ECDSA semantics: accept high-s signatures (matching the
+    // p256 helper and Wycheproof's `valid` results). k256's
+    // `verify_prehash` enforces bitcoin's low-s rule, so normalize
+    // first; (r, n - s) verifies iff (r, s) does.
+    let signature = signature.normalize_s().unwrap_or(signature);
 
     let mut sec1 = [0u8; 65];
     sec1[0] = 0x04;
@@ -86,6 +91,17 @@ pub unsafe extern "C" fn zkvm_secp256k1_ecrecover(
     let recovery_id = match RecoveryId::try_from(recid) {
         Ok(r) => r,
         Err(_) => return ZKVM_EFAIL,
+    };
+
+    // Ethereum's ecrecover accepts high-s signatures (EIP-2's low-s rule
+    // binds transaction signatures, not the precompile), but k256's
+    // recovery enforces low-s. Normalize and flip the parity bit:
+    // (r, n - s) with inverted y-parity recovers the same key.
+    let (signature, recovery_id) = match signature.normalize_s() {
+        Some(normalized) => {
+            (normalized, RecoveryId::new(!recovery_id.is_y_odd(), recovery_id.is_x_reduced()))
+        }
+        None => (signature, recovery_id),
     };
 
     let vk = match VerifyingKey::recover_from_prehash(msg_bytes, &signature, recovery_id) {

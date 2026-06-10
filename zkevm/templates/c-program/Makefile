@@ -8,8 +8,15 @@
 
 SDK_DIR ?= ../zkevm-sdk-0.1.0-pre
 
-CC ?= clang
-LD ?= ld.lld
+# `?=` won't do here: make pre-defines CC=cc and LD=ld as builtin
+# defaults, so only an `origin` check distinguishes "unset" from
+# "explicitly overridden on the command line / environment".
+ifeq ($(origin CC),default)
+CC := clang
+endif
+ifeq ($(origin LD),default)
+LD := ld.lld
+endif
 
 CFLAGS = --target=riscv64-unknown-none-elf \
          -march=rv64im -mabi=lp64 \

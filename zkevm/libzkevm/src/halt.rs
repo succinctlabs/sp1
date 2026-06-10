@@ -29,18 +29,27 @@ pub extern "C" fn zkvm_invalid_hint() -> ! {
 }
 
 /// POSIX `exit` alias.
+///
+/// The libc-name aliases below (`exit`, `_exit`, `abort`,
+/// `__assert_fail`) are zkvm-target only: on a host build they would
+/// shadow the real libc symbols in any binary linking this rlib (e.g.
+/// the conformance tests), turning every normal process exit into a
+/// `syscall_halt` host-stub panic.
+#[cfg(target_os = "zkvm")]
 #[no_mangle]
 pub extern "C" fn exit(status: i32) -> ! {
     zkvm_halt((status & 0xFF) as u8)
 }
 
 /// POSIX `_exit` alias.
+#[cfg(target_os = "zkvm")]
 #[no_mangle]
 pub extern "C" fn _exit(status: i32) -> ! {
     zkvm_halt((status & 0xFF) as u8)
 }
 
 /// `abort()` — failed termination with a non-zero exit code.
+#[cfg(target_os = "zkvm")]
 #[no_mangle]
 pub extern "C" fn abort() -> ! {
     zkvm_halt(1)
@@ -50,6 +59,7 @@ pub extern "C" fn abort() -> ! {
 /// failed `assert(...)` into a call to `__assert_fail`; we ignore the
 /// diagnostic strings and route to `zkvm_halt(1)` so a guest using libc's
 /// `<assert.h>` halts with a non-zero exit code.
+#[cfg(target_os = "zkvm")]
 #[no_mangle]
 pub extern "C" fn __assert_fail(
     _assertion: *const core::ffi::c_char,
