@@ -4060,11 +4060,14 @@ name = "libzkevm"
 version = "6.2.4"
 dependencies = [
  "bls12_381",
+ "hex",
  "k256 0.13.4 (git+https://github.com/sp1-patches/elliptic-curves?tag=patch-k256-13.4-sp1-6.2.0)",
  "kzg-rs",
  "num-bigint-dig",
  "p256 0.13.2 (git+https://github.com/sp1-patches/elliptic-curves?tag=patch-p256-13.2-sp1-6.2.0)",
  "ripemd",
+ "serde",
+ "serde_json",
  "sha2 0.10.9 (git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.10.9-sp1-6.2.0)",
  "sp1-zkvm",
  "substrate-bn",

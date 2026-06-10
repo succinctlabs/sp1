@@ -92,5 +92,13 @@ num-bigint-dig = { version = "0.9", default-features = false }
 # `include_bytes!`.
 kzg-rs = { git = "https://github.com/succinctlabs/kzg-rs", tag = "v0.2.8-sp1-6.2.0", default-features = false }
 
+[dev-dependencies]
+# Host-side conformance tests (`tests/conformance/`) parse the vendored
+# official vector suites (go-ethereum precompile testdata, Wycheproof).
+# Test-only: none of these affect the shipped rlib/staticlib.
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+hex = { workspace = true }
+
 [lints]
 workspace = true
