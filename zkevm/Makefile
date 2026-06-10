@@ -134,6 +134,14 @@ example-sha256-c-execute:
 example-sha256-c-prove:
 	cd examples && $(CARGO) run --release -p sha256-c-script --bin sha256-c-prove
 
+# Full official vector suites (geth precompile testdata + Wycheproof)
+# through the accelerator C ABI in the SP1 executor — real syscall
+# paths, batched into four guest executions. Set
+# ZKEVM_CONFORMANCE_STRIDE=1 for unsampled Wycheproof runs.
+.PHONY: conformance-execute
+conformance-execute:
+	cd examples && $(CARGO) run --release -p conformance-script --bin conformance-execute
+
 clean:
 	$(CARGO) clean --manifest-path libzkevm/Cargo.toml || true
 	cd $(CABI_DIR) && $(CARGO) clean || true

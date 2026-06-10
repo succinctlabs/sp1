@@ -6,49 +6,11 @@
 //! signature strictly — Wycheproof's BER-laxity cases are `result:
 //! "invalid"` and must fail somewhere, parser or verifier.
 
+use crate::support::{load_wycheproof, parse_der_signature};
 use crate::EOK;
-use serde::Deserialize;
-use std::path::PathBuf;
 use zkevm::precompile::secp256k1::zkvm_secp256k1_verify;
 use zkevm::precompile::secp256r1::zkvm_secp256r1_verify;
 use zkevm::precompile::types::{ZkvmBytes32, ZkvmBytes64};
-
-#[derive(Deserialize)]
-struct File {
-    #[serde(rename = "testGroups")]
-    test_groups: Vec<Group>,
-}
-
-#[derive(Deserialize)]
-struct Group {
-    #[serde(rename = "publicKey")]
-    public_key: Key,
-    tests: Vec<Case>,
-}
-
-#[derive(Deserialize)]
-struct Key {
-    uncompressed: String,
-}
-
-#[derive(Deserialize)]
-struct Case {
-    #[serde(rename = "tcId")]
-    tc_id: u32,
-    comment: String,
-    msg: String,
-    sig: String,
-    result: String,
-}
-
-fn load(name: &str) -> File {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/data/wycheproof")
-        .join(format!("{name}.json"));
-    let raw =
-        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
-    serde_json::from_str(&raw).unwrap_or_else(|e| panic!("parse {}: {e}", path.display()))
-}
 
 fn sha256(data: &[u8]) -> [u8; 32] {
     let mut out = ZkvmBytes32 { data: [0u8; 32] };
@@ -56,43 +18,6 @@ fn sha256(data: &[u8]) -> [u8; 32] {
         unsafe { zkevm::precompile::hash::zkvm_sha256(data.as_ptr(), data.len(), &mut out) };
     assert_eq!(status, EOK);
     out.data
-}
-
-/// Strict-DER `ECDSA-Sig-Value ::= SEQUENCE { r INTEGER, s INTEGER }`
-/// → 64-byte left-padded big-endian `r || s`. Any deviation (BER long
-/// form, non-minimal integers, trailing bytes, oversized values) → None.
-fn parse_der_signature(der: &[u8]) -> Option<[u8; 64]> {
-    fn parse_integer<'a>(rest: &'a [u8], out: &mut [u8]) -> Option<&'a [u8]> {
-        let [0x02, len, body @ ..] = rest else { return None };
-        let len = *len as usize;
-        // Short-form length only (valid r/s never need long form), and
-        // a non-empty, non-negative, minimally-encoded integer.
-        if len == 0 || len >= 0x80 || body.len() < len {
-            return None;
-        }
-        let (value, rest) = body.split_at(len);
-        if value[0] & 0x80 != 0 {
-            return None; // negative
-        }
-        if len > 1 && value[0] == 0 && value[1] & 0x80 == 0 {
-            return None; // non-minimal leading zero
-        }
-        let value = if value[0] == 0 { &value[1..] } else { value };
-        if value.len() > 32 {
-            return None; // exceeds field width
-        }
-        out[32 - value.len()..].copy_from_slice(value);
-        Some(rest)
-    }
-
-    let [0x30, len, body @ ..] = der else { return None };
-    if *len as usize != body.len() || *len >= 0x80 {
-        return None;
-    }
-    let mut sig = [0u8; 64];
-    let rest = parse_integer(body, &mut sig[0..32])?;
-    let rest = parse_integer(rest, &mut sig[32..64])?;
-    rest.is_empty().then_some(sig)
 }
 
 type VerifyFn = unsafe extern "C" fn(
@@ -103,7 +28,7 @@ type VerifyFn = unsafe extern "C" fn(
 ) -> i32;
 
 fn run_suite(file: &str, verify: VerifyFn) {
-    let suite = load(file);
+    let suite = load_wycheproof(file);
     let mut total = 0usize;
     for group in &suite.test_groups {
         let uncompressed = hex::decode(&group.public_key.uncompressed).unwrap();

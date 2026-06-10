@@ -16,11 +16,19 @@ pub struct GethVector {
     pub name: String,
 }
 
-/// Load `tests/data/geth/<name>.json` (a JSON array of vectors).
+/// Root of the vendored vector data. `ZKEVM_CONFORMANCE_DATA` overrides
+/// the compile-time default so this file can be `#[path]`-included from
+/// other crates (the executor conformance script) — `env!` resolves to
+/// the *including* crate's manifest dir.
+pub fn data_root() -> PathBuf {
+    std::env::var_os("ZKEVM_CONFORMANCE_DATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data"))
+}
+
+/// Load `<data_root>/geth/<name>.json` (a JSON array of vectors).
 pub fn load_geth(name: &str) -> Vec<GethVector> {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/data/geth")
-        .join(format!("{name}.json"));
+    let path = data_root().join("geth").join(format!("{name}.json"));
     let raw =
         std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
     let vectors: Vec<GethVector> =
@@ -31,6 +39,83 @@ pub fn load_geth(name: &str) -> Vec<GethVector> {
 
 pub fn unhex(s: &str) -> Vec<u8> {
     hex::decode(s).unwrap_or_else(|e| panic!("bad hex in vector: {e}"))
+}
+
+// ---------------------------------------------------------------------
+// Wycheproof (v1 schema, EcdsaVerify)
+// ---------------------------------------------------------------------
+
+#[derive(Deserialize)]
+pub struct WycheproofFile {
+    #[serde(rename = "testGroups")]
+    pub test_groups: Vec<WycheproofGroup>,
+}
+
+#[derive(Deserialize)]
+pub struct WycheproofGroup {
+    #[serde(rename = "publicKey")]
+    pub public_key: WycheproofKey,
+    pub tests: Vec<WycheproofCase>,
+}
+
+#[derive(Deserialize)]
+pub struct WycheproofKey {
+    pub uncompressed: String,
+}
+
+#[derive(Deserialize)]
+pub struct WycheproofCase {
+    #[serde(rename = "tcId")]
+    pub tc_id: u32,
+    pub comment: String,
+    pub msg: String,
+    pub sig: String,
+    pub result: String,
+}
+
+/// Load `<data_root>/wycheproof/<name>.json`.
+pub fn load_wycheproof(name: &str) -> WycheproofFile {
+    let path = data_root().join("wycheproof").join(format!("{name}.json"));
+    let raw =
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    serde_json::from_str(&raw).unwrap_or_else(|e| panic!("parse {}: {e}", path.display()))
+}
+
+/// Strict-DER `ECDSA-Sig-Value ::= SEQUENCE { r INTEGER, s INTEGER }`
+/// → 64-byte left-padded big-endian `r || s`. Any deviation (BER long
+/// form, non-minimal integers, trailing bytes, oversized values) → None.
+pub fn parse_der_signature(der: &[u8]) -> Option<[u8; 64]> {
+    fn parse_integer<'a>(rest: &'a [u8], out: &mut [u8]) -> Option<&'a [u8]> {
+        let [0x02, len, body @ ..] = rest else { return None };
+        let len = *len as usize;
+        // Short-form length only (valid r/s never need long form), and
+        // a non-empty, non-negative, minimally-encoded integer.
+        if len == 0 || len >= 0x80 || body.len() < len {
+            return None;
+        }
+        let (value, rest) = body.split_at(len);
+        if value[0] & 0x80 != 0 {
+            return None; // negative
+        }
+        if len > 1 && value[0] == 0 && value[1] & 0x80 == 0 {
+            return None; // non-minimal leading zero
+        }
+        let value = if value[0] == 0 { &value[1..] } else { value };
+        if value.len() > 32 {
+            return None; // exceeds field width
+        }
+        out[32 - value.len()..].copy_from_slice(value);
+        Some(rest)
+    }
+
+    let [0x30, len, body @ ..] = der else { return None };
+    if *len as usize != body.len() || *len >= 0x80 {
+        return None;
+    }
+    let mut sig = [0u8; 64];
+    let rest = parse_integer(body, &mut sig[0..32])?;
+    let rest = parse_integer(rest, &mut sig[32..64])?;
+    rest.is_empty().then_some(sig)
 }
 
 /// EVM `getData` semantics: take `len` bytes from `offset`, zero-padding

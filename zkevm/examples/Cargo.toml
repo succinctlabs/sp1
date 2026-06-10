@@ -9,6 +9,8 @@ members = [
   "panic/script",
   "keccak/program",
   "keccak/script",
+  "conformance/program",
+  "conformance/script",
   "sha256/program",
   "sha256/script",
   # C examples — only the script is a Cargo crate; `program/` is a C
