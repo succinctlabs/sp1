@@ -76,7 +76,7 @@ use crate::network::proto::{
 /// uses `GetProofRequestParams.max_price_per_pgu` instead and does not consume this type.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MarketPrice {
-    /// Anchored cap in PROVE wei per PGU.
+    /// Current market price in PROVE wei per PGU.
     pub wei: u128,
     /// Unix timestamp (seconds) the `wei` value applies to. Advances whenever any input
     /// that feeds it moves. Callers do their own staleness check; the SDK does not.
@@ -377,8 +377,8 @@ impl NetworkClient {
         }
     }
 
-    /// Returns the current market price per prover gas unit. The wei value floats
-    /// inversely with PROVE/USD; callers apply their own buffer before passing it as
+    /// Returns the current market price per prover gas unit, in PROVE wei. Tracks the
+    /// network's market signal; callers apply their own buffer before passing it as
     /// `max_price_per_pgu`. Mainnet (auction) mode only.
     pub async fn get_market_price_per_pgu(&self) -> Result<MarketPrice> {
         match self.network_mode {
