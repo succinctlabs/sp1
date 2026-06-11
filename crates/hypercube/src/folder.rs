@@ -6,7 +6,8 @@ use std::{
 
 use crate::air::{AirInteraction, EmptyMessageBuilder, InteractionScope, MessageBuilder};
 use slop_air::{
-    AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, PairBuilder, PermutationAirBuilder,
+    AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, GlobalBuilder, PairBuilder,
+    PermutationAirBuilder,
 };
 use slop_algebra::{AbstractExtensionField, AbstractField, ExtensionField, Field};
 use slop_challenger::IopCtx;
@@ -20,6 +21,8 @@ pub type VerifierConstraintFolder<'a, F, EF> =
 pub struct GenericVerifierConstraintFolder<'a, F, EF, PubVar, Var, Expr> {
     /// The preprocessed trace.
     pub preprocessed: RowMajorMatrixView<'a, Var>,
+    /// The global trace.
+    pub global: RowMajorMatrixView<'a, Var>,
     /// The main trace.
     pub main: RowMajorMatrixView<'a, Var>,
     /// The constraint folding challenge.
@@ -205,6 +208,40 @@ where
     }
 }
 
+impl<F, EF, PubVar, Var, Expr> GlobalBuilder
+    for GenericVerifierConstraintFolder<'_, F, EF, PubVar, Var, Expr>
+where
+    F: Field,
+    EF: ExtensionField<F>,
+    Expr: AbstractField<F = EF>
+        + From<F>
+        + Add<Var, Output = Expr>
+        + Add<F, Output = Expr>
+        + Sub<Var, Output = Expr>
+        + Sub<F, Output = Expr>
+        + Mul<Var, Output = Expr>
+        + Mul<F, Output = Expr>
+        + MulAssign<EF>,
+    Var: Into<Expr>
+        + Copy
+        + Add<F, Output = Expr>
+        + Add<Var, Output = Expr>
+        + Add<Expr, Output = Expr>
+        + Sub<F, Output = Expr>
+        + Sub<Var, Output = Expr>
+        + Sub<Expr, Output = Expr>
+        + Mul<F, Output = Expr>
+        + Mul<Var, Output = Expr>
+        + Mul<Expr, Output = Expr>
+        + Send
+        + Sync,
+    PubVar: Into<Expr> + Copy,
+{
+    fn global(&self) -> Self::M {
+        self.global
+    }
+}
+
 impl<F, EF, PubVar, Var, Expr> EmptyMessageBuilder
     for GenericVerifierConstraintFolder<'_, F, EF, PubVar, Var, Expr>
 where
@@ -276,6 +313,8 @@ where
 pub struct ConstraintSumcheckFolder<'a, F: Field, K: Field, EF> {
     /// The preprocessed row.
     pub preprocessed: RowMajorMatrixView<'a, K>,
+    /// The global row.
+    pub global: RowMajorMatrixView<'a, K>,
     /// The main row.
     pub main: RowMajorMatrixView<'a, K>,
     /// The constraint folding challenge.
@@ -378,6 +417,17 @@ impl<
         F: Field,
         K: Field + From<F> + Add<F, Output = K> + Sub<F, Output = K> + Mul<F, Output = K>,
         EF: Field + Mul<K, Output = EF>,
+    > GlobalBuilder for ConstraintSumcheckFolder<'_, F, K, EF>
+{
+    fn global(&self) -> Self::M {
+        self.global
+    }
+}
+
+impl<
+        F: Field,
+        K: Field + From<F> + Add<F, Output = K> + Sub<F, Output = K> + Mul<F, Output = K>,
+        EF: Field + Mul<K, Output = EF>,
     > AirBuilderWithPublicValues for ConstraintSumcheckFolder<'_, F, K, EF>
 {
     type PublicVar = Self::F;
@@ -399,16 +449,20 @@ pub type VerifierPublicValuesConstraintFolder<'a, C> = GenericVerifierPublicValu
 
 /// A folder for verifier constraints.
 pub struct GenericVerifierPublicValuesConstraintFolder<'a, F, EF, PubVar, Var, Expr> {
-    /// The challenges for the permutation.
+    /// The challenges for the permutation (local scope).
     pub perm_challenges: (&'a Var, &'a [Expr]),
+    /// The challenges for the permutation (global scope).
+    pub global_perm_challenges: Option<(&'a Var, &'a [Expr])>,
     /// The constraint folding challenge.
     pub alpha: Var,
     /// The accumulator for the constraint folding.
     pub accumulator: Expr,
     /// The public values.
     pub public_values: &'a [PubVar],
-    /// The local interaction digests.
+    /// The local interaction digest.
     pub local_interaction_digest: Expr,
+    /// The global interaction digest.
+    pub global_interaction_digest: Expr,
     /// The marker type.
     pub _marker: PhantomData<(F, EF)>,
 }
@@ -616,26 +670,68 @@ where
         + Sync,
     PubVar: Into<Expr> + Copy,
 {
-    fn send(&mut self, message: AirInteraction<Expr>, _scope: InteractionScope) {
-        let mut denominator: Expr = (*self.perm_challenges.0).into();
-        let mut betas = self.perm_challenges.1.iter().cloned();
-        denominator += betas.next().unwrap() * F::from_canonical_usize(message.kind as usize);
-        for value in message.values {
-            denominator += value * betas.next().unwrap();
+    fn send(&mut self, message: AirInteraction<Expr>, scope: InteractionScope) {
+        let digest = self.interaction_digest(message, scope);
+        match scope {
+            InteractionScope::Local => self.local_interaction_digest += digest,
+            InteractionScope::Global => self.global_interaction_digest += digest,
         }
-        let digest = message.multiplicity / denominator;
-        self.local_interaction_digest += digest;
     }
 
-    fn receive(&mut self, message: AirInteraction<Expr>, _scope: InteractionScope) {
-        let mut denominator: Expr = (*self.perm_challenges.0).into();
-        let mut betas = self.perm_challenges.1.iter().cloned();
+    fn receive(&mut self, message: AirInteraction<Expr>, scope: InteractionScope) {
+        let digest = self.interaction_digest(message, scope);
+        match scope {
+            InteractionScope::Local => self.local_interaction_digest -= digest,
+            InteractionScope::Global => self.global_interaction_digest -= digest,
+        }
+    }
+}
+
+impl<F, EF, PubVar, Var, Expr>
+    GenericVerifierPublicValuesConstraintFolder<'_, F, EF, PubVar, Var, Expr>
+where
+    F: Field,
+    EF: ExtensionField<F>,
+    Expr: AbstractField<F = EF>
+        + From<F>
+        + Add<Var, Output = Expr>
+        + Add<F, Output = Expr>
+        + Sub<Var, Output = Expr>
+        + Sub<F, Output = Expr>
+        + Mul<Var, Output = Expr>
+        + Mul<F, Output = Expr>
+        + MulAssign<EF>
+        + Div<Expr, Output = Expr>,
+    Var: Into<Expr>
+        + Copy
+        + Add<F, Output = Expr>
+        + Add<Var, Output = Expr>
+        + Add<Expr, Output = Expr>
+        + Sub<F, Output = Expr>
+        + Sub<Var, Output = Expr>
+        + Sub<Expr, Output = Expr>
+        + Mul<F, Output = Expr>
+        + Mul<Var, Output = Expr>
+        + Mul<Expr, Output = Expr>
+        + Send
+        + Sync,
+    PubVar: Into<Expr> + Copy,
+{
+    /// The interaction's digest, fingerprinted with the challenge pair of its scope.
+    fn interaction_digest(&self, message: AirInteraction<Expr>, scope: InteractionScope) -> Expr {
+        let (alpha, betas) = match scope {
+            InteractionScope::Local => self.perm_challenges,
+            InteractionScope::Global => self.global_perm_challenges.expect(
+                "global-scope public-value interaction on a machine without a global round",
+            ),
+        };
+        let mut denominator: Expr = (*alpha).into();
+        let mut betas = betas.iter().cloned();
         denominator += betas.next().unwrap() * F::from_canonical_usize(message.kind as usize);
         for value in message.values {
             denominator += value * betas.next().unwrap();
         }
-        let digest = message.multiplicity / denominator;
-        self.local_interaction_digest -= digest;
+        message.multiplicity / denominator
     }
 }
 

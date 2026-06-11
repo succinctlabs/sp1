@@ -48,6 +48,7 @@ pub fn vec_to_string<F: Field>(vec: Vec<F>) -> String {
 pub fn debug_interactions<F: Field, A: MachineAir<F>>(
     chip: &Chip<F, A>,
     preprocessed_traces: &Traces<F, CpuBackend>,
+    global_traces: &Traces<F, CpuBackend>,
     traces: &Traces<F, CpuBackend>,
     interaction_kinds: Vec<InteractionKind>,
     scope: InteractionScope,
@@ -55,13 +56,20 @@ pub fn debug_interactions<F: Field, A: MachineAir<F>>(
     let mut key_to_vec_data = BTreeMap::new();
     let mut key_to_count = BTreeMap::new();
 
-    let main = traces.get(chip.name()).cloned().unwrap();
+    let main = traces.get(chip.name()).cloned();
     let pre_traces = preprocessed_traces.get(chip.name()).cloned();
+    let global_trace = global_traces.get(chip.name()).cloned();
 
-    let height = main.clone().num_real_entries();
+    let height = main
+        .as_ref()
+        .or(global_trace.as_ref())
+        .expect("chip has neither main nor global columns")
+        .num_real_entries();
 
     let sends = chip.sends().iter().filter(|s| s.scope == scope).collect::<Vec<_>>();
     let receives = chip.receives().iter().filter(|r| r.scope == scope).collect::<Vec<_>>();
+
+    let zero_global_row = vec![F::zero(); chip.global_width()];
 
     let nb_send_interactions = sends.len();
     for row in 0..height {
@@ -77,18 +85,27 @@ pub fn debug_interactions<F: Field, A: MachineAir<F>>(
                     .map_or(empty.as_slice(), |t| t.guts().get(row).unwrap().as_slice()),
                 None => empty.as_slice(),
             };
+            let global_row = match global_trace {
+                Some(ref t) => t
+                    .inner()
+                    .as_ref()
+                    .map_or(zero_global_row.as_slice(), |t| t.guts().get(row).unwrap().as_slice()),
+                None => zero_global_row.as_slice(),
+            };
 
             let is_send = m < nb_send_interactions;
 
-            let main_row =
-                main.inner().as_ref().unwrap().guts().get(row).unwrap().as_slice().to_vec();
+            let main_row = main.as_ref().map_or_else(Vec::new, |main| {
+                main.inner().as_ref().unwrap().guts().get(row).unwrap().as_slice().to_vec()
+            });
 
-            let multiplicity_eval: F = interaction.multiplicity.apply(preprocessed_row, &main_row);
+            let multiplicity_eval: F =
+                interaction.multiplicity.apply(preprocessed_row, global_row, &main_row);
 
             if !multiplicity_eval.is_zero() {
                 let mut values = vec![];
                 for value in &interaction.values {
-                    let expr: F = value.apply(preprocessed_row, &main_row);
+                    let expr: F = value.apply(preprocessed_row, global_row, &main_row);
                     values.push(expr);
                 }
                 let key =
@@ -121,6 +138,7 @@ pub fn debug_interactions_with_all_chips<F, A>(
     chips: &[Chip<F, A>],
     // pkey: &MachineProvingKey<PC>,
     preprocessed_traces: &Traces<F, CpuBackend>,
+    global_traces: &Traces<F, CpuBackend>,
     // shards: &[A::Record],
     traces: &Traces<F, CpuBackend>,
     public_values: Vec<F>,
@@ -140,6 +158,7 @@ where
         let (_, count) = debug_interactions::<F, A>(
             chip,
             preprocessed_traces,
+            global_traces,
             traces,
             interaction_kinds.clone(),
             scope,
@@ -165,8 +184,11 @@ where
     };
     A::Record::eval_public_values(&mut folder);
 
-    for (kind, scope, values, multiplicity) in folder.interactions.iter() {
-        let key = format!("{} {} {}", scope, kind, vec_to_string(values.clone()));
+    // Only the public-value interactions of the requested scope participate in this bucket.
+    for (kind, pv_scope, values, multiplicity) in
+        folder.interactions.iter().filter(|(_, pv_scope, _, _)| *pv_scope == scope)
+    {
+        let key = format!("{} {} {}", pv_scope, kind, vec_to_string(values.clone()));
         let entry = final_map.entry(key.clone()).or_insert((F::zero(), BTreeMap::new()));
         entry.0 += *multiplicity;
         total += *multiplicity;

@@ -82,10 +82,13 @@ impl RiscRegister {
 }
 
 /// ALU operations can either have register or immediate operands.
+///
+/// The immediate carries the full 64-bit operand value, as there
+/// are tests with programs with full 64-bit immediates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RiscOperand {
     Register(RiscRegister),
-    Immediate(i32),
+    Immediate(i64),
 }
 
 impl From<RiscRegister> for RiscOperand {
@@ -96,19 +99,19 @@ impl From<RiscRegister> for RiscOperand {
 
 impl From<u32> for RiscOperand {
     fn from(imm: u32) -> Self {
-        RiscOperand::Immediate(imm as i32)
+        RiscOperand::Immediate((imm as i32) as i64)
     }
 }
 
 impl From<i32> for RiscOperand {
     fn from(imm: i32) -> Self {
-        RiscOperand::Immediate(imm)
+        RiscOperand::Immediate(imm as i64)
     }
 }
 
 impl From<u64> for RiscOperand {
     fn from(imm: u64) -> Self {
-        RiscOperand::Immediate(imm as i32)
+        RiscOperand::Immediate(imm as i64)
     }
 }
 

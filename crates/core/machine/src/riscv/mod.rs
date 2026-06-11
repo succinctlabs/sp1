@@ -726,6 +726,41 @@ impl<F: PrimeField32> RiscvAir<F> {
             [Sha256Extend, Sha256ExtendControl, Sha256Compress, Sha256CompressControl, Uint256Ops],
         );
 
+        // A cluster with every supervisor-mode chip, so a record that runs as a single shard
+        // holding core and precompile chips together fits a cluster.
+        let supervisor_everything = extend_base(
+            &core_cluster,
+            [
+                Sha256Extend,
+                Sha256ExtendControl,
+                Sha256Compress,
+                Sha256CompressControl,
+                Ed25519Add,
+                Ed25519Decompress,
+                Secp256k1Add,
+                Secp256k1Double,
+                Secp256r1Add,
+                Secp256r1Double,
+                KeccakP,
+                KeccakPControl,
+                Bn254Add,
+                Bn254Double,
+                Bls12381Add,
+                Bls12381Double,
+                Uint256Mul,
+                Uint256Ops,
+                Bls12381Fp,
+                Bls12381Fp2AddSub,
+                Bls12381Fp2Mul,
+                Bn254Fp,
+                Bn254Fp2AddSub,
+                Bn254Fp2Mul,
+                Poseidon2,
+                HintRead,
+                HintReadControl,
+            ],
+        );
+
         #[cfg(feature = "mprotect")]
         let core_clusters_user = [0, 1, core_cluster_exts_user.len()]
             .into_iter()
@@ -747,6 +782,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         // Collect all clusters and replace the IDs by chips.
         let chip_clusters = core_clusters
             .chain(core::iter::once(core_cluster_special))
+            .chain(core::iter::once(supervisor_everything))
             .chain(core::iter::once(memory_cluster))
             .chain(precompile_clusters);
 
@@ -1737,7 +1773,7 @@ pub mod tests {
     fn test_eval_public_values_interactions() {
         let machine = RiscvAir::<SP1Field>::machine();
         let kinds_and_counts = machine.chips().iter().flat_map(|chip| {
-            let mut builder = InteractionBuilder::<SP1Field>::new(chip.preprocessed_width(), chip.width());
+            let mut builder = InteractionBuilder::<SP1Field>::new(chip.preprocessed_width(), chip.global_width(), chip.width());
             <<RiscvAir<SP1Field> as MachineAir<SP1Field>>::Record as MachineRecord>::eval_public_values(&mut builder);
             let (sends, receives) = builder.interactions();
             sends.iter().chain(receives.iter()).map(|interaction| (interaction.kind, interaction.values.len())).collect::<BTreeSet<(InteractionKind, usize)>>()
@@ -1803,6 +1839,7 @@ pub mod tests {
             let mut total_columns = 0;
             for chip in cluster {
                 total_columns += chip.preprocessed_width();
+                total_columns += chip.global_width();
                 total_columns += chip.width();
             }
             assert!((32 * total_columns) as u64 <= MAXIMUM_PADDING_AREA);
@@ -1929,11 +1966,11 @@ pub mod tests {
     fn test_chips_main_width_interaction_ratio() {
         let chips = RiscvAir::<SP1Field>::chips();
         for chip in chips.iter() {
-            let main_width = chip.air.width();
+            let committed_width = chip.air.width() + chip.air.global_width();
             for kind in InteractionKind::all_kinds() {
                 let interaction_count =
                     chip.num_sends_by_kind(kind) + chip.num_receives_by_kind(kind);
-                assert!(interaction_count <= main_width);
+                assert!(interaction_count <= committed_width);
             }
         }
     }

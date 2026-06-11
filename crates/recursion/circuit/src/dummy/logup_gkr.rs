@@ -49,6 +49,11 @@ pub fn dummy_gkr_proof<F: Field, EF: ExtensionField<F>, A: MachineAir<F>>(
                         } else {
                             None
                         },
+                        global_trace_evaluations: if chip.global_width() > 0 {
+                            Some(vec![EF::zero(); chip.global_width()].into())
+                        } else {
+                            None
+                        },
                     },
                 )
             })

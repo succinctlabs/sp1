@@ -98,7 +98,7 @@ fn build_linear_dag() -> ConstraintDag {
         ConstraintRef { root: c3_root, alpha_index: 3 },
     ];
 
-    ConstraintDag { nodes, constraints, preprocessed_width: 0, main_width: 5 }
+    ConstraintDag { nodes, constraints, preprocessed_width: 0, global_width: 0, main_width: 5 }
 }
 
 const N_COLS: usize = 5;

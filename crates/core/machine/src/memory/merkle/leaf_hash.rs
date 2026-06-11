@@ -3,7 +3,7 @@ use core::{
     mem::{size_of, MaybeUninit},
 };
 
-use slop_air::{Air, AirBuilder, BaseAir, PairBuilder};
+use slop_air::{Air, AirBuilder, BaseAir, GlobalBuilder, PairBuilder};
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_matrix::Matrix;
 use slop_maybe_rayon::prelude::{IndexedParallelIterator, ParallelIterator, ParallelSliceMut};
@@ -108,20 +108,6 @@ pub struct LeafHashMainCols<T: Copy> {
     pub state_in: [T; DIGEST_WIDTH],
 }
 
-/// The columns of the [`LeafHashChip`]. One row is one Poseidon2 permutation of one block.
-#[derive(AlignedBorrow, Clone, Copy)]
-#[repr(C)]
-pub struct LeafHashCols<T: Copy> {
-    /// The global part of the chip.
-    pub global: LeafHashGlobalCols<T>,
-
-    /// The main part of the chip.
-    pub main: LeafHashMainCols<T>,
-}
-
-/// The number of columns in the [`LeafHashChip`].
-pub const NUM_LEAF_HASH_COLS: usize = size_of::<LeafHashCols<u8>>();
-
 /// The number of global columns in the [`LeafHashChip`].
 pub const NUM_LEAF_HASH_GLOBAL_COLS: usize = size_of::<LeafHashGlobalCols<u8>>();
 
@@ -141,7 +127,7 @@ impl LeafHashChip {
 
 impl<F> BaseAir<F> for LeafHashChip {
     fn width(&self) -> usize {
-        NUM_LEAF_HASH_COLS
+        NUM_LEAF_HASH_MAIN_COLS
     }
 }
 
@@ -265,17 +251,13 @@ impl<F: PrimeField32> MachineAir<F> for LeafHashChip {
         );
     }
 
-    fn main_width(&self) -> usize {
-        NUM_LEAF_HASH_MAIN_COLS
-    }
-
     fn generate_trace_into(
         &self,
         input: &Self::Record,
         _output: &mut Self::Record,
         buffer: &mut [MaybeUninit<F>],
     ) {
-        let width = <Self as MachineAir<F>>::main_width(self);
+        let width = <Self as BaseAir<F>>::width(self);
         let padded_nb_rows = <Self as MachineAir<F>>::num_rows(self, input).unwrap();
         let hashes = Self::pages_to_hash(input);
         let real_rows = hashes.len() * BLOCKS_PER_HASH;
@@ -332,23 +314,26 @@ impl<F: PrimeField32> MachineAir<F> for LeafHashChip {
 
 impl<AB> Air<AB> for LeafHashChip
 where
-    AB: SP1CoreAirBuilder + PairBuilder,
+    AB: SP1CoreAirBuilder + PairBuilder + GlobalBuilder,
 {
     fn eval(&self, builder: &mut AB) {
-        let main = builder.main();
-        let local = main.row_slice(0);
-        let local: &LeafHashCols<AB::Var> = (*local).borrow();
+        let global_trace = builder.global();
+        let global = global_trace.row_slice(0);
+        let global: &LeafHashGlobalCols<AB::Var> = (*global).borrow();
+        let main_trace = builder.main();
+        let main = main_trace.row_slice(0);
+        let main: &LeafHashMainCols<AB::Var> = (*main).borrow();
 
         // `is_real` is boolean.
-        builder.assert_bool(local.global.is_real);
+        builder.assert_bool(global.is_real);
         // `is_init` is boolean.
-        builder.assert_bool(local.global.is_init);
+        builder.assert_bool(global.is_init);
         // `is_last_block` is boolean.
-        builder.assert_bool(local.global.is_last_block);
+        builder.assert_bool(global.is_last_block);
         // `is_real == 0` => `is_init == 0`.
-        builder.when_not(local.global.is_real).assert_zero(local.global.is_init);
+        builder.when_not(global.is_real).assert_zero(global.is_init);
         // `is_real == 0` => `is_last_block == 0`.
-        builder.when_not(local.global.is_real).assert_zero(local.global.is_last_block);
+        builder.when_not(global.is_real).assert_zero(global.is_last_block);
 
         // TODO(rkm): range check value_1, value_2, value_3
         // TODO(rkm): check is_init == 1 => timestamp == 0
@@ -356,83 +341,78 @@ where
 
         // The permutation round transitions.
         for r in 0..NUM_EXTERNAL_ROUNDS {
-            eval_external_round(builder, &local.main.poseidon2.permutation, r);
+            eval_external_round(builder, &main.poseidon2.permutation, r);
         }
-        eval_internal_rounds(builder, &local.main.poseidon2.permutation);
+        eval_internal_rounds(builder, &main.poseidon2.permutation);
 
         // The capacity is carried from the incoming state into the permutation input.
-        let perm_input = &local.main.poseidon2.permutation.external_rounds_state()[0];
+        let perm_input = &main.poseidon2.permutation.external_rounds_state()[0];
         for i in 0..8 {
-            builder.assert_eq(perm_input[i + 8], local.main.state_in[i]);
+            builder.assert_eq(perm_input[i + 8], main.state_in[i]);
         }
 
         // The rate is from the word values.
         for i in 0..4 {
             builder.assert_eq(
                 perm_input[i],
-                local.global.value_1[i] * AB::Expr::from_canonical_u32(1 << 8)
-                    + local.global.value_3[i],
+                global.value_1[i] * AB::Expr::from_canonical_u32(1 << 8) + global.value_3[i],
             );
             builder.assert_eq(
                 perm_input[i + 4],
-                local.global.value_2[i] * AB::Expr::from_canonical_u32(1 << 8)
-                    + local.global.value_3[i + 4],
+                global.value_2[i] * AB::Expr::from_canonical_u32(1 << 8) + global.value_3[i + 4],
             );
         }
 
         // Receive the incoming state.
         builder.receive_leaf_hash(
-            local.global.page_id,
-            local.global.is_init,
-            local.global.block,
-            local.main.state_in,
-            local.global.is_real,
+            global.page_id,
+            global.is_init,
+            global.block,
+            main.state_in,
+            global.is_real,
             InteractionScope::Local,
         );
         // Send the output state, for the case where this isn't the last permutation.
         builder.send_leaf_hash(
-            local.global.page_id,
-            local.global.is_init,
-            local.global.block + AB::Expr::one(),
-            local.main.poseidon2.permutation.perm_output()[8..16].try_into().unwrap(),
-            local.global.is_real - local.global.is_last_block,
+            global.page_id,
+            global.is_init,
+            global.block + AB::Expr::one(),
+            main.poseidon2.permutation.perm_output()[8..16].try_into().unwrap(),
+            global.is_real - global.is_last_block,
             InteractionScope::Local,
         );
         // Send the output state, for the case where this is the last permutation.
         builder.send_leaf_hash(
-            local.global.page_id,
-            local.global.is_init,
-            local.global.block + AB::Expr::one(),
-            local.main.poseidon2.permutation.perm_output()[0..8].try_into().unwrap(),
-            local.global.is_last_block,
+            global.page_id,
+            global.is_init,
+            global.block + AB::Expr::one(),
+            main.poseidon2.permutation.perm_output()[0..8].try_into().unwrap(),
+            global.is_last_block,
             InteractionScope::Local,
         );
 
         // Receive/Send the 3 memory values of this block.
         let words: [[AB::Expr; 4]; 3] = [
-            local.global.value_1.0.map(Into::into),
-            local.global.value_2.0.map(Into::into),
+            global.value_1.0.map(Into::into),
+            global.value_2.0.map(Into::into),
             core::array::from_fn(|m| {
-                local.global.value_3[2 * m]
-                    + local.global.value_3[2 * m + 1] * AB::Expr::from_canonical_u32(256)
+                global.value_3[2 * m]
+                    + global.value_3[2 * m + 1] * AB::Expr::from_canonical_u32(256)
             }),
         ];
-        let timestamps =
-            [local.global.timestamp_1, local.global.timestamp_2, local.global.timestamp_3];
-        let base_addr = local.global.offset * AB::Expr::from_canonical_u32(3)
-            + local.global.page_id_0_5 * AB::Expr::from_canonical_u32(1 << 11);
+        let timestamps = [global.timestamp_1, global.timestamp_2, global.timestamp_3];
+        let base_addr = global.offset * AB::Expr::from_canonical_u32(3)
+            + global.page_id_0_5 * AB::Expr::from_canonical_u32(1 << 11);
         for k in 0..3 {
             let mut values: Vec<AB::Expr> = vec![timestamps[k][0].into(), timestamps[k][1].into()];
-            values.push(
-                base_addr.clone() + local.global.step * AB::Expr::from_canonical_u32(k as u32),
-            );
-            values.push(local.global.page_id_5_21.into());
-            values.push(local.global.page_id_21_29.into());
+            values.push(base_addr.clone() + global.step * AB::Expr::from_canonical_u32(k as u32));
+            values.push(global.page_id_5_21.into());
+            values.push(global.page_id_21_29.into());
             values.extend(words[k].clone());
             builder.send(
                 AirInteraction::new(
                     values,
-                    local.global.memory_multiplicity[k].into(),
+                    global.memory_multiplicity[k].into(),
                     InteractionKind::Memory,
                 ),
                 InteractionScope::Global,

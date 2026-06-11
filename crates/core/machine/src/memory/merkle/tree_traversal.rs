@@ -3,7 +3,7 @@ use core::{
     mem::{size_of, MaybeUninit},
 };
 
-use slop_air::{Air, AirBuilder, BaseAir, PairBuilder};
+use slop_air::{Air, AirBuilder, BaseAir, GlobalBuilder, PairBuilder};
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_matrix::Matrix;
 use slop_maybe_rayon::prelude::{IndexedParallelIterator, ParallelIterator, ParallelSliceMut};
@@ -68,20 +68,6 @@ pub struct MerkleTreeTraversalMainCols<T: Copy> {
     pub poseidon2: Poseidon2Operation<T>,
 }
 
-/// The columns of the [`MerkleTreeTraversalChip`].
-#[derive(AlignedBorrow, Clone, Copy)]
-#[repr(C)]
-pub struct MerkleTreeTraversalCols<T: Copy> {
-    /// The global part of the chip.
-    pub global: MerkleTreeTraversalGlobalCols<T>,
-
-    /// The main part of the chip.
-    pub main: MerkleTreeTraversalMainCols<T>,
-}
-
-/// The number of columns in the [`MerkleTreeTraversalChip`].
-pub const NUM_MERKLE_TREE_TRAVERSAL_COLS: usize = size_of::<MerkleTreeTraversalCols<u8>>();
-
 /// The number of global columns in the [`MerkleTreeTraversalChip`].
 pub const NUM_MERKLE_TREE_TRAVERSAL_GLOBAL_COLS: usize =
     size_of::<MerkleTreeTraversalGlobalCols<u8>>();
@@ -102,7 +88,7 @@ impl MerkleTreeTraversalChip {
 
 impl<F> BaseAir<F> for MerkleTreeTraversalChip {
     fn width(&self) -> usize {
-        NUM_MERKLE_TREE_TRAVERSAL_COLS
+        NUM_MERKLE_TREE_TRAVERSAL_MAIN_COLS
     }
 }
 
@@ -210,17 +196,13 @@ impl<F: PrimeField32> MachineAir<F> for MerkleTreeTraversalChip {
         });
     }
 
-    fn main_width(&self) -> usize {
-        NUM_MERKLE_TREE_TRAVERSAL_MAIN_COLS
-    }
-
     fn generate_trace_into(
         &self,
         input: &Self::Record,
         _output: &mut Self::Record,
         buffer: &mut [MaybeUninit<F>],
     ) {
-        let width = <Self as MachineAir<F>>::main_width(self);
+        let width = <Self as BaseAir<F>>::width(self);
         let padded_nb_rows = <Self as MachineAir<F>>::num_rows(self, input).unwrap();
         let proof = input.merkle_proof_record.as_ref().map(|r| &r.proof);
         let n_rows = proof.map_or(0, |p| p.n_rows());
@@ -261,75 +243,74 @@ impl<F: PrimeField32> MachineAir<F> for MerkleTreeTraversalChip {
 
 impl<AB> Air<AB> for MerkleTreeTraversalChip
 where
-    AB: SP1CoreAirBuilder + PairBuilder,
+    AB: SP1CoreAirBuilder + PairBuilder + GlobalBuilder,
 {
     fn eval(&self, builder: &mut AB) {
-        let main = builder.main();
-        let local = main.row_slice(0);
-        let local: &MerkleTreeTraversalCols<AB::Var> = (*local).borrow();
+        let global_trace = builder.global();
+        let global = global_trace.row_slice(0);
+        let global: &MerkleTreeTraversalGlobalCols<AB::Var> = (*global).borrow();
+        let main_trace = builder.main();
+        let main = main_trace.row_slice(0);
+        let main: &MerkleTreeTraversalMainCols<AB::Var> = (*main).borrow();
 
         // `is_real` is boolean.
-        builder.assert_bool(local.global.is_real);
+        builder.assert_bool(global.is_real);
 
         // Assert that `mult in {-1, 0, 1}`.
-        let mult: AB::Expr = local.global.mult.into();
+        let mult: AB::Expr = global.mult.into();
         builder.assert_zero(
             mult.clone() * (mult.clone() - AB::Expr::one()) * (mult.clone() + AB::Expr::one()),
         );
 
         // `is_real == 0` enforces `mult == 0`.
-        builder.when_not(local.global.is_real).assert_zero(local.global.mult);
+        builder.when_not(global.is_real).assert_zero(global.mult);
 
         // `is_real == 1` enforces `mult == +-1`.
-        builder
-            .when(local.global.is_real)
-            .assert_zero(local.global.mult * local.global.mult - AB::Expr::one());
+        builder.when(global.is_real).assert_zero(global.mult * global.mult - AB::Expr::one());
 
         // Check the input is the two child nodes.
-        let perm_input = &local.main.poseidon2.permutation.external_rounds_state()[0];
+        let perm_input = &main.poseidon2.permutation.external_rounds_state()[0];
         for i in 0..DIGEST_WIDTH {
-            builder.when(local.global.is_real).assert_eq(perm_input[i], local.global.l[i]);
-            builder
-                .when(local.global.is_real)
-                .assert_eq(perm_input[DIGEST_WIDTH + i], local.global.r[i]);
+            builder.when(global.is_real).assert_eq(perm_input[i], global.l[i]);
+            builder.when(global.is_real).assert_eq(perm_input[DIGEST_WIDTH + i], global.r[i]);
         }
 
         // The permutation round transitions.
         for r in 0..NUM_EXTERNAL_ROUNDS {
-            eval_external_round(builder, &local.main.poseidon2.permutation, r);
+            eval_external_round(builder, &main.poseidon2.permutation, r);
         }
-        eval_internal_rounds(builder, &local.main.poseidon2.permutation);
+        eval_internal_rounds(builder, &main.poseidon2.permutation);
 
         // The permutation outputs are the parent value `T`.
-        let perm_output = local.main.poseidon2.permutation.perm_output();
+        let perm_output = main.poseidon2.permutation.perm_output();
         for i in 0..DIGEST_WIDTH {
-            builder.when(local.global.is_real).assert_eq(perm_output[i], local.global.t[i]);
+            builder.when(global.is_real).assert_eq(perm_output[i], global.t[i]);
         }
 
         builder.receive_merkle_traversal(
-            local.global.height,
-            local.global.idx,
-            local.global.tag1,
-            local.global.t,
-            local.global.mult,
+            global.height,
+            global.idx,
+            global.tag1,
+            global.t,
+            global.mult,
             InteractionScope::Global,
         );
 
         builder.send_merkle_traversal(
-            local.global.height + AB::Expr::one(),
-            local.global.idx * AB::Expr::two(),
-            local.global.tag2,
-            local.global.l,
-            local.global.mult,
+            global.height + AB::Expr::one(),
+            global.idx * AB::Expr::two(),
+            global.tag2,
+            global.l,
+            global.mult,
             InteractionScope::Global,
         );
 
         builder.send_merkle_traversal(
-            local.global.height + AB::Expr::one(),
-            local.global.idx * AB::Expr::two() + AB::Expr::one(),
-            local.global.tag3,
-            local.global.r,
-            local.global.mult,
+            global.height + AB::Expr::one(),
+            global.idx * AB::Expr::two() + AB::Expr::one(),
+            global.tag3,
+            global.r,
+            global.mult,
             InteractionScope::Global,
         );
 

@@ -823,10 +823,12 @@ pub mod tests {
         A: MachineAir<Felt> + for<'a> Air<VerifierConstraintFolder<'a, Felt, Ext>>,
     {
         let dummy_preprocessed_trace = vec![Ext::zero(); chip.preprocessed_width()];
+        let dummy_global_trace = vec![Ext::zero(); chip.global_width()];
         let dummy_main_trace = vec![Ext::zero(); chip.width()];
 
         let mut folder = VerifierConstraintFolder::<Felt, Ext> {
             preprocessed: RowMajorMatrixView::new_row(&dummy_preprocessed_trace),
+            global: RowMajorMatrixView::new_row(&dummy_global_trace),
             main: RowMajorMatrixView::new_row(&dummy_main_trace),
             alpha,
             accumulator: Ext::zero(),
@@ -849,8 +851,10 @@ pub mod tests {
     where
         A: MachineAir<Felt> + for<'a> Air<VerifierConstraintFolder<'a, Felt, Ext>>,
     {
+        let global_opening = vec![Ext::zero(); chip.global_width()];
         let mut folder = VerifierConstraintFolder::<Felt, Ext> {
             preprocessed: RowMajorMatrixView::new_row(&opening.preprocessed.local),
+            global: RowMajorMatrixView::new_row(&global_opening),
             main: RowMajorMatrixView::new_row(&opening.main.local),
             alpha,
             accumulator: Ext::zero(),
@@ -1463,6 +1467,7 @@ pub mod tests {
                     main_trace_evaluations: MleEval::new(Tensor::from(
                         individual_column_evals[main_ptr..main_ptr + main_width].to_vec(),
                     )),
+                    global_trace_evaluations: None,
                 };
                 chip_openings.insert(
                     <ZerocheckTestChip as MachineAir<SP1Field>>::name(&chip.air).to_string(),
@@ -1641,6 +1646,7 @@ pub mod tests {
                     main_trace_evaluations: MleEval::new(Tensor::from(
                         individual_column_evals[main_ptr..main_ptr + main_width].to_vec(),
                     )),
+                    global_trace_evaluations: None,
                 };
                 chip_openings.insert(
                     <ZerocheckTestChip as sp1_hypercube::air::MachineAir<SP1Field>>::name(
@@ -1759,6 +1765,7 @@ pub mod tests {
                     main_trace_evaluations: MleEval::new(Tensor::from(
                         individual_column_evals[main_ptr..main_ptr + main_width].to_vec(),
                     )),
+                    global_trace_evaluations: None,
                 };
                 chip_openings.insert(chip.air.name().to_string(), chip_eval);
                 preprocessed_ptr += preprocessed_width;

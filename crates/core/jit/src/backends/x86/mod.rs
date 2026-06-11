@@ -594,12 +594,23 @@ impl TranspilerBackend {
                 }
             },
             RiscOperand::Immediate(imm) => {
-                dynasm! {
-                    self;
-                    .arch x64;
+                if imm == (imm as i32) as i64 {
+                    // Sign-extended `mov r64, imm32` — same encoding as the historical
+                    // `Immediate(i32)` path for canonical immediates.
+                    dynasm! {
+                        self;
+                        .arch x64;
 
-                    mov Rq(dst), imm
-                };
+                        mov Rq(dst), imm as i32
+                    };
+                } else {
+                    dynasm! {
+                        self;
+                        .arch x64;
+
+                        mov Rq(dst), QWORD imm
+                    };
+                }
             }
         }
     }

@@ -61,6 +61,8 @@ pub fn dummy_shard_proof<A: MachineAir<SP1Field>>(
 
     ShardProof {
         public_values: vec![SP1Field::zero(); PROOF_MAX_NUM_PVS],
+        global_commitment: None,
+        global_cumulative_sum: None,
         main_commitment: [SP1Field::zero(); 8],
         logup_gkr_proof,
         zerocheck_proof,
@@ -73,6 +75,9 @@ pub fn dummy_shard_proof<A: MachineAir<SP1Field>>(
                         ChipOpenedValues {
                             preprocessed: AirOpenedValues {
                                 local: vec![EF::zero(); chip.preprocessed_width()],
+                            },
+                            global: AirOpenedValues {
+                                local: vec![EF::zero(); chip.global_width()],
                             },
                             main: AirOpenedValues { local: vec![EF::zero(); chip.air.width()] },
                             degree: Point::from_usize(0, max_log_row_count + 1),

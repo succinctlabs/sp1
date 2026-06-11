@@ -47,6 +47,10 @@ pub struct TestingData<GC: IopCtx> {
 pub struct ShardProof<GC: IopCtx, Proof> {
     /// The public values
     pub public_values: Vec<GC::F>,
+    /// The commitment to the global traces. `Some` iff the machine has a global round.
+    pub global_commitment: Option<GC::Digest>,
+    /// The global cumulative sum exposed by the shard.
+    pub global_cumulative_sum: Option<GC::EF>,
     /// The commitments to main traces.
     pub main_commitment: GC::Digest,
     /// The Logup GKR IOP proof.
@@ -78,6 +82,8 @@ pub struct ShardOpenedValues<F, EF> {
 pub struct ChipOpenedValues<F, EF> {
     /// The opening of the preprocessed trace.
     pub preprocessed: AirOpenedValues<EF>,
+    /// The opening of the global trace.
+    pub global: AirOpenedValues<EF>,
     /// The opening of the main trace.
     pub main: AirOpenedValues<EF>,
     /// The big-endian bit representation of the degree of the chip.
@@ -247,6 +253,8 @@ pub fn create_dummy_recursion_proof(
     // Create dummy ShardProof.
     let dummy_shard_proof = ShardProof {
         public_values: Vec::new(),
+        global_commitment: None,
+        global_cumulative_sum: None,
         main_commitment: [SP1Field::zero(); DIGEST_SIZE],
         logup_gkr_proof,
         zerocheck_proof: PartialSumcheckProof::dummy(),

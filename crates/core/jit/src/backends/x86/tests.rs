@@ -52,6 +52,42 @@ mod alu {
         run_test(backend);
     }
 
+    /// Immediates carry the raw 64-bit operand: values with bit 31 set must not be
+    /// sign-extended (`Instruction::op_c` semantics match the interpreter VMs).
+    #[test]
+    fn test_add_immediate_wide_not_sign_extended() {
+        let mut backend = new_backend();
+
+        backend.start_instr();
+        backend.add(
+            RiscRegister::X5,
+            RiscOperand::Immediate(0x8000_0000),
+            RiscOperand::Immediate(0),
+        );
+        backend.inspect_register(RiscRegister::X5, assert_register_is!(0x8000_0000));
+
+        backend.add(
+            RiscRegister::X6,
+            RiscOperand::Immediate(0xFFFF_FFFF),
+            RiscOperand::Immediate(0),
+        );
+        backend.inspect_register(RiscRegister::X6, assert_register_is!(0xFFFF_FFFF));
+
+        // Canonical sign-extended immediates still load as their 64-bit value.
+        backend.add(RiscRegister::X7, RiscOperand::Immediate(-2), RiscOperand::Immediate(0));
+        backend.inspect_register(RiscRegister::X7, assert_register_is!(u64::MAX - 1));
+
+        // Unsigned comparison against a wide immediate takes the register path.
+        backend.sltu(
+            RiscRegister::X8,
+            RiscOperand::Register(RiscRegister::X5),
+            RiscOperand::Immediate(0xFFFF_FFFF),
+        );
+        backend.inspect_register(RiscRegister::X8, assert_register_is!(1));
+
+        run_test(backend);
+    }
+
     #[test]
     fn test_multiple_adds() {
         let mut backend = new_backend();
@@ -76,8 +112,8 @@ mod alu {
         backend.start_instr();
         backend.add(
             RiscRegister::X5,
-            RiscOperand::Immediate((u64::MAX - 1) as i32),
-            RiscOperand::Immediate((u64::MAX - 1) as i32),
+            RiscOperand::Immediate((u64::MAX - 1) as i32 as i64),
+            RiscOperand::Immediate((u64::MAX - 1) as i32 as i64),
         );
 
         backend.inspect_register(
@@ -106,8 +142,8 @@ mod alu {
         backend.start_instr();
         backend.mul(
             RiscRegister::X5,
-            RiscOperand::Immediate((u64::MAX - 1) as i32),
-            RiscOperand::Immediate((u64::MAX - 1) as i32),
+            RiscOperand::Immediate((u64::MAX - 1) as i32 as i64),
+            RiscOperand::Immediate((u64::MAX - 1) as i32 as i64),
         );
 
         backend.inspect_register(
@@ -179,7 +215,7 @@ mod alu {
         // 0x8000_0000 * 2 → for 64-bit system, this becomes larger multiplication
         backend.mulhu(
             RiscRegister::X5,
-            RiscOperand::Immediate(0x8000_0000u32 as i32), // 2^31
+            RiscOperand::Immediate(0x8000_0000u32 as i32 as i64), // 2^31
             RiscOperand::Immediate(2),
         );
         backend.inspect_register(RiscRegister::X5, assert_register_is!(0x0000_0001));
@@ -732,7 +768,7 @@ mod rv64i {
         // SRLW performs logical (unsigned) 32-bit shift and sign-extends result
         backend.srlw(
             RiscRegister::X5,
-            RiscOperand::Immediate(0x80000000u32 as i32),
+            RiscOperand::Immediate(0x80000000u32 as i32 as i64),
             RiscOperand::Immediate(1),
         );
         // 0x80000000 >> 1 = 0x40000000 (logical), sign-extended to 0x0000000040000000
@@ -752,7 +788,7 @@ mod rv64i {
         // Set up registers
         backend.add(
             RiscRegister::X1,
-            RiscOperand::Immediate(0x80000000u32 as i32),
+            RiscOperand::Immediate(0x80000000u32 as i32 as i64),
             RiscOperand::Immediate(0),
         );
         backend.add(RiscRegister::X2, RiscOperand::Immediate(1), RiscOperand::Immediate(0));
@@ -785,7 +821,7 @@ mod rv64i {
         // SRAW performs arithmetic 32-bit shift and sign-extends result
         backend.sraw(
             RiscRegister::X5,
-            RiscOperand::Immediate(0x80000000u32 as i32),
+            RiscOperand::Immediate(0x80000000u32 as i32 as i64),
             RiscOperand::Immediate(1),
         );
         // 0x80000000 >> 1 = 0xC0000000 (arithmetic), sign-extended to 0xFFFFFFFFC0000000
@@ -806,7 +842,7 @@ mod rv64i {
         // Set up registers
         backend.add(
             RiscRegister::X1,
-            RiscOperand::Immediate(0x80000000u32 as i32),
+            RiscOperand::Immediate(0x80000000u32 as i32 as i64),
             RiscOperand::Immediate(0),
         );
         backend.add(RiscRegister::X2, RiscOperand::Immediate(1), RiscOperand::Immediate(0));
@@ -1327,7 +1363,7 @@ mod memory {
         // Store value 0xFEDCBA9876543210 to address 0
         backend.add(
             RiscRegister::X1,
-            RiscOperand::Immediate(0xFEDCBA98u32 as i32),
+            RiscOperand::Immediate(0xFEDCBA98u32 as i32 as i64),
             RiscOperand::Immediate(0),
         );
         backend.sll(
@@ -1338,7 +1374,7 @@ mod memory {
         backend.add(
             RiscRegister::X1,
             RiscOperand::Register(RiscRegister::X1),
-            RiscOperand::Immediate(0x76543210u32 as i32),
+            RiscOperand::Immediate(0x76543210u32 as i32 as i64),
         );
         backend.sd(RiscRegister::X0, RiscRegister::X1, 0);
 
@@ -1450,7 +1486,7 @@ mod dirty_pages {
     /// Load `value` into register `reg` in a single standalone instruction.
     fn load_imm(backend: &mut TranspilerBackend, reg: RiscRegister, value: i32) {
         backend.start_instr();
-        backend.add(reg, RiscOperand::Immediate(value), RiscOperand::Immediate(0));
+        backend.add(reg, RiscOperand::Immediate(value as i64), RiscOperand::Immediate(0));
         backend.end_instr();
     }
 

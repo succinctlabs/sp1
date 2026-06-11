@@ -5,14 +5,21 @@ use slop_alloc::{CanCopyFromRef, CpuBackend, ToHost};
 use slop_challenger::{
     CanObserve, FieldChallenger, GrindingChallenger, IopCtx, VariableLengthChallenger,
 };
-use slop_multilinear::{Mle, MultilinearPcsChallenger, Point};
+use slop_multilinear::{Mle, MleEval, MultilinearPcsChallenger, Point};
 
 use crate::{
-    air::MachineAir, prove_gkr_round, prover::Traces, Chip, ChipEvaluation, LogupGkrCpuCircuit,
+    air::{InteractionScope, MachineAir},
+    beta_seed_dim_for_scope, prove_gkr_round,
+    prover::{Record, Traces},
+    pv_interaction_max_arity, Chip, ChipEvaluation, LogUpGkrVerifier, LogupGkrCpuCircuit,
     LogupGkrCpuTraceGenerator, ShardContext, GKR_GRINDING_BITS,
 };
 
 use super::{LogUpEvaluations, LogUpGkrOutput, LogupGkrProof, LogupGkrRoundProof};
+
+/// The `LogUp` GKR proof type produced for a shard.
+pub type ShardLogupGkrProof<GC> =
+    LogupGkrProof<<<GC as IopCtx>::Challenger as GrindingChallenger>::Witness, <GC as IopCtx>::EF>;
 
 /// TODO
 pub struct GkrProverImpl<GC: IopCtx, SC: ShardContext<GC>> {
@@ -67,21 +74,22 @@ impl<GC: IopCtx, SC: ShardContext<GC>> GkrProverImpl<GC, SC> {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_lines)]
     pub(crate) fn prove_logup_gkr(
         &self,
         chips: &BTreeSet<Chip<GC::F, SC::Air>>,
         preprocessed_traces: &Traces<GC::F, CpuBackend>,
+        global_traces: &Traces<GC::F, CpuBackend>,
         traces: &Traces<GC::F, CpuBackend>,
         public_values: Vec<GC::F>,
+        global_challenges: Option<(GC::EF, Point<GC::EF>)>,
         challenger: &mut GC::Challenger,
-    ) -> LogupGkrProof<<GC::Challenger as GrindingChallenger>::Witness, GC::EF> {
-        let max_interaction_arity = chips
-            .iter()
-            .flat_map(|c| c.sends().iter().chain(c.receives().iter()))
-            .map(|i| i.values.len() + 1)
-            .max()
-            .unwrap();
-        let beta_seed_dim = max_interaction_arity.next_power_of_two().ilog2();
+    ) -> (ShardLogupGkrProof<GC>, Option<GC::EF>) {
+        let beta_seed_dim = beta_seed_dim_for_scope(
+            chips.iter(),
+            InteractionScope::Local,
+            pv_interaction_max_arity::<Record<GC, SC>>(),
+        );
 
         let witness = challenger.grind(GKR_GRINDING_BITS);
 
@@ -90,7 +98,7 @@ impl<GC: IopCtx, SC: ShardContext<GC>> GkrProverImpl<GC, SC> {
         let beta_seed = (0..beta_seed_dim)
             .map(|_| challenger.sample_ext_element::<GC::EF>())
             .collect::<Point<_>>();
-        let _pv_challenge = challenger.sample_ext_element::<GC::EF>();
+        let pv_challenge = challenger.sample_ext_element::<GC::EF>();
 
         let num_interactions =
             chips.iter().map(|chip| chip.sends().len() + chip.receives().len()).sum::<usize>();
@@ -117,19 +125,44 @@ impl<GC: IopCtx, SC: ShardContext<GC>> GkrProverImpl<GC, SC> {
                 host_traces.insert(name.clone(), host_trace);
             }
 
+            let mut host_global_traces = BTreeMap::new();
+            for (name, trace) in global_traces.iter() {
+                let host_trace = CpuBackend::copy_to_dst(&CpuBackend, trace).unwrap();
+                host_global_traces.insert(name.clone(), host_trace);
+            }
+
             let host_traces = Traces { named_traces: host_traces };
 
             let host_preprocessed_traces = Traces { named_traces: host_preprocessed_traces };
 
-            debug_interactions_with_all_chips::<GC::F, SC::Air>(
-                &chips.iter().cloned().collect::<Vec<_>>(),
-                &host_preprocessed_traces,
-                &host_traces,
-                public_values.clone(),
-                InteractionKind::all_kinds(),
-                InteractionScope::Local,
-            );
+            let host_global_traces = Traces { named_traces: host_global_traces };
+
+            for scope in [InteractionScope::Local, InteractionScope::Global] {
+                debug_interactions_with_all_chips::<GC::F, SC::Air>(
+                    &chips.iter().cloned().collect::<Vec<_>>(),
+                    &host_preprocessed_traces,
+                    &host_global_traces,
+                    &host_traces,
+                    public_values.clone(),
+                    InteractionKind::all_kinds(),
+                    scope,
+                );
+            }
         }
+
+        // On machines with a global round, compute the global-scope public-value digest.
+        let global_pv_digest = global_challenges.as_ref().map(|global_challenges| {
+            let (_, global_pv_digest) = LogUpGkrVerifier::<GC, SC>::verify_public_values(
+                pv_challenge,
+                &alpha,
+                &beta_seed,
+                Some(global_challenges),
+                &public_values,
+            )
+            .expect("the prover's public values must satisfy the public-value constraints");
+            global_pv_digest
+        });
+        let has_global_round = global_challenges.is_some();
 
         // Run the GKR circuit and get the output.
         let (output, circuit) = {
@@ -137,10 +170,11 @@ impl<GC: IopCtx, SC: ShardContext<GC>> GkrProverImpl<GC, SC> {
             self.trace_generator.generate_gkr_circuit(
                 chips,
                 preprocessed_traces.clone(),
+                global_traces.clone(),
                 traces.clone(),
                 public_values,
-                alpha,
-                beta_seed,
+                (alpha, beta_seed),
+                global_challenges,
             )
         };
 
@@ -153,6 +187,17 @@ impl<GC: IopCtx, SC: ShardContext<GC>> GkrProverImpl<GC, SC> {
         challenger.observe_variable_length_extension_slice(host_denominator.guts().as_slice());
         let output_host =
             LogUpGkrOutput { numerator: host_numerator, denominator: host_denominator };
+
+        // The global cumulative sum exposed by the shard.
+        let global_cumulative_sum = global_pv_digest.map(|global_pv_digest| {
+            let interaction_scopes = chips
+                .iter()
+                .flat_map(|chip| chip.sends().iter().chain(chip.receives().iter()))
+                .map(|interaction| interaction.scope)
+                .collect::<Vec<_>>();
+            let (_, global_output_sum) = output_host.cumulative_sums_by_scope(&interaction_scopes);
+            global_output_sum + global_pv_digest
+        });
 
         // TODO: instead calculate from number of interactions.
         let initial_number_of_variables = numerator.num_variables();
@@ -179,7 +224,12 @@ impl<GC: IopCtx, SC: ShardContext<GC>> GkrProverImpl<GC, SC> {
         // Get the evaluations for each chip at the evaluation point of the last round.
         let mut chip_evaluations = BTreeMap::new();
 
-        let trace_dimension = traces.values().next().unwrap().num_variables();
+        let trace_dimension = traces
+            .values()
+            .next()
+            .or_else(|| global_traces.values().next())
+            .unwrap()
+            .num_variables();
         let eval_point = eval_point.last_k(trace_dimension as usize);
         let eval_point_b = numerator.backend().copy_to(&eval_point).unwrap();
         let eval_point_eq = Mle::partial_lagrange(&eval_point_b);
@@ -187,21 +237,33 @@ impl<GC: IopCtx, SC: ShardContext<GC>> GkrProverImpl<GC, SC> {
         challenger.observe(GC::F::from_canonical_usize(chips.len()));
         for chip in chips.iter() {
             let name = chip.name();
-            let main_trace = traces.get(name).unwrap();
+            let main_trace = traces.get(name);
             let preprocessed_trace = preprocessed_traces.get(name);
+            let global_trace = global_traces.get(name);
 
-            let main_evaluation = main_trace.eval_at_eq(&eval_point, &eval_point_eq);
+            let main_evaluation = match main_trace {
+                Some(t) => t.eval_at_eq(&eval_point, &eval_point_eq).to_host().unwrap(),
+                None => MleEval::from(Vec::new()),
+            };
             let preprocessed_evaluation =
                 preprocessed_trace.as_ref().map(|t| t.eval_at_eq(&eval_point, &eval_point_eq));
-            let main_evaluation = main_evaluation.to_host().unwrap();
             let preprocessed_evaluation = preprocessed_evaluation.map(|e| e.to_host().unwrap());
+            let global_evaluation = global_trace
+                .as_ref()
+                .map(|t| t.eval_at_eq(&eval_point, &eval_point_eq).to_host().unwrap());
             let openings = ChipEvaluation {
                 main_trace_evaluations: main_evaluation,
                 preprocessed_trace_evaluations: preprocessed_evaluation,
+                global_trace_evaluations: global_evaluation,
             };
             // Observe the openings.
             if let Some(prep_eval) = openings.preprocessed_trace_evaluations.as_ref() {
                 challenger.observe_variable_length_extension_slice(prep_eval);
+            }
+            if has_global_round {
+                challenger.observe_variable_length_extension_slice(
+                    openings.global_trace_evaluations.as_deref().unwrap_or(&[]),
+                );
             }
             challenger.observe_variable_length_extension_slice(&openings.main_trace_evaluations);
 
@@ -211,6 +273,9 @@ impl<GC: IopCtx, SC: ShardContext<GC>> GkrProverImpl<GC, SC> {
         let logup_evaluations =
             LogUpEvaluations { point: eval_point, chip_openings: chip_evaluations };
 
-        LogupGkrProof { circuit_output: output_host, round_proofs, logup_evaluations, witness }
+        let proof =
+            LogupGkrProof { circuit_output: output_host, round_proofs, logup_evaluations, witness };
+
+        (proof, global_cumulative_sum)
     }
 }

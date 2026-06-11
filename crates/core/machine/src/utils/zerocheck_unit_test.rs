@@ -166,7 +166,7 @@ mod tests {
         let alpha = rng.gen::<EF>();
         let gkr_power = rng.gen::<EF>();
 
-        let num_constraints = get_symbolic_constraints::<F, _>(&air, 0, PROOF_MAX_NUM_PVS).len();
+        let num_constraints = get_symbolic_constraints::<F, _>(&air, 0, 0, PROOF_MAX_NUM_PVS).len();
 
         let mut alpha_powers = alpha.powers().take(num_constraints).collect::<Vec<_>>();
 
@@ -194,6 +194,7 @@ mod tests {
 
         let mut folder = ConstraintSumcheckFolder {
             preprocessed: RowMajorMatrixView::new_row(&[]),
+            global: RowMajorMatrixView::new_row(&[]),
             main: RowMajorMatrixView::new_row(&dummy_main),
             accumulator: EF::zero(),
             public_values: &vec![F::zero(); PROOF_MAX_NUM_PVS],
@@ -222,7 +223,8 @@ mod tests {
             air_data,
             zeta.clone(),
             None,
-            main_trace.clone(),
+            None,
+            Some(main_trace.clone()),
             EF::one(),
             EF::zero(),
             padded_row_adjustment,
@@ -247,6 +249,7 @@ mod tests {
 
         let opening = ChipOpenedValues::<F, EF> {
             preprocessed: AirOpenedValues { local: vec![] },
+            global: AirOpenedValues { local: vec![] },
             main: AirOpenedValues { local: column_openings.clone() },
             degree: Point::from_usize(num_real_entries as usize, num_variables as usize + 1),
         };
@@ -313,7 +316,8 @@ mod tests {
         debug_constraints::<SP1GlobalContext, _>(
             &Chip::new(MinimalAddChip::default()),
             None,
-            &main_trace,
+            None,
+            Some(&main_trace),
             &[],
         );
     }
@@ -346,7 +350,8 @@ mod tests {
         debug_constraints::<SP1GlobalContext, _>(
             &Chip::new(MinimalAddChip::default()),
             None,
-            &main_trace,
+            None,
+            Some(&main_trace),
             &[],
         );
     }

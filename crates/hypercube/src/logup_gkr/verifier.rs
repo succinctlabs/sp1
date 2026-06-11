@@ -2,7 +2,10 @@ use crate::prover::Record;
 use crate::record::MachineRecord;
 use crate::VerifierPublicValuesConstraintFolder;
 use crate::GKR_GRINDING_BITS;
-use crate::{air::MachineAir, Chip, ShardContext};
+use crate::{
+    air::{InteractionScope, MachineAir},
+    beta_seed_dim_for_scope, pv_interaction_max_arity, Chip, ShardContext,
+};
 use itertools::Itertools;
 use slop_air::BaseAir;
 use slop_algebra::AbstractField;
@@ -12,7 +15,6 @@ use slop_multilinear::{
     full_geq, partial_lagrange_blocking, Mle, MleEval, MultilinearPcsChallenger, Point,
 };
 use slop_sumcheck::{partially_verify_sumcheck_proof, SumcheckError};
-use std::cmp::max;
 use std::{
     collections::{BTreeMap, BTreeSet},
     marker::PhantomData,
@@ -63,32 +65,53 @@ pub enum LogupGkrVerificationError<EF> {
     /// The public values verification failed.
     #[error("public values verification failed")]
     InvalidPublicValues,
+    /// The global cumulative sum claimed in the proof does not match the recomputed one.
+    #[error("global cumulative sum mismatch: {0} != {1}")]
+    GlobalCumulativeSumMismatch(EF, EF),
+    /// A global-scope interaction appeared on a machine without a global round.
+    #[error("global-scope interaction on a machine without a global round")]
+    GlobalScopeWithoutGlobalRound,
 }
 
 /// Verifier for `LogUp` GKR.
 #[derive(Clone, Debug, Copy, Default, PartialEq, Eq, Hash)]
 pub struct LogUpGkrVerifier<GC, SC>(PhantomData<(GC, SC)>);
 
+/// The `(local, global)` public-value interaction digests.
+pub type PublicValuesDigests<GC> = (<GC as IopCtx>::EF, <GC as IopCtx>::EF);
+
 impl<GC: IopCtx, SC: ShardContext<GC>> LogUpGkrVerifier<GC, SC> {
-    /// Verify the public values satisfy the required constraints, and return the cumulative sum.
+    /// Verify the public values satisfy the required constraints, and return the
+    /// `(local, global)` interaction digests.
     pub fn verify_public_values(
         challenge: GC::EF,
         alpha: &GC::EF,
         beta_seed: &Point<GC::EF>,
+        global_challenges: Option<&(GC::EF, Point<GC::EF>)>,
         public_values: &[GC::F],
-    ) -> Result<GC::EF, LogupGkrVerificationError<GC::EF>> {
+    ) -> Result<PublicValuesDigests<GC>, LogupGkrVerificationError<GC::EF>> {
         let betas = slop_multilinear::partial_lagrange_blocking(beta_seed).into_buffer().into_vec();
+        let global_alpha_betas = global_challenges.map(|(global_alpha, global_beta_seed)| {
+            let global_betas = slop_multilinear::partial_lagrange_blocking(global_beta_seed)
+                .into_buffer()
+                .into_vec();
+            (global_alpha, global_betas)
+        });
         let mut folder = VerifierPublicValuesConstraintFolder::<GC> {
             perm_challenges: (alpha, &betas),
+            global_perm_challenges: global_alpha_betas
+                .as_ref()
+                .map(|(global_alpha, global_betas)| (*global_alpha, global_betas.as_slice())),
             alpha: challenge,
             accumulator: GC::EF::zero(),
             local_interaction_digest: GC::EF::zero(),
+            global_interaction_digest: GC::EF::zero(),
             public_values,
             _marker: PhantomData,
         };
         Record::<_, SC>::eval_public_values(&mut folder);
         if folder.accumulator == GC::EF::zero() {
-            Ok(folder.local_interaction_digest)
+            Ok((folder.local_interaction_digest, folder.global_interaction_digest))
         } else {
             Err(LogupGkrVerificationError::InvalidPublicValues)
         }
@@ -103,6 +126,8 @@ impl<GC: IopCtx, SC: ShardContext<GC>> LogUpGkrVerifier<GC, SC> {
         shard_chips: &BTreeSet<Chip<GC::F, SC::Air>>,
         degrees: &BTreeMap<String, Point<GC::F>>,
         max_log_row_count: usize,
+        global_challenges: Option<&(GC::EF, Point<GC::EF>)>,
+        claimed_global_cumulative_sum: Option<GC::EF>,
         proof: &LogupGkrProof<<GC::Challenger as GrindingChallenger>::Witness, GC::EF>,
         public_values: &[GC::F],
         challenger: &mut GC::Challenger,
@@ -110,20 +135,17 @@ impl<GC: IopCtx, SC: ShardContext<GC>> LogUpGkrVerifier<GC, SC> {
         let LogupGkrProof { circuit_output, round_proofs, logup_evaluations, witness } = proof;
 
         let LogUpGkrOutput { numerator, denominator } = circuit_output;
-        let max_interaction_arity = shard_chips
-            .iter()
-            .flat_map(|c| c.sends().iter().chain(c.receives().iter()))
-            .map(|i| i.values.len() + 1)
-            .max()
-            .unwrap();
 
-        let max_interaction_kinds_values = Record::<_, SC>::interactions_in_public_values()
-            .iter()
-            .map(|kind| kind.num_values() + 1)
-            .max()
-            .unwrap_or(1);
-        let beta_seed_dim =
-            max(max_interaction_arity, max_interaction_kinds_values).next_power_of_two().ilog2();
+        // The global challenge pair and the claimed global cumulative sum come together.
+        if global_challenges.is_some() != claimed_global_cumulative_sum.is_some() {
+            return Err(LogupGkrVerificationError::InvalidShape);
+        }
+
+        let beta_seed_dim = beta_seed_dim_for_scope(
+            shard_chips.iter(),
+            InteractionScope::Local,
+            pv_interaction_max_arity::<Record<GC, SC>>(),
+        );
 
         // Check proof of work (grinding to find a number that hashes to have
         // `GKR_GRINDING_BITS` zeroes at the beginning).
@@ -136,16 +158,27 @@ impl<GC: IopCtx, SC: ShardContext<GC>> LogUpGkrVerifier<GC, SC> {
             .map(|_| challenger.sample_ext_element::<GC::EF>())
             .collect::<Point<_>>();
         let pv_challenge = challenger.sample_ext_element::<GC::EF>();
-        let cumulative_sum = -LogUpGkrVerifier::<GC, SC>::verify_public_values(
+        let (local_pv_digest, global_pv_digest) = LogUpGkrVerifier::<GC, SC>::verify_public_values(
             pv_challenge,
             &alpha,
             &beta_seed,
+            global_challenges,
             public_values,
         )?;
+        let cumulative_sum = -local_pv_digest;
+
+        // The scope of every interaction of the shard.
+        let interaction_scopes = shard_chips
+            .iter()
+            .flat_map(|chip| chip.sends().iter().chain(chip.receives().iter()))
+            .map(|interaction| interaction.scope)
+            .collect::<Vec<_>>();
+        if global_challenges.is_none() && interaction_scopes.contains(&InteractionScope::Global) {
+            return Err(LogupGkrVerificationError::GlobalScopeWithoutGlobalRound);
+        }
 
         // Calculate the interaction number.
-        let num_of_interactions =
-            shard_chips.iter().map(|c| c.sends().len() + c.receives().len()).sum::<usize>();
+        let num_of_interactions = interaction_scopes.len();
         let number_of_interaction_variables = num_of_interactions.next_power_of_two().ilog2();
 
         let expected_size = 1 << (number_of_interaction_variables + 1);
@@ -164,19 +197,27 @@ impl<GC: IopCtx, SC: ShardContext<GC>> LogUpGkrVerifier<GC, SC> {
             return Err(LogupGkrVerificationError::ZeroDenominator);
         }
 
-        // Verify that the cumulative sum matches the claimed one.
-        let output_cumulative_sum = numerator
-            .guts()
-            .as_slice()
-            .iter()
-            .zip_eq(denominator.guts().as_slice().iter())
-            .map(|(n, d)| *n / *d)
-            .sum::<GC::EF>();
-        if output_cumulative_sum != cumulative_sum {
+        // Split the output layer's cumulative sum by interaction scope.
+        let (local_output_sum, global_output_sum) =
+            circuit_output.cumulative_sums_by_scope(&interaction_scopes);
+
+        // Verify that the local cumulative sum matches the local public-value digest.
+        if local_output_sum != cumulative_sum {
             return Err(LogupGkrVerificationError::CumulativeSumMismatch(
-                output_cumulative_sum,
+                local_output_sum,
                 cumulative_sum,
             ));
+        }
+
+        // Bind the claimed global cumulative sum (a proof output) to the recomputed one. The
+        // cross-shard checks on the exposed values are deferred.
+        if let Some(claimed) = claimed_global_cumulative_sum {
+            let expected = global_output_sum + global_pv_digest;
+            if claimed != expected {
+                return Err(LogupGkrVerificationError::GlobalCumulativeSumMismatch(
+                    claimed, expected,
+                ));
+            }
         }
 
         // Assert that the size of the first layer matches the expected one.
@@ -263,6 +304,9 @@ impl<GC: IopCtx, SC: ShardContext<GC>> LogUpGkrVerifier<GC, SC> {
         }
 
         let betas = partial_lagrange_blocking(&beta_seed);
+        let global_alpha_betas = global_challenges
+            .map(|(global_alpha, seed)| (*global_alpha, partial_lagrange_blocking(seed)));
+        let has_global_round = global_challenges.is_some();
 
         // Compute the expected opening of the last layer numerator and denominator values from the
         // trace openings.
@@ -284,6 +328,16 @@ impl<GC: IopCtx, SC: ShardContext<GC>> LogUpGkrVerifier<GC, SC> {
             } else if chip.air.preprocessed_width() != 0 {
                 return Err(LogupGkrVerificationError::InvalidShape);
             }
+            if has_global_round {
+                challenger.observe_variable_length_extension_slice(
+                    openings.global_trace_evaluations.as_deref().unwrap_or(&[]),
+                );
+            }
+            if openings.global_trace_evaluations.as_ref().map_or(0, MleEval::num_polynomials)
+                != chip.air.global_width()
+            {
+                return Err(LogupGkrVerificationError::InvalidShape);
+            }
             challenger.observe_variable_length_extension_slice(&openings.main_trace_evaluations);
             if openings.main_trace_evaluations.evaluations().sizes() != [chip.air.width()] {
                 return Err(LogupGkrVerificationError::InvalidShape);
@@ -294,30 +348,48 @@ impl<GC: IopCtx, SC: ShardContext<GC>> LogUpGkrVerifier<GC, SC> {
             }
 
             let geq_eval = full_geq(threshold, &point_extended);
-            let ChipEvaluation { main_trace_evaluations, preprocessed_trace_evaluations } =
-                openings;
+            let ChipEvaluation {
+                main_trace_evaluations,
+                preprocessed_trace_evaluations,
+                global_trace_evaluations,
+            } = openings;
             for (interaction, is_send) in chip
                 .sends()
                 .iter()
                 .map(|s| (s, true))
                 .chain(chip.receives().iter().map(|r| (r, false)))
             {
+                // Select the challenge pair by the interaction's scope.
+                let (alpha, betas) = match interaction.scope {
+                    InteractionScope::Local => (alpha, betas.as_slice()),
+                    InteractionScope::Global => global_alpha_betas
+                        .as_ref()
+                        .map(|(global_alpha, global_betas)| {
+                            (*global_alpha, global_betas.as_slice())
+                        })
+                        .ok_or(LogupGkrVerificationError::GlobalScopeWithoutGlobalRound)?,
+                };
                 let (real_numerator, real_denominator) = interaction.eval(
                     preprocessed_trace_evaluations.as_ref(),
+                    global_trace_evaluations.as_ref(),
                     main_trace_evaluations,
                     alpha,
-                    betas.as_slice(),
+                    betas,
                 );
                 let padding_trace_opening =
                     MleEval::from(vec![GC::EF::zero(); main_trace_evaluations.num_polynomials()]);
                 let padding_preprocessed_opening = preprocessed_trace_evaluations
                     .as_ref()
                     .map(|eval| MleEval::from(vec![GC::EF::zero(); eval.num_polynomials()]));
+                let padding_global_opening = global_trace_evaluations
+                    .as_ref()
+                    .map(|eval| MleEval::from(vec![GC::EF::zero(); eval.num_polynomials()]));
                 let (padding_numerator, padding_denominator) = interaction.eval(
                     padding_preprocessed_opening.as_ref(),
+                    padding_global_opening.as_ref(),
                     &padding_trace_opening,
                     alpha,
-                    betas.as_slice(),
+                    betas,
                 );
 
                 let numerator_eval = real_numerator - padding_numerator * geq_eval;

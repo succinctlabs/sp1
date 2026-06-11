@@ -443,13 +443,15 @@ impl ComputeInstructions for TranspilerBackend {
 
     fn slt(&mut self, rd: RiscRegister, rs1: RiscOperand, rs2: RiscOperand) {
         match rs2 {
-            RiscOperand::Immediate(imm) => {
+            // Wide immediates (not sign-extended 32-bit) fall through to the
+            // register path, which materializes them with a 64-bit load.
+            RiscOperand::Immediate(imm) if imm == (imm as i32) as i64 => {
                 self.emit_risc_operand_load(rs1, TEMP_A);
                 dynasm! {
                     self;
                     .arch x64;
 
-                    cmp Rq(TEMP_A), imm;
+                    cmp Rq(TEMP_A), imm as i32;
 
                     // ──────────────────────────────────────────────────────────────
                     // 2. setl  r/m8
@@ -499,13 +501,15 @@ impl ComputeInstructions for TranspilerBackend {
 
     fn sltu(&mut self, rd: RiscRegister, rs1: RiscOperand, rs2: RiscOperand) {
         match rs2 {
-            RiscOperand::Immediate(imm) => {
+            // Wide immediates (not sign-extended 32-bit) fall through to the
+            // register path, which materializes them with a 64-bit load.
+            RiscOperand::Immediate(imm) if imm == (imm as i32) as i64 => {
                 self.emit_risc_operand_load(rs1, TEMP_A);
                 dynasm! {
                     self;
                     .arch x64;
 
-                    cmp Rq(TEMP_A), imm;
+                    cmp Rq(TEMP_A), imm as i32;
 
                     // ------------------------------------
                     // `setb` ("below") checks the Carry Flag (CF):

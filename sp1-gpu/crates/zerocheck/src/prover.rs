@@ -2036,6 +2036,7 @@ where
         let ChipEvaluation {
             main_trace_evaluations: main_opening,
             preprocessed_trace_evaluations: prep_opening,
+            global_trace_evaluations: _,
         } = chip_openings.get(chip.name()).unwrap();
         claim *= lambda;
         let addend = main_opening
@@ -2187,6 +2188,7 @@ where
             chip.air.name().to_string(),
             ChipOpenedValues {
                 preprocessed,
+                global: AirOpenedValues { local: vec![] },
                 main,
                 degree: Point::from_usize(
                     initial_heights[i] as usize,

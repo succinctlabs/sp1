@@ -5,7 +5,7 @@ use std::{
     sync::{Arc, LazyLock, Mutex},
 };
 
-use slop_air::{AirBuilder, AirBuilderWithPublicValues, PairBuilder};
+use slop_air::{AirBuilder, AirBuilderWithPublicValues, GlobalBuilder, PairBuilder};
 use slop_algebra::{extension::BinomialExtensionField, AbstractExtensionField, AbstractField};
 use slop_matrix::dense::RowMajorMatrix;
 use sp1_core_machine::{
@@ -407,6 +407,7 @@ impl Product for ExprExt {
 pub struct ConstraintCompiler {
     public_values: Vec<Expr>,
     preprocessed: RowMajorMatrix<Expr>,
+    global: RowMajorMatrix<Expr>,
     main: RowMajorMatrix<Expr>,
     modules: BTreeMap<String, Func<Expr, ExprExt>>,
     parent: Option<AstType>,
@@ -415,13 +416,15 @@ pub struct ConstraintCompiler {
 impl ConstraintCompiler {
     pub fn new<A: MachineAir<F>>(air: &A, num_public_values: usize) -> Self {
         let preprocessed_width = air.preprocessed_width();
+        let global_width = air.global_width();
         let main_width = air.width();
-        Self::with_sizes(num_public_values, preprocessed_width, main_width)
+        Self::with_sizes(num_public_values, preprocessed_width, global_width, main_width)
     }
 
     pub fn with_sizes(
         num_public_values: usize,
         preprocessed_width: usize,
+        global_width: usize,
         main_width: usize,
     ) -> Self {
         // Initialize the global AST to empty.
@@ -430,13 +433,15 @@ impl ConstraintCompiler {
 
         // Initialize the public values.
         let public_values = (0..num_public_values).map(Expr::public).collect();
-        // Initialize the preprocessed and main traces.
+        // Initialize the preprocessed, global, and main traces.
         let preprocessed = (0..preprocessed_width).map(Expr::preprocessed).collect();
         let preprocessed = RowMajorMatrix::new(preprocessed, preprocessed_width);
+        let global = (0..global_width).map(Expr::global).collect();
+        let global = RowMajorMatrix::new(global, global_width);
         let main = (0..main_width).map(Expr::main).collect();
         let main = RowMajorMatrix::new(main, main_width);
 
-        Self { public_values, preprocessed, main, modules: BTreeMap::new(), parent: None }
+        Self { public_values, preprocessed, global, main, modules: BTreeMap::new(), parent: None }
     }
 
     pub fn ast(&self) -> Ast<ExprRef<F>, ExprExtRef<EF>> {
@@ -451,6 +456,7 @@ impl ConstraintCompiler {
         Self {
             public_values: self.public_values.clone(),
             preprocessed: self.preprocessed.clone(),
+            global: self.global.clone(),
             main: self.main.clone(),
             modules: BTreeMap::new(),
             parent: Some(parent),
@@ -529,6 +535,12 @@ impl MessageBuilder<AirInteraction<Expr>> for ConstraintCompiler {
 impl PairBuilder for ConstraintCompiler {
     fn preprocessed(&self) -> Self::M {
         self.preprocessed.clone()
+    }
+}
+
+impl GlobalBuilder for ConstraintCompiler {
+    fn global(&self) -> Self::M {
+        self.global.clone()
     }
 }
 

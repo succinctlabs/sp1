@@ -149,6 +149,7 @@ impl<F: Field> Interaction<F> {
     pub fn eval<Expr, Var>(
         &self,
         preprocessed: Option<&MleEval<Var>>,
+        global: Option<&MleEval<Var>>,
         main: &MleEval<Var>,
         alpha: Expr,
         betas: &[Expr],
@@ -165,19 +166,20 @@ impl<F: Field> Interaction<F> {
                 PairCol::Preprocessed(i) => {
                     multiplicity_eval += preprocessed.as_ref().unwrap()[*i].into() * weight;
                 }
+                PairCol::Global(i) => {
+                    multiplicity_eval += global.as_ref().unwrap()[*i].into() * weight;
+                }
                 PairCol::Main(i) => multiplicity_eval += main[*i].into() * weight,
             }
         }
 
+        let preprocessed_slice = preprocessed.map_or(&[] as &[Var], |evals| evals);
+        let global_slice = global.map_or(&[] as &[Var], |evals| evals);
         let mut betas = betas.iter().cloned();
         let mut fingerprint_eval =
             alpha + betas.next().unwrap() * Expr::from_canonical_usize(self.argument_index());
         for (element, beta) in self.values.iter().zip(betas) {
-            let evaluation = if let Some(preprocessed) = preprocessed {
-                element.apply::<Expr, Var>(preprocessed, main)
-            } else {
-                element.apply::<Expr, Var>(&[], main)
-            };
+            let evaluation = element.apply::<Expr, Var>(preprocessed_slice, global_slice, main);
             fingerprint_eval += evaluation * beta;
         }
 

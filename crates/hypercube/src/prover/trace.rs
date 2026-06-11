@@ -15,7 +15,7 @@ use slop_multilinear::{Mle, PaddedMle};
 use slop_tensor::Tensor;
 use tokio::sync::oneshot;
 
-use crate::{air::MachineAir, Machine, MachineRecord};
+use crate::{air::MachineAir, Chip, Machine, MachineRecord};
 
 use super::{MainTraceData, PreprocessedTraceData, ProverSemaphore, TraceData};
 
@@ -50,6 +50,12 @@ impl<F, B: Backend> Deref for Traces<F, B> {
 impl<F, B: Backend> DerefMut for Traces<F, B> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.named_traces
+    }
+}
+
+impl<F, B: Backend> Default for Traces<F, B> {
+    fn default() -> Self {
+        Self { named_traces: BTreeMap::new() }
     }
 }
 
@@ -110,6 +116,54 @@ impl<F: Field, A: MachineAir<F>> DefaultTraceGenerator<F, A, CpuBackend> {
     pub fn new(machine: Machine<F, A>) -> Self {
         Self { machine, trace_allocator: GLOBAL_CPU_BACKEND }
     }
+
+    /// Pad and copy the generated `(global, main)` traces to the target backend.
+    #[allow(clippy::type_complexity)]
+    fn pad_and_copy_traces(
+        &self,
+        shard_chips: &BTreeSet<Chip<F, A>>,
+        chips_and_traces: BTreeMap<Chip<F, A>, (Option<Mle<F>>, Option<Mle<F>>)>,
+        max_log_row_count: usize,
+    ) -> (Traces<F, CpuBackend>, Traces<F, CpuBackend>) {
+        // Make the padded traces for cluster chips without generated traces.
+        let mut traces = shard_chips
+            .iter()
+            .filter(|chip| chip.width() > 0 && !chips_and_traces.contains_key(chip))
+            .map(|chip| {
+                (chip.name().to_string(), PaddedMle::zeros(chip.width(), max_log_row_count as u32))
+            })
+            .collect::<BTreeMap<_, _>>();
+        let mut global_traces = shard_chips
+            .iter()
+            .filter(|chip| chip.global_width() > 0 && !chips_and_traces.contains_key(chip))
+            .map(|chip| {
+                (
+                    chip.name().to_string(),
+                    PaddedMle::zeros(chip.global_width(), max_log_row_count as u32),
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+
+        // Copy the real traces to the target backend.
+        for (chip, (global, main)) in chips_and_traces {
+            if let Some(main) = main {
+                let main = self.trace_allocator.copy_into(main).unwrap();
+                traces.insert(
+                    chip.name().to_string(),
+                    PaddedMle::padded_with_zeros(Arc::new(main), max_log_row_count as u32),
+                );
+            }
+            if let Some(global) = global {
+                let global = self.trace_allocator.copy_into(global).unwrap();
+                global_traces.insert(
+                    chip.name().to_string(),
+                    PaddedMle::padded_with_zeros(Arc::new(global), max_log_row_count as u32),
+                );
+            }
+        }
+
+        (Traces { named_traces: traces }, Traces { named_traces: global_traces })
+    }
 }
 
 impl<F: Field, A: MachineAir<F>> TraceGenerator<F, A, CpuBackend>
@@ -137,9 +191,13 @@ impl<F: Field, A: MachineAir<F>> TraceGenerator<F, A, CpuBackend>
                 .into_par_iter()
                 .filter(|air| air.included(&record))
                 .map(|air| {
-                    let trace = air.generate_trace(&record, &mut A::Record::default());
-                    let trace = Mle::from(trace);
-                    (air, trace)
+                    // Chips with no main columns (global-only chips) contribute no main trace.
+                    let main = (air.width() > 0)
+                        .then(|| Mle::from(air.generate_trace(&record, &mut A::Record::default())));
+                    let global = air
+                        .generate_global_trace(&record, &mut A::Record::default())
+                        .map(Mle::from);
+                    (air, (global, main))
                 })
                 .collect::<BTreeMap<_, _>>();
 
@@ -154,7 +212,16 @@ impl<F: Field, A: MachineAir<F>> TraceGenerator<F, A, CpuBackend>
         let (chips_and_traces, public_values) = rx.await.unwrap();
 
         let chip_set = chips_and_traces.keys().cloned().collect::<BTreeSet<_>>();
-        let shard_chips = self.machine.smallest_cluster(&chip_set).unwrap().clone();
+        let shard_chips = self
+            .machine
+            .smallest_cluster(&chip_set)
+            .unwrap_or_else(|| {
+                panic!(
+                    "no chip cluster contains the included chip set: {:?}",
+                    chip_set.iter().map(MachineAir::name).collect::<Vec<_>>()
+                )
+            })
+            .clone();
 
         // Wait for a prover to be available.
         let permit = prover_permits
@@ -164,41 +231,10 @@ impl<F: Field, A: MachineAir<F>> TraceGenerator<F, A, CpuBackend>
             .unwrap();
         // Copy the traces to the target backend.
 
-        // Make the padded traces.
-        let padded_traces = shard_chips
-            .iter()
-            .filter(|chip| !chips_and_traces.contains_key(chip))
-            .map(|chip| {
-                let num_polynomials = chip.width();
-                (
-                    chip.name().to_string(),
-                    PaddedMle::zeros(num_polynomials, max_log_row_count as u32),
-                )
-            })
-            .collect::<BTreeMap<_, _>>();
+        let (traces, global_traces) =
+            self.pad_and_copy_traces(&shard_chips, chips_and_traces, max_log_row_count);
 
-        // Copy the real traces to the target backend.
-        let real_traces = chips_and_traces
-            .into_iter()
-            .map(|(chip, trace)| {
-                let trace = self.trace_allocator.copy_into(trace).unwrap();
-                let mle = Arc::new(trace);
-                (
-                    chip.name().to_string(),
-                    PaddedMle::padded_with_zeros(mle, max_log_row_count as u32),
-                )
-            })
-            .collect::<Vec<_>>();
-
-        let mut traces = padded_traces;
-
-        for (name, trace) in real_traces {
-            traces.insert(name, trace);
-        }
-
-        let traces = Traces { named_traces: traces };
-
-        MainTraceData { traces, public_values, shard_chips, permit }
+        MainTraceData { traces, global_traces, public_values, shard_chips, permit }
     }
 
     async fn generate_preprocessed_traces(
@@ -274,9 +310,12 @@ impl<F: Field, A: MachineAir<F>> TraceGenerator<F, A, CpuBackend>
                 .into_par_iter()
                 .filter(|air| air.included(&record))
                 .map(|air| {
-                    let trace = air.generate_trace(&record, &mut A::Record::default());
-                    let trace = Mle::from(trace);
-                    (air, trace)
+                    let main = (air.width() > 0)
+                        .then(|| Mle::from(air.generate_trace(&record, &mut A::Record::default())));
+                    let global = air
+                        .generate_global_trace(&record, &mut A::Record::default())
+                        .map(Mle::from);
+                    (air, (global, main))
                 })
                 .collect::<BTreeMap<_, _>>();
 
@@ -290,20 +329,16 @@ impl<F: Field, A: MachineAir<F>> TraceGenerator<F, A, CpuBackend>
         let (named_preprocessed_traces, chips_and_traces, public_values) = rx.await.unwrap();
 
         let chip_set = chips_and_traces.keys().cloned().collect::<BTreeSet<_>>();
-        let shard_chips = self.machine.smallest_cluster(&chip_set).unwrap().clone();
-
-        // Make the padded traces.
-        let padded_traces = shard_chips
-            .iter()
-            .filter(|chip| !chips_and_traces.contains_key(chip))
-            .map(|chip| {
-                let num_polynomials = chip.width();
-                (
-                    chip.name().to_string(),
-                    PaddedMle::zeros(num_polynomials, max_log_row_count as u32),
+        let shard_chips = self
+            .machine
+            .smallest_cluster(&chip_set)
+            .unwrap_or_else(|| {
+                panic!(
+                    "no chip cluster contains the included chip set: {:?}",
+                    chip_set.iter().map(MachineAir::name).collect::<Vec<_>>()
                 )
             })
-            .collect::<BTreeMap<_, _>>();
+            .clone();
 
         // Wait for a prover to be available.
         let permit = prover_permits
@@ -325,28 +360,11 @@ impl<F: Field, A: MachineAir<F>> TraceGenerator<F, A, CpuBackend>
 
         let preprocessed_traces = Traces { named_traces: preprocessed_traces };
 
-        // Copy the real traces to the target backend.
-        let real_traces = chips_and_traces
-            .into_iter()
-            .map(|(chip, trace)| {
-                let trace = self.trace_allocator.copy_into(trace).unwrap();
-                let mle = Arc::new(trace);
-                (
-                    chip.name().to_string(),
-                    PaddedMle::padded_with_zeros(mle, max_log_row_count as u32),
-                )
-            })
-            .collect::<Vec<_>>();
+        let (traces, global_traces) =
+            self.pad_and_copy_traces(&shard_chips, chips_and_traces, max_log_row_count);
 
-        let mut traces = padded_traces;
-
-        for (name, trace) in real_traces {
-            traces.insert(name, trace);
-        }
-
-        let traces = Traces { named_traces: traces };
-
-        let main_trace_data = MainTraceData { traces, public_values, shard_chips, permit };
+        let main_trace_data =
+            MainTraceData { traces, global_traces, public_values, shard_chips, permit };
 
         TraceData { preprocessed_traces, main_trace_data }
     }

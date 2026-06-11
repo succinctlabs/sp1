@@ -21,7 +21,7 @@ mod tests {
 
     use super::*;
     use crate::memory::test_util::{
-        accumulate_interactions, assert_bus_balanced, assert_constraints_satisfied, full_trace,
+        accumulate_interactions, assert_bus_balanced, assert_constraints_satisfied, chip_traces,
     };
 
     /// A record with one `HINT_READ` event per entry in `word_lens`.
@@ -73,15 +73,19 @@ mod tests {
         let read = Chip::new(HintReadChip::new());
 
         let mut totals = HashMap::new();
+        let (ctrl_global, ctrl_main) = chip_traces(&ctrl, &record);
+        let (read_global, read_main) = chip_traces(&read, &record);
         accumulate_interactions(
             &ctrl,
-            &full_trace(&ctrl, &record),
+            ctrl_global.as_ref(),
+            ctrl_main.as_ref(),
             &[InteractionKind::HintRead],
             &mut totals,
         );
         accumulate_interactions(
             &read,
-            &full_trace(&read, &record),
+            read_global.as_ref(),
+            read_main.as_ref(),
             &[InteractionKind::HintRead],
             &mut totals,
         );
@@ -95,7 +99,9 @@ mod tests {
         let ctrl = Chip::new(HintReadControlChip::new());
         let read = Chip::new(HintReadChip::new());
 
-        assert_constraints_satisfied(&ctrl, &full_trace(&ctrl, &record));
-        assert_constraints_satisfied(&read, &full_trace(&read, &record));
+        let (ctrl_global, ctrl_main) = chip_traces(&ctrl, &record);
+        let (read_global, read_main) = chip_traces(&read, &record);
+        assert_constraints_satisfied(&ctrl, ctrl_global.as_ref(), ctrl_main.as_ref());
+        assert_constraints_satisfied(&read, read_global.as_ref(), read_main.as_ref());
     }
 }

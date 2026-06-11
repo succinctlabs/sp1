@@ -10,6 +10,8 @@ pub enum IrVar<F> {
     Public(usize),
     /// Preprocessed inputs.
     Preprocessed(usize),
+    /// Global columns.
+    Global(usize),
     /// Columns.
     Main(usize),
     /// Constants.
@@ -25,6 +27,7 @@ impl<F: Field> Display for IrVar<F> {
         match self {
             IrVar::Public(i) => write!(f, "Public({i})"),
             IrVar::Preprocessed(i) => write!(f, "Preprocessed({i})"),
+            IrVar::Global(i) => write!(f, "Global({i})"),
             IrVar::Main(i) => write!(f, "Main({i})"),
             IrVar::Constant(c) => write!(f, "{c}"),
             IrVar::InputArg(i) => write!(f, "Input({i})"),
@@ -49,6 +52,7 @@ impl<F: Field> IrVar<F> {
             IrVar::Constant(c) => format!("{c}"),
             IrVar::Public(i) => format!("Public[{i}]"),
             IrVar::Preprocessed(i) => format!("Preprocessed[{i}]"),
+            IrVar::Global(i) => format!("Global[{i}]"),
             IrVar::OutputArg(i) => format!("Output[{i}]"),
         }
     }

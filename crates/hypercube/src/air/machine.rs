@@ -45,7 +45,7 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
     ///   record such as byte lookup requests.
     fn generate_trace(&self, input: &Self::Record, output: &mut Self::Record) -> RowMajorMatrix<F> {
         let padded_nb_rows = self.num_rows(input).unwrap();
-        let num_columns = Self::main_width(self);
+        let num_columns = <Self as BaseAir<F>>::width(self);
         let mut values: Vec<F> = Vec::with_capacity(padded_nb_rows * num_columns);
         self.generate_trace_into(input, output, values.spare_capacity_mut());
 
@@ -59,11 +59,6 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
     /// Generate the dependencies for a given execution record.
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
         self.generate_trace(input, output);
-    }
-
-    /// The main width of the trace.
-    fn main_width(&self) -> usize {
-        <Self as BaseAir<F>>::width(self)
     }
 
     /// Generate the trace into a slice of `MaybeUninit<F>`.

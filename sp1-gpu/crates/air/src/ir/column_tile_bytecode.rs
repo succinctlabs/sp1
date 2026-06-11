@@ -74,6 +74,7 @@ pub fn lower_column_tile(
             DagNode::InputLeaf { source, col } => {
                 let s = match source {
                     TraceSource::PreprocessedLocal => LEAF_SOURCE_PREPROCESSED_LOCAL,
+                    TraceSource::GlobalLocal => return None,
                     TraceSource::MainLocal => LEAF_SOURCE_MAIN_LOCAL,
                 };
                 (s, col)
@@ -162,6 +163,7 @@ mod tests {
             nodes,
             constraints: vec![ConstraintRef { root, alpha_index: 0 }],
             preprocessed_width: 0,
+            global_width: 0,
             main_width: 2,
         };
         let infos = analyze_constraints(&dag);
@@ -241,6 +243,7 @@ mod tests {
             nodes,
             constraints: vec![ConstraintRef { root, alpha_index: 0 }],
             preprocessed_width: 0,
+            global_width: 0,
             main_width: 3,
         };
         let infos = analyze_constraints(&dag);

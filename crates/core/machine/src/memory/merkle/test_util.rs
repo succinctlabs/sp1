@@ -1,6 +1,6 @@
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 
-use slop_air::Air;
+use slop_air::{Air, BaseAir};
 use slop_algebra::{extension::BinomialExtensionField, AbstractField, Field, PrimeField32};
 use slop_matrix::{dense::RowMajorMatrix, Matrix};
 use slop_multilinear::Mle;
@@ -20,43 +20,44 @@ type EF = BinomialExtensionField<SP1Field, 4>;
 /// A bus message keyed by `(scope, kind, comma-joined values)` mapped to its net multiplicity.
 pub(crate) type BusTotals = HashMap<(InteractionScope, InteractionKind, String), SP1Field>;
 
-/// The full `[global ‖ main]` trace of a chip, matching the `{ global, main }` column layout.
-pub(crate) fn full_trace<A: MachineAir<SP1Field, Record = ExecutionRecord>>(
+/// The `(global, main)` traces of a chip, generated from `record`.
+pub(crate) fn chip_traces<A: MachineAir<SP1Field, Record = ExecutionRecord>>(
     chip: &Chip<SP1Field, A>,
     record: &ExecutionRecord,
-) -> RowMajorMatrix<SP1Field> {
+) -> (Option<RowMajorMatrix<SP1Field>>, Option<RowMajorMatrix<SP1Field>>) {
     let mut out = ExecutionRecord::default();
-    let rows = chip.num_rows(record).unwrap();
-    let main = chip.generate_trace(record, &mut out);
-    let Some(global) = chip.generate_global_trace(record, &mut out) else {
-        return main;
-    };
-    let (gw, mw) = (global.width(), main.width());
-    let mut values = Vec::with_capacity(rows * (gw + mw));
-    for i in 0..rows {
-        values.extend_from_slice(&global.values[i * gw..(i + 1) * gw]);
-        if mw > 0 {
-            values.extend_from_slice(&main.values[i * mw..(i + 1) * mw]);
-        }
-    }
-    RowMajorMatrix::new(values, gw + mw)
+    let main = (chip.width() > 0).then(|| chip.generate_trace(record, &mut out));
+    let global = chip.generate_global_trace(record, &mut out);
+    (global, main)
 }
 
-/// Accumulate `chip`'s interactions of the given `kinds` over `trace`.
+/// Accumulate `chip`'s interactions of the given `kinds` over its `(global, main)` traces.
 pub(crate) fn accumulate_interactions<A: MachineAir<SP1Field>>(
     chip: &Chip<SP1Field, A>,
-    trace: &RowMajorMatrix<SP1Field>,
+    global: Option<&RowMajorMatrix<SP1Field>>,
+    main: Option<&RowMajorMatrix<SP1Field>>,
     kinds: &[InteractionKind],
     totals: &mut BusTotals,
 ) {
-    let width = trace.width();
+    let height = main.map_or_else(
+        || global.map_or(0, Matrix::height),
+        |m| {
+            if let Some(global) = global {
+                assert_eq!(m.height(), global.height(), "global and main heights must match");
+            }
+            m.height()
+        },
+    );
     let empty: [SP1Field; 0] = [];
-    for row in trace.values.chunks(width) {
+    for row in 0..height {
+        let global_row =
+            global.map_or(&[][..], |g| &g.values[row * g.width()..(row + 1) * g.width()]);
+        let main_row = main.map_or(&[][..], |m| &m.values[row * m.width()..(row + 1) * m.width()]);
         for (sign, interactions) in
             [(SP1Field::one(), chip.sends()), (SP1Field::neg_one(), chip.receives())]
         {
             for it in interactions.iter().filter(|i| kinds.contains(&i.kind)) {
-                let mult: SP1Field = it.multiplicity.apply(&empty, row);
+                let mult: SP1Field = it.multiplicity.apply(&empty, global_row, main_row);
                 if mult.is_zero() {
                     continue;
                 }
@@ -64,7 +65,7 @@ pub(crate) fn accumulate_interactions<A: MachineAir<SP1Field>>(
                     .values
                     .iter()
                     .map(|v| {
-                        let value: SP1Field = v.apply(&empty, row);
+                        let value: SP1Field = v.apply(&empty, global_row, main_row);
                         value.to_string()
                     })
                     .collect::<Vec<_>>()
@@ -95,15 +96,18 @@ pub(crate) fn report_bus_mismatches(totals: &BusTotals) -> usize {
     mismatches.len()
 }
 
-/// Assert `chip`'s constraints hold on `trace`.
+/// Assert `chip`'s constraints hold on its `(global, main)` traces.
 pub(crate) fn assert_constraints_satisfied<A>(
     chip: &Chip<SP1Field, A>,
-    trace: &RowMajorMatrix<SP1Field>,
+    global: Option<&RowMajorMatrix<SP1Field>>,
+    main: Option<&RowMajorMatrix<SP1Field>>,
 ) where
     A: MachineAir<SP1Field> + for<'a> Air<DebugConstraintBuilder<'a, SP1Field, EF>>,
 {
-    let main: Mle<SP1Field> = Mle::from(trace.clone());
-    let failures = debug_constraints::<SP1GlobalContext, A>(chip, None, &main, &[]);
+    let global: Option<Mle<SP1Field>> = global.map(|g| Mle::from(g.clone()));
+    let main: Option<Mle<SP1Field>> = main.map(|m| Mle::from(m.clone()));
+    let failures =
+        debug_constraints::<SP1GlobalContext, A>(chip, None, global.as_ref(), main.as_ref(), &[]);
     assert!(
         failures.is_empty(),
         "constraint failures (row, failing constraint indices): {:?}",
@@ -208,11 +212,58 @@ mod tests {
 
         let kinds = [InteractionKind::LeafHash, InteractionKind::MerkleTreeTraversal];
         let mut totals = BusTotals::new();
-        accumulate_interactions(&lh, &full_trace(&lh, &record), &kinds, &mut totals);
-        accumulate_interactions(&ctrl, &full_trace(&ctrl, &record), &kinds, &mut totals);
-        accumulate_interactions(&tt, &full_trace(&tt, &record), &kinds, &mut totals);
+        for_chip_traces(&lh, &record, &kinds, &mut totals);
+        for_chip_traces(&ctrl, &record, &kinds, &mut totals);
+        for_chip_traces(&tt, &record, &kinds, &mut totals);
         accumulate_public_value_interactions(&record, &kinds, &mut totals);
 
         assert_eq!(report_bus_mismatches(&totals), 0, "merkle pipeline bus should fully cancel");
+    }
+
+    /// Generate a chip's traces and accumulate its interactions.
+    fn for_chip_traces<A: MachineAir<SP1Field, Record = ExecutionRecord>>(
+        chip: &Chip<SP1Field, A>,
+        record: &ExecutionRecord,
+        kinds: &[InteractionKind],
+        totals: &mut BusTotals,
+    ) {
+        let (global, main) = chip_traces(chip, record);
+        accumulate_interactions(chip, global.as_ref(), main.as_ref(), kinds, totals);
+    }
+
+    #[tokio::test]
+    async fn test_merkle_cluster_prove_verify() {
+        use crate::riscv::RiscvAir;
+        use slop_basefold::FriConfig;
+        use sp1_core_executor::{Instruction, Opcode, Program};
+        use sp1_hypercube::{prover::simple_prover, MachineProof, ShardVerifier};
+
+        // A standalone (non-execution) shard holding the merkle record.
+        let machine = RiscvAir::<SP1Field>::machine();
+        let program =
+            Arc::new(Program::new(vec![Instruction::new(Opcode::ADD, 0, 0, 0, false, true)], 0, 0));
+        let mut record = merkle_record(8);
+        record.program = program.clone();
+        record.public_values.update_initialized_state(0, false, None, None);
+        machine.generate_dependencies(std::iter::once(&mut record), None);
+
+        let verifier = ShardVerifier::from_basefold_parameters(
+            FriConfig::default_fri_config(),
+            21,
+            22,
+            machine,
+        );
+        let prover = simple_prover(verifier.clone());
+        let (pk, vk) = prover.setup(program).await;
+        let pk = unsafe { pk.into_inner() };
+        let proof = prover.prove_shard(pk, record).await;
+
+        assert!(proof.global_commitment.is_some());
+        assert!(proof.global_cumulative_sum.is_some());
+
+        let machine_verifier = sp1_hypercube::MachineVerifier::new(verifier);
+        machine_verifier
+            .verify(&vk, &MachineProof { shard_proofs: vec![proof] })
+            .expect("merkle cluster proof should verify");
     }
 }

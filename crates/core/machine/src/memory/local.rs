@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{air::WordAirBuilder, utils::next_multiple_of_32};
-use slop_air::{Air, BaseAir};
+use slop_air::{Air, BaseAir, GlobalBuilder};
 use slop_algebra::PrimeField32;
 use slop_matrix::Matrix;
 use slop_maybe_rayon::prelude::{
@@ -69,7 +69,7 @@ impl MemoryLocalChip {
 
 impl<F> BaseAir<F> for MemoryLocalChip {
     fn width(&self) -> usize {
-        NUM_MEMORY_LOCAL_INIT_COLS
+        0
     }
 }
 
@@ -96,10 +96,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
 
     fn global_width(&self) -> usize {
         NUM_MEMORY_LOCAL_INIT_COLS
-    }
-
-    fn main_width(&self) -> usize {
-        0
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
@@ -207,11 +203,11 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
 
 impl<AB> Air<AB> for MemoryLocalChip
 where
-    AB: SP1AirBuilder,
+    AB: SP1AirBuilder + GlobalBuilder,
 {
     fn eval(&self, builder: &mut AB) {
-        let main = builder.main();
-        let local = main.row_slice(0);
+        let global = builder.global();
+        let local = global.row_slice(0);
         let local: &MemoryLocalCols<AB::Var> = (*local).borrow();
 
         for local in local.memory_local_entries.iter() {

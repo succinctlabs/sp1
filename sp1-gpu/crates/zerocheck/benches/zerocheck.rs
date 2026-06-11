@@ -83,6 +83,7 @@ fn run_zerocheck<R: Rng>(
             main_trace_evaluations: MleEval::new(Tensor::from(
                 individual_column_evals[main_ptr..main_ptr + main_width].to_vec(),
             )),
+            global_trace_evaluations: None,
         };
 
         chip_openings.insert(chip.air.name().to_string(), chip_eval);

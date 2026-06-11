@@ -16,6 +16,7 @@ pub type NodeId = u32;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TraceSource {
     PreprocessedLocal,
+    GlobalLocal,
     MainLocal,
 }
 
@@ -118,6 +119,7 @@ pub struct ConstraintDag {
     pub nodes: Vec<DagNode>,
     pub constraints: Vec<ConstraintRef>,
     pub preprocessed_width: u32,
+    pub global_width: u32,
     pub main_width: u32,
 }
 

@@ -1,6 +1,6 @@
 [package]
 name = "slop-air"
-description = "Re-exports p3_air from Plonky3 for SLOP"
+description = "AIR traits and virtual columns for SLOP"
 readme = "README.md"
 version.workspace = true
 edition.workspace = true
@@ -10,4 +10,9 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-p3-air = { workspace = true }
+slop-algebra = { workspace = true }
+slop-matrix = { workspace = true }
+serde = { workspace = true }
+
+[lints]
+workspace = true

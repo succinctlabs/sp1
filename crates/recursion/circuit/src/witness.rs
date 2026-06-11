@@ -254,13 +254,15 @@ impl<C: CircuitConfig> Witnessable<C> for ChipOpenedValues<SP1Field, SP1Extensio
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let preprocessed = self.preprocessed.read(builder);
+        let global = self.global.read(builder);
         let main = self.main.read(builder);
         let degree = self.degree.read(builder);
-        Self::WitnessVariable { preprocessed, main, degree }
+        Self::WitnessVariable { preprocessed, global, main, degree }
     }
 
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
         self.preprocessed.write(witness);
+        self.global.write(witness);
         self.main.write(witness);
         self.degree.write(witness);
     }
@@ -298,6 +300,8 @@ where
 {
     type WitnessVariable = ShardProofVariable<C, GC>;
 
+    // NOTE: `global_commitment` is intentionally not witnessed: the in-circuit verifier for
+    // 3-round (core) proofs is a planned follow-up, and recursion proofs carry `None`.
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let public_values = self.public_values.read(builder);
         let main_commitment = self.main_commitment.read(builder);

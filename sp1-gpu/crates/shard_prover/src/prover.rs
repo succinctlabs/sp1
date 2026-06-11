@@ -689,6 +689,7 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
     {
         let ShardData { main_trace_data } = data;
         let MainTraceData { traces, public_values, shard_chips, permit } = main_trace_data;
+        assert!(!self.machine().has_global_round());
 
         let shard_chips = self.machine().smallest_cluster(&shard_chips).unwrap();
 
@@ -809,6 +810,8 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
         });
 
         let proof = ShardProof {
+            global_commitment: None,
+            global_cumulative_sum: None,
             main_commitment: main_commit,
             opened_values: shard_open_values,
             logup_gkr_proof,

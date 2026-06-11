@@ -44,8 +44,11 @@ pub fn eval_constraints<C: CircuitConfig, SC: SP1FieldConfigVariable<C>, A>(
 where
     A: MachineAir<SP1Field> + for<'a> Air<RecursiveVerifierConstraintFolder<'a>>,
 {
+    let zero: Ext<SP1Field, SP1ExtensionField> = builder.constant(SP1ExtensionField::zero());
+    let global_opening = vec![zero; chip.global_width()];
     let mut folder = RecursiveVerifierConstraintFolder {
         preprocessed: RowMajorMatrixView::new_row(&opening.preprocessed.local),
+        global: RowMajorMatrixView::new_row(&global_opening),
         main: RowMajorMatrixView::new_row(&opening.main.local),
         public_values,
         alpha,
@@ -69,10 +72,12 @@ where
 {
     let zero = builder.constant(SP1ExtensionField::zero());
     let dummy_preprocessed_trace = vec![zero; chip.preprocessed_width()];
+    let dummy_global_trace = vec![zero; chip.global_width()];
     let dummy_main_trace = vec![zero; chip.width()];
 
     let mut folder = RecursiveVerifierConstraintFolder {
         preprocessed: RowMajorMatrixView::new_row(&dummy_preprocessed_trace),
+        global: RowMajorMatrixView::new_row(&dummy_global_trace),
         main: RowMajorMatrixView::new_row(&dummy_main_trace),
         alpha,
         accumulator: SymbolicExt::zero(),

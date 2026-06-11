@@ -2,14 +2,12 @@ mod chunk_payload;
 mod compress;
 mod core;
 mod deferred;
-mod leaves;
 mod pinning;
 mod vk_tree;
 
-pub use leaves::LeafState;
 pub use sp1_core_machine::merkle_prover::{
-    build_merkle_proof_record, zero_leaf, BatchMerkleProver, LeafDigest, MerkleProvingInput,
-    DIGEST_WIDTH, MERKLE_TREE_HEIGHT, PAGE_ELEMENTS,
+    build_merkle_proof_record, zero_leaf, BatchMerkleProver, LeafDigest, LeafState,
+    MerkleProvingInput, DIGEST_WIDTH, MERKLE_TREE_HEIGHT, PAGE_ELEMENTS,
 };
 
 pub use chunk_payload::*;

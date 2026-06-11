@@ -3,7 +3,7 @@ use core::{
     mem::{size_of, MaybeUninit},
 };
 
-use slop_air::{Air, BaseAir};
+use slop_air::{Air, BaseAir, GlobalBuilder};
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_matrix::Matrix;
 use slop_maybe_rayon::prelude::{IndexedParallelIterator, ParallelIterator, ParallelSliceMut};
@@ -48,7 +48,7 @@ impl LeafHashControlChip {
 
 impl<F> BaseAir<F> for LeafHashControlChip {
     fn width(&self) -> usize {
-        NUM_LEAF_HASH_CONTROL_COLS
+        0
     }
 }
 
@@ -71,10 +71,6 @@ impl<F: PrimeField32> MachineAir<F> for LeafHashControlChip {
         NUM_LEAF_HASH_CONTROL_COLS
     }
 
-    fn main_width(&self) -> usize {
-        0
-    }
-
     fn generate_trace_into(
         &self,
         _input: &Self::Record,
@@ -89,7 +85,7 @@ impl<F: PrimeField32> MachineAir<F> for LeafHashControlChip {
         _output: &mut Self::Record,
         buffer: &mut [MaybeUninit<F>],
     ) {
-        let width = <Self as BaseAir<F>>::width(self);
+        let width = <Self as MachineAir<F>>::global_width(self);
         let padded_nb_rows = <Self as MachineAir<F>>::num_rows(self, input).unwrap();
         let record = input.merkle_proof_record.as_ref();
         let num_pages = record.map_or(0, |r| r.payload.pages.len());
@@ -126,11 +122,11 @@ impl<F: PrimeField32> MachineAir<F> for LeafHashControlChip {
 
 impl<AB> Air<AB> for LeafHashControlChip
 where
-    AB: SP1CoreAirBuilder,
+    AB: SP1CoreAirBuilder + GlobalBuilder,
 {
     fn eval(&self, builder: &mut AB) {
-        let main = builder.main();
-        let local = main.row_slice(0);
+        let global = builder.global();
+        let local = global.row_slice(0);
         let local: &LeafHashControlCols<AB::Var> = (*local).borrow();
 
         builder.assert_bool(local.is_real);
@@ -199,7 +195,7 @@ mod tests {
             leaf_hash::LeafHashChip,
             test_util::{
                 accumulate_interactions, assert_bus_balanced, assert_constraints_satisfied,
-                full_trace,
+                chip_traces,
             },
         },
         merkle_prover::hash_page,
@@ -237,7 +233,8 @@ mod tests {
         let (record, initial, final_values) = test_record();
 
         let chip = Chip::new(LeafHashControlChip::new());
-        let trace = full_trace(&chip, &record);
+        let (global, _) = chip_traces(&chip, &record);
+        let trace = global.expect("control chip is wholly global");
 
         let cols: &LeafHashControlCols<SP1Field> =
             trace.values[..NUM_LEAF_HASH_CONTROL_COLS].borrow();
@@ -257,12 +254,24 @@ mod tests {
 
         let lh = Chip::new(LeafHashChip::new());
         let ctrl = Chip::new(LeafHashControlChip::new());
-        let lh_trace = full_trace(&lh, &record);
-        let ctrl_trace = full_trace(&ctrl, &record);
+        let (lh_global, lh_main) = chip_traces(&lh, &record);
+        let (ctrl_global, ctrl_main) = chip_traces(&ctrl, &record);
 
         let mut totals = HashMap::new();
-        accumulate_interactions(&lh, &lh_trace, &[InteractionKind::LeafHash], &mut totals);
-        accumulate_interactions(&ctrl, &ctrl_trace, &[InteractionKind::LeafHash], &mut totals);
+        accumulate_interactions(
+            &lh,
+            lh_global.as_ref(),
+            lh_main.as_ref(),
+            &[InteractionKind::LeafHash],
+            &mut totals,
+        );
+        accumulate_interactions(
+            &ctrl,
+            ctrl_global.as_ref(),
+            ctrl_main.as_ref(),
+            &[InteractionKind::LeafHash],
+            &mut totals,
+        );
         assert_bus_balanced(&totals);
     }
 
@@ -273,10 +282,10 @@ mod tests {
 
         let lh = Chip::new(LeafHashChip::new());
         let ctrl = Chip::new(LeafHashControlChip::new());
-        let lh_trace = full_trace(&lh, &record);
-        let ctrl_trace = full_trace(&ctrl, &record);
+        let (lh_global, lh_main) = chip_traces(&lh, &record);
+        let (ctrl_global, ctrl_main) = chip_traces(&ctrl, &record);
 
-        assert_constraints_satisfied(&lh, &lh_trace);
-        assert_constraints_satisfied(&ctrl, &ctrl_trace);
+        assert_constraints_satisfied(&lh, lh_global.as_ref(), lh_main.as_ref());
+        assert_constraints_satisfied(&ctrl, ctrl_global.as_ref(), ctrl_main.as_ref());
     }
 }

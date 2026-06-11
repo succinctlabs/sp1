@@ -87,7 +87,8 @@ where
     where
         A: MachineAir<F> + Air<InteractionBuilder<F>> + Air<SymbolicAirBuilder<F>>,
     {
-        let mut builder = InteractionBuilder::new(air.preprocessed_width(), air.width());
+        let mut builder =
+            InteractionBuilder::new(air.preprocessed_width(), air.global_width(), air.width());
         air.eval(&mut builder);
         let (sends, receives) = builder.interactions();
 
@@ -99,8 +100,12 @@ where
             nb_byte_sends + nb_byte_receives
         );
 
-        let mut max_constraint_degree =
-            get_max_constraint_degree(&air, air.preprocessed_width(), PROOF_MAX_NUM_PVS);
+        let mut max_constraint_degree = get_max_constraint_degree(
+            &air,
+            air.preprocessed_width(),
+            air.global_width(),
+            PROOF_MAX_NUM_PVS,
+        );
 
         if !sends.is_empty() || !receives.is_empty() {
             max_constraint_degree = std::cmp::max(max_constraint_degree, MAX_CONSTRAINT_DEGREE);
@@ -110,8 +115,13 @@ where
         assert!(max_constraint_degree <= MAX_CONSTRAINT_DEGREE);
         // Count the number of constraints.
         // TODO: unify this with the constraint degree calculation.
-        let num_constraints =
-            get_symbolic_constraints(&air, air.preprocessed_width(), PROOF_MAX_NUM_PVS).len();
+        let num_constraints = get_symbolic_constraints(
+            &air,
+            air.preprocessed_width(),
+            air.global_width(),
+            PROOF_MAX_NUM_PVS,
+        )
+        .len();
 
         let sends = Arc::new(sends);
         let receives = Arc::new(receives);
@@ -156,8 +166,9 @@ where
         A: MachineAir<F>,
     {
         let preprocessed_cols = self.preprocessed_width();
+        let global_cols = self.global_width();
         let main_cols = self.width();
-        (preprocessed_cols + main_cols) as u64
+        (preprocessed_cols + global_cols + main_cols) as u64
     }
 }
 
@@ -210,10 +221,6 @@ where
 
     fn num_rows(&self, input: &A::Record) -> Option<usize> {
         <A as MachineAir<F>>::num_rows(&self.air, input)
-    }
-
-    fn main_width(&self) -> usize {
-        self.air.main_width()
     }
 
     fn generate_trace(&self, input: &A::Record, output: &mut A::Record) -> RowMajorMatrix<F> {
@@ -327,6 +334,8 @@ pub struct ChipStatistics<F> {
     height: usize,
     /// The number of preprocessed columns.
     preprocessed_cols: usize,
+    /// The number of global columns.
+    global_cols: usize,
     /// The number of main columns.
     main_cols: usize,
     _marker: std::marker::PhantomData<F>,
@@ -338,15 +347,23 @@ impl<F: Field> ChipStatistics<F> {
     pub fn new<A: MachineAir<F>>(chip: &Chip<F, A>, height: usize) -> Self {
         let name = chip.name().to_string();
         let preprocessed_cols = chip.preprocessed_width();
+        let global_cols = chip.global_width();
         let main_cols = chip.width();
-        Self { name, height, preprocessed_cols, main_cols, _marker: std::marker::PhantomData }
+        Self {
+            name,
+            height,
+            preprocessed_cols,
+            global_cols,
+            main_cols,
+            _marker: std::marker::PhantomData,
+        }
     }
 
     /// Returns the total width of the chip.
     #[must_use]
     #[inline]
     pub const fn total_width(&self) -> usize {
-        self.preprocessed_cols + self.main_cols
+        self.preprocessed_cols + self.global_cols + self.main_cols
     }
 
     /// Returns the total number of cells in the chip.
@@ -368,9 +385,10 @@ impl<F: Field> Display for ChipStatistics<F> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{:<15} | Prep Cols = {:<5} | Main Cols = {:<5} | Rows = {:<5} | Cells = {:<10}",
+            "{:<15} | Prep Cols = {:<5} | Global Cols = {:<5} | Main Cols = {:<5} | Rows = {:<5} | Cells = {:<10}",
             self.name,
             self.preprocessed_cols.separate_with_underscores(),
+            self.global_cols.separate_with_underscores(),
             self.main_cols.separate_with_underscores(),
             self.height.separate_with_underscores(),
             self.total_number_of_cells().separate_with_underscores()

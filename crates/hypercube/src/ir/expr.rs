@@ -31,6 +31,12 @@ impl<F: Field> ExprRef<F> {
         ExprRef::IrVar(IrVar::Preprocessed(index))
     }
 
+    /// An expression representing a variable from the global trace.
+    #[must_use]
+    pub fn global(index: usize) -> Self {
+        ExprRef::IrVar(IrVar::Global(index))
+    }
+
     /// An expression representing a variable from main trace.
     #[must_use]
     pub fn main(index: usize) -> Self {

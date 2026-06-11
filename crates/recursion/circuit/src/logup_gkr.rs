@@ -43,11 +43,17 @@ where
         let beta_symbolic = IntoSymbolic::<C>::as_symbolic(beta_seed);
         let betas =
             slop_multilinear::partial_lagrange_blocking(&beta_symbolic).into_buffer().into_vec();
+        // TODO(rkm): handle recursion accordingly.
+        let dummy_global_alpha: Ext<SP1Field, SP1ExtensionField> =
+            builder.constant(SP1ExtensionField::one());
+        let dummy_global_betas = vec![SymbolicExt::zero(); betas.len()];
         let mut folder = RecursiveVerifierPublicValuesConstraintFolder {
             perm_challenges: (alpha, &betas),
+            global_perm_challenges: Some((&dummy_global_alpha, &dummy_global_betas)),
             alpha: challenge,
             accumulator: SymbolicExt::zero(),
             local_interaction_digest: SymbolicExt::zero(),
+            global_interaction_digest: SymbolicExt::zero(),
             public_values,
             _marker: PhantomData,
         };
@@ -219,9 +225,20 @@ where
             );
             let threshold = threshold.iter().map(|x| SymbolicExt::from(*x)).collect::<Point<_>>();
             let geq_eval = full_geq(&threshold, &point_extended);
-            let ChipEvaluation { main_trace_evaluations, preprocessed_trace_evaluations } =
-                openings;
+            let ChipEvaluation {
+                main_trace_evaluations,
+                preprocessed_trace_evaluations,
+                global_trace_evaluations: _,
+            } = openings;
 
+            // TODO(rkm): handle recursion accordingly.
+            let global_opening = (chip.global_width() > 0).then(|| {
+                let zero: Ext<SP1Field, SP1ExtensionField> =
+                    builder.constant(SP1ExtensionField::zero());
+                MleEval::from(vec![zero; chip.global_width()])
+            });
+            let padding_global_opening = (chip.global_width() > 0)
+                .then(|| MleEval::from(vec![SP1Field::zero(); chip.global_width()]));
             for (interaction, is_send) in chip
                 .sends()
                 .iter()
@@ -230,6 +247,7 @@ where
             {
                 let (real_numerator, real_denominator) = interaction.eval(
                     preprocessed_trace_evaluations.as_ref(),
+                    global_opening.as_ref(),
                     main_trace_evaluations,
                     alpha,
                     betas.as_slice(),
@@ -241,6 +259,7 @@ where
                     .map(|eval| MleEval::from(vec![SP1Field::zero(); eval.num_polynomials()]));
                 let (padding_numerator, padding_denominator) = interaction.eval(
                     padding_preprocessed_opening.as_ref(),
+                    padding_global_opening.as_ref(),
                     &padding_trace_opening,
                     alpha,
                     betas.as_slice(),
@@ -326,11 +345,16 @@ impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for LogUpGkrOutput<T> {
 impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for ChipEvaluation<T> {
     type WitnessVariable = ChipEvaluation<T::WitnessVariable>;
 
+    // TODO(rkm): handle recursion accordingly.
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let main_trace_evaluations = self.main_trace_evaluations.read(builder);
         let preprocessed_trace_evaluations =
             self.preprocessed_trace_evaluations.as_ref().map(|mle| mle.read(builder));
-        Self::WitnessVariable { main_trace_evaluations, preprocessed_trace_evaluations }
+        Self::WitnessVariable {
+            main_trace_evaluations,
+            preprocessed_trace_evaluations,
+            global_trace_evaluations: None,
+        }
     }
 
     fn write(&self, witness: &mut impl WitnessWriter<C>) {

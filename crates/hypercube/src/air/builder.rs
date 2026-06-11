@@ -8,9 +8,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use slop_air::{AirBuilder, AirBuilderWithPublicValues, FilteredAirBuilder};
 use slop_algebra::{AbstractField, Field};
-use slop_uni_stark::{
-    ProverConstraintFolder, StarkGenericConfig, SymbolicAirBuilder, VerifierConstraintFolder,
-};
+use slop_uni_stark::SymbolicAirBuilder;
 use strum::{Display, EnumIter};
 
 use super::{interaction::AirInteraction, BinomialExtension};
@@ -449,8 +447,6 @@ impl<AB: BaseAirBuilder> SepticExtensionAirBuilder for AB {}
 impl<AB: BaseAirBuilder + AirBuilderWithPublicValues> MachineAirBuilder for AB {}
 impl<AB: BaseAirBuilder + AirBuilderWithPublicValues> SP1AirBuilder for AB {}
 
-impl<SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<'_, SC> {}
-impl<SC: StarkGenericConfig> EmptyMessageBuilder for VerifierConstraintFolder<'_, SC> {}
 impl<
         F: Field,
         K: Field + From<F> + Add<F, Output = K> + Sub<F, Output = K> + Mul<F, Output = K>,
@@ -459,7 +455,3 @@ impl<
 {
 }
 impl<F: Field> EmptyMessageBuilder for SymbolicAirBuilder<F> {}
-
-#[cfg(debug_assertions)]
-#[cfg(not(doctest))]
-impl<F: Field> EmptyMessageBuilder for slop_uni_stark::DebugConstraintBuilder<'_, F> {}

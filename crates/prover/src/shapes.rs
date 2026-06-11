@@ -709,11 +709,14 @@ pub fn create_all_input_shapes(
             for main_padding_cols in 1..=max_num_padding_cols {
                 for preprocessed_padding_cols in 1..=max_num_padding_cols {
                     for cluster in &core_shape.chip_clusters {
+                        // TODO(rkm): make this correct.
                         result.push(SP1RecursionProgramShape::Normalize(CoreProofShape {
                             shard_chips: cluster.clone(),
                             preprocessed_area: preprocessed_multiple << CORE_LOG_STACKING_HEIGHT,
+                            global_area: 0,
                             main_area: main_multiple << CORE_LOG_STACKING_HEIGHT,
                             preprocessed_padding_cols,
+                            global_padding_cols: 0,
                             main_padding_cols,
                         }));
                     }
@@ -789,11 +792,14 @@ pub fn create_test_shape(
     let num_padding_cols =
         ((1 << CORE_LOG_STACKING_HEIGHT) as usize).div_ceil(1 << CORE_MAX_LOG_ROW_COUNT);
     SP1NormalizeInputShape {
+        // TODO(rkm): make this correct.
         proof_shapes: vec![CoreProofShape {
             shard_chips: cluster.clone(),
             preprocessed_area: preprocessed_multiple << CORE_LOG_STACKING_HEIGHT,
+            global_area: 0,
             main_area: main_multiple << CORE_LOG_STACKING_HEIGHT,
             preprocessed_padding_cols: num_padding_cols,
+            global_padding_cols: 0,
             main_padding_cols: num_padding_cols,
         }],
         max_log_row_count: CORE_MAX_LOG_ROW_COUNT,

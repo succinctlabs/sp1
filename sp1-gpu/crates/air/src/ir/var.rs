@@ -26,6 +26,11 @@ impl DagVarF {
         DagVarF(id)
     }
 
+    pub fn global_local(col: u32) -> Self {
+        let id = with_state(|s| s.intern_leaf(TraceSource::GlobalLocal, col));
+        DagVarF(id)
+    }
+
     pub fn main_local(col: u32) -> Self {
         let id = with_state(|s| s.intern_leaf(TraceSource::MainLocal, col));
         DagVarF(id)

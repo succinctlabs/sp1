@@ -143,6 +143,9 @@ pub fn lower_sequential(
             DagNode::InputLeaf { source, col } => {
                 let src_byte = match source {
                     TraceSource::PreprocessedLocal => LEAF_SOURCE_PREPROCESSED_LOCAL,
+                    TraceSource::GlobalLocal => {
+                        panic!("Sequential lowering does not support global trace columns yet")
+                    }
                     TraceSource::MainLocal => LEAF_SOURCE_MAIN_LOCAL,
                 };
                 let leaf_idx = *leaf_of.entry((src_byte, col)).or_insert_with(|| {

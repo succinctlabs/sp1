@@ -230,11 +230,15 @@ impl PerChunkState {
     /// Look up the `page_idx` for a given `page_id`.
     #[inline]
     fn page_idx_of(&self, pid: u32) -> u32 {
+        assert!(
+            !self.lookup.is_empty(),
+            "PerChunkState lookup is empty — set_dirty_pages was not called before execution",
+        );
         let mut slot = (hash_u32(pid) & self.lookup_mask) as usize;
         let mask = self.lookup_mask as usize;
         loop {
             let e = unsafe { *self.lookup.get_unchecked(slot) };
-            debug_assert!(e != u64::MAX, "page_id {pid} not in dirty_pages — invariant violation");
+            assert!(e != u64::MAX, "page_id {pid} not in dirty_pages — invariant violation");
             if (e as u32) == pid {
                 return (e >> 32) as u32;
             }
@@ -538,9 +542,10 @@ impl SplicingVM<'_, SupervisorMode> {
                 CycleResult::Done(false) => {}
                 CycleResult::ShardBoundary | CycleResult::TraceEnd => {
                     let is_final = self.core.is_trace_end();
+                    // Refresh before snapshotting to let the register refresh happen.
+                    self.start_new_shard();
                     let registers = *self.core.registers();
                     self.per_chunk.finish_shard(is_final, &registers);
-                    self.start_new_shard();
                     return Ok(CycleResult::ShardBoundary);
                 }
                 CycleResult::Done(true) => {

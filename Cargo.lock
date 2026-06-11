@@ -4875,25 +4875,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "p3-uni-stark"
-version = "0.4.3-succinct"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc3dfdeba14d8db621c4e52dd63973384ff35f353fd750154ff88397f4ea5adf"
-dependencies = [
- "itertools 0.12.1",
- "p3-air",
- "p3-challenger",
- "p3-commit",
- "p3-dft",
- "p3-field",
- "p3-matrix",
- "p3-maybe-rayon",
- "p3-util",
- "serde",
- "tracing",
-]
-
-[[package]]
 name = "p3-util"
 version = "0.4.3-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6462,7 +6443,9 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 name = "slop-air"
 version = "6.3.1"
 dependencies = [
- "p3-air",
+ "serde",
+ "slop-algebra 6.3.1",
+ "slop-matrix",
 ]
 
 [[package]]
@@ -6929,7 +6912,9 @@ dependencies = [
 name = "slop-uni-stark"
 version = "6.3.1"
 dependencies = [
- "p3-uni-stark",
+ "slop-air",
+ "slop-algebra 6.3.1",
+ "slop-matrix",
 ]
 
 [[package]]

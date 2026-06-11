@@ -9,7 +9,7 @@ use crate::{
 
 /// The maximum trace area from padding with next multiple of 32.
 /// The correctness of this value is checked in the test `test_maximum_padding`.
-pub const MAXIMUM_PADDING_AREA: u64 = 1 << 18;
+pub const MAXIMUM_PADDING_AREA: u64 = 1 << 20;
 
 /// The maximum trace area from a single cycle.
 /// The correctness of this value is checked in the test `test_maximum_cycle`.

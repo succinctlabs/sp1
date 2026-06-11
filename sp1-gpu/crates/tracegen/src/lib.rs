@@ -322,7 +322,10 @@ where
             .device_main_tracegen(max_log_row_count, record, host_phase_tracegen, padded_traces)
             .await;
 
-        MainTraceData { traces, public_values, permit, shard_chips }
+        assert!(!self.machine().has_global_round());
+        let global_traces = Default::default();
+
+        MainTraceData { traces, global_traces, public_values, permit, shard_chips }
     }
 
     async fn generate_traces(
@@ -356,9 +359,18 @@ where
             )
         );
 
+        assert!(!self.machine().has_global_round());
+        let global_traces = Default::default();
+
         TraceData {
             preprocessed_traces,
-            main_trace_data: MainTraceData { traces, public_values, permit, shard_chips },
+            main_trace_data: MainTraceData {
+                traces,
+                global_traces,
+                public_values,
+                permit,
+                shard_chips,
+            },
         }
     }
 }

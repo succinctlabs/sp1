@@ -273,6 +273,7 @@ where
             } else {
                 None
             },
+            global_trace_evaluations: None,
         };
 
         // Observe the openings.
@@ -616,6 +617,8 @@ mod tests {
                 shard_chips,
                 &degrees,
                 CORE_MAX_LOG_ROW_COUNT as usize,
+                None,
+                None,
                 &proof,
                 &public_values,
                 &mut verifier_challenger,

@@ -37,6 +37,7 @@ impl<F: Field> From<PairCol> for PairColDevice<F> {
             PairCol::Preprocessed(column_idx) => {
                 Self { column_idx, is_preprocessed: true, weight: F::one() }
             }
+            PairCol::Global(_) => panic!("GPU LogUp-GKR does not support global trace columns yet"),
             PairCol::Main(column_idx) => {
                 Self { column_idx, is_preprocessed: false, weight: F::one() }
             }

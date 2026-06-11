@@ -6,13 +6,14 @@ use slop_matrix::dense::RowMajorMatrix;
 use slop_multilinear::{Mle, PaddedMle, Padding, Point};
 use std::{collections::BTreeMap, sync::Arc};
 
-use crate::{prover::Traces, Interaction};
+use crate::{air::InteractionScope, prover::Traces, Interaction};
 
 use super::{LogUpGkrCpuLayer, LogUpGkrOutput, LogupGkrCpuTraceGenerator};
 
 pub(crate) fn generate_interaction_vals<F: Field, EF: ExtensionField<F>>(
     interaction: &Interaction<F>,
     preprocessed_row: &[F],
+    global_row: &[F],
     main_row: &[F],
     is_send: bool,
     alpha: EF,
@@ -22,10 +23,10 @@ pub(crate) fn generate_interaction_vals<F: Field, EF: ExtensionField<F>>(
     let mut betas = betas.iter();
     denominator += *betas.next().unwrap() * EF::from_canonical_usize(interaction.argument_index());
     for (columns, beta) in interaction.values.iter().zip(betas) {
-        let apply = columns.apply::<F, F>(preprocessed_row, main_row);
+        let apply = columns.apply::<F, F>(preprocessed_row, global_row, main_row);
         denominator += *beta * apply;
     }
-    let mut mult = interaction.multiplicity.apply::<F, F>(preprocessed_row, main_row);
+    let mut mult = interaction.multiplicity.apply::<F, F>(preprocessed_row, global_row, main_row);
 
     if !is_send {
         mult = -mult;
@@ -114,109 +115,96 @@ impl<F: Field, EF: ExtensionField<F>, A> LogupGkrCpuTraceGenerator<F, EF, A> {
         &self,
         interactions: &BTreeMap<String, Vec<(&Interaction<F>, bool)>>,
         main_traces: &Traces<F, CpuBackend>,
+        global_traces: &Traces<F, CpuBackend>,
         preprocessed_traces: &Traces<F, CpuBackend>,
-        alpha: EF,
-        beta_seed: Point<EF>,
+        local_challenges: (EF, Point<EF>),
+        global_challenges: Option<(EF, Point<EF>)>,
     ) -> LogUpGkrCpuLayer<F, EF> {
-        let first_trace = main_traces.values().next().unwrap();
+        let first_trace = main_traces
+            .values()
+            .next()
+            .or_else(|| global_traces.values().next())
+            .expect("no traces in the shard");
         let num_row_variables = first_trace.num_variables();
 
         let mut numerator_0 = Vec::new();
         let mut denominator_0 = Vec::new();
         let mut numerator_1 = Vec::new();
         let mut denominator_1 = Vec::new();
+        let (alpha, beta_seed) = local_challenges;
         let betas = Mle::partial_lagrange(&beta_seed).guts().as_slice().to_vec();
+        // The global challenge pair, expanded; present iff the machine has a global round.
+        let global_alpha_betas = global_challenges.map(|(global_alpha, global_beta_seed)| {
+            (global_alpha, Mle::partial_lagrange(&global_beta_seed).guts().as_slice().to_vec())
+        });
         let mut total_interactions = 0;
         for (name, interactions) in interactions.iter() {
-            let main_trace = main_traces.get(name.as_str()).unwrap().clone();
-            let height = main_trace.num_real_entries();
+            let main_trace = main_traces.get(name.as_str()).cloned();
+            let global_trace = global_traces.get(name.as_str()).cloned();
+            let height = main_trace
+                .as_ref()
+                .or(global_trace.as_ref())
+                .expect("chip has neither main nor global columns")
+                .num_real_entries();
 
             let preprocessed_trace = preprocessed_traces.get(name.as_str()).cloned();
             let num_interactions = interactions.len();
+            if num_interactions == 0 {
+                continue;
+            }
             total_interactions += num_interactions;
             let mut numer_evals = vec![F::zero(); height * num_interactions];
             let mut denom_evals = vec![EF::one(); height * num_interactions];
 
-            // println!("preprocessed_trace: {:?}", preprocessed_trace.num_variables());
             if height > 0 {
-                match preprocessed_trace {
-                    Some(prep) => {
-                        numer_evals
-                            .par_chunks_exact_mut(num_interactions)
-                            .zip_eq(denom_evals.par_chunks_exact_mut(num_interactions))
-                            .zip_eq(
-                                prep.inner()
-                                    .as_ref()
-                                    .unwrap()
-                                    .guts()
-                                    .as_slice()
-                                    .par_chunks(prep.num_polynomials())
-                                    .zip(
-                                        main_trace
-                                            .inner()
-                                            .as_ref()
-                                            .unwrap()
-                                            .guts()
-                                            .as_slice()
-                                            .par_chunks(main_trace.num_polynomials()),
-                                    ),
-                            )
-                            .for_each(|((numer_evals, denom_evals), (prep_row, main_row))| {
-                                interactions
-                                    .iter()
-                                    .zip(numer_evals.iter_mut())
-                                    .zip(denom_evals.iter_mut())
-                                    .for_each(
-                                        |(((interaction, is_send), numer_eval), denom_eval)| {
-                                            let (numer, denom) = generate_interaction_vals(
-                                                interaction,
-                                                prep_row,
-                                                main_row,
-                                                *is_send,
-                                                alpha,
-                                                &betas,
-                                            );
-                                            *numer_eval = numer;
-                                            *denom_eval = denom;
-                                        },
-                                    );
+                // The values and width of present trace groups, each with `height` real rows.
+                let prep_parts = preprocessed_trace
+                    .as_ref()
+                    .map(|p| (p.inner().as_ref().unwrap().guts().as_slice(), p.num_polynomials()));
+                let main_parts = main_trace
+                    .as_ref()
+                    .map(|m| (m.inner().as_ref().unwrap().guts().as_slice(), m.num_polynomials()));
+                let global_parts = global_trace
+                    .as_ref()
+                    .map(|g| (g.inner().as_ref().unwrap().guts().as_slice(), g.num_polynomials()));
+
+                numer_evals
+                    .par_chunks_exact_mut(num_interactions)
+                    .zip_eq(denom_evals.par_chunks_exact_mut(num_interactions))
+                    .enumerate()
+                    .for_each(|(row, (numer_evals, denom_evals))| {
+                        let prep_row =
+                            prep_parts.map_or(&[][..], |(s, w)| &s[row * w..(row + 1) * w]);
+                        let global_row =
+                            global_parts.map_or(&[][..], |(s, w)| &s[row * w..(row + 1) * w]);
+                        let main_row =
+                            main_parts.map_or(&[][..], |(s, w)| &s[row * w..(row + 1) * w]);
+                        interactions
+                            .iter()
+                            .zip(numer_evals.iter_mut())
+                            .zip(denom_evals.iter_mut())
+                            .for_each(|(((interaction, is_send), numer_eval), denom_eval)| {
+                                // Select the challenge pair by the interaction's scope.
+                                let (alpha, betas) = match interaction.scope {
+                                    InteractionScope::Local => (alpha, betas.as_slice()),
+                                    InteractionScope::Global => global_alpha_betas
+                                        .as_ref()
+                                        .map(|(a, b)| (*a, b.as_slice()))
+                                        .unwrap(),
+                                };
+                                let (numer, denom) = generate_interaction_vals(
+                                    interaction,
+                                    prep_row,
+                                    global_row,
+                                    main_row,
+                                    *is_send,
+                                    alpha,
+                                    betas,
+                                );
+                                *numer_eval = numer;
+                                *denom_eval = denom;
                             });
-                    }
-                    None => {
-                        numer_evals
-                            .par_chunks_exact_mut(num_interactions)
-                            .zip_eq(denom_evals.par_chunks_exact_mut(num_interactions))
-                            .zip_eq(
-                                main_trace
-                                    .inner()
-                                    .as_ref()
-                                    .unwrap()
-                                    .guts()
-                                    .as_slice()
-                                    .par_chunks(main_trace.num_polynomials()),
-                            )
-                            .for_each(|((numer_evals, denom_evals), main_row)| {
-                                interactions
-                                    .iter()
-                                    .zip(numer_evals.iter_mut())
-                                    .zip(denom_evals.iter_mut())
-                                    .for_each(
-                                        |(((interaction, is_send), numer_eval), denom_eval)| {
-                                            let (numer, denom) = generate_interaction_vals(
-                                                interaction,
-                                                &[],
-                                                main_row,
-                                                *is_send,
-                                                alpha,
-                                                &betas,
-                                            );
-                                            *numer_eval = numer;
-                                            *denom_eval = denom;
-                                        },
-                                    );
-                            });
-                    }
-                }
+                    });
             }
 
             let numerator = RowMajorMatrix::new(numer_evals, num_interactions);
@@ -378,5 +366,205 @@ impl<F: Field, EF: ExtensionField<F>, A> LogupGkrCpuTraceGenerator<F, EF, A> {
             num_interaction_variables: layer.num_interaction_variables,
             num_row_variables: layer.num_row_variables - 1,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use slop_air::{PairCol, VirtualPairCol};
+    use slop_algebra::{extension::BinomialExtensionField, AbstractExtensionField, AbstractField};
+    use sp1_primitives::SP1Field;
+
+    use crate::{air::InteractionScope, GkrCircuitLayer, InteractionKind};
+
+    use super::*;
+
+    type F = SP1Field;
+    type EF = BinomialExtensionField<SP1Field, 4>;
+
+    fn padded_trace(rows: Vec<Vec<u32>>, width: usize, num_variables: u32) -> PaddedMle<F> {
+        let values = rows
+            .into_iter()
+            .flat_map(|row| {
+                assert_eq!(row.len(), width);
+                row.into_iter().map(F::from_canonical_u32)
+            })
+            .collect::<Vec<_>>();
+        let mle = Mle::from(RowMajorMatrix::new(values, width));
+        PaddedMle::padded_with_zeros(Arc::new(mle), num_variables)
+    }
+
+    /// Pins the output-layer slot layout used by `cumulative_sums_by_scope`: slots `2j, 2j + 1`
+    /// of the circuit output belong to flat interaction `j` (chips in name order, sends then
+    /// receives, interaction-free chips skipped), and each interaction's two slots sum to its
+    /// total fraction over the trace rows, fingerprinted with the challenge pair of its scope.
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn test_output_layer_scope_split() {
+        let num_variables = 3;
+
+        // Chip "A": preprocessed width 1, global width 1, main width 2, 3 real rows.
+        let a_main = padded_trace(vec![vec![1, 2], vec![3, 4], vec![5, 6]], 2, num_variables);
+        let a_global = padded_trace(vec![vec![7], vec![8], vec![9]], 1, num_variables);
+        let a_prep = padded_trace(vec![vec![10], vec![11], vec![12]], 1, num_variables);
+        // Chip "B": global-only (no main trace), global width 2, 5 real rows.
+        let b_global = padded_trace(
+            vec![vec![1, 1], vec![2, 3], vec![4, 5], vec![6, 7], vec![8, 9]],
+            2,
+            num_variables,
+        );
+        // Chip "C": main width 1, no interactions — contributes no output slots.
+        let c_main = padded_trace(vec![vec![17]], 1, num_variables);
+
+        let main_traces = Traces {
+            named_traces: BTreeMap::from([("A".to_string(), a_main), ("C".to_string(), c_main)]),
+        };
+        let global_traces = Traces {
+            named_traces: BTreeMap::from([
+                ("A".to_string(), a_global),
+                ("B".to_string(), b_global),
+            ]),
+        };
+        let preprocessed_traces =
+            Traces { named_traces: BTreeMap::from([("A".to_string(), a_prep)]) };
+
+        // Chip "A" sends: one Local, one Global; receives: one Local.
+        let a_send_local = Interaction::new(
+            vec![VirtualPairCol::single_main(0)],
+            VirtualPairCol::single_main(1),
+            InteractionKind::Byte,
+            InteractionScope::Local,
+        );
+        let a_send_global = Interaction::new(
+            vec![VirtualPairCol::single(PairCol::Global(0))],
+            VirtualPairCol::single(PairCol::Global(0)),
+            InteractionKind::Memory,
+            InteractionScope::Global,
+        );
+        let a_receive_local = Interaction::new(
+            vec![VirtualPairCol::new(
+                vec![(PairCol::Preprocessed(0), F::one()), (PairCol::Main(1), F::one())],
+                F::zero(),
+            )],
+            VirtualPairCol::one(),
+            InteractionKind::Byte,
+            InteractionScope::Local,
+        );
+        // Chip "B" sends: one Local-scope interaction referencing global columns (the
+        // `MemoryLocal` pattern); receives: one Global.
+        let b_send_local = Interaction::new(
+            vec![VirtualPairCol::single(PairCol::Global(1))],
+            VirtualPairCol::one(),
+            InteractionKind::Byte,
+            InteractionScope::Local,
+        );
+        let b_receive_global = Interaction::new(
+            vec![VirtualPairCol::single(PairCol::Global(0))],
+            VirtualPairCol::single(PairCol::Global(1)),
+            InteractionKind::Memory,
+            InteractionScope::Global,
+        );
+
+        let interactions = BTreeMap::from([
+            (
+                "A".to_string(),
+                vec![(&a_send_local, true), (&a_send_global, true), (&a_receive_local, false)],
+            ),
+            ("B".to_string(), vec![(&b_send_local, true), (&b_receive_global, false)]),
+            ("C".to_string(), vec![]),
+        ]);
+
+        let alpha = EF::from_canonical_u32(3);
+        let beta_seed = Point::from(vec![EF::from_canonical_u32(5)]);
+        let global_alpha = EF::from_canonical_u32(11);
+        let global_beta_seed = Point::from(vec![EF::from_canonical_u32(13)]);
+
+        // Build the circuit output through the production path: first layer, transitions down
+        // to one row variable, output extraction.
+        let generator = LogupGkrCpuTraceGenerator::<F, EF, ()>::default();
+        let first_layer = generator.generate_first_layer(
+            &interactions,
+            &main_traces,
+            &global_traces,
+            &preprocessed_traces,
+            (alpha, beta_seed.clone()),
+            Some((global_alpha, global_beta_seed.clone())),
+        );
+        let mut layer = GkrCircuitLayer::FirstLayer(first_layer);
+        let last_layer = loop {
+            let next = match &layer {
+                GkrCircuitLayer::FirstLayer(layer) => generator.layer_transition(layer),
+                GkrCircuitLayer::Layer(layer) => generator.layer_transition(layer),
+            };
+            if next.num_row_variables == 1 {
+                break next;
+            }
+            layer = GkrCircuitLayer::Layer(next);
+        };
+        let output = generator.extract_outputs(&last_layer);
+
+        // Compute each interaction's expected total fraction directly from the trace rows,
+        // selecting the challenge pair by scope.
+        let betas = Mle::partial_lagrange(&beta_seed).guts().as_slice().to_vec();
+        let global_betas = Mle::partial_lagrange(&global_beta_seed).guts().as_slice().to_vec();
+        let row = |trace: &Traces<F, CpuBackend>, name: &str, r: usize| -> Vec<F> {
+            trace.get(name).map_or_else(Vec::new, |t| {
+                let width = t.num_polynomials();
+                t.inner().as_ref().unwrap().guts().as_slice()[r * width..(r + 1) * width].to_vec()
+            })
+        };
+        let mut expected_local = EF::zero();
+        let mut expected_global = EF::zero();
+        let mut scopes = Vec::new();
+        for (name, interactions) in &interactions {
+            let height = main_traces
+                .get(name)
+                .or_else(|| global_traces.get(name))
+                .unwrap()
+                .num_real_entries();
+            for (interaction, is_send) in interactions {
+                scopes.push(interaction.scope);
+                let (alpha, betas) = match interaction.scope {
+                    InteractionScope::Local => (alpha, betas.as_slice()),
+                    InteractionScope::Global => (global_alpha, global_betas.as_slice()),
+                };
+                let mut total = EF::zero();
+                for r in 0..height {
+                    let (numer, denom) = generate_interaction_vals(
+                        interaction,
+                        &row(&preprocessed_traces, name, r),
+                        &row(&global_traces, name, r),
+                        &row(&main_traces, name, r),
+                        *is_send,
+                        alpha,
+                        betas,
+                    );
+                    total += EF::from_base(numer) / denom;
+                }
+                match interaction.scope {
+                    InteractionScope::Local => expected_local += total,
+                    InteractionScope::Global => expected_global += total,
+                }
+            }
+        }
+        assert_eq!(scopes.len(), 5);
+        assert!(!expected_local.is_zero());
+        assert!(!expected_global.is_zero());
+
+        let (local_sum, global_sum) = output.cumulative_sums_by_scope(&scopes);
+        assert_eq!(local_sum, expected_local);
+        assert_eq!(global_sum, expected_global);
+
+        // The split sums account for the entire output layer: the padding slots are exactly
+        // (numerator zero, denominator one).
+        let total_sum = output
+            .numerator
+            .guts()
+            .as_slice()
+            .iter()
+            .zip(output.denominator.guts().as_slice().iter())
+            .map(|(n, d)| *n / *d)
+            .sum::<EF>();
+        assert_eq!(total_sum, local_sum + global_sum);
     }
 }

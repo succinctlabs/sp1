@@ -29,8 +29,10 @@ pub struct ZeroCheckPoly<K, F, EF, A> {
     pub zeta: Point<EF>,
     /// The preprocessed trace.
     pub preprocessed_columns: Option<PaddedMle<K>>,
+    /// The global trace.
+    pub global_columns: Option<PaddedMle<K>>,
     /// The main trace.
-    pub main_columns: PaddedMle<K>,
+    pub main_columns: Option<PaddedMle<K>>,
     /// The adjustment factor from the constant part of the eq polynomial.
     pub eq_adjustment: EF,
     ///  The geq polynomial value.  This will be 0 for all zerocheck polys that are at least one
@@ -55,7 +57,8 @@ impl<K: Field, F: Field, EF: ExtensionField<F>, AirData> ZeroCheckPoly<K, F, EF,
         air_data: ZerocheckCpuProver<F, EF, AirData>,
         zeta: Point<EF>,
         preprocessed_values: Option<PaddedMle<K>>,
-        main_values: PaddedMle<K>,
+        global_values: Option<PaddedMle<K>>,
+        main_values: Option<PaddedMle<K>>,
         eq_adjustment: EF,
         geq_value: EF,
         padded_row_adjustment: EF,
@@ -65,6 +68,7 @@ impl<K: Field, F: Field, EF: ExtensionField<F>, AirData> ZeroCheckPoly<K, F, EF,
             air_data,
             zeta,
             preprocessed_columns: preprocessed_values,
+            global_columns: global_values,
             main_columns: main_values,
             eq_adjustment,
             geq_value,
@@ -74,13 +78,31 @@ impl<K: Field, F: Field, EF: ExtensionField<F>, AirData> ZeroCheckPoly<K, F, EF,
     }
 }
 
+impl<K: Field, F, EF, AirData> ZeroCheckPoly<K, F, EF, AirData> {
+    /// The trace group that determines the chip height.
+    #[inline]
+    pub fn height_columns(&self) -> &PaddedMle<K> {
+        self.main_columns
+            .as_ref()
+            .or(self.global_columns.as_ref())
+            .expect("chip has neither main nor global columns")
+    }
+
+    /// The number of real (non-padded) rows of the chip.
+    #[inline]
+    #[must_use]
+    pub fn num_real_entries(&self) -> usize {
+        self.height_columns().num_real_entries()
+    }
+}
+
 impl<K: Field, F: Field, EF, AirData> SumcheckPolyBase for ZeroCheckPoly<K, F, EF, AirData>
 where
     K: Field,
 {
     #[inline]
     fn num_variables(&self) -> u32 {
-        self.main_columns.num_variables()
+        self.height_columns().num_variables()
     }
 }
 
@@ -95,23 +117,16 @@ where
     fn get_component_poly_evals(poly: &ZeroCheckPoly<K, F, EF, AirData>) -> Vec<EF> {
         assert_eq!(poly.num_variables(), 0);
 
-        let prep_columns = poly.preprocessed_columns.as_ref();
-        // First get the preprocessed values.
-        let prep_evals = if let Some(preprocessed_values) = prep_columns {
-            preprocessed_values.inner().as_ref().unwrap().guts().as_slice()
-        } else {
-            &[]
-        };
+        let prep_evals = group_evals(poly.preprocessed_columns.as_ref());
+        let global_evals = group_evals(poly.global_columns.as_ref());
+        let main_evals = group_evals(poly.main_columns.as_ref());
 
-        let main_evals = poly
-            .main_columns
-            .inner()
-            .as_ref()
-            .map(|mle| mle.guts().as_slice().to_vec())
-            .unwrap_or(vec![K::zero(); poly.main_columns.num_polynomials()]);
-
-        // Add the main values.
-        prep_evals.iter().copied().chain(main_evals).map(Into::into).collect::<Vec<_>>()
+        prep_evals
+            .into_iter()
+            .chain(global_evals)
+            .chain(main_evals)
+            .map(Into::into)
+            .collect::<Vec<_>>()
     }
 }
 
@@ -170,13 +185,23 @@ where
     }
 }
 
-impl<K, F, EF, AirData> HasBackend for ZeroCheckPoly<K, F, EF, AirData> {
+impl<K: Field, F, EF, AirData> HasBackend for ZeroCheckPoly<K, F, EF, AirData> {
     type Backend = CpuBackend;
 
     #[inline]
     fn backend(&self) -> &Self::Backend {
-        self.main_columns.backend()
+        self.height_columns().backend()
     }
+}
+
+/// The evaluations of a fully-fixed trace group.
+fn group_evals<K: Field>(columns: Option<&PaddedMle<K>>) -> Vec<K> {
+    columns.map_or_else(Vec::new, |mle| {
+        mle.inner().as_ref().map_or_else(
+            || vec![K::zero(); mle.num_polynomials()],
+            |inner| inner.guts().as_slice().to_vec(),
+        )
+    })
 }
 
 /// An AIR compatible with the standard zerocheck prover.

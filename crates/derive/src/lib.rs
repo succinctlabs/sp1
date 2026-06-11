@@ -203,6 +203,27 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                 }
             });
 
+            let global_width_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as sp1_hypercube::air::MachineAir<F>>::global_width(x)
+                }
+            });
+
+            let generate_global_trace_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as sp1_hypercube::air::MachineAir<F>>::generate_global_trace(x, input, output)
+                }
+            });
+
+            let generate_global_trace_into_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as sp1_hypercube::air::MachineAir<F>>::generate_global_trace_into(x, input, output, buffer)
+                }
+            });
+
             let generate_dependencies_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
@@ -294,6 +315,33 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                         }
                     }
 
+                    fn global_width(&self) -> usize {
+                        match self {
+                            #(#global_width_arms,)*
+                        }
+                    }
+
+                    fn generate_global_trace(
+                        &self,
+                        input: &#execution_record_path,
+                        output: &mut #execution_record_path,
+                    ) -> Option<slop_matrix::dense::RowMajorMatrix<F>> {
+                        match self {
+                            #(#generate_global_trace_arms,)*
+                        }
+                    }
+
+                    fn generate_global_trace_into(
+                        &self,
+                        input: &#execution_record_path,
+                        output: &mut #execution_record_path,
+                        buffer: &mut [MaybeUninit<F>],
+                    ){
+                        match self {
+                            #(#generate_global_trace_into_arms,)*
+                        }
+                    }
+
                     fn generate_dependencies(
                         &self,
                         input: &#execution_record_path,
@@ -328,9 +376,9 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
             // Attach an extra generic AB : crate::air::SP1AirBuilder to the generics of the enum
             let generics = &ast.generics;
             let mut new_generics = generics.clone();
-            new_generics
-                .params
-                .push(syn::parse_quote! { AB: slop_air::PairBuilder + #builder_path });
+            new_generics.params.push(
+                syn::parse_quote! { AB: slop_air::PairBuilder + slop_air::GlobalBuilder + #builder_path },
+            );
 
             let (air_impl_generics, _, _) = new_generics.split_for_impl();
 
