@@ -85,5 +85,5 @@ pub(crate) const DEFAULT_TIMEOUT_SECS: u64 = 14400;
 /// Default buffer applied to the server-supplied `max_price_per_pgu` default, expressed
 /// as a percentage. `120` = `1.20x`. The headroom absorbs short-term price volatility
 /// between quote and settlement so requests stay fillable. Callers can override
-/// per-request via [`builder::NetworkProveBuilder::max_price_buffer_pct`].
-pub const DEFAULT_MAX_PRICE_BUFFER_PCT: u64 = 120;
+/// per-request via [`builder::NetworkProveBuilder::max_price_per_pgu_buffer`].
+pub const DEFAULT_MAX_PRICE_PER_PGU_BUFFER: u64 = 120;
