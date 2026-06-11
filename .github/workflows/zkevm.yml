@@ -1,0 +1,65 @@
+name: ZKEVM
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "zkevm/**"
+      - "crates/zkvm/**"
+      - "crates/build/**"
+      - ".github/workflows/zkevm.yml"
+  pull_request:
+    branches:
+      - "**"
+    paths:
+      - "zkevm/**"
+      - "crates/zkvm/**"
+      - "crates/build/**"
+      - ".github/workflows/zkevm.yml"
+  merge_group:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  conformance:
+    name: SDK build + executor conformance
+    runs-on:
+      [
+        runs-on,
+        runner=64cpu-linux-x64,
+        spot=false,
+        disk=large,
+        "run-id=${{ github.run_id }}",
+      ]
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v6
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+
+      - name: Install SP1 toolchain from repo
+        run: cargo run -p sp1-cli --no-default-features -- prove install-toolchain
+
+      # Builds libzkevm-cabi for the riscv target and assembles sdk/
+      # (libzkevm.a + zkvm.ld + headers) — the artifact C guests link.
+      - name: Build SDK staticlib
+        run: make -C zkevm sdk
+
+      # Runs the full official vector suites (geth precompile testdata,
+      # Wycheproof sample) through the accelerator C ABI inside the SP1
+      # executor — i.e. over the real syscall paths. Host-side (software
+      # fallback) coverage of the same suites runs in pr.yml via
+      # `cargo test -p libzkevm`.
+      - name: Run executor conformance
+        working-directory: zkevm/examples
+        run: cargo run --release -p conformance-script --bin conformance-execute
+        env:
+          RUST_LOG: info
+          RUST_BACKTRACE: 1

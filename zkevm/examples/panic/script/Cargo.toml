@@ -1,0 +1,22 @@
+[package]
+name = "panic-script"
+description = "Host driver for the panic guest: runs both the success path (flag=0) and the panic path (flag=1) to demonstrate failed-termination semantics."
+version = { workspace = true }
+edition = { workspace = true }
+publish = false
+
+[[bin]]
+name = "panic-execute"
+path = "src/execute.rs"
+
+[[bin]]
+name = "panic-prove"
+path = "src/prove.rs"
+
+[dependencies]
+sp1-sdk = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[build-dependencies]
+sp1-build = { workspace = true }

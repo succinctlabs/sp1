@@ -1,0 +1,13 @@
+[package]
+name = "fibonacci"
+version = { workspace = true }
+edition = { workspace = true }
+publish = false
+description = "Arithmetic + IO showcase: reads u32 n, computes fib(n) % 7919, writes the result."
+
+[[bin]]
+name = "fibonacci"
+path = "src/main.rs"
+
+[dependencies]
+libzkevm = { workspace = true }
