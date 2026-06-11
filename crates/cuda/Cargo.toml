@@ -30,8 +30,7 @@ tokio = { workspace = true, features = [
 ] }
 tracing = { workspace = true }
 thiserror = { workspace = true }
-reqwest = { workspace = true, features = ["rustls-tls", "json"] }
-serde_json = { workspace = true }
+reqwest = { workspace = true, features = ["rustls", "json"] }
 bytes = { workspace = true }
 
 [dev-dependencies]

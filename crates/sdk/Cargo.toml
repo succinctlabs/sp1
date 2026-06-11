@@ -13,12 +13,11 @@ rust-version = { workspace = true }
 [dependencies]
 prost = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
-twirp = { workspace = true, optional = true }
 async-trait = { workspace = true }
 reqwest-middleware = { workspace = true, optional = true }
 reqwest = { workspace = true, features = [
-  "rustls-tls",
-  "trust-dns",
+  "rustls",
+  "hickory-dns",
   "stream",
   "json",
 ], optional = true }
@@ -39,13 +38,10 @@ tokio = { workspace = true, features = [
   "time",
   "rt-multi-thread",
 ] }
-indicatif = { workspace = true }
 tracing = { workspace = true }
 hex = { workspace = true }
-dirs = { workspace = true }
 tempfile = { workspace = true }
 cfg-if = { workspace = true }
-strum = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 sp1-core-executor = { workspace = true }
 sp1-core-executor-runner = { workspace = true }
@@ -68,7 +64,6 @@ alloy-primitives = { workspace = true, features = [
 backoff = { workspace = true, features = ["tokio"], optional = true }
 zstd = { workspace = true, optional = true }
 num-bigint = { workspace = true }
-sha2 = { workspace = true }
 # TEE Dependencies
 k256 = { workspace = true, features = ["serde"] } # Signing
 eventsource-stream = { workspace = true }         # SSE Extenstion for reqwest
@@ -102,7 +97,6 @@ network = [
   "dep:alloy-signer-local",
   "dep:alloy-primitives",
   "dep:reqwest",
-  "dep:twirp",
   "dep:reqwest-middleware",
   "dep:tonic",
   "dep:backoff",
