@@ -1,3 +1,4 @@
+use crate::utils::pad_rows_core;
 use crate::{
     adapter::{
         register::i_type::{ITypeReader, ITypeReaderImmutable, ITypeReaderImmutableInput},
@@ -7,7 +8,6 @@ use crate::{
     eval_untrusted_program,
     memory::MemoryAccessCols,
     operations::{AddressOperation, AddressOperationInput},
-    utils::next_multiple_of_32,
     SupervisorMode, TrustMode, UserMode,
 };
 use hashbrown::HashMap;
@@ -94,10 +94,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for StoreWordChip<M> {
         if input.program.enable_untrusted_programs == M::IS_TRUSTED {
             return Some(0);
         }
-        let nb_rows = next_multiple_of_32(
-            input.memory_store_word_events.len(),
-            input.fixed_log2_rows::<F, _>(self),
-        );
+        let nb_rows = pad_rows_core(input.memory_store_word_events.len());
         Some(nb_rows)
     }
 

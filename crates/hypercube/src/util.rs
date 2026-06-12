@@ -38,7 +38,7 @@ pub const fn indices_arr<const N: usize>() -> [usize; N] {
 pub fn pad_rows_fixed<R: Clone>(rows: &mut Vec<R>, row_fn: impl Fn() -> R, height: Option<usize>) {
     let nb_rows = rows.len();
     let dummy_row = row_fn();
-    rows.resize(next_multiple_of_32(nb_rows, height), dummy_row);
+    rows.resize(pad_rows_recursion(nb_rows, height), dummy_row);
 }
 
 /// Returns the internal value of the option if it is set, otherwise returns the next multiple of
@@ -47,15 +47,22 @@ pub fn pad_rows_fixed<R: Clone>(rows: &mut Vec<R>, row_fn: impl Fn() -> R, heigh
 #[inline]
 #[allow(clippy::uninlined_format_args)]
 #[must_use]
-pub fn next_multiple_of_32(n: usize, fixed_height: Option<usize>) -> usize {
+pub fn pad_rows_recursion(n: usize, fixed_height: Option<usize>) -> usize {
     if let Some(height) = fixed_height {
         if n > height {
             panic!("fixed height is too small: got height {} for number of rows {}", height, n);
         }
         height
     } else {
-        n.next_multiple_of(32).max(16)
+        pad_rows_core(n)
     }
+}
+
+/// Pad a core chip's row count up to the next multiple of 32, with a minimum of 16.
+#[inline]
+#[must_use]
+pub fn pad_rows_core(n: usize) -> usize {
+    n.next_multiple_of(32).max(16)
 }
 
 /// Returns a 48-bit address as three u16 limbs.
