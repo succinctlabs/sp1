@@ -115,7 +115,7 @@ impl Groth16Verifier {
             .try_into()
             .map_err(|_| Groth16Error::GeneralError(Error::InvalidData))?;
 
-        if vk_root != *VK_ROOT_BYTES {
+        if vk_root != VK_ROOT_BYTES {
             return Err(Groth16Error::VkeyRootMismatch);
         }
 

@@ -121,7 +121,7 @@ impl PlonkVerifier {
             .try_into()
             .map_err(|_| PlonkError::GeneralError(Error::InvalidData))?;
 
-        if vk_root != *VK_ROOT_BYTES {
+        if vk_root != VK_ROOT_BYTES {
             return Err(PlonkError::VkeyRootMismatch);
         }
 
