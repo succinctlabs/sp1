@@ -18,8 +18,9 @@ use crate::{
         signer::NetworkSigner,
         tee::{client::Client as TeeClient, verify_tee_proof},
         Error, NetworkMode, DEFAULT_AUCTION_TIMEOUT_DURATION, DEFAULT_GAS_LIMIT,
-        DEFAULT_MAX_PRICE_BUFFER_PCT, MAINNET_EXPLORER_URL, MAINNET_RPC_URL, PRIVATE_EXPLORER_URL,
-        PRIVATE_NETWORK_RPC_URL, RESERVED_EXPLORER_URL, RESERVED_RPC_URL, TEE_NETWORK_RPC_URL,
+        DEFAULT_MAX_PRICE_PER_PGU_BUFFER, MAINNET_EXPLORER_URL, MAINNET_RPC_URL,
+        PRIVATE_EXPLORER_URL, PRIVATE_NETWORK_RPC_URL, RESERVED_EXPLORER_URL, RESERVED_RPC_URL,
+        TEE_NETWORK_RPC_URL,
     },
     prover::{verify_proof, BaseProveRequest, SendFutureResult},
     ProofFromNetwork, Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey,
@@ -100,7 +101,7 @@ impl Prover for NetworkProver {
             verifier: None,
             treasury: None,
             max_price_per_pgu: None,
-            max_price_buffer_pct: None,
+            max_price_per_pgu_buffer: None,
             auction_timeout: None,
             private_stdin: false,
         }
@@ -603,7 +604,7 @@ impl NetworkProver {
         verifier: Option<Address>,
         treasury: Option<Address>,
         max_price_per_pgu: Option<u64>,
-        max_price_buffer_pct: Option<u64>,
+        max_price_per_pgu_buffer: Option<u64>,
         private_stdin: bool,
     ) -> Result<B256> {
         let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
@@ -618,7 +619,7 @@ impl NetworkProver {
                 verifier,
                 treasury,
                 max_price_per_pgu,
-                max_price_buffer_pct,
+                max_price_per_pgu_buffer,
             )
             .await?;
 
@@ -664,7 +665,7 @@ impl NetworkProver {
         verifier: Option<Address>,
         treasury: Option<Address>,
         max_price_per_pgu: Option<u64>,
-        max_price_buffer_pct: Option<u64>,
+        max_price_per_pgu_buffer: Option<u64>,
         auction_timeout: Option<Duration>,
         private_stdin: bool,
     ) -> Result<SP1ProofWithPublicValues> {
@@ -691,7 +692,7 @@ impl NetworkProver {
                     verifier,
                     treasury,
                     max_price_per_pgu,
-                    max_price_buffer_pct,
+                    max_price_per_pgu_buffer,
                     private_stdin,
                 )
                 .await?;
@@ -862,7 +863,7 @@ impl NetworkProver {
         verifier: Option<Address>,
         treasury: Option<Address>,
         max_price_per_pgu: Option<u64>,
-        max_price_buffer_pct: Option<u64>,
+        max_price_per_pgu_buffer: Option<u64>,
     ) -> Result<(Address, Address, Address, Address, u64, u64, Vec<u8>)> {
         match self.network_mode {
             NetworkMode::Mainnet => {
@@ -900,7 +901,7 @@ impl NetworkProver {
                                     )
                                 },
                             )?;
-                            let pct = max_price_buffer_pct.unwrap_or(DEFAULT_MAX_PRICE_BUFFER_PCT);
+                            let pct = max_price_per_pgu_buffer.unwrap_or(DEFAULT_MAX_PRICE_PER_PGU_BUFFER);
                             let buffered = buffer_max_price_per_pgu(base, pct);
                             // Align to the network's auction tick when advertised. `tick_size == 0`
                             // means an older RPC that predates the field — leave the value as-is so
