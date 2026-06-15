@@ -71,6 +71,7 @@ pub(crate) struct CompiledChip {
     pub name: String,
     pub main_width: u32,
     pub prep_width: u32,
+    pub global_width: u32,
     pub chunks: Vec<CompiledChunk>,
 }
 
@@ -175,12 +176,14 @@ where
         // `gkr_active_chips` in `initialize_zerocheck_poly`.
         let main_width = air.width() as u32;
         let prep_width = air.preprocessed_width() as u32;
+        let global_width = air.global_width() as u32;
         if let Some(carrier_bc) = compiled_chunks.iter_mut().find_map(|c| match c {
             CompiledChunk::Sequential(bc) => Some(bc),
             _ => None,
         }) {
             carrier_bc.gkr_main_width = main_width;
             carrier_bc.gkr_prep_width = prep_width;
+            carrier_bc.gkr_global_width = global_width;
         }
 
         out.push(CompiledChip {
@@ -188,6 +191,7 @@ where
             name: air.name().to_string(),
             main_width,
             prep_width,
+            global_width,
             chunks: compiled_chunks,
         });
     }
@@ -227,6 +231,8 @@ pub struct ChunkStaticC {
     /// GKR via `zerocheck_gkr_sweep` and have these zeroed here.
     pub gkr_main_width: u32,
     pub gkr_prep_width: u32,
+    /// Carrier-chunk inline-GKR global width.
+    pub gkr_global_width: u32,
     /// Cluster-dependent shift added to every chip-relative alpha index in
     /// this chunk's bytecode before indexing `powers_of_alpha`.
     pub chip_alpha_offset: u32,
@@ -240,6 +246,7 @@ pub struct ChunkStaticC {
 pub(crate) struct ChipGkrInfoC {
     pub main_width: u32,
     pub prep_width: u32,
+    pub global_width: u32,
 }
 
 // SAFETY: holds raw device pointers; the kernel dereferences them on the GPU
@@ -257,6 +264,7 @@ unsafe impl Sync for ChunkStaticC {}
 pub struct ChipLayoutC {
     pub main_ptr: u64,
     pub preprocessed_ptr: u64,
+    pub global_ptr: u64,
     pub height: u32,
     pub _pad: u32,
 }
@@ -302,8 +310,10 @@ pub struct VirtualGeqStateC {
 pub struct ChipColumnLayoutEntry {
     pub prep_col_idx: u32,
     pub main_col_idx: u32,
+    pub global_col_idx: u32,
     pub prep_width: u32,
     pub main_width: u32,
+    pub global_width: u32,
 }
 
 /// Per-shard structural tracker of `column_heights` — captures the small
@@ -331,19 +341,23 @@ pub struct ChipColumnLayoutEntry {
 /// truth for everything the *host* needs (input_length, new_total_length,
 /// chip_heights for dispatch building).
 pub struct ShardLayoutTracker {
-    /// Per-chip prep / main pair heights. Either may be zero (chip has no
-    /// prep or no main cols). Indexed by `chip_idx`.
+    /// Per-chip prep / global / main pair heights. Any may be zero (chip has
+    /// no prep / no global / no main cols). Indexed by `chip_idx`.
     pub chip_prep_h_pair: Vec<u32>,
+    pub chip_global_h_pair: Vec<u32>,
     pub chip_main_h_pair: Vec<u32>,
-    /// Padding columns between the chip prep and chip main sections.
+    /// Padding columns between the chip prep and chip global sections.
     /// Typically one entry; the structural tracker handles arbitrary
     /// counts to match the real tracegen path's "fill to next
     /// stacking-multiple" loop.
     pub prep_padding_h_pair: Vec<u32>,
+    /// Padding columns between the chip global and chip main sections.
+    pub global_padding_h_pair: Vec<u32>,
     /// Padding columns at the tail of the main section. Often empty.
     pub main_padding_h_pair: Vec<u32>,
     /// Shard-static chip widths, indexed by chip_idx.
     pub chip_prep_w: Vec<u32>,
+    pub chip_global_w: Vec<u32>,
     pub chip_main_w: Vec<u32>,
 }
 
@@ -357,8 +371,10 @@ impl ShardLayoutTracker {
         for h in self
             .chip_prep_h_pair
             .iter_mut()
+            .chain(self.chip_global_h_pair.iter_mut())
             .chain(self.chip_main_h_pair.iter_mut())
             .chain(self.prep_padding_h_pair.iter_mut())
+            .chain(self.global_padding_h_pair.iter_mut())
             .chain(self.main_padding_h_pair.iter_mut())
         {
             *h = h.div_ceil(4) * 2;
@@ -370,31 +386,30 @@ impl ShardLayoutTracker {
     /// invariants above.
     #[inline]
     pub fn total_length_pair(&self) -> u32 {
-        let chip_sum: u32 = self
-            .chip_prep_w
-            .iter()
-            .zip(self.chip_prep_h_pair.iter())
-            .map(|(w, h)| w * h)
-            .sum::<u32>()
-            + self
-                .chip_main_w
-                .iter()
-                .zip(self.chip_main_h_pair.iter())
-                .map(|(w, h)| w * h)
-                .sum::<u32>();
+        let section_sum = |w: &[u32], h: &[u32]| -> u32 {
+            w.iter().zip(h.iter()).map(|(w, h)| w * h).sum::<u32>()
+        };
+        let chip_sum: u32 = section_sum(&self.chip_prep_w, &self.chip_prep_h_pair)
+            + section_sum(&self.chip_global_w, &self.chip_global_h_pair)
+            + section_sum(&self.chip_main_w, &self.chip_main_h_pair);
         let padding_sum: u32 = self.prep_padding_h_pair.iter().sum::<u32>()
+            + self.global_padding_h_pair.iter().sum::<u32>()
             + self.main_padding_h_pair.iter().sum::<u32>();
         chip_sum + padding_sum
     }
 
     /// Per-chip *chip-row* height in element units, used by host-side
     /// dispatch builders. Returns the main height if the chip has main
-    /// cols, else the prep height, else 0 — matches every per-chip
-    /// kernel's row-count convention.
+    /// cols, else the global height, else the prep height, else 0 — matches
+    /// every per-chip kernel's row-count convention and the device
+    /// chip-layouts kernel's height sourcing (a `width()==0` global chip
+    /// like `MemoryLocal` is sized from its global section).
     #[inline]
     pub fn chip_height_elements(&self, chip_idx: usize) -> u32 {
         if self.chip_main_w[chip_idx] > 0 {
             self.chip_main_h_pair[chip_idx] * 2
+        } else if self.chip_global_w[chip_idx] > 0 {
+            self.chip_global_h_pair[chip_idx] * 2
         } else if self.chip_prep_w[chip_idx] > 0 {
             self.chip_prep_h_pair[chip_idx] * 2
         } else {
@@ -427,6 +442,7 @@ pub(crate) struct ChunkDeviceBufs {
     /// column reads with the constraint bytecode.
     pub gkr_main_width: u32,
     pub gkr_prep_width: u32,
+    pub gkr_global_width: u32,
     // ColumnTile-only (dummy-but-valid pointer + zero count for Sequential)
     pub terms: *const sp1_gpu_air::ir::ColumnTermEntry,
     pub n_terms: u32,
@@ -444,6 +460,7 @@ pub(crate) struct CompiledChipDevice {
     pub chip_idx: u32,
     pub main_width: u32,
     pub prep_width: u32,
+    pub global_width: u32,
     pub chunks: Vec<ChunkDeviceBufs>,
 }
 
@@ -522,6 +539,7 @@ pub(crate) fn upload_compiled_bytecode(
         max_reg: u16,
         gkr_main_width: u32,
         gkr_prep_width: u32,
+        gkr_global_width: u32,
     }
     let mut chip_offsets: Vec<Vec<ChunkOffsets>> = Vec::with_capacity(compiled.len());
 
@@ -551,6 +569,7 @@ pub(crate) fn upload_compiled_bytecode(
                         max_reg: bc.max_reg,
                         gkr_main_width: bc.gkr_main_width,
                         gkr_prep_width: bc.gkr_prep_width,
+                        gkr_global_width: bc.gkr_global_width,
                     }
                 }
                 CompiledChunk::ColumnTile(bc) => ChunkOffsets {
@@ -565,6 +584,7 @@ pub(crate) fn upload_compiled_bytecode(
                     max_reg: 0,
                     gkr_main_width: 0,
                     gkr_prep_width: 0,
+                    gkr_global_width: 0,
                 },
             });
         }
@@ -640,6 +660,7 @@ pub(crate) fn upload_compiled_bytecode(
                 n_asserts: o.assert_regs.1 as u32,
                 gkr_main_width: o.gkr_main_width,
                 gkr_prep_width: o.gkr_prep_width,
+                gkr_global_width: o.gkr_global_width,
                 n_terms: o.terms.1 as u32,
             })
             .collect();
@@ -648,6 +669,7 @@ pub(crate) fn upload_compiled_bytecode(
             chip_idx: chip.chip_idx,
             main_width: chip.main_width,
             prep_width: chip.prep_width,
+            global_width: chip.global_width,
             chunks,
         });
     }
@@ -882,7 +904,7 @@ where
     // `chip_layouts_dev` from the post-fold `start_indices` /
     // `column_heights` — keeping the per-chip ptr/height derivation
     // entirely on device.
-    let chip_column_layouts_host = build_chip_column_layouts(chips);
+    let chip_column_layouts_host = build_chip_column_layouts(chips, data);
     let chip_column_layouts_dev =
         DeviceBuffer::from_host_slice(&chip_column_layouts_host, scope).unwrap().into_inner();
     let mut chip_layouts_dev =
@@ -917,7 +939,11 @@ where
     // never got GKR.
     let chip_gkr_info_host: Vec<ChipGkrInfoC> = compiled_chips_dev
         .iter()
-        .map(|chip| ChipGkrInfoC { main_width: chip.main_width, prep_width: chip.prep_width })
+        .map(|chip| ChipGkrInfoC {
+            main_width: chip.main_width,
+            prep_width: chip.prep_width,
+            global_width: chip.global_width,
+        })
         .collect();
     let chip_gkr_info_dev =
         DeviceBuffer::from_host_slice(&chip_gkr_info_host, scope).unwrap().into_inner();
@@ -928,11 +954,12 @@ where
     // otherwise). Both groups need decoupled coverage.
     let gkr_active_chips: Vec<u32> = compiled_chips_dev
         .iter()
-        .filter(|chip| chip.main_width + chip.prep_width > 0)
+        .filter(|chip| chip.main_width + chip.prep_width + chip.global_width > 0)
         .filter(|chip| {
             let has_seq_carrier =
                 chip.chunks.iter().any(|c| matches!(c.kind, ChunkKind::Sequential));
-            chip_uses_decoupled_gkr(chip.main_width, chip.prep_width) || !has_seq_carrier
+            chip_uses_decoupled_gkr(chip.main_width, chip.prep_width, chip.global_width)
+                || !has_seq_carrier
         })
         .map(|chip| chip.chip_idx)
         .collect();
@@ -1066,8 +1093,8 @@ pub(crate) const WIDE_GKR_THRESHOLD: u32 = 256;
 /// True iff this chip's GKR work should run in the dedicated decoupled
 /// kernel. Stays false for typical SP1 chips today; flips to true for the
 /// regime-2 case of chips with widths in the hundreds-to-thousands.
-fn chip_uses_decoupled_gkr(main_width: u32, prep_width: u32) -> bool {
-    main_width + prep_width > WIDE_GKR_THRESHOLD
+fn chip_uses_decoupled_gkr(main_width: u32, prep_width: u32, global_width: u32) -> bool {
+    main_width + prep_width + global_width > WIDE_GKR_THRESHOLD
 }
 
 fn build_seq_tiers(
@@ -1103,7 +1130,8 @@ fn build_seq_tiers(
         // Decoupled-GKR chips have their inline widths zeroed so the
         // sequential kernel skips the in-line column sweep (the decoupled
         // kernel handles them).
-        let decoupled = chip_uses_decoupled_gkr(chip.main_width, chip.prep_width);
+        let decoupled =
+            chip_uses_decoupled_gkr(chip.main_width, chip.prep_width, chip.global_width);
         for chunk in chip.chunks.iter() {
             if !matches!(chunk.kind, ChunkKind::Sequential) {
                 continue;
@@ -1124,6 +1152,7 @@ fn build_seq_tiers(
                 chip_idx,
                 gkr_main_width: if decoupled { 0 } else { chunk.gkr_main_width },
                 gkr_prep_width: if decoupled { 0 } else { chunk.gkr_prep_width },
+                gkr_global_width: if decoupled { 0 } else { chunk.gkr_global_width },
                 chip_alpha_offset: chip_alpha_offset[chip_idx as usize],
             });
         }
@@ -1250,31 +1279,42 @@ fn compute_padded_row_adjustment(
 /// widths don't change across rounds, so this runs once and lives on device
 /// for every subsequent fold.
 ///
-/// Layout convention (matching v1's evaluate_zerocheck): all chip prep
-/// columns at the front, then one prep-padding column, then all chip main
-/// columns. The padding column's height is data-dependent but it doesn't
-/// belong to any chip; the device chip-layouts kernel reads its prefix-sum
-/// contribution implicitly via `start_indices[main_col_idx]`.
-fn build_chip_column_layouts<A>(chips: &BTreeSet<Chip<Felt, A>>) -> Vec<ChipColumnLayoutEntry>
+/// Column layout (set at tracegen): all chip prep columns, then the
+/// prep-padding column(s), then all chip global columns, then the
+/// global-padding column(s), then all chip main columns, then main padding.
+/// The section boundaries come straight from `preprocessed_cols` /
+/// `global_cols` (which already include their section's padding columns), so
+/// this is robust to the real tracegen path emitting more than one padding
+/// column. Padding columns belong to no chip; the device chip-layouts kernel
+/// reads their prefix-sum contribution implicitly via `start_indices`.
+fn build_chip_column_layouts<A>(
+    chips: &BTreeSet<Chip<Felt, A>>,
+    data: &JaggedTraceMle<Felt, TaskScope>,
+) -> Vec<ChipColumnLayoutEntry>
 where
     A: MachineAir<Felt>,
 {
-    let total_prep_widths: usize = chips.iter().map(|c| c.preprocessed_width()).sum();
-    let main_section_start_col: usize = total_prep_widths + 1;
+    let global_section_start = data.dense_data.preprocessed_cols;
+    let main_section_start = data.dense_data.preprocessed_cols + data.dense_data.global_cols;
 
     let mut out = Vec::with_capacity(chips.len());
     let mut cum_prep: usize = 0;
+    let mut cum_global: usize = 0;
     let mut cum_main: usize = 0;
     for chip in chips.iter() {
         let prep_w = chip.preprocessed_width() as u32;
+        let global_w = chip.global_width() as u32;
         let main_w = chip.width() as u32;
         out.push(ChipColumnLayoutEntry {
             prep_col_idx: cum_prep as u32,
-            main_col_idx: (main_section_start_col + cum_main) as u32,
+            main_col_idx: (main_section_start + cum_main) as u32,
+            global_col_idx: (global_section_start + cum_global) as u32,
             prep_width: prep_w,
             main_width: main_w,
+            global_width: global_w,
         });
         cum_prep += prep_w as usize;
+        cum_global += global_w as usize;
         cum_main += main_w as usize;
     }
     out
@@ -1334,12 +1374,24 @@ where
     A: MachineAir<Felt>,
 {
     let chip_prep_w: Vec<u32> = chips.iter().map(|c| c.preprocessed_width() as u32).collect();
+    let chip_global_w: Vec<u32> = chips.iter().map(|c| c.global_width() as u32).collect();
     let chip_main_w: Vec<u32> = chips.iter().map(|c| c.width() as u32).collect();
     let chip_prep_h_pair: Vec<u32> = chips
         .iter()
         .map(|chip| {
             if chip.preprocessed_width() > 0 {
                 let off = data.dense_data.preprocessed_table_index.get(chip.name()).unwrap();
+                (off.poly_size as u32) / 2
+            } else {
+                0
+            }
+        })
+        .collect();
+    let chip_global_h_pair: Vec<u32> = chips
+        .iter()
+        .map(|chip| {
+            if chip.global_width() > 0 {
+                let off = data.dense_data.global_table_index.get(chip.name()).unwrap();
                 (off.poly_size as u32) / 2
             } else {
                 0
@@ -1365,32 +1417,49 @@ where
     // (the real path emits more than one padding column when the "fill to
     // next stacking-multiple" loop allocates several).
     let n_prep_padding = data.dense_data.prep_padding_col_count;
+    let n_global_padding = data.dense_data.global_padding_col_count;
     let n_main_padding = data.dense_data.main_padding_col_count;
     let total_prep_w: usize = chip_prep_w.iter().sum::<u32>() as usize;
+    let total_global_w: usize = chip_global_w.iter().sum::<u32>() as usize;
     let total_main_w: usize = chip_main_w.iter().sum::<u32>() as usize;
 
     // One setup-time download to seed the padding sections. Per-fold work
     // is the tiny `h.div_ceil(4)*2` recurrence in `ShardLayoutTracker::fold`
     // — no further round-trips.
+    //
+    // The jagged column structure is laid out section-by-section:
+    //   [prep cols | prep padding | global cols | global padding | main cols | main padding].
     let column_heights: Vec<u32> = unsafe { data.0.column_heights.copy_into_host_vec() };
     debug_assert_eq!(
         column_heights.len(),
-        total_prep_w + n_prep_padding + total_main_w + n_main_padding,
+        total_prep_w
+            + n_prep_padding
+            + total_global_w
+            + n_global_padding
+            + total_main_w
+            + n_main_padding,
         "TraceDenseData padding col counts disagree with column_heights structure",
     );
     let prep_padding_start = total_prep_w;
     let prep_padding_end = prep_padding_start + n_prep_padding;
-    let main_padding_start = prep_padding_end + total_main_w;
+    let global_padding_start = prep_padding_end + total_global_w;
+    let global_padding_end = global_padding_start + n_global_padding;
+    let main_padding_start = global_padding_end + total_main_w;
     let prep_padding_h_pair: Vec<u32> =
         column_heights[prep_padding_start..prep_padding_end].to_vec();
+    let global_padding_h_pair: Vec<u32> =
+        column_heights[global_padding_start..global_padding_end].to_vec();
     let main_padding_h_pair: Vec<u32> = column_heights[main_padding_start..].to_vec();
 
     ShardLayoutTracker {
         chip_prep_h_pair,
+        chip_global_h_pair,
         chip_main_h_pair,
         prep_padding_h_pair,
+        global_padding_h_pair,
         main_padding_h_pair,
         chip_prep_w,
+        chip_global_w,
         chip_main_w,
     }
 }
@@ -2000,18 +2069,34 @@ where
     // the bottom of this function. This is the shard's input height vector
     // — set at trace construction and not mutated through the rounds.
     let data_input_heights: Vec<u32> = unsafe { trace_mle.column_heights.copy_into_host_vec() };
-    let initial_heights = trace_mle
-        .dense_data
-        .main_table_index
-        .values()
-        .map(|trace_offset| trace_offset.poly_size as u32)
+    // Per-chip row count, sourced from the main trace when present, global
+    // otherwise (a `width()==0` global chip like `MemoryLocal` is sized from
+    // its global section). Indexed by chip order, matching every per-chip
+    // array below.
+    let initial_heights = chips
+        .iter()
+        .map(|chip| {
+            trace_mle
+                .dense_data
+                .main_table_index
+                .get(chip.name())
+                .or_else(|| trace_mle.dense_data.global_table_index.get(chip.name()))
+                .map(|trace_offset| trace_offset.poly_size as u32)
+                .expect("chip has neither a main nor a global trace")
+        })
         .collect::<Vec<u32>>();
+
+    let has_global_round = chips.iter().any(|chip| chip.global_width() > 0);
 
     let max_num_constraints =
         itertools::max(chips.iter().map(|chip| chip.num_constraints)).unwrap();
-    let max_columns =
-        itertools::max(chips.iter().map(|chip| chip.preprocessed_width() + chip.width())).unwrap();
+    // The GKR opening batch covers `main, prep, global` columns.
+    let max_columns = itertools::max(
+        chips.iter().map(|chip| chip.preprocessed_width() + chip.global_width() + chip.width()),
+    )
+    .unwrap();
     let total_preprocessed_columns = trace_mle.dense().preprocessed_cols;
+    let total_global_columns = trace_mle.dense().global_cols;
     let mut powers_of_challenge =
         batching_challenge.powers().take(max_num_constraints).collect::<Vec<_>>();
     powers_of_challenge.reverse();
@@ -2036,15 +2121,22 @@ where
         let ChipEvaluation {
             main_trace_evaluations: main_opening,
             preprocessed_trace_evaluations: prep_opening,
-            global_trace_evaluations: _,
+            global_trace_evaluations: global_opening,
         } = chip_openings.get(chip.name()).unwrap();
         claim *= lambda;
+        // The GKR opening batch is ordered `main, prep, global`.
         let addend = main_opening
             .evaluations()
             .as_slice()
             .iter()
             .chain(
                 prep_opening
+                    .as_ref()
+                    .map_or_else(Vec::new, |mle| mle.evaluations().as_slice().to_vec())
+                    .iter(),
+            )
+            .chain(
+                global_opening
                     .as_ref()
                     .map_or_else(Vec::new, |mle| mle.evaluations().as_slice().to_vec())
                     .iter(),
@@ -2168,7 +2260,8 @@ where
     }
 
     let mut preprocessed_ptr = 0;
-    let mut main_ptr = total_preprocessed_columns;
+    let mut global_ptr = total_preprocessed_columns;
+    let mut main_ptr = total_preprocessed_columns + total_global_columns;
     let mut opened_values: BTreeMap<String, ChipOpenedValues<Felt, Ext>> = BTreeMap::new();
     challenger.observe(Felt::from_canonical_usize(chips.len()));
     for (i, chip) in chips.iter().enumerate() {
@@ -2179,6 +2272,16 @@ where
         };
         challenger.observe_variable_length_extension_slice(&preprocessed.local);
         preprocessed_ptr += preprocessed_width;
+
+        let global_width = chip.global_width();
+        let global = AirOpenedValues {
+            local: individual_column_evals[global_ptr..global_ptr + global_width].to_vec(),
+        };
+        if has_global_round {
+            challenger.observe_variable_length_extension_slice(&global.local);
+        }
+        global_ptr += global_width;
+
         let width = chip.width();
         let main =
             AirOpenedValues { local: individual_column_evals[main_ptr..main_ptr + width].to_vec() };
@@ -2188,7 +2291,7 @@ where
             chip.air.name().to_string(),
             ChipOpenedValues {
                 preprocessed,
-                global: AirOpenedValues { local: vec![] },
+                global,
                 main,
                 degree: Point::from_usize(
                     initial_heights[i] as usize,
@@ -2227,6 +2330,9 @@ mod layout_tracker_tests {
         let chip_main_h_pair: Vec<u32> = chips.iter().map(|c| c.3).collect();
         let prep_padding_h_pair: Vec<u32> = prep_padding.to_vec();
         let main_padding_h_pair: Vec<u32> = main_padding.to_vec();
+        let chip_global_w: Vec<u32> = vec![0; chips.len()];
+        let chip_global_h_pair: Vec<u32> = vec![0; chips.len()];
+        let global_padding_h_pair: Vec<u32> = Vec::new();
 
         // Reconstruct the column_heights array that the device would hold:
         // [chip0 prep cols, ..., chipN prep cols, prep_padding cols, chip0
@@ -2247,13 +2353,85 @@ mod layout_tracker_tests {
 
         let tracker = ShardLayoutTracker {
             chip_prep_h_pair,
+            chip_global_h_pair,
             chip_main_h_pair,
             prep_padding_h_pair,
+            global_padding_h_pair,
             main_padding_h_pair,
             chip_prep_w,
+            chip_global_w,
             chip_main_w,
         };
         (tracker, column_heights)
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn synthetic_with_global(
+        chips: &[(u32, u32, u32, u32, u32, u32)],
+        prep_padding: &[u32],
+        global_padding: &[u32],
+        main_padding: &[u32],
+    ) -> (ShardLayoutTracker, Vec<u32>) {
+        let chip_prep_w: Vec<u32> = chips.iter().map(|c| c.0).collect();
+        let chip_global_w: Vec<u32> = chips.iter().map(|c| c.1).collect();
+        let chip_main_w: Vec<u32> = chips.iter().map(|c| c.2).collect();
+        let chip_prep_h_pair: Vec<u32> = chips.iter().map(|c| c.3).collect();
+        let chip_global_h_pair: Vec<u32> = chips.iter().map(|c| c.4).collect();
+        let chip_main_h_pair: Vec<u32> = chips.iter().map(|c| c.5).collect();
+        let prep_padding_h_pair = prep_padding.to_vec();
+        let global_padding_h_pair = global_padding.to_vec();
+        let main_padding_h_pair = main_padding.to_vec();
+
+        let mut column_heights = Vec::new();
+        let mut push_section = |w: &[u32], h: &[u32], pad: &[u32]| {
+            for (w, h) in w.iter().zip(h.iter()) {
+                for _ in 0..*w {
+                    column_heights.push(*h);
+                }
+            }
+            column_heights.extend(pad.iter().copied());
+        };
+        push_section(&chip_prep_w, &chip_prep_h_pair, &prep_padding_h_pair);
+        push_section(&chip_global_w, &chip_global_h_pair, &global_padding_h_pair);
+        push_section(&chip_main_w, &chip_main_h_pair, &main_padding_h_pair);
+
+        let tracker = ShardLayoutTracker {
+            chip_prep_h_pair,
+            chip_global_h_pair,
+            chip_main_h_pair,
+            prep_padding_h_pair,
+            global_padding_h_pair,
+            main_padding_h_pair,
+            chip_prep_w,
+            chip_global_w,
+            chip_main_w,
+        };
+        (tracker, column_heights)
+    }
+
+    #[test]
+    fn total_length_and_height_with_global_section() {
+        let (mut tracker, mut column_heights) = synthetic_with_global(
+            &[(2, 3, 4, 10, 10, 10), (0, 5, 0, 0, 8, 0), (0, 0, 6, 0, 0, 14)],
+            &[7],
+            &[3, 2],
+            &[],
+        );
+        assert_eq!(tracker.total_length_pair(), column_heights.iter().sum::<u32>());
+        // Heights: chip0 main present → 20; chip1 global-only → 16; chip2
+        // main → 28 (in element units = pair*2).
+        assert_eq!(tracker.chip_height_elements(0), 20);
+        assert_eq!(tracker.chip_height_elements(1), 16);
+        assert_eq!(tracker.chip_height_elements(2), 28);
+
+        // Stays in lockstep with the device's element-wise fold.
+        for _ in 0..12 {
+            tracker.fold();
+            for h in column_heights.iter_mut() {
+                *h = h.div_ceil(4) * 2;
+            }
+            assert_eq!(tracker.total_length_pair(), column_heights.iter().sum::<u32>());
+        }
     }
 
     #[test]

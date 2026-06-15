@@ -40,10 +40,14 @@ pub struct GkrInputData<'a> {
     pub chip_set: BTreeSet<String>,
     /// The jagged traces.
     pub jagged_trace_data: &'a JaggedTraceMle<Felt, TaskScope>,
-    /// Some randomness used to initialize the denominators
+    /// Some randomness used to initialize the denominators (local scope).
     pub alpha: Ext,
-    /// Some randomness used to batch the interaction values.
+    /// Some randomness used to batch the interaction values (local scope).
     pub beta_seed: Point<Ext>,
+    /// The global-scope `alpha`.
+    pub global_alpha: Ext,
+    /// The global-scope beta seed.
+    pub global_beta_seed: Point<Ext>,
     /// The number of row variables.
     pub num_row_variables: u32,
     /// The backend.
@@ -59,6 +63,14 @@ impl<'a> GkrInputData<'a> {
         self.jagged_trace_data.main_poly_height(name)
     }
 
+    /// Returns the row count of the given chip.
+    #[inline]
+    pub fn poly_height(&self, name: &str) -> Option<usize> {
+        self.jagged_trace_data
+            .main_poly_height(name)
+            .or_else(|| self.jagged_trace_data.global_poly_height(name))
+    }
+
     /// # Safety
     ///
     /// The caller must ensure that the dense data is not dropped while the pointer is used.
@@ -69,6 +81,24 @@ impl<'a> GkrInputData<'a> {
     #[inline]
     pub unsafe fn preprocessed_ptr(&self, name: &str) -> *const Felt {
         match self.jagged_trace_data.dense_data.preprocessed_table_index.get(name) {
+            Some(range) => {
+                let base = self.jagged_trace_data.dense_data.dense.as_ptr();
+                base.add(range.dense_offset.start)
+            }
+            None => std::ptr::null(),
+        }
+    }
+
+    /// # Safety
+    ///
+    /// The caller must ensure that the dense data is not dropped while the pointer is used.
+    ///
+    /// Returns a pointer to the dense data for the global traces of the given chip.
+    ///
+    /// If the chip doesn't exist, returns the null pointer.
+    #[inline]
+    pub unsafe fn global_ptr(&self, name: &str) -> *const Felt {
+        match self.jagged_trace_data.dense_data.global_table_index.get(name) {
             Some(range) => {
                 let base = self.jagged_trace_data.dense_data.dense.as_ptr();
                 base.add(range.dense_offset.start)

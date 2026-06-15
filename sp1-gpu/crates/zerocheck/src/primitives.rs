@@ -168,12 +168,17 @@ where
     let next_trace_data = TraceDenseData {
         dense: new_data,
         preprocessed_offset: next_preprocessed_offset,
+        global_offset: next_preprocessed_offset,
         preprocessed_cols: jagged_mle.dense_data.preprocessed_cols,
+        global_cols: 0,
         preprocessed_table_index: next_preprocessed_table_index,
+        global_table_index: BTreeMap::new(),
         main_table_index: next_main_table_index,
         main_padding: 0,
+        global_padding: 0,
         preprocessed_padding: 0,
         prep_padding_col_count: jagged_mle.dense_data.prep_padding_col_count,
+        global_padding_col_count: jagged_mle.dense_data.global_padding_col_count,
         main_padding_col_count: jagged_mle.dense_data.main_padding_col_count,
     };
 
@@ -231,6 +236,7 @@ pub fn evaluate_traces(traces: &JaggedTraceMle<Felt, TaskScope>, point: &Point<E
     let total_cols = trace_data
         .preprocessed_table_index
         .values()
+        .chain(trace_data.global_table_index.values())
         .chain(trace_data.main_table_index.values())
         .map(|index| index.num_polys)
         .sum::<usize>();
@@ -238,8 +244,11 @@ pub fn evaluate_traces(traces: &JaggedTraceMle<Felt, TaskScope>, point: &Point<E
         DeviceBuffer::with_capacity_in(total_cols, backend.clone()).into_inner();
 
     let trace_ptr = trace_data.dense.as_ptr();
-    let chip_indices =
-        trace_data.preprocessed_table_index.values().chain(trace_data.main_table_index.values());
+    let chip_indices = trace_data
+        .preprocessed_table_index
+        .values()
+        .chain(trace_data.global_table_index.values())
+        .chain(trace_data.main_table_index.values());
     for index in chip_indices {
         if index.dense_offset.start == index.dense_offset.end {
             continue;
@@ -451,6 +460,26 @@ pub fn round_batch_evaluations(
     let preprocessed_host_evaluations =
         preprocessed_host_evaluations.into_iter().collect::<Vec<_>>();
 
+    let mut global_host_evaluations = Vec::new();
+    for offset in jagged_trace_mle.dense().global_table_index.values() {
+        if offset.poly_size == 0 {
+            let mut zeros = Buffer::with_capacity_in(offset.num_polys, CpuBackend);
+
+            zeros.write_bytes(0, offset.num_polys * size_of::<Ext>()).unwrap();
+
+            let mle_eval = mle_eval_from_slice(&zeros, &CpuBackend);
+            global_host_evaluations.push(mle_eval);
+        } else {
+            let slice =
+                Buffer::from(evaluations[evals_so_far..evals_so_far + offset.num_polys].to_vec());
+
+            let mle_eval = mle_eval_from_slice(&slice[..], &CpuBackend);
+            global_host_evaluations.push(mle_eval);
+            evals_so_far += offset.num_polys;
+        }
+    }
+    let has_global_round = !global_host_evaluations.is_empty();
+
     let mut main_host_evaluations = Vec::new();
     for offset in jagged_trace_mle.dense().main_table_index.values() {
         if offset.poly_size == 0 {
@@ -471,7 +500,15 @@ pub fn round_batch_evaluations(
     }
     let main_host_evaluations = main_host_evaluations.into_iter().collect::<Vec<_>>();
 
-    Rounds::from_iter([preprocessed_host_evaluations, main_host_evaluations])
+    if has_global_round {
+        Rounds::from_iter([
+            preprocessed_host_evaluations,
+            global_host_evaluations,
+            main_host_evaluations,
+        ])
+    } else {
+        Rounds::from_iter([preprocessed_host_evaluations, main_host_evaluations])
+    }
 }
 
 #[cfg(test)]
@@ -633,12 +670,17 @@ mod tests {
                 TraceDenseData {
                     dense: DeviceBuffer::from_host(&data, &t).unwrap().into_inner(),
                     preprocessed_offset: 0,
+                    global_offset: 0,
                     preprocessed_cols: 0,
+                    global_cols: 0,
                     preprocessed_table_index: BTreeMap::new(),
+                    global_table_index: BTreeMap::new(),
                     main_table_index: BTreeMap::new(),
                     main_padding: 0,
+                    global_padding: 0,
                     preprocessed_padding: 0,
                     prep_padding_col_count: 0,
+                    global_padding_col_count: 0,
                     main_padding_col_count: 0,
                 },
                 DeviceBuffer::from_host(&cols, &t).unwrap().into_inner(),
@@ -668,12 +710,17 @@ mod tests {
                 TraceDenseData {
                     dense: DeviceBuffer::from_host(&data, &t).unwrap().into_inner(),
                     preprocessed_offset: 0,
+                    global_offset: 0,
                     preprocessed_cols: 0,
+                    global_cols: 0,
                     preprocessed_table_index: BTreeMap::new(),
+                    global_table_index: BTreeMap::new(),
                     main_table_index: BTreeMap::new(),
                     main_padding: 0,
+                    global_padding: 0,
                     preprocessed_padding: 0,
                     prep_padding_col_count: 0,
+                    global_padding_col_count: 0,
                     main_padding_col_count: 0,
                 },
                 DeviceBuffer::from_host(&cols, &t).unwrap().into_inner(),
@@ -763,12 +810,17 @@ mod tests {
                 TraceDenseData {
                     dense: DeviceBuffer::from_host(&data, &t).unwrap().into_inner(),
                     preprocessed_offset: preprocessed_offset as usize,
+                    global_offset: preprocessed_offset as usize,
                     preprocessed_cols: preprocessed_cols as usize,
+                    global_cols: 0,
                     preprocessed_table_index,
+                    global_table_index: BTreeMap::new(),
                     main_table_index,
                     main_padding: 0,
+                    global_padding: 0,
                     preprocessed_padding: 0,
                     prep_padding_col_count: 0,
+                    global_padding_col_count: 0,
                     main_padding_col_count: 0,
                 },
                 DeviceBuffer::from_host(&cols, &t).unwrap().into_inner(),

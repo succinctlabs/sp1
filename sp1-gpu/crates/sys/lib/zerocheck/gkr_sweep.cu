@@ -74,7 +74,7 @@ __global__ void zerocheck_gkr_sweep(
     // Wide path (total_width > WARP_SIZE): warp-per-row with lane-strided
     // column reduction. Scales to chips with widths in the thousands
     // because the per-row column work parallelises across the warp.
-    const uint32_t total_width = gkr.main_width + gkr.prep_width;
+    const uint32_t total_width = gkr.main_width + gkr.prep_width + gkr.global_width;
     ext_t thread_acc = ext_t::zero();
     if (total_width <= (uint32_t)WARP_SIZE) {
         // ---- Narrow path: thread-per-row, columns in inner loop ----
@@ -90,6 +90,11 @@ __global__ void zerocheck_gkr_sweep(
             for (uint32_t i = 0; i < gkr.prep_width; i++) {
                 K v = interp_load(trace_data, lay.preprocessed_ptr, i, lay.height, row_idx, e);
                 acc += ext_t::load(gkr_powers, gkr.main_width + i) * v;
+            }
+            // Global columns last, in `main, prep, global` order.
+            for (uint32_t i = 0; i < gkr.global_width; i++) {
+                K v = interp_load(trace_data, lay.global_ptr, i, lay.height, row_idx, e);
+                acc += ext_t::load(gkr_powers, gkr.main_width + gkr.prep_width + i) * v;
             }
             if (row_idx < row_limit) {
                 ext_t eq = ext_t::load(partial_lagrange, row_idx);
@@ -112,6 +117,11 @@ __global__ void zerocheck_gkr_sweep(
             for (uint32_t col = (uint32_t)lane; col < gkr.prep_width; col += WARP_SIZE) {
                 K v = interp_load(trace_data, lay.preprocessed_ptr, col, lay.height, row_idx, e);
                 lane_sum += ext_t::load(gkr_powers, gkr.main_width + col) * v;
+            }
+            // Global columns last, in `main, prep, global` order.
+            for (uint32_t col = (uint32_t)lane; col < gkr.global_width; col += WARP_SIZE) {
+                K v = interp_load(trace_data, lay.global_ptr, col, lay.height, row_idx, e);
+                lane_sum += ext_t::load(gkr_powers, gkr.main_width + gkr.prep_width + col) * v;
             }
             ext_t row_total = cg::reduce(warp, lane_sum, cg::plus<ext_t>());
             if (lane == 0 && row_idx < row_limit) {

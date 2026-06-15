@@ -47,7 +47,7 @@ pub fn generate_first_layer<'a>(
                 .par_iter()
                 .filter(|(name, _)| input_data.chip_set.contains(*name))
                 .flat_map(|(name, interactions)| {
-                    let real_height = input_data.main_poly_height(name).unwrap();
+                    let real_height = input_data.poly_height(name).unwrap();
                     // For padding reasons, `height` always needs to be at least 2.
                     let height = std::cmp::max(real_height, 8);
                     // Divide by 2 because each row has even height, so we only store length / 2.
@@ -77,19 +77,24 @@ pub fn generate_first_layer<'a>(
     let beta = DevicePoint::from_host(&beta, backend).unwrap().into_inner();
     let betas = DevicePoint::new(beta).partial_lagrange();
 
+    let global_beta = input_data.global_beta_seed.clone();
+    let global_beta = DevicePoint::from_host(&global_beta, backend).unwrap().into_inner();
+    let global_betas = DevicePoint::new(global_beta).partial_lagrange();
+
     // Generate traces per chip, sorted by chip name.
     let mut interaction_offset = 0;
     for (name, interactions) in
         input_data.all_interactions.iter().filter(|(name, _)| input_data.chip_set.contains(*name))
     {
         let alpha = input_data.alpha;
+        let global_alpha = input_data.global_alpha;
         let interactions = interactions.clone();
         let num_interactions = interactions.num_interactions;
         let interaction_start_indices = unsafe { interaction_start_indices.owned_unchecked() };
         let mut interaction_data = unsafe { interaction_data.owned_unchecked() };
         let mut numerator = unsafe { numerator.owned_unchecked() };
         let mut denominator = unsafe { denominator.owned_unchecked() };
-        let real_height = input_data.main_poly_height(name).unwrap();
+        let real_height = input_data.poly_height(name).unwrap();
 
         const BLOCK_SIZE: usize = 256;
         const ROW_STRIDE: usize = 8;
@@ -110,6 +115,7 @@ pub fn generate_first_layer<'a>(
         );
         unsafe {
             let preprocessed_ptr = input_data.preprocessed_ptr(name);
+            let global_ptr = input_data.global_ptr(name);
             let main_ptr = input_data.main_ptr(name);
 
             let args = args!(
@@ -119,9 +125,12 @@ pub fn generate_first_layer<'a>(
                 numerator.as_mut_ptr(),
                 denominator.as_mut_ptr(),
                 preprocessed_ptr,
+                global_ptr,
                 main_ptr,
                 alpha,
                 betas.guts().as_ptr(),
+                global_alpha,
+                global_betas.guts().as_ptr(),
                 interaction_offset,
                 real_height,
                 height,
@@ -192,18 +201,22 @@ pub fn generate_gkr_circuit<'a, A: MachineAir<Felt>>(
     chips: &BTreeSet<Chip<Felt, A>>,
     all_interactions: BTreeMap<String, Arc<Interactions<Felt, TaskScope>>>,
     jagged_trace_data: &'a JaggedTraceMle<Felt, TaskScope>,
-    alpha: Ext,
-    beta_seed: Point<Ext>,
+    local_challenges: (Ext, Point<Ext>),
+    global_challenges: (Ext, Point<Ext>),
     options: CudaLogUpGkrOptions,
     backend: TaskScope,
 ) -> (DeviceLogUpGkrOutput<Ext>, LogUpCudaCircuit<'a, TaskScope>) {
     let CudaLogUpGkrOptions { recompute_first_layer, num_row_variables } = options;
+    let (alpha, beta_seed) = local_challenges;
+    let (global_alpha, global_beta_seed) = global_challenges;
     let input_data = GkrInputData {
         chip_set: chips.iter().map(|chip| chip.name().to_string()).collect(),
         all_interactions,
         jagged_trace_data,
         alpha,
         beta_seed,
+        global_alpha,
+        global_beta_seed,
         num_row_variables,
         backend: backend.clone(),
     };

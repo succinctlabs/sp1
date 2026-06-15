@@ -22,10 +22,18 @@ __device__ __forceinline__ GkrInput interactionValue(
     size_t rowIdx,
     Interactions<felt_t> const interactions,
     felt_t* const preprocessed,
+    felt_t* const global,
     felt_t* const main,
-    ext_t const alpha,
-    ext_t* const betas,
+    ext_t const alphaLocal,
+    ext_t* const betasLocal,
+    ext_t const alphaGlobal,
+    ext_t* const betasGlobal,
     size_t height) {
+    // Select the challenge pair by the interaction's scope.
+    bool isGlobal = interactions.is_global[index];
+    ext_t alpha = isGlobal ? alphaGlobal : alphaLocal;
+    ext_t* betas = isGlobal ? betasGlobal : betasLocal;
+
     // Initialize the denominator and beta powers.
     ext_t denominator = alpha;
 
@@ -39,8 +47,8 @@ __device__ __forceinline__ GkrInput interactionValue(
         for (size_t l = interactions.values_col_weights_ptr[k];
              l < interactions.values_col_weights_ptr[k + 1];
              l++) {
-            acc +=
-                ext_t(interactions.values_col_weights[l].get(preprocessed, main, rowIdx, height));
+            acc += ext_t(
+                interactions.values_col_weights[l].get(preprocessed, global, main, rowIdx, height));
         }
         denominator += betas[k - interactions.values_ptr[index] + 1] * acc;
     }
@@ -52,7 +60,7 @@ __device__ __forceinline__ GkrInput interactionValue(
     for (size_t k = interactions.multiplicities_ptr[index];
          k < interactions.multiplicities_ptr[index + 1];
          k++) {
-        mult += interactions.mult_col_weights[k].get(preprocessed, main, rowIdx, height);
+        mult += interactions.mult_col_weights[k].get(preprocessed, global, main, rowIdx, height);
     }
 
     if (!isSend) {
@@ -73,9 +81,12 @@ __global__ void populateLastCircuitLayer(
     felt_t* numeratorValues,
     ext_t* denominatorValues,
     felt_t* const preprocessed,
+    felt_t* const global,
     felt_t* const main,
-    ext_t alpha,
-    ext_t* const beta,
+    ext_t alphaLocal,
+    ext_t* const betaLocal,
+    ext_t alphaGlobal,
+    ext_t* const betaGlobal,
     size_t interactionOffset,
     size_t traceHeight,
     size_t outputHeight,
@@ -116,18 +127,24 @@ __global__ void populateLastCircuitLayer(
                     zeroIdx,
                     interactions,
                     preprocessed,
+                    global,
                     main,
-                    alpha,
-                    beta,
+                    alphaLocal,
+                    betaLocal,
+                    alphaGlobal,
+                    betaGlobal,
                     traceHeight);
                 oneValue = interactionValue(
                     j,
                     oneIdx,
                     interactions,
                     preprocessed,
+                    global,
                     main,
-                    alpha,
-                    beta,
+                    alphaLocal,
+                    betaLocal,
+                    alphaGlobal,
+                    betaGlobal,
                     traceHeight);
                 FirstLayerCircuitValues values;
                 values.numeratorZero = zeroValue.numerator;

@@ -19,6 +19,15 @@ pub struct TraceOffset {
     pub num_polys: usize,
 }
 
+/// Which of the three committed trace sections (`[preprocessed | global | main]`) an operation
+/// targets.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TraceSection {
+    Preprocessed,
+    Global,
+    Main,
+}
+
 #[derive(Clone)]
 pub struct JaggedTraceMle<F: Field, B: Backend>(pub JaggedMle<TraceDenseData<F, B>, B>);
 
@@ -50,10 +59,16 @@ pub struct TraceDenseData<F: Field, B: Backend> {
     pub dense: Buffer<F, B>,
     /// The dense offset of the preprocessed traces.
     pub preprocessed_offset: usize,
+    /// The dense offset of the global traces.
+    pub global_offset: usize,
     /// The total number of columns in the preprocessed traces.
     pub preprocessed_cols: usize,
+    /// The total number of columns in the global traces.
+    pub global_cols: usize,
     /// The amount of preprocessed padding, to the next multiple of 2^log_stacking_height.
     pub preprocessed_padding: usize,
+    /// The amount of global padding, to the next multiple of 2^log_stacking_height.
+    pub global_padding: usize,
     /// The amount of main padding, to the next multiple of 2^log_stacking_height.
     pub main_padding: usize,
     /// Number of *columns* of preprocessed padding between the chip prep
@@ -65,18 +80,23 @@ pub struct TraceDenseData<F: Field, B: Backend> {
     /// The real tracegen path can emit more than one such column when the
     /// "fill to next stacking-multiple" loop allocates several.
     pub prep_padding_col_count: usize,
+    /// Number of *columns* of global padding between the chip global section
+    /// and the chip main section in the jagged structure.
+    pub global_padding_col_count: usize,
     /// Number of *columns* of main padding at the tail of the jagged
     /// structure. Set after the main section is generated.
     pub main_padding_col_count: usize,
     /// A mapping from chip name to the range of dense data it occupies for preprocessed traces.
     pub preprocessed_table_index: BTreeMap<String, TraceOffset>,
+    /// A mapping from chip name to the range of dense data it occupies for global traces.
+    pub global_table_index: BTreeMap<String, TraceOffset>,
     /// A mapping from chip name to the range of dense data it occupies for main traces.
     pub main_table_index: BTreeMap<String, TraceOffset>,
 }
 
 impl<F: Field, B: Backend> TraceDenseData<F, B> {
     pub fn main_virtual_tensor(&'_ self, log_stacking_height: u32) -> TensorView<'_, F, B> {
-        let ptr = unsafe { self.dense.as_ptr().add(self.preprocessed_offset) };
+        let ptr = unsafe { self.dense.as_ptr().add(self.global_offset) };
         let sizes = Dimensions::try_from([
             self.main_size() / (1 << log_stacking_height),
             1 << log_stacking_height,
@@ -97,7 +117,36 @@ impl<F: Field, B: Backend> TraceDenseData<F, B> {
             tensor.assume_init();
             tensor
                 .as_mut_buffer()
-                .copy_from_slice(&self.dense[self.preprocessed_offset..], backend)
+                .copy_from_slice(&self.dense[self.global_offset..], backend)
+                .unwrap();
+        }
+        tensor
+    }
+
+    /// A virtual (non-owning) view of the global section of the dense buffer.
+    pub fn global_virtual_tensor(&'_ self, log_stacking_height: u32) -> TensorView<'_, F, B> {
+        let ptr = unsafe { self.dense.as_ptr().add(self.preprocessed_offset) };
+        let sizes = Dimensions::try_from([
+            self.global_size() / (1 << log_stacking_height),
+            1 << log_stacking_height,
+        ])
+        .unwrap();
+        // This is safe because we inherit the lifetime of self and the offset should be valid.
+        unsafe { TensorView::from_raw_parts(ptr, sizes, self.backend().clone()) }
+    }
+
+    /// Copies the correct data from dense to a new tensor for global traces.
+    pub fn global_tensor(&self, log_stacking_height: u32) -> Tensor<F, B> {
+        let mut tensor = Tensor::with_sizes_in(
+            [self.global_size() / (1 << log_stacking_height), 1 << log_stacking_height],
+            self.backend().clone(),
+        );
+        let backend = self.dense.backend();
+        unsafe {
+            tensor.assume_init();
+            tensor
+                .as_mut_buffer()
+                .copy_from_slice(&self.dense[self.preprocessed_offset..self.global_offset], backend)
                 .unwrap();
         }
         tensor
@@ -142,16 +191,34 @@ impl<F: Field, B: Backend> TraceDenseData<F, B> {
         self.preprocessed_table_index.get(name).map(|offset| offset.poly_size)
     }
 
+    /// The size of the global polynomial.
+    #[inline]
+    pub fn global_poly_height(&self, name: &str) -> Option<usize> {
+        self.global_table_index.get(name).map(|offset| offset.poly_size)
+    }
+
     /// The number of polynomials in the main trace.
     #[inline]
     pub fn main_num_polys(&self, name: &str) -> Option<usize> {
         self.main_table_index.get(name).map(|offset| offset.num_polys)
     }
 
+    /// The number of polynomials in the global trace.
+    #[inline]
+    pub fn global_num_polys(&self, name: &str) -> Option<usize> {
+        self.global_table_index.get(name).map(|offset| offset.num_polys)
+    }
+
     /// The size of the main trace dense data, including padding.
     #[inline]
     pub fn main_size(&self) -> usize {
-        self.dense.len() - self.preprocessed_offset
+        self.dense.len() - self.global_offset
+    }
+
+    /// The size of the global trace dense data, including padding.
+    #[inline]
+    pub fn global_size(&self) -> usize {
+        self.global_offset - self.preprocessed_offset
     }
 
     /// The number of polynomials in the preprocessed trace.
@@ -250,15 +317,20 @@ impl<F: Field> TraceDenseData<F, CpuBackend> {
         TraceDenseData {
             dense,
             preprocessed_offset: padded_preprocessed,
+            global_offset: padded_preprocessed,
             preprocessed_cols,
+            global_cols: 0,
             preprocessed_padding,
+            global_padding: 0,
             main_padding,
             // `from_chip_layout` emits exactly one prep/main padding column
             // when the corresponding padding is non-zero (see
             // `JaggedTraceMle::from_chip_layout`).
             prep_padding_col_count: (preprocessed_padding > 0) as usize,
+            global_padding_col_count: 0,
             main_padding_col_count: (main_padding > 0) as usize,
             preprocessed_table_index,
+            global_table_index: BTreeMap::new(),
             main_table_index,
         }
     }
@@ -363,8 +435,19 @@ impl<F: Field> JaggedTraceMle<F, TaskScope> {
         self.dense_data.main_virtual_tensor(log_stacking_height)
     }
 
+    pub fn global_virtual_tensor(
+        &'_ self,
+        log_stacking_height: u32,
+    ) -> TensorView<'_, F, TaskScope> {
+        self.dense_data.global_virtual_tensor(log_stacking_height)
+    }
+
     pub fn main_poly_height(&self, name: &str) -> Option<usize> {
         self.dense_data.main_poly_height(name)
+    }
+
+    pub fn global_poly_height(&self, name: &str) -> Option<usize> {
+        self.dense_data.global_poly_height(name)
     }
 
     pub fn preprocessed_poly_height(&self, name: &str) -> Option<usize> {
@@ -379,8 +462,16 @@ impl<F: Field> JaggedTraceMle<F, TaskScope> {
         self.dense_data.main_size()
     }
 
+    pub fn global_size(&self) -> usize {
+        self.dense_data.global_size()
+    }
+
     pub fn preprocessed_num_polys(&self, name: &str) -> Option<usize> {
         self.dense_data.preprocessed_num_polys(name)
+    }
+
+    pub fn global_num_polys(&self, name: &str) -> Option<usize> {
+        self.dense_data.global_num_polys(name)
     }
 }
 
@@ -429,12 +520,17 @@ impl<F: Field> TraceDenseData<F, CpuBackend> {
         TraceDenseData {
             dense: DeviceBuffer::from_host(&self.dense, t).unwrap().into_inner(),
             preprocessed_offset: self.preprocessed_offset,
+            global_offset: self.global_offset,
             preprocessed_cols: self.preprocessed_cols,
+            global_cols: self.global_cols,
             preprocessed_table_index: self.preprocessed_table_index,
+            global_table_index: self.global_table_index,
             main_table_index: self.main_table_index,
             preprocessed_padding: self.preprocessed_padding,
+            global_padding: self.global_padding,
             main_padding: self.main_padding,
             prep_padding_col_count: self.prep_padding_col_count,
+            global_padding_col_count: self.global_padding_col_count,
             main_padding_col_count: self.main_padding_col_count,
         }
     }
@@ -458,12 +554,17 @@ impl<F: Field> TraceDenseData<F, TaskScope> {
         TraceDenseData {
             dense: host_dense,
             preprocessed_offset: self.preprocessed_offset,
+            global_offset: self.global_offset,
             preprocessed_cols: self.preprocessed_cols,
+            global_cols: self.global_cols,
             preprocessed_table_index: self.preprocessed_table_index,
+            global_table_index: self.global_table_index,
             main_table_index: self.main_table_index,
             preprocessed_padding: self.preprocessed_padding,
+            global_padding: self.global_padding,
             main_padding: self.main_padding,
             prep_padding_col_count: self.prep_padding_col_count,
+            global_padding_col_count: self.global_padding_col_count,
             main_padding_col_count: self.main_padding_col_count,
         }
     }

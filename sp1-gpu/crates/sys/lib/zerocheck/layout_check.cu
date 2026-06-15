@@ -58,6 +58,7 @@ const uint32_t* zerocheck_layout_chunk_static() {
         (uint32_t)offsetof(ChunkStatic, chip_idx),
         (uint32_t)offsetof(ChunkStatic, gkr_main_width),
         (uint32_t)offsetof(ChunkStatic, gkr_prep_width),
+        (uint32_t)offsetof(ChunkStatic, gkr_global_width),
         (uint32_t)offsetof(ChunkStatic, chip_alpha_offset),
     };
     return L;
@@ -68,6 +69,7 @@ const uint32_t* zerocheck_layout_chip_layout() {
         (uint32_t)sizeof(ChipLayout),
         (uint32_t)offsetof(ChipLayout, main_ptr),
         (uint32_t)offsetof(ChipLayout, preprocessed_ptr),
+        (uint32_t)offsetof(ChipLayout, global_ptr),
         (uint32_t)offsetof(ChipLayout, height),
         (uint32_t)offsetof(ChipLayout, _pad),
     };

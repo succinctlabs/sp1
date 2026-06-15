@@ -68,10 +68,12 @@ impl DagInstr {
 /// Source tag for `LeafRef.source`. The encoding mirrors the jagged-mle
 /// column-variant tags (3 = PreprocessedNext, 5 = MainNext) but only the
 /// local-row variants are reachable from constraint lowering. Kernels
-/// branch on `source == LEAF_SOURCE_MAIN_LOCAL` to pick between the chip's
-/// `main_ptr` / `preprocessed_ptr` — every per-chip CUDA kernel must use
-/// the same constants (mirrored in `include/zerocheck/sequential.cuh`).
+/// branch on `source` to pick between the chip's
+/// `main_ptr` / `global_ptr` / `preprocessed_ptr` — every per-chip CUDA
+/// kernel must use the same constants (mirrored in
+/// `include/zerocheck/sequential.cuh`).
 pub const LEAF_SOURCE_PREPROCESSED_LOCAL: u8 = 2;
+pub const LEAF_SOURCE_GLOBAL_LOCAL: u8 = 3;
 pub const LEAF_SOURCE_MAIN_LOCAL: u8 = 4;
 
 /// Trace reference for a leaf. The kernel uses this at CTA preamble to load
@@ -79,11 +81,12 @@ pub const LEAF_SOURCE_MAIN_LOCAL: u8 = 4;
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LeafRef {
-    /// `LEAF_SOURCE_PREPROCESSED_LOCAL` or `LEAF_SOURCE_MAIN_LOCAL`. See
-    /// the constants above for the encoding rationale.
+    /// `LEAF_SOURCE_PREPROCESSED_LOCAL`, `LEAF_SOURCE_GLOBAL_LOCAL`, or
+    /// `LEAF_SOURCE_MAIN_LOCAL`. See the constants above for the encoding
+    /// rationale.
     pub source: u8,
     pub _pad: u8,
-    /// Column index within the chip's preprocessed or main trace.
+    /// Column index within the chip's preprocessed, global, or main trace.
     pub col: u32,
 }
 
@@ -104,9 +107,12 @@ pub struct ChunkBytecode {
     /// and asserts pass — accumulating `Σ_i gkr_powers[i] · col_i(row)` over
     /// `gkr_main_width` main cols and `gkr_prep_width` prep cols. This fuses
     /// what would otherwise be a separate ColumnTile launch into the Sequential
-    /// pass, sharing column loads with the constraint bytecode in L1.
+    /// pass, sharing column loads with the constraint bytecode in L1. The
+    /// sweep is ordered `main, prep, global`, so `gkr_powers` index
+    /// `gkr_main_width + gkr_prep_width + i` weights global column `i`.
     pub gkr_main_width: u32,
     pub gkr_prep_width: u32,
+    pub gkr_global_width: u32,
 }
 
 /// Lower a `SequentialPlan` (topological order over the chunk's DAG subgraph)
@@ -143,9 +149,7 @@ pub fn lower_sequential(
             DagNode::InputLeaf { source, col } => {
                 let src_byte = match source {
                     TraceSource::PreprocessedLocal => LEAF_SOURCE_PREPROCESSED_LOCAL,
-                    TraceSource::GlobalLocal => {
-                        panic!("Sequential lowering does not support global trace columns yet")
-                    }
+                    TraceSource::GlobalLocal => LEAF_SOURCE_GLOBAL_LOCAL,
                     TraceSource::MainLocal => LEAF_SOURCE_MAIN_LOCAL,
                 };
                 let leaf_idx = *leaf_of.entry((src_byte, col)).or_insert_with(|| {
@@ -306,5 +310,74 @@ fn node_children(node: &DagNode) -> [Option<NodeId>; 2] {
         | EFSubF { a, b }
         | EFMulF { a, b } => [Some(a), Some(b)],
         NegF { a } | NegEF { a } | EFFromF { a } => [Some(a), None],
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ir::analysis::{analyze_constraints, ConstraintShape};
+    use crate::ir::chunker::Chunk;
+    use crate::ir::dag::{ConstraintRef, DagNode, TraceSource};
+    use crate::ir::lowering::{enumerate_lowerings, Lowering};
+    use slop_algebra::AbstractField;
+    use std::collections::HashSet;
+
+    #[test]
+    fn lower_sequential_emits_global_leaf_source() {
+        let mut nodes = Vec::new();
+        let g0 = nodes.len() as u32;
+        nodes.push(DagNode::InputLeaf { source: TraceSource::GlobalLocal, col: 0 });
+        let m0 = nodes.len() as u32;
+        nodes.push(DagNode::InputLeaf { source: TraceSource::MainLocal, col: 0 });
+        let prod = nodes.len() as u32;
+        nodes.push(DagNode::MulF { a: g0, b: m0 });
+        let p0 = nodes.len() as u32;
+        nodes.push(DagNode::InputLeaf { source: TraceSource::PreprocessedLocal, col: 0 });
+        let root = nodes.len() as u32;
+        nodes.push(DagNode::AddF { a: prod, b: p0 });
+
+        let dag = ConstraintDag {
+            nodes,
+            constraints: vec![ConstraintRef { root, alpha_index: 0 }],
+            preprocessed_width: 1,
+            global_width: 1,
+            main_width: 1,
+        };
+        let infos = analyze_constraints(&dag);
+        // A product of two distinct leaves is not a linear-weighted sum.
+        assert!(!matches!(infos[0].shape, ConstraintShape::LinearWeightedSum));
+
+        let mut leafset = HashSet::new();
+        for &leaf in &infos[0].column_leaves {
+            leafset.insert(leaf);
+        }
+        let chunk = Chunk {
+            constraint_indices: vec![0],
+            leafset,
+            depth_max: infos[0].depth,
+            shape: infos[0].shape,
+        };
+
+        let plan = enumerate_lowerings(&chunk, &infos, &dag)
+            .into_iter()
+            .find_map(|l| match l {
+                Lowering::Sequential(p) => Some(p),
+                _ => None,
+            })
+            .expect("general-shape chunk must have a Sequential lowering");
+        let bc = lower_sequential(&chunk, &infos, &dag, &plan);
+
+        let sources: HashSet<u8> = bc.leaves.iter().map(|l| l.source).collect();
+        assert!(
+            sources.contains(&LEAF_SOURCE_GLOBAL_LOCAL),
+            "global leaf must lower to source {LEAF_SOURCE_GLOBAL_LOCAL}, got {sources:?}",
+        );
+        assert!(sources.contains(&LEAF_SOURCE_MAIN_LOCAL));
+        assert!(sources.contains(&LEAF_SOURCE_PREPROCESSED_LOCAL));
+        // The global column index round-trips.
+        let global_leaf = bc.leaves.iter().find(|l| l.source == LEAF_SOURCE_GLOBAL_LOCAL).unwrap();
+        assert_eq!(global_leaf.col, 0);
+        let _ = F::one();
     }
 }

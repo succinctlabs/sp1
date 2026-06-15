@@ -1,5 +1,4 @@
 use core::pin::pin;
-use itertools::Itertools;
 use slop_alloc::mem::DeviceMemory;
 use slop_futures::queue::Worker;
 use slop_tensor::{Dimensions, Tensor};
@@ -52,8 +51,10 @@ pub struct HostPhaseTracegen<A> {
 
 /// Information about the traces generated in the host phase.
 pub struct HostPhaseShapeInfo<A> {
-    /// The traces generated in the host phase.
+    /// The padded (placeholder) main traces for cluster chips not in the chip set.
     pub traces_by_name: BTreeMap<String, Trace<TaskScope>>,
+    /// The padded (placeholder) global traces for cluster chips not in the chip set.
+    pub global_traces_by_name: BTreeMap<String, Trace<TaskScope>>,
     /// The set of chips we need to generate traces for.
     pub chip_set: BTreeSet<Chip<Felt, A>>,
 }
@@ -534,13 +535,17 @@ async fn allocate_and_initialize_traces(
     let trace_dense_data: TraceDenseData<Felt, TaskScope> = TraceDenseData {
         dense: dense_data,
         preprocessed_offset,
+        global_offset: preprocessed_offset,
         preprocessed_cols,
+        global_cols: 0,
         preprocessed_table_index,
+        global_table_index: BTreeMap::new(),
         main_table_index: BTreeMap::new(),
         preprocessed_padding,
+        global_padding: 0,
         main_padding: 0,
         prep_padding_col_count,
-        // Main phase hasn't run yet; updated in `copy_main_jagged_traces`.
+        global_padding_col_count: 0,
         main_padding_col_count: 0,
     };
 
@@ -556,6 +561,67 @@ async fn allocate_and_initialize_traces(
     })
 }
 
+/// Lays out the global section of the dense buffer, between the preprocessed and main sections.
+/// Mirrors `copy_main_jagged_traces` but writes the `[preprocessed_offset, global_offset)` region
+/// and updates the `global_*` fields. Does not shrink the dense buffer — the main section follows.
+async fn copy_global_jagged_traces(
+    traces: BTreeMap<String, Trace<TaskScope>>,
+    jagged_traces: &mut JaggedTraceMle<Felt, TaskScope>,
+    log_stacking_height: u32,
+    max_log_row_count: u32,
+) {
+    let JaggedMle { dense_data: trace_dense_data, col_index, start_indices, column_heights } =
+        &mut **jagged_traces;
+
+    let TraceDenseData {
+        dense: dense_data,
+        preprocessed_offset,
+        preprocessed_cols,
+        global_offset,
+        global_cols,
+        global_table_index,
+        global_padding,
+        global_padding_col_count,
+        ..
+    } = trace_dense_data;
+
+    unsafe {
+        dense_data.set_len(dense_data.capacity());
+        col_index.set_len(col_index.capacity());
+        start_indices.set_len(start_indices.capacity());
+    }
+
+    let backend = dense_data.backend().clone();
+    let mut column_heights_host: Vec<u32> = unsafe { column_heights.copy_into_host_vec() };
+
+    let (
+        final_offset,
+        final_cols,
+        final_global_padding,
+        final_global_padding_col_count,
+        new_global_table_index,
+    ) = generate_jagged_traces(
+        dense_data,
+        col_index,
+        start_indices,
+        &mut column_heights_host,
+        traces,
+        *preprocessed_offset,
+        *preprocessed_cols,
+        log_stacking_height,
+        max_log_row_count,
+    )
+    .await;
+
+    *column_heights =
+        DeviceBuffer::from_host_slice(&column_heights_host, &backend).unwrap().into_inner();
+    *global_table_index = new_global_table_index;
+    *global_offset = final_offset;
+    *global_cols = final_cols - *preprocessed_cols;
+    *global_padding = final_global_padding;
+    *global_padding_col_count = final_global_padding_col_count;
+}
+
 async fn copy_main_jagged_traces(
     traces: BTreeMap<String, Trace<TaskScope>>,
     jagged_traces: &mut JaggedTraceMle<Felt, TaskScope>,
@@ -569,8 +635,9 @@ async fn copy_main_jagged_traces(
 
     let TraceDenseData {
         dense: dense_data,
-        preprocessed_offset,
         preprocessed_cols,
+        global_offset,
+        global_cols,
         main_table_index,
         main_padding,
         main_padding_col_count,
@@ -590,7 +657,8 @@ async fn copy_main_jagged_traces(
     let backend = dense_data.backend().clone();
     let mut column_heights_host: Vec<u32> = unsafe { column_heights.copy_into_host_vec() };
 
-    // Put them in right places. Todo: parallelize.
+    // The main section starts after the global section (`global_offset`); its first column index
+    // continues past the preprocessed and global columns (`preprocessed_cols + global_cols`).
     let (
         final_offset,
         final_cols,
@@ -603,8 +671,8 @@ async fn copy_main_jagged_traces(
         start_indices,
         &mut column_heights_host,
         traces,
-        *preprocessed_offset,
-        *preprocessed_cols,
+        *global_offset,
+        *preprocessed_cols + *global_cols,
         log_stacking_height,
         max_log_row_count,
     )
@@ -684,14 +752,16 @@ pub async fn setup_tracegen_permit<A: CudaTracegenAir<Felt>>(
     (jagged_traces, permit)
 }
 
-/// Returns a tuple of (host phase tracegen, shape info).
+/// Returns `(main host phase, global host phase, shape info)`. The main and global host phases
+/// stream their respective traces into the pinned buffer; the global traces (from chips with
+/// `global_width() > 0`) are placed after the main traces so the two regions don't overlap.
 #[instrument(skip_all, level = "debug")]
 async fn host_main_tracegen<A>(
     machine: &Machine<Felt, A>,
     buffer_ptr: usize,
     start_idx: usize,
     record: Arc<<A as MachineAir<Felt>>::Record>,
-) -> (HostPhaseTracegen<A>, HostPhaseShapeInfo<A>)
+) -> (HostPhaseTracegen<A>, HostPhaseTracegen<A>, HostPhaseShapeInfo<A>)
 where
     A: CudaTracegenAir<Felt>,
 {
@@ -702,7 +772,7 @@ where
 
     // Move ALL CPU-intensive work into spawn_blocking to avoid blocking the async runtime.
     // This includes: chip filtering, num_rows() calls, and trace generation.
-    let (device_airs, host_traces, chip_set, shard_chips) =
+    let (device_airs, host_traces, global_host_traces, chip_set, shard_chips) =
         tokio::task::spawn_blocking(move || {
             // Set of chips we need to generate traces for.
             let chip_set: BTreeSet<_> = chips
@@ -717,62 +787,104 @@ where
                 .map(|chip| chip.air.clone())
                 .partition(|c| c.supports_device_main_tracegen());
 
+            // Main host jobs. Chips with no main columns (e.g. `MemoryLocalChip`) contribute no
+            // main trace, mirroring the CPU `pad_and_copy_traces` filter.
             let mut total_size = start_idx;
             let mut jobs = Vec::new();
-            for air in host_airs.iter() {
+            for air in host_airs.iter().filter(|air| air.width() > 0) {
                 jobs.push((air.clone(), total_size));
                 total_size += air.num_rows(&record).unwrap() * air.width();
+            }
+
+            let mut global_jobs = Vec::new();
+            for air in chip_set.iter().map(|chip| &chip.air).filter(|air| air.global_width() > 0) {
+                global_jobs.push((air.clone(), total_size));
+                total_size += air.num_rows(&record).unwrap() * air.global_width();
             }
 
             // Get the smallest cluster containing our tracegen chip set.
             let shard_chips = shape.smallest_cluster(&chip_set).unwrap().clone();
 
             // Spawn a rayon task to generate the traces on the CPU.
-            // `host_traces` is a futures Stream that will immediately begin buffering traces.
+            // The streams immediately begin buffering traces.
             let (host_traces_tx, host_traces) = futures::channel::mpsc::unbounded();
+            let (global_host_traces_tx, global_host_traces) = futures::channel::mpsc::unbounded();
+            let global_span = outer_span.clone();
             rayon::spawn(move || {
-                jobs.into_par_iter().for_each_with(host_traces_tx, |tx, (air, offset)| {
-                    tracing::trace_span!(parent: &outer_span, "chip host main tracegen", chip = %air.name()).in_scope(
-                        || {
-                            let base_ptr = buffer_ptr as *mut MaybeUninit<Felt>;
-                            let height = air.num_rows(&record).unwrap();
-                            let width = air.width();
-                            let trace_len = height * width;
-                            let slice: &mut [MaybeUninit<Felt>] = unsafe {
-                                std::slice::from_raw_parts_mut(base_ptr.add(offset), trace_len)
-                            };
-                            air.generate_trace_into(&record, &mut A::Record::default(), slice);
-                            let start_pointer = unsafe { base_ptr.add(offset) as usize };
-                            // If the receiver dropped (task cancelled), exit gracefully instead of panicking.
-                            let _ = tx.unbounded_send((air.name().to_string(), start_pointer, height, width));
-                        },
-                    );
-                });
+                rayon::join(
+                    || {
+                        jobs.into_par_iter().for_each_with(host_traces_tx, |tx, (air, offset)| {
+                            tracing::trace_span!(parent: &outer_span, "chip host main tracegen", chip = %air.name()).in_scope(
+                                || {
+                                    let base_ptr = buffer_ptr as *mut MaybeUninit<Felt>;
+                                    let height = air.num_rows(&record).unwrap();
+                                    let width = air.width();
+                                    let trace_len = height * width;
+                                    let slice: &mut [MaybeUninit<Felt>] = unsafe {
+                                        std::slice::from_raw_parts_mut(base_ptr.add(offset), trace_len)
+                                    };
+                                    air.generate_trace_into(&record, &mut A::Record::default(), slice);
+                                    let start_pointer = unsafe { base_ptr.add(offset) as usize };
+                                    // If the receiver dropped (task cancelled), exit gracefully instead of panicking.
+                                    let _ = tx.unbounded_send((air.name().to_string(), start_pointer, height, width));
+                                },
+                            );
+                        });
+                    },
+                    || {
+                        global_jobs.into_par_iter().for_each_with(global_host_traces_tx, |tx, (air, offset)| {
+                            tracing::trace_span!(parent: &global_span, "chip host global tracegen", chip = %air.name()).in_scope(
+                                || {
+                                    let base_ptr = buffer_ptr as *mut MaybeUninit<Felt>;
+                                    let height = air.num_rows(&record).unwrap();
+                                    let width = air.global_width();
+                                    let trace_len = height * width;
+                                    let slice: &mut [MaybeUninit<Felt>] = unsafe {
+                                        std::slice::from_raw_parts_mut(base_ptr.add(offset), trace_len)
+                                    };
+                                    air.generate_global_trace_into(&record, &mut A::Record::default(), slice);
+                                    let start_pointer = unsafe { base_ptr.add(offset) as usize };
+                                    let _ = tx.unbounded_send((air.name().to_string(), start_pointer, height, width));
+                                },
+                            );
+                        });
+                    },
+                );
                 // Make this explicit.
                 // If we are the last users of the record, this will expensively drop it.
                 drop(record);
             });
 
-            (device_airs, host_traces, chip_set, shard_chips)
+            (device_airs, host_traces, global_host_traces, chip_set, shard_chips)
         })
         .await
         .unwrap();
 
-    // For every AIR in the cluster, make a (virtual) padded trace.
+    // For every cluster AIR not in the chip set, make a (virtual) padded trace. The main map only
+    // contains chips with main columns, the global map only chips with global columns — matching
+    // the CPU `pad_and_copy_traces` split.
     let initial_traces = shard_chips
         .iter()
-        .filter(|chip| !chip_set.contains(chip))
-        .map(|chip| {
-            let num_polynomials = chip.width();
-            (chip.name().to_string(), Trace::Padding(num_polynomials))
-        })
+        .filter(|chip| chip.width() > 0 && !chip_set.contains(chip))
+        .map(|chip| (chip.name().to_string(), Trace::Padding(chip.width())))
+        .collect::<BTreeMap<_, _>>();
+    let initial_global_traces = shard_chips
+        .iter()
+        .filter(|chip| chip.global_width() > 0 && !chip_set.contains(chip))
+        .map(|chip| (chip.name().to_string(), Trace::Padding(chip.global_width())))
         .collect::<BTreeMap<_, _>>();
 
-    let host_phase_shape_info = HostPhaseShapeInfo { traces_by_name: initial_traces, chip_set };
+    let host_phase_shape_info = HostPhaseShapeInfo {
+        traces_by_name: initial_traces,
+        global_traces_by_name: initial_global_traces,
+        chip_set,
+    };
 
     let host_phase_tracegen = HostPhaseTracegen { device_airs, host_traces };
+    let global_host_phase_tracegen =
+        HostPhaseTracegen { device_airs: Vec::new(), host_traces: global_host_traces };
 
-    (host_phase_tracegen, host_phase_shape_info)
+    (host_phase_tracegen, global_host_phase_tracegen, host_phase_shape_info)
 }
 
 /// Puts traces on device. Returns (traces, public values).
@@ -844,6 +956,46 @@ async fn device_main_tracegen<A: CudaTracegenAir<Felt>>(
     (all_traces, public_values)
 }
 
+/// Copies the host-generated global traces to device.
+#[instrument(skip_all, level = "debug")]
+async fn device_global_tracegen<A: CudaTracegenAir<Felt>>(
+    host_phase_tracegen: HostPhaseTracegen<A>,
+    initial_traces: BTreeMap<String, Trace>,
+    backend: &TaskScope,
+) -> BTreeMap<String, Trace> {
+    let HostPhaseTracegen { device_airs, host_traces } = host_phase_tracegen;
+    debug_assert!(device_airs.is_empty(), "global tracegen has no device airs");
+
+    let outer_span = tracing::Span::current();
+    let copied_host_traces = pin!(host_traces.then(|(name, start_pointer, height, width)| {
+        let inner_name = name.clone();
+        let trace_len = height * width;
+        let mut storage: Buffer<Felt, TaskScope> =
+            Buffer::with_capacity_in(trace_len, backend.clone());
+        let slice =
+            unsafe { std::slice::from_raw_parts_mut(start_pointer as *mut Felt, trace_len) };
+        storage.extend_from_host_slice(slice).unwrap();
+        let dims: Dimensions = [height, width].try_into().unwrap();
+        let tensor = Tensor { storage, dimensions: dims };
+        let guts = DeviceTensor::from_raw(tensor).transpose().into_inner();
+        async move { (inner_name, Mle::new(guts)) }
+    }
+    .instrument(
+        tracing::trace_span!(parent: &outer_span, "copy host global trace to device", chip = %name)
+    )));
+
+    let mut all_traces = initial_traces;
+    copied_host_traces
+        .for_each(|(name, trace)| {
+            all_traces.insert(name, Trace::Real(trace));
+            ready(())
+        })
+        .instrument(tracing::debug_span!("wait for global device traces"))
+        .await;
+
+    all_traces
+}
+
 /// Corresponds to `generate_main_traces`.
 /// Mutates jagged_traces in place, and returns public values.
 #[instrument(skip_all, level = "debug")]
@@ -860,10 +1012,14 @@ pub async fn main_tracegen<GC: IopCtx<F = Felt>, A: CudaTracegenAir<Felt>>(
     global_dependencies_opt: bool,
 ) -> (Vec<Felt>, BTreeSet<Chip<Felt, A>>, ProverPermit) {
     // Start generating traces on host.
-    let (host_phase_tracegen, host_phase_shape_info) =
+    let (host_phase_tracegen, global_host_phase_tracegen, host_phase_shape_info) =
         host_main_tracegen(machine, buffer.as_ptr() as usize, 0, record.clone()).await;
 
-    let HostPhaseShapeInfo { traces_by_name: initial_traces, chip_set } = host_phase_shape_info;
+    let HostPhaseShapeInfo {
+        traces_by_name: initial_traces,
+        global_traces_by_name: initial_global_traces,
+        chip_set,
+    } = host_phase_shape_info;
     let permit =
         prover_permit.acquire().instrument(tracing::debug_span!("acquire permit")).await.unwrap();
     let mut jagged_traces = jagged_traces.lock().await;
@@ -873,8 +1029,21 @@ pub async fn main_tracegen<GC: IopCtx<F = Felt>, A: CudaTracegenAir<Felt>>(
     // - Generating traces on the device.
     let (traces, public_values) =
         device_main_tracegen(host_phase_tracegen, record, initial_traces, backend).await;
+    let global_traces =
+        device_global_tracegen(global_host_phase_tracegen, initial_global_traces, backend).await;
 
     log_chip_stats(machine, &chip_set, &traces);
+
+    // Lay out the global section before the main section.
+    if !global_traces.is_empty() {
+        copy_global_jagged_traces(
+            global_traces,
+            &mut jagged_traces.preprocessed_traces,
+            log_stacking_height,
+            max_log_row_count,
+        )
+        .await;
+    }
 
     copy_main_jagged_traces(
         traces,
@@ -936,8 +1105,15 @@ pub async fn full_tracegen<A: CudaTracegenAir<Felt>>(
     let (prep_host_phase_tracegen, start_idx) =
         host_preprocessed_tracegen(machine, buffer.as_ptr() as usize, program.clone()).await;
 
-    let (main_host_phase_tracegen, HostPhaseShapeInfo { traces_by_name: initial_traces, chip_set }) =
-        host_main_tracegen(machine, buffer.as_ptr() as usize, start_idx, record.clone()).await;
+    let (
+        main_host_phase_tracegen,
+        global_host_phase_tracegen,
+        HostPhaseShapeInfo {
+            traces_by_name: initial_traces,
+            global_traces_by_name: initial_global_traces,
+            chip_set,
+        },
+    ) = host_main_tracegen(machine, buffer.as_ptr() as usize, start_idx, record.clone()).await;
 
     // Wait for a prover to be available.
     let permit =
@@ -947,9 +1123,10 @@ pub async fn full_tracegen<A: CudaTracegenAir<Felt>>(
     // - Copying host traces to the device.
     // - Generating traces on the device.
 
-    let (preprocessed_traces, (main_traces, public_values)) = join!(
+    let (preprocessed_traces, (main_traces, public_values), global_traces) = join!(
         device_preprocessed_tracegen(program, prep_host_phase_tracegen, backend),
-        device_main_tracegen(main_host_phase_tracegen, record, initial_traces, backend)
+        device_main_tracegen(main_host_phase_tracegen, record, initial_traces, backend),
+        device_global_tracegen(global_host_phase_tracegen, initial_global_traces, backend)
     );
 
     log_chip_stats(machine, &chip_set, &main_traces);
@@ -962,6 +1139,17 @@ pub async fn full_tracegen<A: CudaTracegenAir<Felt>>(
         backend,
     )
     .await;
+
+    // Lay out the global section before the main section.
+    if !global_traces.is_empty() {
+        copy_global_jagged_traces(
+            global_traces,
+            &mut jagged_mle,
+            log_stacking_height,
+            max_log_row_count,
+        )
+        .await;
+    }
 
     copy_main_jagged_traces(
         main_traces,
@@ -1011,9 +1199,9 @@ fn log_chip_stats<A: CudaTracegenAir<Felt>>(
 ) {
     let mut total_number_of_cells = 0;
     tracing::debug!("Proving shard");
-    for (chip, trace) in machine.smallest_cluster(chip_set).unwrap().iter().zip_eq(traces.values())
-    {
-        let height = trace.num_real_entries();
+    // TODO(rkm): get height from global trace if necessary.
+    for chip in machine.smallest_cluster(chip_set).unwrap().iter() {
+        let height = traces.get(chip.name()).map(Trace::num_real_entries).unwrap_or(0);
         let stats = ChipStatistics::new(chip, height);
         tracing::debug!("{}", stats);
         total_number_of_cells += stats.total_number_of_cells();
@@ -1108,6 +1296,23 @@ mod tests {
             }
 
             // Add zero evaluation for preprocessed padding to next multiple of 2^log stacking height.
+            num_cols += 1;
+            all_evals_host.extend_from_slice(&[Ext::zero()]);
+
+            // The global section sits between the preprocessed and main sections in the dense
+            // layout (`[prep | global | main]`), so its column evaluations slot in here.
+            for trace in old_traces.main_trace_data.global_traces.values() {
+                assert_eq!(trace.num_variables(), CORE_MAX_LOG_ROW_COUNT);
+
+                let trace = trace.eval_at(&z_row);
+
+                num_cols += trace.num_polynomials();
+                let tensor = trace.into_evaluations();
+
+                all_evals_host.extend_from_slice(tensor.as_buffer());
+            }
+
+            // Add zero evaluation for global padding to next multiple of 2^log stacking height.
             num_cols += 1;
             all_evals_host.extend_from_slice(&[Ext::zero()]);
 
@@ -1281,12 +1486,17 @@ mod tests {
             let trace_dense_data = TraceDenseData {
                 dense: dense_data,
                 preprocessed_offset: final_offset,
+                global_offset: final_offset,
                 preprocessed_cols: final_cols,
+                global_cols: 0,
                 preprocessed_table_index: table_index,
+                global_table_index: BTreeMap::new(),
                 main_table_index: BTreeMap::new(),
                 preprocessed_padding: padding,
+                global_padding: 0,
                 main_padding: 0,
                 prep_padding_col_count,
+                global_padding_col_count: 0,
                 main_padding_col_count: 0,
             };
             let column_heights_dev =
@@ -1387,12 +1597,17 @@ mod tests {
             let trace_dense_data = TraceDenseData {
                 dense: dense_data,
                 preprocessed_offset: final_offset,
+                global_offset: final_offset,
                 preprocessed_cols: final_cols,
+                global_cols: 0,
                 preprocessed_table_index: table_index,
+                global_table_index: BTreeMap::new(),
                 main_table_index: BTreeMap::new(),
                 preprocessed_padding: padding,
+                global_padding: 0,
                 main_padding: 0,
                 prep_padding_col_count,
+                global_padding_col_count: 0,
                 main_padding_col_count: 0,
             };
             let column_heights_dev =

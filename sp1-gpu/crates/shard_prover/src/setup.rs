@@ -10,7 +10,7 @@ use sp1_gpu_basefold::DeviceGrindingChallenger;
 use sp1_gpu_cudart::TaskScope;
 use sp1_gpu_jagged_tracegen::setup_tracegen_permit;
 use sp1_gpu_jagged_tracegen::CudaShardProverData;
-use sp1_gpu_utils::{Ext, Felt, JaggedTraceMle};
+use sp1_gpu_utils::{Ext, Felt, JaggedTraceMle, TraceSection};
 use sp1_hypercube::{
     air::{MachineAir, MachineProgram},
     prover::{PreprocessedData, ProverSemaphore, ProvingKey},
@@ -91,7 +91,7 @@ where
         let (preprocessed_commit, preprocessed_data) = sp1_gpu_commit::commit_multilinears(
             &preprocessed_traces,
             self.max_log_row_count,
-            true,
+            TraceSection::Preprocessed,
             self.drop_ldes,
             &self.basefold_prover,
         )

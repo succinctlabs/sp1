@@ -6,7 +6,6 @@ use std::{
     sync::Arc,
 };
 
-use itertools::Itertools;
 use slop_algebra::AbstractField;
 use slop_alloc::HasBackend;
 use slop_challenger::{CanObserve, FieldChallenger, IopCtx, VariableLengthChallenger};
@@ -16,8 +15,11 @@ use sp1_gpu_cudart::{DevicePoint, TaskScope};
 use tracing::instrument;
 
 use sp1_hypercube::{
-    air::MachineAir, Chip, ChipEvaluation, LogUpEvaluations, LogUpGkrOutput, LogupGkrProof,
-    LogupGkrRoundProof, GKR_GRINDING_BITS,
+    air::{InteractionScope, MachineAir},
+    beta_seed_dim_for_scope,
+    prover::Record,
+    pv_interaction_max_arity, Chip, ChipEvaluation, LogUpEvaluations, LogUpGkrOutput,
+    LogUpGkrVerifier, LogupGkrProof, LogupGkrRoundProof, ShardContext, GKR_GRINDING_BITS,
 };
 
 use crate::execution::DeviceLogUpGkrOutput;
@@ -174,35 +176,57 @@ pub fn prove_gkr_circuit<'a, C: FieldChallenger<Felt>>(
 }
 
 /// End-to-end proves lookups for a given trace.
-pub fn prove_logup_gkr<GC: IopCtx<F = Felt, EF = Ext>, A: MachineAir<Felt>>(
-    chips: &BTreeSet<Chip<Felt, A>>,
+#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_lines)]
+pub fn prove_logup_gkr<GC, SC>(
+    chips: &BTreeSet<Chip<Felt, SC::Air>>,
     all_interactions: BTreeMap<String, Arc<Interactions<Felt, TaskScope>>>,
     jagged_trace_data: &JaggedTraceMle<Felt, TaskScope>,
+    public_values: Vec<Felt>,
+    global_challenges: Option<(Ext, Point<Ext>)>,
     options: CudaLogUpGkrOptions,
     challenger: &mut GC::Challenger,
-) -> LogupGkrProof<Felt, Ext>
+) -> (LogupGkrProof<Felt, Ext>, Option<Ext>)
 where
+    GC: IopCtx<F = Felt, EF = Ext>,
+    SC: ShardContext<GC>,
     GC::Challenger: DeviceGrindingChallenger<Witness = GC::F>,
 {
     let CudaLogUpGkrOptions { recompute_first_layer, num_row_variables } = options;
     let backend = jagged_trace_data.backend().clone();
 
-    let max_interaction_arity = chips
-        .iter()
-        .flat_map(|c| c.sends().iter().chain(c.receives().iter()))
-        .map(|i| i.values.len() + 1)
-        .max()
-        .unwrap();
-    let beta_seed_dim = max_interaction_arity.next_power_of_two().ilog2();
+    let beta_seed_dim = beta_seed_dim_for_scope(
+        chips.iter(),
+        InteractionScope::Local,
+        pv_interaction_max_arity::<Record<GC, SC>>(),
+    );
 
     let witness = GrindingPowCudaProver::grind(challenger, GKR_GRINDING_BITS, &backend);
 
-    // Sample the logup challenges.
+    // Sample the local logup challenges.
     let alpha = challenger.sample_ext_element::<GC::EF>();
-
     let beta_seed =
         (0..beta_seed_dim).map(|_| challenger.sample_ext_element::<GC::EF>()).collect::<Point<_>>();
-    let _pv_challenge = challenger.sample_ext_element::<GC::EF>();
+    let pv_challenge = challenger.sample_ext_element::<GC::EF>();
+
+    let has_global_round = global_challenges.is_some();
+
+    // On machines with a global round, compute the global-scope public-value digest under the
+    // global challenge pair; it folds into the shard's global cumulative sum.
+    let global_pv_digest = global_challenges.as_ref().map(|global_challenges| {
+        let (_, global_pv_digest) = LogUpGkrVerifier::<GC, SC>::verify_public_values(
+            pv_challenge,
+            &alpha,
+            &beta_seed,
+            Some(global_challenges),
+            &public_values,
+        )
+        .expect("the prover's public values must satisfy the public-value constraints");
+        global_pv_digest
+    });
+
+    let (global_alpha, global_beta_seed) =
+        global_challenges.clone().unwrap_or_else(|| (alpha, beta_seed.clone()));
 
     let num_interactions =
         chips.iter().map(|chip| chip.sends().len() + chip.receives().len()).sum::<usize>();
@@ -213,8 +237,8 @@ where
         chips,
         all_interactions,
         jagged_trace_data,
-        alpha,
-        beta_seed,
+        (alpha, beta_seed),
+        (global_alpha, global_beta_seed),
         options,
         backend,
     );
@@ -230,6 +254,18 @@ where
         .observe_variable_length_extension_slice(host_denominator.guts().as_buffer().as_slice());
 
     let output_host = LogUpGkrOutput { numerator: host_numerator, denominator: host_denominator };
+
+    // The shard's global cumulative sum: the global-scope partial sum of the output layer plus the
+    // global-scope public-value digest. The verifier recomputes this and binds it to the proof.
+    let global_cumulative_sum = global_pv_digest.map(|global_pv_digest| {
+        let interaction_scopes = chips
+            .iter()
+            .flat_map(|chip| chip.sends().iter().chain(chip.receives().iter()))
+            .map(|interaction| interaction.scope)
+            .collect::<Vec<_>>();
+        let (_, global_output_sum) = output_host.cumulative_sums_by_scope(&interaction_scopes);
+        global_output_sum + global_pv_digest
+    });
 
     // TODO: instead calculate from number of interactions.
     let initial_number_of_variables = numerator.num_variables();
@@ -256,38 +292,70 @@ where
     // We accomplish this by doing jagged fix last variable on the evaluation point.
     let eval_point = eval_point.last_k(num_row_variables as usize);
     let host_evaluations = round_batch_evaluations(&eval_point, jagged_trace_data);
-    let [preprocessed, main]: [Vec<MleEval<Ext>>; 2] = host_evaluations.rounds.try_into().unwrap();
+    // Trace openings come back round-by-round in `[preprocessed, (global,) main]` order. Split
+    // them off positionally; each round's per-chip evaluations are then keyed by chip name, since
+    // the rounds walk the trace's table indices in (name) order.
+    let mut rounds = host_evaluations.rounds;
+    let main: Vec<MleEval<Ext>> = rounds.pop().expect("logup gkr produced no trace-opening rounds");
+    let preprocessed: Vec<MleEval<Ext>> = rounds.remove(0);
+    let global: Option<Vec<MleEval<Ext>>> = has_global_round.then(|| rounds.remove(0));
+
+    let trace_data = jagged_trace_data.dense();
+    let prep_by_name = trace_data
+        .preprocessed_table_index
+        .keys()
+        .map(String::as_str)
+        .zip(preprocessed)
+        .collect::<BTreeMap<_, _>>();
+    let main_by_name = trace_data
+        .main_table_index
+        .keys()
+        .map(String::as_str)
+        .zip(main)
+        .collect::<BTreeMap<_, _>>();
+    let global_by_name = global.map(|global| {
+        trace_data
+            .global_table_index
+            .keys()
+            .map(String::as_str)
+            .zip(global)
+            .collect::<BTreeMap<_, _>>()
+    });
 
     let mut chip_evaluations = BTreeMap::new();
 
-    let mut preprocessed_so_far = 0;
-
     challenger.observe(Felt::from_canonical_usize(chips.len()));
-    for (chip, main_evals) in chips.iter().zip_eq(main) {
+    for chip in chips.iter() {
+        let name = chip.name();
+        let main_trace_evaluations =
+            main_by_name.get(name).cloned().unwrap_or_else(|| MleEval::from(Vec::new()));
+        let preprocessed_trace_evaluations = prep_by_name.get(name).cloned();
+        let global_trace_evaluations = global_by_name.as_ref().and_then(|m| m.get(name).cloned());
         let openings = ChipEvaluation {
-            main_trace_evaluations: main_evals,
-            preprocessed_trace_evaluations: if chip.preprocessed_width() != 0 {
-                let res = Some(preprocessed[preprocessed_so_far].clone());
-                preprocessed_so_far += 1;
-                res
-            } else {
-                None
-            },
-            global_trace_evaluations: None,
+            main_trace_evaluations,
+            preprocessed_trace_evaluations,
+            global_trace_evaluations,
         };
 
-        // Observe the openings.
+        // Observe the openings, in the order `prep, global, main`.
         if let Some(prep_eval) = openings.preprocessed_trace_evaluations.as_ref() {
             challenger.observe_variable_length_extension_slice(prep_eval);
         }
+        if has_global_round {
+            challenger.observe_variable_length_extension_slice(
+                openings.global_trace_evaluations.as_deref().unwrap_or(&[]),
+            );
+        }
         challenger.observe_variable_length_extension_slice(&openings.main_trace_evaluations);
 
-        chip_evaluations.insert(chip.name().to_string(), openings);
+        chip_evaluations.insert(name.to_string(), openings);
     }
 
     let logup_evaluations = LogUpEvaluations { point: eval_point, chip_openings: chip_evaluations };
 
-    LogupGkrProof { circuit_output: output_host, round_proofs, logup_evaluations, witness }
+    let proof =
+        LogupGkrProof { circuit_output: output_host, round_proofs, logup_evaluations, witness };
+    (proof, global_cumulative_sum)
 }
 
 #[cfg(test)]
@@ -311,7 +379,7 @@ mod tests {
         CORE_MAX_TRACE_SIZE,
     };
     use sp1_gpu_utils::TestGC;
-    use sp1_hypercube::{prover::ProverSemaphore, SP1SC};
+    use sp1_hypercube::{prover::ProverSemaphore, GlobalChallengeSeam, SP1SC};
     use std::sync::Arc;
 
     use crate::execution::{extract_outputs, gkr_transition, layer_transition};
@@ -588,23 +656,38 @@ mod tests {
                 all_interactions.insert(chip.name().to_string(), Arc::new(device_interactions));
             }
 
-            let mut prover_challenger = challenger.clone();
-            let proof = super::prove_logup_gkr::<TestGC, RiscvAir<Felt>>(
-                shard_chips,
-                all_interactions,
-                &jagged_trace_data,
-                CudaLogUpGkrOptions {
-                    recompute_first_layer: true,
-                    num_row_variables: CORE_MAX_LOG_ROW_COUNT,
-                },
-                &mut prover_challenger,
+            let global_beta_seed_dim = beta_seed_dim_for_scope(
+                machine.chips().iter(),
+                InteractionScope::Global,
+                pv_interaction_max_arity::<Record<TestGC, SP1SC<TestGC, RiscvAir<Felt>>>>(),
             );
+            let seam = GlobalChallengeSeam::<TestGC>::stub();
+            let mut base_challenger = challenger.clone();
+            let global_challenges = seam.derive(global_beta_seed_dim, &mut base_challenger);
+
+            let mut prover_challenger = base_challenger.clone();
+            let (proof, global_cumulative_sum) =
+                super::prove_logup_gkr::<TestGC, SP1SC<TestGC, RiscvAir<Felt>>>(
+                    shard_chips,
+                    all_interactions,
+                    &jagged_trace_data,
+                    public_values.clone(),
+                    Some(global_challenges.clone()),
+                    CudaLogUpGkrOptions {
+                        recompute_first_layer: true,
+                        num_row_variables: CORE_MAX_LOG_ROW_COUNT,
+                    },
+                    &mut prover_challenger,
+                );
             let prover_challenge: Ext = prover_challenger.sample_ext_element();
 
             let degrees = shard_chips
                 .iter()
                 .map(|c| {
-                    let poly_size = jagged_trace_data.main_poly_height(c.name()).unwrap();
+                    let poly_size = jagged_trace_data
+                        .main_poly_height(c.name())
+                        .or_else(|| jagged_trace_data.global_poly_height(c.name()))
+                        .unwrap();
 
                     let threshold_point =
                         Point::<Felt>::from_usize(poly_size, CORE_MAX_LOG_ROW_COUNT as usize + 1);
@@ -612,13 +695,13 @@ mod tests {
                 })
                 .collect();
 
-            let mut verifier_challenger = challenger.clone();
+            let mut verifier_challenger = base_challenger.clone();
             sp1_hypercube::LogUpGkrVerifier::<TestGC, SP1SC<TestGC, RiscvAir<Felt>>>::verify_logup_gkr(
                 shard_chips,
                 &degrees,
                 CORE_MAX_LOG_ROW_COUNT as usize,
-                None,
-                None,
+                Some(&global_challenges),
+                global_cumulative_sum,
                 &proof,
                 &public_values,
                 &mut verifier_challenger,

@@ -88,7 +88,9 @@ __global__ void zerocheck_fused_sequential(
                 LeafRef leaf = stc.leaves[instr.a];
                 size_t base = (leaf.source == LEAF_SOURCE_MAIN_LOCAL)
                                   ? lay.main_ptr
-                                  : lay.preprocessed_ptr;
+                                  : (leaf.source == LEAF_SOURCE_GLOBAL_LOCAL)
+                                        ? lay.global_ptr
+                                        : lay.preprocessed_ptr;
                 // 64-bit column stride math; u32 × u32 wraps near the
                 // 2^32 / height column count. See review #6.
                 size_t col_off = (size_t)leaf.col * (size_t)lay.height;
@@ -153,7 +155,8 @@ __global__ void zerocheck_fused_sequential(
         // which matters for narrow widths.
         //
         // Geq correction is always out-of-band (`zerocheck_geq_corrections`).
-        if (stc.gkr_main_width != 0 || stc.gkr_prep_width != 0) {
+        if (stc.gkr_main_width != 0 || stc.gkr_prep_width != 0 ||
+            stc.gkr_global_width != 0) {
             // 64-bit column stride math; u32 × u32 wraps near
             // `2^32 / height` columns. See review #6.
             const size_t height_64 = (size_t)lay.height;
@@ -186,6 +189,23 @@ __global__ void zerocheck_fused_sequential(
                     v = (e == 1) ? (z + d2) : (z + d2 + d2);
                 }
                 acc += ext_t::load(gkr_powers, stc.gkr_main_width + i) * v;
+            }
+            // Global columns last, in `main, prep, global` order.
+            for (uint32_t i = 0; i < stc.gkr_global_width; i++) {
+                size_t col_off = (size_t)i * height_64;
+                K z = K::load(trace_data, lay.global_ptr + col_off + (row_idx << 1));
+                K v;
+                if (e == 0) {
+                    v = z;
+                } else {
+                    K o = K::load(trace_data,
+                                  lay.global_ptr + col_off + (row_idx << 1 | 1));
+                    K diff = o - z;
+                    K d2 = diff + diff;
+                    v = (e == 1) ? (z + d2) : (z + d2 + d2);
+                }
+                acc += ext_t::load(gkr_powers,
+                                   stc.gkr_main_width + stc.gkr_prep_width + i) * v;
             }
         }
 

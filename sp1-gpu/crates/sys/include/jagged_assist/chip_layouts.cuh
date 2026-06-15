@@ -26,8 +26,10 @@
 struct ChipColumnLayoutEntry {
     uint32_t prep_col_idx;   // column index of the chip's first prep column
     uint32_t main_col_idx;   // column index of the chip's first main column
+    uint32_t global_col_idx; // column index of the chip's first global column
     uint32_t prep_width;     // 0 if the chip has no prep columns
     uint32_t main_width;     // 0 if the chip has no main columns
+    uint32_t global_width;   // 0 if the chip has no global columns
 };
 
 extern "C" void* jagged_chip_layouts_kernel();

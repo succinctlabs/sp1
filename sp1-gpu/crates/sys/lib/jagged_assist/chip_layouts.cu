@@ -24,17 +24,21 @@ __global__ void jaggedChipLayouts(
     // multiply by 2 to land in element units of the dense buffer.
     uint64_t prep_ptr =
         (e.prep_width > 0u) ? ((uint64_t)start_indices[e.prep_col_idx] * 2ull) : 0ull;
+    uint64_t global_ptr =
+        (e.global_width > 0u) ? ((uint64_t)start_indices[e.global_col_idx] * 2ull) : 0ull;
     uint64_t main_ptr =
         (e.main_width > 0u) ? ((uint64_t)start_indices[e.main_col_idx] * 2ull) : 0ull;
 
     // Chip height in element units. All columns of a chip share the same
     // height (uniform within chip — built that way and preserved by
-    // `h.div_ceil(4)*2`). Prefer main if the chip has main cols, else prep,
-    // else 0 (chip_idx never has both widths zero in practice but the
-    // guard keeps the kernel total).
+    // `h.div_ceil(4)*2`). Prefer main if the chip has main cols, else global
+    // (a `width()==0` global chip like MemoryLocal is sized here), else prep,
+    // else 0.
     uint32_t height_pair;
     if (e.main_width > 0u) {
         height_pair = column_heights[e.main_col_idx];
+    } else if (e.global_width > 0u) {
+        height_pair = column_heights[e.global_col_idx];
     } else if (e.prep_width > 0u) {
         height_pair = column_heights[e.prep_col_idx];
     } else {
@@ -45,6 +49,7 @@ __global__ void jaggedChipLayouts(
     ChipLayout out{};
     out.main_ptr = main_ptr;
     out.preprocessed_ptr = prep_ptr;
+    out.global_ptr = global_ptr;
     out.height = height;
     out._pad = 0u;
     chip_layouts[chip_idx] = out;

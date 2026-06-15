@@ -7,7 +7,9 @@
 //! interpretation — lane variation IS the program.
 
 use crate::ir::analysis::ConstraintInfo;
-use crate::ir::bytecode::{LeafRef, LEAF_SOURCE_MAIN_LOCAL, LEAF_SOURCE_PREPROCESSED_LOCAL};
+use crate::ir::bytecode::{
+    LeafRef, LEAF_SOURCE_GLOBAL_LOCAL, LEAF_SOURCE_MAIN_LOCAL, LEAF_SOURCE_PREPROCESSED_LOCAL,
+};
 use crate::ir::chunker::Chunk;
 use crate::ir::dag::{ConstraintDag, DagNode, TraceSource};
 use crate::ir::lowering::ColumnTilePlan;
@@ -74,7 +76,7 @@ pub fn lower_column_tile(
             DagNode::InputLeaf { source, col } => {
                 let s = match source {
                     TraceSource::PreprocessedLocal => LEAF_SOURCE_PREPROCESSED_LOCAL,
-                    TraceSource::GlobalLocal => return None,
+                    TraceSource::GlobalLocal => LEAF_SOURCE_GLOBAL_LOCAL,
                     TraceSource::MainLocal => LEAF_SOURCE_MAIN_LOCAL,
                 };
                 (s, col)
@@ -207,6 +209,64 @@ mod tests {
         let neg1 = (bc.terms[1].coeff_kind & COEFF_NEGATE_BIT) != 0;
         assert_eq!(kind1, COEFF_KIND_CONST);
         assert!(neg1, "right-of-SubF term must carry the negate flag");
+    }
+
+    #[test]
+    fn lower_column_tile_handles_global_leaf() {
+        let mut nodes = Vec::new();
+        let c0 = nodes.len() as u32;
+        nodes.push(DagNode::ConstF { value: F::from_canonical_u32(7) });
+        let g0 = nodes.len() as u32;
+        nodes.push(DagNode::InputLeaf { source: TraceSource::GlobalLocal, col: 0 });
+        let t0 = nodes.len() as u32;
+        nodes.push(DagNode::MulF { a: c0, b: g0 });
+        let c1 = nodes.len() as u32;
+        nodes.push(DagNode::ConstF { value: F::from_canonical_u32(11) });
+        let x1 = nodes.len() as u32;
+        nodes.push(DagNode::InputLeaf { source: TraceSource::MainLocal, col: 0 });
+        let t1 = nodes.len() as u32;
+        nodes.push(DagNode::MulF { a: c1, b: x1 });
+        let root = nodes.len() as u32;
+        nodes.push(DagNode::SubF { a: t0, b: t1 });
+
+        let dag = ConstraintDag {
+            nodes,
+            constraints: vec![ConstraintRef { root, alpha_index: 0 }],
+            preprocessed_width: 0,
+            global_width: 1,
+            main_width: 1,
+        };
+        let infos = analyze_constraints(&dag);
+        assert!(matches!(infos[0].shape, ConstraintShape::LinearWeightedSum));
+
+        let mut leafset = HashSet::new();
+        for &leaf in &infos[0].column_leaves {
+            leafset.insert(leaf);
+        }
+        let chunk = Chunk {
+            constraint_indices: vec![0],
+            leafset,
+            depth_max: infos[0].depth,
+            shape: ConstraintShape::LinearWeightedSum,
+        };
+
+        let plan = enumerate_lowerings(&chunk, &infos, &dag)
+            .into_iter()
+            .find_map(|l| match l {
+                Lowering::ColumnTile(p) => Some(p),
+                _ => None,
+            })
+            .expect("ColumnTile lowering should apply");
+        let bc = lower_column_tile(&chunk, &infos, &dag, &plan)
+            .expect("global leaves lower to ColumnTile in M5");
+
+        assert_eq!(bc.terms.len(), 2);
+        let sources: HashSet<u8> = bc.leaves.iter().map(|l| l.source).collect();
+        assert!(
+            sources.contains(&LEAF_SOURCE_GLOBAL_LOCAL),
+            "expected a global leaf source, got {sources:?}",
+        );
+        assert!(sources.contains(&LEAF_SOURCE_MAIN_LOCAL));
     }
 
     /// `c0*x0 - (c1*x1 - c2*x2)` exercises nested SubF: the inner
