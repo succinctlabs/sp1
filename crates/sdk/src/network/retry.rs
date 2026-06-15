@@ -56,7 +56,8 @@ where
                         Code::Unavailable
                         | Code::DeadlineExceeded
                         | Code::Internal
-                        | Code::Aborted => {
+                        | Code::Aborted
+                        | Code::Cancelled => {
                             tracing::warn!(
                                 "Network temporarily unavailable when {} due to {}, retrying...",
                                 operation_name,
@@ -71,6 +72,16 @@ where
                                 status.message(),
                             );
                             Err(BackoffError::permanent(e))
+                        }
+                        // Dropped connection on the reused channel; failed before send, safe to
+                        // retry — see `is_connection_not_ready`.
+                        _ if is_connection_not_ready(status) => {
+                            tracing::warn!(
+                                "Connection not ready when {} ({}), retrying...",
+                                operation_name,
+                                status.message(),
+                            );
+                            Err(BackoffError::transient(e))
                         }
                         _ => {
                             tracing::error!(
@@ -125,4 +136,76 @@ where
         }
     })
     .await
+}
+
+/// True for tonic's `poll_ready` failure on a reused channel — reported by the generated client as
+/// `Status::unknown("Service was not ready: ...")` when the channel's connection has dropped (e.g.
+/// an idle connection reaped by a load balancer).
+///
+/// The gate fails before the request is sent, so it's safe to retry; the channel re-establishes on
+/// the next attempt. Matched narrowly on `Code::Unknown` plus this prefix so other errors stay
+/// permanent.
+fn is_connection_not_ready(status: &tonic::Status) -> bool {
+    status.code() == Code::Unknown
+        && status.message().to_lowercase().contains("service was not ready")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{is_connection_not_ready, retry_operation, Result};
+    use std::{
+        sync::atomic::{AtomicUsize, Ordering},
+        time::Duration,
+    };
+    use tonic::Status;
+
+    #[test]
+    fn not_ready_is_the_only_retryable_unknown() {
+        // The poll_ready signature, matched case-insensitively.
+        assert!(is_connection_not_ready(&Status::unknown(
+            "Service was not ready: transport error"
+        )));
+        assert!(is_connection_not_ready(&Status::unknown("SERVICE WAS NOT READY: x")));
+
+        // Regression guard: any other error must stay permanent — other `Unknown` messages, and
+        // the same message under any other code. We never retry on free-form server text.
+        assert!(!is_connection_not_ready(&Status::unknown("invalid request timeout value")));
+        assert!(!is_connection_not_ready(&Status::invalid_argument("Service was not ready: x")));
+        assert!(!is_connection_not_ready(&Status::resource_exhausted("Service was not ready: x")));
+    }
+
+    #[tokio::test]
+    async fn retry_loop_recovers_from_not_ready() {
+        let attempts = AtomicUsize::new(0);
+        let res = retry_operation(
+            || async {
+                if attempts.fetch_add(1, Ordering::SeqCst) == 0 {
+                    Err(Status::unknown("Service was not ready: transport error").into())
+                } else {
+                    Ok(())
+                }
+            },
+            Some(Duration::from_secs(10)),
+            "test op",
+        )
+        .await;
+        assert!(res.is_ok());
+        assert_eq!(attempts.load(Ordering::SeqCst), 2, "should retry once, then succeed");
+    }
+
+    #[tokio::test]
+    async fn retry_loop_fails_fast_on_permanent() {
+        let attempts = AtomicUsize::new(0);
+        let res: Result<()> = retry_operation(
+            || async {
+                attempts.fetch_add(1, Ordering::SeqCst);
+                Err(Status::unknown("invalid argument").into())
+            },
+            Some(Duration::from_secs(10)),
+            "test op",
+        )
+        .await;
+        assert!(res.is_err());
+        assert_eq!(attempts.load(Ordering::SeqCst), 1, "permanent errors must not retry");
+    }
 }

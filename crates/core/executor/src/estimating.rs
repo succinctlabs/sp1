@@ -617,6 +617,16 @@ impl<'a> GasEstimatingVMEnum<'a> {
         }
     }
 
+    /// The raw `(complexity, trace_area)` accumulated by the gas calculator, before the
+    /// integer divisions of the gas formula round them down.
+    #[must_use]
+    pub fn costs(&self) -> (u64, u64) {
+        match self {
+            Self::Supervisor(vm) => vm.gas_calculator.get_costs(),
+            Self::User(vm) => vm.gas_calculator.get_costs(),
+        }
+    }
+
     /// Check if the VM has completed execution.
     #[must_use]
     pub fn is_done(&self) -> bool {

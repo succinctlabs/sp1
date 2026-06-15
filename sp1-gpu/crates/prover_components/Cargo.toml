@@ -21,6 +21,7 @@ sp1-gpu-merkle-tree = { workspace = true }
 sp1-gpu-jagged-tracegen = { workspace = true }
 
 # slop
+slop-air = { workspace = true }
 slop-koala-bear = { workspace = true }
 slop-algebra = { workspace = true }
 slop-bn254 = { workspace = true }

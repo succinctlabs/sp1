@@ -5,7 +5,7 @@ use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{prover::ProverSemaphore, Machine};
 use sp1_primitives::SP1Field;
 use sp1_prover_types::{
-    ArtifactClient, ArtifactType, InMemoryArtifactClient, TaskStatus, TaskType,
+    ArtifactClient, ArtifactType, InMemoryArtifactClient, ProofArtifacts, TaskStatus, TaskType,
 };
 use tokio::{sync::mpsc, task::JoinSet};
 use tracing::Instrument;
@@ -46,8 +46,11 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
     /// This method can be used to initialize a node from a worker client builder that has already
     /// been configured with the desired prover components.
     pub fn from_worker_client_builder(builder: SP1WorkerBuilder<C>) -> Self {
-        let artifact_client = InMemoryArtifactClient::new();
-        let (worker_client, channels) = LocalWorkerClient::init();
+        // One shared per-proof artifact index: the worker client records a
+        // proof's artifacts, the artifact client prunes them as they're deleted.
+        let artifact_index = ProofArtifacts::default();
+        let artifact_client = InMemoryArtifactClient::with_index(artifact_index.clone());
+        let (worker_client, channels) = LocalWorkerClient::init_with_index(artifact_index);
         let worker_builder =
             builder.with_artifact_client(artifact_client).with_worker_client(worker_client);
         Self { worker_builder, channels }

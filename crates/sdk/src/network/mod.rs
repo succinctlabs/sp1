@@ -22,7 +22,10 @@ pub mod utils;
 
 use std::time::Duration;
 
-pub use crate::network::{client::NetworkClient, proto::types::FulfillmentStrategy};
+pub use crate::network::{
+    client::{MarketPrice, NetworkClient},
+    proto::types::FulfillmentStrategy,
+};
 pub use alloy_primitives::{Address, B256};
 pub use error::*;
 pub use utils::{
@@ -78,3 +81,9 @@ pub(crate) const MAINNET_DEFAULT_CYCLE_LIMIT: u64 = 1_000_000_000_000;
 pub(crate) const RESERVED_DEFAULT_CYCLE_LIMIT: u64 = 100_000_000;
 pub(crate) const DEFAULT_GAS_LIMIT: u64 = 1_000_000_000;
 pub(crate) const DEFAULT_TIMEOUT_SECS: u64 = 14400;
+
+/// Default buffer applied to the server-supplied `max_price_per_pgu` default, expressed
+/// as a percentage. `120` = `1.20x`. The headroom absorbs short-term price volatility
+/// between quote and settlement so requests stay fillable. Callers can override
+/// per-request via [`builder::NetworkProveBuilder::max_price_per_pgu_buffer`].
+pub const DEFAULT_MAX_PRICE_PER_PGU_BUFFER: u64 = 120;

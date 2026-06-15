@@ -37,6 +37,8 @@ pub enum BasefoldProverError<TcsError> {
     #[error("Commit phase error: {0}")]
     #[allow(clippy::type_complexity)]
     CommitPhaseError(TcsError),
+    #[error("incorrect shape")]
+    IncorrectShape,
 }
 
 pub type BaseFoldConfigProverError<GC, P> =

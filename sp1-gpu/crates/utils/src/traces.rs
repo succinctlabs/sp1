@@ -56,6 +56,18 @@ pub struct TraceDenseData<F: Field, B: Backend> {
     pub preprocessed_padding: usize,
     /// The amount of main padding, to the next multiple of 2^log_stacking_height.
     pub main_padding: usize,
+    /// Number of *columns* of preprocessed padding between the chip prep
+    /// section and the chip main section in the jagged structure. Equal to
+    /// `cols_so_far - Σ chip_prep_widths` after the prep section is
+    /// generated; both construction paths (real `jagged_tracegen` and
+    /// `from_chip_layout`) record this explicitly so consumers don't have
+    /// to guess from `preprocessed_padding` (which is in *element* units).
+    /// The real tracegen path can emit more than one such column when the
+    /// "fill to next stacking-multiple" loop allocates several.
+    pub prep_padding_col_count: usize,
+    /// Number of *columns* of main padding at the tail of the jagged
+    /// structure. Set after the main section is generated.
+    pub main_padding_col_count: usize,
     /// A mapping from chip name to the range of dense data it occupies for preprocessed traces.
     pub preprocessed_table_index: BTreeMap<String, TraceOffset>,
     /// A mapping from chip name to the range of dense data it occupies for main traces.
@@ -233,12 +245,19 @@ impl<F: Field> TraceDenseData<F, CpuBackend> {
             main_ptr = main_hi;
         }
 
+        let preprocessed_padding = padded_preprocessed - total_preprocessed;
+        let main_padding = padded_main - total_main;
         TraceDenseData {
             dense,
             preprocessed_offset: padded_preprocessed,
             preprocessed_cols,
-            preprocessed_padding: padded_preprocessed - total_preprocessed,
-            main_padding: padded_main - total_main,
+            preprocessed_padding,
+            main_padding,
+            // `from_chip_layout` emits exactly one prep/main padding column
+            // when the corresponding padding is non-zero (see
+            // `JaggedTraceMle::from_chip_layout`).
+            prep_padding_col_count: (preprocessed_padding > 0) as usize,
+            main_padding_col_count: (main_padding > 0) as usize,
             preprocessed_table_index,
             main_table_index,
         }
@@ -257,7 +276,7 @@ impl<F: Field, B: Backend> JaggedTraceMle<F, B> {
         dense_data: TraceDenseData<F, B>,
         col_index: Buffer<u32, B>,
         start_indices: Buffer<u32, B>,
-        column_heights: Vec<u32>,
+        column_heights: Buffer<u32, B>,
     ) -> Self {
         JaggedTraceMle(JaggedMle::new(dense_data, col_index, start_indices, column_heights))
     }
@@ -323,7 +342,12 @@ impl<F: Field> JaggedTraceMle<F, CpuBackend> {
         debug_assert_eq!(cnt, total_dense / 2);
         debug_assert_eq!(col as usize, num_cols);
 
-        Self::new(dense_data, Buffer::from(col_index), Buffer::from(start_idx), column_heights)
+        Self::new(
+            dense_data,
+            Buffer::from(col_index),
+            Buffer::from(start_idx),
+            Buffer::from(column_heights),
+        )
     }
 }
 
@@ -395,7 +419,7 @@ impl<F: Field> JaggedTraceMle<F, CpuBackend> {
             dense_data.into_device_in(t),
             DeviceBuffer::from_host(&col_index, t).unwrap().into_inner(),
             DeviceBuffer::from_host(&start_indices, t).unwrap().into_inner(),
-            column_heights,
+            DeviceBuffer::from_host(&column_heights, t).unwrap().into_inner(),
         )
     }
 }
@@ -410,6 +434,8 @@ impl<F: Field> TraceDenseData<F, CpuBackend> {
             main_table_index: self.main_table_index,
             preprocessed_padding: self.preprocessed_padding,
             main_padding: self.main_padding,
+            prep_padding_col_count: self.prep_padding_col_count,
+            main_padding_col_count: self.main_padding_col_count,
         }
     }
 }
@@ -421,7 +447,8 @@ impl<F: Field> JaggedTraceMle<F, TaskScope> {
         // Convert device buffers to host using DeviceBuffer wrapper
         let col_index_host = DeviceBuffer::from_raw(col_index).to_host().unwrap().into();
         let start_indices_host = DeviceBuffer::from_raw(start_indices).to_host().unwrap().into();
-        JaggedTraceMle::new(host_dense, col_index_host, start_indices_host, column_heights)
+        let column_heights_host = DeviceBuffer::from_raw(column_heights).to_host().unwrap().into();
+        JaggedTraceMle::new(host_dense, col_index_host, start_indices_host, column_heights_host)
     }
 }
 
@@ -436,6 +463,8 @@ impl<F: Field> TraceDenseData<F, TaskScope> {
             main_table_index: self.main_table_index,
             preprocessed_padding: self.preprocessed_padding,
             main_padding: self.main_padding,
+            prep_padding_col_count: self.prep_padding_col_count,
+            main_padding_col_count: self.main_padding_col_count,
         }
     }
 }

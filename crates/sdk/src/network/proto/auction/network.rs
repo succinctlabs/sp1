@@ -751,6 +751,27 @@ pub mod prover_network_client {
             req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "GetProvePrice"));
             self.inner.unary(req, path, codec).await
         }
+        /// Get the network's current price per prover gas unit (PGU), in PROVE wei. Callers
+        /// apply their own buffer before passing it as `RequestProofRequestBody.max_price_per_pgu`.
+        pub async fn get_market_price_per_pgu(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetMarketPricePerPguRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetMarketPricePerPguResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/GetMarketPricePerPgu",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetMarketPricePerPgu"));
+            self.inner.unary(req, path, codec).await
+        }
         /// Get pricing information including base fees and price statistics.
         pub async fn get_price_info(
             &mut self,
@@ -2425,6 +2446,15 @@ pub mod prover_network_server {
             request: tonic::Request<super::super::types::GetProvePriceRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetProvePriceResponse>,
+            tonic::Status,
+        >;
+        /// Get the network's current price per prover gas unit (PGU), in PROVE wei. Callers
+        /// apply their own buffer before passing it as `RequestProofRequestBody.max_price_per_pgu`.
+        async fn get_market_price_per_pgu(
+            &self,
+            request: tonic::Request<super::super::types::GetMarketPricePerPguRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetMarketPricePerPguResponse>,
             tonic::Status,
         >;
         /// Get pricing information including base fees and price statistics.
@@ -4597,6 +4627,52 @@ pub mod prover_network_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = GetProvePriceSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetMarketPricePerPgu" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetMarketPricePerPguSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetMarketPricePerPguRequest,
+                        > for GetMarketPricePerPguSvc<T>
+                    {
+                        type Response = super::super::types::GetMarketPricePerPguResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetMarketPricePerPguRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_market_price_per_pgu(&inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetMarketPricePerPguSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
