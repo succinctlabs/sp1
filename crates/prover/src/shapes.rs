@@ -1413,11 +1413,11 @@ mod tests {
     }
 
     /// Regenerate `compress_shape_apc.json`, the universal recursion shape used for any APC
-    /// machine. We pin the machine to RSP / 100 APCs on the largest checked-in block so the
-    /// committed shape covers every smaller APC configuration. Block selection is essentially
-    /// free: changing it perturbs the shape by <0.1% across all chips. APC count is the
-    /// dominant lever (about 20% from APC=50 to APC=100), so 100 is fixed as the upper bound this shape is
-    /// sized to cover.
+    /// machine. We pin the machine to RSP / 12 APCs on the largest checked-in block (21740137).
+    /// 12 is the highest APC count that fits compressed proving in 32 GB VRAM on the current
+    /// prover; sizing the shape any larger pushes construction + shard work past the GPU limit.
+    /// Block selection is essentially free: changing it perturbs the shape by <0.1% across all
+    /// chips.
     #[tokio::test]
     #[cfg(feature = "apc")]
     #[ignore = "should be invoked for apc shape tuning; runs ~3 min once built"]
@@ -1450,7 +1450,7 @@ mod tests {
 
         let program = Arc::new(Program::from(&elf).expect("parse rsp-client elf"));
         let execution_profile = execution_profile_from_program(program, stdin.clone());
-        let config = sp1_powdr_config(100, 0);
+        let config = sp1_powdr_config(12, 0);
         let pgo_config = PgoConfig::Instruction(execution_profile);
         let compiled_program = CompiledProgram::new(&elf, config, pgo_config);
         let apcs: Vec<_> = compiled_program
