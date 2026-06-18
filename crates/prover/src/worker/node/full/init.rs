@@ -13,8 +13,8 @@ use tracing::Instrument;
 use crate::{
     worker::{
         node::SP1NodeCore, run_vk_generation, LocalWorkerClient, LocalWorkerClientChannels,
-        ProofId, RawTaskRequest, SP1LocalNode, SP1NodeInner, SP1WorkerBuilder, TaskError, TaskId,
-        TaskMetadata, WorkerClient,
+        ProofId, RawTaskRequest, ReduceTaskRequest, SP1LocalNode, SP1NodeInner, SP1WorkerBuilder,
+        TaskError, TaskId, TaskMetadata, WorkerClient,
     },
     SP1ProverComponents,
 };
@@ -378,8 +378,23 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                                 .await
                                 .unwrap();
                             let tx = task_tx.clone();
+                            let artifact_client = worker.artifact_client().clone();
                             task_set.spawn(async move {
-                                let result = handle.await;
+                                // Idempotent re-run: if this reduce failed but a prior
+                                // execution already consumed the inputs (now gone) and
+                                // wrote `output`, the range is already reduced — report
+                                // success instead of failing the proof. (`handle.await`
+                                // is nested: outer = join error, inner = task result.)
+                                let result = match handle.await {
+                                    Ok(Err(e)) => match ReduceTaskRequest::from_raw(request.clone()) {
+                                        Ok(req) if req.already_reduced(&artifact_client).await => {
+                                            tracing::info!("reduce already completed by a prior execution; skipping re-execution");
+                                            Ok(Ok(TaskMetadata { gpu_ms: None }))
+                                        }
+                                        _ => Ok(Err(e)),
+                                    },
+                                    other => other,
+                                };
                                 TaskOutput::handle_worker_result(result, &tx, proof_id, id, request, TaskType::RecursionReduce);
                             }.instrument(span)
                           );

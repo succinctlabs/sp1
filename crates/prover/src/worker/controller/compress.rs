@@ -193,6 +193,22 @@ impl RangeProofs {
         .await?;
         Ok(())
     }
+
+    /// True if any consumed range-proof input is absent — the signal that a
+    /// prior run already reduced this range and deleted its inputs. An `exists`
+    /// error counts as present (not missing), so callers stay on the failing path.
+    pub async fn any_proof_missing(&self, artifact_client: &impl ArtifactClient) -> bool {
+        for proof in &self.proofs {
+            let present = artifact_client
+                .exists(&proof.proof, ArtifactType::UnspecifiedArtifactType)
+                .await
+                .unwrap_or(true);
+            if !present {
+                return true;
+            }
+        }
+        false
+    }
 }
 
 /// An enum marking which sibling was found.

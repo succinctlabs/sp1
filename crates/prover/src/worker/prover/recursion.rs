@@ -28,7 +28,7 @@ use sp1_hypercube::{
     SP1PcsProofOuter, SP1RecursionProof, SP1WrapProof, ShardProof, DIGEST_SIZE,
 };
 use sp1_primitives::{SP1ExtensionField, SP1Field, SP1GlobalContext, SP1OuterGlobalContext};
-use sp1_prover_types::{Artifact, ArtifactClient, ArtifactId};
+use sp1_prover_types::{Artifact, ArtifactClient, ArtifactId, ArtifactType};
 use sp1_recursion_circuit::{
     machine::{
         SP1CompressWithVKeyWitnessValues, SP1MerkleProofWitnessValues, SP1NormalizeWitnessValues,
@@ -147,6 +147,19 @@ impl ReduceTaskRequest {
         inputs.extend(range_proofs.as_artifacts());
         let raw_task_request = RawTaskRequest { inputs, outputs: vec![output], context };
         Ok(raw_task_request)
+    }
+
+    /// True if a prior execution already reduced this range: its inputs were
+    /// consumed (now gone) and `output` is written. Lets a re-run report success
+    /// instead of failing the proof on a missing input. Gated on an input being
+    /// gone, which (delete happens after the output upload) implies `output` is
+    /// complete.
+    pub async fn already_reduced(&self, artifact_client: &impl ArtifactClient) -> bool {
+        self.range_proofs.any_proof_missing(artifact_client).await
+            && artifact_client
+                .exists(&self.output, ArtifactType::UnspecifiedArtifactType)
+                .await
+                .unwrap_or(false)
     }
 }
 

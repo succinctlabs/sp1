@@ -253,16 +253,46 @@ where
 {
     async fn call(&self, input: CoreProvingTask) -> Result<TaskMetadata, TaskError> {
         // === Phase 1: Tracing ===
-        // Save the trace input artifact for later use in the task
+        // Keep the record id for reclamation after the proof is uploaded (below).
         let record_artifact = input.record.clone();
         let metrics = input.metrics.clone();
 
         // Ok to panic because it will send a JoinError.
-        let (elf, common_input, record) = tokio::try_join!(
+        let downloaded = tokio::try_join!(
             self.artifact_client.download_program(&input.elf),
             self.artifact_client.download::<CommonProverInput>(&input.common_input),
             self.artifact_client.download::<TraceData>(&input.record),
-        )?;
+        );
+        let (elf, common_input, record) = match downloaded {
+            Ok(v) => v,
+            Err(e) => {
+                // Idempotent re-run under at-least-once delivery: a gone input
+                // record plus a present output means a prior run already proved
+                // this shard, so succeed instead of failing the proof. The
+                // delete runs after the output upload, so a gone record implies
+                // a complete output. Gate on the record being gone, not on any
+                // download error; on `exists` errors the defaults keep us on the
+                // failing path (record present, output absent).
+                let record_gone = !self
+                    .artifact_client
+                    .exists(&input.record, ArtifactType::UnspecifiedArtifactType)
+                    .await
+                    .unwrap_or(true);
+                let output_exists = self
+                    .artifact_client
+                    .exists(&input.output, ArtifactType::UnspecifiedArtifactType)
+                    .await
+                    .unwrap_or(false);
+                if record_gone && output_exists {
+                    tracing::info!(
+                        "shard already proven by a prior execution (input record gone, \
+                         output present); skipping re-execution"
+                    );
+                    return Ok(metrics.to_metadata());
+                }
+                return Err(e.into());
+            }
+        };
 
         if let Some((dir, _)) = self.record_write_dir_and_frequency.as_ref() {
             let dir = PathBuf::from(dir);
@@ -651,11 +681,6 @@ where
             self.artifact_client.upload(&output, proof).await?;
         }
 
-        // Remove the record artifact since it is no longer needed
-        self.artifact_client
-            .try_delete(&record_artifact, ArtifactType::UnspecifiedArtifactType)
-            .await?;
-
         // Remove task reference for precompile artifacts only at successful completion
         if let Some(artifacts) = precompile_artifacts {
             for range in artifacts {
@@ -674,6 +699,13 @@ where
         if let Some(deferred_upload_handle) = deferred_upload_handle {
             deferred_upload_handle.await.map_err(|e| TaskError::Fatal(e.into()))??;
         }
+
+        // Reclaim the input record only after every output (`output` and the
+        // deferred upload above) is durable. The re-run guard treats "record
+        // gone" as "task fully complete", so the record must be deleted last.
+        self.artifact_client
+            .try_delete(&record_artifact, ArtifactType::UnspecifiedArtifactType)
+            .await?;
 
         // Get the metadata
         let metadata = metrics.to_metadata();
