@@ -119,6 +119,15 @@ async fn main() {
         let worker_builder = base_builder.without_vk_verification();
         #[cfg(not(feature = "mprotect"))]
         let worker_builder = base_builder;
+        // Core-only runs don't need the recursion compose/deferred PKs, which would
+        // otherwise eagerly allocate ~14 GB of GPU VRAM at construction time. Opt out
+        // when the caller has requested `--mode core`.
+        #[cfg(feature = "experimental")]
+        let worker_builder = if proof_mode_from_string(&args.mode) == ProofMode::Core {
+            worker_builder.without_recursion()
+        } else {
+            worker_builder
+        };
         let client =
             SP1LocalNodeBuilder::from_worker_client_builder(worker_builder).build().await.unwrap();
 

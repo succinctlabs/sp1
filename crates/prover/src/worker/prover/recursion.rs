@@ -84,6 +84,12 @@ pub struct SP1RecursionProverConfig {
     machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     /// The reduce shape
     pub reduce_shape: SP1RecursionProofShape,
+    /// When true, `SP1RecursionProver::new` skips the eager compose & deferred PK build
+    /// entirely. The resulting prover can only serve `--mode core` requests; any
+    /// compress/shrink/wrap lookup will fail at the use-site. Should be `false` by
+    /// default; opt in via [`Self::without_recursion`] when the caller knows it will
+    /// only run core mode (e.g. RSP perf benchmarks).
+    skip_recursion_pk_init: bool,
 }
 
 impl SP1RecursionProverConfig {
@@ -113,12 +119,22 @@ impl SP1RecursionProverConfig {
             vk_map_file: None,
             machine,
             reduce_shape,
+            skip_recursion_pk_init: false,
         }
     }
     #[cfg(feature = "experimental")]
     /// Turn off vk verification for recursion proofs.
     pub fn without_vk_verification(self) -> Self {
         Self { vk_verification: false, ..self }
+    }
+
+    #[cfg(feature = "experimental")]
+    /// Skip the eager compose & deferred PK build inside `SP1RecursionProver::new`.
+    /// Use only when the caller knows it will only run `--mode core` — the resulting
+    /// prover cannot serve compress/shrink/wrap requests. Saves ~14 GB of GPU VRAM
+    /// at startup on machines configured with autoprecompiles.
+    pub fn without_recursion(self) -> Self {
+        Self { skip_recursion_pk_init: true, ..self }
     }
 
     #[cfg(feature = "experimental")]
@@ -485,62 +501,96 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
                 recursive_verifier::<SP1GlobalContext, _,  InnerConfig>(
                     compress_verifier.shard_verifier(),
                 );
-            for arity in 1..=config.max_compose_arity {
-                let dummy_input =
-                    dummy_compose_input::<C>(
-                        &reduce_shape,
-                        arity,
-                        recursion_vks_height,
-                        &config.machine,
+
+            // Compose & deferred PKs are only needed for compressed/shrink/wrap modes.
+            // For core-only callers (e.g. RSP perf benchmarks that pre-call
+            // `SP1RecursionProverConfig::without_recursion`) we skip building them and
+            // save ~14 GB of GPU VRAM at startup. Any later compose/deferred lookup
+            // will then return None and the caller will error out with a clear
+            // "key not found" message.
+            let (compose_programs, compose_keys, deferred_program, deferred_keys) =
+                if config.skip_recursion_pk_init {
+                    tracing::warn!(
+                        "SP1RecursionProverConfig::without_recursion was set — skipping \
+                         compose & deferred PK initialization. Only --mode core will work."
                     );
-                let mut program = compose_program_from_input(
-                    &recursive_compress_verifier,
-                    config.vk_verification,
-                    &dummy_input,
-                );
-                program.shape = Some(reduce_shape.shape.clone());
-                let program = Arc::new(program);
+                    let deferred_program = {
+                        let deferred_input = dummy_deferred_input(
+                            &compress_verifier,
+                            &reduce_shape,
+                            recursion_vks_height,
+                        );
+                        let mut deferred_program = deferred_program_from_input(
+                            &recursive_compress_verifier,
+                            config.vk_verification,
+                            &deferred_input,
+                        );
+                        deferred_program.shape = Some(reduce_shape.shape.clone());
+                        Arc::new(deferred_program)
+                    };
+                    (compose_programs, compose_keys, deferred_program, None)
+                } else {
+                    for arity in 1..=config.max_compose_arity {
+                        let dummy_input =
+                            dummy_compose_input::<C>(
+                                &reduce_shape,
+                                arity,
+                                recursion_vks_height,
+                                &config.machine,
+                            );
+                        let mut program = compose_program_from_input(
+                            &recursive_compress_verifier,
+                            config.vk_verification,
+                            &dummy_input,
+                        );
+                        program.shape = Some(reduce_shape.shape.clone());
+                        let program = Arc::new(program);
 
-                // Make the reduce keys.
-                let (tx, rx) = oneshot::channel();
-                tokio::task::spawn({
-                    let program = program.clone();
-                    let air_prover = compress_prover.clone();
-                    async move {
-                        let permits = ProverSemaphore::new(1);
-                        let (pk, vk) = air_prover.setup(program, permits).await;
-                        tx.send((pk, vk)).ok();
+                        // Make the reduce keys.
+                        let (tx, rx) = oneshot::channel();
+                        tokio::task::spawn({
+                            let program = program.clone();
+                            let air_prover = compress_prover.clone();
+                            async move {
+                                let permits = ProverSemaphore::new(1);
+                                let (pk, vk) = air_prover.setup(program, permits).await;
+                                tx.send((pk, vk)).ok();
+                            }
+                        });
+                        let (pk, vk) = rx.blocking_recv().unwrap();
+                        let pk = unsafe { pk.into_inner() };
+                        compose_keys.insert(arity, (pk, vk));
+                        compose_programs.insert(arity, program);
                     }
-                });
-                let (pk, vk) = rx.blocking_recv().unwrap();
-                let pk = unsafe { pk.into_inner() };
-                compose_keys.insert(arity, (pk, vk));
-                compose_programs.insert(arity, program);
-            }
 
-            // Make the deferred program and keys.
-            let deferred_input =
-                dummy_deferred_input(&compress_verifier, &reduce_shape, recursion_vks_height);
-            let mut deferred_program = deferred_program_from_input(
-                &recursive_compress_verifier,
-                config.vk_verification,
-                &deferred_input,
-            );
-            deferred_program.shape = Some(reduce_shape.shape.clone());
-            let deferred_program = Arc::new(deferred_program);
-            let (tx, rx) = oneshot::channel();
-            tokio::task::spawn({
-                let program = deferred_program.clone();
-                let air_prover = compress_prover.clone();
-                async move {
-                    let permits = ProverSemaphore::new(1);
-                    let (pk, vk) = air_prover.setup(program, permits).await;
-                    tx.send((pk, vk)).ok();
-                }
-            });
-            let (pk, vk) = rx.blocking_recv().unwrap();
-            let pk = unsafe { pk.into_inner() };
-            let deferred_keys = (pk, vk);
+                    // Make the deferred program and keys.
+                    let deferred_input = dummy_deferred_input(
+                        &compress_verifier,
+                        &reduce_shape,
+                        recursion_vks_height,
+                    );
+                    let mut deferred_program = deferred_program_from_input(
+                        &recursive_compress_verifier,
+                        config.vk_verification,
+                        &deferred_input,
+                    );
+                    deferred_program.shape = Some(reduce_shape.shape.clone());
+                    let deferred_program = Arc::new(deferred_program);
+                    let (tx, rx) = oneshot::channel();
+                    tokio::task::spawn({
+                        let program = deferred_program.clone();
+                        let air_prover = compress_prover.clone();
+                        async move {
+                            let permits = ProverSemaphore::new(1);
+                            let (pk, vk) = air_prover.setup(program, permits).await;
+                            tx.send((pk, vk)).ok();
+                        }
+                    });
+                    let (pk, vk) = rx.blocking_recv().unwrap();
+                    let pk = unsafe { pk.into_inner() };
+                    let deferred_keys = Some((pk, vk));
+                    (compose_programs, compose_keys, deferred_program, deferred_keys)
+                };
 
             let prover_data = Arc::new(RecursionProverData {
                 recursion_vks,
@@ -549,7 +599,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
                 compose_programs,
                 compose_keys,
                 deferred_program,
-                deferred_keys: Some(deferred_keys),
+                deferred_keys,
             });
 
             let compress_verifier = C::compress_verifier(&config.machine);
