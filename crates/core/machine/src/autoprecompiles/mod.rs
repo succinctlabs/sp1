@@ -61,9 +61,7 @@ pub fn sp1_configs(
     pgo: PgoType,
 ) -> (GenerateConfig, SelectConfig) {
     let select = SelectConfig::new(autoprecompiles, skip);
-    let generate = GenerateConfig::new(DEFAULT_DEGREE_BOUND)
-        .with_apc_max_instructions(1000)
-        .with_select_defaults(pgo, select);
+    let generate = GenerateConfig::new(DEFAULT_DEGREE_BOUND).with_apc_max_instructions(1000);
     (generate, select)
 }
 
