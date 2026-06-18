@@ -35,7 +35,7 @@ use sp1_recursion_compiler::{
     ir::{Builder, DslIrProgram},
 };
 use sp1_recursion_executor::{RecursionProgram, DIGEST_SIZE};
-#[cfg(feature = "mprotect")]
+#[cfg(any(feature = "mprotect", feature = "experimental"))]
 use sp1_verifier::VerifierRecursionVks;
 
 use crate::{
@@ -63,6 +63,7 @@ impl RecursionVks {
     ) -> Self {
         // Pad the map to the expected number of shapes. This allows us to build partial vk maps
         // for development purposes.
+        // TODO: use apcs here
         let machine = RiscvAir::machine();
         let num_shapes = create_all_input_shapes(machine.shape(), max_compose_arity)
             .into_iter()
@@ -129,7 +130,7 @@ impl RecursionVks {
 
     /// Build a [`VerifierRecursionVks`] whose `root`, `num_keys`, and
     /// `vk_verification` match this prover-side instance.
-    #[cfg(feature = "mprotect")]
+    #[cfg(any(feature = "mprotect", feature = "experimental"))]
     pub fn to_verifier_vks(&self) -> VerifierRecursionVks {
         VerifierRecursionVks {
             root: self.root,

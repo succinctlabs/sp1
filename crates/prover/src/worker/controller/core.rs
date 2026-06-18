@@ -181,7 +181,7 @@ pub struct SP1CoreExecutor<A: ArtifactClient, W: WorkerClient> {
     gate: super::ProveShardGate<A, W>,
     minimal_executor_cache: Option<MinimalExecutorCache>,
     cycle_limit: Option<u64>,
-    _machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 }
 
 impl<A: ArtifactClient, W: WorkerClient> SP1CoreExecutor<A, W> {
@@ -201,7 +201,7 @@ impl<A: ArtifactClient, W: WorkerClient> SP1CoreExecutor<A, W> {
         gate: super::ProveShardGate<A, W>,
         minimal_executor_cache: Option<MinimalExecutorCache>,
         cycle_limit: Option<u64>,
-        _machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> Self {
         Self {
             splicing_engine,
@@ -218,7 +218,7 @@ impl<A: ArtifactClient, W: WorkerClient> SP1CoreExecutor<A, W> {
             gate,
             minimal_executor_cache,
             cycle_limit,
-            _machine,
+            machine,
         }
     }
 }
@@ -234,7 +234,7 @@ where
         let opts = self.opts.clone();
 
         // Get the program from the elf. TODO: handle errors.
-        let program = Arc::new(Program::from(&elf_bytes).map_err(|e| {
+        let program = Arc::new(Program::custom(&elf_bytes, &self.machine).map_err(|e| {
             TaskError::Execution(ExecutionError::Other(format!(
                 "failed to dissassemble program: {}",
                 e

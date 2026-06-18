@@ -67,7 +67,7 @@ pub async fn core_prover_and_verifier(
     let (opts, recompute_first_layer) = local_gpu_opts();
     let num_elts =
         opts.sharding_threshold.element_threshold as usize + (1 << CORE_LOG_STACKING_HEIGHT);
-    let core_verifier = SP1CudaProverComponents::core_verifier(machine);
+    let core_verifier = SP1CudaProverComponents::core_verifier(&machine);
     (
         new_cuda_prover(&core_verifier, num_elts, 4, recompute_first_layer, scope).await,
         core_verifier,
@@ -76,11 +76,12 @@ pub async fn core_prover_and_verifier(
 
 pub async fn recursion_prover_and_verifier(
     scope: TaskScope,
+    machine: &Machine<SP1Field, RiscvAir<SP1Field>>,
 ) -> (
     CudaShardProver<SP1GlobalContext, CudaProverRecursionComponents>,
     MachineVerifier<SP1GlobalContext, InnerSC<CompressAir<SP1Field>>>,
 ) {
-    let recursion_verifier = SP1CudaProverComponents::compress_verifier();
+    let recursion_verifier = SP1CudaProverComponents::compress_verifier(machine);
     (
         new_cuda_prover(&recursion_verifier, RECURSION_TRACE_ALLOCATION, 4, false, scope).await,
         recursion_verifier,
@@ -101,7 +102,7 @@ pub async fn cuda_worker_builder_with_machine(
     let core_prover = Arc::new(core_prover_and_verifier(scope.clone(), machine.clone()).await.0);
 
     // TODO: tune this more precisely and make it a constant.
-    let recursion_prover = Arc::new(recursion_prover_and_verifier(scope.clone()).await.0);
+    let recursion_prover = Arc::new(recursion_prover_and_verifier(scope.clone(), &machine).await.0);
 
     let shrink_verifier = SP1CudaProverComponents::shrink_verifier();
     let shrink_prover = Arc::new(

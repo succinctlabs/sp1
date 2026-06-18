@@ -58,7 +58,7 @@ use thiserror::Error;
 use tokio::task::JoinSet;
 
 use crate::{
-    components::{SP1ProverComponents, CORE_LOG_STACKING_HEIGHT},
+    components::{machine_has_apcs, SP1ProverComponents, CORE_LOG_STACKING_HEIGHT},
     recursion::{
         compose_program_from_input, deferred_program_from_input, dummy_compose_input,
         dummy_deferred_input, normalize_program_from_input, recursive_verifier,
@@ -181,136 +181,25 @@ pub struct SP1RecursionProofShape {
 }
 
 impl SP1RecursionProofShape {
-    pub fn retrieve_or_compute_reduce_shape(
-        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
-        max_arity: usize,
-    ) -> SP1RecursionProofShape {
-        match machine.chips().iter().eq(RiscvAir::<SP1Field>::machine().chips()) {
-            true => Self::compress_proof_shape_from_arity(max_arity).unwrap(),
-            false => unreachable!(
-                "All instances of `machine` are currently the same based on the test above"
-            ),
-        }
-    }
-
-    /// Dynamically computes the appropriate compress shape based on the machine configuration
-    #[cfg(test)]
-    async fn compute_compress_shape(
-        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
-    ) -> SP1RecursionProofShape {
-        use crate::{worker::SP1LightNode, CpuSP1ProverComponents};
-        let elf = test_artifacts::FIBONACCI_ELF;
-        let client = SP1LightNode::new_with_machine(machine.clone()).await;
-        let vk = client.setup(&elf).await.expect("setup failed");
-
-        let chip_clusters = &machine.shape().chip_clusters;
-        let allowed_vk_height = client.inner().allowed_vk_height();
-        let vk_verification = client.inner().vk_verification();
-
-        let verifier = CpuSP1ProverComponents::compress_verifier();
-        let dummy_input =
-        |current_shape: &SP1RecursionProofShape| -> SP1CompressWithVKeyWitnessValues<SP1PcsProofInner> {
-            dummy_compose_input(&verifier, current_shape, DEFAULT_ARITY, allowed_vk_height)
-        };
-        let core_verifier = CpuSP1ProverComponents::core_verifier(machine.clone());
-        let recursive_core_verifier =
-            recursive_verifier::<SP1GlobalContext, _, InnerConfig>(core_verifier.shard_verifier());
-
-        let recursive_compress_verifier =
-            recursive_verifier::<SP1GlobalContext, _, InnerConfig>(verifier.shard_verifier());
-        let compose_program =
-        |input: &SP1CompressWithVKeyWitnessValues<SP1PcsProofInner>| -> Arc<RecursionProgram<SP1Field>> {
-            Arc::new(compose_program_from_input(
-                &recursive_compress_verifier,
-                vk_verification,
-                input,
-            ))
-        };
-
-        // Find the recursion proof shape that fits the normalize programs verifying all core shards.
-        let mut max_cluster_count = RecursionAirEventCount::default();
-
-        for cluster in chip_clusters {
-            let shape = create_test_shape(cluster);
-            let program = normalize_program_from_input(
-                &recursive_core_verifier,
-                &shape.dummy_input(vk.clone()),
-            );
-            max_cluster_count = max_count(max_cluster_count, program.event_counts);
-        }
-
-        // Iterate on this shape until the compose program verifying DEFAULT_ARITY proofs of shape
-        // `current_shape` can be proved using `current_shape`.
-        let mut current_shape = build_shape_from_recursion_air_event_count(&max_cluster_count);
-        let trace_generator =
-            DefaultTraceGenerator::new(CompressAir::<SP1Field>::compress_machine());
-        loop {
-            let input = dummy_input(&current_shape);
-            let program = compose_program(&input);
-            let setup_permits = ProverSemaphore::new(1);
-            let preprocessed_traces = trace_generator
-                .generate_preprocessed_traces(program, RECURSION_MAX_LOG_ROW_COUNT, setup_permits)
-                .await;
-
-            let updated_key_values = preprocessed_traces
-                .preprocessed_traces
-                .into_iter()
-                .filter_map(|(chip, trace)| {
-                    let real_height = trace.num_real_entries();
-                    let expected_height = current_shape.shape.height_of_name(&chip).unwrap();
-
-                    if real_height > expected_height {
-                        tracing::debug!(
-                            "Insufficient height for chip {}: expected {}, got {}",
-                            chip,
-                            expected_height,
-                            real_height
-                        );
-                        Some((chip, real_height))
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<_>>();
-
-            if updated_key_values.is_empty() {
-                break;
-            }
-            for (chip, real_height) in updated_key_values {
-                current_shape.shape.insert_with_name(&chip, real_height);
-            }
-        }
-
-        SP1RecursionProofShape {
-            shape: RecursionShape::new(
-                current_shape
-                    .shape
-                    .into_iter()
-                    .map(|(chip, height)| {
-                        let new_height = if chip == "PublicValues" {
-                            height
-                        } else {
-                            height.next_multiple_of(32)
-                        };
-                        (chip, new_height)
-                    })
-                    .collect(),
-            ),
-        }
-    }
-
-    fn compress_proof_shape_from_arity(arity: usize) -> Option<Self> {
+    pub fn compress_proof_shape_from_arity(arity: usize, has_apcs: bool) -> Option<Self> {
         match arity {
             DEFAULT_ARITY => {
-                #[cfg(not(feature = "mprotect"))]
-                let file: &[u8] = include_bytes!("../compress_shape.json");
-                #[cfg(feature = "mprotect")]
-                let file: &[u8] = include_bytes!("../compress_shape_mprotect.json");
+                let (file, suffix): (&[u8], _) = if has_apcs {
+                    (include_bytes!("../compress_shape_apc.json"), "_apc")
+                } else {
+                    #[cfg(not(feature = "mprotect"))]
+                    {
+                        (include_bytes!("../compress_shape.json"), "")
+                    }
+                    #[cfg(feature = "mprotect")]
+                    {
+                        (include_bytes!("../compress_shape_mprotect.json"), "_mprotect")
+                    }
+                };
 
                 serde_json::from_slice(file).ok().or_else(|| {
                     tracing::warn!(
-                        "Failed to load compress_shape{}.json, using default shape.",
-                        if cfg!(feature = "mprotect") { "_mprotect" } else { "" }
+                        "Failed to load compress_shape{suffix} shape json, using default shape.",
                     );
                     // This is not a well-tuned shape, but is likely to be big enough even if
                     // relatively substantial changes are made to the verifier.
@@ -444,11 +333,12 @@ impl SP1RecursionProofShape {
     #[allow(dead_code)]
     async fn max_arity<C: SP1ProverComponents>(
         &self,
+        machine: &Machine<SP1Field, RiscvAir<SP1Field>>,
         vk_verification: bool,
         height: usize,
     ) -> usize {
         let mut arity = 0;
-        let compress_verifier = C::compress_verifier();
+        let compress_verifier = C::compress_verifier(machine);
         let recursive_compress_verifier =
             recursive_verifier::<_, _, InnerConfig>(compress_verifier.shard_verifier());
         for possible_arity in 1.. {
@@ -481,6 +371,11 @@ pub async fn build_vk_map<A: ArtifactClient, C: SP1ProverComponents + 'static>(
     let recursion_permits = vk_worker.recursion_permits.clone();
     let recursion_prover = vk_worker.recursion_prover.clone();
     let shrink_prover = vk_worker.shrink_prover.clone();
+    let reduce_shape = SP1RecursionProofShape::compress_proof_shape_from_arity(
+        max_arity,
+        machine_has_apcs(&machine),
+    )
+    .expect("max arity not supported");
     if dummy {
         let dummy_set = dummy_vk_map::<C>(machine).into_keys().collect();
         return (dummy_set, vec![]);
@@ -501,7 +396,7 @@ pub async fn build_vk_map<A: ArtifactClient, C: SP1ProverComponents + 'static>(
     // Generate all the possible shape inputs we encounter in recursion. This may span normalize,
     // compose (of any arity), deferred, shrink, etc.
     let all_shapes =
-        create_all_input_shapes(C::core_verifier(machine.clone()).machine().shape(), max_arity);
+        create_all_input_shapes(C::core_verifier(&machine).machine().shape(), max_arity);
 
     let num_shapes = all_shapes.len();
 
@@ -519,18 +414,16 @@ pub async fn build_vk_map<A: ArtifactClient, C: SP1ProverComponents + 'static>(
         let shape_rx = shape_rx.clone();
         let panic_tx = panic_tx.clone();
         let machine = machine.clone();
+        let reduce_shape = reduce_shape.clone();
         set.spawn(async move {
             while let Some((i, shape)) = shape_rx.lock().await.recv().await {
-                let compress_verifier = C::compress_verifier();
+                let compress_verifier = C::compress_verifier(&machine);
                 let recursive_compress_verifier =
                     recursive_verifier::<_, _, InnerConfig>(compress_verifier.shard_verifier());
                 // Spawn on another thread to handle panics.
                 let machine = machine.clone();
+                let reduce_shape = reduce_shape.clone();
                 let program_thread = tokio::spawn(async move {
-                    let reduce_shape = SP1RecursionProofShape::retrieve_or_compute_reduce_shape(
-                        machine.clone(),
-                        max_arity,
-                    );
                     match shape {
                         SP1RecursionProgramShape::Normalize(shape_clone) => {
                             let normalize_shape = SP1NormalizeInputShape {
@@ -540,7 +433,7 @@ pub async fn build_vk_map<A: ArtifactClient, C: SP1ProverComponents + 'static>(
                                 log_stacking_height: CORE_LOG_STACKING_HEIGHT as usize,
                             };
                             let dummy_vk = dummy_vk();
-                            let core_verifier = C::core_verifier(machine);
+                            let core_verifier = C::core_verifier(&machine);
                             let recursive_core_verifier = recursive_verifier::<_, _, InnerConfig>(
                                 core_verifier.shard_verifier(),
                             );
@@ -554,8 +447,7 @@ pub async fn build_vk_map<A: ArtifactClient, C: SP1ProverComponents + 'static>(
                         SP1RecursionProgramShape::Compose(arity) => {
                             let dummy_input = dummy_compose_input(
                                 &compress_verifier,
-                                &SP1RecursionProofShape::compress_proof_shape_from_arity(max_arity)
-                                    .expect("max arity not supported"),
+                                &reduce_shape,
                                 arity,
                                 height,
                             );
@@ -570,7 +462,7 @@ pub async fn build_vk_map<A: ArtifactClient, C: SP1ProverComponents + 'static>(
                         }
                         SP1RecursionProgramShape::Deferred => {
                             let dummy_input = dummy_deferred_input(
-                                &C::compress_verifier(),
+                                &C::compress_verifier(&machine),
                                 &reduce_shape.clone(),
                                 height,
                             );
@@ -586,7 +478,7 @@ pub async fn build_vk_map<A: ArtifactClient, C: SP1ProverComponents + 'static>(
                         }
                         SP1RecursionProgramShape::Shrink => {
                             let dummy_input = dummy_compose_input(
-                                &C::compress_verifier(),
+                                &C::compress_verifier(&machine),
                                 &reduce_shape.clone(),
                                 1,
                                 height,
@@ -757,7 +649,7 @@ pub fn normalize_program_parameter_space() -> (usize, usize, usize) {
 pub fn dummy_vk_map<C: SP1ProverComponents>(
     machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 ) -> BTreeMap<[SP1Field; DIGEST_SIZE], usize> {
-    create_all_input_shapes(C::core_verifier(machine).machine().shape(), DEFAULT_ARITY)
+    create_all_input_shapes(C::core_verifier(&machine).machine().shape(), DEFAULT_ARITY)
         .iter()
         .enumerate()
         .map(|(i, _)| ([SP1Field::from_canonical_usize(i); DIGEST_SIZE], i))
@@ -879,8 +771,8 @@ mod tests {
 
     use crate::{
         recursion::{
-            deferred_program_from_input, dummy_deferred_input, normalize_program_from_input,
-            recursive_verifier,
+            compose_program_from_input, deferred_program_from_input, dummy_compose_input,
+            dummy_deferred_input, normalize_program_from_input, recursive_verifier,
         },
         worker::SP1LightNode,
         CpuSP1ProverComponents,
@@ -899,15 +791,19 @@ mod tests {
     async fn test_max_arity() {
         setup_logger();
         let client = SP1LightNode::new().await;
+        let machine = RiscvAir::machine();
 
         let vk_verification = client.inner().vk_verification();
         let allowed_vk_height = client.inner().allowed_vk_height();
 
-        let reduce_shape = SP1RecursionProofShape::compress_proof_shape_from_arity(DEFAULT_ARITY)
-            .expect("default arity shape should be valid");
+        let reduce_shape = SP1RecursionProofShape::compress_proof_shape_from_arity(
+            DEFAULT_ARITY,
+            machine_has_apcs(&machine),
+        )
+        .expect("default arity shape should be valid");
 
         let arity = reduce_shape
-            .max_arity::<CpuSP1ProverComponents>(vk_verification, allowed_vk_height)
+            .max_arity::<CpuSP1ProverComponents>(&machine, vk_verification, allowed_vk_height)
             .await;
 
         tracing::info!("arity: {}", arity);
@@ -945,7 +841,7 @@ mod tests {
         let chip_clusters = &machine.shape().chip_clusters;
         let mut max_cluster_count = RecursionAirEventCount::default();
 
-        let core_verifier = CpuSP1ProverComponents::core_verifier(machine.clone());
+        let core_verifier = CpuSP1ProverComponents::core_verifier(&machine);
         let recursive_core_verifier =
             recursive_verifier::<SP1GlobalContext, _, InnerConfig>(core_verifier.shard_verifier());
 
@@ -963,10 +859,13 @@ mod tests {
 
         tracing::info!("max_cluster_count: {:?}", max_cluster_count);
 
-        let reduce_shape =
-            SP1RecursionProofShape::compress_proof_shape_from_arity(DEFAULT_ARITY).unwrap();
+        let reduce_shape = SP1RecursionProofShape::compress_proof_shape_from_arity(
+            DEFAULT_ARITY,
+            machine_has_apcs(&machine),
+        )
+        .unwrap();
         let arity = reduce_shape
-            .max_arity::<CpuSP1ProverComponents>(vk_verification, allowed_vk_height)
+            .max_arity::<CpuSP1ProverComponents>(&machine, vk_verification, allowed_vk_height)
             .await;
         if arity != DEFAULT_ARITY {
             return Err(ShapeError::WrongArity(arity)).context(context);
@@ -974,7 +873,7 @@ mod tests {
 
         // Check that the deferred program fits within the reduce shape.
         {
-            let compress_verifier = CpuSP1ProverComponents::compress_verifier();
+            let compress_verifier = CpuSP1ProverComponents::compress_verifier(&machine);
             let recursive_compress_verifier = recursive_verifier::<SP1GlobalContext, _, InnerConfig>(
                 compress_verifier.shard_verifier(),
             );
@@ -1009,7 +908,11 @@ mod tests {
                 new_reduce_shape.shape.insert_with_name(chip, height - 32);
 
                 if !(new_reduce_shape
-                    .max_arity::<CpuSP1ProverComponents>(vk_verification, allowed_vk_height)
+                    .max_arity::<CpuSP1ProverComponents>(
+                        &machine,
+                        vk_verification,
+                        allowed_vk_height,
+                    )
                     .await
                     < DEFAULT_ARITY
                     || new_reduce_shape.shape.height_of_name(chip).unwrap()
@@ -1073,7 +976,7 @@ mod tests {
             .expect("Failed to prove");
 
         // Create all circuit shapes.
-        let core_verifier = CpuSP1ProverComponents::core_verifier(machine.clone());
+        let core_verifier = CpuSP1ProverComponents::core_verifier(&machine);
         let shapes = create_all_input_shapes(
             core_verifier.shard_verifier().machine().shape(),
             DEFAULT_ARITY,
@@ -1130,6 +1033,111 @@ mod tests {
         node.verify(&vk, &proof.proof).unwrap();
 
         std::fs::remove_file(vk_map_path).unwrap();
+    }
+
+    /// Dynamically computes the appropriate compress shape based on the machine configuration
+    async fn compute_compress_shape(
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+    ) -> SP1RecursionProofShape {
+        use crate::{worker::SP1LightNode, CpuSP1ProverComponents};
+        let elf = test_artifacts::FIBONACCI_ELF;
+        let client = SP1LightNode::new_with_machine(machine.clone()).await;
+        let vk = client.setup(&elf).await.expect("setup failed");
+
+        let chip_clusters = &machine.shape().chip_clusters;
+        let allowed_vk_height = client.inner().allowed_vk_height();
+        let vk_verification = client.inner().vk_verification();
+
+        let verifier = CpuSP1ProverComponents::compress_verifier(&machine);
+        let dummy_input =
+        |current_shape: &SP1RecursionProofShape| -> SP1CompressWithVKeyWitnessValues<SP1PcsProofInner> {
+            dummy_compose_input(&verifier, current_shape, DEFAULT_ARITY, allowed_vk_height)
+        };
+        let core_verifier = CpuSP1ProverComponents::core_verifier(&machine);
+        let recursive_core_verifier =
+            recursive_verifier::<SP1GlobalContext, _, InnerConfig>(core_verifier.shard_verifier());
+
+        let recursive_compress_verifier =
+            recursive_verifier::<SP1GlobalContext, _, InnerConfig>(verifier.shard_verifier());
+        let compose_program =
+        |input: &SP1CompressWithVKeyWitnessValues<SP1PcsProofInner>| -> Arc<RecursionProgram<SP1Field>> {
+            Arc::new(compose_program_from_input(
+                &recursive_compress_verifier,
+                vk_verification,
+                input,
+            ))
+        };
+
+        // Find the recursion proof shape that fits the normalize programs verifying all core shards.
+        let mut max_cluster_count = RecursionAirEventCount::default();
+
+        for cluster in chip_clusters {
+            let shape = create_test_shape(cluster);
+            let program = normalize_program_from_input(
+                &recursive_core_verifier,
+                &shape.dummy_input(vk.clone()),
+            );
+            max_cluster_count = max_count(max_cluster_count, program.event_counts);
+        }
+
+        // Iterate on this shape until the compose program verifying DEFAULT_ARITY proofs of shape
+        // `current_shape` can be proved using `current_shape`.
+        let mut current_shape = build_shape_from_recursion_air_event_count(&max_cluster_count);
+        let trace_generator =
+            DefaultTraceGenerator::new(CompressAir::<SP1Field>::compress_machine());
+        loop {
+            let input = dummy_input(&current_shape);
+            let program = compose_program(&input);
+            let setup_permits = ProverSemaphore::new(1);
+            let preprocessed_traces = trace_generator
+                .generate_preprocessed_traces(program, RECURSION_MAX_LOG_ROW_COUNT, setup_permits)
+                .await;
+
+            let updated_key_values = preprocessed_traces
+                .preprocessed_traces
+                .into_iter()
+                .filter_map(|(chip, trace)| {
+                    let real_height = trace.num_real_entries();
+                    let expected_height = current_shape.shape.height_of_name(&chip).unwrap();
+
+                    if real_height > expected_height {
+                        tracing::debug!(
+                            "Insufficient height for chip {}: expected {}, got {}",
+                            chip,
+                            expected_height,
+                            real_height
+                        );
+                        Some((chip, real_height))
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            if updated_key_values.is_empty() {
+                break;
+            }
+            for (chip, real_height) in updated_key_values {
+                current_shape.shape.insert_with_name(&chip, real_height);
+            }
+        }
+
+        SP1RecursionProofShape {
+            shape: RecursionShape::new(
+                current_shape
+                    .shape
+                    .into_iter()
+                    .map(|(chip, height)| {
+                        let new_height = if chip == "PublicValues" {
+                            height
+                        } else {
+                            height.next_multiple_of(32)
+                        };
+                        (chip, new_height)
+                    })
+                    .collect(),
+            ),
+        }
     }
 
     fn shape_label(shape: &SP1RecursionProgramShape) -> String {
@@ -1398,9 +1406,64 @@ mod tests {
     async fn test_find_recursion_shape() {
         setup_logger();
         let machine = RiscvAir::machine();
-        let shape = SP1RecursionProofShape::compute_compress_shape(machine).await;
+        let shape = compute_compress_shape(machine).await;
 
         let mut file = std::fs::File::create("compress_shape.json").unwrap();
+        serde_json::to_writer_pretty(&mut file, &shape).unwrap();
+    }
+
+    /// Regenerate `compress_shape_apc.json`, the universal recursion shape used for any APC
+    /// machine. We pin the machine to RSP / 12 APCs on the largest checked-in block (21740137).
+    /// 12 is the highest APC count that fits compressed proving in 32 GB VRAM on the current
+    /// prover; sizing the shape any larger pushes construction + shard work past the GPU limit.
+    /// Block selection is essentially free: changing it perturbs the shape by <0.1% across all
+    /// chips.
+    #[tokio::test]
+    #[cfg(feature = "apc")]
+    #[ignore = "should be invoked for apc shape tuning; runs ~3 min once built"]
+    async fn test_find_apc_recursion_shape() {
+        use std::sync::Arc;
+
+        use powdr_autoprecompiles::{adapter::ApcWithStats, PgoConfig};
+        use sp1_core_executor::Program;
+        use sp1_core_machine::{
+            autoprecompiles::{execution_profile_from_program, sp1_powdr_config, CompiledProgram},
+            io::SP1Stdin,
+        };
+
+        setup_logger();
+
+        // The RSP ELF and the largest-block input live in sp1-gpu/crates/perf/programs/rsp/.
+        // We read them at runtime to avoid duplicating ~14 MB of binary fixtures inside this
+        // crate.
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let elf_path =
+            format!("{manifest_dir}/../../sp1-gpu/crates/perf/programs/rsp/elf/rsp-client");
+        let stdin_path =
+            format!("{manifest_dir}/../../sp1-gpu/crates/perf/programs/rsp/input/21740137.bin");
+        let elf = std::fs::read(&elf_path)
+            .unwrap_or_else(|e| panic!("read rsp-client elf at {elf_path}: {e}"));
+        let stdin_bytes = std::fs::read(&stdin_path)
+            .unwrap_or_else(|e| panic!("read rsp block input at {stdin_path}: {e}"));
+        let mut stdin = SP1Stdin::new();
+        stdin.write_vec(stdin_bytes);
+
+        let program = Arc::new(Program::from(&elf).expect("parse rsp-client elf"));
+        let execution_profile = execution_profile_from_program(program, stdin.clone());
+        let config = sp1_powdr_config(12, 0);
+        let pgo_config = PgoConfig::Instruction(execution_profile);
+        let compiled_program = CompiledProgram::new(&elf, config, pgo_config);
+        let apcs: Vec<_> = compiled_program
+            .apcs_and_stats
+            .into_iter()
+            .map(ApcWithStats::into_parts)
+            .map(|(apc, _, _)| apc)
+            .collect();
+
+        let machine = RiscvAir::machine_with_apcs(apcs);
+        let shape = compute_compress_shape(machine).await;
+
+        let mut file = std::fs::File::create("compress_shape_apc.json").unwrap();
         serde_json::to_writer_pretty(&mut file, &shape).unwrap();
     }
 }

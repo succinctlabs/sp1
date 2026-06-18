@@ -281,10 +281,11 @@ where
         let (program, mut record, deferred_record, is_precompile) = tokio::task::spawn_blocking({
             let artifact_client = self.artifact_client.clone();
             let opts = self.opts.clone();
+            let machine = self.machine().clone();
             move || {
                 let _guard = span.enter();
                 {
-                    let program = Program::from(&elf).map_err(|e| {
+                    let program = Program::custom(&elf, &machine).map_err(|e| {
                         TaskError::Fatal(anyhow::anyhow!("failed to disassemble program: {}", e))
                     })?;
                     let program = Arc::new(program);
@@ -617,7 +618,7 @@ where
             tokio::task::spawn_blocking(move || {
                 let _guard = parent.enter();
                 let machine_proof = MachineProof::from(vec![proof_clone]);
-                C::core_verifier(machine)
+                C::core_verifier(&machine)
                     .verify(&vk_clone, &machine_proof)
                     .map_err(|e| TaskError::Retryable(anyhow!("shard verification failed: {e}")))
             })
@@ -714,7 +715,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents>
 
         let elf = self.artifact_client.download_program(&elf).await?;
 
-        let program = Program::from(&elf)?;
+        let program = Program::custom(&elf, self.core_prover.machine())?;
         let program = Arc::new(program);
 
         let permits = self.permits.clone();
@@ -827,7 +828,7 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A
         machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> Self {
         // Initialize the normalize program compiler
-        let core_verifier = C::core_verifier(machine);
+        let core_verifier = C::core_verifier(&machine);
 
         let normalize_program_cache = SP1NormalizeCache::new(config.normalize_program_cache_size);
 

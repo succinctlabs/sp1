@@ -80,6 +80,7 @@ hex = { workspace = true }
 [dev-dependencies]
 test-artifacts = { path = "../test-artifacts" }
 anyhow = { workspace = true }
+powdr-autoprecompiles = { workspace = true }
 
 [[bin]]
 name = "build_recursion_vks"

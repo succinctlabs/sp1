@@ -14,6 +14,7 @@ use sp1_hypercube::{
 };
 use sp1_primitives::{SP1ExtensionField, SP1Field, SP1GlobalContext};
 use sp1_prover::{
+    machine_has_apcs,
     recursion::{compose_program_from_input, recursive_verifier, shrink_program_from_input},
     shapes::SP1RecursionProofShape,
     SP1ProverComponents,
@@ -134,7 +135,7 @@ async fn main() {
         // The compress verifier is used to build the recursive verifier inside both the compose
         // and shrink programs. The shrink program is just an arity-1 verifier of a compressed
         // proof, so it embeds a recursive verifier of the compress machine.
-        let compress_verifier = SP1CudaProverComponents::compress_verifier();
+        let compress_verifier = SP1CudaProverComponents::compress_verifier(&machine);
         let recursive_compress_verifier = recursive_verifier::<SP1GlobalContext, _, InnerConfig>(
             compress_verifier.shard_verifier(),
         );
@@ -143,10 +144,11 @@ async fn main() {
         let build_start = Instant::now();
         let program = match mode.compose_arity() {
             Some(_) => {
-                let reduce_shape = SP1RecursionProofShape::retrieve_or_compute_reduce_shape(
-                    machine,
+                let reduce_shape = SP1RecursionProofShape::compress_proof_shape_from_arity(
                     original_arity,
-                );
+                    machine_has_apcs(&machine),
+                )
+                .expect("original arity not supported");
                 let mut program = compose_program_from_input(
                     &recursive_compress_verifier,
                     vk_verification,

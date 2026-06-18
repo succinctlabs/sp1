@@ -1,5 +1,6 @@
 use crate::{
     build::{try_build_groth16_artifacts_dir, try_build_plonk_artifacts_dir},
+    components::recursion_supports_snark_wrap,
     recursion::{
         compose_program_from_input, deferred_program_from_input, dummy_deferred_input,
         recursive_verifier, shrink_program_from_input, wrap_program_from_input, RecursionVks,
@@ -21,11 +22,12 @@ use slop_futures::pipeline::{
     AsyncEngine, AsyncWorker, BlockingEngine, BlockingWorker, Chain, Pipeline, SubmitError,
     SubmitHandle,
 };
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{
     inner_perm, koalabears_to_bn254,
     prover::{AirProver, ProverSemaphore, ProvingKey},
-    HashableKey, MachineProof, MachineVerifier, MachineVerifyingKey, MerkleProof, SP1PcsProofInner,
-    SP1PcsProofOuter, SP1RecursionProof, SP1WrapProof, ShardProof, DIGEST_SIZE,
+    HashableKey, Machine, MachineProof, MachineVerifier, MachineVerifyingKey, MerkleProof,
+    SP1PcsProofInner, SP1PcsProofOuter, SP1RecursionProof, SP1WrapProof, ShardProof, DIGEST_SIZE,
 };
 use sp1_primitives::{SP1ExtensionField, SP1Field, SP1GlobalContext, SP1OuterGlobalContext};
 use sp1_prover_types::{Artifact, ArtifactClient, ArtifactId};
@@ -78,6 +80,8 @@ pub struct SP1RecursionProverConfig {
     /// An optional file path for the vk map. Should be `None` by default and only can be set manually
     /// for code that is feature-gated behind the `experimental` flag.
     vk_map_file: Option<String>,
+    /// The machine that determines recursion sizing and SNARK support.
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     /// The reduce shape
     pub reduce_shape: SP1RecursionProofShape,
 }
@@ -93,6 +97,7 @@ impl SP1RecursionProverConfig {
         recursion_prover_buffer_size: usize,
         max_compose_arity: usize,
         verify_intermediates: bool,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
         reduce_shape: SP1RecursionProofShape,
     ) -> Self {
         Self {
@@ -106,6 +111,7 @@ impl SP1RecursionProverConfig {
             vk_verification: true,
             verify_intermediates,
             vk_map_file: None,
+            machine,
             reduce_shape,
         }
     }
@@ -315,10 +321,11 @@ impl<A: ArtifactClient, C: SP1ProverComponents> RecursionProverWorker<A, C> {
                 if self.verify_intermediates {
                     let proof = proof.clone();
                     let vk = vk.clone();
+                    let machine = self.prover_data.machine.clone();
                     let parent = tracing::Span::current();
                     tokio::task::spawn_blocking(move || {
                         let _guard = parent.enter();
-                        C::compress_verifier()
+                        C::compress_verifier(&machine)
                             .verify(&vk, &MachineProof::from(vec![proof]))
                             .map_err(|e| {
                                 TaskError::Retryable(anyhow::anyhow!(
@@ -343,10 +350,11 @@ impl<A: ArtifactClient, C: SP1ProverComponents> RecursionProverWorker<A, C> {
                 if self.verify_intermediates {
                     let proof = proof.clone();
                     let vk = vk.clone();
+                    let machine = self.prover_data.machine.clone();
                     let parent = tracing::Span::current();
                     tokio::task::spawn_blocking(move || {
                         let _guard = parent.enter();
-                        C::compress_verifier()
+                        C::compress_verifier(&machine)
                             .verify(&vk, &MachineProof::from(vec![proof.clone()]))
                             .map_err(|e| {
                                 TaskError::Retryable(anyhow::anyhow!(
@@ -472,14 +480,19 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
 
             let recursion_vks_height = recursion_vks.height();
 
-            let compress_verifier = C::compress_verifier();
+            let compress_verifier = C::compress_verifier(&config.machine);
             let recursive_compress_verifier =
                 recursive_verifier::<SP1GlobalContext, _,  InnerConfig>(
                     compress_verifier.shard_verifier(),
                 );
             for arity in 1..=config.max_compose_arity {
                 let dummy_input =
-                    dummy_compose_input::<C>(&reduce_shape, arity, recursion_vks_height);
+                    dummy_compose_input::<C>(
+                        &reduce_shape,
+                        arity,
+                        recursion_vks_height,
+                        &config.machine,
+                    );
                 let mut program = compose_program_from_input(
                     &recursive_compress_verifier,
                     config.vk_verification,
@@ -531,6 +544,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
 
             let prover_data = Arc::new(RecursionProverData {
                 recursion_vks,
+                machine: config.machine.clone(),
                 reduce_shape,
                 compose_programs,
                 compose_keys,
@@ -538,7 +552,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
                 deferred_keys: Some(deferred_keys),
             });
 
-            let compress_verifier = C::compress_verifier();
+            let compress_verifier = C::compress_verifier(&config.machine);
 
             // Initialize the prepare reduce engine.
             let prepare_reduce_workers = (0..config.num_prepare_reduce_workers)
@@ -689,6 +703,11 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
     }
 
     pub async fn run_shrink_wrap(&self, request: RawTaskRequest) -> Result<(), TaskError> {
+        if !recursion_supports_snark_wrap(&self.prover_data.machine) {
+            return Err(TaskError::Fatal(anyhow::anyhow!(
+                "the active machine uses APCs, so shrink-wrap is not supported"
+            )));
+        }
         let RawTaskRequest { inputs, outputs, .. } = request;
         let [compress_proof_artifact] = inputs.try_into().unwrap();
         let [wrap_proof_artifact] = outputs.try_into().unwrap();
@@ -723,6 +742,11 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
     }
 
     pub async fn run_groth16(&self, request: RawTaskRequest) -> Result<(), TaskError> {
+        if !recursion_supports_snark_wrap(&self.prover_data.machine) {
+            return Err(TaskError::Fatal(anyhow::anyhow!(
+                "the active machine uses APCs, so Groth16 wrapping is not supported"
+            )));
+        }
         let RawTaskRequest { inputs, outputs, .. } = request;
         let [wrap_proof_artifact] = inputs.try_into().unwrap();
         let [groth16_proof_artifact] = outputs.try_into().unwrap();
@@ -793,6 +817,11 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
     }
 
     pub async fn run_plonk(&self, request: RawTaskRequest) -> Result<(), TaskError> {
+        if !recursion_supports_snark_wrap(&self.prover_data.machine) {
+            return Err(TaskError::Fatal(anyhow::anyhow!(
+                "the active machine uses APCs, so Plonk wrapping is not supported"
+            )));
+        }
         let RawTaskRequest { inputs, outputs, .. } = request;
         let [wrap_proof_artifact] = inputs.try_into().unwrap();
         let [plonk_proof_artifact] = outputs.try_into().unwrap();
@@ -915,6 +944,7 @@ type CompressKeys<C> = (
 
 pub struct RecursionProverData<C: SP1ProverComponents> {
     recursion_vks: RecursionVks,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     reduce_shape: SP1RecursionProofShape,
     compose_programs: BTreeMap<usize, Arc<RecursionProgram<SP1Field>>>,
     compose_keys: BTreeMap<usize, CompressKeys<C>>,
@@ -994,8 +1024,9 @@ fn dummy_compose_input<C: SP1ProverComponents>(
     shape: &SP1RecursionProofShape,
     arity: usize,
     height: usize,
+    machine: &Machine<SP1Field, RiscvAir<SP1Field>>,
 ) -> SP1CompressWithVKeyWitnessValues<SP1PcsProofInner> {
-    let verifier = C::compress_verifier();
+    let verifier = C::compress_verifier(machine);
     shape.dummy_input(
         arity,
         height,
@@ -1023,7 +1054,7 @@ impl<C: SP1ProverComponents> ShrinkProver<C> {
         prover_data: Arc<RecursionProverData<C>>,
         config: SP1RecursionProverConfig,
     ) -> Self {
-        let verifier = C::compress_verifier();
+        let verifier = C::compress_verifier(&config.machine);
         let input = prover_data.reduce_shape.dummy_input(
             1,
             prover_data.recursion_vks.height(),
