@@ -60,7 +60,7 @@ pub struct ProveShardTaskRequest {
     /// The deferred marker task id.
     pub deferred_marker_task: Artifact,
     /// The deferred output artifact.
-    pub deferred_output: Artifact,
+    pub deferred_output: Option<Artifact>,
     /// The task context.
     pub context: TaskContext,
 }
@@ -74,7 +74,7 @@ impl ProveShardTaskRequest {
         let deferred_marker_task = inputs[3].clone();
 
         let output = outputs[0].clone();
-        let deferred_output = outputs[1].clone();
+        let deferred_output = outputs.get(1).cloned();
 
         Ok(ProveShardTaskRequest {
             elf,
@@ -99,7 +99,8 @@ impl ProveShardTaskRequest {
         } = self;
 
         let inputs = vec![elf, common_input, record, deferred_marker_task];
-        let outputs = vec![output, deferred_output];
+        let mut outputs = vec![output];
+        outputs.extend(deferred_output);
         let raw_task_request = RawTaskRequest { inputs, outputs, context };
         Ok(raw_task_request)
     }
@@ -120,7 +121,7 @@ pub struct CoreProvingTask {
     /// The deferred marker task id.
     pub deferred_marker_task: Artifact,
     /// The deferred output artifact.
-    pub deferred_output: Artifact,
+    pub deferred_output: Option<Artifact>,
     /// The metrics for the prover.
     pub metrics: ProverMetrics,
 }
@@ -257,42 +258,14 @@ where
         let record_artifact = input.record.clone();
         let metrics = input.metrics.clone();
 
-        // Ok to panic because it will send a JoinError.
-        let downloaded = tokio::try_join!(
+        // Ok to panic because it will send a JoinError. A re-delivery whose
+        // inputs a prior run already consumed fails here; the task dispatcher
+        // recovers it via `RawTaskRequest::recover_if_complete` (outputs exist).
+        let (elf, common_input, record) = tokio::try_join!(
             self.artifact_client.download_program(&input.elf),
             self.artifact_client.download::<CommonProverInput>(&input.common_input),
             self.artifact_client.download::<TraceData>(&input.record),
-        );
-        let (elf, common_input, record) = match downloaded {
-            Ok(v) => v,
-            Err(e) => {
-                // Idempotent re-run under at-least-once delivery: a gone input
-                // record plus a present output means a prior run already proved
-                // this shard, so succeed instead of failing the proof. The
-                // delete runs after the output upload, so a gone record implies
-                // a complete output. Gate on the record being gone, not on any
-                // download error; on `exists` errors the defaults keep us on the
-                // failing path (record present, output absent).
-                let record_gone = !self
-                    .artifact_client
-                    .exists(&input.record, ArtifactType::UnspecifiedArtifactType)
-                    .await
-                    .unwrap_or(true);
-                let output_exists = self
-                    .artifact_client
-                    .exists(&input.output, ArtifactType::UnspecifiedArtifactType)
-                    .await
-                    .unwrap_or(false);
-                if record_gone && output_exists {
-                    tracing::info!(
-                        "shard already proven by a prior execution (input record gone, \
-                         output present); skipping re-execution"
-                    );
-                    return Ok(metrics.to_metadata());
-                }
-                return Err(e.into());
-            }
-        };
+        )?;
 
         if let Some((dir, _)) = self.record_write_dir_and_frequency.as_ref() {
             let dir = PathBuf::from(dir);
@@ -510,7 +483,8 @@ where
         let deferred_upload_handle = deferred_record.map(|deferred_record| {
             let artifact_client = self.artifact_client.clone();
             let worker_client = self.worker_client.clone();
-            let output_artifact = input.deferred_output.clone();
+            let output_artifact =
+                input.deferred_output.clone().expect("core shard must have a deferred output");
             let deferred_marker_task = TaskId::new(input.deferred_marker_task.clone().to_id());
             let opts = self.opts.clone();
             let program = program.clone();

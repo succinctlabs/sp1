@@ -28,7 +28,7 @@ use sp1_hypercube::{
     SP1PcsProofOuter, SP1RecursionProof, SP1WrapProof, ShardProof, DIGEST_SIZE,
 };
 use sp1_primitives::{SP1ExtensionField, SP1Field, SP1GlobalContext, SP1OuterGlobalContext};
-use sp1_prover_types::{Artifact, ArtifactClient, ArtifactId, ArtifactType};
+use sp1_prover_types::{Artifact, ArtifactClient, ArtifactId};
 use sp1_recursion_circuit::{
     machine::{
         SP1CompressWithVKeyWitnessValues, SP1MerkleProofWitnessValues, SP1NormalizeWitnessValues,
@@ -147,44 +147,6 @@ impl ReduceTaskRequest {
         inputs.extend(range_proofs.as_artifacts());
         let raw_task_request = RawTaskRequest { inputs, outputs: vec![output], context };
         Ok(raw_task_request)
-    }
-
-    /// True if a prior execution already reduced this range: its inputs were
-    /// consumed (now gone) and `output` is written. Lets a re-run report success
-    /// instead of failing the proof on a missing input. Gated on an input being
-    /// gone, which (delete happens after the output upload) implies `output` is
-    /// complete.
-    pub async fn already_reduced(&self, artifact_client: &impl ArtifactClient) -> bool {
-        self.range_proofs.any_proof_missing(artifact_client).await
-            && artifact_client
-                .exists(&self.output, ArtifactType::UnspecifiedArtifactType)
-                .await
-                .unwrap_or(false)
-    }
-
-    /// Recover an already-completed re-run from a finished reduce task's result.
-    ///
-    /// The cluster delivers tasks at-least-once. If the task failed but a prior
-    /// run already consumed the inputs (now gone) and wrote `output`, the range
-    /// is already reduced — report success instead of failing the proof. A
-    /// successful result passes through unchanged.
-    pub async fn recover_already_reduced(
-        result: Result<TaskMetadata, TaskError>,
-        request: &RawTaskRequest,
-        artifact_client: &impl ArtifactClient,
-    ) -> Result<TaskMetadata, TaskError> {
-        match result {
-            Err(e) => match Self::from_raw(request.clone()) {
-                Ok(req) if req.already_reduced(artifact_client).await => {
-                    tracing::info!(
-                        "reduce already completed by a prior execution; skipping re-execution"
-                    );
-                    Ok(TaskMetadata { gpu_ms: None })
-                }
-                _ => Err(e),
-            },
-            ok => ok,
-        }
     }
 }
 
@@ -1263,83 +1225,5 @@ impl<C: SP1ProverComponents> WrapProver<C> {
         C::wrap_verifier()
             .verify_shard(vk, proof, &mut challenger)
             .map_err(|e| TaskError::Fatal(e.into()))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::worker::{ProofId, RecursionProof, RequesterId};
-    use sp1_hypercube::air::ShardRange;
-    use sp1_prover_types::InMemoryArtifactClient;
-
-    async fn put(client: &InMemoryArtifactClient, artifact: &Artifact) {
-        client.upload_raw(artifact, ArtifactType::UnspecifiedArtifactType, vec![1]).await.unwrap();
-    }
-
-    fn reduce_request(range_proofs: RangeProofs, output: Artifact) -> RawTaskRequest {
-        ReduceTaskRequest {
-            range_proofs,
-            is_complete: false,
-            output,
-            context: TaskContext {
-                proof_id: ProofId::new("test"),
-                parent_id: None,
-                parent_context: None,
-                requester_id: RequesterId::new("test"),
-            },
-        }
-        .into_raw()
-        .unwrap()
-    }
-
-    fn fatal() -> Result<TaskMetadata, TaskError> {
-        Err(TaskError::Fatal(anyhow::anyhow!("missing input")))
-    }
-
-    /// A reduce that failed on a missing input is recovered to success only when a
-    /// prior run already produced the output (inputs gone + output present).
-    /// Genuine loss still fails; non-failures pass through untouched.
-    #[tokio::test]
-    async fn recover_already_reduced_handles_redelivery() {
-        let client = InMemoryArtifactClient::new();
-        let p0 = Artifact::from("range-proof-0".to_string());
-        let p1 = Artifact::from("range-proof-1".to_string());
-        let output = Artifact::from("reduce-output".to_string());
-        let range_proofs = RangeProofs::new(
-            ShardRange::default(),
-            VecDeque::from([
-                RecursionProof { shard_range: ShardRange::default(), proof: p0.clone() },
-                RecursionProof { shard_range: ShardRange::default(), proof: p1.clone() },
-            ]),
-        );
-        let request = reduce_request(range_proofs, output.clone());
-
-        // Inputs present: a failure is a real failure, not recovered.
-        put(&client, &p0).await;
-        put(&client, &p1).await;
-        put(&client, &output).await;
-        assert!(ReduceTaskRequest::recover_already_reduced(fatal(), &request, &client)
-            .await
-            .is_err());
-
-        // A consumed input is gone but the output exists → recovered to success.
-        client.delete(&p1, ArtifactType::UnspecifiedArtifactType).await.unwrap();
-        assert!(ReduceTaskRequest::recover_already_reduced(fatal(), &request, &client)
-            .await
-            .is_ok());
-
-        // Input gone AND output gone → genuine loss, still fails.
-        client.delete(&output, ArtifactType::UnspecifiedArtifactType).await.unwrap();
-        assert!(ReduceTaskRequest::recover_already_reduced(fatal(), &request, &client)
-            .await
-            .is_err());
-
-        // A successful result passes through untouched.
-        let ok = Ok(TaskMetadata { gpu_ms: Some(7) });
-        assert!(matches!(
-            ReduceTaskRequest::recover_already_reduced(ok, &request, &client).await,
-            Ok(TaskMetadata { gpu_ms: Some(7) })
-        ));
     }
 }

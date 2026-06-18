@@ -13,8 +13,8 @@ use tracing::Instrument;
 use crate::{
     worker::{
         node::SP1NodeCore, run_vk_generation, LocalWorkerClient, LocalWorkerClientChannels,
-        ProofId, RawTaskRequest, ReduceTaskRequest, SP1LocalNode, SP1NodeInner, SP1WorkerBuilder,
-        TaskError, TaskId, TaskMetadata, WorkerClient,
+        ProofId, RawTaskRequest, SP1LocalNode, SP1NodeInner, SP1WorkerBuilder, TaskError, TaskId,
+        TaskMetadata, WorkerClient,
     },
     SP1ProverComponents,
 };
@@ -338,9 +338,18 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                                 .await
                                 .unwrap();
                             let tx = task_tx.clone();
+                            let artifact_client = worker.artifact_client().clone();
                             task_set.spawn(
                                 async move {
-                                    let result = handle.await;
+                                    // Outer `Err` = panicked/aborted task (pass through);
+                                    // recover the task's result if a prior delivery already
+                                    // completed it (all outputs exist).
+                                    let result = match handle.await {
+                                        Ok(task_result) => Ok(request
+                                            .recover_if_complete(task_result, &artifact_client)
+                                            .await),
+                                        join_err => join_err,
+                                    };
                                     TaskOutput::handle_worker_result(result, &tx, proof_id, id, request, TaskType::ProveShard);
                                 }.instrument(span)
                            );
@@ -380,15 +389,13 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                             let tx = task_tx.clone();
                             let artifact_client = worker.artifact_client().clone();
                             task_set.spawn(async move {
-                                // Outer `Err` = task panicked/aborted (pass through);
-                                // recover the task's own result against re-delivery.
+                                // Outer `Err` = panicked/aborted task (pass through);
+                                // recover the task's result if a prior delivery already
+                                // completed it (all outputs exist).
                                 let result = match handle.await {
-                                    Ok(task_result) => Ok(ReduceTaskRequest::recover_already_reduced(
-                                        task_result,
-                                        &request,
-                                        &artifact_client,
-                                    )
-                                    .await),
+                                    Ok(task_result) => Ok(request
+                                        .recover_if_complete(task_result, &artifact_client)
+                                        .await),
                                     join_err => join_err,
                                 };
                                 TaskOutput::handle_worker_result(result, &tx, proof_id, id, request, TaskType::RecursionReduce);
