@@ -1,0 +1,23 @@
+[package]
+name = "keccak-c-script"
+description = "Host driver for keccak-c. Same shape as keccak-script but loads a C-built ELF."
+version = { workspace = true }
+edition = { workspace = true }
+publish = false
+
+[[bin]]
+name = "keccak-c-execute"
+path = "src/execute.rs"
+
+[[bin]]
+name = "keccak-c-prove"
+path = "src/prove.rs"
+
+[dependencies]
+sp1-sdk = { workspace = true }
+tiny-keccak = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[build-dependencies]
+zkevm-c-build = { path = "../../c-build" }

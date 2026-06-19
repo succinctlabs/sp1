@@ -1,0 +1,23 @@
+[package]
+name = "sha256-script"
+description = "Host driver for the sha256 guest: feeds arbitrary bytes, executes the guest, asserts the public output digest matches host-side `Sha256::digest`."
+version = { workspace = true }
+edition = { workspace = true }
+publish = false
+
+[[bin]]
+name = "sha256-execute"
+path = "src/execute.rs"
+
+[[bin]]
+name = "sha256-prove"
+path = "src/prove.rs"
+
+[dependencies]
+sp1-sdk = { workspace = true }
+sha2 = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[build-dependencies]
+sp1-build = { workspace = true }

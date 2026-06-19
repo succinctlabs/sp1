@@ -1,0 +1,58 @@
+[
+  {
+    "name": "simple_3_pow_2_mod_5",
+    "base": "0x03",
+    "exp": "0x02",
+    "modulus": "0x05",
+    "expected": "0x04"
+  },
+  {
+    "name": "exp_zero_returns_one",
+    "base": "0x07",
+    "exp": "0x00",
+    "modulus": "0x64",
+    "expected": "0x01"
+  },
+  {
+    "name": "base_zero_returns_zero",
+    "base": "0x00",
+    "exp": "0x05",
+    "modulus": "0xffff",
+    "expected": "0x0000"
+  },
+  {
+    "name": "mod_one_returns_zero",
+    "base": "0x05",
+    "exp": "0x03",
+    "modulus": "0x01",
+    "expected": "0x00"
+  },
+  {
+    "name": "two_pow_ten_mod_1000",
+    "base": "0x02",
+    "exp": "0x0a",
+    "modulus": "0x03e8",
+    "expected": "0x0018"
+  },
+  {
+    "name": "three_pow_255_mod_256",
+    "base": "0x03",
+    "exp": "0xff",
+    "modulus": "0x0100",
+    "expected": "0x00ab"
+  },
+  {
+    "name": "fermat_secp256k1_prime",
+    "base": "0x03",
+    "exp": "0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2e",
+    "modulus": "0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
+    "expected": "0x0000000000000000000000000000000000000000000000000000000000000001"
+  },
+  {
+    "name": "modulus_zero_returns_zeros",
+    "base": "0x05",
+    "exp": "0x03",
+    "modulus": "0x0000",
+    "expected": "0x0000"
+  }
+]
