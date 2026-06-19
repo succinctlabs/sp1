@@ -751,9 +751,8 @@ pub mod prover_network_client {
             req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "GetProvePrice"));
             self.inner.unary(req, path, codec).await
         }
-        /// Get the current market price per prover gas unit (PGU), in PROVE wei. Multiply
-        /// the returned value by a buffer (e.g. 1.2x) and pass as `max_price_per_pgu` to
-        /// keep effective USD cost stable as PROVE moves.
+        /// Get the network's current price per prover gas unit (PGU), in PROVE wei. Callers
+        /// apply their own buffer before passing it as `RequestProofRequestBody.max_price_per_pgu`.
         pub async fn get_market_price_per_pgu(
             &mut self,
             request: impl tonic::IntoRequest<super::super::types::GetMarketPricePerPguRequest>,
@@ -2449,7 +2448,8 @@ pub mod prover_network_server {
             tonic::Response<super::super::types::GetProvePriceResponse>,
             tonic::Status,
         >;
-        /// Get the current market price per prover gas unit (PGU), in PROVE wei.
+        /// Get the network's current price per prover gas unit (PGU), in PROVE wei. Callers
+        /// apply their own buffer before passing it as `RequestProofRequestBody.max_price_per_pgu`.
         async fn get_market_price_per_pgu(
             &self,
             request: tonic::Request<super::super::types::GetMarketPricePerPguRequest>,
