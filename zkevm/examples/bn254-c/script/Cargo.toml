@@ -1,0 +1,25 @@
+[package]
+name = "bn254-c-script"
+description = "Host driver for bn254-c. Cross-checks the guest's `zkvm_bn254_g1_add`, `zkvm_bn254_g1_mul`, and `zkvm_bn254_pairing` outputs against host-side substrate-bn computations."
+version = { workspace = true }
+edition = { workspace = true }
+publish = false
+
+[[bin]]
+name = "bn254-c-execute"
+path = "src/execute.rs"
+
+[[bin]]
+name = "bn254-c-prove"
+path = "src/prove.rs"
+
+[dependencies]
+sp1-sdk = { workspace = true }
+substrate-bn = { version = "0.6", default-features = false }
+rand = "0.8"
+tokio = { workspace = true }
+tracing = { workspace = true }
+zkevm-fixtures = { path = "../../fixtures" }
+
+[build-dependencies]
+zkevm-c-build = { path = "../../c-build" }

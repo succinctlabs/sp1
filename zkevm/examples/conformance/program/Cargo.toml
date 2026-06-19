@@ -1,0 +1,13 @@
+[package]
+name = "conformance"
+version = { workspace = true }
+edition = { workspace = true }
+publish = false
+description = "Batched conformance guest: reads a serialized batch of official-vector cases from stdin, runs each through the libzkevm accelerator C ABI (real syscall paths), and commits a failure summary."
+
+[[bin]]
+name = "conformance"
+path = "src/main.rs"
+
+[dependencies]
+libzkevm = { workspace = true }

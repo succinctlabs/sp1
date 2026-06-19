@@ -1,0 +1,25 @@
+[package]
+name = "modexp-c-script"
+description = "Host driver for modexp-c. Cross-checks the guest's `zkvm_modexp` output against host-side modexp on EIP-198 test vectors."
+version = { workspace = true }
+edition = { workspace = true }
+publish = false
+
+[[bin]]
+name = "modexp-c-execute"
+path = "src/execute.rs"
+
+[[bin]]
+name = "modexp-c-prove"
+path = "src/prove.rs"
+
+[dependencies]
+sp1-sdk = { workspace = true }
+num-bigint = "0.4"
+hex = "0.4"
+tokio = { workspace = true }
+tracing = { workspace = true }
+zkevm-fixtures = { path = "../../fixtures" }
+
+[build-dependencies]
+zkevm-c-build = { path = "../../c-build" }

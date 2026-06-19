@@ -88,8 +88,22 @@ members = [
   "sp1-gpu/crates/tracing",
   "sp1-gpu/crates/utils",
   "sp1-gpu/crates/zerocheck",
+  # zkevm environment
+  "zkevm/libzkevm",
+  "zkevm/build-sdk",
 ]
-exclude = ["examples/target", "crates/eval"]
+exclude = [
+  "examples/target",
+  "crates/eval",
+  # The cabi crate produces `libzkevm.a` and needs `panic = "abort"`,
+  # which is a workspace-level setting in cargo. It lives in a stand-
+  # alone workspace under `zkevm/`.
+  "zkevm/libzkevm-cabi",
+  # All zkevm example programs + scripts live in the
+  # `zkevm/examples/` workspace (own Cargo.toml). sp1-build sets
+  # `-C panic=abort` at the rustc level for guests.
+  "zkevm/examples",
+]
 resolver = "2"
 
 [profile.release]

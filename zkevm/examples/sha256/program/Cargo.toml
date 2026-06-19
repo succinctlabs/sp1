@@ -1,0 +1,13 @@
+[package]
+name = "sha256"
+version = { workspace = true }
+edition = { workspace = true }
+publish = false
+description = "SHA-256 precompile demo: reads bytes, hashes via libzkevm's `zkvm_sha256`, writes the digest."
+
+[[bin]]
+name = "sha256"
+path = "src/main.rs"
+
+[dependencies]
+libzkevm = { workspace = true }
