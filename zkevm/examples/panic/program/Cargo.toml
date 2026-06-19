@@ -1,0 +1,13 @@
+[package]
+name = "panic"
+version = { workspace = true }
+edition = { workspace = true }
+publish = false
+description = "Failed-termination showcase: reads a single byte; if non-zero, panics."
+
+[[bin]]
+name = "panic"
+path = "src/main.rs"
+
+[dependencies]
+libzkevm = { workspace = true }

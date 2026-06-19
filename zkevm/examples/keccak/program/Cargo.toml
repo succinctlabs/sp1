@@ -1,0 +1,13 @@
+[package]
+name = "keccak"
+version = { workspace = true }
+edition = { workspace = true }
+publish = false
+description = "First non-stub precompile demo: reads bytes, computes keccak256 via libzkevm's `zkvm_keccak256`, writes the digest."
+
+[[bin]]
+name = "keccak"
+path = "src/main.rs"
+
+[dependencies]
+libzkevm = { workspace = true }
