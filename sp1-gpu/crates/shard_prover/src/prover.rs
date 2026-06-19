@@ -17,7 +17,9 @@ use sp1_gpu_cudart::PinnedBuffer;
 use sp1_gpu_cudart::{DeviceMle, DevicePoint, TaskScope};
 use sp1_gpu_jagged_assist::prove_jagged_evaluation_sync;
 use sp1_gpu_jagged_sumcheck::{generate_jagged_sumcheck_poly, jagged_sumcheck};
-use sp1_gpu_jagged_tracegen::{full_tracegen_permit, main_tracegen_permit, CudaShardProverData};
+use sp1_gpu_jagged_tracegen::{
+    full_tracegen_permit, global_tracegen_permit, main_tracegen_permit, CudaShardProverData,
+};
 use sp1_gpu_logup_gkr::{prove_logup_gkr, CudaLogUpGkrOptions, Interactions};
 use sp1_gpu_merkle_tree::{CudaTcsProver, SingleLayerMerkleTreeProverError};
 use sp1_gpu_tracegen::CudaTracegenAir;
@@ -25,12 +27,13 @@ use sp1_gpu_utils::{Ext, Felt, JaggedTraceMle, TraceSection};
 use sp1_gpu_zerocheck::prover::{upload_machine_bytecode, zerocheck, MachineBytecode};
 use sp1_hypercube::prover::ZerocheckAir;
 use sp1_hypercube::{
-    air::{InteractionScope, MachineAir, MachineProgram},
-    beta_seed_dim_for_scope,
+    air::{InteractionScope, MachineAir, MachineProgram, PublicValues},
+    beta_seed_dim_for_scope, observe_global_challenge,
     prover::{AirProver, PreprocessedData, ProverPermit, ProverSemaphore, ProvingKey},
-    pv_interaction_max_arity, GlobalChallengeSeam, Machine, MachineVerifyingKey, ShardProof,
+    pv_interaction_max_arity, Machine, MachineRecord, MachineVerifyingKey, ShardProof,
 };
 use sp1_hypercube::{SP1PcsProof, ShardContextImpl};
+use std::borrow::Borrow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::iter::once;
 use std::vec;
@@ -235,6 +238,9 @@ where
         ShardProof<GC, <PC::C as BatchPcsVerifier<GC>>::Proof>,
         ProverPermit,
     ) {
+        // The chunk's global commitments ride in the record.
+        let global_commitments = record.global_challenge_input::<GC>();
+
         // Get the initial global cumulative sum and pc start.
         let pc_start = program.pc_start();
         let untrusted_config = program.untrusted_config();
@@ -298,7 +304,7 @@ where
         // Observe the preprocessed information.
         vk.observe_into(&mut challenger);
 
-        let shard_data = ShardData { main_trace_data };
+        let shard_data = ShardData { main_trace_data, global_commitments };
 
         let inner = self.inner.clone();
         let (shard_proof, permit) = tokio::task::spawn_blocking({
@@ -311,8 +317,6 @@ where
         .await
         .unwrap();
 
-        // tracing::debug_span!("prove shard with data")
-        //     .in_scope(|| self.prove_shard_with_data(shard_data, challenger));
         drop(buffer);
 
         (vk, shard_proof, permit)
@@ -325,6 +329,9 @@ where
         record: <PC::Air as MachineAir<GC::F>>::Record,
         prover_permits: ProverSemaphore,
     ) -> (ShardProof<GC, <PC::C as BatchPcsVerifier<GC>>::Proof>, ProverPermit) {
+        // The chunk's global commitments ride in the record.
+        let global_commitments = record.global_challenge_input::<GC>();
+
         // Generate the traces.
         let record = Arc::new(record);
 
@@ -351,6 +358,7 @@ where
                 shard_chips: chip_set,
                 permit,
             },
+            global_commitments,
         };
 
         let mut challenger = GC::default_challenger();
@@ -370,6 +378,42 @@ where
         drop(buffer);
 
         (shard_proof, permit)
+    }
+
+    /// Commit the record's global traces and return the digest.
+    async fn commit_global_traces_for_record(
+        &self,
+        record: <PC::Air as MachineAir<GC::F>>::Record,
+        prover_permits: ProverSemaphore,
+    ) -> GC::Digest {
+        let buffer = self.inner.get_buffer().await;
+        let record = Arc::new(record);
+
+        let (jagged_mle, permit) = global_tracegen_permit(
+            self.machine(),
+            record,
+            &buffer,
+            self.inner.max_trace_size,
+            self.inner.basefold_prover.log_height,
+            self.inner.max_log_row_count,
+            &self.inner.backend,
+            prover_permits,
+        )
+        .instrument(tracing::debug_span!("generate global traces for global commitment"))
+        .await;
+
+        let inner = self.inner.clone();
+        let digest = tokio::task::spawn_blocking(move || {
+            let _guard = tracing::debug_span!("commit global traces").entered();
+            inner.commit_traces(&jagged_mle, TraceSection::Global).0
+        })
+        .await
+        .unwrap();
+
+        drop(permit);
+        drop(buffer);
+
+        digest
     }
 
     async fn preprocessed_table_heights(
@@ -707,35 +751,45 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
         TaskScope:
             sp1_gpu_jagged_assist::BranchingProgramKernel<GC::F, GC::EF, PC::DeviceChallenger>,
     {
-        let ShardData { main_trace_data } = data;
+        let ShardData { main_trace_data, global_commitments } = data;
         let MainTraceData { traces, public_values, shard_chips, permit } = main_trace_data;
 
         let has_global_round = self.machine().has_global_round();
 
         let shard_chips = self.machine().smallest_cluster(&shard_chips).unwrap();
 
-        // Observe the public values.
-        challenger.observe_slice(&public_values);
+        // Observe the chunk-invariant public values before sampling global challenges.
+        if has_global_round {
+            let pv: &PublicValues<[_; 4], [_; 3], [_; 4], _> = public_values.as_slice().borrow();
+            challenger.observe_slice(&pv.prev_merkle_root);
+            challenger.observe_slice(&pv.merkle_root);
+        }
 
         let locked_preprocessed_data = traces.preprocessed_data.blocking_lock();
         let traces = &locked_preprocessed_data.preprocessed_traces;
         let preprocessed_data = &locked_preprocessed_data.preprocessed_data;
 
         let global_commit_and_data = has_global_round.then(|| {
-            let (global_commit, global_data) = tracing::debug_span!("commit global traces")
-                .in_scope(|| self.commit_traces(traces, TraceSection::Global));
-            <GC::Challenger as CanObserve<GC::Digest>>::observe(&mut challenger, global_commit);
-            (global_commit, global_data)
+            tracing::debug_span!("commit global traces")
+                .in_scope(|| self.commit_traces(traces, TraceSection::Global))
         });
 
+        // Derive the chunk's shared global challenge pair.
         let global_challenges = global_commit_and_data.as_ref().map(|_| {
             let beta_seed_dim = beta_seed_dim_for_scope(
                 self.machine().chips().iter(),
                 InteractionScope::Global,
                 pv_interaction_max_arity::<<PC::Air as MachineAir<GC::F>>::Record>(),
             );
-            GlobalChallengeSeam::<GC>::stub().derive(beta_seed_dim, &mut challenger)
+            observe_global_challenge::<GC>(
+                global_commitments.as_deref(),
+                beta_seed_dim,
+                &mut challenger,
+            )
         });
+
+        // Observe the full public values.
+        challenger.observe_slice(&public_values);
 
         // Commit to the main traces.
         let (main_commit, main_data) = tracing::debug_span!("commit traces")
@@ -1148,6 +1202,115 @@ mod tests {
             let mut challenger = TestGC::default_challenger();
             vk.observe_into(&mut challenger);
             verifier.verify_shard(&vk, &shard_proof, &mut challenger).unwrap();
+        })
+        .await;
+    }
+
+    /// Build a single-buffer GPU core prover on `scope` for the given machine.
+    fn build_core_prover(
+        machine: Machine<Felt, RiscvAir<Felt>>,
+        scope: &TaskScope,
+    ) -> CudaShardProver<TestGC, TestProverComponentsImpl> {
+        let basefold_verifier =
+            BasefoldVerifier::<TestGC>::new(core_fri_config(), 2, LOG_STACKING_HEIGHT);
+        let basefold_prover = FriCudaProver::<TestGC, _, Felt>::new(
+            Poseidon2SP1Field16CudaProver::new(scope),
+            basefold_verifier.fri_config,
+            LOG_STACKING_HEIGHT,
+        );
+
+        let mut all_interactions = BTreeMap::new();
+        for chip in machine.chips().iter() {
+            let host_interactions = Interactions::new(chip.sends(), chip.receives());
+            let device_interactions = host_interactions.copy_to_device(scope).unwrap();
+            all_interactions.insert(chip.name().to_string(), Arc::new(device_interactions));
+        }
+
+        let machine_bytecode = {
+            let chip_set: BTreeSet<_> = machine.chips().iter().cloned().collect();
+            Arc::new(upload_machine_bytecode(&chip_set, ChunkBudget::recommended(), scope))
+        };
+
+        let trace_buffers = Arc::new(WorkerQueue::new(vec![PinnedBuffer::<Felt>::with_capacity(
+            CORE_MAX_TRACE_SIZE as usize,
+        )]));
+
+        CudaShardProver {
+            inner: Arc::new(CudaShardProverInner {
+                trace_buffers,
+                all_interactions,
+                machine_bytecode,
+                max_log_row_count: CORE_MAX_LOG_ROW_COUNT,
+                basefold_prover,
+                max_trace_size: CORE_MAX_TRACE_SIZE as usize,
+                machine,
+                recompute_first_layer: false,
+                drop_ldes: false,
+                backend: scope.clone(),
+                _marker: PhantomData,
+            }),
+        }
+    }
+
+    /// The worker's two-phase flow on GPU: `commit_global_traces_for_record` pre-commits the global
+    /// trace (global section only) before the chunk's Fiat-Shamir gate, the digest is folded into
+    /// the chunk's compact Merkle root, and the shard is proved under that root. Pins the invariant
+    /// that the pre-committed global-only digest equals the in-proof global commitment (which is
+    /// committed out of the full `[prep|global|main]` trace), so the prover's and verifier's roots
+    /// agree, and that the proof verifies under the chunk's commitments.
+    #[tokio::test]
+    #[serial]
+    async fn test_core_shard_real_seam_commitment_matches_and_verifies() {
+        let (machine, record, program) =
+            tracegen_setup::setup(&test_artifacts::FIBONACCI_ELF, SP1Stdin::new()).await;
+        run_in_place(|scope| async move {
+            let shard_prover = build_core_prover(machine.clone(), &scope);
+            let permits = ProverSemaphore::new(1);
+
+            // Pre-commit the record's global trace exactly as the worker does before tracing the
+            // chunk: only the global section is generated and committed.
+            let global_commit =
+                shard_prover.commit_global_traces_for_record(record.clone(), permits.clone()).await;
+
+            // This chunk has one shard, so the compact Merkle root of a single leaf is the leaf.
+            // Stamp the commitment onto the record so the shard derives the chunk's shared global
+            // challenge from it.
+            let commitments = vec![global_commit];
+            let mut record = record;
+            record.set_global_commitments::<TestGC>(&commitments);
+            let (vk, shard_proof, _permit) =
+                shard_prover.setup_and_prove_shard(program, record, None, permits).await;
+
+            // The in-proof global commitment (committed from the full trace's global section)
+            // equals the pre-committed digest (committed from a global-only layout). The two paths
+            // agree because the global section's content, padding, and size are independent of the
+            // section's base offset — the regression guard for the global-only commit path.
+            assert_eq!(
+                shard_proof.global_commitment.expect("core shard has a global commitment"),
+                global_commit,
+                "global-only commit must equal the in-proof global commitment",
+            );
+
+            // The proof verifies under the chunk's commitments (rebuilt into the same root).
+            let core_verifier = ShardVerifier::from_basefold_parameters(
+                core_fri_config(),
+                LOG_STACKING_HEIGHT,
+                CORE_MAX_LOG_ROW_COUNT as usize,
+                machine,
+            );
+            let verifier = MachineVerifier::new(core_verifier);
+
+            let mut challenger = TestGC::default_challenger();
+            vk.observe_into(&mut challenger);
+            verifier
+                .shard_verifier()
+                .verify_shard_with_global_commitments(
+                    &vk,
+                    &shard_proof,
+                    Some(&commitments),
+                    &mut challenger,
+                )
+                .unwrap();
         })
         .await;
     }

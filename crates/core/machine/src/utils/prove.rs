@@ -70,6 +70,8 @@ where
     let mut all_records = Vec::new();
 
     for (chunk_idx, (chunk, dirty_pages)) in trace_chunks.into_iter().enumerate() {
+        let chunk_pc_start = chunk.pc_start;
+
         // Leaf bookkeeping, mirroring the controller's leaf-hash worker.
         let pre_chunk_snapshot = leaf_state.snapshot();
         let (prev_leaves, new_leaves) = leaf_state.ingest_chunk(&dirty_pages.pages);
@@ -95,10 +97,9 @@ where
             proof_record,
         );
 
-        // The merkle shard is a non-execution shard: pin its state public values to the
-        // initialized state and mark it as the chunk's first merkle shard.
+        // The merkle shard is a non-execution shard sitting at the head of the chunk.
         merkle_record.public_values.update_initialized_state(
-            0,
+            chunk_pc_start,
             program.enable_untrusted_programs,
             program.trap_context,
             program.untrusted_memory,
@@ -107,8 +108,7 @@ where
         merkle_record.shard_kind = SHARD_KIND_MERKLE;
         merkle_record.shard_index = 0;
 
-        // Merkle shard first, then the chunk's execution shards — the canonical order
-        // (`order_commitments` ranks merkle before core).
+        // Merkle shard first, then the chunk's execution shards.
         let mut chunk_records = vec![merkle_record];
         for (exec_index, (_is_last, spliced, shard_data)) in spliced_traces.into_iter().enumerate()
         {
@@ -141,6 +141,11 @@ where
             record.cur_root = cur_root;
             record.public_values.prev_merkle_root = prev_root;
             record.public_values.merkle_root = cur_root;
+            record.public_values.trace_chunk_idx = record.trace_chunk_idx;
+            record.public_values.shard_kind = record.shard_kind;
+            record.public_values.shard_index = record.shard_index;
+            record.public_values.num_execution_shard = num_execution_shards;
+            record.public_values.num_merkle_shard = 1;
         }
 
         // Dependencies last: the pv-driven byte/range lookups must see the final pvs.
@@ -308,12 +313,41 @@ mod tests {
             assert_eq!(merkle.public_values.is_first_merkle_shard, 1);
             assert_eq!(merkle.public_values.is_execution_shard, 0);
             assert!(merkle.merkle_proof_record.is_some());
+
+            let first_exec = &execution[0];
+            assert_eq!(merkle.public_values.pc_start, first_exec.public_values.pc_start);
+            assert_eq!(merkle.public_values.pc_start, merkle.public_values.next_pc);
+            assert_eq!(merkle.public_values.initial_timestamp, 1);
+            assert_eq!(merkle.public_values.last_timestamp, 1);
+            assert_eq!(merkle.public_values.num_merkle_shard, 1);
+            assert_eq!(merkle.public_values.num_execution_shard, execution.len() as u32);
+
+            assert_eq!(
+                merkle.public_values.committed_value_digest,
+                merkle.public_values.prev_committed_value_digest
+            );
+            assert_eq!(
+                merkle.public_values.deferred_proofs_digest,
+                merkle.public_values.prev_deferred_proofs_digest
+            );
+            assert_eq!(merkle.public_values.exit_code, merkle.public_values.prev_exit_code);
+            assert_eq!(
+                merkle.public_values.commit_syscall,
+                merkle.public_values.prev_commit_syscall
+            );
+            assert_eq!(
+                merkle.public_values.commit_deferred_syscall,
+                merkle.public_values.prev_commit_deferred_syscall
+            );
+
             for (i, record) in execution.iter().enumerate() {
                 assert_eq!(record.shard_kind, SHARD_KIND_EXECUTION);
                 assert_eq!(record.shard_index, i as u32);
                 assert_eq!(record.num_execution_shards, execution.len() as u32);
                 assert_eq!(record.public_values.is_first_merkle_shard, 0);
                 assert_eq!(record.public_values.is_execution_shard, 1);
+                assert_eq!(record.public_values.num_execution_shard, execution.len() as u32);
+                assert_eq!(record.public_values.num_merkle_shard, 1);
             }
 
             // Every shard of the chunk carries the chunk's bracketing roots.

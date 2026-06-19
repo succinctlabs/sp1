@@ -17,7 +17,7 @@ use tokio::sync::oneshot;
 
 use crate::{air::MachineAir, Chip, Machine, MachineRecord};
 
-use super::{MainTraceData, PreprocessedTraceData, ProverSemaphore, TraceData};
+use super::{MainTraceData, PreprocessedTraceData, ProverPermit, ProverSemaphore, TraceData};
 
 /// A collection of traces.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -163,6 +163,62 @@ impl<F: Field, A: MachineAir<F>> DefaultTraceGenerator<F, A, CpuBackend> {
         }
 
         (Traces { named_traces: traces }, Traces { named_traces: global_traces })
+    }
+
+    /// Generate the global traces for the record, skipping the main section.
+    pub(crate) async fn generate_global_traces(
+        &self,
+        record: A::Record,
+        max_log_row_count: usize,
+        prover_permits: ProverSemaphore,
+    ) -> (Traces<F, CpuBackend>, ProverPermit) {
+        let airs = self.machine.chips().to_vec();
+        let (tx, rx) = oneshot::channel();
+        // Spawn a rayon task to generate the global traces on the CPU.
+        slop_futures::rayon::spawn(move || {
+            let chips_and_traces = airs
+                .into_par_iter()
+                .filter(|air| air.included(&record))
+                .map(|air| {
+                    // Only the global section is generated; the main section is left as `None`.
+                    let global = air
+                        .generate_global_trace(&record, &mut A::Record::default())
+                        .map(Mle::from);
+                    (air, (global, None::<Mle<F>>))
+                })
+                .collect::<BTreeMap<_, _>>();
+
+            tx.send(chips_and_traces).ok().unwrap();
+            // Emphasize that we are dropping the record after sending the traces.
+            drop(record);
+        });
+        // Wait for the traces to be generated.
+        let chips_and_traces = rx.await.unwrap();
+
+        let chip_set = chips_and_traces.keys().cloned().collect::<BTreeSet<_>>();
+        let shard_chips = self
+            .machine
+            .smallest_cluster(&chip_set)
+            .unwrap_or_else(|| {
+                panic!(
+                    "no chip cluster contains the included chip set: {:?}",
+                    chip_set.iter().map(MachineAir::name).collect::<Vec<_>>()
+                )
+            })
+            .clone();
+
+        // Wait for a prover to be available.
+        let permit = prover_permits
+            .acquire()
+            .instrument(tracing::debug_span!("acquire prover"))
+            .await
+            .unwrap();
+
+        // Pad and copy only the global section; the main output is discarded.
+        let (_, global_traces) =
+            self.pad_and_copy_traces(&shard_chips, chips_and_traces, max_log_row_count);
+
+        (global_traces, permit)
     }
 }
 

@@ -47,7 +47,8 @@ use crate::{
     verify::SP1Verifier,
     worker::{
         node_body::{SpliceChunkEngine, SpliceChunkTask, SpliceChunkWorker},
-        MessageReceiver, RawTaskRequest, TaskContext, TaskError, TaskId, WorkerClient,
+        proof_sort_key, MessageReceiver, RawTaskRequest, TaskContext, TaskError, TaskId,
+        WorkerClient,
     },
     SP1ProverComponents, SP1_CIRCUIT_VERSION,
 };
@@ -567,7 +568,11 @@ async fn collect_core_proofs(
     shard_proofs.sort_by_key(|shard_proof| {
         let public_values: &PublicValues<[_; 4], [_; 3], [_; 4], _> =
             shard_proof.public_values.as_slice().borrow();
-        public_values.range()
+        proof_sort_key(
+            public_values.trace_chunk_idx.as_canonical_u32(),
+            public_values.shard_kind.as_canonical_u32(),
+            public_values.shard_index.as_canonical_u32(),
+        )
     });
 
     artifact_client.upload(&result_artifact, shard_proofs).await?;

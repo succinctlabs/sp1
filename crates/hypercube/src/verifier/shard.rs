@@ -2,6 +2,7 @@ use derive_where::derive_where;
 use slop_basefold::{BasefoldVerifier, FriConfig};
 use sp1_primitives::{SP1GlobalContext, SP1OuterGlobalContext};
 use std::{
+    borrow::Borrow,
     collections::{BTreeMap, BTreeSet},
     marker::PhantomData,
     ops::Deref,
@@ -19,11 +20,11 @@ use slop_sumcheck::{partially_verify_sumcheck_proof, SumcheckError};
 use thiserror::Error;
 
 use crate::{
-    air::{InteractionScope, MachineAir},
-    beta_seed_dim_for_scope,
+    air::{InteractionScope, MachineAir, PublicValues},
+    beta_seed_dim_for_scope, observe_global_challenge,
     prover::{CoreProofShape, PcsProof, Record, ZerocheckAir},
-    pv_interaction_max_arity, Chip, ChipOpenedValues, GlobalChallengeSeam, LogUpEvaluations,
-    LogUpGkrVerifier, LogupGkrVerificationError, Machine, ShardContext, VerifierConstraintFolder,
+    pv_interaction_max_arity, Chip, ChipOpenedValues, LogUpEvaluations, LogUpGkrVerifier,
+    LogupGkrVerificationError, Machine, ShardContext, VerifierConstraintFolder,
     MAX_CONSTRAINT_DEGREE, PROOF_MAX_NUM_PVS, SP1SC,
 };
 
@@ -473,7 +474,7 @@ where {
         Ok(())
     }
 
-    /// Verify a shard proof, deriving the global challenge pair with the stub seam.
+    /// Verify a shard proof with no chunk context.
     pub fn verify_shard(
         &self,
         vk: &MachineVerifyingKey<GC>,
@@ -481,16 +482,16 @@ where {
         challenger: &mut GC::Challenger,
     ) -> Result<(), ShardVerifierConfigError<GC, SC::Config>>
 where {
-        self.verify_shard_with_seam(vk, proof, &GlobalChallengeSeam::default(), challenger)
+        self.verify_shard_with_global_commitments(vk, proof, None, challenger)
     }
 
-    /// Verify a shard proof, deriving the global challenge pair through the given seam.
+    /// Verify a shard proof.
     #[allow(clippy::too_many_lines)]
-    pub fn verify_shard_with_seam(
+    pub fn verify_shard_with_global_commitments(
         &self,
         vk: &MachineVerifyingKey<GC>,
         proof: &ShardProof<GC, PcsProof<GC, SC>>,
-        seam: &GlobalChallengeSeam<GC>,
+        global_commitments: Option<&[GC::Digest]>,
         challenger: &mut GC::Challenger,
     ) -> Result<(), ShardVerifierConfigError<GC, SC::Config>>
 where {
@@ -528,22 +529,23 @@ where {
             return Err(ShardVerifierError::InvalidShape);
         }
 
-        // Observe the public values.
-        challenger.observe_constant_length_extension_slice(public_values);
-        // Observe the global commitment (before the main commitment, so that the global
-        // challenge derivation sits between the two).
-        if let Some(global_commitment) = global_commitment {
-            challenger.observe(*global_commitment);
+        // On a machine with a global round, observe the necessary public values.
+        if has_global_round {
+            let pv: &PublicValues<[_; 4], [_; 3], [_; 4], _> = public_values.as_slice().borrow();
+            challenger.observe_constant_length_extension_slice(&pv.prev_merkle_root);
+            challenger.observe_constant_length_extension_slice(&pv.merkle_root);
         }
-        // Derive the global challenge pair through the seam.
+        // Derive the chunk's shared global challenge pair.
         let global_challenges = has_global_round.then(|| {
             let beta_seed_dim = beta_seed_dim_for_scope(
                 self.machine.chips().iter(),
                 InteractionScope::Global,
                 pv_interaction_max_arity::<Record<GC, SC>>(),
             );
-            seam.derive(beta_seed_dim, challenger)
+            observe_global_challenge::<GC>(global_commitments, beta_seed_dim, challenger)
         });
+        // Observe the full public values.
+        challenger.observe_constant_length_extension_slice(public_values);
         // Observe the main commitment.
         challenger.observe(*main_commitment);
         // Observe the number of chips.

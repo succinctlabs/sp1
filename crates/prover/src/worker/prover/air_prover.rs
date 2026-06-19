@@ -1,7 +1,9 @@
 use std::{future::Future, sync::Arc};
 
+#[cfg(feature = "bench-stub")]
 use slop_algebra::AbstractField;
 use slop_challenger::IopCtx;
+#[cfg(feature = "bench-stub")]
 use slop_symmetric::CryptographicHasher;
 use sp1_core_executor::ExecutionRecord;
 use sp1_hypercube::{
@@ -85,44 +87,25 @@ pub trait AirProverWorker<GC: IopCtx, SC: ShardContext<GC>, P: AirProver<GC, SC>
         prover_permits: ProverSemaphore,
     ) -> impl Future<Output = (ShardProof<GC, PcsProof<GC, SC>>, ProverPermit)> + Send;
 
-    /// Generate the global commitment the `ExecutionRecord`.
-    /// Currently a stub implementation.
+    /// Generate the chunk's global commitment for the `ExecutionRecord`.
     fn generate_global_commitment(
         &self,
-        _record: &ExecutionRecord,
+        record: &ExecutionRecord,
         permits: ProverSemaphore,
-    ) -> impl Future<Output = GC::Digest> + Send {
-        async move {
-            let _permit = permits.acquire().await;
-            #[cfg(feature = "bench-stub")]
-            if let Some(cfg) = bench_stub::CONFIG.get() {
-                tokio::time::sleep(std::time::Duration::from_millis(cfg.commit_ms)).await;
-            }
-            let (hasher, _) = GC::default_hasher_and_compressor();
-            hasher.hash_iter(core::iter::once(GC::F::from_canonical_u32(0)))
-        }
-    }
+    ) -> impl Future<Output = GC::Digest> + Send
+    where
+        ExecutionRecord: Into<Record<GC, SC>>;
 
-    /// Prove a shard from its [`ExecutionRecord`] and the ordered global
-    /// commitments for the chunk. Currently a stub.
+    /// Prove a shard from its [`ExecutionRecord`] and the chunk's ordered global commitments.
     fn prove_shard(
         &self,
-        _record: &ExecutionRecord,
-        _commitments: &[GC::Digest],
+        program: Arc<Program<GC, SC>>,
+        record: &ExecutionRecord,
+        commitments: &[GC::Digest],
         permits: ProverSemaphore,
-    ) -> impl Future<Output = ShardProof<GC, PcsProof<GC, SC>>> + Send {
-        async move {
-            let _permit = permits.acquire().await;
-            #[cfg(feature = "bench-stub")]
-            if let Some(cfg) = bench_stub::CONFIG.get() {
-                tokio::time::sleep(std::time::Duration::from_millis(cfg.prove_ms)).await;
-                let any_ref: &dyn std::any::Any = &*cfg.stub_proof;
-                let stub = any_ref.downcast_ref::<ShardProof<GC, PcsProof<GC, SC>>>().unwrap();
-                return stub.clone();
-            }
-            todo!("prove_shard stub")
-        }
-    }
+    ) -> impl Future<Output = ShardProof<GC, PcsProof<GC, SC>>> + Send
+    where
+        ExecutionRecord: Into<Record<GC, SC>>;
 
     /// Get all the chips in the machine.
     fn all_chips(&self) -> &[Chip<GC::F, SC::Air>] {
@@ -169,5 +152,48 @@ where
         prover_permits: ProverSemaphore,
     ) -> (ShardProof<GC, PcsProof<GC, SC>>, ProverPermit) {
         AirProver::prove_shard_with_pk(self, pk, record, prover_permits).await
+    }
+
+    async fn generate_global_commitment(
+        &self,
+        record: &ExecutionRecord,
+        permits: ProverSemaphore,
+    ) -> GC::Digest
+    where
+        ExecutionRecord: Into<Record<GC, SC>>,
+    {
+        #[cfg(feature = "bench-stub")]
+        if let Some(cfg) = bench_stub::CONFIG.get() {
+            let _permit = permits.clone().acquire().await;
+            tokio::time::sleep(std::time::Duration::from_millis(cfg.commit_ms)).await;
+            let (hasher, _) = GC::default_hasher_and_compressor();
+            return hasher.hash_iter(core::iter::once(GC::F::from_canonical_u32(0)));
+        }
+        self.commit_global_traces_for_record(record.clone().into(), permits).await
+    }
+
+    async fn prove_shard(
+        &self,
+        program: Arc<Program<GC, SC>>,
+        record: &ExecutionRecord,
+        commitments: &[GC::Digest],
+        permits: ProverSemaphore,
+    ) -> ShardProof<GC, PcsProof<GC, SC>>
+    where
+        ExecutionRecord: Into<Record<GC, SC>>,
+    {
+        #[cfg(feature = "bench-stub")]
+        if let Some(cfg) = bench_stub::CONFIG.get() {
+            let _permit = permits.acquire().await;
+            tokio::time::sleep(std::time::Duration::from_millis(cfg.prove_ms)).await;
+            let any_ref: &dyn std::any::Any = &*cfg.stub_proof;
+            let stub = any_ref.downcast_ref::<ShardProof<GC, PcsProof<GC, SC>>>().unwrap();
+            return stub.clone();
+        }
+        let mut record = record.clone();
+        record.set_global_commitments::<GC>(commitments);
+        let (_vk, proof, _permit) =
+            self.setup_and_prove_shard(program, record.into(), None, permits).await;
+        proof
     }
 }

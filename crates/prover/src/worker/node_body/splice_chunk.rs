@@ -9,12 +9,13 @@ use std::sync::Arc;
 use futures::stream::{FuturesUnordered, StreamExt};
 use slop_algebra::PrimeField32;
 use slop_challenger::IopCtx;
-use slop_futures::pipeline::{AsyncEngine, AsyncWorker, Pipeline};
+use slop_futures::pipeline::{AsyncEngine, AsyncWorker, Pipeline, SubmitHandle};
 use sp1_core_executor::{
     ExecutionError, ExecutionRecord, Program, SP1CoreOpts, SHARD_KIND_EXECUTION, SHARD_KIND_MERKLE,
 };
 use sp1_core_machine::executor::trace_chunk;
 use sp1_hypercube::{air::ShardRange, prover::ProverSemaphore};
+use sp1_jit::MinimalTrace;
 use sp1_primitives::{SP1Field, SP1GlobalContext};
 use sp1_prover_types::{Artifact, ArtifactClient};
 use tokio::{
@@ -147,6 +148,8 @@ where
         // Broadcasts the ordered global commitments + shard counts to every shard task.
         let (commits_tx, commits_rx) = watch::channel::<Option<Arc<ChunkProveData>>>(None);
         let chunk_idx = payload_arc.chunk_idx as u32;
+        // The chunk's starting pc.
+        let chunk_pc_start = payload_arc.chunk.pc_start();
 
         let mut commit_jobs: JoinSet<(CommitKind, u32, <SP1GlobalContext as IopCtx>::Digest)> =
             JoinSet::new();
@@ -180,6 +183,7 @@ where
                 let tx = prove_shard_tx.clone();
                 let mut rx = commits_rx.clone();
                 let prog = program.clone();
+                let prove_prog = program.clone();
                 let opts_c = opts.clone();
                 let chunk = cut.chunk.clone();
                 let range = cut.range;
@@ -192,7 +196,6 @@ where
                     })
                     .await
                     .map_err(|e| ExecutionError::Other(format!("trace_chunk join: {e}")))??;
-                    // TODO(rkm): need to generate dependencies here.
                     // Once all the global commitments arrive, the shard proving begins.
                     rx.changed()
                         .await
@@ -207,8 +210,23 @@ where
                     rec.cur_root = data.cur_root;
                     rec.public_values.prev_merkle_root = data.prev_root;
                     rec.public_values.merkle_root = data.cur_root;
-                    let proof =
-                        Box::new(prover.prove_shard(&rec, &data.commitments, permits).await);
+                    rec.public_values.trace_chunk_idx = rec.trace_chunk_idx;
+                    rec.public_values.shard_kind = rec.shard_kind;
+                    rec.public_values.shard_index = rec.shard_index;
+                    rec.public_values.num_execution_shard = data.num_execution_shards;
+                    rec.public_values.num_merkle_shard = data.num_merkle_shards;
+                    let dep_prover = prover.clone();
+                    let rec = tokio::task::spawn_blocking(move || {
+                        dep_prover.machine().generate_dependencies(std::iter::once(&mut rec), None);
+                        rec
+                    })
+                    .await
+                    .map_err(|e| {
+                        ExecutionError::Other(format!("generate_dependencies join: {e}"))
+                    })?;
+                    let proof = Box::new(
+                        prover.prove_shard(prove_prog, &rec, &data.commitments, permits).await,
+                    );
                     tx.send(ProofData::InMemory { kind: ProofKind::Execution, range, proof })
                         .await
                         .map_err(|e| ExecutionError::Other(format!("send proof: {e}")))?;
@@ -266,9 +284,9 @@ where
             let permits = self.permits.clone();
             let tx = prove_shard_tx.clone();
             let mut rx = commits_rx.clone();
+            let prove_prog = program.clone();
             let shard_index = m_idx as u32;
             shard_jobs.spawn(async move {
-                // TODO(rkm): generate the dependencies here.
                 rx.changed()
                     .await
                     .map_err(|_| ExecutionError::Other("commits sender dropped".into()))?;
@@ -282,10 +300,31 @@ where
                 rec.cur_root = data.cur_root;
                 rec.public_values.prev_merkle_root = data.prev_root;
                 rec.public_values.merkle_root = data.cur_root;
+                rec.public_values.trace_chunk_idx = rec.trace_chunk_idx;
+                rec.public_values.shard_kind = rec.shard_kind;
+                rec.public_values.shard_index = rec.shard_index;
+                rec.public_values.num_execution_shard = data.num_execution_shards;
+                rec.public_values.num_merkle_shard = data.num_merkle_shards;
+                // The merkle shard sits at the head of the chunk.
+                rec.public_values.update_initialized_state(
+                    chunk_pc_start,
+                    prove_prog.enable_untrusted_programs,
+                    prove_prog.trap_context,
+                    prove_prog.untrusted_memory,
+                );
                 if m_idx == 0 {
                     rec.public_values.is_first_merkle_shard = 1;
                 }
-                let proof = Box::new(prover.prove_shard(&rec, &data.commitments, permits).await);
+                let dep_prover = prover.clone();
+                let rec = tokio::task::spawn_blocking(move || {
+                    dep_prover.machine().generate_dependencies(std::iter::once(&mut rec), None);
+                    rec
+                })
+                .await
+                .map_err(|e| ExecutionError::Other(format!("generate_dependencies join: {e}")))?;
+                let proof = Box::new(
+                    prover.prove_shard(prove_prog, &rec, &data.commitments, permits).await,
+                );
                 tx.send(ProofData::InMemory {
                     kind: ProofKind::Merkle,
                     range: ShardRange::default(),
@@ -340,14 +379,35 @@ where
     T: 'static + Send + Sync,
     P: Pipeline<Input = T, Output = Result<(), ExecutionError>>,
 {
-    let mut handles = FuturesUnordered::new();
+    let mut handles: FuturesUnordered<SubmitHandle<P>> = FuturesUnordered::new();
     loop {
         tokio::select! {
             maybe_task = chunk_rx.recv() => match maybe_task {
                 Some(task) => {
-                    let handle = engine.submit(task).await.map_err(|e| {
-                        TaskError::Fatal(anyhow::anyhow!("submit SpliceChunk task: {e}"))
-                    })?;
+                    // Submit while CONCURRENTLY draining completed handles. The `AsyncEngine`
+                    // hands each worker back to its pool only when the handle's `(worker, output)`
+                    // is consumed; if we block on `submit()` without draining, `submit()` can wait
+                    // forever for a worker still owned by an already-finished but undrained chunk —
+                    // deadlocking the pipeline after exactly `num_splicing_workers` chunks.
+                    let submit_fut = engine.submit(task);
+                    tokio::pin!(submit_fut);
+                    let handle = loop {
+                        tokio::select! {
+                            biased;
+                            res = &mut submit_fut => {
+                                break res.map_err(|e| {
+                                    TaskError::Fatal(anyhow::anyhow!("submit SpliceChunk task: {e}"))
+                                })?;
+                            }
+                            Some(result) = handles.next() => {
+                                result
+                                    .map_err(|e| {
+                                        TaskError::Fatal(anyhow::anyhow!("splice task join error: {e}"))
+                                    })?
+                                    .map_err(TaskError::Execution)?;
+                            }
+                        }
+                    };
                     handles.push(handle);
                 }
                 // Producer (JIT) done — drain whatever is still proving.

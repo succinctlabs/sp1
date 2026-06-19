@@ -37,8 +37,8 @@ use sp1_gpu_utils::{Felt, JaggedMle, JaggedTraceMle, TraceDenseData, TraceOffset
 pub mod test_utils;
 
 // ------------- The following logic is mostly copied from crates/tracegen/src/lib.rs -------------
-// TODO: is this a reasonable upper bound on number of columns per trace? ~16k
-pub const MAX_COLS_PER_TRACE: usize = 1 << 14;
+// TODO: is this a reasonable upper bound on number of columns per trace? ~32k
+pub const MAX_COLS_PER_TRACE: usize = 1 << 15;
 pub const CORE_MAX_TRACE_SIZE: u32 = (ELEMENT_THRESHOLD + (ELEMENT_THRESHOLD >> 1)) as u32;
 
 /// The output of the host phase of the tracegen.
@@ -561,6 +561,78 @@ async fn allocate_and_initialize_traces(
     })
 }
 
+/// Allocates trace buffers and lays out only the global section, starting at offset 0, producing a
+/// `JaggedTraceMle` with empty preprocessed/main sections.
+async fn allocate_and_initialize_global_traces(
+    global_traces: BTreeMap<String, Trace<TaskScope>>,
+    max_trace_size: usize,
+    log_stacking_height: u32,
+    max_log_row_count: u32,
+    backend: &TaskScope,
+) -> JaggedTraceMle<Felt, TaskScope> {
+    let mut dense_data: Buffer<Felt, TaskScope> =
+        Buffer::with_capacity_in(max_trace_size, backend.clone());
+    let mut col_index: Buffer<u32, TaskScope> =
+        Buffer::with_capacity_in(max_trace_size >> 1, backend.clone());
+    let mut start_indices: Buffer<u32, TaskScope> =
+        Buffer::with_capacity_in(MAX_COLS_PER_TRACE, backend.clone());
+    let mut column_heights: Vec<u32> = Vec::with_capacity(MAX_COLS_PER_TRACE);
+
+    unsafe {
+        dense_data.assume_init();
+        col_index.assume_init();
+        start_indices.assume_init();
+    }
+
+    // Lay out the global section starting at offset 0.
+    let (global_offset, global_cols, global_padding, global_padding_col_count, global_table_index) =
+        generate_jagged_traces(
+            &mut dense_data,
+            &mut col_index,
+            &mut start_indices,
+            &mut column_heights,
+            global_traces,
+            0,
+            0,
+            log_stacking_height,
+            max_log_row_count,
+        )
+        .await;
+
+    // Shrink the buffers to the global section's actual size.
+    unsafe {
+        dense_data.set_len(global_offset);
+        col_index.set_len(global_offset >> 1);
+        start_indices.set_len(global_cols + 1);
+    }
+
+    let trace_dense_data: TraceDenseData<Felt, TaskScope> = TraceDenseData {
+        dense: dense_data,
+        preprocessed_offset: 0,
+        global_offset,
+        preprocessed_cols: 0,
+        global_cols,
+        preprocessed_table_index: BTreeMap::new(),
+        global_table_index,
+        main_table_index: BTreeMap::new(),
+        preprocessed_padding: 0,
+        global_padding,
+        main_padding: 0,
+        prep_padding_col_count: 0,
+        global_padding_col_count,
+        main_padding_col_count: 0,
+    };
+
+    let column_heights_dev =
+        DeviceBuffer::from_host_slice(&column_heights, backend).unwrap().into_inner();
+    JaggedTraceMle(JaggedMle {
+        dense_data: trace_dense_data,
+        col_index,
+        start_indices,
+        column_heights: column_heights_dev,
+    })
+}
+
 /// Lays out the global section of the dense buffer, between the preprocessed and main sections.
 /// Mirrors `copy_main_jagged_traces` but writes the `[preprocessed_offset, global_offset)` region
 /// and updates the `global_*` fields. Does not shrink the dense buffer — the main section follows.
@@ -887,6 +959,80 @@ where
     (host_phase_tracegen, global_host_phase_tracegen, host_phase_shape_info)
 }
 
+/// Host phase for the global-only tracegen: generates just the global traces (chips with
+/// `global_width() > 0`), with no main or preprocessed work. Mirrors the global half of
+/// [`host_main_tracegen`]. Returns `(global host phase, padded global placeholders)`.
+#[instrument(skip_all, level = "debug")]
+async fn host_global_tracegen<A>(
+    machine: &Machine<Felt, A>,
+    buffer_ptr: usize,
+    record: Arc<<A as MachineAir<Felt>>::Record>,
+) -> (HostPhaseTracegen<A>, BTreeMap<String, Trace>)
+where
+    A: CudaTracegenAir<Felt>,
+{
+    let chips: Vec<_> = machine.chips().to_vec();
+    let shape = machine.shape().clone();
+    let outer_span = tracing::Span::current();
+
+    let (global_host_traces, initial_global_traces) = tokio::task::spawn_blocking(move || {
+        // Set of chips we need to generate traces for.
+        let chip_set: BTreeSet<_> =
+            chips.iter().filter(|chip| chip.included(&record)).cloned().collect();
+
+        // Global host jobs. The global-only buffer starts at 0 (nothing precedes it), and the
+        // global trace bytes don't depend on the buffer offset.
+        let mut total_size = 0usize;
+        let mut global_jobs = Vec::new();
+        for air in chip_set.iter().map(|chip| &chip.air).filter(|air| air.global_width() > 0) {
+            global_jobs.push((air.clone(), total_size));
+            total_size += air.num_rows(&record).unwrap() * air.global_width();
+        }
+
+        // Get the smallest cluster containing our tracegen chip set.
+        let shard_chips = shape.smallest_cluster(&chip_set).unwrap().clone();
+
+        // For every cluster AIR with global columns not in the chip set, make a (virtual) padded
+        // trace.
+        let initial_global_traces = shard_chips
+            .iter()
+            .filter(|chip| chip.global_width() > 0 && !chip_set.contains(chip))
+            .map(|chip| (chip.name().to_string(), Trace::Padding(chip.global_width())))
+            .collect::<BTreeMap<_, _>>();
+
+        let (global_host_traces_tx, global_host_traces) = futures::channel::mpsc::unbounded();
+        rayon::spawn(move || {
+            global_jobs.into_par_iter().for_each_with(global_host_traces_tx, |tx, (air, offset)| {
+                tracing::trace_span!(parent: &outer_span, "chip host global tracegen", chip = %air.name()).in_scope(
+                    || {
+                        let base_ptr = buffer_ptr as *mut MaybeUninit<Felt>;
+                        let height = air.num_rows(&record).unwrap();
+                        let width = air.global_width();
+                        let trace_len = height * width;
+                        let slice: &mut [MaybeUninit<Felt>] = unsafe {
+                            std::slice::from_raw_parts_mut(base_ptr.add(offset), trace_len)
+                        };
+                        air.generate_global_trace_into(&record, &mut A::Record::default(), slice);
+                        let start_pointer = unsafe { base_ptr.add(offset) as usize };
+                        let _ = tx.unbounded_send((air.name().to_string(), start_pointer, height, width));
+                    },
+                );
+            });
+            // If we are the last users of the record, this will expensively drop it.
+            drop(record);
+        });
+
+        (global_host_traces, initial_global_traces)
+    })
+    .await
+    .unwrap();
+
+    let global_host_phase_tracegen =
+        HostPhaseTracegen { device_airs: Vec::new(), host_traces: global_host_traces };
+
+    (global_host_phase_tracegen, initial_global_traces)
+}
+
 /// Puts traces on device. Returns (traces, public values).
 #[instrument(skip_all, level = "debug")]
 async fn device_main_tracegen<A: CudaTracegenAir<Felt>>(
@@ -1190,6 +1336,66 @@ pub async fn full_tracegen_permit<A: CudaTracegenAir<Felt>>(
     )
     .await;
     (public_values, jagged_mle, chip_set, permit)
+}
+
+/// Generates and lays out only the global section for the record.
+#[instrument(skip_all, level = "debug")]
+#[allow(clippy::too_many_arguments)]
+pub async fn global_tracegen<A: CudaTracegenAir<Felt>>(
+    machine: &Machine<Felt, A>,
+    record: Arc<<A as MachineAir<Felt>>::Record>,
+    buffer: &Worker<PinnedBuffer<Felt>>,
+    max_trace_size: usize,
+    log_stacking_height: u32,
+    max_log_row_count: u32,
+    backend: &TaskScope,
+    prover_permits: ProverSemaphore,
+) -> (JaggedTraceMle<Felt, TaskScope>, ProverPermit) {
+    let (global_host_phase_tracegen, initial_global_traces) =
+        host_global_tracegen(machine, buffer.as_ptr() as usize, record).await;
+
+    // Wait for a prover to be available.
+    let permit =
+        prover_permits.acquire().instrument(tracing::debug_span!("acquire")).await.unwrap();
+
+    // Global tracegen has no device airs; this copies the host global traces to the device.
+    let global_traces =
+        device_global_tracegen(global_host_phase_tracegen, initial_global_traces, backend).await;
+
+    let jagged_mle = allocate_and_initialize_global_traces(
+        global_traces,
+        max_trace_size,
+        log_stacking_height,
+        max_log_row_count,
+        backend,
+    )
+    .await;
+
+    (jagged_mle, permit)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn global_tracegen_permit<A: CudaTracegenAir<Felt>>(
+    machine: &Machine<Felt, A>,
+    record: Arc<<A as MachineAir<Felt>>::Record>,
+    buffer: &Worker<PinnedBuffer<Felt>>,
+    max_trace_size: usize,
+    log_stacking_height: u32,
+    max_log_row_count: u32,
+    backend: &TaskScope,
+    prover_permits: ProverSemaphore,
+) -> (JaggedTraceMle<Felt, TaskScope>, ProverPermit) {
+    global_tracegen(
+        machine,
+        record,
+        buffer,
+        max_trace_size,
+        log_stacking_height,
+        max_log_row_count,
+        backend,
+        prover_permits,
+    )
+    .await
 }
 
 fn log_chip_stats<A: CudaTracegenAir<Felt>>(

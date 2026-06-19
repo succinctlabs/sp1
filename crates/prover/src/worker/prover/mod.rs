@@ -2,7 +2,7 @@ mod air_prover;
 mod commit_order;
 mod core;
 
-pub(crate) use commit_order::{order_commitments, CommitKind};
+pub(crate) use commit_order::{order_commitments, proof_sort_key, CommitKind};
 mod deferred;
 mod engine;
 mod execute;

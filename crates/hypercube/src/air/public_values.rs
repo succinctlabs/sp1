@@ -126,8 +126,23 @@ pub struct PublicValues<W1, W2, W3, T> {
     /// The nonce used for this proof.
     pub proof_nonce: [T; PROOF_NONCE_NUM_WORDS],
 
+    /// Index of the trace chunk this shard belongs to.
+    pub trace_chunk_idx: T,
+
+    /// The shard kind: `0` = execution, `1` = merkle.
+    pub shard_kind: T,
+
+    /// This shard's index within its trace chunk.
+    pub shard_index: T,
+
+    /// Number of merkle shards in this shard's trace chunk.
+    pub num_merkle_shard: T,
+
+    /// Number of execution shards in this shard's trace chunk.
+    pub num_execution_shard: T,
+
     /// This field is here to ensure that the size of the public values struct is a multiple of 8.
-    pub empty: [T; 4],
+    pub empty: [T; 7],
 }
 
 impl PublicValues<u32, u64, u64, u32> {
@@ -435,6 +450,11 @@ impl<F: AbstractField> From<PublicValues<u32, u64, u64, u32>>
             last_timestamp_inv,
             is_first_execution_shard,
             is_first_merkle_shard,
+            trace_chunk_idx,
+            shard_kind,
+            shard_index,
+            num_merkle_shard,
+            num_execution_shard,
             ..
         } = value;
 
@@ -508,6 +528,11 @@ impl<F: AbstractField> From<PublicValues<u32, u64, u64, u32>>
         let last_timestamp_inv = F::from_canonical_u32(last_timestamp_inv);
         let is_first_execution_shard = F::from_canonical_u32(is_first_execution_shard);
         let is_first_merkle_shard = F::from_canonical_u32(is_first_merkle_shard);
+        let trace_chunk_idx = F::from_canonical_u32(trace_chunk_idx);
+        let shard_kind = F::from_canonical_u32(shard_kind);
+        let shard_index = F::from_canonical_u32(shard_index);
+        let num_merkle_shard = F::from_canonical_u32(num_merkle_shard);
+        let num_execution_shard = F::from_canonical_u32(num_execution_shard);
         let is_untrusted_programs_enabled = F::from_canonical_u32(is_untrusted_programs_enabled);
 
         #[cfg(feature = "mprotect")]
@@ -559,6 +584,11 @@ impl<F: AbstractField> From<PublicValues<u32, u64, u64, u32>>
             is_first_execution_shard,
             is_first_merkle_shard,
             proof_nonce,
+            trace_chunk_idx,
+            shard_kind,
+            shard_index,
+            num_merkle_shard,
+            num_execution_shard,
             empty: core::array::from_fn(|_| F::zero()),
         }
     }
@@ -668,5 +698,40 @@ mod tests {
     #[test]
     fn test_public_values_digest_num_words_consistency_zkvm() {
         assert_eq!(public_values::PV_DIGEST_NUM_WORDS, sp1_zkvm::PV_DIGEST_NUM_WORDS);
+    }
+
+    /// The public values must fit within the padded proof public values length.
+    #[test]
+    fn test_public_values_num_elts_within_bound() {
+        const { assert!(public_values::SP1_PROOF_NUM_PV_ELTS <= crate::PROOF_MAX_NUM_PVS) };
+    }
+
+    /// Pin the public values layout size.
+    #[cfg(not(feature = "mprotect"))]
+    #[test]
+    fn test_public_values_num_elts_pinned() {
+        assert_eq!(public_values::SP1_PROOF_NUM_PV_ELTS, 142);
+    }
+
+    /// The ordering indices survive `to_vec` and read back through the borrow.
+    #[test]
+    fn test_ordering_indices_survive_to_vec() {
+        use crate::air::PublicValues;
+        use slop_algebra::AbstractField;
+        use sp1_primitives::SP1Field;
+        use std::borrow::Borrow;
+
+        let mut pv = PublicValues::<u32, u64, u64, u32>::default();
+        pv.trace_chunk_idx = 7;
+        pv.shard_kind = 1;
+        pv.shard_index = 5;
+
+        let vec = pv.to_vec::<SP1Field>();
+        let back: &PublicValues<[SP1Field; 4], [SP1Field; 3], [SP1Field; 4], SP1Field> =
+            vec.as_slice().borrow();
+
+        assert_eq!(back.trace_chunk_idx, SP1Field::from_canonical_u32(7));
+        assert_eq!(back.shard_kind, SP1Field::from_canonical_u32(1));
+        assert_eq!(back.shard_index, SP1Field::from_canonical_u32(5));
     }
 }

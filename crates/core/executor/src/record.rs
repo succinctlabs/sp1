@@ -14,7 +14,7 @@ use sp1_hypercube::{
     },
     septic_digest::SepticDigest,
     shape::Shape,
-    InteractionKind, MachineRecord,
+    InteractionKind, IopCtx, MachineRecord,
 };
 use std::{
     borrow::Borrow,
@@ -154,6 +154,8 @@ pub struct ExecutionRecord {
     pub prev_root: [u32; 8],
     /// Merkle root after this chunk's update, in `u32` form.
     pub cur_root: [u32; 8],
+    /// The chunk's ordered global-trace commitments.
+    pub global_commitments: Vec<[u32; 8]>,
 }
 
 /// `shard_kind` value for a core (execution) shard.
@@ -258,6 +260,17 @@ impl ExecutionRecord {
         let mut record = Self::new(program, proof_nonce, global_dependencies_opt);
         record.shard_data = Some(shard_data);
         record
+    }
+
+    /// Record the chunk's ordered global-trace commitments.
+    pub fn set_global_commitments<GC: IopCtx>(&mut self, commitments: &[GC::Digest]) {
+        self.global_commitments = commitments
+            .iter()
+            .map(|digest| {
+                let elements = GC::digest_to_elements(digest);
+                std::array::from_fn(|i| elements[i].as_canonical_u32())
+            })
+            .collect();
     }
 
     /// Construct an [`ExecutionRecord`] carrying a prepared batch Merkle proof.
@@ -657,6 +670,22 @@ impl MachineRecord for ExecutionRecord {
             .filter(|kind| kind.appears_in_eval_public_values())
             .copied()
             .collect()
+    }
+
+    fn global_challenge_input<GC: IopCtx>(&self) -> Option<Vec<GC::Digest>> {
+        if self.global_commitments.is_empty() {
+            return None;
+        }
+        Some(
+            self.global_commitments
+                .iter()
+                .map(|limbs| {
+                    let elements: [GC::F; 8] =
+                        std::array::from_fn(|i| GC::F::from_canonical_u32(limbs[i]));
+                    GC::digest_from_elements(&elements)
+                })
+                .collect(),
+        )
     }
 }
 

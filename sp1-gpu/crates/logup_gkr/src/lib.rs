@@ -379,7 +379,7 @@ mod tests {
         CORE_MAX_TRACE_SIZE,
     };
     use sp1_gpu_utils::TestGC;
-    use sp1_hypercube::{prover::ProverSemaphore, GlobalChallengeSeam, SP1SC};
+    use sp1_hypercube::{observe_global_challenge, prover::ProverSemaphore, SP1SC};
     use std::sync::Arc;
 
     use crate::execution::{extract_outputs, gkr_transition, layer_transition};
@@ -661,9 +661,9 @@ mod tests {
                 InteractionScope::Global,
                 pv_interaction_max_arity::<Record<TestGC, SP1SC<TestGC, RiscvAir<Felt>>>>(),
             );
-            let seam = GlobalChallengeSeam::<TestGC>::stub();
             let mut base_challenger = challenger.clone();
-            let global_challenges = seam.derive(global_beta_seed_dim, &mut base_challenger);
+            let global_challenges =
+                observe_global_challenge::<TestGC>(None, global_beta_seed_dim, &mut base_challenger);
 
             let mut prover_challenger = base_challenger.clone();
             let (proof, global_cumulative_sum) =

@@ -52,6 +52,14 @@ impl IopCtx for BabyBearDegree4Duplex {
         let perm = my_bb_16_perm();
         DuplexChallenger::new(perm)
     }
+
+    fn digest_to_elements(digest: &Self::Digest) -> Vec<Self::F> {
+        digest.to_vec()
+    }
+
+    fn digest_from_elements(elements: &[Self::F]) -> Self::Digest {
+        core::array::from_fn(|i| elements[i])
+    }
 }
 
 lazy_static::lazy_static! {

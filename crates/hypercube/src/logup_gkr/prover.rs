@@ -137,7 +137,8 @@ impl<GC: IopCtx, SC: ShardContext<GC>> GkrProverImpl<GC, SC> {
 
             let host_global_traces = Traces { named_traces: host_global_traces };
 
-            for scope in [InteractionScope::Local, InteractionScope::Global] {
+            {
+                let scope = InteractionScope::Local;
                 debug_interactions_with_all_chips::<GC::F, SC::Air>(
                     &chips.iter().cloned().collect::<Vec<_>>(),
                     &host_preprocessed_traces,

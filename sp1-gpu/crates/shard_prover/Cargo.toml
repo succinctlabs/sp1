@@ -52,7 +52,14 @@ serde_json = "1.0"
 
 [features]
 default = []
-mprotect = ["sp1-hypercube/mprotect"]
+mprotect = [
+    "sp1-hypercube/mprotect",
+    "sp1-core-machine/mprotect",
+    "sp1-core-executor/mprotect",
+    # dev-deps used by the test harness, so `--all-targets --features mprotect` stays consistent.
+    "sp1-recursion-circuit/mprotect",
+    "sp1-gpu-prover/mprotect",
+]
 
 [dev-dependencies]
 serial_test = "3.1"

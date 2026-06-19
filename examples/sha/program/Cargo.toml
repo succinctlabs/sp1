@@ -7,4 +7,3 @@ publish = false
 [dependencies]
 sp1-zkvm = { workspace = true }
 sp1-derive = { path = "../../../crates/derive" }
-rand = "0.8.5"

@@ -317,7 +317,7 @@ mod tests {
     use serial_test::serial;
     use sp1_core_machine::{riscv::RiscvAir, utils::setup_logger};
 
-    use crate::CpuSP1ProverComponents;
+    use crate::{components::SP1ProverComponents, CpuSP1ProverComponents};
     use sp1_hypercube::HashableKey;
 
     use crate::worker::{
@@ -380,6 +380,46 @@ mod tests {
     async fn test_e2e_node() -> anyhow::Result<()> {
         setup_logger();
         run_e2e_node_test(cpu_worker_builder()).await
+    }
+
+    /// Drive the real `SpliceChunkWorker` pipeline in Core mode and verify the resulting shard
+    /// proofs. Verification is `verify_core_shards` (per-chunk seam + `Σ` cancellation).
+    #[tokio::test]
+    #[serial]
+    async fn worker_core_pipeline_proof_verifies() -> anyhow::Result<()> {
+        setup_logger();
+
+        let machine = RiscvAir::machine();
+        let client = SP1LocalNodeBuilder::from_worker_client_builder(
+            cpu_worker_builder_with_machine(machine.clone()),
+        )
+        .build()
+        .await
+        .unwrap();
+
+        let elf = test_artifacts::FIBONACCI_ELF;
+        let stdin = SP1Stdin::default();
+        let context =
+            SP1Context { proof_nonce: [0x6284, 0xC0DE, 0x4242, 0xCAFE], ..Default::default() };
+
+        let vk = client.setup(&elf).await.unwrap();
+        let proof = client
+            .prove_with_mode(&elf, stdin, context, ProofMode::Core)
+            .await
+            .expect("core proof failed");
+
+        let shard_proofs = match proof.proof {
+            SP1Proof::Core(shards) => shards,
+            _ => panic!("expected a core proof"),
+        };
+        assert!(!shard_proofs.is_empty(), "core proof has no shards");
+
+        let core_verifier = CpuSP1ProverComponents::core_verifier(machine);
+        let proof_data = crate::SP1CoreProofData(shard_proofs);
+        crate::verify::verify_core_shards(&core_verifier, &vk.vk, &proof_data)
+            .expect("worker-produced core proof must verify under the per-chunk seam");
+
+        Ok(())
     }
 
     #[tokio::test]

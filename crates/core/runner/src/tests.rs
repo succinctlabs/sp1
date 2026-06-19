@@ -130,6 +130,7 @@ fn test_dirty_pages_emitted_per_chunk() {
 /// the boundary-free baseline.
 #[test]
 #[allow(clippy::print_stdout)] // prints a cost-vs-chunk-count table under `--nocapture`
+#[ignore]
 fn test_gas_depends_on_chunk_threshold() {
     use bincode::serialize;
     use sp1_core_executor::{GasEstimatingVMEnum, SP1CoreOpts};

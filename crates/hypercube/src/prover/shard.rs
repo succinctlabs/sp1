@@ -12,6 +12,7 @@ use slop_multilinear::{BatchPcsProver, BatchPcsVerifier, Evaluations, MleEval, P
 use slop_sumcheck::{reduce_sumcheck_to_evaluation, PartialSumcheckProof};
 use slop_tensor::Tensor;
 use std::{
+    borrow::Borrow,
     collections::{BTreeMap, BTreeSet},
     fmt::Debug,
     future::Future,
@@ -22,8 +23,8 @@ use thousands::Separable;
 use tracing::Instrument;
 
 use crate::{
-    air::{InteractionScope, MachineAir, MachineProgram},
-    beta_seed_dim_for_scope,
+    air::{InteractionScope, MachineAir, MachineProgram, PublicValues},
+    beta_seed_dim_for_scope, observe_global_challenge,
     prover::{
         DefaultTraceGenerator, Program, ProverPermit, ProverSemaphore, Record, ZeroCheckPoly,
         ZerocheckCpuProverData,
@@ -31,7 +32,7 @@ use crate::{
     pv_interaction_max_arity,
     septic_digest::SepticDigest,
     AirOpenedValues, Chip, ChipEvaluation, ChipOpenedValues, ChipStatistics,
-    ConstraintSumcheckFolder, GkrProverImpl, GlobalChallengeSeam, LogUpEvaluations, Machine,
+    ConstraintSumcheckFolder, GkrProverImpl, LogUpEvaluations, Machine, MachineRecord,
     MachineVerifyingKey, ShardContext, ShardOpenedValues, ShardProof, UntrustedConfig,
 };
 
@@ -75,6 +76,14 @@ pub trait AirProver<GC: IopCtx, SC: ShardContext<GC>>: 'static + Send + Sync + S
         record: Record<GC, SC>,
         prover_permits: ProverSemaphore,
     ) -> impl Future<Output = (ShardProof<GC, PcsProof<GC, SC>>, ProverPermit)> + Send;
+
+    /// Generate and commit the record's global traces.
+    fn commit_global_traces_for_record(
+        &self,
+        record: Record<GC, SC>,
+        prover_permits: ProverSemaphore,
+    ) -> impl Future<Output = GC::Digest> + Send;
+
     /// Get all the chips in the machine.
     fn all_chips(&self) -> &[Chip<GC::F, SC::Air>] {
         self.machine().chips()
@@ -115,6 +124,8 @@ pub struct ShardData<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC
     pub pk: Arc<ProvingKey<GC, SC, ShardProver<GC, SC, C>>>,
     /// Main trace data
     pub main_trace_data: MainTraceData<GC::F, SC::Air, CpuBackend>,
+    /// The chunk's ordered global-trace commitments.
+    pub global_commitments: Option<Vec<GC::Digest>>,
 }
 
 /// The main traces for a program, with a permit.
@@ -259,65 +270,13 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>> A
         }
     }
 
-    /// Setup and prove a shard, deriving the global challenge pair with the stub seam.
+    /// Setup and prove a shard.
     async fn setup_and_prove_shard(
         &self,
         program: Arc<Program<GC, SC>>,
         record: Record<GC, SC>,
         vk: Option<MachineVerifyingKey<GC>>,
         prover_permits: ProverSemaphore,
-    ) -> (MachineVerifyingKey<GC>, ShardProof<GC, PcsProof<GC, SC>>, ProverPermit) {
-        self.setup_and_prove_shard_with_seam(
-            program,
-            record,
-            vk,
-            prover_permits,
-            GlobalChallengeSeam::default(),
-        )
-        .await
-    }
-
-    /// Prove a shard with a given proving key, deriving the global challenge with the seam.
-    async fn prove_shard_with_pk(
-        &self,
-        pk: Arc<ProvingKey<GC, SC, Self>>,
-        record: Record<GC, SC>,
-        prover_permits: ProverSemaphore,
-    ) -> (ShardProof<GC, PcsProof<GC, SC>>, ProverPermit) {
-        self.prove_shard_with_pk_and_seam(
-            pk,
-            record,
-            prover_permits,
-            GlobalChallengeSeam::default(),
-        )
-        .await
-    }
-
-    async fn preprocessed_table_heights(
-        pk: Arc<super::ProvingKey<GC, SC, Self>>,
-    ) -> BTreeMap<String, usize> {
-        std::future::ready(
-            pk.preprocessed_data
-                .preprocessed_traces
-                .iter()
-                .map(|(name, trace)| (name.to_owned(), trace.num_real_entries()))
-                .collect(),
-        )
-        .await
-    }
-}
-
-impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
-    ShardProver<GC, SC, C>
-{
-    /// Setup and prove a shard, deriving the global challenge pair through the given seam.
-    pub async fn setup_and_prove_shard_with_seam(
-        &self,
-        program: Arc<Program<GC, SC>>,
-        record: Record<GC, SC>,
-        vk: Option<MachineVerifyingKey<GC>>,
-        prover_permits: ProverSemaphore,
-        seam: GlobalChallengeSeam<GC>,
     ) -> (MachineVerifyingKey<GC>, ShardProof<GC, PcsProof<GC, SC>>, ProverPermit) {
         // Get the initial global cumulative sum and pc start.
         let pc_start = program.pc_start();
@@ -331,6 +290,9 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
                 .await
                 .unwrap()
         };
+
+        // The chunk's global commitments ride in the record.
+        let global_commitments = record.global_challenge_input::<GC>();
 
         // Generate trace.
         let trace_data = self
@@ -361,12 +323,12 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
         // Observe the preprocessed information.
         vk.observe_into(&mut challenger);
 
-        let shard_data = ShardData { pk, main_trace_data };
+        let shard_data = ShardData { pk, main_trace_data, global_commitments };
 
         let prover = self.clone();
         let (shard_proof, permit) = tokio::task::spawn_blocking(move || {
             let _span = tracing::debug_span!("prove shard with data").entered();
-            prover.prove_shard_with_data(shard_data, &seam, challenger)
+            prover.prove_shard_with_data(shard_data, challenger)
         })
         .await
         .unwrap();
@@ -374,17 +336,37 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
         (vk, shard_proof, permit)
     }
 
-    /// Prove a shard with a given proving key, deriving the global challenge pair through the
-    /// given seam.
-    pub async fn prove_shard_with_pk_and_seam(
+    /// Commit the record's global traces and return the digest.
+    async fn commit_global_traces_for_record(
+        &self,
+        record: Record<GC, SC>,
+        prover_permits: ProverSemaphore,
+    ) -> GC::Digest {
+        let (global_traces, _permit) = self
+            .inner
+            .trace_generator
+            .generate_global_traces(record, self.max_log_row_count(), prover_permits)
+            .instrument(tracing::debug_span!("generate global traces for global commitment"))
+            .await;
+        let prover = self.clone();
+        tokio::task::spawn_blocking(move || {
+            let _span = tracing::debug_span!("commit global traces").entered();
+            prover.commit_traces(&global_traces).0
+        })
+        .await
+        .unwrap()
+    }
+
+    /// Prove a shard with a given proving key.
+    async fn prove_shard_with_pk(
         &self,
         pk: Arc<ProvingKey<GC, SC, Self>>,
         record: Record<GC, SC>,
         prover_permits: ProverSemaphore,
-        seam: GlobalChallengeSeam<GC>,
     ) -> (ShardProof<GC, PcsProof<GC, SC>>, ProverPermit) {
         let mut challenger = GC::default_challenger();
         pk.vk.observe_into(&mut challenger);
+        let global_commitments = record.global_challenge_input::<GC>();
         // Generate the traces.
         let main_trace_data = self
             .inner
@@ -393,17 +375,34 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
             .instrument(tracing::debug_span!("generate main traces"))
             .await;
 
-        let shard_data = ShardData { pk, main_trace_data };
+        let shard_data = ShardData { pk, main_trace_data, global_commitments };
 
         let prover = self.clone();
         tokio::task::spawn_blocking(move || {
             let _span = tracing::debug_span!("prove shard with data").entered();
-            prover.prove_shard_with_data(shard_data, &seam, challenger)
+            prover.prove_shard_with_data(shard_data, challenger)
         })
         .await
         .unwrap()
     }
 
+    async fn preprocessed_table_heights(
+        pk: Arc<super::ProvingKey<GC, SC, Self>>,
+    ) -> BTreeMap<String, usize> {
+        std::future::ready(
+            pk.preprocessed_data
+                .preprocessed_traces
+                .iter()
+                .map(|(name, trace)| (name.to_owned(), trace.num_real_entries()))
+                .collect(),
+        )
+        .await
+    }
+}
+
+impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
+    ShardProver<GC, SC, C>
+{
     /// Get all the chips in the machine.
     #[must_use]
     pub fn all_chips(&self) -> &[Chip<GC::F, SC::Air>] {
@@ -697,24 +696,28 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
         (shard_open_values, partial_sumcheck_proof)
     }
 
-    /// Commit to the global traces when the machine has a global round, observing the commitment
-    /// into the challenger. The observation happens before the main commitment, so that the
-    /// global challenge derivation can sit between the two.
+    /// Commit to the global traces when the machine has a global round.
     #[allow(clippy::type_complexity)]
     fn commit_global_traces(
         &self,
         global_traces: &Traces<GC::F, CpuBackend>,
-        challenger: &mut GC::Challenger,
     ) -> Option<(GC::Digest, JaggedProverData<GC, C::ProverData>)> {
         if self.machine().has_global_round() {
             assert!(!global_traces.is_empty());
             let _span = tracing::debug_span!("commit global traces").entered();
-            let (global_commit, global_data) = self.commit_traces(global_traces);
-            challenger.observe(global_commit);
-            Some((global_commit, global_data))
+            Some(self.commit_traces(global_traces))
         } else {
             assert!(global_traces.is_empty());
             None
+        }
+    }
+
+    /// Observe the chunk-invariant memory-state roots into the challenger.
+    fn observe_chunk_roots(&self, public_values: &[GC::F], challenger: &mut GC::Challenger) {
+        if self.machine().has_global_round() {
+            let pv: &PublicValues<[_; 4], [_; 3], [_; 4], _> = public_values.borrow();
+            challenger.observe_constant_length_slice(&pv.prev_merkle_root);
+            challenger.observe_constant_length_slice(&pv.merkle_root);
         }
     }
 
@@ -760,15 +763,33 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
         (preprocessed_evaluation_claims, global_evaluation_claims, main_evaluation_claims)
     }
 
+    /// Log the shard's per-chip statistics and total cell count at debug level.
+    fn log_shard_data(
+        shard_chips: &BTreeSet<Chip<GC::F, SC::Air>>,
+        chip_height: &impl Fn(&Chip<GC::F, SC::Air>) -> usize,
+    ) {
+        let mut total_number_of_cells = 0;
+        tracing::debug!("Proving shard");
+        for chip in shard_chips.iter() {
+            let stats = ChipStatistics::new(chip, chip_height(chip));
+            tracing::debug!("{}", stats);
+            total_number_of_cells += stats.total_number_of_cells();
+        }
+        tracing::debug!(
+            "Total number of cells: {}, number of variables: {}",
+            total_number_of_cells.separate_with_underscores(),
+            total_number_of_cells.next_power_of_two().ilog2(),
+        );
+    }
+
     /// Generate a proof for a given execution record.
     #[allow(clippy::type_complexity)]
     pub fn prove_shard_with_data(
         &self,
         data: ShardData<GC, SC, C>,
-        seam: &GlobalChallengeSeam<GC>,
         mut challenger: GC::Challenger,
     ) -> (ShardProof<GC, PcsProof<GC, SC>>, ProverPermit) {
-        let ShardData { pk, main_trace_data } = data;
+        let ShardData { pk, main_trace_data, global_commitments } = data;
         let MainTraceData { traces, global_traces, public_values, shard_chips, permit } =
             main_trace_data;
 
@@ -780,36 +801,30 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
                 .num_real_entries()
         };
 
-        // Log the shard data.
-        let mut total_number_of_cells = 0;
-        tracing::debug!("Proving shard");
-        for chip in shard_chips.iter() {
-            let stats = ChipStatistics::new(chip, chip_height(chip));
-            tracing::debug!("{}", stats);
-            total_number_of_cells += stats.total_number_of_cells();
-        }
+        Self::log_shard_data(&shard_chips, &chip_height);
 
-        tracing::debug!(
-            "Total number of cells: {}, number of variables: {}",
-            total_number_of_cells.separate_with_underscores(),
-            total_number_of_cells.next_power_of_two().ilog2(),
-        );
+        // Observe the chunk-invariant memory-state roots before the global challenge is derived.
+        self.observe_chunk_roots(&public_values, &mut challenger);
 
-        // Observe the public values.
-        challenger.observe_constant_length_slice(&public_values);
+        // Commit to the global traces.
+        let global_commit_and_data = self.commit_global_traces(&global_traces);
 
-        // Commit to the global traces and observe the commitment (before the main commitment).
-        let global_commit_and_data = self.commit_global_traces(&global_traces, &mut challenger);
-
-        // Derive the global challenge pair through the seam.
+        // Derive the chunk's shared global challenge pair.
         let global_challenges = global_commit_and_data.as_ref().map(|_| {
             let beta_seed_dim = beta_seed_dim_for_scope(
                 self.machine().chips().iter(),
                 InteractionScope::Global,
                 pv_interaction_max_arity::<Record<GC, SC>>(),
             );
-            seam.derive(beta_seed_dim, &mut challenger)
+            observe_global_challenge::<GC>(
+                global_commitments.as_deref(),
+                beta_seed_dim,
+                &mut challenger,
+            )
         });
+
+        // Observe the full public values after the global challenge.
+        challenger.observe_constant_length_slice(&public_values);
 
         // Commit to the traces.
         let (main_commit, main_data) = {

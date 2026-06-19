@@ -30,7 +30,7 @@ use sp1_gpu_utils::{Ext, Felt, TestGC};
 use sp1_hypercube::air::{InteractionScope, MachineAir};
 use sp1_hypercube::prover::Record;
 use sp1_hypercube::{
-    beta_seed_dim_for_scope, pv_interaction_max_arity, Chip, GlobalChallengeSeam, InnerSC,
+    beta_seed_dim_for_scope, observe_global_challenge, pv_interaction_max_arity, Chip, InnerSC,
 };
 use sp1_primitives::SP1GlobalContext;
 
@@ -135,7 +135,7 @@ fn run_prove<R: Rng>(
     );
     let global_challenges = {
         let mut challenger = TestGC::default_challenger();
-        GlobalChallengeSeam::<SP1GlobalContext>::stub().derive(global_beta_dim, &mut challenger)
+        observe_global_challenge::<SP1GlobalContext>(None, global_beta_dim, &mut challenger)
     };
 
     let mut group = c.benchmark_group("prove");

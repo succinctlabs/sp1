@@ -1,7 +1,7 @@
 //! A minimal machine exercising the third (global) committed trace round: one mixed chip with
 //! preprocessed + global + main columns, and one global-only chip with no main columns.
 
-use std::mem::MaybeUninit;
+use std::{borrow::BorrowMut, mem::MaybeUninit};
 
 use hashbrown::HashMap;
 use slop_air::{Air, BaseAir, GlobalBuilder, PairBuilder};
@@ -9,8 +9,11 @@ use slop_algebra::{AbstractField, PrimeField32};
 use slop_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::Program;
 use sp1_hypercube::{
-    air::{AirInteraction, InteractionScope, MachineAir, SP1AirBuilder},
-    InteractionKind, MachineRecord, PROOF_MAX_NUM_PVS,
+    air::{
+        AirInteraction, InteractionScope, MachineAir, PublicValues, SP1AirBuilder,
+        POSEIDON_NUM_WORDS,
+    },
+    InteractionKind, IopCtx, MachineRecord, PROOF_MAX_NUM_PVS,
 };
 
 use crate::utils::zeroed_f_vec;
@@ -31,6 +34,28 @@ pub struct GlobalTestRecord {
     /// Corrupt one global trace cell of the global-only chip (a cell only the cross-chip bus
     /// pairs reference), so the proved buses no longer balance.
     pub corrupt_global_cell: bool,
+    /// The chunk's previous memory-state root, mirrored into the public values. Shards in one
+    /// chunk share it, so it is part of the chunk-invariant transcript prefix.
+    pub prev_merkle_root: [u32; POSEIDON_NUM_WORDS],
+    /// The chunk's current memory-state root, mirrored into the public values.
+    pub merkle_root: [u32; POSEIDON_NUM_WORDS],
+    /// The chunk's ordered global-trace commitments (digest base-field elements in `u32` form);
+    /// the shared global challenge is derived from them. Empty for a standalone shard.
+    pub global_commitments: Vec<[u32; 8]>,
+}
+
+#[cfg(test)]
+impl GlobalTestRecord {
+    /// Record the chunk's ordered global-trace commitments (mirrors `ExecutionRecord`).
+    fn set_global_commitments<GC: IopCtx>(&mut self, commitments: &[GC::Digest]) {
+        self.global_commitments = commitments
+            .iter()
+            .map(|digest| {
+                let elements = GC::digest_to_elements(digest);
+                std::array::from_fn(|i| elements[i].as_canonical_u32())
+            })
+            .collect();
+    }
 }
 
 impl MachineRecord for GlobalTestRecord {
@@ -47,13 +72,33 @@ impl MachineRecord for GlobalTestRecord {
     }
 
     fn public_values<F: AbstractField>(&self) -> Vec<F> {
-        vec![F::zero(); PROOF_MAX_NUM_PVS]
+        let mut values = vec![F::zero(); PROOF_MAX_NUM_PVS];
+        let pv: &mut PublicValues<[F; 4], [F; 3], [F; 4], F> = values.as_mut_slice().borrow_mut();
+        pv.prev_merkle_root = self.prev_merkle_root.map(F::from_canonical_u32);
+        pv.merkle_root = self.merkle_root.map(F::from_canonical_u32);
+        values
     }
 
     fn eval_public_values<AB: SP1AirBuilder>(_builder: &mut AB) {}
 
     fn interactions_in_public_values() -> Vec<InteractionKind> {
         vec![]
+    }
+
+    fn global_challenge_input<GC: IopCtx>(&self) -> Option<Vec<GC::Digest>> {
+        if self.global_commitments.is_empty() {
+            return None;
+        }
+        Some(
+            self.global_commitments
+                .iter()
+                .map(|limbs| {
+                    let elements: [GC::F; 8] =
+                        std::array::from_fn(|i| GC::F::from_canonical_u32(limbs[i]));
+                    GC::digest_from_elements(&elements)
+                })
+                .collect(),
+        )
     }
 }
 
@@ -422,17 +467,19 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::{borrow::Borrow, sync::Arc};
 
     use slop_algebra::AbstractField;
     use slop_basefold::FriConfig;
-    use slop_challenger::IopCtx;
+    use slop_challenger::{CanObserve, IopCtx};
     use slop_multilinear::{MleEval, Point};
     use sp1_core_executor::{Instruction, Opcode, Program};
     use sp1_hypercube::{
-        air::MachineAir, prover::simple_prover, Chip, GlobalChallengeSeam, GlobalChallengeSource,
-        GlobalProvingInput, Machine, MachineProof, MachineShape, SampleFromChallenger,
-        ShardVerifier,
+        air::{MachineAir, PublicValues},
+        beta_seed_dim_for_scope, observe_global_challenge,
+        prover::{simple_prover, AirProver, CpuShardProver, ProverSemaphore, SP1InnerPcsProver},
+        pv_interaction_max_arity, Chip, InnerSC, Machine, MachineProof, MachineShape,
+        MachineVerifyingKey, SP1Pcs, SP1PcsProofInner, ShardProof, ShardVerifier,
     };
     use sp1_primitives::{SP1Field, SP1GlobalContext};
 
@@ -448,7 +495,8 @@ mod tests {
             Chip::new(GlobalTestAir::GlobalOnly(GlobalOnlyChip)),
         ];
         let shape = MachineShape::all(&chips);
-        Machine::new(chips, 0, shape)
+        // The two memory roots (16 field elements) are the only non-zero public values.
+        Machine::new(chips, 2 * POSEIDON_NUM_WORDS, shape)
     }
 
     fn test_program() -> Program {
@@ -460,6 +508,7 @@ mod tests {
             mixed_rows: (0..MIXED_CHIP_HEIGHT as u32).map(|i| (3 * i + 7, i + 11)).collect(),
             flag_rows: (0..GLOBAL_ONLY_CHIP_HEIGHT as u32).map(|i| i % 2).collect(),
             corrupt_global_cell: false,
+            ..Default::default()
         }
     }
 
@@ -628,40 +677,184 @@ mod tests {
         );
     }
 
-    /// A verifier deriving a different global challenge pair (a mismatched tuple) must reject
-    /// the proof.
+    /// A verifier deriving a different global challenge pair (by folding in a chunk root the
+    /// prover never bound) must reject the proof.
     #[tokio::test]
     async fn test_global_round_mismatched_global_challenge_tuple() {
-        /// Derives the same number of challenger samples as the stub, but a different pair.
-        struct ShiftedSource;
-        impl GlobalChallengeSource<SP1GlobalContext> for ShiftedSource {
-            fn derive(
-                &self,
-                input: &GlobalProvingInput<SP1GlobalContext>,
-                beta_seed_dim: u32,
-                challenger: &mut <SP1GlobalContext as IopCtx>::Challenger,
-            ) -> (EF, Point<EF>) {
-                let (alpha, beta_seed) =
-                    SampleFromChallenger.derive(input, beta_seed_dim, challenger);
-                (alpha + EF::one(), beta_seed)
-            }
-        }
-
         let (vk, proof, verifier) = prove_test_record().await;
-        let seam = GlobalChallengeSeam::new(GlobalProvingInput::default(), Arc::new(ShiftedSource));
+
+        // The proof was proved standalone (no chunk commitments). A verifier that instead observes
+        // the compact root of some commitments takes a transcript the prover never did, so it
+        // derives a different challenge pair and the GKR check fails.
+        let wrong_commitments =
+            vec![proof.global_commitment.expect("a core shard has a global commitment")];
         let mut challenger = verifier.challenger();
         vk.observe_into(&mut challenger);
         assert!(
-            verifier.verify_shard_with_seam(&vk, &proof, &seam, &mut challenger).is_err(),
+            verifier
+                .verify_shard_with_global_commitments(
+                    &vk,
+                    &proof,
+                    Some(&wrong_commitments),
+                    &mut challenger,
+                )
+                .is_err(),
             "a mismatched global challenge tuple must fail verification"
         );
 
-        // Sanity: the same proof verifies under the stub seam.
+        // Sanity: the same proof verifies under the matching (standalone) derivation.
         let mut challenger = verifier.challenger();
         vk.observe_into(&mut challenger);
         verifier
             .verify_shard(&vk, &proof, &mut challenger)
-            .expect("the proof verifies under the matching seam");
+            .expect("the proof verifies under the matching derivation");
+    }
+
+    /// A CPU shard prover that lets the test stamp the chunk's commitments onto the record (the
+    /// simple prover always proves standalone).
+    type SeamProver = CpuShardProver<
+        SP1GlobalContext,
+        SP1Pcs<SP1GlobalContext>,
+        SP1InnerPcsProver,
+        GlobalTestAir,
+    >;
+
+    /// Setup and prove `record`, deriving the global challenge pair from `commitments` (the
+    /// chunk's ordered commitments, or `None` to prove it standalone).
+    async fn prove_with_commitments(
+        prover: &SeamProver,
+        program: Arc<Program>,
+        mut record: GlobalTestRecord,
+        commitments: Option<&[<SP1GlobalContext as IopCtx>::Digest]>,
+    ) -> (MachineVerifyingKey<SP1GlobalContext>, ShardProof<SP1GlobalContext, SP1PcsProofInner>)
+    {
+        if let Some(commitments) = commitments {
+            record.set_global_commitments::<SP1GlobalContext>(commitments);
+        }
+        let (vk, proof, _permit) =
+            prover.setup_and_prove_shard(program, record, None, ProverSemaphore::new(1)).await;
+        (vk, proof)
+    }
+
+    /// Re-derive the global challenge pair a shard was proved with, replaying the verifier's
+    /// transcript up to the derivation (vk, then the chunk-invariant memory roots).
+    fn derive_global_challenge(
+        verifier: &ShardVerifier<SP1GlobalContext, InnerSC<GlobalTestAir>>,
+        vk: &MachineVerifyingKey<SP1GlobalContext>,
+        proof: &ShardProof<SP1GlobalContext, SP1PcsProofInner>,
+        commitments: Option<&[<SP1GlobalContext as IopCtx>::Digest]>,
+    ) -> (EF, Point<EF>) {
+        let mut challenger = verifier.challenger();
+        vk.observe_into(&mut challenger);
+        // The roots are base-field elements, so observing each one is transcript-identical to the
+        // verifier's `observe_constant_length_extension_slice` over the same subset.
+        let pv: &PublicValues<[F; 4], [F; 3], [F; 4], F> = proof.public_values.as_slice().borrow();
+        for &element in pv.prev_merkle_root.iter().chain(&pv.merkle_root) {
+            challenger.observe(element);
+        }
+        let beta_seed_dim = beta_seed_dim_for_scope(
+            verifier.machine().chips().iter(),
+            InteractionScope::Global,
+            pv_interaction_max_arity::<GlobalTestRecord>(),
+        );
+        observe_global_challenge::<SP1GlobalContext>(commitments, beta_seed_dim, &mut challenger)
+    }
+
+    /// Two shards of one chunk, sharing the chunk's commitments, each derive the identical global
+    /// challenge pair, verify under those commitments, and their global cumulative sums cancel to
+    /// zero.
+    #[tokio::test]
+    async fn test_global_round_chunk_shared_seam() {
+        crate::utils::setup_logger();
+        let verifier = ShardVerifier::from_basefold_parameters(
+            FriConfig::default_fri_config(),
+            21,
+            22,
+            global_test_machine(),
+        );
+        let prover = SeamProver::new(verifier.clone());
+        let program = Arc::new(test_program());
+
+        // Two distinct shards of one chunk: they share the chunk-invariant memory roots but have
+        // different traces, so their global commitments differ.
+        let make_record = |a_mul: u32, a_add: u32| GlobalTestRecord {
+            mixed_rows: (0..MIXED_CHIP_HEIGHT as u32)
+                .map(|i| (a_mul * i + a_add, i + 11))
+                .collect(),
+            flag_rows: (0..GLOBAL_ONLY_CHIP_HEIGHT as u32).map(|i| i % 2).collect(),
+            corrupt_global_cell: false,
+            prev_merkle_root: std::array::from_fn(|i| i as u32 + 1),
+            merkle_root: std::array::from_fn(|i| i as u32 + 101),
+            global_commitments: Vec::new(),
+        };
+        let records = [make_record(3, 7), make_record(5, 13)];
+
+        // Harvest each shard's global commitment (deterministic, challenge-independent) by proving
+        // it standalone.
+        let mut commitments = Vec::new();
+        for record in records.clone() {
+            let (_, proof) = prove_with_commitments(&prover, program.clone(), record, None).await;
+            commitments
+                .push(proof.global_commitment.expect("a core shard has a global commitment"));
+        }
+        // The shards differ, so the chunk's compact root genuinely folds two distinct leaves.
+        assert_ne!(commitments[0], commitments[1]);
+
+        // Prove both shards under the chunk's shared commitments.
+        let mut vks = Vec::new();
+        let mut proofs = Vec::new();
+        for record in records.clone() {
+            let (vk, proof) =
+                prove_with_commitments(&prover, program.clone(), record, Some(&commitments)).await;
+            vks.push(vk);
+            proofs.push(proof);
+        }
+
+        // The in-proof global commitment matches the harvested one (the commit is deterministic).
+        for (proof, commitment) in proofs.iter().zip(commitments.iter()) {
+            assert_eq!(proof.global_commitment.as_ref(), Some(commitment));
+        }
+
+        // Every shard of the chunk derives the identical global challenge pair.
+        let challenge0 =
+            derive_global_challenge(&verifier, &vks[0], &proofs[0], Some(&commitments));
+        let challenge1 =
+            derive_global_challenge(&verifier, &vks[1], &proofs[1], Some(&commitments));
+        assert_eq!(
+            challenge0, challenge1,
+            "shards of one chunk must share the global challenge pair"
+        );
+
+        // Each shard verifies under the shared commitments, and the per-shard global sums cancel.
+        let mut sum = EF::zero();
+        for (vk, proof) in vks.iter().zip(proofs.iter()) {
+            let mut challenger = verifier.challenger();
+            vk.observe_into(&mut challenger);
+            verifier
+                .verify_shard_with_global_commitments(
+                    vk,
+                    proof,
+                    Some(&commitments),
+                    &mut challenger,
+                )
+                .expect("a chunk shard must verify under the shared commitments");
+            sum += proof.global_cumulative_sum.expect("a core shard exposes a global sum");
+        }
+        assert_eq!(sum, EF::zero(), "the chunk's global cumulative sums must cancel to zero");
+
+        let mut challenger = verifier.challenger();
+        vks[0].observe_into(&mut challenger);
+        assert!(
+            verifier
+                .verify_shard_with_global_commitments(
+                    &vks[0],
+                    &proofs[0],
+                    Some(&commitments[0..1]),
+                    &mut challenger,
+                )
+                .is_err(),
+            "the wrong commitments must fail verification"
+        );
     }
 
     /// Every chip cluster of the core machine must contain at least one chip with global
