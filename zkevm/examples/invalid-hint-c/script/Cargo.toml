@@ -1,0 +1,23 @@
+[package]
+name = "invalid-hint-c-script"
+description = "Host driver for invalid-hint-c. Runs both the success path (flag=0) and the invalid-hint path (flag=1, exit code 3)."
+version = { workspace = true }
+edition = { workspace = true }
+publish = false
+
+[[bin]]
+name = "invalid-hint-c-execute"
+path = "src/execute.rs"
+
+[[bin]]
+name = "invalid-hint-c-prove"
+path = "src/prove.rs"
+
+[dependencies]
+sp1-sdk = { workspace = true }
+sp1-core-executor = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[build-dependencies]
+zkevm-c-build = { path = "../../c-build" }
