@@ -164,6 +164,48 @@ pub struct RawTaskRequest {
     pub context: TaskContext,
 }
 
+impl RawTaskRequest {
+    /// True if every output this task produces already exists — i.e. a prior
+    /// delivery of the task already completed it. Returns false for a task with
+    /// no outputs (nothing to attest completion), and treats an `exists` error
+    /// as absent so callers stay on the failing path.
+    pub async fn outputs_exist(&self, artifact_client: &impl ArtifactClient) -> bool {
+        if self.outputs.is_empty() {
+            return false;
+        }
+        for output in &self.outputs {
+            let present = artifact_client
+                .exists(output, ArtifactType::UnspecifiedArtifactType)
+                .await
+                .unwrap_or(false);
+            if !present {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Recover an already-completed re-delivery. The cluster delivers tasks
+    /// at-least-once; if a task failed but all its outputs already exist, a prior
+    /// run finished it (and may have deleted the inputs this run needs) — report
+    /// success instead of failing the proof. Success passes through unchanged.
+    pub async fn recover_if_complete(
+        &self,
+        result: Result<TaskMetadata, TaskError>,
+        artifact_client: &impl ArtifactClient,
+    ) -> Result<TaskMetadata, TaskError> {
+        match result {
+            Err(_) if self.outputs_exist(artifact_client).await => {
+                tracing::info!(
+                    "task already completed by a prior execution; skipping re-execution"
+                );
+                Ok(TaskMetadata { gpu_ms: None })
+            }
+            other => other,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct TaskContext {
     pub proof_id: ProofId,
@@ -717,5 +759,57 @@ mod tests {
         let value: usize = artifact_client.download(&output).await.unwrap();
         println!("value: {}", value);
         assert!(value <= 10);
+    }
+
+    /// `recover_if_complete`: a failed task is recovered to success only when all
+    /// of its outputs already exist (a prior re-delivery finished it). Partial or
+    /// missing outputs stay a failure; a success passes through; a task with no
+    /// outputs is never treated as complete.
+    #[tokio::test]
+    async fn recover_if_complete_on_redelivery() {
+        let client = InMemoryArtifactClient::new();
+        let o0 = Artifact::from("out-0".to_string());
+        let o1 = Artifact::from("out-1".to_string());
+        let ctx = || TaskContext {
+            proof_id: ProofId::new("test"),
+            parent_id: None,
+            parent_context: None,
+            requester_id: RequesterId::new("test"),
+        };
+        let request = RawTaskRequest {
+            inputs: vec![],
+            outputs: vec![o0.clone(), o1.clone()],
+            context: ctx(),
+        };
+        let fatal = || Err(TaskError::Fatal(anyhow::anyhow!("missing input")));
+        let put = |a: Artifact| {
+            let client = client.clone();
+            async move {
+                client.upload_raw(&a, ArtifactType::UnspecifiedArtifactType, vec![1]).await.unwrap()
+            }
+        };
+
+        // Only one of two outputs present → not complete → stays a failure.
+        put(o0.clone()).await;
+        assert!(request.recover_if_complete(fatal(), &client).await.is_err());
+
+        // All outputs present → recovered to success.
+        put(o1.clone()).await;
+        assert!(request.recover_if_complete(fatal(), &client).await.is_ok());
+
+        // A success passes through untouched.
+        assert!(request
+            .recover_if_complete(Ok(TaskMetadata { gpu_ms: Some(3) }), &client)
+            .await
+            .is_ok());
+
+        // A task with no declared outputs is never treated as complete.
+        let no_outputs = RawTaskRequest { inputs: vec![], outputs: vec![], context: ctx() };
+        assert!(no_outputs.recover_if_complete(fatal(), &client).await.is_err());
+
+        // A single-output task (e.g. a memory/precompile shard) recovers as soon
+        // as its one output exists — no placeholder output to block it.
+        let single = RawTaskRequest { inputs: vec![], outputs: vec![o0.clone()], context: ctx() };
+        assert!(single.recover_if_complete(fatal(), &client).await.is_ok());
     }
 }

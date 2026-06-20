@@ -1,0 +1,63 @@
+[workspace]
+resolver = "2"
+members = [
+  "hello-rust/program",
+  "hello-rust/script",
+  "fibonacci/program",
+  "fibonacci/script",
+  "panic/program",
+  "panic/script",
+  "keccak/program",
+  "keccak/script",
+  "conformance/program",
+  "conformance/script",
+  "sha256/program",
+  "sha256/script",
+  # C examples — only the script is a Cargo crate; `program/` is a C
+  # source tree built by the script's `build.rs` (via the shared
+  # `zkevm-c-build` helper).
+  "hello-c/script",
+  "fibonacci-c/script",
+  "panic-c/script",
+  "assert-c/script",
+  "exit-code-c/script",
+  "invalid-hint-c/script",
+  "keccak-c/script",
+  "sha256-c/script",
+  "ripemd-c/script",
+  "blake2f-c/script",
+  "secp256k1-c/script",
+  "secp256r1-c/script",
+  "bn254-c/script",
+  "bls12-c/script",
+  "modexp-c/script",
+  "ecrecover-c/script",
+  "kzg-c/script",
+  # The shared C build helper.
+  "c-build",
+  # Vendored cryptographic test fixtures used by example execute scripts.
+  "fixtures",
+]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2021"
+publish = false
+
+[workspace.dependencies]
+# libzkevm lives one directory up. Path-deps work across workspaces;
+# libzkevm is still a member of the SP1 root workspace.
+libzkevm = { path = "../libzkevm" }
+
+# SP1 runtime + build + SDK, by relative path to the SP1 source tree.
+sp1-zkvm = { path = "../../crates/zkvm/entrypoint", default-features = false }
+sp1-sdk = { path = "../../crates/sdk", default-features = false, features = ["cuda", "network"] }
+sp1-build = { path = "../../crates/build" }
+sp1-core-executor = { path = "../../crates/core/executor" }
+
+# Shared host-side deps.
+tokio = { version = "1.43", features = ["full"] }
+tracing = "0.1"
+sha2 = "0.10"
+tiny-keccak = { version = "2.0.2", features = ["keccak"] }
+ripemd = "0.1"
