@@ -23,17 +23,16 @@ use thousands::Separable;
 use tracing::Instrument;
 
 use crate::{
-    air::{InteractionScope, MachineAir, MachineProgram, PublicValues},
+    air::{InteractionScope, MachineAir, MachineProgram, PublicValues, POSEIDON_NUM_WORDS},
     beta_seed_dim_for_scope, observe_global_challenge,
     prover::{
         DefaultTraceGenerator, Program, ProverPermit, ProverSemaphore, Record, ZeroCheckPoly,
         ZerocheckCpuProverData,
     },
-    pv_interaction_max_arity,
-    septic_digest::SepticDigest,
-    AirOpenedValues, Chip, ChipEvaluation, ChipOpenedValues, ChipStatistics,
-    ConstraintSumcheckFolder, GkrProverImpl, LogUpEvaluations, Machine, MachineRecord,
-    MachineVerifyingKey, ShardContext, ShardOpenedValues, ShardProof, UntrustedConfig,
+    pv_interaction_max_arity, AirOpenedValues, Chip, ChipEvaluation, ChipOpenedValues,
+    ChipStatistics, ConstraintSumcheckFolder, GkrProverImpl, LogUpEvaluations, Machine,
+    MachineRecord, MachineVerifyingKey, ShardContext, ShardOpenedValues, ShardProof,
+    UntrustedConfig,
 };
 
 use super::{TraceGenerator, Traces};
@@ -248,25 +247,15 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>> A
         prover_permits: ProverSemaphore,
     ) -> (PreprocessedData<ProvingKey<GC, SC, Self>>, MachineVerifyingKey<GC>) {
         if let Some(vk) = vk {
-            let initial_global_cumulative_sum = vk.initial_global_cumulative_sum;
-            self.setup_with_initial_global_cumulative_sum(
-                program,
-                initial_global_cumulative_sum,
-                prover_permits,
-            )
-            .await
+            let initial_memory_root = vk.initial_memory_root;
+            self.setup_with_initial_memory_root(program, initial_memory_root, prover_permits).await
         } else {
             let program_sent = program.clone();
-            let initial_global_cumulative_sum =
-                tokio::task::spawn_blocking(move || program_sent.initial_global_cumulative_sum())
+            let initial_memory_root =
+                tokio::task::spawn_blocking(move || program_sent.initial_memory_root())
                     .await
                     .unwrap();
-            self.setup_with_initial_global_cumulative_sum(
-                program,
-                initial_global_cumulative_sum,
-                prover_permits,
-            )
-            .await
+            self.setup_with_initial_memory_root(program, initial_memory_root, prover_permits).await
         }
     }
 
@@ -281,12 +270,12 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>> A
         // Get the initial global cumulative sum and pc start.
         let pc_start = program.pc_start();
         let untrusted_config = program.untrusted_config();
-        let initial_global_cumulative_sum = if let Some(vk) = vk {
-            vk.initial_global_cumulative_sum
+        let initial_memory_root = if let Some(vk) = vk {
+            vk.initial_memory_root
         } else {
             let program = program.clone();
-            tokio::task::spawn_blocking(move || program.initial_global_cumulative_sum())
-                .instrument(tracing::debug_span!("initial_global_cumulative_sum"))
+            tokio::task::spawn_blocking(move || program.initial_memory_root())
+                .instrument(tracing::debug_span!("initial_memory_root"))
                 .await
                 .unwrap()
         };
@@ -308,7 +297,7 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>> A
             let _span = tracing::debug_span!("setup_from_preprocessed_data_and_traces").entered();
             self.setup_from_preprocessed_data_and_traces(
                 pc_start,
-                initial_global_cumulative_sum,
+                initial_memory_root,
                 preprocessed_traces,
                 untrusted_config,
             )
@@ -432,7 +421,7 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
     pub fn setup_from_preprocessed_data_and_traces(
         &self,
         pc_start: [GC::F; 3],
-        initial_global_cumulative_sum: SepticDigest<GC::F>,
+        initial_memory_root: [GC::F; POSEIDON_NUM_WORDS],
         preprocessed_traces: Traces<GC::F, CpuBackend>,
         untrusted_config: UntrustedConfig<GC::F>,
     ) -> (ShardProverData<GC, C>, MachineVerifyingKey<GC>) {
@@ -444,7 +433,7 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
 
         let vk = MachineVerifyingKey {
             pc_start,
-            initial_global_cumulative_sum,
+            initial_memory_root,
             preprocessed_commit,
             untrusted_config,
         };
@@ -454,11 +443,11 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
         (pk, vk)
     }
 
-    /// Setup from a program with a specific initial global cumulative sum.
-    pub async fn setup_with_initial_global_cumulative_sum(
+    /// Setup from a program with a specific initial memory root.
+    pub async fn setup_with_initial_memory_root(
         &self,
         program: Arc<Program<GC, SC>>,
-        initial_global_cumulative_sum: SepticDigest<GC::F>,
+        initial_memory_root: [GC::F; POSEIDON_NUM_WORDS],
         setup_permits: ProverSemaphore,
     ) -> (PreprocessedData<ProvingKey<GC, SC, Self>>, MachineVerifyingKey<GC>) {
         let pc_start = program.pc_start();
@@ -473,7 +462,7 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
 
         let (pk, vk) = self.setup_from_preprocessed_data_and_traces(
             pc_start,
-            initial_global_cumulative_sum,
+            initial_memory_root,
             preprocessed_traces,
             untrusted_config,
         );

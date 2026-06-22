@@ -1,6 +1,6 @@
 use std::mem::MaybeUninit;
 
-use crate::{septic_digest::SepticDigest, MachineRecord, UntrustedConfig};
+use crate::{MachineRecord, UntrustedConfig};
 use slop_air::BaseAir;
 use slop_algebra::Field;
 use slop_matrix::dense::RowMajorMatrix;
@@ -153,8 +153,8 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
 pub trait MachineProgram<F>: Send + Sync {
     /// Gets the starting program counter.
     fn pc_start(&self) -> [F; 3];
-    /// Gets the initial global cumulative sum.
-    fn initial_global_cumulative_sum(&self) -> SepticDigest<F>;
+    /// Gets the Merkle root of the program's initial memory image.
+    fn initial_memory_root(&self) -> [F; 8];
     /// Gets the metadata on configuration regarding untrusted programs.
     fn untrusted_config(&self) -> UntrustedConfig<F>;
 }

@@ -8,9 +8,7 @@ use sp1_core_executor::{
     SupervisorMode, MERKLE_PAGE_BYTES, MERKLE_PAGE_WORDS,
 };
 use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir};
-use sp1_hypercube::{
-    prover::ProverSemaphore, septic_digest::SepticDigest, MachineVerifyingKey, UntrustedConfig,
-};
+use sp1_hypercube::{prover::ProverSemaphore, MachineVerifyingKey, UntrustedConfig};
 use sp1_jit::{risc::MinimalTrace, MemValue};
 use sp1_primitives::{Elf, SP1Field};
 use sp1_prover::{
@@ -110,7 +108,7 @@ async fn execute_node(args: Args, elf: Vec<u8>, stdin: SP1Stdin) {
 
     let dummy_vk = MachineVerifyingKey {
         pc_start: [SP1Field::zero(); 3],
-        initial_global_cumulative_sum: SepticDigest::zero(),
+        initial_memory_root: [SP1Field::zero(); 8],
         preprocessed_commit: [SP1Field::zero(); 8],
         untrusted_config: UntrustedConfig::zero(),
     };
@@ -235,7 +233,7 @@ async fn execute_bench_stub(args: Args, elf: Vec<u8>, stdin: SP1Stdin) {
 
     let dummy_vk = MachineVerifyingKey {
         pc_start: [SP1Field::zero(); 3],
-        initial_global_cumulative_sum: SepticDigest::zero(),
+        initial_memory_root: [SP1Field::zero(); 8],
         preprocessed_commit: [SP1Field::zero(); 8],
         untrusted_config: UntrustedConfig::zero(),
     };

@@ -23,7 +23,7 @@ use tokio::{
     task::JoinSet,
 };
 
-use sp1_core_machine::merkle_prover::BatchMerkleProver;
+use sp1_core_machine::merkle_prover::{split_merkle_proof_record, BatchMerkleProver};
 
 use crate::{
     worker::{
@@ -241,7 +241,7 @@ where
         let merkle_input = splice_handle
             .await
             .map_err(|e| ExecutionError::Other(format!("splice task join: {e}")))??;
-        let merkle_seed = self
+        let mut merkle_seed = self
             .core_prover
             .prepare_merkle_proof(
                 merkle_input,
@@ -263,8 +263,22 @@ where
             })
             .unwrap_or_default();
 
-        // TODO(rkm): cut the merkle proof accordingly with the `SplitOpts`.
-        let merkle_records: Vec<ExecutionRecord> = vec![merkle_seed];
+        // Split the chunk's merkle proof into shard-sized pieces (one if it fits). The proving loop
+        // below sets each piece's shard_index and public values.
+        let merkle_records: Vec<ExecutionRecord> = match merkle_seed.merkle_proof_record.take() {
+            Some(record) => split_merkle_proof_record(record, program.instructions.len(), &opts)
+                .into_iter()
+                .map(|piece| {
+                    ExecutionRecord::from_merkle_proof_record(
+                        program.clone(),
+                        proof_nonce,
+                        global_dependencies_opt,
+                        piece,
+                    )
+                })
+                .collect(),
+            None => vec![merkle_seed],
+        };
         let num_merkle_shards = merkle_records.len() as u32;
 
         // Generate the global commitments from each merkle shard.

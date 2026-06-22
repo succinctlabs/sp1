@@ -197,9 +197,35 @@ pub(crate) fn accumulate_public_value_interactions(
 mod tests {
     use super::*;
     use crate::memory::merkle::{
-        leaf_hash::LeafHashChip, leaf_hash_controller::LeafHashControlChip,
+        leaf_hash::{LeafHashChip, BLOCKS_PER_HASH},
+        leaf_hash_controller::LeafHashControlChip,
         tree_traversal::MerkleTreeTraversalChip,
     };
+    use crate::merkle_prover::split_merkle_proof_record;
+    use sp1_core_executor::{
+        rv64im_costs, RiscvAirId, SP1CoreOpts, ShardingThreshold, BYTE_NUM_ROWS,
+        MAXIMUM_CYCLE_AREA, MAXIMUM_PADDING_AREA, RANGE_NUM_ROWS,
+    };
+
+    /// `SP1CoreOpts` admitting ~`pages_per_shard` pages per merkle shard (`program_len == 0`);
+    /// height threshold stays large so only area binds.
+    fn split_opts(pages_per_shard: u64) -> SP1CoreOpts {
+        let costs = rv64im_costs();
+        let cost = |id: RiscvAirId| costs[&id] as u64;
+        let base = BYTE_NUM_ROWS * cost(RiscvAirId::Byte)
+            + RANGE_NUM_ROWS * cost(RiscvAirId::Range)
+            + MAXIMUM_PADDING_AREA
+            + MAXIMUM_CYCLE_AREA;
+        let page_cost = cost(RiscvAirId::LeafHashControl)
+            + 2 * BLOCKS_PER_HASH as u64 * cost(RiscvAirId::LeafHash);
+        SP1CoreOpts {
+            sharding_threshold: ShardingThreshold {
+                element_threshold: base + pages_per_shard * page_cost,
+                height_threshold: 1 << 22,
+            },
+            ..SP1CoreOpts::default()
+        }
+    }
 
     /// The `LeafHash` and `MerkleTreeTraversal` buses fully cancel.
     #[test]
@@ -218,6 +244,112 @@ mod tests {
         accumulate_public_value_interactions(&record, &kinds, &mut totals);
 
         assert_eq!(report_bus_mismatches(&totals), 0, "merkle pipeline bus should fully cancel");
+    }
+
+    /// A tight budget tiles the record into several shards exactly; a large budget keeps one.
+    #[test]
+    fn split_merkle_proof_record_tiles_the_record() {
+        let record = merkle_record(12).merkle_proof_record.expect("merkle_record sets the record");
+        let total_rows = record.proof.n_rows();
+
+        // Large budget: the whole record stays a single shard.
+        let whole = split_merkle_proof_record(
+            record.clone(),
+            0,
+            &SP1CoreOpts {
+                sharding_threshold: ShardingThreshold {
+                    element_threshold: 1 << 30,
+                    height_threshold: 1 << 22,
+                },
+                ..SP1CoreOpts::default()
+            },
+        );
+        assert_eq!(whole.len(), 1, "a record that fits must stay one shard");
+        assert_eq!(whole[0].payload.page_ids, record.payload.page_ids);
+        assert_eq!(whole[0].proof.n_rows(), total_rows);
+
+        // Tight budget: several shards. Reassembling them must reproduce the original exactly.
+        let opts = split_opts(3);
+        let pieces = split_merkle_proof_record(record.clone(), 0, &opts);
+        assert!(pieces.len() > 1, "a tight budget must split the record");
+
+        let (mut page_ids, mut prev_leaves, mut new_leaves) = (Vec::new(), Vec::new(), Vec::new());
+        let (mut height, mut idx, mut mult) = (Vec::new(), Vec::new(), Vec::new());
+        for piece in &pieces {
+            // Page arrays stay parallel within each piece.
+            assert_eq!(piece.payload.page_ids.len(), piece.payload.pages.len());
+            assert_eq!(piece.prev_leaves.len(), piece.payload.pages.len());
+            assert_eq!(piece.new_leaves.len(), piece.payload.pages.len());
+
+            // Each piece fits the area and height budgets.
+            let pages = piece.payload.pages.len() as u64;
+            let rows = piece.proof.n_rows() as u64;
+            let costs = rv64im_costs();
+            let cost = |id: RiscvAirId| costs[&id] as u64;
+            let base = BYTE_NUM_ROWS * cost(RiscvAirId::Byte)
+                + RANGE_NUM_ROWS * cost(RiscvAirId::Range)
+                + MAXIMUM_PADDING_AREA
+                + MAXIMUM_CYCLE_AREA;
+            let area = pages
+                * (cost(RiscvAirId::LeafHashControl)
+                    + 2 * BLOCKS_PER_HASH as u64 * cost(RiscvAirId::LeafHash))
+                + rows * cost(RiscvAirId::MerkleTreeTraversal);
+            assert!(base + area <= opts.sharding_threshold.element_threshold);
+            assert!(2 * pages * BLOCKS_PER_HASH as u64 <= opts.sharding_threshold.height_threshold);
+            assert!(rows <= opts.sharding_threshold.height_threshold);
+
+            page_ids.extend_from_slice(&piece.payload.page_ids);
+            prev_leaves.extend_from_slice(&piece.prev_leaves);
+            new_leaves.extend_from_slice(&piece.new_leaves);
+            height.extend_from_slice(&piece.proof.height);
+            idx.extend_from_slice(&piece.proof.idx);
+            mult.extend_from_slice(&piece.proof.mult);
+        }
+        assert_eq!(page_ids, record.payload.page_ids);
+        assert_eq!(prev_leaves, record.prev_leaves);
+        assert_eq!(new_leaves, record.new_leaves);
+        assert_eq!(height, record.proof.height);
+        assert_eq!(idx, record.proof.idx);
+        assert_eq!(mult, record.proof.mult);
+    }
+
+    /// Merkle buses still cancel across a multi-shard split: shard 0 holds `is_first_merkle_shard`
+    /// while (under this budget) the root rows land in a later, row-only shard.
+    #[test]
+    fn merkle_split_bus_balances() {
+        let record = merkle_record(12).merkle_proof_record.expect("merkle_record sets the record");
+        let prev_root = record.proof.prev_root.map(|x| x.as_canonical_u32());
+        let cur_root = record.proof.cur_root.map(|x| x.as_canonical_u32());
+
+        let pieces = split_merkle_proof_record(record, 0, &split_opts(3));
+        assert!(pieces.len() > 1, "expected a multi-shard split");
+
+        let lh = Chip::new(LeafHashChip::new());
+        let ctrl = Chip::new(LeafHashControlChip::new());
+        let tt = Chip::new(MerkleTreeTraversalChip::new());
+        let kinds = [InteractionKind::LeafHash, InteractionKind::MerkleTreeTraversal];
+
+        let mut totals = BusTotals::new();
+        for (shard_index, piece) in pieces.into_iter().enumerate() {
+            let mut shard = ExecutionRecord::default();
+            shard.public_values.prev_merkle_root = prev_root;
+            shard.public_values.merkle_root = cur_root;
+            // Exactly one shard injects the roots.
+            if shard_index == 0 {
+                shard.public_values.is_first_merkle_shard = 1;
+            }
+            shard.merkle_proof_record = Some(piece);
+
+            for_chip_traces(&lh, &shard, &kinds, &mut totals);
+            for_chip_traces(&ctrl, &shard, &kinds, &mut totals);
+            for_chip_traces(&tt, &shard, &kinds, &mut totals);
+            accumulate_public_value_interactions(&shard, &kinds, &mut totals);
+        }
+        assert_eq!(
+            report_bus_mismatches(&totals),
+            0,
+            "merkle buses must cancel across the split shards"
+        );
     }
 
     /// Generate a chip's traces and accumulate its interactions.

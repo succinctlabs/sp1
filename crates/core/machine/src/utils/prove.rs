@@ -1,7 +1,9 @@
 use std::{io, sync::Arc};
 
 use crate::executor::trace_chunk;
-use crate::merkle_prover::{build_merkle_proof_record, LeafState, MerkleProvingInput};
+use crate::merkle_prover::{
+    build_merkle_proof_record, split_merkle_proof_record, LeafState, MerkleProvingInput,
+};
 use crate::riscv::RiscvAir;
 use thiserror::Error;
 
@@ -14,7 +16,7 @@ use sp1_hypercube::{
 };
 
 use crate::io::SP1Stdin;
-use sp1_core_executor::{SP1CoreOpts, SplitOpts};
+use sp1_core_executor::SP1CoreOpts;
 
 use sp1_core_executor::{
     CycleResult, ExecutionError, ExecutionRecord, MerkleProvingPayload, Program, SP1Context,
@@ -39,7 +41,6 @@ where
     F: PrimeField32,
 {
     let machine = RiscvAir::<F>::machine();
-    let _split_opts = SplitOpts::new(&opts, program.instructions.len(), false);
 
     // Phase 1: Run MinimalExecutorRunner to generate trace chunks.
     let dirty_pages_slot_bytes: usize = 256 * 1024 * 1024;
@@ -90,26 +91,37 @@ where
         });
         let prev_root = proof_record.proof.prev_root.map(|x| x.as_canonical_u32());
         let cur_root = proof_record.proof.cur_root.map(|x| x.as_canonical_u32());
-        let mut merkle_record = ExecutionRecord::from_merkle_proof_record(
-            program.clone(),
-            proof_nonce,
-            opts.global_dependencies_opt,
-            proof_record,
-        );
 
-        // The merkle shard is a non-execution shard sitting at the head of the chunk.
-        merkle_record.public_values.update_initialized_state(
-            chunk_pc_start,
-            program.enable_untrusted_programs,
-            program.trap_context,
-            program.untrusted_memory,
-        );
-        merkle_record.public_values.is_first_merkle_shard = 1;
-        merkle_record.shard_kind = SHARD_KIND_MERKLE;
-        merkle_record.shard_index = 0;
+        // Merkle shards: head of the chunk, non-execution; only shard 0 sets is_first_merkle_shard.
+        let merkle_pieces =
+            split_merkle_proof_record(proof_record, program.instructions.len(), &opts);
+        let num_merkle_shards = merkle_pieces.len() as u32;
+        let mut chunk_records: Vec<ExecutionRecord> = merkle_pieces
+            .into_iter()
+            .enumerate()
+            .map(|(merkle_index, piece)| {
+                let mut record = ExecutionRecord::from_merkle_proof_record(
+                    program.clone(),
+                    proof_nonce,
+                    opts.global_dependencies_opt,
+                    piece,
+                );
+                record.public_values.update_initialized_state(
+                    chunk_pc_start,
+                    program.enable_untrusted_programs,
+                    program.trap_context,
+                    program.untrusted_memory,
+                );
+                if merkle_index == 0 {
+                    record.public_values.is_first_merkle_shard = 1;
+                }
+                record.shard_kind = SHARD_KIND_MERKLE;
+                record.shard_index = merkle_index as u32;
+                record
+            })
+            .collect();
 
-        // Merkle shard first, then the chunk's execution shards.
-        let mut chunk_records = vec![merkle_record];
+        // Then the chunk's execution shards.
         for (exec_index, (_is_last, spliced, shard_data)) in spliced_traces.into_iter().enumerate()
         {
             let record = match shard_data {
@@ -130,13 +142,13 @@ where
             record.shard_index = exec_index as u32;
             chunk_records.push(record);
         }
-        let num_execution_shards = (chunk_records.len() - 1) as u32;
+        let num_execution_shards = (chunk_records.len() - num_merkle_shards as usize) as u32;
 
         // Chunk metadata + the chunk's bracketing merkle roots, on every shard.
         for record in chunk_records.iter_mut() {
             record.trace_chunk_idx = chunk_idx as u32;
             record.num_execution_shards = num_execution_shards;
-            record.num_merkle_shards = 1;
+            record.num_merkle_shards = num_merkle_shards;
             record.prev_root = prev_root;
             record.cur_root = cur_root;
             record.public_values.prev_merkle_root = prev_root;
@@ -145,7 +157,7 @@ where
             record.public_values.shard_kind = record.shard_kind;
             record.public_values.shard_index = record.shard_index;
             record.public_values.num_execution_shard = num_execution_shards;
-            record.public_values.num_merkle_shard = 1;
+            record.public_values.num_merkle_shard = num_merkle_shards;
         }
 
         // Dependencies last: the pv-driven byte/range lookups must see the final pvs.

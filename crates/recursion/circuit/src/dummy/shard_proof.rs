@@ -4,9 +4,9 @@ use slop_algebra::AbstractField;
 use slop_basefold::{BasefoldVerifier, FriConfig};
 use slop_multilinear::Point;
 use sp1_hypercube::{
-    air::MachineAir, septic_digest::SepticDigest, AirOpenedValues, Chip, ChipOpenedValues,
-    MachineVerifyingKey, SP1PcsProofInner, ShardOpenedValues, ShardProof, UntrustedConfig,
-    NUM_SP1_COMMITMENTS, PROOF_MAX_NUM_PVS,
+    air::MachineAir, AirOpenedValues, Chip, ChipOpenedValues, MachineVerifyingKey,
+    SP1PcsProofInner, ShardOpenedValues, ShardProof, UntrustedConfig, NUM_SP1_COMMITMENTS,
+    PROOF_MAX_NUM_PVS,
 };
 use sp1_primitives::{SP1ExtensionField, SP1Field, SP1GlobalContext};
 
@@ -19,7 +19,7 @@ type EF = SP1ExtensionField;
 pub fn dummy_vk() -> MachineVerifyingKey<SP1GlobalContext> {
     MachineVerifyingKey {
         pc_start: [SP1Field::zero(); 3],
-        initial_global_cumulative_sum: SepticDigest::zero(),
+        initial_memory_root: [SP1Field::zero(); 8],
         preprocessed_commit: [SP1Field::zero(); 8],
         untrusted_config: UntrustedConfig::zero(),
     }

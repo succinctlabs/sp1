@@ -106,14 +106,13 @@ where
 {
     fn hash_koalabear(&self) -> [SP1Field; DIGEST_SIZE] {
         #[cfg(not(feature = "mprotect"))]
-        let num_inputs = DIGEST_SIZE + 3 + 14 + 1;
+        let num_inputs = DIGEST_SIZE + 3 + 8 + 1;
         #[cfg(feature = "mprotect")]
-        let num_inputs = DIGEST_SIZE + 3 + 14 + 1 + 1 + 9 + 6;
+        let num_inputs = DIGEST_SIZE + 3 + 8 + 1 + 1 + 9 + 6;
         let mut inputs = Vec::with_capacity(num_inputs);
         inputs.extend(self.preprocessed_commit.borrow());
         inputs.extend(self.pc_start);
-        inputs.extend(self.initial_global_cumulative_sum.0.x.0);
-        inputs.extend(self.initial_global_cumulative_sum.0.y.0);
+        inputs.extend(self.initial_memory_root);
         inputs.push(self.untrusted_config.enable_untrusted_programs);
         #[cfg(feature = "mprotect")]
         inputs.push(self.untrusted_config.enable_trap_handler);

@@ -498,6 +498,12 @@ impl<'a, M: ExecutionMode> CoreVM<'a, M> {
         SyscallCode::from_u32(syscall_id as u32)
     }
 
+    /// Peek register `X11` for the syscall's `op_c`.
+    #[must_use]
+    pub fn read_op_c(&self) -> u64 {
+        self.registers[Register::X11 as usize].value
+    }
+
     /// Compute the value to load based on opcode, address, and memory word.
     #[allow(clippy::inline_always)]
     #[inline(always)]

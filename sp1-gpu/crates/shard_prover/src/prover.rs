@@ -202,27 +202,15 @@ where
     ) {
         let inner = self.inner.clone();
         if let Some(vk) = vk {
-            let initial_global_cumulative_sum = vk.initial_global_cumulative_sum;
-            inner
-                .setup_with_initial_global_cumulative_sum(
-                    program,
-                    initial_global_cumulative_sum,
-                    prover_permits,
-                )
-                .await
+            let initial_memory_root = vk.initial_memory_root;
+            inner.setup_with_initial_memory_root(program, initial_memory_root, prover_permits).await
         } else {
             let program_sent = program.clone();
-            let initial_global_cumulative_sum =
-                tokio::task::spawn_blocking(move || program_sent.initial_global_cumulative_sum())
+            let initial_memory_root =
+                tokio::task::spawn_blocking(move || program_sent.initial_memory_root())
                     .await
                     .unwrap();
-            inner
-                .setup_with_initial_global_cumulative_sum(
-                    program,
-                    initial_global_cumulative_sum,
-                    prover_permits,
-                )
-                .await
+            inner.setup_with_initial_memory_root(program, initial_memory_root, prover_permits).await
         }
     }
 
@@ -244,12 +232,12 @@ where
         // Get the initial global cumulative sum and pc start.
         let pc_start = program.pc_start();
         let untrusted_config = program.untrusted_config();
-        let initial_global_cumulative_sum = if let Some(vk) = vk {
-            vk.initial_global_cumulative_sum
+        let initial_memory_root = if let Some(vk) = vk {
+            vk.initial_memory_root
         } else {
             let program = program.clone();
-            tokio::task::spawn_blocking(move || program.initial_global_cumulative_sum())
-                .instrument(tracing::debug_span!("initial_global_cumulative_sum"))
+            tokio::task::spawn_blocking(move || program.initial_memory_root())
+                .instrument(tracing::debug_span!("initial_memory_root"))
                 .await
                 .unwrap()
         };
@@ -281,7 +269,7 @@ where
                 let _guard = span.enter();
                 inner.setup_from_preprocessed_data_and_traces(
                     pc_start,
-                    initial_global_cumulative_sum,
+                    initial_memory_root,
                     trace_data,
                     untrusted_config,
                 )
@@ -1253,11 +1241,11 @@ mod tests {
     }
 
     /// The worker's two-phase flow on GPU: `commit_global_traces_for_record` pre-commits the global
-    /// trace (global section only) before the chunk's Fiat-Shamir gate, the digest is folded into
-    /// the chunk's compact Merkle root, and the shard is proved under that root. Pins the invariant
+    /// trace (global section only) before the chunk's Fiat-Shamir gate, the digest joins the
+    /// chunk's commitments, and the shard is proved under them. Pins the invariant
     /// that the pre-committed global-only digest equals the in-proof global commitment (which is
-    /// committed out of the full `[prep|global|main]` trace), so the prover's and verifier's roots
-    /// agree, and that the proof verifies under the chunk's commitments.
+    /// committed out of the full `[prep|global|main]` trace), so the prover's and verifier's
+    /// commitments agree, and that the proof verifies under the chunk's commitments.
     #[tokio::test]
     #[serial]
     async fn test_core_shard_real_seam_commitment_matches_and_verifies() {
@@ -1272,7 +1260,7 @@ mod tests {
             let global_commit =
                 shard_prover.commit_global_traces_for_record(record.clone(), permits.clone()).await;
 
-            // This chunk has one shard, so the compact Merkle root of a single leaf is the leaf.
+            // This chunk has one shard, so the chunk's commitments are just this single digest.
             // Stamp the commitment onto the record so the shard derives the chunk's shared global
             // challenge from it.
             let commitments = vec![global_commit];

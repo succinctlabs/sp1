@@ -55,8 +55,7 @@ where
         let mut challenger = <GC as SP1FieldConfigVariable<C>>::challenger_variable(builder);
         challenger.observe(builder, vk.preprocessed_commit);
         challenger.observe_slice(builder, vk.pc_start);
-        challenger.observe_slice(builder, vk.initial_global_cumulative_sum.0.x.0);
-        challenger.observe_slice(builder, vk.initial_global_cumulative_sum.0.y.0);
+        challenger.observe_slice(builder, vk.initial_memory_root);
         challenger.observe(builder, vk.untrusted_config.enable_untrusted_programs);
         #[cfg(feature = "mprotect")]
         {
@@ -71,7 +70,7 @@ where
 
         // Observe the padding.
         let zero: Felt<_> = builder.eval(SP1Field::zero());
-        for _ in 0..6 {
+        for _ in 0..4 {
             challenger.observe(builder, zero);
         }
         machine.verify_shard(builder, vk, proof, &mut challenger);

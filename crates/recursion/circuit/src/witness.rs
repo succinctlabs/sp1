@@ -375,12 +375,12 @@ where
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let pc_start = self.pc_start.read(builder);
-        let initial_global_cumulative_sum = self.initial_global_cumulative_sum.read(builder);
+        let initial_memory_root = self.initial_memory_root.read(builder);
         let preprocessed_commit = self.preprocessed_commit.read(builder);
         let untrusted_config = self.untrusted_config.read(builder);
         Self::WitnessVariable {
             pc_start,
-            initial_global_cumulative_sum,
+            initial_memory_root,
             preprocessed_commit,
             untrusted_config,
         }
@@ -388,7 +388,7 @@ where
 
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
         self.pc_start.write(witness);
-        self.initial_global_cumulative_sum.write(witness);
+        self.initial_memory_root.write(witness);
         self.preprocessed_commit.write(witness);
         self.untrusted_config.write(witness);
     }

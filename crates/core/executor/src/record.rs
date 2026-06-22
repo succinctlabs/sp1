@@ -30,7 +30,7 @@ use crate::{
         PageProtLocalEvent, PrecompileEvent, PrecompileEvents, SyscallEvent, UTypeEvent,
     },
     program::Program,
-    ByteOpcode, Instruction, RiscvAirId, SplitOpts, SyscallCode,
+    ByteOpcode, Instruction, RiscvAirId, SyscallCode,
 };
 
 /// A record of the execution of a program.
@@ -284,13 +284,6 @@ impl ExecutionRecord {
         let mut record = Self::new(program, proof_nonce, global_dependencies_opt);
         record.merkle_proof_record = Some(merkle_proof_record);
         record
-    }
-
-    /// Splits the deferred [`ExecutionRecord`] into multiple [`ExecutionRecord`]s.
-    /// TODO(rkm): implement this to split up the merkle proving.
-    #[allow(clippy::too_many_lines)]
-    pub fn split(&mut self, _done: bool, _opts: &SplitOpts) -> Vec<ExecutionRecord> {
-        Vec::new()
     }
 
     /// Return the number of rows needed for a chip, according to the proof shape specified in the

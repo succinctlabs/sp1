@@ -149,6 +149,22 @@ impl BatchMerkleProof {
         BatchProof { prev_root: self.prev_root, cur_root: self.cur_root, rows: self.to_rows() }
     }
 
+    /// The sub-proof holding rows `[start, end)`; both roots are preserved.
+    pub fn sub_proof(&self, start: usize, end: usize) -> BatchMerkleProof {
+        BatchMerkleProof {
+            prev_root: self.prev_root,
+            cur_root: self.cur_root,
+            n_rows: end - start,
+            tlr: self.tlr[24 * start..24 * end].to_vec(),
+            height: self.height[start..end].to_vec(),
+            idx: self.idx[start..end].to_vec(),
+            tag1: self.tag1[start..end].to_vec(),
+            tag2: self.tag2[start..end].to_vec(),
+            tag3: self.tag3[start..end].to_vec(),
+            mult: self.mult[start..end].to_vec(),
+        }
+    }
+
     /// Split into sub-proofs of at most `max_rows` rows each.
     pub fn split(&self, max_rows: usize) -> Vec<BatchMerkleProof> {
         if max_rows == 0 || self.n_rows <= max_rows {
@@ -158,18 +174,7 @@ impl BatchMerkleProof {
         let mut start = 0;
         while start < self.n_rows {
             let end = (start + max_rows).min(self.n_rows);
-            out.push(BatchMerkleProof {
-                prev_root: self.prev_root,
-                cur_root: self.cur_root,
-                n_rows: end - start,
-                tlr: self.tlr[24 * start..24 * end].to_vec(),
-                height: self.height[start..end].to_vec(),
-                idx: self.idx[start..end].to_vec(),
-                tag1: self.tag1[start..end].to_vec(),
-                tag2: self.tag2[start..end].to_vec(),
-                tag3: self.tag3[start..end].to_vec(),
-                mult: self.mult[start..end].to_vec(),
-            });
+            out.push(self.sub_proof(start, end));
             start = end;
         }
         out
@@ -313,6 +318,14 @@ pub fn cpu_prev_levels(
     let c = make_compressor();
     let defaults = default_hashes(&c, default_leaf, height);
     SparseLevels::build(&c, &defaults, leaves, height).levels
+}
+
+/// Merkle root of a sparse tree with non-default `leaves` (sorted, distinct); the `prev_root` of a
+/// [`batch_update`] over the same leaves, without emitting a trace.
+pub fn compute_root(default_leaf: Digest, leaves: &[(u64, Digest)], height: usize) -> Digest {
+    let c = make_compressor();
+    let defaults = default_hashes(&c, default_leaf, height);
+    SparseLevels::build(&c, &defaults, leaves, height).root(&defaults)
 }
 
 /// `tag1` for an emitted internal node: root vs internal, prev (`init`) vs current.
@@ -726,6 +739,24 @@ mod tests {
         let proof = batch_update(dl, &leaves, &[], height);
         assert_eq!(proof.prev_root, proof.cur_root, "no updates ⇒ root unchanged");
         assert_valid(&proof, &[], height);
+    }
+
+    #[test]
+    fn compute_root_matches_batch_update_prev_root() {
+        let mut rng = Rng::new(0xC0FFEE);
+        let height = 12;
+        let dl = rand_digest(&mut rng);
+        let (leaves, _) = gen_case(&mut rng, height, 50, 0, false, dl);
+        let proof = batch_update(dl, &leaves, &[], height);
+        assert_eq!(compute_root(dl, &leaves, height), proof.prev_root);
+    }
+
+    #[test]
+    fn compute_root_empty_is_default_root() {
+        let c = make_compressor();
+        let dl = [KoalaBear::from_canonical_u32(9); 8];
+        let defaults = default_hashes(&c, dl, 10);
+        assert_eq!(compute_root(dl, &[], 10), defaults[0]);
     }
 
     #[test]

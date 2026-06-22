@@ -459,7 +459,7 @@ impl RiscvAirId {
             Self::ShaCompress => 80,
             Self::ShaExtend => 48,
             Self::KeccakPermute => 24,
-            // TODO(rkm): use the exact `hint_len` to estimate trace area.
+            // Max rows; shape checker estimates the exact `ceil(len_bytes / 8)`.
             Self::HintRead => 1024,
             _ => 1,
         }

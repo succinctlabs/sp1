@@ -3,59 +3,26 @@
 use std::{future::Future, sync::Arc};
 
 use serde::{Deserialize, Serialize};
-use slop_algebra::AbstractField;
 use slop_merkle_tree::batch_update::{batch_update, Digest, Update};
-use slop_symmetric::CryptographicHasher;
-use sp1_core_executor::{ExecutionRecord, MerkleProofRecord, MerkleProvingPayload, Program};
+use sp1_core_executor::{
+    rv64im_costs, ExecutionRecord, MerkleProofRecord, MerkleProvingPayload, Program, RiscvAirId,
+    SP1CoreOpts, ShardingThreshold, BYTE_NUM_ROWS, MAXIMUM_CYCLE_AREA, MAXIMUM_PADDING_AREA,
+    RANGE_NUM_ROWS,
+};
 use sp1_hypercube::{
     air::PROOF_NONCE_NUM_WORDS,
     prover::{CpuShardProver, ProverSemaphore, SP1InnerPcsProver},
     SP1Pcs,
 };
-use sp1_jit::MERKLE_PAGE_WORDS;
-use sp1_primitives::{SP1Field, SP1GlobalContext, POSEIDON2_HASHER};
+use sp1_primitives::{SP1Field, SP1GlobalContext};
 
-use crate::riscv::RiscvAir;
+use crate::{memory::leaf_hash::BLOCKS_PER_HASH, riscv::RiscvAir};
 
-/// Width of a Poseidon2 leaf digest, in KoalaBear field elements.
-pub const DIGEST_WIDTH: usize = 8;
-
-/// Number of KoalaBear field elements one page expands into (3 `u64` to 8 elements).
-pub const PAGE_ELEMENTS: usize = 688;
-const _: () = assert!(PAGE_ELEMENTS == MERKLE_PAGE_WORDS.div_ceil(3) * 8);
-
-/// A merkle leaf hash: an 8-element KoalaBear Poseidon2 digest.
-pub type LeafDigest = [SP1Field; DIGEST_WIDTH];
-
-/// Height of the sparse memory Merkle tree: `2^29` leaf slots (40-bit address space ÷ 2 KB pages).
-pub const MERKLE_TREE_HEIGHT: usize = 29;
-
-/// Leaf hash for a page that has never been touched.
-#[inline]
-pub fn zero_leaf() -> LeafDigest {
-    *ZERO_LEAF
-}
-
-static ZERO_LEAF: std::sync::LazyLock<LeafDigest> =
-    std::sync::LazyLock::new(|| hash_page(&[0u64; MERKLE_PAGE_WORDS]));
-
-/// Hash a single page into a Poseidon2 leaf digest, bit-packing 3 `u64` into 8 KoalaBear
-/// elements (`(u16 lane of e1 / e2) << 8 | byte of e3`).
-#[inline]
-pub fn hash_page(page: &[u64; MERKLE_PAGE_WORDS]) -> LeafDigest {
-    let elements = page.chunks(3).flat_map(|chunk| {
-        let e1 = chunk[0];
-        let e2 = chunk.get(1).copied().unwrap_or(0);
-        let e3 = chunk.get(2).copied().unwrap_or(0);
-        let e3_bytes = e3.to_le_bytes();
-        (0..8).map(move |j| {
-            let lane =
-                if j < 4 { (e1 >> (16 * j)) & 0xFFFF } else { (e2 >> (16 * (j - 4))) & 0xFFFF };
-            SP1Field::from_canonical_u32(((lane as u32) << 8) | e3_bytes[j] as u32)
-        })
-    });
-    POSEIDON2_HASHER.hash_iter(elements)
-}
+/// Leaf-hash primitives, defined in `sp1-core-executor` (for the vk's `initial_memory_root`).
+pub use sp1_core_executor::merkle::{
+    hash_page, memory_image_leaves, memory_image_root, zero_leaf, LeafDigest, DIGEST_WIDTH,
+    MERKLE_TREE_HEIGHT, PAGE_ELEMENTS,
+};
 
 /// Input to `prepare_merkle_proof` for one chunk's merkle-proving body.
 #[derive(Serialize, Deserialize)]
@@ -95,6 +62,96 @@ pub fn build_merkle_proof_record(input: MerkleProvingInput) -> MerkleProofRecord
     let prev_leaves = input.prev_leaves.to_vec();
     let new_leaves = input.new_leaves.to_vec();
     MerkleProofRecord { payload: input.payload, proof, prev_leaves, new_leaves }
+}
+
+/// Split a chunk's [`MerkleProofRecord`] into shard-sized pieces (unchanged if it fits one shard).
+///
+/// Pages and proof rows partition independently — every merkle bus is global-scope, so they cancel
+/// over the chunk as long as each appears once and exactly one shard sets `is_first_merkle_shard`.
+/// Callers set that flag and the public values on the returned pieces, in order.
+#[must_use]
+pub fn split_merkle_proof_record(
+    record: MerkleProofRecord,
+    program_len: usize,
+    opts: &SP1CoreOpts,
+) -> Vec<MerkleProofRecord> {
+    let costs = rv64im_costs();
+    let cost = |id: RiscvAirId| costs[&id] as u64;
+
+    // Base area every shard pays before its own rows (mirrors `ShapeChecker::new`).
+    let preprocessed_trace_area = (program_len as u64).next_multiple_of(32)
+        * cost(RiscvAirId::Program)
+        + BYTE_NUM_ROWS * cost(RiscvAirId::Byte)
+        + RANGE_NUM_ROWS * cost(RiscvAirId::Range);
+    let base = preprocessed_trace_area + MAXIMUM_PADDING_AREA + MAXIMUM_CYCLE_AREA;
+
+    let ShardingThreshold { element_threshold, height_threshold } = opts.sharding_threshold;
+    let budget = element_threshold.saturating_sub(base);
+
+    // Per page: 1 LeafHashControl row + 2*BLOCKS_PER_HASH LeafHash rows (init + final hashes).
+    let blocks_per_hash = BLOCKS_PER_HASH as u64;
+    let page_cost =
+        cost(RiscvAirId::LeafHashControl) + 2 * blocks_per_hash * cost(RiscvAirId::LeafHash);
+    let row_cost = cost(RiscvAirId::MerkleTreeTraversal);
+
+    // Height caps: LeafHash's 2*BLOCKS_PER_HASH rows/page bind before LeafHashControl's 1 row/page.
+    let max_pages = (height_threshold / (2 * blocks_per_hash)) as usize;
+    let max_rows = height_threshold as usize;
+
+    assert!(
+        page_cost <= budget && row_cost <= budget && max_pages >= 1 && max_rows >= 1,
+        "merkle sharding threshold too small to fit a single page or proof row: \
+         budget={budget}, page_cost={page_cost}, row_cost={row_cost}, \
+         max_pages={max_pages}, max_rows={max_rows}"
+    );
+
+    let total_pages = record.payload.pages.len();
+    let total_rows = record.proof.n_rows();
+
+    // Fast path: fits one shard.
+    if total_pages <= max_pages
+        && total_rows <= max_rows
+        && total_pages as u64 * page_cost + total_rows as u64 * row_cost <= budget
+    {
+        return vec![record];
+    }
+
+    // Pack pages then rows into each shard; each iteration advances >= 1 (so it terminates).
+    let mut pieces = Vec::new();
+    let mut page_start = 0;
+    let mut row_start = 0;
+    while page_start < total_pages || row_start < total_rows {
+        let mut area = 0u64;
+
+        let mut page_end = page_start;
+        while page_end < total_pages
+            && page_end - page_start < max_pages
+            && area + page_cost <= budget
+        {
+            area += page_cost;
+            page_end += 1;
+        }
+
+        let mut row_end = row_start;
+        while row_end < total_rows && row_end - row_start < max_rows && area + row_cost <= budget {
+            area += row_cost;
+            row_end += 1;
+        }
+
+        pieces.push(MerkleProofRecord {
+            payload: MerkleProvingPayload {
+                page_ids: record.payload.page_ids[page_start..page_end].to_vec(),
+                pages: record.payload.pages[page_start..page_end].to_vec(),
+            },
+            proof: record.proof.sub_proof(row_start, row_end),
+            prev_leaves: record.prev_leaves[page_start..page_end].to_vec(),
+            new_leaves: record.new_leaves[page_start..page_end].to_vec(),
+        });
+
+        page_start = page_end;
+        row_start = row_end;
+    }
+    pieces
 }
 
 /// GPU-friendly batch args derived from a chunk's input.
@@ -177,19 +234,7 @@ impl LeafState {
     /// Seed the leaf state from a program's initial `memory_image`.
     #[must_use]
     pub fn from_memory_image(memory_image: &hashbrown::HashMap<u64, u64>) -> Self {
-        use rayon::prelude::*;
-        const PAGE_BYTES: u64 = (MERKLE_PAGE_WORDS * 8) as u64;
-        let mut pages: std::collections::HashMap<u32, Box<[u64; MERKLE_PAGE_WORDS]>> =
-            std::collections::HashMap::new();
-        for (&addr, &val) in memory_image.iter() {
-            debug_assert_eq!(addr % 8, 0, "memory_image address {addr} must be 8-aligned");
-            let page_id = (addr / PAGE_BYTES) as u32;
-            let word = ((addr % PAGE_BYTES) / 8) as usize;
-            pages.entry(page_id).or_insert_with(|| Box::new([0u64; MERKLE_PAGE_WORDS]))[word] = val;
-        }
-        let leaves: std::collections::HashMap<u32, LeafDigest> =
-            pages.into_par_iter().map(|(page_id, page)| (page_id, hash_page(&page))).collect();
-        Self { leaves }
+        Self { leaves: memory_image_leaves(memory_image).into_iter().collect() }
     }
 
     /// Current leaf for a page, or the zero leaf if untouched.
@@ -236,7 +281,7 @@ impl LeafState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sp1_jit::DirtyPage;
+    use sp1_jit::{DirtyPage, MERKLE_PAGE_WORDS};
     use std::collections::HashMap;
 
     /// Build a deterministic-but-seeded page for tests.

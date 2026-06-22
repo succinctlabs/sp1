@@ -169,6 +169,14 @@ impl SP1Verifier {
         check_core_chunk_structure(&public_values_per_shard)
             .map_err(MachineVerifierError::InvalidPublicValues)?;
 
+        // The first chunk's prev_merkle_root must be the program's initial memory image (the
+        // merkle-root analogue of pc_start == vk.pc_start; the chain is checked above).
+        if public_values_per_shard[0].prev_merkle_root != vk.initial_memory_root {
+            return Err(MachineVerifierError::InvalidPublicValues(
+                "prev_merkle_root != vk.initial_memory_root: execution must start from the program's initial memory image",
+            ));
+        }
+
         // Program counter constraints.
         //
         // Initialization:
@@ -874,7 +882,7 @@ pub(crate) fn verify_core_shards(
     }
 
     for (chunk_idx, indices) in &chunks {
-        // Rebuild the chunk's compact Merkle root from its ordered global commitments.
+        // The chunk's ordered global commitments; verify folds them into the challenge.
         let commitments = indices
             .iter()
             .map(|&i| {
@@ -1134,6 +1142,50 @@ mod tests {
         assert_eq!(prev_next_pc, pc_limbs(HALT_PC), "execution should end at HALT_PC");
     }
 
+    /// `vk.initial_memory_root` equals the first chunk's `prev_merkle_root`, cross-checking the two
+    /// paths to the root (vk: `Program::initial_memory_root`, prover: `LeafState::from_memory_image`).
+    #[tokio::test(flavor = "multi_thread")]
+    async fn vk_initial_memory_root_matches_first_chunk_prev_root() {
+        use sp1_core_executor::{Program, SP1CoreOpts};
+        use sp1_core_machine::{io::SP1Stdin, utils::generate_records};
+        use sp1_hypercube::prover::{
+            AirProver, CpuShardProver, ProverSemaphore, SP1InnerPcsProver,
+        };
+        use std::sync::Arc;
+
+        let permit = ProverSemaphore::new(1);
+        let core_verifier = CpuSP1ProverComponents::core_verifier(RiscvAir::machine());
+        let prover: CpuShardProver<
+            SP1GlobalContext,
+            SP1InnerPcs,
+            SP1InnerPcsProver,
+            RiscvAir<SP1Field>,
+        > = CpuShardProver::new(core_verifier.shard_verifier().clone());
+
+        let program = Arc::new(Program::from(&test_artifacts::FIBONACCI_ELF).unwrap());
+        // Small threshold → several chunks.
+        let opts = SP1CoreOpts { minimal_trace_chunk_threshold: 1 << 9, ..Default::default() };
+        let (mut records, _) =
+            generate_records::<SP1Field>(program.clone(), SP1Stdin::new(), opts, [0; 4]).unwrap();
+        records.sort_by_key(|r| proof_sort_key(r.trace_chunk_idx, r.shard_kind, r.shard_index));
+
+        let (_, vk) = prover.setup(program.clone(), permit.clone()).await;
+
+        let first_pv: SP1CorePublicValues<SP1Field> = records[0].public_values.into();
+        assert_eq!(
+            first_pv.prev_merkle_root, vk.initial_memory_root,
+            "vk.initial_memory_root must equal the first chunk's prev_merkle_root"
+        );
+        // Non-empty initial memory ⇒ non-default root.
+        let empty_root: [SP1Field; POSEIDON_NUM_WORDS] =
+            sp1_core_executor::merkle::memory_image_root(&Default::default())
+                .map(|e| SP1Field::from_canonical_u32(e.as_canonical_u32()));
+        assert_ne!(
+            vk.initial_memory_root, empty_root,
+            "fibonacci has non-empty initial memory, so its root is not the empty-tree root"
+        );
+    }
+
     /// A single trace chunk's shards, proven under the chunk's shared commitments (folded into one
     /// Merkle root), verify through the per-chunk pass and their global cumulative sums cancel. The
     /// three tampering modes — a wrong global commitment, a dropped shard, and a chunk whose global
@@ -1245,8 +1297,8 @@ mod tests {
         }
     }
 
-    /// The worker's two-phase flow end to end: `generate_global_commitment` per shard is folded
-    /// into the chunk's compact Merkle root, then `prove_shard` proves each shard under that root.
+    /// The worker's two-phase flow end to end: `generate_global_commitment` per shard yields the
+    /// chunk's ordered commitments, then `prove_shard` proves each shard under them.
     /// The execution-shard commitment is committed from a `shard_data`-only seed — mirroring the
     /// worker, which commits the global trace *before* tracing the chunk — while the merkle-shard
     /// commitment comes from its record. The test pins the invariant that each shard's in-proof

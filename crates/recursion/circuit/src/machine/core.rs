@@ -14,7 +14,10 @@ use sp1_core_machine::riscv::RiscvAir;
 
 use sp1_hypercube::air::{PublicValues, SP1CorePublicValues};
 
-use sp1_hypercube::{air::ShardRange, MachineVerifyingKey, ShardProof};
+use sp1_hypercube::{
+    air::ShardRange, septic_curve::SepticCurve, septic_digest::SepticDigest, MachineVerifyingKey,
+    ShardProof,
+};
 
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
@@ -133,12 +136,13 @@ where
             );
         }
 
-        // If it's the first shard, we add the vk's `initial_global_cumulative_sum` to the
-        // digest. If it's not the first shard, we add the zero digest to the digest.
-        global_cumulative_sums.push(builder.select_global_cumulative_sum(
-            public_values.is_first_execution_shard,
-            vk.initial_global_cumulative_sum,
-        ));
+        // TODO(recursion): vk dropped initial_global_cumulative_sum for initial_memory_root.
+        // Placeholder zero digest; rework the global-sum accounting.
+        let zero_digest: SepticDigest<Felt<SP1Field>> =
+            SepticDigest(SepticCurve::convert(SepticDigest::<SP1Field>::zero().0, |v| {
+                builder.eval(v)
+            }));
+        global_cumulative_sums.push(zero_digest);
 
         // Prepare a challenger.
         let mut challenger = SP1GlobalContext::challenger_variable(builder);
@@ -146,8 +150,7 @@ where
         // Observe the vk and start pc.
         challenger.observe(builder, vk.preprocessed_commit);
         challenger.observe_slice(builder, vk.pc_start);
-        challenger.observe_slice(builder, vk.initial_global_cumulative_sum.0.x.0);
-        challenger.observe_slice(builder, vk.initial_global_cumulative_sum.0.y.0);
+        challenger.observe_slice(builder, vk.initial_memory_root);
         challenger.observe(builder, vk.untrusted_config.enable_untrusted_programs);
         #[cfg(feature = "mprotect")]
         {
@@ -157,7 +160,7 @@ where
         }
         // Observe the padding.
         let zero: Felt<_> = builder.eval(SP1Field::zero());
-        for _ in 0..6 {
+        for _ in 0..4 {
             challenger.observe(builder, zero);
         }
 

@@ -59,6 +59,7 @@ pub mod minimal;
 pub use minimal::*;
 
 mod memory;
+pub mod merkle;
 mod opcode;
 mod opts;
 #[cfg(feature = "profiling")]

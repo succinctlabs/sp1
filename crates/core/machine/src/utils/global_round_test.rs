@@ -677,14 +677,14 @@ mod tests {
         );
     }
 
-    /// A verifier deriving a different global challenge pair (by folding in a chunk root the
+    /// A verifier deriving a different global challenge pair (by folding in commitments the
     /// prover never bound) must reject the proof.
     #[tokio::test]
     async fn test_global_round_mismatched_global_challenge_tuple() {
         let (vk, proof, verifier) = prove_test_record().await;
 
         // The proof was proved standalone (no chunk commitments). A verifier that instead observes
-        // the compact root of some commitments takes a transcript the prover never did, so it
+        // the hash of some commitments takes a transcript the prover never did, so it
         // derives a different challenge pair and the GKR check fails.
         let wrong_commitments =
             vec![proof.global_commitment.expect("a core shard has a global commitment")];
@@ -797,7 +797,7 @@ mod tests {
             commitments
                 .push(proof.global_commitment.expect("a core shard has a global commitment"));
         }
-        // The shards differ, so the chunk's compact root genuinely folds two distinct leaves.
+        // The shards differ, so the chunk's commitment hash genuinely folds two distinct digests.
         assert_ne!(commitments[0], commitments[1]);
 
         // Prove both shards under the chunk's shared commitments.

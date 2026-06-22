@@ -124,24 +124,28 @@ impl<M: ExecutionMode> ShapeChecker<M> {
     }
 
     #[inline]
-    pub fn handle_retained_syscall(&mut self, syscall_code: SyscallCode) {
+    pub fn handle_retained_syscall(&mut self, syscall_code: SyscallCode, op_c: u64) {
         let syscall_air_id = if M::PAGE_PROTECTION_ENABLED {
             syscall_code.as_air_id_user().unwrap()
         } else {
             syscall_code.as_air_id().unwrap()
         };
 
-        let rows_per_event = syscall_air_id.rows_per_event() as u64;
+        // `HintRead` emits one row per written word (`ceil(len_bytes / 8)`, with `len_bytes` the
+        // syscall's `op_c`); every other retained syscall has a fixed row count.
+        let rows_per_event = if syscall_air_id == RiscvAirId::HintRead {
+            op_c.div_ceil(8)
+        } else {
+            syscall_air_id.rows_per_event() as u64
+        };
         self.heights[syscall_air_id] += rows_per_event;
 
         self.trace_area += rows_per_event * self.costs[syscall_air_id];
         self.max_height = self.max_height.max(self.heights[syscall_air_id]);
 
-        // Currently, all precompiles with `rows_per_event > 1` have the respective control chip.
-        if rows_per_event > 1 {
-            self.trace_area += self.costs[syscall_air_id
-                .control_air_id(M::PAGE_PROTECTION_ENABLED)
-                .expect("Controls AIRs are found for each precompile with rows_per_event > 1")];
+        // The control chip, when present, contributes one row per event.
+        if let Some(control_air_id) = syscall_air_id.control_air_id(M::PAGE_PROTECTION_ENABLED) {
+            self.trace_area += self.costs[control_air_id];
         }
     }
 
@@ -373,6 +377,35 @@ pub fn riscv_air_id_from_opcode_user(opcode: Opcode) -> RiscvAirId {
         _ => {
             eprintln!("Unknown opcode: {opcode:?}");
             unreachable!()
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ShapeChecker;
+    use crate::{RiscvAirId, ShardingThreshold, SupervisorMode, SyscallCode};
+
+    fn fresh_checker() -> ShapeChecker<SupervisorMode> {
+        // A threshold large enough that a single syscall never trips the shard limit.
+        let threshold = ShardingThreshold { element_threshold: 1 << 30, height_threshold: 1 << 30 };
+        ShapeChecker::<SupervisorMode>::new(0, 0, threshold)
+    }
+
+    /// `HintRead` area tracks the exact `ceil(len_bytes / 8)` words, plus one control row per event
+    /// even when the hint is a single word.
+    #[test]
+    fn hint_read_area_is_exact_in_words() {
+        let reference = fresh_checker();
+        let hint_cost = reference.costs[RiscvAirId::HintRead];
+        let control_cost = reference.costs[RiscvAirId::HintReadControl];
+
+        for (len_bytes, words) in [(1u64, 1u64), (8, 1), (9, 2), (16, 2), (8192, 1024)] {
+            let mut checker = fresh_checker();
+            let before = checker.trace_area;
+            checker.handle_retained_syscall(SyscallCode::HINT_READ, len_bytes);
+            assert_eq!(checker.trace_area - before, words * hint_cost + control_cost);
+            assert_eq!(checker.heights[RiscvAirId::HintRead], words);
         }
     }
 }

@@ -16,8 +16,8 @@ use slop_multilinear::{Evaluations, MleEval};
 use slop_sumcheck::PartialSumcheckProof;
 
 use sp1_hypercube::{
-    air::MachineAir, septic_digest::SepticDigest, GenericVerifierPublicValuesConstraintFolder,
-    LogupGkrProof, Machine, ShardOpenedValues, UntrustedConfig,
+    air::MachineAir, GenericVerifierPublicValuesConstraintFolder, LogupGkrProof, Machine,
+    ShardOpenedValues, UntrustedConfig,
 };
 use sp1_primitives::{SP1ExtensionField, SP1Field};
 use sp1_recursion_compiler::{
@@ -46,8 +46,8 @@ pub struct ShardProofVariable<C: CircuitConfig, SC: SP1FieldConfigVariable<C> + 
 
 pub struct MachineVerifyingKeyVariable<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> {
     pub pc_start: [Felt<SP1Field>; 3],
-    /// The starting global digest of the program, after incorporating the initial memory.
-    pub initial_global_cumulative_sum: SepticDigest<Felt<SP1Field>>,
+    /// The Merkle root of the program's initial memory image.
+    pub initial_memory_root: [Felt<SP1Field>; 8],
     /// The preprocessed commitments.
     pub preprocessed_commit: SC::DigestVariable,
     /// Metadata on configuration regarding untrusted programs.
@@ -59,21 +59,19 @@ where
     SC: SP1FieldConfigVariable<C>,
 {
     /// Hash the verifying key + prep domains into a single digest.
-    /// poseidon2(commit[0..8] || pc_start || initial_global_cumulative_sum ||
-    /// height || name)
+    /// poseidon2(commit[0..8] || pc_start || initial_memory_root || height || name)
     pub fn hash(&self, builder: &mut Builder<C>) -> SC::DigestVariable
     where
         SC::DigestVariable: IntoIterator<Item = Felt<SP1Field>>,
     {
         #[cfg(not(feature = "mprotect"))]
-        let num_inputs = DIGEST_SIZE + 3 + 14 + 1;
+        let num_inputs = DIGEST_SIZE + 3 + 8 + 1;
         #[cfg(feature = "mprotect")]
-        let num_inputs = DIGEST_SIZE + 3 + 14 + 1 + 1 + 9 + 6;
+        let num_inputs = DIGEST_SIZE + 3 + 8 + 1 + 1 + 9 + 6;
         let mut inputs = Vec::with_capacity(num_inputs);
         inputs.extend(self.preprocessed_commit);
         inputs.extend(self.pc_start);
-        inputs.extend(self.initial_global_cumulative_sum.0.x.0);
-        inputs.extend(self.initial_global_cumulative_sum.0.y.0);
+        inputs.extend(self.initial_memory_root);
         inputs.push(self.untrusted_config.enable_untrusted_programs);
         #[cfg(feature = "mprotect")]
         {

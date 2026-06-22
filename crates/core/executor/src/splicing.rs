@@ -1001,7 +1001,7 @@ impl<'a, M: ExecutionMode> SplicingVM<'a, M> {
         let code = self.core.read_code();
 
         if code.should_send() == 1 {
-            self.shape_checker.handle_retained_syscall(code);
+            self.shape_checker.handle_retained_syscall(code, self.core.read_op_c());
         }
 
         if code == SyscallCode::COMMIT || code == SyscallCode::COMMIT_DEFERRED_PROOFS {

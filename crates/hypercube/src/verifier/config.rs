@@ -3,7 +3,7 @@ use slop_algebra::AbstractField;
 use slop_challenger::VariableLengthChallenger;
 use slop_challenger::{CanObserve, IopCtx};
 
-use crate::septic_digest::SepticDigest;
+use crate::air::POSEIDON_NUM_WORDS;
 
 #[allow(clippy::disallowed_types)]
 use slop_basefold::Poseidon2KoalaBear16BasefoldConfig;
@@ -73,8 +73,8 @@ impl<T: AbstractField> UntrustedConfig<T> {
 pub struct MachineVerifyingKey<C: IopCtx> {
     /// The start pc of the program.
     pub pc_start: [C::F; 3],
-    /// The starting global digest of the program, after incorporating the initial memory.
-    pub initial_global_cumulative_sum: SepticDigest<C::F>,
+    /// The Merkle root of the program's initial memory image.
+    pub initial_memory_root: [C::F; POSEIDON_NUM_WORDS],
     /// The preprocessed commitments.
     pub preprocessed_commit: C::Digest,
     /// Metadata on configuration regarding untrusted programs.
@@ -84,7 +84,7 @@ pub struct MachineVerifyingKey<C: IopCtx> {
 impl<C: IopCtx> PartialEq for MachineVerifyingKey<C> {
     fn eq(&self, other: &Self) -> bool {
         self.pc_start == other.pc_start
-            && self.initial_global_cumulative_sum == other.initial_global_cumulative_sum
+            && self.initial_memory_root == other.initial_memory_root
             && self.preprocessed_commit == other.preprocessed_commit
             && self.untrusted_config == other.untrusted_config
     }
@@ -97,8 +97,7 @@ impl<C: IopCtx> MachineVerifyingKey<C> {
     pub fn observe_into(&self, challenger: &mut C::Challenger) {
         challenger.observe(self.preprocessed_commit);
         challenger.observe_constant_length_slice(&self.pc_start);
-        challenger.observe_constant_length_slice(&self.initial_global_cumulative_sum.0.x.0);
-        challenger.observe_constant_length_slice(&self.initial_global_cumulative_sum.0.y.0);
+        challenger.observe_constant_length_slice(&self.initial_memory_root);
         challenger.observe(self.untrusted_config.enable_untrusted_programs);
         #[cfg(feature = "mprotect")]
         challenger.observe(self.untrusted_config.enable_trap_handler);
@@ -107,7 +106,7 @@ impl<C: IopCtx> MachineVerifyingKey<C> {
         #[cfg(feature = "mprotect")]
         challenger
             .observe_constant_length_slice(self.untrusted_config.untrusted_memory.as_flattened());
-        // Observe the padding.
-        challenger.observe_constant_length_slice(&[C::F::zero(); 6]);
+        // Pad the observed vk to a multiple of the challenger rate (8).
+        challenger.observe_constant_length_slice(&[C::F::zero(); 4]);
     }
 }
