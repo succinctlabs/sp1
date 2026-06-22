@@ -120,11 +120,10 @@ message OpenRequest {
     WorkerType worker_type = 2;
     uint32 max_weight = 3;
     // Self-reported build identity of this worker, so the coordinator can expose it via
-    // GetClusterComponentInfo. These are additive and optional; older workers leave them empty.
+    // GetClusterComponentInfo. Additive fields; workers that do not report leave them empty.
     string version = 4;
     string git_sha = 5;
     string image_tag = 6;
-    string build_timestamp = 7;
 }
 
 message ServerMessage {
@@ -304,7 +303,6 @@ message ClusterComponentInfo {
     string version = 3;
     string git_sha = 4;
     string image_tag = 5;
-    string build_timestamp = 6;
 }
 
 message GetClusterComponentInfoRequest {}
