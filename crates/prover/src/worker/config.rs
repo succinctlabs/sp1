@@ -34,10 +34,6 @@ impl SP1WorkerConfig {
             .ok()
             .and_then(|s| s.parse::<usize>().ok())
             .unwrap_or(DEFAULT_SPLICING_BUFFER_SIZE);
-        let max_reduce_arity = env::var("SP1_WORKER_MAX_REDUCE_ARITY")
-            .ok()
-            .and_then(|s| s.parse::<usize>().ok())
-            .unwrap_or(DEFAULT_MAX_REDUCE_ARITY);
 
         // Whether or not to operate in fixed pk mode.
         let use_fixed_pk = env::var("SP1_WORKER_USE_FIXED_PK")
@@ -53,13 +49,8 @@ impl SP1WorkerConfig {
 
         // Use default core options as a starting point.
         let opts = SP1CoreOpts::default();
-        let controller_config = SP1ControllerConfig {
-            opts,
-            num_splicing_workers,
-            splicing_buffer_size,
-            max_reduce_arity,
-            use_fixed_pk,
-        };
+        let controller_config =
+            SP1ControllerConfig { opts, num_splicing_workers, splicing_buffer_size, use_fixed_pk };
 
         // Build the core prover config.
         let num_setup_workers = env::var("SP1_WORKER_NUM_SETUP_WORKERS")
@@ -141,7 +132,6 @@ impl SP1WorkerConfig {
 // Default values for the controller config.
 pub(crate) const DEFAULT_NUM_SPLICING_WORKERS: usize = 2;
 pub(crate) const DEFAULT_SPLICING_BUFFER_SIZE: usize = 2;
-pub(crate) const DEFAULT_MAX_REDUCE_ARITY: usize = 4;
 
 // Default values for the core prover config.
 pub(crate) const DEFAULT_NUM_SETUP_WORKERS: usize = 2;

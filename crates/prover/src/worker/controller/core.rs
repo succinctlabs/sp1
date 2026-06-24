@@ -39,6 +39,49 @@ pub enum ProofKind {
     Merkle,
 }
 
+/// A half-open interval `[start, end)` over chunk indices. Mirrors `ShardRange`'s adjacency
+/// helpers so the across-chunk reduction tree can order and merge per-chunk proofs by index.
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+pub struct ChunkRange {
+    pub start: u32,
+    pub end: u32,
+}
+
+impl ChunkRange {
+    /// The range covering a single chunk, `[idx, idx + 1)`.
+    #[must_use]
+    pub fn single(idx: u32) -> Self {
+        Self { start: idx, end: idx + 1 }
+    }
+
+    /// The number of chunks the range covers.
+    #[must_use]
+    pub fn len(&self) -> u32 {
+        self.end - self.start
+    }
+
+    /// Whether the range covers no chunks.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.start == self.end
+    }
+
+    /// Whether `other` immediately follows `self`, so the two are mergeable.
+    #[must_use]
+    pub fn is_adjacent(&self, other: &Self) -> bool {
+        self.end == other.start
+    }
+
+    /// Merge with the immediately-following range, yielding `[self.start, other.end)`; `None` if
+    /// `other` is not adjacent.
+    #[must_use]
+    pub fn merge(&self, other: &Self) -> Option<Self> {
+        self.is_adjacent(other).then_some(Self { start: self.start, end: other.end })
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub enum ProofData {
     /// Cluster-path proof (deferred recursion proofs from `SP1Stdin.proofs`).
@@ -49,6 +92,9 @@ pub enum ProofData {
         range: ShardRange,
         proof: Box<ShardProof<SP1GlobalContext, SP1PcsProofInner>>,
     },
+    /// A *ready* per-chunk recursion proof: the within-chunk reduce already finished in-node, so
+    /// the artifact is complete when sent (no `task_id`). Consumed by the across-chunk tree.
+    ChunkProof { chunk_range: ChunkRange, proof: Artifact },
 }
 
 #[derive(Debug, Clone)]
@@ -515,5 +561,54 @@ impl FinalVmStateLock {
 
     pub fn get(&self) -> Option<&FinalVmState> {
         self.inner.get()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn chunk_range_adjacency() {
+        let a = ChunkRange::single(0); // [0, 1)
+        let b = ChunkRange::single(1); // [1, 2)
+        let c = ChunkRange::single(2); // [2, 3)
+
+        assert!(a.is_adjacent(&b));
+        assert!(!b.is_adjacent(&a));
+        assert!(!a.is_adjacent(&c));
+
+        assert_eq!(a.merge(&b), Some(ChunkRange { start: 0, end: 2 }));
+        assert_eq!(b.merge(&a), None);
+
+        // Adjacency and merge compose: [0,1) + [1,2) then + [2,3) covers [0,3).
+        let ab = a.merge(&b).unwrap();
+        assert!(ab.is_adjacent(&c));
+        assert_eq!(ab.merge(&c), Some(ChunkRange { start: 0, end: 3 }));
+
+        assert_eq!(a.len(), 1);
+        assert_eq!(ab.len(), 2);
+        assert!(!a.is_empty());
+        assert!(ChunkRange { start: 2, end: 2 }.is_empty());
+    }
+
+    #[test]
+    fn chunk_proof_serde_round_trip() {
+        let proof_id = "chunk-proof-artifact".to_string();
+        let original = ProofData::ChunkProof {
+            chunk_range: ChunkRange { start: 3, end: 7 },
+            proof: Artifact::from(proof_id.clone()),
+        };
+
+        let bytes = bincode::serialize(&original).expect("serialize ChunkProof");
+        let decoded: ProofData = bincode::deserialize(&bytes).expect("deserialize ChunkProof");
+
+        match decoded {
+            ProofData::ChunkProof { chunk_range, proof } => {
+                assert_eq!(chunk_range, ChunkRange { start: 3, end: 7 });
+                assert_eq!(proof, Artifact::from(proof_id));
+            }
+            _ => panic!("expected ChunkProof variant after round-trip"),
+        }
     }
 }

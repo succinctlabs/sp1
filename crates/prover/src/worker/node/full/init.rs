@@ -168,9 +168,14 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                         Ok(req) => {
                             let core_prover = worker.prover_engine().core_prover.air_prover();
                             let permits = worker.prover_engine().core_prover.permits();
+                            let recursion: Arc<dyn crate::worker::RecursionStages> =
+                                Arc::new(worker.prover_engine().recursion_prover.clone());
                             let controller = worker.controller();
-                            let engine = controller
-                                .initialize_splice_chunk_engine::<C>(core_prover, permits);
+                            let engine = controller.initialize_splice_chunk_engine::<C>(
+                                core_prover,
+                                permits,
+                                recursion,
+                            );
                             // Bounded at `splicing_buffer_size` — the
                             // leaf-hash thread blocks here when the prover
                             // is behind (backpressure preserved).

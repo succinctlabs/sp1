@@ -10,7 +10,9 @@ use crate::{
 };
 use slop_futures::pipeline::SubmitError;
 use sp1_core_executor::SP1CoreOpts;
-use sp1_hypercube::prover::ProverSemaphore;
+use sp1_core_machine::riscv::RiscvAir;
+use sp1_hypercube::{prover::ProverSemaphore, Machine};
+use sp1_primitives::SP1Field;
 use sp1_prover_types::{Artifact, ArtifactClient};
 
 #[derive(Clone)]
@@ -52,6 +54,7 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1ProverEngine
     pub async fn new(
         config: SP1ProverConfig,
         opts: SP1CoreOpts,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
         artifact_client: A,
         core_prover_and_permits: (Arc<C::CoreProver>, ProverSemaphore),
         recursion_prover_and_permits: (Arc<C::RecursionProver>, ProverSemaphore),
@@ -60,6 +63,7 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1ProverEngine
     ) -> Self {
         let recursion_prover = SP1RecursionProver::new(
             config.recursion_prover_config,
+            machine,
             artifact_client.clone(),
             recursion_prover_and_permits.clone(),
             shrink_air_prover_and_permits,

@@ -47,8 +47,8 @@ use crate::{
     verify::SP1Verifier,
     worker::{
         node_body::{SpliceChunkEngine, SpliceChunkTask, SpliceChunkWorker},
-        proof_sort_key, MessageReceiver, RawTaskRequest, TaskContext, TaskError, TaskId,
-        WorkerClient,
+        proof_sort_key, MessageReceiver, RawTaskRequest, RecursionStages, TaskContext, TaskError,
+        TaskId, WorkerClient,
     },
     SP1ProverComponents, SP1_CIRCUIT_VERSION,
 };
@@ -71,7 +71,6 @@ pub struct SP1ControllerConfig {
     pub opts: SP1CoreOpts,
     pub num_splicing_workers: usize,
     pub splicing_buffer_size: usize,
-    pub max_reduce_arity: usize,
     pub use_fixed_pk: bool,
 }
 
@@ -114,11 +113,6 @@ where
     }
 
     #[inline]
-    pub const fn max_reduce_arity(&self) -> usize {
-        self.config.max_reduce_arity
-    }
-
-    #[inline]
     pub const fn splicing_buffer_size(&self) -> usize {
         self.config.splicing_buffer_size
     }
@@ -128,6 +122,7 @@ where
         &self,
         core_prover: Arc<C::CoreProver>,
         permits: ProverSemaphore,
+        recursion: Arc<dyn RecursionStages>,
     ) -> Arc<SpliceChunkEngine<A, W, C>> {
         let workers = (0..self.config.num_splicing_workers)
             .map(|_| {
@@ -135,6 +130,7 @@ where
                     self.artifact_client.clone(),
                     core_prover.clone(),
                     permits.clone(),
+                    Some(recursion.clone()),
                 )
             })
             .collect();
@@ -360,7 +356,9 @@ where
                 core_proof_rx,
             ));
         } else {
-            let mut tree = CompressTree::new(self.max_reduce_arity());
+            // Non-Core: fold the per-chunk proofs the node emits into one root compress proof via
+            // the across-chunk binary tree; the shrink/wrap tail below consumes it.
+            let mut tree = CompressTree::new(ACROSS_CHUNK_ARITY);
             let artifact_client = self.artifact_client.clone();
             let worker_client = self.worker_client.clone();
             let context = context.clone();
@@ -562,6 +560,13 @@ async fn collect_core_proofs(
             }
             // Both `Execution` and `Merkle` in-memory proofs flow through here.
             ProofData::InMemory { proof, .. } => *proof,
+            // Chunk proofs are produced only in compress mode and consumed by the across-chunk
+            // tree; they never reach the Core-mode collector.
+            ProofData::ChunkProof { .. } => {
+                return Err(TaskError::Fatal(anyhow::anyhow!(
+                    "unexpected ChunkProof in core-proof collector (compress mode only)"
+                )));
+            }
         };
         shard_proofs.push(proof);
     }

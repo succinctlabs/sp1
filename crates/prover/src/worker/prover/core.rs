@@ -5,7 +5,7 @@ use sp1_core_executor::{Program, SP1CoreOpts};
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{
     prover::{CoreProofShape, ProverSemaphore, ProvingKey},
-    InnerSC, Machine, MachineVerifier, SP1VerifyingKey,
+    InnerSC, Machine, MachineVerifier, SP1PcsProofInner, SP1VerifyingKey, ShardProof,
 };
 use sp1_primitives::{SP1Field, SP1GlobalContext};
 use sp1_prover_types::{Artifact, ArtifactClient};
@@ -28,8 +28,8 @@ pub struct SetupTask {
     pub output: Artifact,
 }
 
-#[allow(dead_code)]
-struct NormalizeProgramCompiler {
+/// Builds (and caches) the `normalize` program for a core shard proof's shape.
+pub struct NormalizeProgramCompiler {
     cache: SP1NormalizeCache,
     recursive_verifier: RecursiveShardVerifier<SP1GlobalContext, RiscvAir<SP1Field>, InnerConfig>,
     reduce_shape: SP1RecursionProofShape,
@@ -37,7 +37,6 @@ struct NormalizeProgramCompiler {
 }
 
 impl NormalizeProgramCompiler {
-    #[allow(dead_code)]
     pub fn new(
         cache: SP1NormalizeCache,
         recursive_verifier: RecursiveShardVerifier<
@@ -52,12 +51,10 @@ impl NormalizeProgramCompiler {
         Self { cache, recursive_verifier, reduce_shape, verifier: machine_verifier }
     }
 
-    #[allow(dead_code)]
     pub fn machine(&self) -> &Machine<SP1Field, RiscvAir<SP1Field>> {
         self.verifier.machine()
     }
 
-    #[allow(dead_code)]
     pub fn get_program(
         &self,
         vk: SP1VerifyingKey,
@@ -72,9 +69,19 @@ impl NormalizeProgramCompiler {
             Some(&self.cache),
         )
     }
+
+    /// Build (or fetch from cache) the normalize program for a concrete core shard proof, deriving
+    /// the proof's shape from the proof itself.
+    pub fn program_for_proof(
+        &self,
+        vk: SP1VerifyingKey,
+        proof: &ShardProof<SP1GlobalContext, SP1PcsProofInner>,
+    ) -> Arc<RecursionProgram<SP1Field>> {
+        let proof_shape = self.verifier.shape_from_proof(proof);
+        self.get_program(vk, &proof_shape)
+    }
 }
 
-#[allow(dead_code)]
 pub fn get_normalize_program(
     vk: SP1VerifyingKey,
     verifier: &MachineVerifier<SP1GlobalContext, InnerSC<RiscvAir<SP1Field>>>,

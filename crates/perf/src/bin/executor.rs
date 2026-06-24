@@ -98,6 +98,7 @@ async fn execute_node(args: Args, elf: Vec<u8>, stdin: SP1Stdin) {
                 artifact_client.clone(),
                 core_prover.clone(),
                 permits.clone(),
+                None,
             )
         })
         .collect::<Vec<_>>();
@@ -223,6 +224,7 @@ async fn execute_bench_stub(args: Args, elf: Vec<u8>, stdin: SP1Stdin) {
                 artifact_client.clone(),
                 core_prover.clone(),
                 permits.clone(),
+                None,
             )
         })
         .collect::<Vec<_>>();
@@ -355,6 +357,12 @@ impl CollectedProof {
                     arrival_ms,
                 }
             }
+            ProofData::ChunkProof { chunk_range, .. } => Self {
+                kind: "ChunkProof",
+                range_start: u64::from(chunk_range.start),
+                range_end: u64::from(chunk_range.end),
+                arrival_ms,
+            },
         }
     }
 }

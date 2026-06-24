@@ -226,6 +226,7 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
         let prover_engine = SP1ProverEngine::new(
             config.prover_config,
             opts,
+            machine.clone(),
             artifact_client.clone(),
             core_air_prover_and_permits,
             compress_air_prover_and_permits,
