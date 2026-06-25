@@ -293,16 +293,14 @@ message GetStatsResponse {
 }
 
 // Self-reported build identity of a single cluster component (the coordinator or a worker).
-// Field names and semantics mirror the network-side prover component report so the fulfiller
-// can forward these entries without remapping.
+// Keyed by build identity (component + version/git_sha/image_tag); per-instance identity is not
+// reported here (the coordinator tracks workers by OpenRequest.worker_id internally).
 message ClusterComponentInfo {
     // The component kind: "coordinator", "gpu-node", or "cpu-node".
     string component = 1;
-    // The component instance identifier: "" for the coordinator, worker id for nodes.
-    string instance_id = 2;
-    string version = 3;
-    string git_sha = 4;
-    string image_tag = 5;
+    string version = 2;
+    string git_sha = 3;
+    string image_tag = 4;
 }
 
 message GetClusterComponentInfoRequest {}
