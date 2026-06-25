@@ -131,7 +131,12 @@ where
 
         // Iterate over the layers and compute the compressions.
         for k in (0..height).rev() {
-            let block_dim: Dim3 = (128u32, 4, 1).into();
+            // The `compress` kernel is a 1-D grid-stride loop indexed solely by
+            // `blockIdx.x * blockDim.x + threadIdx.x`; it never reads threadIdx.y/z. A 3-D
+            // (128,4,1) block therefore ran the Poseidon2 permutation 4× redundantly (the y-rows
+            // recompute the same node), wasting ~75% of this kernel's compute. Flatten to a 1-D
+            // block so every launched thread does unique work. Output is bit-identical.
+            let block_dim: Dim3 = (256u32, 1, 1).into();
             let grid_dim: Dim3 = ((1u32 << k).div_ceil(block_dim.x), 1, 1).into();
             let args = args!(hasher_device.as_raw(), tree.digests.as_mut_ptr(), k);
             unsafe {
