@@ -10,7 +10,7 @@ mod tests {
     use slop_alloc::Buffer;
     use sp1_core_machine::air::{columns_as_wires, RecordingWitnessBuilder, WireId};
     use sp1_core_machine::air::{interpret_c_columns as _interp, WitProgram};
-    use sp1_core_machine::operations::{AddrAddOperation, AddressOperation};
+    use sp1_core_machine::operations::{AddOperation, AddrAddOperation, AddressOperation};
     use sp1_gpu_cudart::{args, DeviceBuffer, TaskScope, WitgenInterpKernel};
 
     use crate::F;
@@ -95,6 +95,26 @@ mod tests {
             let mut rec = RecordingWitnessBuilder::new(2);
             let mut cols_w = AddressOperation::<WireId>::default();
             AddressOperation::<WireId>::witgen(
+                &mut rec,
+                &mut cols_w,
+                RecordingWitnessBuilder::input(0),
+                RecordingWitnessBuilder::input(1),
+            );
+            let col_wires: Vec<u32> = columns_as_wires(&cols_w).iter().map(|w| w.0).collect();
+            check_gadget(scope, rec.finish(), col_wires).await;
+        })
+        .await
+        .unwrap();
+    }
+
+    /// A `Word` gadget (4 u16-limb columns) used by the RISC-V `Add` chip — a step
+    /// toward porting a whole chip's witgen.
+    #[tokio::test]
+    async fn witgen_interp_add_word_columns() {
+        sp1_gpu_cudart::spawn(move |scope: TaskScope| async move {
+            let mut rec = RecordingWitnessBuilder::new(2);
+            let mut cols_w = AddOperation::<WireId>::default();
+            AddOperation::<WireId>::witgen(
                 &mut rec,
                 &mut cols_w,
                 RecordingWitnessBuilder::input(0),
