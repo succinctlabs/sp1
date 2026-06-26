@@ -46,6 +46,11 @@ pub enum WitOp {
     U16RangeCheckGuarded { guard: WireId, src: WireId },
     U8RangeCheckGuarded { guard: WireId, a: WireId, b: WireId },
     BitRangeCheckGuarded { guard: WireId, src: WireId, bits: u8 },
+    /// General byte-table lookup `{opcode, a, b, c}` (per-row opcode). `a` (result)
+    /// is kept for host fidelity but dropped from the device form (the byte table
+    /// indexes multiplicities by `(opcode, b, c)` only).
+    ByteLookup { opcode: WireId, a: WireId, b: WireId, c: WireId },
+    ByteLookupGuarded { guard: WireId, opcode: WireId, a: WireId, b: WireId, c: WireId },
 }
 
 /// A recorded gadget: the op list plus the number of input wires.
@@ -142,6 +147,13 @@ impl WitnessBuilder for RecordingWitnessBuilder {
         let op = match self.guard {
             Some(guard) => WitOp::BitRangeCheckGuarded { guard, src: a, bits },
             None => WitOp::BitRangeCheck { src: a, bits },
+        };
+        self.program.ops.push(op);
+    }
+    fn add_byte_lookup(&mut self, opcode: WireId, a: WireId, b: WireId, c: WireId) {
+        let op = match self.guard {
+            Some(guard) => WitOp::ByteLookupGuarded { guard, opcode, a, b, c },
+            None => WitOp::ByteLookup { opcode, a, b, c },
         };
         self.program.ops.push(op);
     }
@@ -242,6 +254,22 @@ pub fn interpret<F: Field, R: ByteRecord>(
                     record.add_bit_range_check(wires[src.0 as usize].nat() as u16, bits)
                 }
             }
+            WitOp::ByteLookup { opcode, a, b, c } => record.add_byte_lookup_event(ByteLookupEvent {
+                opcode: super::byte_opcode_from_u64(wires[opcode.0 as usize].nat()),
+                a: wires[a.0 as usize].nat() as u16,
+                b: wires[b.0 as usize].nat() as u8,
+                c: wires[c.0 as usize].nat() as u8,
+            }),
+            WitOp::ByteLookupGuarded { guard, opcode, a, b, c } => {
+                if wires[guard.0 as usize].nat() != 0 {
+                    record.add_byte_lookup_event(ByteLookupEvent {
+                        opcode: super::byte_opcode_from_u64(wires[opcode.0 as usize].nat()),
+                        a: wires[a.0 as usize].nat() as u16,
+                        b: wires[b.0 as usize].nat() as u8,
+                        c: wires[c.0 as usize].nat() as u8,
+                    })
+                }
+            }
         }
     }
     // Project to a field per wire. Only Field wires (and small Nat wires explicitly
@@ -303,6 +331,8 @@ impl WitProgram {
                             | WitOp::U16RangeCheckGuarded { .. }
                             | WitOp::U8RangeCheckGuarded { .. }
                             | WitOp::BitRangeCheckGuarded { .. }
+                            | WitOp::ByteLookup { .. }
+                            | WitOp::ByteLookupGuarded { .. }
                     )
                 })
                 .count()
@@ -340,6 +370,14 @@ impl WitProgram {
                 }
                 WitOp::U8RangeCheckGuarded { guard, a, b } => {
                     WitOpC { tag: 15, a: a.0, b: b.0, imm1: guard.0, imm0: 0 }
+                }
+                // Byte-table lookup: device needs only (opcode, b, c) for the
+                // multiplicity index — the result `a` is dropped from the device form.
+                WitOp::ByteLookup { opcode, a: _, b, c } => {
+                    WitOpC { tag: 16, a: b.0, b: c.0, imm1: opcode.0, imm0: 0 }
+                }
+                WitOp::ByteLookupGuarded { guard, opcode, a: _, b, c } => {
+                    WitOpC { tag: 17, a: b.0, b: c.0, imm1: opcode.0, imm0: guard.0 as u64 }
                 }
             })
             .collect()
@@ -385,7 +423,8 @@ pub fn interpret_c_columns<F: Field>(
             3 => wires.push(Val::Field(F::from_canonical_u64(wires[op.a as usize].nat()))),
             4 => wires.push(Val::Field(wires[op.a as usize].field() + wires[op.b as usize].field())),
             5 => wires.push(Val::Field(wires[op.a as usize].field().inverse())),
-            6 | 7 | 9 | 13 | 14 | 15 => {} // lookup (incl. guarded): no wire, skipped for columns
+            // lookups (incl. guarded + byte-table): no wire, skipped for columns
+            6 | 7 | 9 | 13 | 14 | 15 | 16 | 17 => {}
             t => panic!("unknown WitOpC tag {t}"),
         }
     }
@@ -495,6 +534,22 @@ pub fn interpret_c_lookups(
                         let c_val = wires[op.b as usize] as u8 as usize;
                         let r = (b_val << 8) + c_val;
                         byte_hist[r * NUM_BYTE_MULT_COLS + (ByteOpcode::U8Range as usize)] += 1;
+                    }
+                }
+                // Byte-table lookup {opcode in imm1, b in a, c in b}: index (b,c,opcode).
+                16 => {
+                    let b_val = wires[op.a as usize] as u8 as usize;
+                    let c_val = wires[op.b as usize] as u8 as usize;
+                    let opc = wires[op.imm1 as usize] as usize;
+                    byte_hist[((b_val << 8) + c_val) * NUM_BYTE_MULT_COLS + opc] += 1;
+                }
+                // Guarded byte-table lookup: guard wire in imm0.
+                17 => {
+                    if wires[op.imm0 as usize] != 0 {
+                        let b_val = wires[op.a as usize] as u8 as usize;
+                        let c_val = wires[op.b as usize] as u8 as usize;
+                        let opc = wires[op.imm1 as usize] as usize;
+                        byte_hist[((b_val << 8) + c_val) * NUM_BYTE_MULT_COLS + opc] += 1;
                     }
                 }
                 t => panic!("unknown WitOpC tag {t}"),
@@ -822,5 +877,42 @@ mod tests {
             interpret_c_lookups(&ops_c, 2, &[guard, val], 1, &mut range, &mut byte);
             assert_eq!(range[idx], expected, "interpret_c_lookups guard={guard}");
         }
+    }
+
+    /// A general byte-table lookup `{opcode, a, b, c}` (per-row opcode) must index the
+    /// byte histogram by `(opcode, b, c)` (result `a` ignored), and `interpret` must
+    /// emit the full host event (incl. `a`).
+    #[test]
+    fn byte_op_lookup_indexes_by_opcode_b_c() {
+        use crate::air::WitnessBuilder;
+        use sp1_core_executor::ByteOpcode;
+
+        let mut rec = RecordingWitnessBuilder::new(4);
+        let opcode = RecordingWitnessBuilder::input(0);
+        let a = RecordingWitnessBuilder::input(1);
+        let b = RecordingWitnessBuilder::input(2);
+        let c = RecordingWitnessBuilder::input(3);
+        rec.add_byte_lookup(opcode, a, b, c);
+        let program = rec.finish();
+
+        // opcode = 2 (XOR), a = result (ignored by the histogram), b = 0x12, c = 0x34.
+        let inputs = [2u64, 0xAB, 0x12, 0x34];
+
+        // flat-C histogram path.
+        let ops_c = program.to_c();
+        let mut range = vec![0u32; RANGE_HIST_ROWS];
+        let mut byte = vec![0u32; BYTE_HIST_ROWS * NUM_BYTE_MULT_COLS];
+        interpret_c_lookups(&ops_c, 4, &inputs, 1, &mut range, &mut byte);
+        let idx = ((0x12usize << 8) + 0x34) * NUM_BYTE_MULT_COLS + 2;
+        assert_eq!(byte[idx], 1, "byte histogram index");
+        assert_eq!(byte.iter().sum::<u32>(), 1, "exactly one byte lookup");
+
+        // `interpret` (Val) emits the full host event including the result `a`.
+        let mut lookups: Vec<ByteLookupEvent> = Vec::new();
+        let _ = interpret::<F, _>(&program, &inputs, &mut lookups);
+        assert_eq!(
+            lookups,
+            vec![ByteLookupEvent { opcode: ByteOpcode::XOR, a: 0xAB, b: 0x12, c: 0x34 }]
+        );
     }
 }

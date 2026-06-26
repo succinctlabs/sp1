@@ -96,6 +96,8 @@ __global__ void witgen_interp_kernel(
             case 13: // Guarded U16RangeCheck (lookup, no wire)
             case 14: // Guarded BitRangeCheck (lookup, no wire)
             case 15: // Guarded U8RangeCheck  (lookup, no wire)
+            case 16: // ByteLookup           (lookup, no wire)
+            case 17: // Guarded ByteLookup    (lookup, no wire)
                 break;
             }
         }
@@ -213,6 +215,22 @@ __global__ void witgen_lookup_kernel(
                     uint32_t r = (b << 8) + c;
                     atomicAdd(
                         &byte_hist[r * WITGEN_NUM_BYTE_MULT_COLS + WITGEN_BYTE_U8RANGE_COL], 1u);
+                }
+                break;
+            }
+            case 16: { // ByteLookup: b in a, c in b, opcode in imm1 -> index (b,c,opcode)
+                uint32_t b = (uint32_t)(uint8_t)nat[op.a];
+                uint32_t c = (uint32_t)(uint8_t)nat[op.b];
+                uint32_t opc = (uint32_t)nat[op.imm1];
+                atomicAdd(&byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
+                break;
+            }
+            case 17: { // Guarded ByteLookup: guard wire in imm0
+                if (nat[(uintptr_t)op.imm0]) {
+                    uint32_t b = (uint32_t)(uint8_t)nat[op.a];
+                    uint32_t c = (uint32_t)(uint8_t)nat[op.b];
+                    uint32_t opc = (uint32_t)nat[op.imm1];
+                    atomicAdd(&byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
                 }
                 break;
             }

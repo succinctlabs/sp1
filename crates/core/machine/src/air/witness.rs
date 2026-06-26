@@ -22,7 +22,26 @@
 use std::marker::PhantomData;
 
 use slop_algebra::Field;
-use sp1_core_executor::events::ByteRecord;
+use sp1_core_executor::{
+    events::{ByteLookupEvent, ByteRecord},
+    ByteOpcode,
+};
+
+/// Map a `ByteOpcode` discriminant (the value carried by a witgen opcode wire) back
+/// to the enum. Kept in sync with `ByteOpcode` (`#[repr(u8)]`).
+#[inline]
+pub(crate) fn byte_opcode_from_u64(v: u64) -> ByteOpcode {
+    match v {
+        0 => ByteOpcode::AND,
+        1 => ByteOpcode::OR,
+        2 => ByteOpcode::XOR,
+        3 => ByteOpcode::U8Range,
+        4 => ByteOpcode::LTU,
+        5 => ByteOpcode::MSB,
+        6 => ByteOpcode::Range,
+        _ => panic!("invalid ByteOpcode discriminant {v}"),
+    }
+}
 
 /// A value-producing builder for trace generation. Implementors choose how each
 /// op is realized (compute now, or record an op for a backend to run later).
@@ -71,6 +90,13 @@ pub trait WitnessBuilder {
 
     /// Emit a lookup proving `a < 2^bits`.
     fn add_bit_range_check(&mut self, a: Self::Nat, bits: u8);
+
+    /// Emit a general byte-table lookup `{opcode, a, b, c}` where `opcode` is a
+    /// `ByteOpcode` discriminant (0..=6). Covers the per-row-opcode byte ops
+    /// (AND/OR/XOR/LTU/MSB) the bitwise/compare chips emit. The byte table's
+    /// multiplicity is indexed by `(opcode, b, c)`; `a` (the result) is verified by
+    /// the table, not part of the index.
+    fn add_byte_lookup(&mut self, opcode: Self::Nat, a: Self::Nat, b: Self::Nat, c: Self::Nat);
 
     /// Begin a guarded scope: until the matching [`pop_guard`](Self::pop_guard),
     /// every emitted lookup is conditioned on `guard` (a 0/1 nat) — emitted only on
@@ -184,6 +210,19 @@ impl<F: Field, R: ByteRecord> WitnessBuilder for HostWitnessBuilder<'_, F, R> {
             return;
         }
         self.record.add_bit_range_check(a as u16, bits);
+    }
+
+    #[inline]
+    fn add_byte_lookup(&mut self, opcode: u64, a: u64, b: u64, c: u64) {
+        if self.suppressed() {
+            return;
+        }
+        self.record.add_byte_lookup_event(ByteLookupEvent {
+            opcode: byte_opcode_from_u64(opcode),
+            a: a as u16,
+            b: b as u8,
+            c: c as u8,
+        });
     }
 
     #[inline]
