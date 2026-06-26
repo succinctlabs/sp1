@@ -97,15 +97,18 @@ impl<F: PrimeField32> ALUTypeReader<F> {
 
 // Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
 impl<T> ALUTypeReader<T> {
-    /// Backend-agnostic witgen for the REGISTER-register case (`op_c` is a register,
-    /// `imm_c = 0`), used by device tracegen for register-register ALU chips (Addw,
-    /// …). The immediate case (`imm_c = 1`) is a per-row branch that the row-
-    /// independent op-DAG can't express, so immediate-capable chips are not device-
-    /// ported through this path. Mirrors the `imm_c = false` branch of [`Self::populate`].
+    /// Backend-agnostic witgen handling BOTH the register and immediate `op_c` cases
+    /// per row, selected by `imm_c` (a 0/1 nat). `op_a`/`op_b` are always register
+    /// accesses. For `op_c`, the register read is always computed but its lookups are
+    /// guarded by `!imm_c` (immediate rows emit none), and its `op_c_memory` columns
+    /// are merged with the immediate columns (`prev_value = op_c`, timestamps = 0) via
+    /// `field_select`. Mirrors [`Self::populate`]; for register-only chips pass
+    /// `imm_c = 0`. The `*_c_*` register inputs are unused (any value) on immediate rows.
     #[allow(clippy::too_many_arguments)]
     pub fn witgen<WB: WitnessBuilder>(
         wb: &mut WB,
         cols: &mut ALUTypeReader<WB::Field>,
+        imm_c: WB::Nat,
         op_a: WB::Nat,
         a_prev_value: WB::Nat,
         a_prev_ts: WB::Nat,
@@ -138,14 +141,18 @@ impl<T> ALUTypeReader<T> {
             b_prev_ts,
             b_cur_ts,
         );
-        // `op_c` is the instruction's op_c field as a Word (4 u16 limbs); for a
-        // register operand this is the register index. No range checks (cf. populate).
+        // `op_c` is the instruction's op_c field as a Word (4 u16 limbs): the register
+        // index when register, or the immediate value when immediate. No range checks.
         for i in 0..WORD_SIZE {
             let limb = wb.bits(op_c, (i as u32) * 16, 16);
             cols.op_c[i] = wb.nat_to_field(limb);
         }
-        // Register operand: imm_c = 0, and op_c_memory is a real register read.
-        cols.imm_c = wb.nat_to_field(zero);
+        cols.imm_c = wb.nat_to_field(imm_c);
+
+        // Register read for op_c — lookups guarded by !imm_c so immediate rows emit
+        // none; the columns are then merged with the immediate branch by `imm_c`.
+        let not_imm_c = wb.eq(imm_c, zero);
+        wb.push_guard(not_imm_c);
         RegisterAccessCols::<WB::Field>::witgen(
             wb,
             &mut cols.op_c_memory,
@@ -153,6 +160,17 @@ impl<T> ALUTypeReader<T> {
             c_prev_ts,
             c_cur_ts,
         );
+        wb.pop_guard();
+        // Immediate branch columns: prev_value = op_c, timestamps = 0.
+        let zero_f = wb.nat_to_field(zero);
+        for i in 0..WORD_SIZE {
+            cols.op_c_memory.prev_value[i] =
+                wb.field_select(imm_c, cols.op_c[i], cols.op_c_memory.prev_value[i]);
+        }
+        cols.op_c_memory.access_timestamp.prev_low =
+            wb.field_select(imm_c, zero_f, cols.op_c_memory.access_timestamp.prev_low);
+        cols.op_c_memory.access_timestamp.diff_low_limb =
+            wb.field_select(imm_c, zero_f, cols.op_c_memory.access_timestamp.diff_low_limb);
     }
 }
 

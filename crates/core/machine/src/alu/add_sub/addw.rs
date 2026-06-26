@@ -95,9 +95,12 @@ impl<T, M: TrustMode> AddwCols<T, M> {
         cols.is_real = wb.nat_to_field(one);
         AddwOperation::<WB::Field>::witgen(wb, &mut cols.addw_operation, b, c);
         CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
+        // ADDW is register-register: op_c is always a register (imm_c = 0).
+        let imm_c = wb.const_nat(0);
         ALUTypeReader::<WB::Field>::witgen(
             wb,
             &mut cols.adapter,
+            imm_c,
             op_a,
             a_prev_value,
             a_prev_ts,
