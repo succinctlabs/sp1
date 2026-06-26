@@ -17,6 +17,22 @@ pub struct U16toU8Operation<T> {
     low_bytes: [T; WORD_SIZE],
 }
 
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T> U16toU8Operation<T> {
+    /// Witgen dual of [`Self::populate_u16_to_u8_unsafe`]: the low byte of each of the
+    /// four u16 limbs of `a`. No lookups (the "unsafe" variant range-checks elsewhere).
+    pub fn witgen_unsafe<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut U16toU8Operation<WB::Field>,
+        a: WB::Nat,
+    ) {
+        for i in 0..WORD_SIZE {
+            let low_byte = wb.bits(a, (i as u32) * 16, 8);
+            cols.low_bytes[i] = wb.nat_to_field(low_byte);
+        }
+    }
+}
+
 impl<F: Field> U16toU8Operation<F> {
     pub fn populate_u16_to_u8_unsafe(&mut self, a_u64: u64) {
         let a_limbs = u64_to_u16_limbs(a_u64);

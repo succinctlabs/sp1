@@ -1,8 +1,9 @@
 use super::{BitwiseOperation, BitwiseOperationInput, U16toU8Operation};
 use crate::{
-    air::{SP1Operation, SP1OperationBuilder},
+    air::{HostWitnessBuilder, SP1Operation, SP1OperationBuilder, WitnessBuilder},
     operations::{U16toU8OperationUnsafe, U16toU8OperationUnsafeInput},
 };
+use sp1_core_executor::ByteOpcode;
 use serde::{Deserialize, Serialize};
 use slop_air::AirBuilder;
 use slop_algebra::{AbstractField, Field};
@@ -36,6 +37,24 @@ pub struct BitwiseU16Operation<T> {
     pub bitwise_operation: BitwiseOperation<T>,
 }
 
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T> BitwiseU16Operation<T> {
+    /// Backend-agnostic witgen: the low bytes of `b`/`c` (unsafe, no lookups) and the
+    /// byte-level bitwise op over `(a, b, c)` with per-row `byte_opcode`.
+    pub fn witgen<WB: WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut BitwiseU16Operation<WB::Field>,
+        a: WB::Nat,
+        b: WB::Nat,
+        c: WB::Nat,
+        byte_opcode: WB::Nat,
+    ) {
+        U16toU8Operation::<WB::Field>::witgen_unsafe(wb, &mut cols.b_low_bytes, b);
+        U16toU8Operation::<WB::Field>::witgen_unsafe(wb, &mut cols.c_low_bytes, c);
+        BitwiseOperation::<WB::Field>::witgen(wb, &mut cols.bitwise_operation, a, b, c, byte_opcode);
+    }
+}
+
 impl<F: Field> BitwiseU16Operation<F> {
     pub fn populate_bitwise(
         &mut self,
@@ -45,9 +64,8 @@ impl<F: Field> BitwiseU16Operation<F> {
         c_u64: u64,
         opcode: Opcode,
     ) {
-        self.b_low_bytes.populate_u16_to_u8_unsafe(b_u64);
-        self.c_low_bytes.populate_u16_to_u8_unsafe(c_u64);
-        self.bitwise_operation.populate_bitwise(record, a_u64, b_u64, c_u64, opcode);
+        let mut wb = HostWitnessBuilder::<F, _>::new(record);
+        Self::witgen(&mut wb, self, a_u64, b_u64, c_u64, ByteOpcode::from(opcode) as u64);
     }
 
     /// Evaluate the bitwise operation over two `Word`s of u16 limbs.

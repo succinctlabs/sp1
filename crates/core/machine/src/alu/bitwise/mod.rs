@@ -70,6 +70,69 @@ pub struct BitwiseCols<T, M: TrustMode> {
     pub adapter_cols: M::AdapterCols<T>,
 }
 
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T, M: TrustMode> BitwiseCols<T, M> {
+    /// Backend-agnostic witgen for the `Bitwise` chip. `byte_opcode` is the per-row
+    /// `ByteOpcode` discriminant (AND=0, OR=1, XOR=2); `imm_c` is the per-row
+    /// register/immediate selector for the `ALUTypeReader`. The `is_*` selectors are
+    /// derived from `byte_opcode`. There is no `is_real` column (the sum of the three
+    /// selectors plays that role).
+    #[allow(clippy::too_many_arguments)]
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut BitwiseCols<WB::Field, M>,
+        clk: WB::Nat,
+        pc: WB::Nat,
+        a: WB::Nat,
+        b: WB::Nat,
+        c: WB::Nat,
+        byte_opcode: WB::Nat,
+        imm_c: WB::Nat,
+        op_a: WB::Nat,
+        op_b: WB::Nat,
+        op_c: WB::Nat,
+        a_prev_value: WB::Nat,
+        a_prev_ts: WB::Nat,
+        a_cur_ts: WB::Nat,
+        b_prev_value: WB::Nat,
+        b_prev_ts: WB::Nat,
+        b_cur_ts: WB::Nat,
+        c_prev_value: WB::Nat,
+        c_prev_ts: WB::Nat,
+        c_cur_ts: WB::Nat,
+    ) {
+        BitwiseU16Operation::<WB::Field>::witgen(wb, &mut cols.bitwise_operation, a, b, c, byte_opcode);
+        // Selectors from the byte opcode (AND=0, OR=1, XOR=2).
+        let zero = wb.const_nat(0);
+        let one = wb.const_nat(1);
+        let two = wb.const_nat(2);
+        let is_and = wb.eq(byte_opcode, zero);
+        cols.is_and = wb.nat_to_field(is_and);
+        let is_or = wb.eq(byte_opcode, one);
+        cols.is_or = wb.nat_to_field(is_or);
+        let is_xor = wb.eq(byte_opcode, two);
+        cols.is_xor = wb.nat_to_field(is_xor);
+        CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
+        ALUTypeReader::<WB::Field>::witgen(
+            wb,
+            &mut cols.adapter,
+            imm_c,
+            op_a,
+            a_prev_value,
+            a_prev_ts,
+            a_cur_ts,
+            op_b,
+            b_prev_value,
+            b_prev_ts,
+            b_cur_ts,
+            op_c,
+            c_prev_value,
+            c_prev_ts,
+            c_cur_ts,
+        );
+    }
+}
+
 impl<F: PrimeField32, M: TrustMode> MachineAir<F> for BitwiseChip<M> {
     type Record = ExecutionRecord;
 
