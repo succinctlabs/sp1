@@ -40,15 +40,81 @@ pub struct RTypeReader<T> {
     pub op_c_memory: RegisterAccessCols<T>,
 }
 
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T> RTypeReader<T> {
+    /// Backend-agnostic witgen: the three register indices (`op_a`/`op_b`/`op_c`),
+    /// the `op_a == 0` flag, and the three register reads (each composing
+    /// [`RegisterAccessCols::witgen`]). Inputs are grouped per operand: the index
+    /// then the read's `(prev_value, prev_timestamp, current_timestamp)`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut RTypeReader<WB::Field>,
+        op_a: WB::Nat,
+        a_prev_value: WB::Nat,
+        a_prev_ts: WB::Nat,
+        a_cur_ts: WB::Nat,
+        op_b: WB::Nat,
+        b_prev_value: WB::Nat,
+        b_prev_ts: WB::Nat,
+        b_cur_ts: WB::Nat,
+        op_c: WB::Nat,
+        c_prev_value: WB::Nat,
+        c_prev_ts: WB::Nat,
+        c_cur_ts: WB::Nat,
+    ) {
+        cols.op_a = wb.nat_to_field(op_a);
+        RegisterAccessCols::<WB::Field>::witgen(
+            wb,
+            &mut cols.op_a_memory,
+            a_prev_value,
+            a_prev_ts,
+            a_cur_ts,
+        );
+        let zero = wb.const_nat(0);
+        let a_is_zero = wb.eq(op_a, zero);
+        cols.op_a_0 = wb.nat_to_field(a_is_zero);
+        cols.op_b = wb.nat_to_field(op_b);
+        RegisterAccessCols::<WB::Field>::witgen(
+            wb,
+            &mut cols.op_b_memory,
+            b_prev_value,
+            b_prev_ts,
+            b_cur_ts,
+        );
+        cols.op_c = wb.nat_to_field(op_c);
+        RegisterAccessCols::<WB::Field>::witgen(
+            wb,
+            &mut cols.op_c_memory,
+            c_prev_value,
+            c_prev_ts,
+            c_cur_ts,
+        );
+    }
+}
+
 impl<F: PrimeField32> RTypeReader<F> {
     pub fn populate(&mut self, blu_events: &mut impl ByteRecord, record: RTypeRecord) {
-        self.op_a = F::from_canonical_u8(record.op_a);
-        self.op_a_memory.populate(record.a, blu_events);
-        self.op_a_0 = F::from_bool(record.op_a == 0);
-        self.op_b = F::from_canonical_u64(record.op_b);
-        self.op_b_memory.populate(record.b, blu_events);
-        self.op_c = F::from_canonical_u64(record.op_c);
-        self.op_c_memory.populate(record.c, blu_events);
+        let a = record.a;
+        let b = record.b;
+        let c = record.c;
+        let mut wb = crate::air::HostWitnessBuilder::<F, _>::new(blu_events);
+        Self::witgen(
+            &mut wb,
+            self,
+            record.op_a as u64,
+            a.previous_record().value,
+            a.previous_record().timestamp,
+            a.current_record().timestamp,
+            record.op_b,
+            b.previous_record().value,
+            b.previous_record().timestamp,
+            b.current_record().timestamp,
+            record.op_c,
+            c.previous_record().value,
+            c.previous_record().timestamp,
+            c.current_record().timestamp,
+        );
     }
 }
 
