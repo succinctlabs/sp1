@@ -12,7 +12,9 @@
 //! See `autoresearch/design/TRACEGEN-DSL.md` (Phase 2).
 
 use slop_algebra::Field;
-use sp1_core_executor::events::ByteRecord;
+use sp1_core_executor::{events::ByteRecord, ByteOpcode};
+
+use crate::bytes::columns::NUM_BYTE_MULT_COLS;
 
 use super::WitnessBuilder;
 
@@ -191,13 +193,15 @@ pub fn interpret<F: Field, R: ByteRecord>(
             }
         }
     }
-    // Project to a field per wire (Nat wires embed canonically; only Field wires
-    // are ever read as columns, but returning a uniform Vec keeps indexing simple).
+    // Project to a field per wire. Only Field wires (and small Nat wires explicitly
+    // converted via `nat_to_field`) are ever read as columns; large intermediate Nat
+    // wires (e.g. a u48 sum) are never columns, so reduce mod order with
+    // `from_wrapped_u64` rather than the canonical (asserting `n < P`) constructor.
     wires
         .into_iter()
         .map(|w| match w {
             Val::Field(f) => f,
-            Val::Nat(n) => F::from_canonical_u64(n),
+            Val::Nat(n) => F::from_wrapped_u64(n),
         })
         .collect()
 }
@@ -329,6 +333,88 @@ pub fn interpret_c_columns<F: Field>(
         .collect()
 }
 
+/// Row count of the Range chip's multiplicity table (`range/trace.rs::NUM_ROWS`):
+/// a `{Range, a, bits}` lookup lands at `row = a + (1 << bits)`, `bits ≤ 16`.
+pub const RANGE_HIST_ROWS: usize = 1 << 17;
+/// Row count of the Byte chip's multiplicity table (`bytes/trace.rs::NUM_ROWS`):
+/// a `{op, _, b, c}` lookup lands at `row = (b << 8) + c`, column `op as usize`.
+pub const BYTE_HIST_ROWS: usize = 1 << 16;
+
+/// Lookup-emitting interpreter over the flat [`WitOpC`] op-DAG — the CPU model of
+/// the device byte-lookup histogram kernel (the dual of [`interpret_c_columns`],
+/// which produces columns and *skips* the lookup ops). Runs one row at a time and
+/// accumulates each emitted lookup into one of two **shard-level** dense
+/// multiplicity tables, reusing the same accumulators across every row (heed
+/// iter-004: NO per-chunk dense arrays — allocate/zero once per shard, then add).
+///
+/// The two tables and their index conventions match the consumer chips' own
+/// `generate_trace_into` exactly, so the device histogram is bit-for-bit equal to
+/// what the host `generate_dependencies` → Byte/Range trace would produce:
+/// - **Range chip** (`range/trace.rs`): `U16RangeCheck`/`BitRangeCheck` →
+///   `{Range, a, bits}` → `range_hist[a + (1 << bits)] += 1` (single column).
+/// - **Byte chip** (`bytes/trace.rs`): `U8RangeCheck` → `{U8Range, b, c}` →
+///   `byte_hist[((b << 8) + c) * NUM_BYTE_MULT_COLS + (U8Range as usize)] += 1`.
+///
+/// Add/Sub emit only these two lookup kinds. Lookups read only `Nat` wires, so the
+/// pass is integer-only: field-producing ops push a placeholder to keep wire ids
+/// aligned with [`interpret_c_columns`] (their results are never read here).
+///
+/// `inputs` is row-major `[n_rows][num_inputs]`; `range_hist`/`byte_hist` must be
+/// pre-sized to [`RANGE_HIST_ROWS`] and `BYTE_HIST_ROWS * NUM_BYTE_MULT_COLS`.
+pub fn interpret_c_lookups(
+    ops: &[WitOpC],
+    num_inputs: u32,
+    inputs: &[u64],
+    n_rows: usize,
+    range_hist: &mut [u32],
+    byte_hist: &mut [u32],
+) {
+    let ni = num_inputs as usize;
+    assert_eq!(inputs.len(), n_rows * ni);
+    let mut wires: Vec<u64> = Vec::new();
+    for row in 0..n_rows {
+        wires.clear();
+        wires.extend_from_slice(&inputs[row * ni..(row + 1) * ni]);
+        for op in ops {
+            match op.tag {
+                0 => wires.push(op.imm0),
+                1 => wires.push(wires[op.a as usize].wrapping_add(wires[op.b as usize])),
+                8 => wires.push(wires[op.a as usize].wrapping_sub(wires[op.b as usize])),
+                2 => {
+                    let x = wires[op.a as usize];
+                    let mask = if op.imm1 >= 64 { u64::MAX } else { (1u64 << op.imm1) - 1 };
+                    wires.push((x >> op.imm0) & mask);
+                }
+                11 => wires.push(u64::from(wires[op.a as usize] == wires[op.b as usize])),
+                12 => {
+                    let c = wires[op.a as usize];
+                    wires.push(if c != 0 { wires[op.b as usize] } else { wires[op.imm1 as usize] });
+                }
+                // Field-producing ops: placeholder wire (never read by a lookup).
+                3 | 4 | 5 => wires.push(0),
+                // U16RangeCheck: {Range, a: v, bits: 16}.
+                6 => {
+                    let v = wires[op.a as usize] as u16 as usize;
+                    range_hist[v + (1 << 16)] += 1;
+                }
+                // BitRangeCheck: {Range, a: v, bits} (bits in imm0).
+                7 => {
+                    let v = wires[op.a as usize] as u16 as usize;
+                    range_hist[v + (1usize << op.imm0)] += 1;
+                }
+                // U8RangeCheck: {U8Range, b: nat[a], c: nat[b]}.
+                9 => {
+                    let b_val = wires[op.a as usize] as u8 as usize;
+                    let c_val = wires[op.b as usize] as u8 as usize;
+                    let r = (b_val << 8) + c_val;
+                    byte_hist[r * NUM_BYTE_MULT_COLS + (ByteOpcode::U8Range as usize)] += 1;
+                }
+                t => panic!("unknown WitOpC tag {t}"),
+            }
+        }
+    }
+}
+
 /// View a column struct recorded over [`WireId`]s as the flat slice of its column
 /// wires: index `i` is the wire that produces column `i`. Column structs are
 /// `#[repr(C)]` (`AlignedBorrow`), so for `T = WireId` they are a contiguous array
@@ -410,5 +496,146 @@ mod tests {
                 "flat-C columns mismatch for ({a:#x}, {b:#x})"
             );
         }
+    }
+
+    /// Validate the device byte-lookup model: accumulate lookups from the `Add`
+    /// chip's recorded op-DAG via [`interpret_c_lookups`] and assert the two dense
+    /// histograms equal the Range/Byte multiplicity tables the host
+    /// `generate_dependencies` would produce — proving the device index convention
+    /// before the GPU kernel ports it.
+    #[test]
+    fn add_lookups_match_generate_dependencies() {
+        use crate::alu::add_sub::add::{AddChip, AddCols};
+        use crate::SupervisorMode;
+        use rand::{rngs::StdRng, Rng, SeedableRng};
+        use sp1_core_executor::events::{AluEvent, MemoryReadRecord, MemoryRecordEnum};
+        use sp1_core_executor::{ExecutionRecord, Opcode, RTypeRecord};
+        use sp1_hypercube::air::MachineAir;
+
+        const NUM_ADD_INPUTS: usize = 16;
+
+        // A register read whose previous timestamp precedes the current one.
+        fn read(rng: &mut StdRng) -> MemoryRecordEnum {
+            let prev_timestamp = rng.gen::<u32>() as u64;
+            let timestamp = prev_timestamp + 1 + (rng.gen::<u32>() as u64);
+            MemoryRecordEnum::Read(MemoryReadRecord {
+                value: rng.gen::<u32>() as u64,
+                timestamp,
+                prev_timestamp,
+                prev_page_prot_record: None,
+            })
+        }
+
+        // The model's table sizes must equal the consumer chips' own row counts.
+        assert_eq!(RANGE_HIST_ROWS, crate::range::trace::NUM_ROWS);
+        assert_eq!(BYTE_HIST_ROWS, crate::bytes::trace::NUM_ROWS);
+
+        let mut rng = StdRng::seed_from_u64(0xADD);
+        let add_events = (0..1000)
+            .map(|i| {
+                let b = rng.gen::<u32>() as u64;
+                let c = rng.gen::<u32>() as u64;
+                let a = b.wrapping_add(c);
+                let alu =
+                    AluEvent::new((i as u64) * 8 + 8, (i as u64) * 4 + 4, Opcode::ADD, a, b, c, false);
+                // op_a/op_b/op_c are register indices (< field order, since they are
+                // `nat_to_field`'d directly); the operand *values* live in the memory
+                // records and the AluEvent (b, c), decomposed into limbs downstream.
+                let record = RTypeRecord {
+                    op_a: rng.gen_range(1..32),
+                    a: read(&mut rng),
+                    op_b: rng.gen_range(1..32),
+                    b: read(&mut rng),
+                    op_c: rng.gen_range(1..32),
+                    c: read(&mut rng),
+                    is_untrusted: false,
+                };
+                (alu, record)
+            })
+            .collect::<Vec<_>>();
+
+        let shard = ExecutionRecord { add_events: add_events.clone(), ..Default::default() };
+        let chip = AddChip::<SupervisorMode>::default();
+
+        // Reference: host generate_dependencies → byte_lookups, materialized into the
+        // two consumer-chip dense tables exactly as range/trace.rs and bytes/trace.rs.
+        let mut dep_out = ExecutionRecord::default();
+        MachineAir::<F>::generate_dependencies(&chip, &shard, &mut dep_out);
+        let mut ref_range = vec![0u32; RANGE_HIST_ROWS];
+        let mut ref_byte = vec![0u32; BYTE_HIST_ROWS * NUM_BYTE_MULT_COLS];
+        for (lookup, mult) in dep_out.byte_lookups.iter() {
+            if lookup.opcode == ByteOpcode::Range {
+                ref_range[(lookup.a as usize) + (1 << lookup.b)] = *mult as u32;
+            } else {
+                let r = ((lookup.b as usize) << 8) + lookup.c as usize;
+                ref_byte[r * NUM_BYTE_MULT_COLS + lookup.opcode as usize] = *mult as u32;
+            }
+        }
+
+        // Record the Add op-DAG once, pack each event's 16 inputs (mirrors the device
+        // tracegen path), then accumulate lookups via the model.
+        let mut rec = RecordingWitnessBuilder::new(NUM_ADD_INPUTS as u32);
+        let mut cols_w = AddCols::<WireId, SupervisorMode>::default();
+        let wire = |i: u32| RecordingWitnessBuilder::input(i);
+        AddCols::<WireId, SupervisorMode>::witgen(
+            &mut rec,
+            &mut cols_w,
+            wire(0),
+            wire(1),
+            wire(2),
+            wire(3),
+            wire(4),
+            wire(5),
+            wire(6),
+            wire(7),
+            wire(8),
+            wire(9),
+            wire(10),
+            wire(11),
+            wire(12),
+            wire(13),
+            wire(14),
+            wire(15),
+        );
+        let program = rec.finish();
+        let ops_c = program.to_c();
+
+        let n_events = add_events.len();
+        let mut inputs = vec![0u64; n_events * NUM_ADD_INPUTS];
+        for (slot, (alu, r)) in inputs.chunks_mut(NUM_ADD_INPUTS).zip(add_events.iter()) {
+            let (a, b, c) = (r.a, r.b, r.c);
+            slot.copy_from_slice(&[
+                alu.clk,
+                alu.pc,
+                alu.b,
+                alu.c,
+                r.op_a as u64,
+                r.op_b,
+                r.op_c,
+                a.previous_record().value,
+                a.previous_record().timestamp,
+                a.current_record().timestamp,
+                b.previous_record().value,
+                b.previous_record().timestamp,
+                b.current_record().timestamp,
+                c.previous_record().value,
+                c.previous_record().timestamp,
+                c.current_record().timestamp,
+            ]);
+        }
+
+        let mut range_hist = vec![0u32; RANGE_HIST_ROWS];
+        let mut byte_hist = vec![0u32; BYTE_HIST_ROWS * NUM_BYTE_MULT_COLS];
+        interpret_c_lookups(
+            &ops_c,
+            program.num_inputs,
+            &inputs,
+            n_events,
+            &mut range_hist,
+            &mut byte_hist,
+        );
+
+        assert_eq!(range_hist, ref_range, "range histogram mismatch vs generate_dependencies");
+        assert_eq!(byte_hist, ref_byte, "byte histogram mismatch vs generate_dependencies");
     }
 }
