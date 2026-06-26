@@ -174,6 +174,19 @@ pub fn interpret<F: Field, R: ByteRecord>(
         .collect()
 }
 
+/// View a column struct recorded over [`WireId`]s as the flat slice of its column
+/// wires: index `i` is the wire that produces column `i`. Column structs are
+/// `#[repr(C)]` (`AlignedBorrow`), so for `T = WireId` they are a contiguous array
+/// of `WireId`. This is how a backend maps the recorded wires onto trace columns
+/// generically (no per-gadget code) — the GPU kernel will use the same mapping.
+pub fn columns_as_wires<C>(cols: &C) -> &[WireId] {
+    let n = core::mem::size_of::<C>() / core::mem::size_of::<WireId>();
+    debug_assert_eq!(n * core::mem::size_of::<WireId>(), core::mem::size_of::<C>());
+    // Safety: `C` is a `#[repr(C)]` column struct instantiated at `T = WireId`,
+    // hence a contiguous `[WireId; n]` with matching alignment.
+    unsafe { core::slice::from_raw_parts(cols as *const C as *const WireId, n) }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -221,14 +234,11 @@ mod tests {
                 let mut hwb = HostWitnessBuilder::<F, _>::new(&mut host_lookups);
                 AddrAddOperation::<F>::witgen(&mut hwb, &mut host_cols, a, b);
             }
-            // Interpret the recorded program.
+            // Interpret the recorded program, mapping wires onto columns generically.
             let mut int_lookups: Vec<ByteLookupEvent> = Vec::new();
             let wires = interpret::<F, _>(&program, &[a, b], &mut int_lookups);
-            let int_cols = [
-                wires[cols_wires.value[0].0 as usize],
-                wires[cols_wires.value[1].0 as usize],
-                wires[cols_wires.value[2].0 as usize],
-            ];
+            let col_wires = columns_as_wires(&cols_wires);
+            let int_cols: [F; 3] = core::array::from_fn(|i| wires[col_wires[i].0 as usize]);
 
             assert_eq!(host_cols.value, int_cols, "columns mismatch for ({a:#x}, {b:#x})");
             assert_eq!(host_lookups, int_lookups, "lookups mismatch for ({a:#x}, {b:#x})");
