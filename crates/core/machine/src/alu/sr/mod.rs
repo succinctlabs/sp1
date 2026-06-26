@@ -107,6 +107,178 @@ pub struct ShiftRightCols<T, M: TrustMode> {
     pub adapter_cols: M::AdapterCols<T>,
 }
 
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T, M: TrustMode> ShiftRightCols<T, M> {
+    /// Backend-agnostic witgen for `ShiftRight` (SRL/SRA/SRLW/SRAW + immediate).
+    /// Mirror of `ShiftLeft` but right-shifting, with sign extension: the `b_msb`
+    /// gadget takes the sign limb (b[3] for SRA, b[1] for SRAW), guarded by signed;
+    /// word ops mask the high limbs and take `srw_msb` of the result; `sra_msb_v0123`
+    /// = msb·v_0123 via `field_select`. `c` is the shift source, `a` the result.
+    #[allow(clippy::too_many_arguments)]
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut ShiftRightCols<WB::Field, M>,
+        clk: WB::Nat,
+        pc: WB::Nat,
+        a: WB::Nat,
+        b: WB::Nat,
+        c: WB::Nat,
+        opcode: WB::Nat,
+        imm_c: WB::Nat,
+        op_a: WB::Nat,
+        op_b: WB::Nat,
+        op_c: WB::Nat,
+        a_prev_value: WB::Nat,
+        a_prev_ts: WB::Nat,
+        a_cur_ts: WB::Nat,
+        b_prev_value: WB::Nat,
+        b_prev_ts: WB::Nat,
+        b_cur_ts: WB::Nat,
+        c_prev_value: WB::Nat,
+        c_prev_ts: WB::Nat,
+        c_cur_ts: WB::Nat,
+    ) {
+        let zero = wb.const_nat(0);
+        let one = wb.const_nat(1);
+        let zero_f = wb.nat_to_field(zero);
+
+        // Mode selectors and derived flags.
+        let srl = wb.const_nat(Opcode::SRL as u64);
+        let sra = wb.const_nat(Opcode::SRA as u64);
+        let srlw = wb.const_nat(Opcode::SRLW as u64);
+        let sraw = wb.const_nat(Opcode::SRAW as u64);
+        let is_srl = wb.eq(opcode, srl);
+        cols.is_srl = wb.nat_to_field(is_srl);
+        let is_sra = wb.eq(opcode, sra);
+        cols.is_sra = wb.nat_to_field(is_sra);
+        let is_srlw = wb.eq(opcode, srlw);
+        cols.is_srlw = wb.nat_to_field(is_srlw);
+        let is_sraw = wb.eq(opcode, sraw);
+        cols.is_sraw = wb.nat_to_field(is_sraw);
+        let is_word = wb.select(is_srlw, one, is_sraw); // SRLW || SRAW
+        let is_signed = wb.select(is_sra, one, is_sraw); // SRA || SRAW
+        let is_w_imm = wb.select(is_word, imm_c, zero);
+        cols.is_w_imm = wb.nat_to_field(is_w_imm);
+
+        // c_bits + a range check on the high bits of c.
+        for i in 0..6 {
+            let bit = wb.bits(c, i as u32, 1);
+            cols.c_bits[i] = wb.nat_to_field(bit);
+        }
+        let c_hi = wb.bits(c, 6, 10);
+        wb.add_bit_range_check(c_hi, 10);
+
+        // v columns: 1 << (N - (c & mask)) for (4,3),(8,7),(16,15).
+        let c_2 = wb.bits(c, 0, 2);
+        let four = wb.const_nat(4);
+        let e01 = wb.wrapping_sub(four, c_2);
+        let v01 = wb.shl(one, e01);
+        cols.v_01 = wb.nat_to_field(v01);
+        let c_3 = wb.bits(c, 0, 3);
+        let eight = wb.const_nat(8);
+        let e012 = wb.wrapping_sub(eight, c_3);
+        let v012 = wb.shl(one, e012);
+        cols.v_012 = wb.nat_to_field(v012);
+        let bit_shift = wb.bits(c, 0, 4);
+        let sixteen = wb.const_nat(16);
+        let e0123 = wb.wrapping_sub(sixteen, bit_shift);
+        let v0123 = wb.shl(one, e0123);
+        let v0123_f = wb.nat_to_field(v0123);
+        cols.v_0123 = v0123_f;
+
+        // Sign bit of `b` (SRA: limb 3, SRAW: limb 1), guarded by signed.
+        let b3 = wb.bits(b, 48, 16);
+        let b1 = wb.bits(b, 16, 16);
+        let msb_src_w = wb.select(is_sraw, b1, zero);
+        let msb_src = wb.select(is_sra, b3, msb_src_w);
+        wb.push_guard(is_signed);
+        let msb_nat = U16MSBOperation::<WB::Field>::witgen(wb, &mut cols.b_msb, msb_src);
+        wb.pop_guard();
+        cols.b_msb.msb = wb.field_select(is_signed, cols.b_msb.msb, zero_f);
+        // sra_msb_v0123 = msb * v_0123 (msb is 0/1).
+        cols.sra_msb_v0123 = wb.field_select(msb_nat, v0123_f, zero_f);
+
+        // Word ops zero the high limbs of `b` and take srw_msb of the result limb 1.
+        let b_l0 = wb.bits(b, 0, 16);
+        let b_l1 = wb.bits(b, 16, 16);
+        let b2_raw = wb.bits(b, 32, 16);
+        let b_l2 = wb.select(is_word, zero, b2_raw);
+        let b3_raw = wb.bits(b, 48, 16);
+        let b_l3 = wb.select(is_word, zero, b3_raw);
+        let b_limbs = [b_l0, b_l1, b_l2, b_l3];
+        let a1 = wb.bits(a, 16, 16);
+        wb.push_guard(is_word);
+        U16MSBOperation::<WB::Field>::witgen(wb, &mut cols.srw_msb, a1);
+        wb.pop_guard();
+        cols.srw_msb.msb = wb.field_select(is_word, cols.srw_msb.msb, zero_f);
+
+        // Per-limb split by `bit_shift` (in nat-space).
+        let w16 = wb.wrapping_sub(sixteen, bit_shift); // 16 - bit_shift
+        let mut lower_nat = [zero; WORD_SIZE];
+        let mut higher_nat = [zero; WORD_SIZE];
+        for i in 0..WORD_SIZE {
+            let limb = b_limbs[i];
+            let higher = wb.shr(limb, bit_shift);
+            let hs = wb.shl(higher, bit_shift);
+            let lower = wb.wrapping_sub(limb, hs);
+            cols.lower_limb[i] = wb.nat_to_field(lower);
+            cols.higher_limb[i] = wb.nat_to_field(higher);
+            wb.add_bit_range_check_var(lower, bit_shift);
+            wb.add_bit_range_check_var(higher, w16);
+            lower_nat[i] = lower;
+            higher_nat[i] = higher;
+        }
+        // limb_result[i] = higher[i] + (i != last ? lower[i+1] << (16-bit_shift) : 0).
+        for i in 0..WORD_SIZE {
+            let lr = if i != WORD_SIZE - 1 {
+                let shifted = wb.shl(lower_nat[i + 1], w16);
+                wb.wrapping_add(higher_nat[i], shifted)
+            } else {
+                higher_nat[i]
+            };
+            cols.limb_result[i] = wb.nat_to_field(lr);
+        }
+
+        // Result word `a`.
+        for i in 0..WORD_SIZE {
+            let limb = wb.bits(a, (i as u32) * 16, 16);
+            cols.a[i] = wb.nat_to_field(limb);
+        }
+
+        // shift_u16 one-hot of ((c>>4)&1) + 2*((c>>5)&1)*not_word.
+        let not_word = wb.eq(is_word, zero);
+        let c4 = wb.bits(c, 4, 1);
+        let c5 = wb.bits(c, 5, 1);
+        let c5_nw = wb.select(not_word, c5, zero);
+        let two_c5 = wb.wrapping_add(c5_nw, c5_nw);
+        let shift_amount = wb.wrapping_add(c4, two_c5);
+        for i in 0..WORD_SIZE {
+            let ki = wb.const_nat(i as u64);
+            let f = wb.eq(shift_amount, ki);
+            cols.shift_u16[i] = wb.nat_to_field(f);
+        }
+
+        CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
+        ALUTypeReader::<WB::Field>::witgen(
+            wb,
+            &mut cols.adapter,
+            imm_c,
+            op_a,
+            a_prev_value,
+            a_prev_ts,
+            a_cur_ts,
+            op_b,
+            b_prev_value,
+            b_prev_ts,
+            b_cur_ts,
+            op_c,
+            c_prev_value,
+            c_prev_ts,
+            c_cur_ts,
+        );
+    }
+}
+
 impl<F: PrimeField32, M: TrustMode> MachineAir<F> for ShiftRightChip<M> {
     type Record = ExecutionRecord;
 

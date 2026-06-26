@@ -7753,6 +7753,7 @@ dependencies = [
 name = "sp1-gpu-tracegen"
 version = "6.3.1"
 dependencies = [
+ "criterion",
  "futures",
  "rand 0.8.6",
  "rayon",
