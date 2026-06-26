@@ -6,7 +6,7 @@ use crate::{
 use anyhow::{anyhow, Result};
 use num_bigint::BigUint;
 use slop_algebra::{AbstractField, PrimeField, PrimeField32};
-use sp1_core_executor::{SP1RecursionProof, SHARD_KIND_EXECUTION, SHARD_KIND_MERKLE};
+use sp1_core_executor::SP1RecursionProof;
 use sp1_core_machine::riscv::{RiscvAir, MAX_LOG_NUMBER_OF_SHARDS};
 use sp1_hypercube::{
     air::{PublicValues, SP1CorePublicValues, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
@@ -125,36 +125,6 @@ impl SP1Verifier {
                 ));
             }
         }
-
-        // TODO(rkm): fix this
-        // // Assert that the `is_first_execution_shard` flag is boolean and is set to one only for a
-        // // unique shard.
-        // let mut is_first_execution_shard_set = false;
-        // for shard_proof in proof.0.iter() {
-        //     let public_values: &PublicValues<[_; 4], [_; 3], [_; 4], _> =
-        //         shard_proof.public_values.as_slice().borrow();
-        //     match public_values.is_first_execution_shard {
-        //         x if x == SP1Field::one() => {
-        //             if is_first_execution_shard_set {
-        //                 return Err(MachineVerifierError::InvalidPublicValues(
-        //                     "is_first_execution_shard is set to one for multiple shards",
-        //                 ));
-        //             }
-        //             is_first_execution_shard_set = true;
-        //         }
-        //         x if x == SP1Field::zero() => {}
-        //         _ => {
-        //             return Err(MachineVerifierError::InvalidPublicValues(
-        //                 "is_first_execution_shard is not boolean",
-        //             ));
-        //         }
-        //     }
-        // }
-        // if !is_first_execution_shard_set {
-        //     return Err(MachineVerifierError::InvalidPublicValues(
-        //         "first execution shard is not set",
-        //     ));
-        // }
 
         // Chunk-level structure and within-chunk timestamp constraints.
         let public_values_per_shard = proof
@@ -739,8 +709,6 @@ impl SP1Verifier {
 
 /// Verify the chunk-level structure of a core proof, given the public values.
 fn check_core_chunk_structure(pvs: &[&SP1CorePublicValues<SP1Field>]) -> Result<(), &'static str> {
-    let merkle_kind = SP1Field::from_canonical_u32(SHARD_KIND_MERKLE);
-    let execution_kind = SP1Field::from_canonical_u32(SHARD_KIND_EXECUTION);
     let one_timestamp = [SP1Field::zero(), SP1Field::zero(), SP1Field::zero(), SP1Field::one()];
 
     let mut expected_chunk_idx = 0u32;
@@ -784,34 +752,17 @@ fn check_core_chunk_structure(pvs: &[&SP1CorePublicValues<SP1Field>]) -> Result<
 
         // Kind + index layout.
         for (k, pv) in chunk.iter().enumerate() {
-            let (expected_kind, expected_index) =
-                if k < num_merkle { (merkle_kind, k) } else { (execution_kind, k - num_merkle) };
-            if pv.shard_kind != expected_kind {
+            if k < num_merkle && pv.is_execution_shard != SP1Field::zero() {
                 return Err("shard_kind does not match the canonical merkle-then-execution layout");
             }
-            if pv.shard_index != SP1Field::from_canonical_usize(expected_index) {
+            if k >= num_merkle && pv.is_execution_shard != SP1Field::one() {
+                return Err("shard_kind does not match the canonical merkle-then-execution layout");
+            }
+            if pv.shard_index != SP1Field::from_canonical_usize(k) {
                 return Err(
                     "shard_index does not match the canonical order within the trace chunk",
                 );
             }
-        }
-
-        // Exactly one `is_first_merkle_shard`, on the chunk's first shard.
-        let mut first_merkle_shards = 0usize;
-        for (k, pv) in chunk.iter().enumerate() {
-            if pv.is_first_merkle_shard == SP1Field::one() {
-                first_merkle_shards += 1;
-                if k != 0 {
-                    return Err(
-                        "is_first_merkle_shard must be set on the trace chunk's first shard",
-                    );
-                }
-            } else if pv.is_first_merkle_shard != SP1Field::zero() {
-                return Err("is_first_merkle_shard is not boolean");
-            }
-        }
-        if first_merkle_shards != 1 {
-            return Err("a trace chunk must have exactly one is_first_merkle_shard");
         }
 
         // Merkle roots: shared within the chunk, chained across chunks.
@@ -875,7 +826,7 @@ pub(crate) fn verify_core_shards(
                 proof.0[i].public_values.as_slice().borrow();
             proof_sort_key(
                 pv.trace_chunk_idx.as_canonical_u32(),
-                pv.shard_kind.as_canonical_u32(),
+                1 - pv.is_execution_shard.as_canonical_u32(),
                 pv.shard_index.as_canonical_u32(),
             )
         });
@@ -979,13 +930,11 @@ mod tests {
     ) -> Vec<PublicValues<u32, u64, u64, u32>> {
         let mut out = vec![PublicValues::<u32, u64, u64, u32> {
             trace_chunk_idx: chunk_idx,
-            shard_kind: SHARD_KIND_MERKLE,
             shard_index: 0,
             num_merkle_shard: 1,
             num_execution_shard: num_exec,
             prev_merkle_root: prev_root,
             merkle_root: cur_root,
-            is_first_merkle_shard: 1,
             is_execution_shard: 0,
             initial_timestamp: 1,
             last_timestamp: 1,
@@ -996,13 +945,11 @@ mod tests {
             let timestamp = 1 + u64::from(shard_index);
             out.push(PublicValues::<u32, u64, u64, u32> {
                 trace_chunk_idx: chunk_idx,
-                shard_kind: SHARD_KIND_EXECUTION,
-                shard_index,
+                shard_index: shard_index + 1,
                 num_merkle_shard: 1,
                 num_execution_shard: num_exec,
                 prev_merkle_root: prev_root,
                 merkle_root: cur_root,
-                is_first_merkle_shard: 0,
                 is_execution_shard: 1,
                 initial_timestamp: timestamp,
                 last_timestamp: timestamp + 1,
@@ -1051,13 +998,6 @@ mod tests {
             assert!(accepts(&pvs).is_err(), "disagreeing per-chunk counts must be rejected");
         }
 
-        // A merkle shard masquerading as an execution shard (kind/layout broken).
-        {
-            let mut pvs = base();
-            pvs[1].shard_kind = SHARD_KIND_MERKLE;
-            assert!(accepts(&pvs).is_err(), "a broken kind layout must be rejected");
-        }
-
         // An out-of-order execution `shard_index`.
         {
             let mut pvs = base();
@@ -1080,16 +1020,6 @@ mod tests {
             let mut pvs = chunk_shards(0, [0; 8], [7; 8], 2);
             pvs.extend(chunk_shards(1, [8; 8], [9; 8], 1));
             assert!(accepts(&pvs).is_err(), "a broken cross-chunk root chain must be rejected");
-        }
-
-        // Two `is_first_merkle_shard` flags in one chunk.
-        {
-            let mut pvs = base();
-            pvs[1].is_first_merkle_shard = 1;
-            assert!(
-                accepts(&pvs).is_err(),
-                "two is_first_merkle_shard in one chunk must be rejected"
-            );
         }
 
         // A chunk that resets timestamps across the boundary is fine (each chunk starts at 1).

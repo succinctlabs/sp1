@@ -10,9 +10,9 @@ use sp1_hypercube::{
 use sp1_primitives::{io::SP1PublicValues, SP1Field};
 use sp1_verifier::SP1Proof;
 
-#[cfg(not(feature = "mprotect"))]
+#[cfg(not(feature = "experimental"))]
 use crate::verify::VerifierRecursionVks;
-#[cfg(feature = "mprotect")]
+#[cfg(feature = "experimental")]
 use crate::{recursion::RecursionVks, worker::DEFAULT_MAX_COMPOSE_ARITY};
 use crate::{
     verify::SP1Verifier,
@@ -66,10 +66,10 @@ impl SP1LightNode {
                 Arc::new(CpuShardProver::new(core_verifier.shard_verifier().clone()));
             let permits = ProverSemaphore::new(1);
 
-            #[cfg(feature = "mprotect")]
+            #[cfg(feature = "experimental")]
             let verifier_vks =
                 RecursionVks::new(None, DEFAULT_MAX_COMPOSE_ARITY, false).to_verifier_vks();
-            #[cfg(not(feature = "mprotect"))]
+            #[cfg(not(feature = "experimental"))]
             let verifier_vks = VerifierRecursionVks::default();
             let verifier = SP1Verifier::new_with_machine(verifier_vks, machine);
             // Create a new core node for the light node
@@ -122,6 +122,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[cfg(feature = "experimental")]
     async fn test_light_node() {
         setup_logger();
 
@@ -131,7 +132,7 @@ mod tests {
             .await;
 
         let node = SP1LocalNodeBuilder::from_worker_client_builder(
-            cpu_worker_builder_with_machine(machine),
+            cpu_worker_builder_with_machine(machine).without_vk_verification(),
         )
         .build()
         .instrument(tracing::info_span!("initialize full node"))

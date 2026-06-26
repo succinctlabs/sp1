@@ -14,7 +14,7 @@ const BENCH_ITERS: usize = 10;
 
 fn generate_input(num_pages: usize, page_size: usize) -> Vec<SP1Field> {
     (0..num_pages * page_size)
-        .map(|i| SP1Field::from_canonical_u32((i as u32).wrapping_mul(2654435761)))
+        .map(|i| SP1Field::from_canonical_u32(i as u32) * SP1Field::from_canonical_u32(654435761))
         .collect()
 }
 

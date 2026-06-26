@@ -369,6 +369,7 @@ where
                     tree.reduce_proofs(
                         context,
                         compress_proof_artifact.clone(),
+                        num_deferred_proofs as u32,
                         core_proof_rx,
                         &artifact_client,
                         &worker_client,
@@ -575,7 +576,7 @@ async fn collect_core_proofs(
             shard_proof.public_values.as_slice().borrow();
         proof_sort_key(
             public_values.trace_chunk_idx.as_canonical_u32(),
-            public_values.shard_kind.as_canonical_u32(),
+            1 - public_values.is_execution_shard.as_canonical_u32(),
             public_values.shard_index.as_canonical_u32(),
         )
     });

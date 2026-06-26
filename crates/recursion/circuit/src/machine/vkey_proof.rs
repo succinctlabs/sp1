@@ -1,20 +1,16 @@
-use crate::{
-    machine::{InnerVal, SP1ShapedWitnessValues},
-    shard::RecursiveShardVerifier,
-};
+use crate::machine::SP1ShapedWitnessValues;
 use std::marker::PhantomData;
 
-use super::{PublicValuesOutputDigest, SP1CompressVerifier, SP1ShapedWitnessVariable};
+use super::SP1ShapedWitnessVariable;
 use crate::{
-    basefold::merkle_tree::verify, hash::FieldHasher, zerocheck::RecursiveVerifierConstraintFolder,
-    CircuitConfig, FieldHasherVariable, SP1FieldConfigVariable,
+    basefold::merkle_tree::verify, hash::FieldHasher, CircuitConfig, FieldHasherVariable,
+    SP1FieldConfigVariable,
 };
 use serde::{Deserialize, Serialize};
-use slop_air::Air;
 use slop_algebra::AbstractField;
-use sp1_hypercube::{air::MachineAir, MerkleProof};
+use sp1_hypercube::MerkleProof;
 use sp1_primitives::{SP1Field, SP1GlobalContext};
-use sp1_recursion_compiler::ir::{Builder, Felt};
+use sp1_recursion_compiler::ir::Builder;
 use sp1_recursion_executor::DIGEST_SIZE;
 
 /// A program to verify a batch of recursive proofs and aggregate their public values.
@@ -79,11 +75,6 @@ where
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct SP1CompressWithVKeyVerifier<C, SC, A> {
-    _phantom: PhantomData<(C, SC, A)>,
-}
-
 /// Witness layout for the verifier of the proof shape phase of the compress stage.
 pub struct SP1CompressWithVKeyWitnessVariable<C: CircuitConfig, GC: SP1FieldConfigVariable<C>> {
     pub compress_var: SP1ShapedWitnessVariable<C, GC>,
@@ -95,37 +86,6 @@ pub struct SP1CompressWithVKeyWitnessVariable<C: CircuitConfig, GC: SP1FieldConf
 pub struct SP1CompressWithVKeyWitnessValues<Proof> {
     pub compress_val: SP1ShapedWitnessValues<SP1GlobalContext, Proof>,
     pub merkle_val: SP1MerkleProofWitnessValues<SP1GlobalContext>,
-}
-
-impl<C, SC, A> SP1CompressWithVKeyVerifier<C, SC, A>
-where
-    C: CircuitConfig<Bit = Felt<SP1Field>>,
-    A: MachineAir<InnerVal> + for<'a> Air<RecursiveVerifierConstraintFolder<'a>>,
-{
-    /// Verify the proof shape phase of the compress stage.
-    pub fn verify(
-        builder: &mut Builder<C>,
-        machine: &RecursiveShardVerifier<SP1GlobalContext, A, C>,
-        input: SP1CompressWithVKeyWitnessVariable<C, SP1GlobalContext>,
-        value_assertions: bool,
-        kind: PublicValuesOutputDigest,
-    ) {
-        let values = input
-            .compress_var
-            .vks_and_proofs
-            .iter()
-            .map(|(vk, _)| vk.hash(builder))
-            .collect::<Vec<_>>();
-        let vk_root = input.merkle_var.root.map(|x| builder.eval(x));
-        SP1MerkleProofVerifier::verify(builder, values, input.merkle_var, value_assertions);
-        SP1CompressVerifier::<C, SP1GlobalContext, _>::verify(
-            builder,
-            machine,
-            input.compress_var,
-            vk_root,
-            kind,
-        );
-    }
 }
 
 impl SP1MerkleProofWitnessValues<SP1GlobalContext> {

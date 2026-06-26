@@ -14,8 +14,6 @@ use slop_air::Air;
 use slop_algebra::{AbstractField, PrimeField32};
 use sp1_hypercube::{
     air::{MachineAir, ShardRange, POSEIDON_NUM_WORDS, PROOF_NONCE_NUM_WORDS},
-    septic_curve::SepticCurve,
-    septic_digest::SepticDigest,
     ShardProof,
 };
 use sp1_primitives::{SP1ExtensionField, SP1Field};
@@ -55,6 +53,8 @@ pub struct SP1DeferredWitnessValues<
     pub start_reconstruct_deferred_digest: [GC::F; POSEIDON_NUM_WORDS],
     pub sp1_vk_digest: [GC::F; DIGEST_SIZE],
     pub end_pc: [GC::F; 3],
+    /// Start-of-execution merkle root the deferred leaf hands off to chunk 0.
+    pub initial_memory_root: [GC::F; DIGEST_SIZE],
     pub proof_nonce: [GC::F; PROOF_NONCE_NUM_WORDS],
     pub deferred_proof_index: GC::F,
 }
@@ -86,6 +86,7 @@ pub struct SP1DeferredWitnessVariable<
     pub start_reconstruct_deferred_digest: [Felt<SP1Field>; POSEIDON_NUM_WORDS],
     pub sp1_vk_digest: [Felt<SP1Field>; DIGEST_SIZE],
     pub end_pc: [Felt<SP1Field>; 3],
+    pub initial_memory_root: [Felt<SP1Field>; DIGEST_SIZE],
     pub proof_nonce: [Felt<SP1Field>; PROOF_NONCE_NUM_WORDS],
     pub deferred_proof_index: Felt<SP1Field>,
 }
@@ -123,6 +124,7 @@ where
             start_reconstruct_deferred_digest,
             sp1_vk_digest,
             end_pc,
+            initial_memory_root,
             proof_nonce,
             deferred_proof_index,
         } = input;
@@ -168,7 +170,7 @@ where
                 challenger.observe(builder, zero);
             }
 
-            machine.verify_shard(builder, &vk, &shard_proof, &mut challenger);
+            machine.verify_shard(builder, &vk, &shard_proof, &mut challenger, None);
 
             // Get the current public values.
             let current_public_values: &RecursionPublicValues<Felt<SP1Field>> =
@@ -226,6 +228,21 @@ where
         deferred_public_values.prev_deferred_proofs_digest = core::array::from_fn(|_| zero);
         deferred_public_values.deferred_proofs_digest = core::array::from_fn(|_| zero);
 
+        // Set the chunk and shard index to be zero.
+        deferred_public_values.prev_chunk_index = zero;
+        deferred_public_values.last_chunk_index = zero;
+        deferred_public_values.prev_shard_index = zero;
+        deferred_public_values.last_shard_index = zero;
+        deferred_public_values.num_merkle_shard = zero;
+        deferred_public_values.num_execution_shard = zero;
+        deferred_public_values.start_reconstruct_global_challenge = core::array::from_fn(|_| zero);
+        deferred_public_values.end_reconstruct_global_challenge = core::array::from_fn(|_| zero);
+        deferred_public_values.global_commitments_hash = core::array::from_fn(|_| zero);
+        deferred_public_values.is_chunk_complete = zero;
+        deferred_public_values.global_cumulative_sum = core::array::from_fn(|_| zero);
+        // Set the memory roots.
+        deferred_public_values.initial_memory_root = initial_memory_root;
+        deferred_public_values.last_memory_root = initial_memory_root;
         // Set the exit code to be zero for now.
         deferred_public_values.prev_exit_code = zero;
         deferred_public_values.exit_code = zero;
@@ -244,10 +261,7 @@ where
         deferred_public_values.is_complete = zero;
         deferred_public_values.proof_nonce = proof_nonce;
         // Set the cumulative sum to zero.
-        deferred_public_values.global_cumulative_sum =
-            SepticDigest(SepticCurve::convert(SepticDigest::<SP1Field>::zero().0, |value| {
-                builder.eval(value)
-            }));
+        deferred_public_values.global_cumulative_sum = [zero, zero, zero, zero];
         // Set the first shard flag to zero.
         deferred_public_values.contains_first_shard = zero;
         // Set the number of included shards to zero.

@@ -44,11 +44,9 @@ pub fn eval_constraints<C: CircuitConfig, SC: SP1FieldConfigVariable<C>, A>(
 where
     A: MachineAir<SP1Field> + for<'a> Air<RecursiveVerifierConstraintFolder<'a>>,
 {
-    let zero: Ext<SP1Field, SP1ExtensionField> = builder.constant(SP1ExtensionField::zero());
-    let global_opening = vec![zero; chip.global_width()];
     let mut folder = RecursiveVerifierConstraintFolder {
         preprocessed: RowMajorMatrixView::new_row(&opening.preprocessed.local),
-        global: RowMajorMatrixView::new_row(&global_opening),
+        global: RowMajorMatrixView::new_row(&opening.global.local),
         main: RowMajorMatrixView::new_row(&opening.main.local),
         public_values,
         alpha,
@@ -130,6 +128,7 @@ where
         zerocheck_proof: &PartialSumcheckProof<Ext<SP1Field, SP1ExtensionField>>,
         public_values: &[Felt<SP1Field>],
         challenger: &mut GC::FriChallengerVariable,
+        has_global_round: bool,
     ) where
         A: for<'a> Air<RecursiveVerifierConstraintFolder<'a>>,
     {
@@ -154,7 +153,7 @@ where
 
         let max_elements = shard_chips
             .iter()
-            .map(|chip| chip.width() + chip.preprocessed_width())
+            .map(|chip| chip.width() + chip.preprocessed_width() + chip.global_width())
             .max()
             .unwrap_or(0);
 
@@ -193,11 +192,16 @@ where
                 .local
                 .iter()
                 .chain(openings.preprocessed.local.iter())
+                .chain(openings.global.local.iter())
                 .copied()
                 .zip(
                     gkr_batch_open_challenge_powers
                         .iter()
-                        .take(openings.main.local.len() + openings.preprocessed.local.len())
+                        .take(
+                            openings.main.local.len()
+                                + openings.preprocessed.local.len()
+                                + openings.global.local.len(),
+                        )
                         .copied(),
                 )
                 .map(|(opening, power)| opening * power)
@@ -225,6 +229,13 @@ where
                             .iter()
                             .flat_map(|&evals| evals.deref().iter().copied()),
                     )
+                    .chain(
+                        chip_evaluation
+                            .global_trace_evaluations
+                            .as_ref()
+                            .iter()
+                            .flat_map(|&evals| evals.deref().iter().copied()),
+                    )
                     .zip(gkr_batch_open_challenge_powers.iter().copied())
                     .map(|(opening, power)| opening * power)
                     .sum::<SymbolicExt<SP1Field, SP1ExtensionField>>()
@@ -248,6 +259,9 @@ where
         for opening in opened_values.chips.values() {
             challenger
                 .observe_variable_length_extension_slice(builder, &opening.preprocessed.local);
+            if has_global_round {
+                challenger.observe_variable_length_extension_slice(builder, &opening.global.local);
+            }
             challenger.observe_variable_length_extension_slice(builder, &opening.main.local);
         }
     }

@@ -5,13 +5,14 @@ use clap::Parser;
 use rand::{seq::SliceRandom, SeedableRng};
 use serde::Deserialize;
 use slop_algebra::AbstractField;
+use slop_symmetric::CryptographicHasher;
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_gpu_prover::{core_prover_and_verifier, recursion_prover_and_verifier};
 use sp1_hypercube::{
     inner_perm,
     prover::{shape_from_record, AirProver},
-    MachineVerifyingKey, SP1PcsProofInner, SP1VerifyingKey, DIGEST_SIZE,
+    IopCtx, MachineVerifyingKey, SP1PcsProofInner, SP1VerifyingKey, DIGEST_SIZE,
 };
 use sp1_primitives::{SP1ExtensionField, SP1Field, SP1GlobalContext};
 use sp1_prover::{
@@ -21,7 +22,7 @@ use sp1_prover::{
 };
 use sp1_recursion_circuit::{machine::SP1NormalizeWitnessValues, witness::Witnessable};
 use sp1_recursion_compiler::config::InnerConfig;
-use sp1_recursion_executor::Executor;
+use sp1_recursion_executor::{Executor, PERMUTATION_WIDTH};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about = "Replay pre-dumped shard records through the GPU prover")]
@@ -202,8 +203,27 @@ async fn main() {
         for (i, job) in jobs.iter().enumerate() {
             // Deserialize the record.
             let record_bytes = std::fs::read(&job.record_path).expect("failed to read record file");
-            let record: ExecutionRecord =
+            let mut record: ExecutionRecord =
                 bincode::deserialize(&record_bytes).expect("failed to deserialize record");
+            let commitments = if normalize_setup.is_some() {
+                if record.global_commitments.is_empty() {
+                    let zero = SP1GlobalContext::digest_from_elements(&[SP1Field::zero(); 8]);
+                    record.set_global_commitments::<SP1GlobalContext>(&[zero]);
+                }
+                Some(
+                    record
+                        .global_commitments
+                        .iter()
+                        .map(|limbs| {
+                            let elements: [SP1Field; 8] =
+                                std::array::from_fn(|i| SP1Field::from_canonical_u32(limbs[i]));
+                            SP1GlobalContext::digest_from_elements(&elements)
+                        })
+                        .collect::<Vec<_>>(),
+                )
+            } else {
+                None
+            };
 
             // Deserialize the VK.
             let vk_bytes = std::fs::read(&job.vk_path).expect("failed to read vk file");
@@ -260,9 +280,14 @@ async fn main() {
                     None,
                 );
 
-                // Build the witness using the real core proof. The other fields are not checked
-                // by the normalize program, so we use the same dummy values that
-                // `dummy_input` populates so the executor sees a self-consistent witness.
+                // `commitments_hash` is observed by the normalize verifier, so it must hash the same
+                // commitments the core proof observed (mirrors `get_normalize_witness`). The roots /
+                // shard index / num shards are not constrained by the program, so they stay dummy.
+                let commitments =
+                    commitments.as_ref().expect("normalize phase set the commitments");
+                let (hasher, _) = SP1GlobalContext::default_hasher_and_compressor();
+                let commitments_hash = hasher
+                    .hash_iter(commitments.iter().flat_map(SP1GlobalContext::digest_to_elements));
                 let witness: SP1NormalizeWitnessValues<SP1GlobalContext, SP1PcsProofInner> =
                     SP1NormalizeWitnessValues {
                         vk: vk.clone(),
@@ -271,6 +296,15 @@ async fn main() {
                         vk_root: [SP1Field::zero(); DIGEST_SIZE],
                         reconstruct_deferred_digest: [SP1Field::zero(); 8],
                         num_deferred_proofs: SP1Field::zero(),
+                        commitments_hash: SP1GlobalContext::digest_to_elements(&commitments_hash)
+                            .try_into()
+                            .expect("commitments hash has DIGEST_SIZE elements"),
+                        prev_root: [SP1Field::zero(); DIGEST_SIZE],
+                        cur_root: [SP1Field::zero(); DIGEST_SIZE],
+                        shard_index: SP1Field::zero(),
+                        num_shards: SP1Field::zero(),
+                        // First (only) shard: the running hash starts from the zero state.
+                        prev_hasher_state: [SP1Field::zero(); PERMUTATION_WIDTH],
                     };
                 let mut witness_stream = Vec::new();
                 Witnessable::<InnerConfig>::write(&witness, &mut witness_stream);

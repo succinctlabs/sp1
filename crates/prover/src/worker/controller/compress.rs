@@ -207,24 +207,28 @@ pub(super) const ACROSS_CHUNK_ARITY: usize = 2;
 ///
 /// # Reduction Process
 ///
-/// The tree keeps [`RangeProofs`] indexed by their starting chunk index. Each `ChunkProof`
-/// arrives **ready** (the within-chunk reduce already finished in the node), so unlike the flat
-/// tree there is no per-leaf task to await — a `ChunkProof` arrival *is* its completion. When a node
-/// enters the tree, the tree looks for adjacent siblings (a left sibling ends where the node starts;
-/// a right sibling starts where the node ends) and merges them. A batch reaching `batch_size` (2),
-/// or the final batch covering the whole `[0, num_chunks)` range with no pending tasks, is submitted
-/// to an across-chunk reduce; otherwise it waits in the tree for a future neighbour.
+/// The tree keeps [`RangeProofs`] indexed by their starting key in a single `u32` keyspace: the `n`
+/// deferred leaves occupy `[0, n)` and each chunk `j` is shifted to `[n + j, n + j + 1)`, so the
+/// reduce folds `deferred[0..n]` ahead of chunk 0. Each `ChunkProof` arrives **ready** (the
+/// within-chunk reduce already finished in the node) — its arrival *is* its completion. The
+/// exception is the deferred leaves: each is backed by a `RecursionDeferred` task and only enters
+/// the tree once that task succeeds. When a node enters the tree, the tree looks for adjacent
+/// siblings (a left sibling ends where the node starts; a right sibling starts where the node ends)
+/// and merges them. A batch reaching `batch_size` (2), or the final batch covering the whole
+/// `[0, n + num_chunks)` range with nothing pending, is submitted to an across-chunk reduce;
+/// otherwise it waits in the tree for a future neighbour.
 ///
 /// # Completion
 ///
 /// The chunk count is known only when the executor closes the proof stream, so the last-arrived
 /// chunk proof is **held back** until then (a held-back chunk leaves a gap, so the tree cannot reach
 /// the full range early and submit the root with `is_complete = false`). The final batch — covering
-/// `[0, num_chunks)` with `pending == 0` — is submitted with `is_complete = true` and its output is
-/// the root artifact; there is no separate finalize layer. A single-chunk execution has no sibling
-/// to merge with, so its lone chunk proof is wrapped in the one legitimate arity-1 across-chunk
-/// reduce (needed to apply the whole-execution assertions the within-chunk root does not). The
-/// reduction is done when that root (`is_complete`) reduce task finishes.
+/// `[0, n + num_chunks)` with no reduce tasks or deferred leaves pending — is submitted with
+/// `is_complete = true` and its output is the root artifact; there is no separate finalize layer. A
+/// single-chunk execution with no deferred proofs has no sibling to merge with, so its lone chunk
+/// proof is wrapped in the one legitimate arity-1 across-chunk reduce (needed to apply the
+/// whole-execution assertions the within-chunk root does not). The reduction is done when that root
+/// (`is_complete`) reduce task finishes.
 pub(super) struct CompressTree {
     map: BTreeMap<u32, RangeProofs>,
     batch_size: usize,
@@ -263,16 +267,17 @@ impl CompressTree {
         None
     }
 
-    /// The tree is complete once `range` covers the full chunk range, no reduce tasks are pending,
-    /// and the tree is empty.
+    /// The tree is complete once `range` covers the full range, no reduce tasks or deferred leaves
+    /// are pending, and the tree is empty.
     fn is_complete(
         &self,
         range: &ChunkRange,
         pending_tasks: usize,
+        deferred_pending: usize,
         full_range: &Option<ChunkRange>,
     ) -> bool {
         let is_range_equal = full_range.as_ref().is_some_and(|full| range == full);
-        (pending_tasks == 0) && self.map.is_empty() && is_range_equal
+        (pending_tasks == 0) && (deferred_pending == 0) && self.map.is_empty() && is_range_equal
     }
 
     /// Fold the per-chunk proofs arriving on `core_proofs_rx` into one root compress proof, written
@@ -281,6 +286,7 @@ impl CompressTree {
         &mut self,
         context: TaskContext,
         output: Artifact,
+        num_deferred: u32,
         mut core_proofs_rx: mpsc::UnboundedReceiver<ProofData>,
         artifact_client: &impl ArtifactClient,
         worker_client: &impl WorkerClient,
@@ -288,10 +294,13 @@ impl CompressTree {
         // Ready chunk proofs and reduce-task outputs both funnel through `proof_tx`; one branch
         // places them into the tree.
         let (proof_tx, mut proof_rx) = mpsc::unbounded_channel::<RecursionProof>();
-        // Subscribe to the across-chunk reduce tasks this tree submits.
+        // Subscribe to the across-chunk reduce tasks this tree submits and the deferred tasks that
+        // back the deferred leaves.
         let (subscriber, mut event_stream) =
             worker_client.subscriber(context.proof_id.clone()).await?.stream();
         let mut proof_map = HashMap::<TaskId, RecursionProof>::new();
+        // Deferred leaves keyed by their `RecursionDeferred` task id, pending until it succeeds.
+        let mut deferred_map = HashMap::<TaskId, RecursionProof>::new();
 
         // Last-arrived chunk proof, held back until the stream closes (see the type-level docs).
         let mut held: Option<RecursionProof> = None;
@@ -299,6 +308,8 @@ impl CompressTree {
         let mut stream_closed = false;
         let mut full_range: Option<ChunkRange> = None;
         let mut pending_tasks: usize = 0;
+        // Deferred leaves emitted but not yet folded in (their `RecursionDeferred` task is running).
+        let mut deferred_pending: usize = 0;
         // The is_complete reduce that yields the root; the reduction is done when its task finishes.
         let mut root_task: Option<TaskId> = None;
 
@@ -307,6 +318,12 @@ impl CompressTree {
                 maybe_proof = core_proofs_rx.recv(), if !stream_closed => match maybe_proof {
                     Some(ProofData::ChunkProof { chunk_range, proof }) => {
                         num_chunks += 1;
+                        // Deferred leaves occupy [0, num_deferred); shift each chunk past them so
+                        // chunk j keys at [num_deferred + j, num_deferred + j + 1).
+                        let chunk_range = ChunkRange {
+                            start: chunk_range.start + num_deferred,
+                            end: chunk_range.end + num_deferred,
+                        };
                         let node = RecursionProof { chunk_range, proof };
                         // A newer chunk proof arrived, so the previously-held one is not the last;
                         // release it into the tree.
@@ -315,11 +332,18 @@ impl CompressTree {
                             proof_tx.send(prev).map_err(|_| channel_closed())?;
                         }
                     }
-                    Some(ProofData::Artifact { .. }) => {
-                        return Err(TaskError::Fatal(anyhow::anyhow!(
-                            "deferred (Artifact) leaves are not yet wired into the across-chunk \
-                             tree"
-                        )));
+                    // A deferred leaf is task-backed: its `RecursionDeferred` proof exists only once
+                    // that task succeeds. Subscribe and fold it in on success (in the event arm); it
+                    // keys ahead of chunk 0 at [i, i + 1) for deferred index i, so the reduce feeds
+                    // deferred[0..n] before chunk 0.
+                    Some(ProofData::Artifact { task_id, range, proof }) => {
+                        let idx = range.deferred_proof_range.0 as u32;
+                        let node = RecursionProof { chunk_range: ChunkRange::single(idx), proof };
+                        deferred_map.insert(task_id.clone(), node);
+                        subscriber.subscribe(task_id).map_err(|_| {
+                            TaskError::Fatal(anyhow::anyhow!("subscriber closed"))
+                        })?;
+                        deferred_pending += 1;
                     }
                     Some(ProofData::InMemory { .. }) => {
                         return Err(TaskError::Fatal(anyhow::anyhow!(
@@ -335,7 +359,8 @@ impl CompressTree {
                                 "across-chunk tree received no chunk proofs"
                             )));
                         };
-                        full_range = Some(ChunkRange { start: 0, end: num_chunks });
+                        full_range =
+                            Some(ChunkRange { start: 0, end: num_deferred + num_chunks });
                         pending_tasks += 1;
                         proof_tx.send(last).map_err(|_| channel_closed())?;
                     }
@@ -369,8 +394,12 @@ impl CompressTree {
                                 "across-chunk merge exceeded batch size: {}",
                                 proofs.len()
                             );
-                            let is_complete =
-                                self.is_complete(&proofs.chunk_range, pending_tasks, &full_range);
+                            let is_complete = self.is_complete(
+                                &proofs.chunk_range,
+                                pending_tasks,
+                                deferred_pending,
+                                &full_range,
+                            );
                             if proofs.len() == self.batch_size || is_complete {
                                 Some((proofs, is_complete))
                             } else {
@@ -382,8 +411,12 @@ impl CompressTree {
                             // No neighbour. A lone proof covering the whole range is a single-chunk
                             // execution: wrap it in the one legitimate arity-1 across-chunk reduce
                             // so the root applies the whole-execution assertions.
-                            let is_complete =
-                                self.is_complete(&node.chunk_range, pending_tasks, &full_range);
+                            let is_complete = self.is_complete(
+                                &node.chunk_range,
+                                pending_tasks,
+                                deferred_pending,
+                                &full_range,
+                            );
                             if is_complete {
                                 Some((RangeProofs::single(node), true))
                             } else {
@@ -423,7 +456,7 @@ impl CompressTree {
                 Some((task_id, status)) = event_stream.recv() => {
                     if status != TaskStatus::Succeeded {
                         return Err(TaskError::Fatal(anyhow::anyhow!(
-                            "across-chunk reduce task {} failed",
+                            "across-chunk tree task {} failed",
                             task_id
                         )));
                     }
@@ -433,8 +466,13 @@ impl CompressTree {
                     }
                     if let Some(node) = proof_map.remove(&task_id) {
                         proof_tx.send(node).map_err(|_| channel_closed())?;
+                    } else if let Some(node) = deferred_map.remove(&task_id) {
+                        // The deferred leaf's proof now exists; release it into the tree.
+                        deferred_pending -= 1;
+                        pending_tasks += 1;
+                        proof_tx.send(node).map_err(|_| channel_closed())?;
                     } else {
-                        tracing::debug!("across-chunk reduce output not found for task {}", task_id);
+                        tracing::debug!("across-chunk task output not found for task {}", task_id);
                     }
                 }
                 else => break,
@@ -523,6 +561,7 @@ mod tests {
                 tree.reduce_proofs(
                     context,
                     output,
+                    0,
                     core_proofs_rx,
                     &artifact_client,
                     &worker_client,
@@ -531,6 +570,190 @@ mod tests {
             .await
             .unwrap_or_else(|_| panic!("across-chunk tree hung for {num_chunks} chunks"))
             .unwrap_or_else(|e| panic!("across-chunk tree failed for {num_chunks} chunks: {e:?}"));
+        }
+    }
+
+    /// The across-chunk tree ingests deferred (`ProofData::Artifact`) leaves and orders them ahead
+    /// of chunk 0. Feeds `k` deferred leaves + `m` chunk proofs and asserts the tree folds them into
+    /// one root covering `[0, k + m)`, with deferred leaves keyed at `[0, k)` (deferred-first) and
+    /// chunks shifted to `[k, k + m)` — checked by both range and proof-artifact identity. Deferred
+    /// leaves are task-backed, so the test plays the `RecursionDeferred` worker (completing each
+    /// task) and intercepts each `RecursionReduce` to record the batch it folds.
+    #[tokio::test]
+    async fn test_across_chunk_tree_orders_deferred_first() {
+        use std::sync::{Arc, Mutex};
+
+        use sp1_hypercube::air::ShardRange;
+
+        use crate::worker::{LocalWorkerClient, RawTaskRequest, TaskMetadata};
+
+        setup_logger();
+
+        #[derive(Clone)]
+        struct RecordedReduce {
+            is_complete: bool,
+            range: ChunkRange,
+            children: Vec<(ChunkRange, String)>,
+        }
+
+        for (k, m) in [(1u32, 1u32), (2, 1), (1, 3), (3, 5), (2, 8)] {
+            let (worker_client, mut channels) = LocalWorkerClient::init();
+            let artifact_client = InMemoryArtifactClient::new();
+            let mut tree = CompressTree::new(ACROSS_CHUNK_ARITY);
+
+            let context = TaskContext {
+                proof_id: ProofId::new("test_deferred_tree"),
+                parent_id: None,
+                parent_context: None,
+                requester_id: RequesterId::new("test_deferred_tree"),
+            };
+
+            // Play the deferred worker: complete every `RecursionDeferred` task after a short delay.
+            {
+                let worker_client = worker_client.clone();
+                let mut rx = channels.task_receivers.remove(&TaskType::RecursionDeferred).unwrap();
+                tokio::spawn(async move {
+                    while let Some((task_id, request)) = rx.recv().await {
+                        let worker_client = worker_client.clone();
+                        tokio::spawn(async move {
+                            tokio::time::sleep(Duration::from_millis(2)).await;
+                            worker_client
+                                .complete_task(
+                                    request.context.proof_id,
+                                    task_id,
+                                    TaskMetadata { gpu_ms: None },
+                                )
+                                .await
+                                .unwrap();
+                        });
+                    }
+                });
+            }
+
+            // Intercept each across-chunk reduce: record the batch it folds, then complete the task.
+            let recorded = Arc::new(Mutex::new(Vec::<RecordedReduce>::new()));
+            {
+                let worker_client = worker_client.clone();
+                let recorded = recorded.clone();
+                let mut rx = channels.task_receivers.remove(&TaskType::RecursionReduce).unwrap();
+                tokio::spawn(async move {
+                    while let Some((task_id, request)) = rx.recv().await {
+                        let proof_id = request.context.proof_id.clone();
+                        let req = ReduceTaskRequest::from_raw(request).unwrap();
+                        let children = req
+                            .range_proofs
+                            .proofs
+                            .iter()
+                            .map(|p| (p.chunk_range, p.proof.id().to_string()))
+                            .collect::<Vec<_>>();
+                        recorded.lock().unwrap().push(RecordedReduce {
+                            is_complete: req.is_complete,
+                            range: req.range_proofs.chunk_range,
+                            children,
+                        });
+                        let worker_client = worker_client.clone();
+                        tokio::spawn(async move {
+                            tokio::time::sleep(Duration::from_millis(2)).await;
+                            worker_client
+                                .complete_task(proof_id, task_id, TaskMetadata { gpu_ms: None })
+                                .await
+                                .unwrap();
+                        });
+                    }
+                });
+            }
+
+            let (core_proofs_tx, core_proofs_rx) = mpsc::unbounded_channel::<ProofData>();
+
+            // Feed `k` deferred Artifacts (indices 0..k) then `m` chunk proofs (evens then odds, to
+            // land out of order). Each deferred task is submitted before its Artifact so the tree
+            // can subscribe to it. Proof artifacts are tagged so the leaves are identifiable.
+            tokio::spawn({
+                let worker_client = worker_client.clone();
+                let context = context.clone();
+                async move {
+                    for i in 0..k {
+                        let task_id = worker_client
+                            .submit_task(
+                                TaskType::RecursionDeferred,
+                                RawTaskRequest {
+                                    inputs: vec![],
+                                    outputs: vec![],
+                                    context: context.clone(),
+                                },
+                            )
+                            .await
+                            .unwrap();
+                        core_proofs_tx
+                            .send(ProofData::Artifact {
+                                task_id,
+                                range: ShardRange::deferred(u64::from(i), u64::from(i) + 1),
+                                proof: Artifact::from(format!("deferred-{i}")),
+                            })
+                            .unwrap();
+                    }
+                    let order = (0..m).filter(|j| j % 2 == 0).chain((0..m).filter(|j| j % 2 == 1));
+                    for j in order {
+                        core_proofs_tx
+                            .send(ProofData::ChunkProof {
+                                chunk_range: ChunkRange::single(j),
+                                proof: Artifact::from(format!("chunk-{j}")),
+                            })
+                            .unwrap();
+                    }
+                    // Dropping the sender closes the stream, fixing the chunk count.
+                }
+            });
+
+            let output = artifact_client.create_artifact().unwrap();
+
+            tokio::time::timeout(
+                Duration::from_secs(30),
+                tree.reduce_proofs(
+                    context,
+                    output,
+                    k,
+                    core_proofs_rx,
+                    &artifact_client,
+                    &worker_client,
+                ),
+            )
+            .await
+            .unwrap_or_else(|_| panic!("deferred tree hung for k={k}, m={m}"))
+            .unwrap_or_else(|e| panic!("deferred tree failed for k={k}, m={m}: {e:?}"));
+
+            // Exactly one root, covering the whole [0, k + m) range.
+            let recorded = recorded.lock().unwrap();
+            let roots = recorded.iter().filter(|r| r.is_complete).collect::<Vec<_>>();
+            assert_eq!(roots.len(), 1, "expected exactly one root for k={k}, m={m}");
+            assert_eq!(
+                roots[0].range,
+                ChunkRange { start: 0, end: k + m },
+                "root must cover [0, k + m) for k={k}, m={m}",
+            );
+
+            // Every original leaf appears once as a length-1 child; deferred leaves key at [0, k)
+            // and chunks at [k, k + m), each carrying its tagged artifact — i.e. deferred-first.
+            let mut leaves = std::collections::BTreeSet::new();
+            for reduce in recorded.iter() {
+                for (range, id) in &reduce.children {
+                    if range.len() != 1 {
+                        continue;
+                    }
+                    let start = range.start;
+                    assert!(leaves.insert(start), "leaf {start} folded twice for k={k}, m={m}");
+                    if start < k {
+                        assert_eq!(*id, format!("deferred-{start}"), "deferred leaf id mismatch");
+                    } else {
+                        assert_eq!(*id, format!("chunk-{}", start - k), "chunk leaf id mismatch");
+                    }
+                }
+            }
+            assert_eq!(
+                leaves,
+                (0..k + m).collect::<std::collections::BTreeSet<_>>(),
+                "leaves must tile [0, k + m) for k={k}, m={m}",
+            );
         }
     }
 }

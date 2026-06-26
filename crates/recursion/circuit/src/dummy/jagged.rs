@@ -6,7 +6,7 @@ use slop_merkle_tree::{MerkleTreeOpeningAndProof, MerkleTreeTcsProof};
 use slop_multilinear::MleEval;
 use slop_stacked::{EqBatchedProof, StackedProof};
 use slop_tensor::Tensor;
-use sp1_hypercube::{log2_ceil_usize, SP1PcsProofInner, NUM_SP1_COMMITMENTS};
+use sp1_hypercube::{log2_ceil_usize, SP1PcsProofInner};
 use sp1_primitives::{SP1Field, SP1GlobalContext};
 use sp1_recursion_executor::DIGEST_SIZE;
 
@@ -157,7 +157,9 @@ pub fn dummy_pcs_proof(
         jagged_eval_proof,
         boolean_batched_proof,
         sumcheck_proof: partial_sumcheck_proof,
-        merkle_tree_commitments: vec![dummy_hash(); NUM_SP1_COMMITMENTS].into_iter().collect(),
+        merkle_tree_commitments: vec![dummy_hash(); log_stacking_height_multiples.len()]
+            .into_iter()
+            .collect(),
         row_counts_and_column_counts,
         expected_eval: InnerChallenge::zero(),
         max_log_row_count,

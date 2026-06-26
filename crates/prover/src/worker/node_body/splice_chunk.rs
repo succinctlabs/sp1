@@ -254,10 +254,11 @@ where
                     rec.public_values.prev_merkle_root = data.prev_root;
                     rec.public_values.merkle_root = data.cur_root;
                     rec.public_values.trace_chunk_idx = rec.trace_chunk_idx;
-                    rec.public_values.shard_kind = rec.shard_kind;
-                    rec.public_values.shard_index = rec.shard_index;
+                    rec.public_values.shard_index = data.num_merkle_shards + rec.shard_index;
                     rec.public_values.num_execution_shard = data.num_execution_shards;
                     rec.public_values.num_merkle_shard = data.num_merkle_shards;
+                    rec.public_values.is_execution_shard = 1;
+                    rec.finalize_public_values::<SP1Field>();
                     let dep_prover = prover.clone();
                     let rec = tokio::task::spawn_blocking(move || {
                         dep_prover.machine().generate_dependencies(std::iter::once(&mut rec), None);
@@ -272,7 +273,8 @@ where
                     let proof =
                         prover.prove_shard(prove_prog, &rec, &data.commitments, permits).await;
                     if let Some(recursion) = recursion {
-                        let ctx = chunk_challenge_ctx(&data, shard_index);
+                        let ctx =
+                            chunk_challenge_ctx(&data, data.num_merkle_shards + rec.shard_index);
                         let out = artifact_client.create_artifact().map_err(|e| {
                             ExecutionError::Other(format!("create leaf artifact: {e}"))
                         })?;
@@ -381,10 +383,12 @@ where
                 rec.public_values.prev_merkle_root = data.prev_root;
                 rec.public_values.merkle_root = data.cur_root;
                 rec.public_values.trace_chunk_idx = rec.trace_chunk_idx;
-                rec.public_values.shard_kind = rec.shard_kind;
                 rec.public_values.shard_index = rec.shard_index;
                 rec.public_values.num_execution_shard = data.num_execution_shards;
                 rec.public_values.num_merkle_shard = data.num_merkle_shards;
+                if m_idx == 0 && chunk_idx == 0 {
+                    rec.public_values.is_first_shard = 1;
+                }
                 // The merkle shard sits at the head of the chunk.
                 rec.public_values.update_initialized_state(
                     chunk_pc_start,
@@ -392,9 +396,8 @@ where
                     prove_prog.trap_context,
                     prove_prog.untrusted_memory,
                 );
-                if m_idx == 0 {
-                    rec.public_values.is_first_merkle_shard = 1;
-                }
+                rec.public_values.is_execution_shard = 0;
+                rec.finalize_public_values::<SP1Field>();
                 let dep_prover = prover.clone();
                 let rec = tokio::task::spawn_blocking(move || {
                     dep_prover.machine().generate_dependencies(std::iter::once(&mut rec), None);
@@ -496,8 +499,7 @@ where
 
 /// Build the per-shard shared Fiat-Shamir context [`normalize`](RecursionStages::normalize) needs to
 /// re-derive the chunk's global challenge: the chunk's ordered commitments + bracketing roots, plus
-/// this shard's position. The placeholder normalize ignores it; the real one drives the
-/// shared-challenge logic from it.
+/// this shard's position.
 fn chunk_challenge_ctx(data: &ChunkProveData, shard_index: u32) -> ChunkChallengeCtx {
     ChunkChallengeCtx {
         commitments: data.commitments.clone(),

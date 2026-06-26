@@ -7609,6 +7609,7 @@ dependencies = [
  "serde",
  "serde_json",
  "slop-algebra 6.3.1",
+ "slop-symmetric 6.3.1",
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-gpu-cudart",

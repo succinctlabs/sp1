@@ -126,7 +126,7 @@ pub type SP1CompressWitness = SP1CompressWithVKeyWitnessValues<SP1PcsProofInner>
 /// Which compose-program family a `Compress` witness targets. The two stages chain public values
 /// differently (within-chunk binds the shared transcript and closes `Σ gcs = 0`; across-chunk
 /// chains boundary state with timestamp resets), so the executor selects the program by scope.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ComposeScope {
     /// Reduce same-chunk proofs.
     WithinChunk,

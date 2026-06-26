@@ -193,14 +193,15 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                             );
                             match (exec_result, consumer_result) {
                                 (Ok(_), Ok(())) => true,
-                                (Err(e), _) => {
-                                    tracing::error!("CoreExecute: task failed: {e:?}");
-                                    false
-                                }
-                                (_, Err(e)) => {
-                                    tracing::error!(
-                                        "CoreExecute: chunk consumer failed: {e:?}"
-                                    );
+                                (exec, consumer) => {
+                                    if let Err(e) = consumer {
+                                        tracing::error!(
+                                            "CoreExecute: chunk consumer failed: {e:?}"
+                                        );
+                                    }
+                                    if let Err(e) = exec {
+                                        tracing::error!("CoreExecute: task failed: {e:?}");
+                                    }
                                     false
                                 }
                             }

@@ -300,17 +300,21 @@ where
 {
     type WitnessVariable = ShardProofVariable<C, GC>;
 
-    // NOTE: `global_commitment` is intentionally not witnessed: the in-circuit verifier for
-    // 3-round (core) proofs is a planned follow-up, and recursion proofs carry `None`.
+    // `global_commitment` / `global_cumulative_sum` are witnessed iff present (`Some` for 3-round
+    // core proofs, `None` for 2-round recursion proofs). Read/write order must agree.
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let public_values = self.public_values.read(builder);
         let main_commitment = self.main_commitment.read(builder);
+        let global_commitment = self.global_commitment.as_ref().map(|c| c.read(builder));
+        let global_cumulative_sum = self.global_cumulative_sum.as_ref().map(|s| s.read(builder));
         let logup_gkr_proof = self.logup_gkr_proof.read(builder);
         let zerocheck_proof = self.zerocheck_proof.read(builder);
         let opened_values = self.opened_values.read(builder);
         let evaluation_proof = self.evaluation_proof.read(builder);
         Self::WitnessVariable {
             main_commitment,
+            global_commitment,
+            global_cumulative_sum,
             zerocheck_proof,
             opened_values,
             public_values,
@@ -322,6 +326,12 @@ where
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
         self.public_values.write(witness);
         self.main_commitment.write(witness);
+        if let Some(c) = self.global_commitment.as_ref() {
+            c.write(witness);
+        }
+        if let Some(s) = self.global_cumulative_sum.as_ref() {
+            s.write(witness);
+        }
         self.logup_gkr_proof.write(witness);
         self.zerocheck_proof.write(witness);
         self.opened_values.write(witness);

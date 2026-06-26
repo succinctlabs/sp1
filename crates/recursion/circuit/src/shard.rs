@@ -1,6 +1,6 @@
 use crate::{
     basefold::RecursiveBasefoldProof,
-    challenger::CanObserveVariable,
+    challenger::{CanObserveVariable, FieldChallengerVariable},
     jagged::{
         JaggedPcsProofVariable, RecursiveJaggedPcsVerifier, RecursiveMachineJaggedPcsVerifier,
     },
@@ -12,12 +12,13 @@ use slop_air::Air;
 use slop_algebra::AbstractField;
 use slop_challenger::IopCtx;
 use slop_commit::Rounds;
-use slop_multilinear::{Evaluations, MleEval};
+use slop_multilinear::{Evaluations, MleEval, Point};
 use slop_sumcheck::PartialSumcheckProof;
 
 use sp1_hypercube::{
-    air::MachineAir, GenericVerifierPublicValuesConstraintFolder, LogupGkrProof, Machine,
-    ShardOpenedValues, UntrustedConfig,
+    air::{InteractionScope, MachineAir, PublicValues},
+    beta_seed_dim_for_scope, pv_interaction_max_arity, GenericVerifierPublicValuesConstraintFolder,
+    LogupGkrProof, Machine, ShardOpenedValues, UntrustedConfig,
 };
 use sp1_primitives::{SP1ExtensionField, SP1Field};
 use sp1_recursion_compiler::{
@@ -26,12 +27,19 @@ use sp1_recursion_compiler::{
     prelude::{Ext, SymbolicFelt},
 };
 use sp1_recursion_executor::{DIGEST_SIZE, NUM_BITS};
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    borrow::Borrow,
+    collections::{BTreeMap, BTreeSet},
+};
 
 #[allow(clippy::type_complexity)]
 pub struct ShardProofVariable<C: CircuitConfig, SC: SP1FieldConfigVariable<C> + Send + Sync> {
     /// The commitments to main traces.
     pub main_commitment: SC::DigestVariable,
+    /// The commitment to the global traces. `Some` iff the machine has a global round.
+    pub global_commitment: Option<SC::DigestVariable>,
+    /// The global cumulative sum exposed by the shard. `Some` iff the machine has a global round.
+    pub global_cumulative_sum: Option<Ext<SP1Field, SP1ExtensionField>>,
     /// The values of the traces at the final random point.
     pub opened_values: ShardOpenedValues<Felt<SP1Field>, Ext<SP1Field, SP1ExtensionField>>,
     /// The zerocheck IOP proof.
@@ -109,17 +117,22 @@ where
         vk: &MachineVerifyingKeyVariable<C, GC>,
         proof: &ShardProofVariable<C, GC>,
         challenger: &mut GC::FriChallengerVariable,
+        commitments_hash: Option<[Felt<SP1Field>; DIGEST_SIZE]>,
     ) where
         A: for<'b> Air<RecursiveVerifierConstraintFolder<'b>>,
     {
         let ShardProofVariable {
             main_commitment,
+            global_commitment,
+            global_cumulative_sum,
             opened_values,
             evaluation_proof,
             zerocheck_proof,
             public_values,
             logup_gkr_proof,
         } = proof;
+
+        let has_global_round = self.machine.has_global_round();
 
         // Convert height bits to felts.
         let heights = opened_values
@@ -138,6 +151,32 @@ where
             });
             height_felts_map.insert(name.clone(), builder.eval(acc));
         }
+
+        // On a machine with a global round, observe the merkle roots and derive the shared global
+        // challenge, mirroring `verify_shard_with_global_commitments`. The commitments hash `H` is
+        // folded in only when provided (`Some` for chunk-aware verification, `None` otherwise, e.g.
+        // `MachineVerifier::verify`); this is the "global commitment exists or not" split. On a
+        // 2-round machine the whole block is skipped and the transcript is unchanged.
+        let global_challenge = if has_global_round {
+            let pv: &PublicValues<[Felt<_>; 4], [Felt<_>; 3], [Felt<_>; 4], Felt<_>> =
+                public_values.as_slice().borrow();
+            challenger.observe_slice(builder, pv.prev_merkle_root.iter().copied());
+            challenger.observe_slice(builder, pv.merkle_root.iter().copied());
+            if let Some(commitments_hash) = commitments_hash {
+                challenger.observe_slice(builder, commitments_hash.iter().copied());
+            }
+            let alpha = challenger.sample_ext(builder);
+            let beta_seed_dim = beta_seed_dim_for_scope(
+                self.machine.chips().iter(),
+                InteractionScope::Global,
+                pv_interaction_max_arity::<A::Record>(),
+            );
+            let beta_seed =
+                Point::from_iter((0..beta_seed_dim).map(|_| challenger.sample_ext(builder)));
+            Some((alpha, beta_seed))
+        } else {
+            None
+        };
 
         // Observe the public values.
         challenger.observe_slice(builder, public_values.to_vec());
@@ -181,6 +220,8 @@ where
             &shard_chips,
             &degrees,
             max_log_row_count,
+            global_challenge.as_ref(),
+            *global_cumulative_sum,
             logup_gkr_proof,
             public_values,
             challenger,
@@ -197,6 +238,7 @@ where
             zerocheck_proof,
             public_values,
             challenger,
+            has_global_round,
         );
         builder.cycle_tracker_v2_exit();
 
@@ -242,18 +284,72 @@ where
         let main_column_count =
             main_openings.iter().map(|table_openings| table_openings.len()).collect::<Vec<_>>();
 
+        // The main trace is the last round, so its added-columns index is the last one.
         let unfiltered_main_column_count = main_openings
+            .iter()
+            .map(|table_openings| table_openings.len())
+            .chain(std::iter::once(added_columns[added_columns.len() - 1] - 1))
+            .collect::<Vec<_>>();
+
+        // The global round mirrors the preprocessed round above; it is only used on a machine with
+        // a global round (the openings are empty otherwise).
+        let global_openings_for_proof = proof
+            .opened_values
+            .chips
+            .values()
+            .map(|opening| opening.global.clone())
+            .collect::<Vec<_>>();
+
+        let global_openings =
+            global_openings_for_proof.iter().map(|x| x.local.iter().as_slice()).collect::<Vec<_>>();
+
+        let filtered_global_openings = global_openings
+            .clone()
+            .into_iter()
+            .filter(|x| !x.is_empty())
+            .map(|x| x.iter().copied().collect::<MleEval<_>>())
+            .collect::<Evaluations<_>>();
+
+        let global_column_count = filtered_global_openings
+            .iter()
+            .map(|table_openings| table_openings.len())
+            .collect::<Vec<_>>();
+
+        let unfiltered_global_column_count = global_openings
             .iter()
             .map(|table_openings| table_openings.len())
             .chain(std::iter::once(added_columns[1] - 1))
             .collect::<Vec<_>>();
 
-        let (commitments, column_counts, unfiltered_column_counts, openings) = (
-            vec![vk.preprocessed_commit, *main_commitment],
-            vec![preprocessed_column_count, main_column_count.clone()],
-            vec![unfiltered_preprocessed_column_count, unfiltered_main_column_count],
-            Rounds { rounds: vec![filtered_preprocessed_openings, main_openings] },
-        );
+        let (commitments, column_counts, unfiltered_column_counts, openings) = if has_global_round {
+            (
+                vec![
+                    vk.preprocessed_commit,
+                    (*global_commitment).expect("global round requires a global commitment"),
+                    *main_commitment,
+                ],
+                vec![preprocessed_column_count, global_column_count, main_column_count.clone()],
+                vec![
+                    unfiltered_preprocessed_column_count,
+                    unfiltered_global_column_count,
+                    unfiltered_main_column_count,
+                ],
+                Rounds {
+                    rounds: vec![
+                        filtered_preprocessed_openings,
+                        filtered_global_openings,
+                        main_openings,
+                    ],
+                },
+            )
+        } else {
+            (
+                vec![vk.preprocessed_commit, *main_commitment],
+                vec![preprocessed_column_count, main_column_count.clone()],
+                vec![unfiltered_preprocessed_column_count, unfiltered_main_column_count],
+                Rounds { rounds: vec![filtered_preprocessed_openings, main_openings] },
+            )
+        };
 
         let machine_jagged_verifier =
             RecursiveMachineJaggedPcsVerifier::new(&self.pcs_verifier, column_counts.clone());
@@ -297,6 +393,7 @@ where
             .collect();
 
         let preprocessed_count = params[0].len();
+        let global_count = if has_global_round { params[1].len() } else { 0 };
         let params = params.into_iter().flatten().collect::<Vec<_>>();
 
         builder.cycle_tracker_v2_enter("jagged - prefix-sum-checks");
@@ -304,8 +401,13 @@ where
         // The prefix_sum_felts coming from the C::prefix_sum_checks call excludes what is the last
         // element, namely the total area, in the Rust verifier. We add that check in manually
         // below. That is why the Rust verifier `skip_indices` has two elements, while this
-        // one has one.
-        let skip_indices = [preprocessed_count];
+        // one has one (per non-final round). On a global round, the global padding column sits one
+        // past the preprocessed one (the `+ 1` skips the preprocessed padding column).
+        let skip_indices = if has_global_round {
+            vec![preprocessed_count, preprocessed_count + 1 + global_count]
+        } else {
+            vec![preprocessed_count]
+        };
 
         prefix_sum_felts
             .iter()
@@ -355,6 +457,38 @@ where
         {
             let bit_felt = C::bits2num(builder, vec![*bit]);
             builder.assert_felt_eq(max_bit * bit_felt, zero);
+        }
+
+        // Repeat the process above for the global trace padding column when there is a global
+        // round. Its prefix sum is the cumulative (preprocessed + global) multiple of
+        // `stacking_height`.
+        if has_global_round {
+            builder.assert_felt_eq(
+                prefix_sum_felts[skip_indices[1] + 1],
+                SP1Field::from_canonical_usize(
+                    (1 << self.pcs_verifier.stacked_pcs_verifier.log_stacking_height)
+                        * (evaluation_proof.pcs_proof.batch_evaluations.rounds[0]
+                            .num_polynomials()
+                            + evaluation_proof.pcs_proof.batch_evaluations.rounds[1]
+                                .num_polynomials()),
+                ),
+            );
+
+            let global_padding_col_height = builder
+                .eval(prefix_sum_felts[skip_indices[1] + 1] - prefix_sum_felts[skip_indices[1]]);
+            let global_padding_col_bit_decomp = C::num2bits(
+                builder,
+                global_padding_col_height,
+                self.pcs_verifier.max_log_row_count + 1,
+            );
+            let max_bit = global_padding_col_bit_decomp[self.pcs_verifier.max_log_row_count];
+            let max_bit = C::bits2num(builder, vec![max_bit]);
+            for bit in
+                global_padding_col_bit_decomp.iter().take(self.pcs_verifier.max_log_row_count)
+            {
+                let bit_felt = C::bits2num(builder, vec![*bit]);
+                builder.assert_felt_eq(max_bit * bit_felt, zero);
+            }
         }
         let num_cols = prefix_sum_felts.len();
 
@@ -501,9 +635,10 @@ mod tests {
             log_stacking_height as usize,
             &[
                 shape.preprocessed_area >> log_stacking_height,
+                shape.global_area >> log_stacking_height,
                 shape.main_area >> log_stacking_height,
             ],
-            &[shape.preprocessed_padding_cols, shape.main_padding_cols],
+            &[shape.preprocessed_padding_cols, shape.global_padding_cols, shape.main_padding_cols],
         );
 
         let vk_variable = vk.read(&mut builder);
@@ -536,12 +671,15 @@ mod tests {
         let mut challenger_variable =
             DuplexChallengerVariable::from_challenger(&mut builder, &initial_challenger);
 
+        // `MachineVerifier::verify` verifies each shard without folding in a commitments hash, so
+        // this proof's transcript does not observe `H`; the circuit must match by passing `None`.
         builder.cycle_tracker_v2_enter("verify-shard");
         stark_verifier.verify_shard(
             &mut builder,
             &vk_variable,
             &shard_proof_variable,
             &mut challenger_variable,
+            None,
         );
         builder.cycle_tracker_v2_exit();
 

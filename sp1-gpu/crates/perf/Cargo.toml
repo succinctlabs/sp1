@@ -28,6 +28,7 @@ sp1-prover-types = { workspace = true }
 sp1-primitives = { workspace = true }
 
 slop-algebra = { workspace = true }
+slop-symmetric = { workspace = true }
 
 csv = "1.3.0"
 tracing = { workspace = true }

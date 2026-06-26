@@ -865,53 +865,40 @@ impl ExecutionRecord {
         >,
         builder: &mut AB,
     ) {
-        // Check that `is_first_execution_shard` is boolean.
-        builder.assert_bool(public_values.is_first_execution_shard.into());
+        // Check `is_first_shard` is boolean.
+        builder.assert_bool(public_values.is_first_shard.into());
 
         // Timestamp constraints.
-        //
-        // We want to assert that `is_first_execution_shard == 1` corresponds exactly to the unique
-        // execution shard with initial timestamp 1.We are assuming that there is a unique
-        // shard with `is_first_execution_shard == 1`. This is enforced in the verifier and
-        // in recursion. Given thus, it is enough to impose that for this unique shard,
-        // `initial_timestamp == 1`.
-        builder.when(public_values.is_first_execution_shard.into()).assert_all_eq(
+        builder.when(public_values.is_shard_index_zero.into()).assert_all_eq(
             public_values.initial_timestamp,
             [AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::one()],
         );
 
-        // If `is_first_execution_shard` is true, check `is_execution_shard == 1`.
-        builder
-            .when(public_values.is_first_execution_shard.into())
-            .assert_one(public_values.is_execution_shard);
-
-        // If `is_first_execution_shard` is true, assert the initial boundary conditions.
+        // If `is_first_shard` is true, assert the initial boundary conditions.
 
         // Check `prev_committed_value_digest == 0`.
         for i in 0..PV_DIGEST_NUM_WORDS {
             builder
-                .when(public_values.is_first_execution_shard.into())
+                .when(public_values.is_first_shard.into())
                 .assert_all_zero(public_values.prev_committed_value_digest[i]);
         }
 
         // Check `prev_deferred_proofs_digest == 0`.
         builder
-            .when(public_values.is_first_execution_shard.into())
+            .when(public_values.is_first_shard.into())
             .assert_all_zero(public_values.prev_deferred_proofs_digest);
 
         // Check `prev_exit_code == 0`.
-        builder
-            .when(public_values.is_first_execution_shard.into())
-            .assert_zero(public_values.prev_exit_code);
+        builder.when(public_values.is_first_shard.into()).assert_zero(public_values.prev_exit_code);
 
         // Check `prev_commit_syscall == 0`.
         builder
-            .when(public_values.is_first_execution_shard.into())
+            .when(public_values.is_first_shard.into())
             .assert_zero(public_values.prev_commit_syscall);
 
         // Check `prev_commit_deferred_syscall == 0`.
         builder
-            .when(public_values.is_first_execution_shard.into())
+            .when(public_values.is_first_shard.into())
             .assert_zero(public_values.prev_commit_deferred_syscall);
     }
 
@@ -1089,7 +1076,7 @@ impl ExecutionRecord {
             AB::Expr::zero(),
             AB::Expr::from_canonical_u8(Tag::InitRoot as u8),
             public_values.prev_merkle_root,
-            public_values.is_first_merkle_shard,
+            public_values.inv_num_shards,
             InteractionScope::Global,
         );
 
@@ -1098,7 +1085,7 @@ impl ExecutionRecord {
             AB::Expr::zero(),
             AB::Expr::from_canonical_u8(Tag::FinalRoot as u8),
             public_values.merkle_root,
-            public_values.is_first_merkle_shard,
+            public_values.inv_num_shards,
             InteractionScope::Global,
         );
     }
@@ -1160,9 +1147,8 @@ impl ExecutionRecord {
     }
 
     /// Finalize the public values.
-    pub fn finalize_public_values<F: PrimeField32>(&mut self, is_execution_shard: bool) {
+    pub fn finalize_public_values<F: PrimeField32>(&mut self) {
         let state = &mut self.public_values;
-        state.is_execution_shard = is_execution_shard as u32;
 
         let initial_timestamp_high = (state.initial_timestamp >> 24) as u32;
         let initial_timestamp_low = (state.initial_timestamp & 0xFFFFFF) as u32;
@@ -1177,10 +1163,13 @@ impl ExecutionRecord {
                 .as_canonical_u32()
         };
 
-        state.last_timestamp_inv =
+        state.last_timestamp_inv = if state.last_timestamp == 1 {
+            0
+        } else {
             F::from_canonical_u32(last_timestamp_high + last_timestamp_low - 1)
                 .inverse()
-                .as_canonical_u32();
+                .as_canonical_u32()
+        };
 
         if initial_timestamp_high == last_timestamp_high {
             state.is_timestamp_high_eq = 1;
@@ -1201,6 +1190,28 @@ impl ExecutionRecord {
             .inverse()
             .as_canonical_u32();
         }
-        state.is_first_execution_shard = (state.initial_timestamp == 1) as u32;
+
+        if state.trace_chunk_idx == 0 {
+            state.inv_trace_chunk_idx = 0;
+            state.is_trace_chunk_idx_zero = 1;
+        } else {
+            state.inv_trace_chunk_idx =
+                F::from_canonical_u32(state.trace_chunk_idx).inverse().as_canonical_u32();
+            state.is_trace_chunk_idx_zero = 0;
+        }
+
+        if state.shard_index == 0 {
+            state.inv_shard_index = 0;
+            state.is_shard_index_zero = 1;
+        } else {
+            state.inv_shard_index =
+                F::from_canonical_u32(state.shard_index).inverse().as_canonical_u32();
+            state.is_shard_index_zero = 0;
+        }
+
+        state.inv_num_shards =
+            F::from_canonical_u32(state.num_merkle_shard + state.num_execution_shard)
+                .inverse()
+                .as_canonical_u32();
     }
 }

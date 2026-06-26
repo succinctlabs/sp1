@@ -162,7 +162,8 @@ pub(crate) fn merkle_record(n_pages: usize) -> ExecutionRecord {
     record.public_values.prev_merkle_root =
         proof_record.proof.prev_root.map(|x| x.as_canonical_u32());
     record.public_values.merkle_root = proof_record.proof.cur_root.map(|x| x.as_canonical_u32());
-    record.public_values.is_first_merkle_shard = 1;
+    record.public_values.num_merkle_shard = 1;
+    record.public_values.inv_num_shards = 1;
     record.merkle_proof_record = Some(proof_record);
     record
 }
@@ -329,15 +330,17 @@ mod tests {
         let tt = Chip::new(MerkleTreeTraversalChip::new());
         let kinds = [InteractionKind::LeafHash, InteractionKind::MerkleTreeTraversal];
 
+        let num_shards = pieces.len() as u32;
         let mut totals = BusTotals::new();
         for (shard_index, piece) in pieces.into_iter().enumerate() {
             let mut shard = ExecutionRecord::default();
+            shard.public_values.initial_timestamp = 1;
+            shard.public_values.last_timestamp = 1;
             shard.public_values.prev_merkle_root = prev_root;
             shard.public_values.merkle_root = cur_root;
-            // Exactly one shard injects the roots.
-            if shard_index == 0 {
-                shard.public_values.is_first_merkle_shard = 1;
-            }
+            shard.public_values.shard_index = shard_index as u32;
+            shard.public_values.num_merkle_shard = num_shards;
+            shard.finalize_public_values::<SP1Field>();
             shard.merkle_proof_record = Some(piece);
 
             for_chip_traces(&lh, &shard, &kinds, &mut totals);

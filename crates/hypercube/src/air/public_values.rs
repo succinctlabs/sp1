@@ -62,9 +62,6 @@ pub struct PublicValues<W1, W2, W3, T> {
     /// This value is only valid if halt has been executed.
     pub exit_code: T,
 
-    /// Whether or not the current shard is an execution shard.
-    pub is_execution_shard: T,
-
     /// The initial timestamp of the shard.
     pub initial_timestamp: W3,
 
@@ -101,11 +98,38 @@ pub struct PublicValues<W1, W2, W3, T> {
     /// The inverse to show that `last_timestamp != 1` in all shards.
     pub last_timestamp_inv: T,
 
-    /// Whether or not this shard is the first shard of the proof.
-    pub is_first_execution_shard: T,
+    /// Whether or not the current shard is an execution shard.
+    pub is_execution_shard: T,
 
-    /// Whether or not this shard is the first merkle shard of the chunk.
-    pub is_first_merkle_shard: T,
+    /// Whether or not this shard is the first shard of the proof.
+    pub is_first_shard: T,
+
+    /// Index of the trace chunk this shard belongs to.
+    pub trace_chunk_idx: T,
+
+    /// The inverse of the trace chunk index, if it's non-zero.
+    pub inv_trace_chunk_idx: T,
+
+    /// Whether or not if this shard belongs to the first chunk.
+    pub is_trace_chunk_idx_zero: T,
+
+    /// This shard's index within its trace chunk.
+    pub shard_index: T,
+
+    /// The inverse of the shard index, if it's non-zero.
+    pub inv_shard_index: T,
+
+    /// Whether or not this shard is the first shard of the chunk.
+    pub is_shard_index_zero: T,
+
+    /// Number of merkle shards in this shard's trace chunk.
+    pub num_merkle_shard: T,
+
+    /// Number of execution shards in this shard's trace chunk.
+    pub num_execution_shard: T,
+
+    /// The inverse of the number of shards in this chunk.
+    pub inv_num_shards: T,
 
     /// Whether untrusted program support is enabled.  This specifically will enable fetching
     /// instructions from memory during runtime and checking/setting page permissions.
@@ -126,23 +150,8 @@ pub struct PublicValues<W1, W2, W3, T> {
     /// The nonce used for this proof.
     pub proof_nonce: [T; PROOF_NONCE_NUM_WORDS],
 
-    /// Index of the trace chunk this shard belongs to.
-    pub trace_chunk_idx: T,
-
-    /// The shard kind: `0` = execution, `1` = merkle.
-    pub shard_kind: T,
-
-    /// This shard's index within its trace chunk.
-    pub shard_index: T,
-
-    /// Number of merkle shards in this shard's trace chunk.
-    pub num_merkle_shard: T,
-
-    /// Number of execution shards in this shard's trace chunk.
-    pub num_execution_shard: T,
-
     /// This field is here to ensure that the size of the public values struct is a multiple of 8.
-    pub empty: [T; 7],
+    pub empty: [T; 6],
 }
 
 impl PublicValues<u32, u64, u64, u32> {
@@ -197,7 +206,6 @@ impl PublicValues<u32, u64, u64, u32> {
         state.last_timestamp = 1;
         state.is_timestamp_high_eq = 1;
         state.is_timestamp_low_eq = 1;
-        state.is_first_execution_shard = 0;
         state.is_execution_shard = 0;
         state.initial_timestamp_inv = 0;
         state.last_timestamp_inv = 0;
@@ -222,7 +230,6 @@ impl PublicValues<u32, u64, u64, u32> {
         self.is_timestamp_low_eq = state.is_timestamp_low_eq;
         self.last_timestamp_inv = state.last_timestamp_inv;
         self.initial_timestamp_inv = state.initial_timestamp_inv;
-        self.is_first_execution_shard = state.is_first_execution_shard;
         self.is_execution_shard = state.is_execution_shard;
         self.is_untrusted_programs_enabled = state.is_untrusted_programs_enabled;
         #[cfg(feature = "mprotect")]
@@ -250,7 +257,6 @@ impl PublicValues<u32, u64, u64, u32> {
         self.last_timestamp = 1;
         self.is_timestamp_high_eq = 1;
         self.is_timestamp_low_eq = 1;
-        self.is_first_execution_shard = 0;
         self.is_execution_shard = 0;
         self.initial_timestamp_inv = 0;
         self.last_timestamp_inv = 0;
@@ -287,7 +293,6 @@ impl PublicValues<u32, u64, u64, u32> {
         self.last_timestamp = timestamp;
         self.is_timestamp_high_eq = 1;
         self.is_timestamp_low_eq = 1;
-        self.is_first_execution_shard = 0;
         self.is_execution_shard = 0;
         self.initial_timestamp_inv = 0;
         self.last_timestamp_inv = 0;
@@ -427,7 +432,6 @@ impl<F: AbstractField> From<PublicValues<u32, u64, u64, u32>>
             next_pc,
             prev_exit_code,
             exit_code,
-            is_execution_shard,
             initial_timestamp,
             last_timestamp,
             is_timestamp_high_eq,
@@ -438,6 +442,19 @@ impl<F: AbstractField> From<PublicValues<u32, u64, u64, u32>>
             commit_syscall,
             prev_commit_deferred_syscall,
             commit_deferred_syscall,
+            initial_timestamp_inv,
+            last_timestamp_inv,
+            is_execution_shard,
+            is_first_shard,
+            trace_chunk_idx,
+            inv_trace_chunk_idx,
+            is_trace_chunk_idx_zero,
+            shard_index,
+            inv_shard_index,
+            is_shard_index_zero,
+            num_merkle_shard,
+            num_execution_shard,
+            inv_num_shards,
             is_untrusted_programs_enabled,
             #[cfg(feature = "mprotect")]
             enable_trap_handler,
@@ -446,16 +463,7 @@ impl<F: AbstractField> From<PublicValues<u32, u64, u64, u32>>
             #[cfg(feature = "mprotect")]
             untrusted_memory,
             proof_nonce,
-            initial_timestamp_inv,
-            last_timestamp_inv,
-            is_first_execution_shard,
-            is_first_merkle_shard,
-            trace_chunk_idx,
-            shard_kind,
-            shard_index,
-            num_merkle_shard,
-            num_execution_shard,
-            ..
+            empty: _,
         } = value;
 
         let prev_merkle_root: [_; POSEIDON_NUM_WORDS] =
@@ -526,13 +534,17 @@ impl<F: AbstractField> From<PublicValues<u32, u64, u64, u32>>
 
         let initial_timestamp_inv = F::from_canonical_u32(initial_timestamp_inv);
         let last_timestamp_inv = F::from_canonical_u32(last_timestamp_inv);
-        let is_first_execution_shard = F::from_canonical_u32(is_first_execution_shard);
-        let is_first_merkle_shard = F::from_canonical_u32(is_first_merkle_shard);
+
+        let is_first_shard = F::from_canonical_u32(is_first_shard);
         let trace_chunk_idx = F::from_canonical_u32(trace_chunk_idx);
-        let shard_kind = F::from_canonical_u32(shard_kind);
+        let inv_trace_chunk_idx = F::from_canonical_u32(inv_trace_chunk_idx);
+        let is_trace_chunk_idx_zero = F::from_canonical_u32(is_trace_chunk_idx_zero);
         let shard_index = F::from_canonical_u32(shard_index);
+        let inv_shard_index = F::from_canonical_u32(inv_shard_index);
+        let is_shard_index_zero = F::from_canonical_u32(is_shard_index_zero);
         let num_merkle_shard = F::from_canonical_u32(num_merkle_shard);
         let num_execution_shard = F::from_canonical_u32(num_execution_shard);
+        let inv_num_shards = F::from_canonical_u32(inv_num_shards);
         let is_untrusted_programs_enabled = F::from_canonical_u32(is_untrusted_programs_enabled);
 
         #[cfg(feature = "mprotect")]
@@ -561,7 +573,6 @@ impl<F: AbstractField> From<PublicValues<u32, u64, u64, u32>>
             next_pc,
             prev_exit_code,
             exit_code,
-            is_execution_shard,
             initial_timestamp,
             last_timestamp,
             is_timestamp_high_eq,
@@ -572,6 +583,19 @@ impl<F: AbstractField> From<PublicValues<u32, u64, u64, u32>>
             commit_syscall,
             prev_commit_deferred_syscall,
             commit_deferred_syscall,
+            initial_timestamp_inv,
+            last_timestamp_inv,
+            is_execution_shard,
+            is_first_shard,
+            trace_chunk_idx,
+            inv_trace_chunk_idx,
+            is_trace_chunk_idx_zero,
+            shard_index,
+            inv_shard_index,
+            is_shard_index_zero,
+            num_merkle_shard,
+            num_execution_shard,
+            inv_num_shards,
             is_untrusted_programs_enabled,
             #[cfg(feature = "mprotect")]
             enable_trap_handler,
@@ -579,16 +603,7 @@ impl<F: AbstractField> From<PublicValues<u32, u64, u64, u32>>
             trap_context,
             #[cfg(feature = "mprotect")]
             untrusted_memory,
-            initial_timestamp_inv,
-            last_timestamp_inv,
-            is_first_execution_shard,
-            is_first_merkle_shard,
             proof_nonce,
-            trace_chunk_idx,
-            shard_kind,
-            shard_index,
-            num_merkle_shard,
-            num_execution_shard,
             empty: core::array::from_fn(|_| F::zero()),
         }
     }
@@ -710,7 +725,7 @@ mod tests {
     #[cfg(not(feature = "mprotect"))]
     #[test]
     fn test_public_values_num_elts_pinned() {
-        assert_eq!(public_values::SP1_PROOF_NUM_PV_ELTS, 142);
+        assert_eq!(public_values::SP1_PROOF_NUM_PV_ELTS, 144);
     }
 
     /// The ordering indices survive `to_vec` and read back through the borrow.
@@ -723,7 +738,6 @@ mod tests {
 
         let mut pv = PublicValues::<u32, u64, u64, u32>::default();
         pv.trace_chunk_idx = 7;
-        pv.shard_kind = 1;
         pv.shard_index = 5;
 
         let vec = pv.to_vec::<SP1Field>();
@@ -731,7 +745,6 @@ mod tests {
             vec.as_slice().borrow();
 
         assert_eq!(back.trace_chunk_idx, SP1Field::from_canonical_u32(7));
-        assert_eq!(back.shard_kind, SP1Field::from_canonical_u32(1));
         assert_eq!(back.shard_index, SP1Field::from_canonical_u32(5));
     }
 }

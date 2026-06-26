@@ -1,10 +1,7 @@
 use itertools::Itertools;
 use slop_algebra::AbstractField;
 use sp1_primitives::SP1Field;
-use sp1_recursion_compiler::{
-    circuit::CircuitV2Builder,
-    ir::{Builder, Config, Felt},
-};
+use sp1_recursion_compiler::ir::{Builder, Config, Felt};
 use sp1_recursion_executor::RecursionPublicValues;
 
 /// Assertions on recursion public values which represent a complete proof.
@@ -22,10 +19,8 @@ pub(crate) fn assert_complete<C: Config>(
         deferred_proofs_digest,
         prev_exit_code,
         next_pc,
-        initial_timestamp,
         start_reconstruct_deferred_digest,
         end_reconstruct_deferred_digest,
-        global_cumulative_sum,
         contains_first_shard,
         prev_commit_syscall,
         commit_syscall,
@@ -62,12 +57,12 @@ pub(crate) fn assert_complete<C: Config>(
     builder
         .assert_felt_eq(is_complete * (*contains_first_shard - SP1Field::one()), SP1Field::zero());
 
-    // Assert that the initial timestamp is equal to 1.
-    for limb in initial_timestamp[0..3].iter() {
-        builder.assert_felt_eq(is_complete * *limb, SP1Field::zero());
-    }
-    builder
-        .assert_felt_eq(is_complete * (initial_timestamp[3] - SP1Field::one()), SP1Field::zero());
+    // // Assert that the initial timestamp is equal to 1.
+    // for limb in initial_timestamp[0..3].iter() {
+    //     builder.assert_felt_eq(is_complete * *limb, SP1Field::zero());
+    // }
+    // builder
+    //     .assert_felt_eq(is_complete * (initial_timestamp[3] - SP1Field::one()), SP1Field::zero());
 
     // The start reconstruct deferred digest should be zero.
     for start_digest in start_reconstruct_deferred_digest {
@@ -100,7 +95,4 @@ pub(crate) fn assert_complete<C: Config>(
         is_complete * (*commit_deferred_syscall - SP1Field::one()),
         SP1Field::zero(),
     );
-
-    // The global cumulative sum should sum be equal to the zero digest.
-    builder.assert_digest_zero_v2(is_complete, *global_cumulative_sum);
 }

@@ -138,6 +138,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents>
             start_reconstruct_deferred_digest,
             sp1_vk_digest: common_input.vk.hash_koalabear(),
             end_pc: common_input.vk.vk.pc_start,
+            initial_memory_root: common_input.vk.vk.initial_memory_root,
             proof_nonce: nonce,
             deferred_proof_index,
         };

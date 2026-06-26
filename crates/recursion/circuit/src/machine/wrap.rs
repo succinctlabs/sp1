@@ -17,9 +17,6 @@ use sp1_recursion_compiler::ir::{Builder, Felt};
 use std::borrow::Borrow;
 
 /// A program to verify a single recursive proof representing a complete proof of program execution.
-///
-/// The root verifier is simply a `SP1CompressVerifier` with an assertion that the `is_complete`
-/// flag is set to true.
 #[derive(Debug, Clone, Copy)]
 pub struct SP1WrapVerifier<GC, C, A> {
     _phantom: PhantomData<(GC, C, A)>,
@@ -73,7 +70,7 @@ where
         for _ in 0..4 {
             challenger.observe(builder, zero);
         }
-        machine.verify_shard(builder, vk, proof, &mut challenger);
+        machine.verify_shard(builder, vk, proof, &mut challenger, None);
 
         assert_complete(builder, &public_values.inner, input.is_complete);
 

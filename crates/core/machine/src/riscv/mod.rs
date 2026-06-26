@@ -639,6 +639,8 @@ impl<F: PrimeField32> RiscvAir<F> {
                 MemoryBump,
                 StateBump,
                 MemoryLocal,
+                HintRead,
+                HintReadControl,
             ],
         );
 
@@ -698,7 +700,6 @@ impl<F: PrimeField32> RiscvAir<F> {
             [Sha256Extend, Sha256ExtendControl, Sha256Compress, Sha256CompressControl].as_slice(),
             [Uint256Ops].as_slice(),
             [Poseidon2].as_slice(),
-            [HintRead, HintReadControl].as_slice(),
         ];
 
         #[cfg(feature = "mprotect")]
@@ -726,6 +727,23 @@ impl<F: PrimeField32> RiscvAir<F> {
             [Sha256Extend, Sha256ExtendControl, Sha256Compress, Sha256CompressControl, Uint256Ops],
         );
 
+        let single_precompile_clusters = [
+            [Sha256Extend, Sha256ExtendControl, Sha256Compress, Sha256CompressControl].as_slice(),
+            [Ed25519Add, Ed25519Decompress].as_slice(),
+            [Secp256k1Add, Secp256k1Double].as_slice(),
+            [Secp256r1Add, Secp256r1Double].as_slice(),
+            [KeccakP, KeccakPControl].as_slice(),
+            [Bn254Add, Bn254Double].as_slice(),
+            [Bls12381Add, Bls12381Double].as_slice(),
+            [Uint256Mul].as_slice(),
+            [Uint256Ops].as_slice(),
+            [Bls12381Fp, Bls12381Fp2AddSub, Bls12381Fp2Mul].as_slice(),
+            [Bn254Fp, Bn254Fp2AddSub, Bn254Fp2Mul].as_slice(),
+            [Poseidon2].as_slice(),
+        ]
+        .into_iter()
+        .map(|ids| extend_base(&core_cluster, ids.iter().cloned()));
+
         // A cluster with every supervisor-mode chip, so a record that runs as a single shard
         // holding core and precompile chips together fits a cluster.
         let supervisor_everything = extend_base(
@@ -735,29 +753,27 @@ impl<F: PrimeField32> RiscvAir<F> {
                 Sha256ExtendControl,
                 Sha256Compress,
                 Sha256CompressControl,
-                Ed25519Add,
-                Ed25519Decompress,
+                // Ed25519Add,
+                // Ed25519Decompress,
                 Secp256k1Add,
                 Secp256k1Double,
-                Secp256r1Add,
-                Secp256r1Double,
+                // Secp256r1Add,
+                // Secp256r1Double,
                 KeccakP,
                 KeccakPControl,
-                Bn254Add,
-                Bn254Double,
-                Bls12381Add,
-                Bls12381Double,
-                Uint256Mul,
-                Uint256Ops,
-                Bls12381Fp,
-                Bls12381Fp2AddSub,
-                Bls12381Fp2Mul,
-                Bn254Fp,
-                Bn254Fp2AddSub,
-                Bn254Fp2Mul,
-                Poseidon2,
-                HintRead,
-                HintReadControl,
+                // Bn254Add,
+                // Bn254Double,
+                // Bls12381Add,
+                // Bls12381Double,
+                // Uint256Mul,
+                // Uint256Ops,
+                // Bls12381Fp,
+                // Bls12381Fp2AddSub,
+                // Bls12381Fp2Mul,
+                // Bn254Fp,
+                // Bn254Fp2AddSub,
+                // Bn254Fp2Mul,
+                // Poseidon2,
             ],
         );
 
@@ -784,7 +800,8 @@ impl<F: PrimeField32> RiscvAir<F> {
             .chain(core::iter::once(core_cluster_special))
             .chain(core::iter::once(supervisor_everything))
             .chain(core::iter::once(memory_cluster))
-            .chain(precompile_clusters);
+            .chain(precompile_clusters)
+            .chain(single_precompile_clusters);
 
         #[cfg(feature = "mprotect")]
         let chip_clusters = chip_clusters

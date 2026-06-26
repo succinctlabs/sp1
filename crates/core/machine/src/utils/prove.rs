@@ -112,11 +112,9 @@ where
                     program.trap_context,
                     program.untrusted_memory,
                 );
-                if merkle_index == 0 {
-                    record.public_values.is_first_merkle_shard = 1;
-                }
                 record.shard_kind = SHARD_KIND_MERKLE;
                 record.shard_index = merkle_index as u32;
+                record.public_values.is_execution_shard = 0;
                 record
             })
             .collect();
@@ -139,11 +137,13 @@ where
                 trace_chunk::<F>(program.clone(), opts.clone(), spliced, proof_nonce, record)
                     .map_err(SP1CoreProverError::ExecutionError)?;
             record.shard_kind = SHARD_KIND_EXECUTION;
-            record.shard_index = exec_index as u32;
+            record.shard_index = num_merkle_shards + exec_index as u32;
+            record.public_values.is_execution_shard = 1;
             chunk_records.push(record);
         }
         let num_execution_shards = (chunk_records.len() - num_merkle_shards as usize) as u32;
 
+        chunk_records[0].public_values.is_first_shard = 1;
         // Chunk metadata + the chunk's bracketing merkle roots, on every shard.
         for record in chunk_records.iter_mut() {
             record.trace_chunk_idx = chunk_idx as u32;
@@ -154,10 +154,10 @@ where
             record.public_values.prev_merkle_root = prev_root;
             record.public_values.merkle_root = cur_root;
             record.public_values.trace_chunk_idx = record.trace_chunk_idx;
-            record.public_values.shard_kind = record.shard_kind;
             record.public_values.shard_index = record.shard_index;
             record.public_values.num_execution_shard = num_execution_shards;
             record.public_values.num_merkle_shard = num_merkle_shards;
+            record.finalize_public_values::<F>();
         }
 
         // Dependencies last: the pv-driven byte/range lookups must see the final pvs.
@@ -322,7 +322,6 @@ mod tests {
             assert!(!execution.is_empty(), "chunk {chunk_idx} has no execution shards");
             assert_eq!(merkle.shard_kind, SHARD_KIND_MERKLE);
             assert_eq!(merkle.num_merkle_shards, 1);
-            assert_eq!(merkle.public_values.is_first_merkle_shard, 1);
             assert_eq!(merkle.public_values.is_execution_shard, 0);
             assert!(merkle.merkle_proof_record.is_some());
 
@@ -354,9 +353,8 @@ mod tests {
 
             for (i, record) in execution.iter().enumerate() {
                 assert_eq!(record.shard_kind, SHARD_KIND_EXECUTION);
-                assert_eq!(record.shard_index, i as u32);
+                assert_eq!(record.shard_index, 1 + i as u32);
                 assert_eq!(record.num_execution_shards, execution.len() as u32);
-                assert_eq!(record.public_values.is_first_merkle_shard, 0);
                 assert_eq!(record.public_values.is_execution_shard, 1);
                 assert_eq!(record.public_values.num_execution_shard, execution.len() as u32);
                 assert_eq!(record.public_values.num_merkle_shard, 1);
@@ -480,7 +478,7 @@ mod tests {
                         p.public_values.as_slice().borrow();
                     *pv
                 })
-                .filter(|pv| pv.is_first_merkle_shard == SP1Field::one())
+                .filter(|pv| pv.is_execution_shard == SP1Field::zero())
                 .collect();
         assert!(merkle_pvs.len() >= 2, "expected merkle shards from several chunks");
         for pair in merkle_pvs.windows(2) {

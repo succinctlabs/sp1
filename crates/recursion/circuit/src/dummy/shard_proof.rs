@@ -1,4 +1,4 @@
-use std::{collections::BTreeSet, iter::once};
+use std::collections::BTreeSet;
 
 use slop_algebra::AbstractField;
 use slop_basefold::{BasefoldVerifier, FriConfig};
@@ -42,16 +42,27 @@ pub fn dummy_shard_proof<A: MachineAir<SP1Field>>(
     let fri_queries = default_verifier.fri_config.num_queries;
     let log_blowup = default_verifier.fri_config.log_blowup;
 
+    let has_global_round = shard_chips.iter().any(|chip| chip.global_width() > 0);
+
+    // Round order is `[preprocessed, global, main]` on a global-round machine, `[preprocessed,
+    // main]` otherwise.
+    let mut round_widths: Vec<Vec<usize>> =
+        vec![shard_chips.iter().map(MachineAir::preprocessed_width).filter(|x| *x > 0).collect()];
+    if has_global_round {
+        round_widths
+            .push(shard_chips.iter().map(MachineAir::global_width).filter(|x| *x > 0).collect());
+    }
+    round_widths.push(
+        shard_chips.iter().map(|chip| chip.air.width()).filter(|x| *x > 0).collect::<Vec<_>>(),
+    );
+
     let evaluation_proof = dummy_pcs_proof(
         fri_queries,
         max_log_row_count,
         log_stacking_height_multiples,
         log_stacking_height,
         log_blowup,
-        once(shard_chips.iter().map(MachineAir::preprocessed_width).filter(|x| *x > 0).collect())
-            .chain(once(shard_chips.iter().map(|chip| chip.air.width()).collect::<Vec<_>>()))
-            .zip(added_cols.iter().copied())
-            .collect(),
+        round_widths.into_iter().zip(added_cols.iter().copied()).collect(),
     );
 
     let logup_gkr_proof =
@@ -61,8 +72,8 @@ pub fn dummy_shard_proof<A: MachineAir<SP1Field>>(
 
     ShardProof {
         public_values: vec![SP1Field::zero(); PROOF_MAX_NUM_PVS],
-        global_commitment: None,
-        global_cumulative_sum: None,
+        global_commitment: has_global_round.then(|| [SP1Field::zero(); 8]),
+        global_cumulative_sum: has_global_round.then(EF::zero),
         main_commitment: [SP1Field::zero(); 8],
         logup_gkr_proof,
         zerocheck_proof,
