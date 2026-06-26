@@ -1,11 +1,13 @@
 mod memory;
 mod operation;
 mod program;
+mod witness;
 mod word;
 
 pub use memory::*;
 pub use operation::*;
 pub use program::*;
+pub use witness::*;
 pub use word::*;
 
 use sp1_hypercube::air::{BaseAirBuilder, SP1AirBuilder};

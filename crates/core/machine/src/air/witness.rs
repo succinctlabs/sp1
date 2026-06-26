@@ -1,0 +1,100 @@
+//! Trace-generation DSL: the witness-gen dual of [`SP1AirBuilder`].
+//!
+//! SP1 operations already express their *constraints* once via
+//! [`crate::air::SP1Operation::lower`] against any [`SP1AirBuilder`], so the same
+//! definition runs on multiple backends (constraint folding on host, the DAG
+//! interpreter on GPU, verification, …). [`WitnessBuilder`] is the analogous
+//! abstraction for *witness generation*: an operation's `witgen` is written once
+//! against a `WitnessBuilder`, and the same body runs on different backends:
+//!
+//! * [`HostWitnessBuilder`] — `Nat = u64`, `Field = F`; every op computes
+//!   immediately and writes the row columns / emits lookups. This reproduces the
+//!   hand-written `populate` exactly.
+//! * (future) a recording builder — `Nat = Field = WireId`; every op pushes onto a
+//!   per-gadget op-DAG that a single generic CUDA kernel interprets per row, the
+//!   way `zerocheck`/`branchingProgram` already interpret the constraint DAG on
+//!   the GPU.
+//!
+//! The op-set is taken from SP1's real `populate` bodies (field/nat arithmetic,
+//! bit extraction, nat→field casts, range/byte lookups, conditional select); add
+//! ops only as gadgets need them. See `autoresearch/design/TRACEGEN-DSL.md`.
+
+use std::marker::PhantomData;
+
+use slop_algebra::AbstractField;
+use sp1_core_executor::events::ByteRecord;
+
+/// A value-producing builder for trace generation. Implementors choose how each
+/// op is realized (compute now, or record an op for a backend to run later).
+///
+/// `Nat` is an integer-typed wire (RISC-V words, limbs, indices); `Field` is a
+/// field-element-typed wire (the actual trace column values).
+pub trait WitnessBuilder {
+    /// Integer-typed value (host: `u64`).
+    type Nat: Copy;
+    /// Field-element-typed value (host: the field `F`).
+    type Field: Copy;
+
+    /// A literal integer.
+    fn const_nat(&mut self, value: u64) -> Self::Nat;
+
+    /// Wrapping integer addition.
+    fn wrapping_add(&mut self, a: Self::Nat, b: Self::Nat) -> Self::Nat;
+
+    /// Extract `width` bits of `a` starting at bit `offset` (i.e. `(a >> offset) &
+    /// ((1 << width) - 1)`). The common limb/byte decomposition primitive.
+    fn bits(&mut self, a: Self::Nat, offset: u32, width: u32) -> Self::Nat;
+
+    /// Embed an integer into the field via the canonical representation.
+    fn nat_to_field(&mut self, a: Self::Nat) -> Self::Field;
+
+    /// Emit a `u16` range-check lookup for `a`.
+    fn add_u16_range_check(&mut self, a: Self::Nat);
+}
+
+/// Host (CPU) backend: every op is evaluated immediately on concrete values, and
+/// lookups are forwarded to the shard's [`ByteRecord`]. Identical in behavior to
+/// the hand-written `populate`.
+pub struct HostWitnessBuilder<'a, F, R: ByteRecord> {
+    record: &'a mut R,
+    _field: PhantomData<F>,
+}
+
+impl<'a, F, R: ByteRecord> HostWitnessBuilder<'a, F, R> {
+    /// Create a host builder that emits lookups into `record`.
+    pub fn new(record: &'a mut R) -> Self {
+        Self { record, _field: PhantomData }
+    }
+}
+
+impl<F: AbstractField + Copy, R: ByteRecord> WitnessBuilder for HostWitnessBuilder<'_, F, R> {
+    type Nat = u64;
+    type Field = F;
+
+    #[inline]
+    fn const_nat(&mut self, value: u64) -> u64 {
+        value
+    }
+
+    #[inline]
+    fn wrapping_add(&mut self, a: u64, b: u64) -> u64 {
+        a.wrapping_add(b)
+    }
+
+    #[inline]
+    fn bits(&mut self, a: u64, offset: u32, width: u32) -> u64 {
+        debug_assert!(width > 0 && width <= 64);
+        let mask = if width == 64 { u64::MAX } else { (1u64 << width) - 1 };
+        (a >> offset) & mask
+    }
+
+    #[inline]
+    fn nat_to_field(&mut self, a: u64) -> F {
+        F::from_canonical_u64(a)
+    }
+
+    #[inline]
+    fn add_u16_range_check(&mut self, a: u64) {
+        self.record.add_u16_range_check(a as u16);
+    }
+}
