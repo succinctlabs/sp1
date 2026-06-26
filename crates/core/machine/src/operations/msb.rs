@@ -1,15 +1,12 @@
 use serde::{Deserialize, Serialize};
-use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord},
-    ByteOpcode,
-};
+use sp1_core_executor::{events::ByteRecord, ByteOpcode};
 use sp1_hypercube::air::SP1AirBuilder;
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use slop_algebra::{AbstractField, Field};
 use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationBuilder};
 
-use crate::air::SP1Operation;
+use crate::air::{HostWitnessBuilder, SP1Operation, WitnessBuilder};
 
 /// Operation columns for computing the most significant bit of a u16.
 #[derive(
@@ -30,18 +27,29 @@ pub struct U16MSBOperation<T> {
     pub msb: T,
 }
 
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T> U16MSBOperation<T> {
+    /// Backend-agnostic witgen dual of [`Self::eval_msb`]: `msb = (a >> 15) & 1` and
+    /// the `{Range, 2a mod 2^16, 16}` lookup that constrains it. `a` is a u16 limb.
+    pub fn witgen<WB: WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut U16MSBOperation<WB::Field>,
+        a: WB::Nat,
+    ) -> WB::Nat {
+        let msb = wb.bits(a, 15, 1);
+        cols.msb = wb.nat_to_field(msb);
+        // diff = (2a) mod 2^16; the Range check is `add_u16_range_check(diff)`.
+        let a2 = wb.wrapping_add(a, a);
+        let diff = wb.bits(a2, 0, 16);
+        wb.add_u16_range_check(diff);
+        msb
+    }
+}
+
 impl<F: Field> U16MSBOperation<F> {
     pub fn populate_msb(&mut self, record: &mut impl ByteRecord, a_u16: u16) -> u32 {
-        let msb = (a_u16 >> 15) & 1;
-        self.msb = F::from_canonical_u16(msb);
-        let diff = a_u16.wrapping_mul(2u16);
-        record.add_byte_lookup_event(ByteLookupEvent {
-            opcode: ByteOpcode::Range,
-            a: diff,
-            b: 16,
-            c: 0,
-        });
-        msb as u32
+        let mut wb = HostWitnessBuilder::<F, _>::new(record);
+        Self::witgen(&mut wb, self, a_u16 as u64) as u32
     }
 
     /// Evaluate the `U16MSBOperation` on the given inputs.

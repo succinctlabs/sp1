@@ -1,6 +1,7 @@
 mod add;
 mod global;
 mod sub;
+mod subw;
 
 /// Per-thread wire-array capacity in the witgen interpreter kernel
 /// (`WITGEN_MAX_WIRES` in `witgen_interp.cu`). A recorded gadget whose
@@ -20,6 +21,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Global(chip) => chip.supports_device_main_tracegen(),
             Self::Add(chip) => chip.supports_device_main_tracegen(),
             Self::Sub(chip) => chip.supports_device_main_tracegen(),
+            Self::Subw(chip) => chip.supports_device_main_tracegen(),
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => false,
         }
@@ -35,6 +37,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Global(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::Add(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::Sub(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::Subw(chip) => chip.generate_trace_device(input, output, scope).await,
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => unimplemented!(),
         }
@@ -44,6 +47,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
         match self {
             Self::Add(chip) => chip.supports_device_dependencies(),
             Self::Sub(chip) => chip.supports_device_dependencies(),
+            Self::Subw(chip) => chip.supports_device_dependencies(),
             _ => false,
         }
     }
@@ -57,6 +61,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
         match self {
             Self::Add(chip) => chip.generate_device_dependencies(input, output, scope).await,
             Self::Sub(chip) => chip.generate_device_dependencies(input, output, scope).await,
+            Self::Subw(chip) => chip.generate_device_dependencies(input, output, scope).await,
             _ => unimplemented!(),
         }
     }
