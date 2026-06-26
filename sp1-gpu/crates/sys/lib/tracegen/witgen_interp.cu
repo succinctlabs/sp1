@@ -105,8 +105,99 @@ __global__ void witgen_interp_kernel(
     }
 }
 
+// --- Byte/range lookup histogram kernel (device port of `interpret_c_lookups`) ---
+//
+// The lookup-emitting dual of the column kernel: it interprets the SAME op-DAG one
+// thread per row but, instead of writing columns, accumulates the lookup ops
+// (tags 6/7/9) into two shard-level dense multiplicity tables via `atomicAdd`. The
+// table index conventions match the consumer chips exactly (see range/trace.rs and
+// bytes/trace.rs); the CPU reference is `interpret_c_lookups` in
+// crates/core/machine/src/air/witness_record.rs.
+//
+// Integer-only: lookups read only Nat wires, so field-producing ops (tags 3/4/5)
+// write a placeholder to keep wire ids aligned with the column interpreter.
+//
+// Multiplicities are u32 counts (native atomicAdd). One shard-level histogram pair,
+// allocated/zeroed once by the host (heed iter-004: NO per-chunk dense arrays).
+// Global atomics for now (correctness); per-block privatization is a perf follow-up.
+
+// Byte-table multiplicity columns (== sp1_core_machine bytes::NUM_BYTE_OPS) and the
+// U8Range opcode index (== sp1_core_executor::ByteOpcode::U8Range as usize).
+#define WITGEN_NUM_BYTE_MULT_COLS 6
+#define WITGEN_BYTE_U8RANGE_COL 3
+
+__global__ void witgen_lookup_kernel(
+    const sp1_gpu_sys::WitOpC* ops,    // the recorded op-DAG
+    uintptr_t n_ops,
+    uint32_t num_inputs,
+    const uint64_t* inputs,            // row-major [n_rows][num_inputs]
+    uintptr_t n_rows,
+    uint32_t* range_hist,              // Range chip table, len 1<<17
+    uint32_t* byte_hist) {             // Byte chip table, len (1<<16)*NUM_BYTE_MULT_COLS
+    int row = blockIdx.x * blockDim.x + threadIdx.x;
+    for (; row < n_rows; row += blockDim.x * gridDim.x) {
+        uint64_t nat[WITGEN_MAX_WIRES];
+
+        uint32_t wc = 0;
+        for (uint32_t i = 0; i < num_inputs; ++i) {
+            nat[wc++] = inputs[row * num_inputs + i];
+        }
+
+        for (uintptr_t k = 0; k < n_ops; ++k) {
+            const sp1_gpu_sys::WitOpC op = ops[k];
+            switch (op.tag) {
+            case 0: // ConstNat
+                nat[wc++] = op.imm0;
+                break;
+            case 1: // WrappingAdd
+                nat[wc++] = nat[op.a] + nat[op.b];
+                break;
+            case 8: // WrappingSub
+                nat[wc++] = nat[op.a] - nat[op.b];
+                break;
+            case 2: { // Bits
+                uint64_t mask = (op.imm1 >= 64) ? ~0ULL : ((1ULL << op.imm1) - 1);
+                nat[wc++] = (nat[op.a] >> op.imm0) & mask;
+                break;
+            }
+            case 11: // Eq
+                nat[wc++] = (nat[op.a] == nat[op.b]) ? 1 : 0;
+                break;
+            case 12: // Select
+                nat[wc++] = nat[op.a] ? nat[op.b] : nat[op.imm1];
+                break;
+            case 3: // NatToField
+            case 4: // FieldAdd
+            case 5: // FieldInverse
+                nat[wc++] = 0; // field wire: placeholder (never read by a lookup)
+                break;
+            case 6: { // U16RangeCheck -> {Range, a: v, bits: 16}
+                uint32_t v = (uint32_t)(uint16_t)nat[op.a];
+                atomicAdd(&range_hist[v + (1u << 16)], 1u);
+                break;
+            }
+            case 7: { // BitRangeCheck -> {Range, a: v, bits: imm0}
+                uint32_t v = (uint32_t)(uint16_t)nat[op.a];
+                atomicAdd(&range_hist[v + (1u << (uint32_t)op.imm0)], 1u);
+                break;
+            }
+            case 9: { // U8RangeCheck -> {U8Range, b: nat[a], c: nat[b]}
+                uint32_t b = (uint32_t)(uint8_t)nat[op.a];
+                uint32_t c = (uint32_t)(uint8_t)nat[op.b];
+                uint32_t r = (b << 8) + c;
+                atomicAdd(&byte_hist[r * WITGEN_NUM_BYTE_MULT_COLS + WITGEN_BYTE_U8RANGE_COL], 1u);
+                break;
+            }
+            }
+        }
+    }
+}
+
 namespace sp1_gpu_sys {
 extern KernelPtr witgen_interp_koala_bear_kernel() {
     return (KernelPtr)::witgen_interp_kernel<kb31_t>;
+}
+extern KernelPtr witgen_lookup_koala_bear_kernel() {
+    return (KernelPtr)::witgen_lookup_kernel;
 }
 } // namespace sp1_gpu_sys
