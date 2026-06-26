@@ -31,6 +31,27 @@ impl<T> U16toU8Operation<T> {
             cols.low_bytes[i] = wb.nat_to_field(low_byte);
         }
     }
+
+    /// Witgen dual of [`Self::populate_u16_to_u8_safe`]: same columns as the unsafe
+    /// variant (the low byte of each u16 limb) plus a `{U8Range, low, high}` lookup
+    /// per limb. Returns the eight u8 limbs `[low0, high0, low1, high1, …]` for the
+    /// caller (e.g. the Mul convolution).
+    pub fn witgen_safe<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut U16toU8Operation<WB::Field>,
+        a: WB::Nat,
+    ) -> [WB::Nat; WORD_BYTE_SIZE] {
+        let mut bytes = core::array::from_fn(|_| wb.const_nat(0));
+        for i in 0..WORD_SIZE {
+            let low = wb.bits(a, (i as u32) * 16, 8);
+            let high = wb.bits(a, (i as u32) * 16 + 8, 8);
+            cols.low_bytes[i] = wb.nat_to_field(low);
+            wb.add_u8_range_check(low, high);
+            bytes[2 * i] = low;
+            bytes[2 * i + 1] = high;
+        }
+        bytes
+    }
 }
 
 impl<F: Field> U16toU8Operation<F> {

@@ -61,6 +61,111 @@ pub struct MulOperation<T> {
     pub c_sign_extend: T,
 }
 
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T> MulOperation<T> {
+    /// Backend-agnostic witgen dual of [`Self::populate`]. Computes the carried
+    /// 16-byte product `b*c` (with per-row sign extension) via a byte-level
+    /// convolution in nat-space, plus the MSB/range lookups. `b`, `c` are the u64
+    /// operands; the mode flags are per-row 0/1 nats.
+    #[allow(clippy::too_many_arguments)]
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut MulOperation<WB::Field>,
+        b: WB::Nat,
+        c: WB::Nat,
+        is_mulh: WB::Nat,
+        is_mulhsu: WB::Nat,
+        is_mulw: WB::Nat,
+    ) {
+        const LONG: usize = LONG_WORD_BYTE_SIZE; // 16
+        let zero = wb.const_nat(0);
+        let zero_f = wb.nat_to_field(zero);
+
+        // product_msb: msb of limb 1 of the (i32-wrapping) MULW product; MULW only.
+        let b32 = wb.bits(b, 0, 32);
+        let c32 = wb.bits(c, 0, 32);
+        let p32 = wb.mul(b32, c32);
+        let mulw_limb1 = wb.bits(p32, 16, 16);
+        wb.push_guard(is_mulw);
+        U16MSBOperation::<WB::Field>::witgen(wb, &mut cols.product_msb, mulw_limb1);
+        wb.pop_guard();
+        cols.product_msb.msb = wb.field_select(is_mulw, cols.product_msb.msb, zero_f);
+
+        // Eight u8 limbs of b and c (+ their U8Range lookups).
+        let b_bytes = U16toU8Operation::<WB::Field>::witgen_safe(wb, &mut cols.b_lower_byte, b);
+        let c_bytes = U16toU8Operation::<WB::Field>::witgen_safe(wb, &mut cols.c_lower_byte, c);
+
+        // MSBs of b and c (top bit of the most-significant byte) + their MSB lookups.
+        let msb_op = wb.const_nat(ByteOpcode::MSB as u64);
+        let b_msb = wb.bits(b, 63, 1);
+        cols.b_msb = wb.nat_to_field(b_msb);
+        let b_top = wb.bits(b, 56, 8);
+        wb.add_byte_lookup(msb_op, b_msb, b_top, zero);
+        let c_msb = wb.bits(c, 63, 1);
+        cols.c_msb = wb.nat_to_field(c_msb);
+        let c_top = wb.bits(c, 56, 8);
+        wb.add_byte_lookup(msb_op, c_msb, c_top, zero);
+
+        // Sign-extend flags: b is signed for MULH/MULHSU, c for MULH.
+        let is_b_i64 = wb.wrapping_add(is_mulh, is_mulhsu);
+        let b_sign_extend = wb.select(is_b_i64, b_msb, zero);
+        cols.b_sign_extend = wb.nat_to_field(b_sign_extend);
+        let c_sign_extend = wb.select(is_mulh, c_msb, zero);
+        cols.c_sign_extend = wb.nat_to_field(c_sign_extend);
+
+        // Extend b and c to 16 bytes (upper bytes = 0xff iff sign-extended).
+        let mask = wb.const_nat(BYTE_MASK as u64);
+        let b_sign_byte = wb.select(b_sign_extend, mask, zero);
+        let c_sign_byte = wb.select(c_sign_extend, mask, zero);
+        let b_ext: [WB::Nat; LONG] =
+            core::array::from_fn(|i| if i < WORD_BYTE_SIZE { b_bytes[i] } else { b_sign_byte });
+        let c_ext: [WB::Nat; LONG] =
+            core::array::from_fn(|i| if i < WORD_BYTE_SIZE { c_bytes[i] } else { c_sign_byte });
+
+        // Uncarried convolution m[k] = sum_{i+j=k} b_ext[i]*c_ext[j].
+        let mut m: [WB::Nat; LONG] = core::array::from_fn(|_| zero);
+        let mut m_set = [false; LONG];
+        for i in 0..LONG {
+            for j in 0..LONG {
+                if i + j < LONG {
+                    let prod = wb.mul(b_ext[i], c_ext[j]);
+                    m[i + j] = if m_set[i + j] {
+                        wb.wrapping_add(m[i + j], prod)
+                    } else {
+                        m_set[i + j] = true;
+                        prod
+                    };
+                }
+            }
+        }
+
+        // Carry-propagate into bytes; carry[i] = acc>>8, product[i] = acc&0xff.
+        let sh8 = wb.const_nat(8);
+        let mut carry_arr: [WB::Nat; LONG] = core::array::from_fn(|_| zero);
+        let mut prod_arr: [WB::Nat; LONG] = core::array::from_fn(|_| zero);
+        let mut running = m[0];
+        for i in 0..LONG {
+            let carry = wb.shr(running, sh8);
+            let prod_byte = wb.bits(running, 0, 8);
+            cols.carry[i] = wb.nat_to_field(carry);
+            cols.product[i] = wb.nat_to_field(prod_byte);
+            carry_arr[i] = carry;
+            prod_arr[i] = prod_byte;
+            if i + 1 < LONG {
+                running = wb.wrapping_add(m[i + 1], carry);
+            }
+        }
+
+        // Range checks: carry as u16 (each), product as u8 (pairs).
+        for i in 0..LONG {
+            wb.add_u16_range_check(carry_arr[i]);
+        }
+        for i in 0..LONG / 2 {
+            wb.add_u8_range_check(prod_arr[2 * i], prod_arr[2 * i + 1]);
+        }
+    }
+}
+
 impl<F: Field> MulOperation<F> {
     /// Populate the MUL operation from an event.
     pub fn populate(

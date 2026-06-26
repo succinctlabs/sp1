@@ -14,7 +14,7 @@
 
 // Max wires (inputs + value ops) per gadget. Small gadgets use < 16; the host side
 // asserts the recorded program fits.
-#define WITGEN_MAX_WIRES 256
+#define WITGEN_MAX_WIRES 768
 
 template <class T>
 __global__ void witgen_interp_kernel(
@@ -82,6 +82,11 @@ __global__ void witgen_interp_kernel(
                 break;
             case 21: // Shr: a >> shift
                 nat[wc] = nat[op.a] >> nat[op.b];
+                is_field[wc] = false;
+                ++wc;
+                break;
+            case 23: // Mul: a * b (wrapping)
+                nat[wc] = nat[op.a] * nat[op.b];
                 is_field[wc] = false;
                 ++wc;
                 break;
@@ -197,6 +202,9 @@ __global__ void witgen_lookup_kernel(
                 break;
             case 21: // Shr
                 nat[wc++] = nat[op.a] >> nat[op.b];
+                break;
+            case 23: // Mul
+                nat[wc++] = nat[op.a] * nat[op.b];
                 break;
             case 3:  // NatToField
             case 4:  // FieldAdd

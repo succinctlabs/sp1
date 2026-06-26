@@ -77,6 +77,10 @@ pub trait WitnessBuilder {
     /// Variable right shift: `a >> shift` (shift is a per-row nat).
     fn shr(&mut self, a: Self::Nat, shift: Self::Nat) -> Self::Nat;
 
+    /// Wrapping integer multiplication. Inputs are small (byte-sized in the Mul
+    /// chip's convolution) so the product fits a `u64` without overflow.
+    fn mul(&mut self, a: Self::Nat, b: Self::Nat) -> Self::Nat;
+
     /// Integer select: `cond` (0 or 1) ? `a` : `b`.
     fn select(&mut self, cond: Self::Nat, a: Self::Nat, b: Self::Nat) -> Self::Nat;
 
@@ -191,6 +195,11 @@ impl<F: Field, R: ByteRecord> WitnessBuilder for HostWitnessBuilder<'_, F, R> {
     #[inline]
     fn shr(&mut self, a: u64, shift: u64) -> u64 {
         a >> shift
+    }
+
+    #[inline]
+    fn mul(&mut self, a: u64, b: u64) -> u64 {
+        a.wrapping_mul(b)
     }
 
     #[inline]

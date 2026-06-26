@@ -75,6 +75,85 @@ pub struct MulCols<T, M: TrustMode> {
     pub adapter_cols: M::AdapterCols<T>,
 }
 
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T, M: TrustMode> MulCols<T, M> {
+    /// Backend-agnostic witgen for the `Mul` chip (MUL/MULH/MULHU/MULHSU/MULW):
+    /// per-row opcode flags, the result word `a`, the `MulOperation` convolution,
+    /// the `CPUState`, and the register-register `RTypeReader` adapter.
+    #[allow(clippy::too_many_arguments)]
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut MulCols<WB::Field, M>,
+        clk: WB::Nat,
+        pc: WB::Nat,
+        a: WB::Nat,
+        b: WB::Nat,
+        c: WB::Nat,
+        opcode: WB::Nat,
+        op_a: WB::Nat,
+        op_b: WB::Nat,
+        op_c: WB::Nat,
+        a_prev_value: WB::Nat,
+        a_prev_ts: WB::Nat,
+        a_cur_ts: WB::Nat,
+        b_prev_value: WB::Nat,
+        b_prev_ts: WB::Nat,
+        b_cur_ts: WB::Nat,
+        c_prev_value: WB::Nat,
+        c_prev_ts: WB::Nat,
+        c_cur_ts: WB::Nat,
+    ) {
+        let mul = wb.const_nat(Opcode::MUL as u64);
+        let mulh = wb.const_nat(Opcode::MULH as u64);
+        let mulhu = wb.const_nat(Opcode::MULHU as u64);
+        let mulhsu = wb.const_nat(Opcode::MULHSU as u64);
+        let mulw = wb.const_nat(Opcode::MULW as u64);
+        let is_mul = wb.eq(opcode, mul);
+        cols.is_mul = wb.nat_to_field(is_mul);
+        let is_mulh = wb.eq(opcode, mulh);
+        cols.is_mulh = wb.nat_to_field(is_mulh);
+        let is_mulhu = wb.eq(opcode, mulhu);
+        cols.is_mulhu = wb.nat_to_field(is_mulhu);
+        let is_mulhsu = wb.eq(opcode, mulhsu);
+        cols.is_mulhsu = wb.nat_to_field(is_mulhsu);
+        let is_mulw = wb.eq(opcode, mulw);
+        cols.is_mulw = wb.nat_to_field(is_mulw);
+
+        // Result word `a`.
+        for i in 0..sp1_primitives::consts::WORD_SIZE {
+            let limb = wb.bits(a, (i as u32) * 16, 16);
+            cols.a[i] = wb.nat_to_field(limb);
+        }
+
+        MulOperation::<WB::Field>::witgen(
+            wb,
+            &mut cols.mul_operation,
+            b,
+            c,
+            is_mulh,
+            is_mulhsu,
+            is_mulw,
+        );
+        CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
+        RTypeReader::<WB::Field>::witgen(
+            wb,
+            &mut cols.adapter,
+            op_a,
+            a_prev_value,
+            a_prev_ts,
+            a_cur_ts,
+            op_b,
+            b_prev_value,
+            b_prev_ts,
+            b_cur_ts,
+            op_c,
+            c_prev_value,
+            c_prev_ts,
+            c_cur_ts,
+        );
+    }
+}
+
 impl<F: PrimeField32, M: TrustMode> MachineAir<F> for MulChip<M> {
     type Record = ExecutionRecord;
 

@@ -37,6 +37,7 @@ pub enum WitOp {
     Eq(WireId, WireId),
     Shl(WireId, WireId),
     Shr(WireId, WireId),
+    Mul(WireId, WireId),
     Select { cond: WireId, a: WireId, b: WireId },
     NatToField(WireId),
     FieldAdd(WireId, WireId),
@@ -125,6 +126,9 @@ impl WitnessBuilder for RecordingWitnessBuilder {
     }
     fn shl(&mut self, a: WireId, shift: WireId) -> WireId {
         self.value(WitOp::Shl(a, shift))
+    }
+    fn mul(&mut self, a: WireId, b: WireId) -> WireId {
+        self.value(WitOp::Mul(a, b))
     }
     fn shr(&mut self, a: WireId, shift: WireId) -> WireId {
         self.value(WitOp::Shr(a, shift))
@@ -245,6 +249,9 @@ pub fn interpret<F: Field, R: ByteRecord>(
             }
             WitOp::Shr(a, s) => {
                 wires.push(Val::Nat(wires[a.0 as usize].nat() >> wires[s.0 as usize].nat()))
+            }
+            WitOp::Mul(a, b) => {
+                wires.push(Val::Nat(wires[a.0 as usize].nat().wrapping_mul(wires[b.0 as usize].nat())))
             }
             WitOp::Select { cond, a, b } => {
                 let c = wires[cond.0 as usize].nat();
@@ -390,6 +397,7 @@ impl WitProgram {
                 WitOp::Eq(a, b) => WitOpC { tag: 11, a: a.0, b: b.0, imm1: 0, imm0: 0 },
                 WitOp::Shl(a, s) => WitOpC { tag: 20, a: a.0, b: s.0, imm1: 0, imm0: 0 },
                 WitOp::Shr(a, s) => WitOpC { tag: 21, a: a.0, b: s.0, imm1: 0, imm0: 0 },
+                WitOp::Mul(a, b) => WitOpC { tag: 23, a: a.0, b: b.0, imm1: 0, imm0: 0 },
                 WitOp::BitRangeCheckVar { src, bits } => {
                     WitOpC { tag: 22, a: src.0, b: bits.0, imm1: 0, imm0: 0 }
                 }
@@ -464,6 +472,9 @@ pub fn interpret_c_columns<F: Field>(
             ))),
             20 => wires.push(Val::Nat(wires[op.a as usize].nat() << wires[op.b as usize].nat())),
             21 => wires.push(Val::Nat(wires[op.a as usize].nat() >> wires[op.b as usize].nat())),
+            23 => wires.push(Val::Nat(
+                wires[op.a as usize].nat().wrapping_mul(wires[op.b as usize].nat()),
+            )),
             12 => {
                 let c = wires[op.a as usize].nat();
                 wires.push(if c != 0 {
@@ -549,6 +560,7 @@ pub fn interpret_c_lookups(
                 11 => wires.push(u64::from(wires[op.a as usize] == wires[op.b as usize])),
                 20 => wires.push(wires[op.a as usize] << wires[op.b as usize]),
                 21 => wires.push(wires[op.a as usize] >> wires[op.b as usize]),
+                23 => wires.push(wires[op.a as usize].wrapping_mul(wires[op.b as usize])),
                 12 => {
                     let c = wires[op.a as usize];
                     wires.push(if c != 0 { wires[op.b as usize] } else { wires[op.imm1 as usize] });
