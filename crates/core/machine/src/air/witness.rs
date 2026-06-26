@@ -71,6 +71,17 @@ pub trait WitnessBuilder {
 
     /// Emit a lookup proving `a < 2^bits`.
     fn add_bit_range_check(&mut self, a: Self::Nat, bits: u8);
+
+    /// Begin a guarded scope: until the matching [`pop_guard`](Self::pop_guard),
+    /// every emitted lookup is conditioned on `guard` (a 0/1 nat) — emitted only on
+    /// rows where `guard != 0`. This lets a per-row branch (e.g. an immediate operand
+    /// that skips its register read, or a mode flag) guard the lookups of the gadgets
+    /// it composes WITHOUT changing those gadgets (the columns themselves are merged
+    /// with [`select`](Self::select)). Single-level (scopes don't nest) for now.
+    fn push_guard(&mut self, guard: Self::Nat);
+
+    /// End the current guarded scope (lookups are unconditional again).
+    fn pop_guard(&mut self);
 }
 
 /// Host (CPU) backend: every op is evaluated immediately on concrete values, and
@@ -78,13 +89,21 @@ pub trait WitnessBuilder {
 /// the hand-written `populate`.
 pub struct HostWitnessBuilder<'a, F, R: ByteRecord> {
     record: &'a mut R,
+    /// Current guard (`Some(0)` suppresses lookups; `None`/`Some(≠0)` emits them).
+    guard: Option<u64>,
     _field: PhantomData<F>,
 }
 
 impl<'a, F, R: ByteRecord> HostWitnessBuilder<'a, F, R> {
     /// Create a host builder that emits lookups into `record`.
     pub fn new(record: &'a mut R) -> Self {
-        Self { record, _field: PhantomData }
+        Self { record, guard: None, _field: PhantomData }
+    }
+
+    /// Whether lookups are currently suppressed by an active guard of value 0.
+    #[inline]
+    fn suppressed(&self) -> bool {
+        matches!(self.guard, Some(0))
     }
 }
 
@@ -145,16 +164,35 @@ impl<F: Field, R: ByteRecord> WitnessBuilder for HostWitnessBuilder<'_, F, R> {
 
     #[inline]
     fn add_u16_range_check(&mut self, a: u64) {
+        if self.suppressed() {
+            return;
+        }
         self.record.add_u16_range_check(a as u16);
     }
 
     #[inline]
     fn add_u8_range_check(&mut self, a: u64, b: u64) {
+        if self.suppressed() {
+            return;
+        }
         self.record.add_u8_range_check(a as u8, b as u8);
     }
 
     #[inline]
     fn add_bit_range_check(&mut self, a: u64, bits: u8) {
+        if self.suppressed() {
+            return;
+        }
         self.record.add_bit_range_check(a as u16, bits);
+    }
+
+    #[inline]
+    fn push_guard(&mut self, guard: u64) {
+        self.guard = Some(guard);
+    }
+
+    #[inline]
+    fn pop_guard(&mut self) {
+        self.guard = None;
     }
 }

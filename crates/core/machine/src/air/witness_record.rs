@@ -42,6 +42,10 @@ pub enum WitOp {
     U16RangeCheck(WireId),
     U8RangeCheck(WireId, WireId),
     BitRangeCheck { src: WireId, bits: u8 },
+    /// Guarded lookups: emitted only on rows where `guard != 0` (per-row branches).
+    U16RangeCheckGuarded { guard: WireId, src: WireId },
+    U8RangeCheckGuarded { guard: WireId, a: WireId, b: WireId },
+    BitRangeCheckGuarded { guard: WireId, src: WireId, bits: u8 },
 }
 
 /// A recorded gadget: the op list plus the number of input wires.
@@ -55,12 +59,19 @@ pub struct WitProgram {
 pub struct RecordingWitnessBuilder {
     program: WitProgram,
     next_wire: u32,
+    /// Current guard wire (`Some` inside a guarded scope); lookups recorded while set
+    /// become guarded variants.
+    guard: Option<WireId>,
 }
 
 impl RecordingWitnessBuilder {
     /// Start recording a gadget with `num_inputs` input wires (ids `0..num_inputs`).
     pub fn new(num_inputs: u32) -> Self {
-        Self { program: WitProgram { ops: Vec::new(), num_inputs }, next_wire: num_inputs }
+        Self {
+            program: WitProgram { ops: Vec::new(), num_inputs },
+            next_wire: num_inputs,
+            guard: None,
+        }
     }
 
     /// The `i`-th input wire.
@@ -114,13 +125,31 @@ impl WitnessBuilder for RecordingWitnessBuilder {
         self.value(WitOp::FieldInverse(a))
     }
     fn add_u16_range_check(&mut self, a: WireId) {
-        self.program.ops.push(WitOp::U16RangeCheck(a));
+        let op = match self.guard {
+            Some(guard) => WitOp::U16RangeCheckGuarded { guard, src: a },
+            None => WitOp::U16RangeCheck(a),
+        };
+        self.program.ops.push(op);
     }
     fn add_u8_range_check(&mut self, a: WireId, b: WireId) {
-        self.program.ops.push(WitOp::U8RangeCheck(a, b));
+        let op = match self.guard {
+            Some(guard) => WitOp::U8RangeCheckGuarded { guard, a, b },
+            None => WitOp::U8RangeCheck(a, b),
+        };
+        self.program.ops.push(op);
     }
     fn add_bit_range_check(&mut self, a: WireId, bits: u8) {
-        self.program.ops.push(WitOp::BitRangeCheck { src: a, bits });
+        let op = match self.guard {
+            Some(guard) => WitOp::BitRangeCheckGuarded { guard, src: a, bits },
+            None => WitOp::BitRangeCheck { src: a, bits },
+        };
+        self.program.ops.push(op);
+    }
+    fn push_guard(&mut self, guard: WireId) {
+        self.guard = Some(guard);
+    }
+    fn pop_guard(&mut self) {
+        self.guard = None;
     }
 }
 
@@ -195,6 +224,24 @@ pub fn interpret<F: Field, R: ByteRecord>(
             WitOp::BitRangeCheck { src, bits } => {
                 record.add_bit_range_check(wires[src.0 as usize].nat() as u16, bits)
             }
+            WitOp::U16RangeCheckGuarded { guard, src } => {
+                if wires[guard.0 as usize].nat() != 0 {
+                    record.add_u16_range_check(wires[src.0 as usize].nat() as u16)
+                }
+            }
+            WitOp::U8RangeCheckGuarded { guard, a, b } => {
+                if wires[guard.0 as usize].nat() != 0 {
+                    record.add_u8_range_check(
+                        wires[a.0 as usize].nat() as u8,
+                        wires[b.0 as usize].nat() as u8,
+                    )
+                }
+            }
+            WitOp::BitRangeCheckGuarded { guard, src, bits } => {
+                if wires[guard.0 as usize].nat() != 0 {
+                    record.add_bit_range_check(wires[src.0 as usize].nat() as u16, bits)
+                }
+            }
         }
     }
     // Project to a field per wire. Only Field wires (and small Nat wires explicitly
@@ -253,6 +300,9 @@ impl WitProgram {
                         WitOp::U16RangeCheck(..)
                             | WitOp::BitRangeCheck { .. }
                             | WitOp::U8RangeCheck(..)
+                            | WitOp::U16RangeCheckGuarded { .. }
+                            | WitOp::U8RangeCheckGuarded { .. }
+                            | WitOp::BitRangeCheckGuarded { .. }
                     )
                 })
                 .count()
@@ -279,6 +329,17 @@ impl WitProgram {
                 WitOp::U16RangeCheck(a) => WitOpC { tag: 6, a: a.0, b: 0, imm1: 0, imm0: 0 },
                 WitOp::BitRangeCheck { src, bits } => {
                     WitOpC { tag: 7, a: src.0, b: 0, imm1: 0, imm0: bits as u64 }
+                }
+                // Guarded lookups (per-row branches): the guard wire rides in an
+                // otherwise-unused field — `b` for the 1-source checks, `imm1` for u8.
+                WitOp::U16RangeCheckGuarded { guard, src } => {
+                    WitOpC { tag: 13, a: src.0, b: guard.0, imm1: 0, imm0: 0 }
+                }
+                WitOp::BitRangeCheckGuarded { guard, src, bits } => {
+                    WitOpC { tag: 14, a: src.0, b: guard.0, imm1: 0, imm0: bits as u64 }
+                }
+                WitOp::U8RangeCheckGuarded { guard, a, b } => {
+                    WitOpC { tag: 15, a: a.0, b: b.0, imm1: guard.0, imm0: 0 }
                 }
             })
             .collect()
@@ -324,7 +385,7 @@ pub fn interpret_c_columns<F: Field>(
             3 => wires.push(Val::Field(F::from_canonical_u64(wires[op.a as usize].nat()))),
             4 => wires.push(Val::Field(wires[op.a as usize].field() + wires[op.b as usize].field())),
             5 => wires.push(Val::Field(wires[op.a as usize].field().inverse())),
-            6 | 7 | 9 => {} // lookup: no wire, skipped for columns
+            6 | 7 | 9 | 13 | 14 | 15 => {} // lookup (incl. guarded): no wire, skipped for columns
             t => panic!("unknown WitOpC tag {t}"),
         }
     }
@@ -412,6 +473,29 @@ pub fn interpret_c_lookups(
                     let c_val = wires[op.b as usize] as u8 as usize;
                     let r = (b_val << 8) + c_val;
                     byte_hist[r * NUM_BYTE_MULT_COLS + (ByteOpcode::U8Range as usize)] += 1;
+                }
+                // Guarded U16RangeCheck: guard wire in `b`.
+                13 => {
+                    if wires[op.b as usize] != 0 {
+                        let v = wires[op.a as usize] as u16 as usize;
+                        range_hist[v + (1 << 16)] += 1;
+                    }
+                }
+                // Guarded BitRangeCheck: guard wire in `b`, bits in imm0.
+                14 => {
+                    if wires[op.b as usize] != 0 {
+                        let v = wires[op.a as usize] as u16 as usize;
+                        range_hist[v + (1usize << op.imm0)] += 1;
+                    }
+                }
+                // Guarded U8RangeCheck: guard wire in `imm1`.
+                15 => {
+                    if wires[op.imm1 as usize] != 0 {
+                        let b_val = wires[op.a as usize] as u8 as usize;
+                        let c_val = wires[op.b as usize] as u8 as usize;
+                        let r = (b_val << 8) + c_val;
+                        byte_hist[r * NUM_BYTE_MULT_COLS + (ByteOpcode::U8Range as usize)] += 1;
+                    }
                 }
                 t => panic!("unknown WitOpC tag {t}"),
             }
@@ -701,5 +785,42 @@ mod tests {
             reconstructed, dep_out.byte_lookups,
             "reconstructed byte_lookups != generate_dependencies map"
         );
+    }
+
+    /// A guarded lookup (recorded inside `push_guard`/`pop_guard`) must be emitted
+    /// only on rows where the guard wire is non-zero — the per-row conditional-
+    /// execution primitive for immediate/mode-flag chips. Validated on both the
+    /// `interpret` (Val) path and the flat-C `interpret_c_lookups` histogram path.
+    #[test]
+    fn guarded_lookup_emits_only_when_guard_set() {
+        use crate::air::WitnessBuilder;
+
+        // input(0) = guard, input(1) = value. One guarded + one unguarded u16 check.
+        let mut rec = RecordingWitnessBuilder::new(2);
+        let g = RecordingWitnessBuilder::input(0);
+        let v = RecordingWitnessBuilder::input(1);
+        rec.push_guard(g);
+        rec.add_u16_range_check(v);
+        rec.pop_guard();
+        rec.add_u16_range_check(v);
+        let program = rec.finish();
+
+        // `interpret` (Val): guard=0 → only the unguarded check; guard=1 → both.
+        for (guard, expected) in [(0u64, 1usize), (1, 2)] {
+            let mut lookups: Vec<ByteLookupEvent> = Vec::new();
+            let _ = interpret::<F, _>(&program, &[guard, 0x1234], &mut lookups);
+            assert_eq!(lookups.len(), expected, "interpret guard={guard}");
+        }
+
+        // flat-C histogram: the value's range bin gets 2 hits when guarded, else 1.
+        let ops_c = program.to_c();
+        let val = 0x55u64;
+        let idx = (val as u16 as usize) + (1 << 16);
+        for (guard, expected) in [(0u64, 1u32), (1, 2)] {
+            let mut range = vec![0u32; RANGE_HIST_ROWS];
+            let mut byte = vec![0u32; BYTE_HIST_ROWS * NUM_BYTE_MULT_COLS];
+            interpret_c_lookups(&ops_c, 2, &[guard, val], 1, &mut range, &mut byte);
+            assert_eq!(range[idx], expected, "interpret_c_lookups guard={guard}");
+        }
     }
 }

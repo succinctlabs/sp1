@@ -90,9 +90,12 @@ __global__ void witgen_interp_kernel(
                 is_field[wc] = true;
                 ++wc;
                 break;
-            case 6: // U16RangeCheck (lookup, no wire)
-            case 7: // BitRangeCheck (lookup, no wire)
-            case 9: // U8RangeCheck  (lookup, no wire)
+            case 6:  // U16RangeCheck (lookup, no wire)
+            case 7:  // BitRangeCheck (lookup, no wire)
+            case 9:  // U8RangeCheck  (lookup, no wire)
+            case 13: // Guarded U16RangeCheck (lookup, no wire)
+            case 14: // Guarded BitRangeCheck (lookup, no wire)
+            case 15: // Guarded U8RangeCheck  (lookup, no wire)
                 break;
             }
         }
@@ -186,6 +189,31 @@ __global__ void witgen_lookup_kernel(
                 uint32_t c = (uint32_t)(uint8_t)nat[op.b];
                 uint32_t r = (b << 8) + c;
                 atomicAdd(&byte_hist[r * WITGEN_NUM_BYTE_MULT_COLS + WITGEN_BYTE_U8RANGE_COL], 1u);
+                break;
+            }
+            // Guarded lookups (per-row branches): emit only if the guard wire != 0.
+            case 13: { // Guarded U16RangeCheck: guard wire in `b`
+                if (nat[op.b]) {
+                    uint32_t v = (uint32_t)(uint16_t)nat[op.a];
+                    atomicAdd(&range_hist[v + (1u << 16)], 1u);
+                }
+                break;
+            }
+            case 14: { // Guarded BitRangeCheck: guard wire in `b`, bits in imm0
+                if (nat[op.b]) {
+                    uint32_t v = (uint32_t)(uint16_t)nat[op.a];
+                    atomicAdd(&range_hist[v + (1u << (uint32_t)op.imm0)], 1u);
+                }
+                break;
+            }
+            case 15: { // Guarded U8RangeCheck: guard wire in `imm1`
+                if (nat[op.imm1]) {
+                    uint32_t b = (uint32_t)(uint8_t)nat[op.a];
+                    uint32_t c = (uint32_t)(uint8_t)nat[op.b];
+                    uint32_t r = (b << 8) + c;
+                    atomicAdd(
+                        &byte_hist[r * WITGEN_NUM_BYTE_MULT_COLS + WITGEN_BYTE_U8RANGE_COL], 1u);
+                }
                 break;
             }
             }
