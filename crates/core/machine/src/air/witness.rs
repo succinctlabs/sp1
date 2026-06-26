@@ -21,7 +21,7 @@
 
 use std::marker::PhantomData;
 
-use slop_algebra::AbstractField;
+use slop_algebra::Field;
 use sp1_core_executor::events::ByteRecord;
 
 /// A value-producing builder for trace generation. Implementors choose how each
@@ -48,8 +48,17 @@ pub trait WitnessBuilder {
     /// Embed an integer into the field via the canonical representation.
     fn nat_to_field(&mut self, a: Self::Nat) -> Self::Field;
 
+    /// Field addition.
+    fn field_add(&mut self, a: Self::Field, b: Self::Field) -> Self::Field;
+
+    /// Field multiplicative inverse (of a non-zero element).
+    fn field_inverse(&mut self, a: Self::Field) -> Self::Field;
+
     /// Emit a `u16` range-check lookup for `a`.
     fn add_u16_range_check(&mut self, a: Self::Nat);
+
+    /// Emit a lookup proving `a < 2^bits`.
+    fn add_bit_range_check(&mut self, a: Self::Nat, bits: u8);
 }
 
 /// Host (CPU) backend: every op is evaluated immediately on concrete values, and
@@ -67,7 +76,7 @@ impl<'a, F, R: ByteRecord> HostWitnessBuilder<'a, F, R> {
     }
 }
 
-impl<F: AbstractField + Copy, R: ByteRecord> WitnessBuilder for HostWitnessBuilder<'_, F, R> {
+impl<F: Field, R: ByteRecord> WitnessBuilder for HostWitnessBuilder<'_, F, R> {
     type Nat = u64;
     type Field = F;
 
@@ -94,7 +103,22 @@ impl<F: AbstractField + Copy, R: ByteRecord> WitnessBuilder for HostWitnessBuild
     }
 
     #[inline]
+    fn field_add(&mut self, a: F, b: F) -> F {
+        a + b
+    }
+
+    #[inline]
+    fn field_inverse(&mut self, a: F) -> F {
+        a.inverse()
+    }
+
+    #[inline]
     fn add_u16_range_check(&mut self, a: u64) {
         self.record.add_u16_range_check(a as u16);
+    }
+
+    #[inline]
+    fn add_bit_range_check(&mut self, a: u64, bits: u8) {
+        self.record.add_bit_range_check(a as u16, bits);
     }
 }

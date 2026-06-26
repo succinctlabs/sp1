@@ -29,16 +29,10 @@ pub struct AddrAddOperation<T> {
     pub value: [T; 3],
 }
 
-impl<F: Field> AddrAddOperation<F> {
-    pub fn populate(&mut self, record: &mut impl ByteRecord, a_u64: u64, b_u64: u64) -> u64 {
-        let expected = a_u64.wrapping_add(b_u64);
-        assert!(expected >> 48 == 0);
-        // Witness generation is expressed once via `witgen`; the host backend
-        // reproduces the original `populate` exactly.
-        let mut wb = HostWitnessBuilder::<F, _>::new(record);
-        Self::witgen(&mut wb, self, a_u64, b_u64)
-    }
-
+// Witgen lives in an unconstrained `impl<T>` (not `impl<F: Field>`) because the
+// column type is the *builder's* `Field`, which for a GPU recording backend is a
+// wire id, not a field element.
+impl<T> AddrAddOperation<T> {
     /// Backend-agnostic witness generation: writes the three u16 limbs of the u48
     /// sum `a + b` into `cols.value` and emits their range checks. Runs concretely
     /// under [`HostWitnessBuilder`] (CPU) or, in future, records an op-DAG for a
@@ -58,6 +52,17 @@ impl<F: Field> AddrAddOperation<F> {
         wb.add_u16_range_check(limb1);
         wb.add_u16_range_check(limb2);
         expected
+    }
+}
+
+impl<F: Field> AddrAddOperation<F> {
+    pub fn populate(&mut self, record: &mut impl ByteRecord, a_u64: u64, b_u64: u64) -> u64 {
+        let expected = a_u64.wrapping_add(b_u64);
+        assert!(expected >> 48 == 0);
+        // Witness generation is expressed once via `witgen`; the host backend
+        // reproduces the original `populate` exactly.
+        let mut wb = HostWitnessBuilder::<F, _>::new(record);
+        Self::witgen(&mut wb, self, a_u64, b_u64)
     }
 
     /// Evaluate the add operation.
