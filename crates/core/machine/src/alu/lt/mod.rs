@@ -64,6 +64,65 @@ pub struct LtCols<T, M: TrustMode> {
     pub adapter_cols: M::AdapterCols<T>,
 }
 
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T, M: TrustMode> LtCols<T, M> {
+    /// Backend-agnostic witgen for the `Lt` chip. `opcode` is the per-row RISC-V
+    /// opcode discriminant; `is_slt`/`is_sltu` are derived from it, and `is_slt`
+    /// doubles as `is_signed` for the comparison. `imm_c` is the per-row
+    /// register/immediate selector. No `is_real` column (the sum of the selectors).
+    #[allow(clippy::too_many_arguments)]
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut LtCols<WB::Field, M>,
+        clk: WB::Nat,
+        pc: WB::Nat,
+        a: WB::Nat,
+        b: WB::Nat,
+        c: WB::Nat,
+        opcode: WB::Nat,
+        imm_c: WB::Nat,
+        op_a: WB::Nat,
+        op_b: WB::Nat,
+        op_c: WB::Nat,
+        a_prev_value: WB::Nat,
+        a_prev_ts: WB::Nat,
+        a_cur_ts: WB::Nat,
+        b_prev_value: WB::Nat,
+        b_prev_ts: WB::Nat,
+        b_cur_ts: WB::Nat,
+        c_prev_value: WB::Nat,
+        c_prev_ts: WB::Nat,
+        c_cur_ts: WB::Nat,
+    ) {
+        let slt = wb.const_nat(Opcode::SLT as u64);
+        let sltu = wb.const_nat(Opcode::SLTU as u64);
+        let is_slt = wb.eq(opcode, slt);
+        cols.is_slt = wb.nat_to_field(is_slt);
+        let is_sltu = wb.eq(opcode, sltu);
+        cols.is_sltu = wb.nat_to_field(is_sltu);
+        // `is_slt` is the `is_signed` flag for the comparison.
+        LtOperationSigned::<WB::Field>::witgen(wb, &mut cols.lt_operation, a, b, c, is_slt);
+        CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
+        ALUTypeReader::<WB::Field>::witgen(
+            wb,
+            &mut cols.adapter,
+            imm_c,
+            op_a,
+            a_prev_value,
+            a_prev_ts,
+            a_cur_ts,
+            op_b,
+            b_prev_value,
+            b_prev_ts,
+            b_cur_ts,
+            op_c,
+            c_prev_value,
+            c_prev_ts,
+            c_cur_ts,
+        );
+    }
+}
+
 impl<F: PrimeField32, M: TrustMode> MachineAir<F> for LtChip<M> {
     type Record = ExecutionRecord;
 

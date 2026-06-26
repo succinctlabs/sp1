@@ -1,15 +1,12 @@
 use serde::{Deserialize, Serialize};
-use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord},
-    ByteOpcode,
-};
+use sp1_core_executor::{events::ByteRecord, ByteOpcode};
 use sp1_hypercube::air::SP1AirBuilder;
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use slop_algebra::{AbstractField, Field};
 use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationBuilder};
 
-use crate::air::SP1Operation;
+use crate::air::{HostWitnessBuilder, SP1Operation, WitnessBuilder};
 
 #[derive(
     AlignedBorrow,
@@ -29,16 +26,27 @@ pub struct U16CompareOperation<T> {
     pub bit: T,
 }
 
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T> U16CompareOperation<T> {
+    /// Witgen dual of [`Self::eval_compare_u16`]: store the result bit `a` and emit a
+    /// `{Range, b − c, 16}` lookup (the comparison range check).
+    pub fn witgen<WB: WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut U16CompareOperation<WB::Field>,
+        a: WB::Nat,
+        b: WB::Nat,
+        c: WB::Nat,
+    ) {
+        cols.bit = wb.nat_to_field(a);
+        let diff = wb.wrapping_sub(b, c);
+        wb.add_u16_range_check(diff);
+    }
+}
+
 impl<F: Field> U16CompareOperation<F> {
     pub fn populate(&mut self, record: &mut impl ByteRecord, a_u16: u16, b_u16: u16, c_u16: u16) {
-        self.bit = F::from_canonical_u16(a_u16);
-        let diff = b_u16.wrapping_sub(c_u16);
-        record.add_byte_lookup_event(ByteLookupEvent {
-            opcode: ByteOpcode::Range,
-            a: diff as u16,
-            b: 16,
-            c: 0,
-        });
+        let mut wb = HostWitnessBuilder::<F, _>::new(record);
+        Self::witgen(&mut wb, self, a_u16 as u64, b_u16 as u64, c_u16 as u64);
     }
 
     /// Evaluate the compare operation.
