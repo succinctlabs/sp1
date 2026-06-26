@@ -34,6 +34,11 @@ tracing = { workspace = true }
 [dev-dependencies]
 rand = { workspace = true }
 sp1-core-executor = { workspace = true }
+criterion = "0.5"
+
+[[bench]]
+name = "tracegen_cols"
+harness = false
 
 [lints]
 workspace = true
