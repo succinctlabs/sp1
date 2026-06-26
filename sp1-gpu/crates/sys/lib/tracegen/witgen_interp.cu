@@ -65,6 +65,16 @@ __global__ void witgen_interp_kernel(
                 ++wc;
                 break;
             }
+            case 11: // Eq -> 0/1
+                nat[wc] = (nat[op.a] == nat[op.b]) ? 1 : 0;
+                is_field[wc] = false;
+                ++wc;
+                break;
+            case 12: // Select: cond=a, then-wire=b, else-wire=imm1
+                nat[wc] = nat[op.a] ? nat[op.b] : nat[op.imm1];
+                is_field[wc] = false;
+                ++wc;
+                break;
             case 3: // NatToField
                 fld[wc] = T::from_canonical_u32((uint32_t)nat[op.a]);
                 is_field[wc] = true;

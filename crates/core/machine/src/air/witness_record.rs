@@ -28,6 +28,8 @@ pub enum WitOp {
     WrappingAdd(WireId, WireId),
     WrappingSub(WireId, WireId),
     Bits { src: WireId, offset: u32, width: u32 },
+    Eq(WireId, WireId),
+    Select { cond: WireId, a: WireId, b: WireId },
     NatToField(WireId),
     FieldAdd(WireId, WireId),
     FieldInverse(WireId),
@@ -89,6 +91,12 @@ impl WitnessBuilder for RecordingWitnessBuilder {
     }
     fn bits(&mut self, a: WireId, offset: u32, width: u32) -> WireId {
         self.value(WitOp::Bits { src: a, offset, width })
+    }
+    fn eq(&mut self, a: WireId, b: WireId) -> WireId {
+        self.value(WitOp::Eq(a, b))
+    }
+    fn select(&mut self, cond: WireId, a: WireId, b: WireId) -> WireId {
+        self.value(WitOp::Select { cond, a, b })
     }
     fn nat_to_field(&mut self, a: WireId) -> WireId {
         self.value(WitOp::NatToField(a))
@@ -159,6 +167,13 @@ pub fn interpret<F: Field, R: ByteRecord>(
                 let mask = if width >= 64 { u64::MAX } else { (1u64 << width) - 1 };
                 wires.push(Val::Nat((x >> offset) & mask));
             }
+            WitOp::Eq(a, b) => wires.push(Val::Nat(u64::from(
+                wires[a.0 as usize].nat() == wires[b.0 as usize].nat(),
+            ))),
+            WitOp::Select { cond, a, b } => {
+                let c = wires[cond.0 as usize].nat();
+                wires.push(if c != 0 { wires[a.0 as usize] } else { wires[b.0 as usize] });
+            }
             WitOp::NatToField(a) => {
                 wires.push(Val::Field(F::from_canonical_u64(wires[a.0 as usize].nat())))
             }
@@ -224,6 +239,10 @@ impl WitProgram {
                 WitOp::WrappingAdd(a, b) => WitOpC { tag: 1, a: a.0, b: b.0, imm1: 0, imm0: 0 },
                 WitOp::WrappingSub(a, b) => WitOpC { tag: 8, a: a.0, b: b.0, imm1: 0, imm0: 0 },
                 WitOp::U8RangeCheck(a, b) => WitOpC { tag: 9, a: a.0, b: b.0, imm1: 0, imm0: 0 },
+                WitOp::Eq(a, b) => WitOpC { tag: 11, a: a.0, b: b.0, imm1: 0, imm0: 0 },
+                WitOp::Select { cond, a, b } => {
+                    WitOpC { tag: 12, a: cond.0, b: a.0, imm1: b.0, imm0: 0 }
+                }
                 WitOp::Bits { src, offset, width } => {
                     WitOpC { tag: 2, a: src.0, b: 0, imm1: width, imm0: offset as u64 }
                 }
@@ -263,6 +282,17 @@ pub fn interpret_c_columns<F: Field>(
                 let x = wires[op.a as usize].nat();
                 let mask = if op.imm1 >= 64 { u64::MAX } else { (1u64 << op.imm1) - 1 };
                 wires.push(Val::Nat((x >> op.imm0) & mask));
+            }
+            11 => wires.push(Val::Nat(u64::from(
+                wires[op.a as usize].nat() == wires[op.b as usize].nat(),
+            ))),
+            12 => {
+                let c = wires[op.a as usize].nat();
+                wires.push(if c != 0 {
+                    wires[op.b as usize]
+                } else {
+                    wires[op.imm1 as usize]
+                });
             }
             3 => wires.push(Val::Field(F::from_canonical_u64(wires[op.a as usize].nat()))),
             4 => wires.push(Val::Field(wires[op.a as usize].field() + wires[op.b as usize].field())),

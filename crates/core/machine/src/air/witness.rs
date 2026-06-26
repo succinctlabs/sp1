@@ -48,6 +48,12 @@ pub trait WitnessBuilder {
     /// ((1 << width) - 1)`). The common limb/byte decomposition primitive.
     fn bits(&mut self, a: Self::Nat, offset: u32, width: u32) -> Self::Nat;
 
+    /// Integer equality: returns 1 if `a == b`, else 0.
+    fn eq(&mut self, a: Self::Nat, b: Self::Nat) -> Self::Nat;
+
+    /// Integer select: `cond` (0 or 1) ? `a` : `b`.
+    fn select(&mut self, cond: Self::Nat, a: Self::Nat, b: Self::Nat) -> Self::Nat;
+
     /// Embed an integer into the field via the canonical representation.
     fn nat_to_field(&mut self, a: Self::Nat) -> Self::Field;
 
@@ -106,6 +112,20 @@ impl<F: Field, R: ByteRecord> WitnessBuilder for HostWitnessBuilder<'_, F, R> {
         debug_assert!(width > 0 && width <= 64);
         let mask = if width == 64 { u64::MAX } else { (1u64 << width) - 1 };
         (a >> offset) & mask
+    }
+
+    #[inline]
+    fn eq(&mut self, a: u64, b: u64) -> u64 {
+        u64::from(a == b)
+    }
+
+    #[inline]
+    fn select(&mut self, cond: u64, a: u64, b: u64) -> u64 {
+        if cond != 0 {
+            a
+        } else {
+            b
+        }
     }
 
     #[inline]
