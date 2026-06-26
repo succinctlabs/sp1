@@ -11,6 +11,8 @@ mod tests {
     use sp1_core_machine::air::{columns_as_wires, RecordingWitnessBuilder, WireId};
     use sp1_core_machine::adapter::register::r_type::RTypeReader;
     use sp1_core_machine::adapter::state::CPUState;
+    use sp1_core_machine::alu::add_sub::add::AddCols;
+    use sp1_core_machine::SupervisorMode;
     use sp1_core_machine::memory::{RegisterAccessCols, RegisterAccessTimestamp};
     use sp1_core_machine::air::{interpret_c_columns as _interp, WitProgram};
     use sp1_core_machine::operations::{AddOperation, AddrAddOperation, AddressOperation};
@@ -217,6 +219,42 @@ mod tests {
                 RecordingWitnessBuilder::input(9),
                 RecordingWitnessBuilder::input(10),
                 RecordingWitnessBuilder::input(11),
+            );
+            let col_wires: Vec<u32> = columns_as_wires(&cols_w).iter().map(|w| w.0).collect();
+            check_gadget(scope, rec.finish(), col_wires).await;
+        })
+        .await
+        .unwrap();
+    }
+
+    /// The whole trusted (Supervisor) `Add` chip's witgen columns on the device:
+    /// CPUState + RTypeReader + AddOperation + is_real, composed. 16 inputs (the
+    /// AluEvent/RTypeRecord fields). The first end-to-end RISC-V chip on the GPU
+    /// witgen interpreter.
+    #[tokio::test]
+    async fn witgen_interp_add_chip_columns() {
+        sp1_gpu_cudart::spawn(move |scope: TaskScope| async move {
+            let mut rec = RecordingWitnessBuilder::new(16);
+            let mut cols_w = AddCols::<WireId, SupervisorMode>::default();
+            AddCols::<WireId, SupervisorMode>::witgen(
+                &mut rec,
+                &mut cols_w,
+                RecordingWitnessBuilder::input(0),
+                RecordingWitnessBuilder::input(1),
+                RecordingWitnessBuilder::input(2),
+                RecordingWitnessBuilder::input(3),
+                RecordingWitnessBuilder::input(4),
+                RecordingWitnessBuilder::input(5),
+                RecordingWitnessBuilder::input(6),
+                RecordingWitnessBuilder::input(7),
+                RecordingWitnessBuilder::input(8),
+                RecordingWitnessBuilder::input(9),
+                RecordingWitnessBuilder::input(10),
+                RecordingWitnessBuilder::input(11),
+                RecordingWitnessBuilder::input(12),
+                RecordingWitnessBuilder::input(13),
+                RecordingWitnessBuilder::input(14),
+                RecordingWitnessBuilder::input(15),
             );
             let col_wires: Vec<u32> = columns_as_wires(&cols_w).iter().map(|w| w.0).collect();
             check_gadget(scope, rec.finish(), col_wires).await;
