@@ -11,8 +11,12 @@
 //!
 //! See `autoresearch/design/TRACEGEN-DSL.md` (Phase 2).
 
+use hashbrown::HashMap;
 use slop_algebra::Field;
-use sp1_core_executor::{events::ByteRecord, ByteOpcode};
+use sp1_core_executor::{
+    events::{ByteLookupEvent, ByteRecord},
+    ByteOpcode,
+};
 
 use crate::bytes::columns::NUM_BYTE_MULT_COLS;
 
@@ -415,6 +419,56 @@ pub fn interpret_c_lookups(
     }
 }
 
+/// Reconstruct the `HashMap<ByteLookupEvent, usize>` (the form a chip's
+/// `generate_dependencies` produces, and that the Byte/Range chips consume) from the
+/// two dense device histograms filled by [`interpret_c_lookups`]. This is the host
+/// side of the device byte-lookup path: the prover merges the result into the
+/// shard's `byte_lookups` so the existing host Byte/Range tracegen is unchanged.
+///
+/// Inverts the (bijective) index conventions:
+/// - Range:  `row = a + (1 << bits)` ⇒ `bits = ⌊log2(row)⌋`, `a = row - (1<<bits)`.
+/// - Byte:   `idx = ((b<<8)+c)*NUM_BYTE_MULT_COLS + (opcode as usize)` ⇒ split row/col.
+///
+/// Add/Sub populate only the `U8Range` byte column and `Range`; other byte columns
+/// (AND/OR/XOR/LTU/MSB) stay zero here and are handled generically should a future
+/// device chip emit them.
+pub fn byte_lookups_from_histograms(
+    range_hist: &[u32],
+    byte_hist: &[u32],
+) -> HashMap<ByteLookupEvent, usize> {
+    let mut map = HashMap::new();
+    // Range table (single column): row = a + (1<<bits), bits >= 1 for any real event.
+    for (row, &mult) in range_hist.iter().enumerate() {
+        if mult == 0 {
+            continue;
+        }
+        let bits = 63 - (row as u64).leading_zeros(); // floor(log2(row))
+        let a = (row - (1usize << bits)) as u16;
+        map.insert(ByteLookupEvent { opcode: ByteOpcode::Range, a, b: bits as u8, c: 0 }, mult as usize);
+    }
+    // Byte table (NUM_BYTE_MULT_COLS columns): row = (b<<8)+c, column = opcode index.
+    for (idx, &mult) in byte_hist.iter().enumerate() {
+        if mult == 0 {
+            continue;
+        }
+        let row = idx / NUM_BYTE_MULT_COLS;
+        let col = idx % NUM_BYTE_MULT_COLS;
+        let opcode = match col {
+            0 => ByteOpcode::AND,
+            1 => ByteOpcode::OR,
+            2 => ByteOpcode::XOR,
+            3 => ByteOpcode::U8Range,
+            4 => ByteOpcode::LTU,
+            5 => ByteOpcode::MSB,
+            _ => unreachable!("byte table has {NUM_BYTE_MULT_COLS} columns"),
+        };
+        let b = (row >> 8) as u8;
+        let c = (row & 0xFF) as u8;
+        map.insert(ByteLookupEvent { opcode, a: 0, b, c }, mult as usize);
+    }
+    map
+}
+
 /// View a column struct recorded over [`WireId`]s as the flat slice of its column
 /// wires: index `i` is the wire that produces column `i`. Column structs are
 /// `#[repr(C)]` (`AlignedBorrow`), so for `T = WireId` they are a contiguous array
@@ -637,5 +691,15 @@ mod tests {
 
         assert_eq!(range_hist, ref_range, "range histogram mismatch vs generate_dependencies");
         assert_eq!(byte_hist, ref_byte, "byte histogram mismatch vs generate_dependencies");
+
+        // Reconstruct the byte-lookup map from the histograms (the host side of the
+        // device path) and assert it equals the host `generate_dependencies` map —
+        // validating the index inversion the prover relies on to merge device-
+        // produced lookups into `record.byte_lookups`.
+        let reconstructed = byte_lookups_from_histograms(&range_hist, &byte_hist);
+        assert_eq!(
+            reconstructed, dep_out.byte_lookups,
+            "reconstructed byte_lookups != generate_dependencies map"
+        );
     }
 }
