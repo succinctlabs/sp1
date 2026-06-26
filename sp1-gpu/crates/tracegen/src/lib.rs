@@ -1,5 +1,7 @@
 mod recursion;
 mod riscv;
+#[cfg(test)]
+mod witgen_interp;
 
 use core::future::{ready, Future};
 use core::pin::pin;

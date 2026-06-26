@@ -18,4 +18,5 @@ extern "C" {
     pub fn recursion_linear_layer_generate_trace_koala_bear_kernel() -> KernelPtr;
     pub fn recursion_sbox_generate_preprocessed_trace_koala_bear_kernel() -> KernelPtr;
     pub fn recursion_sbox_generate_trace_koala_bear_kernel() -> KernelPtr;
+    pub fn witgen_interp_koala_bear_kernel() -> KernelPtr;
 }

@@ -203,3 +203,14 @@ unsafe impl TracegenRecursionSBoxKernel<SP1Field> for TaskScope {
         unsafe { sp1_gpu_sys::tracegen::recursion_sbox_generate_trace_koala_bear_kernel() }
     }
 }
+
+/// Generic witgen op-DAG interpreter kernel (see `lib/tracegen/witgen_interp.cu`).
+pub unsafe trait WitgenInterpKernel<F> {
+    fn witgen_interp_kernel() -> KernelPtr;
+}
+
+unsafe impl WitgenInterpKernel<SP1Field> for TaskScope {
+    fn witgen_interp_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::witgen_interp_koala_bear_kernel() }
+    }
+}

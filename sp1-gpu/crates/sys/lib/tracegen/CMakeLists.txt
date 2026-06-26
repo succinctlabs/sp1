@@ -9,5 +9,6 @@ add_library(tracegen_objs OBJECT
     recursion/sbox.cu
     recursion/select.cu
     riscv/global.cu
+    witgen_interp.cu
 )
 target_link_libraries(tracegen_objs PRIVATE sp1_gpu_common)
