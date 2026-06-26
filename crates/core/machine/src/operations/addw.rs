@@ -1,6 +1,6 @@
 use sp1_core_executor::events::ByteRecord;
 use sp1_hypercube::{air::SP1AirBuilder, Word};
-use sp1_primitives::consts::{u32_to_u16_limbs, WORD_SIZE};
+use sp1_primitives::consts::WORD_SIZE;
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use slop_air::AirBuilder;
@@ -8,7 +8,7 @@ use slop_algebra::{AbstractField, Field};
 use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationBuilder};
 
 use crate::{
-    air::{SP1Operation, SP1OperationBuilder, WordAirBuilder},
+    air::{HostWitnessBuilder, SP1Operation, SP1OperationBuilder, WitnessBuilder, WordAirBuilder},
     operations::{U16MSBOperation, U16MSBOperationInput},
 };
 
@@ -24,14 +24,32 @@ pub struct AddwOperation<T> {
     pub msb: U16MSBOperation<T>,
 }
 
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T> AddwOperation<T> {
+    /// Backend-agnostic witgen dual of [`Self::eval`]: the two low u16 limbs of the
+    /// 32-bit `a + b` into `value` (with range checks) plus the msb of the high limb.
+    /// Only the low 32 bits of `wrapping_add(a, b)` matter (mirrors `SubwOperation`).
+    pub fn witgen<WB: WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut AddwOperation<WB::Field>,
+        a: WB::Nat,
+        b: WB::Nat,
+    ) {
+        let sum = wb.wrapping_add(a, b);
+        let limb0 = wb.bits(sum, 0, 16);
+        cols.value[0] = wb.nat_to_field(limb0);
+        wb.add_u16_range_check(limb0);
+        let limb1 = wb.bits(sum, 16, 16);
+        cols.value[1] = wb.nat_to_field(limb1);
+        wb.add_u16_range_check(limb1);
+        U16MSBOperation::<WB::Field>::witgen(wb, &mut cols.msb, limb1);
+    }
+}
+
 impl<F: Field> AddwOperation<F> {
     pub fn populate(&mut self, record: &mut impl ByteRecord, a_u64: u64, b_u64: u64) {
-        let value = (a_u64 as u32).wrapping_add(b_u64 as u32);
-        let limbs = u32_to_u16_limbs(value);
-        self.value = [F::from_canonical_u16(limbs[0]), F::from_canonical_u16(limbs[1])];
-        // Range check
-        record.add_u16_range_checks(&limbs);
-        self.msb.populate_msb(record, limbs[1]);
+        let mut wb = HostWitnessBuilder::<F, _>::new(record);
+        Self::witgen(&mut wb, self, a_u64, b_u64);
     }
 
     /// Evaluate the addw operation.

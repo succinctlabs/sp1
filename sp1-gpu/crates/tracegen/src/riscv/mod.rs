@@ -1,4 +1,5 @@
 mod add;
+mod addw;
 mod global;
 mod sub;
 mod subw;
@@ -22,6 +23,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Add(chip) => chip.supports_device_main_tracegen(),
             Self::Sub(chip) => chip.supports_device_main_tracegen(),
             Self::Subw(chip) => chip.supports_device_main_tracegen(),
+            Self::Addw(chip) => chip.supports_device_main_tracegen(),
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => false,
         }
@@ -38,6 +40,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Add(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::Sub(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::Subw(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::Addw(chip) => chip.generate_trace_device(input, output, scope).await,
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => unimplemented!(),
         }
@@ -48,6 +51,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Add(chip) => chip.supports_device_dependencies(),
             Self::Sub(chip) => chip.supports_device_dependencies(),
             Self::Subw(chip) => chip.supports_device_dependencies(),
+            Self::Addw(chip) => chip.supports_device_dependencies(),
             _ => false,
         }
     }
@@ -62,6 +66,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Add(chip) => chip.generate_device_dependencies(input, output, scope).await,
             Self::Sub(chip) => chip.generate_device_dependencies(input, output, scope).await,
             Self::Subw(chip) => chip.generate_device_dependencies(input, output, scope).await,
+            Self::Addw(chip) => chip.generate_device_dependencies(input, output, scope).await,
             _ => unimplemented!(),
         }
     }

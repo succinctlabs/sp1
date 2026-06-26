@@ -8,10 +8,11 @@ use sp1_core_executor::{
 use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationBuilder};
 
 use sp1_hypercube::{air::SP1AirBuilder, Word};
+use sp1_primitives::consts::WORD_SIZE;
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
-    air::{MemoryAirBuilder, ProgramAirBuilder, SP1Operation, WordAirBuilder},
+    air::{MemoryAirBuilder, ProgramAirBuilder, SP1Operation, WitnessBuilder, WordAirBuilder},
     memory::RegisterAccessCols,
     program::instruction::InstructionCols,
 };
@@ -91,6 +92,67 @@ impl<F: PrimeField32> ALUTypeReader<F> {
         } else {
             self.op_c_memory.populate(record.c.unwrap(), blu_events);
         }
+    }
+}
+
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T> ALUTypeReader<T> {
+    /// Backend-agnostic witgen for the REGISTER-register case (`op_c` is a register,
+    /// `imm_c = 0`), used by device tracegen for register-register ALU chips (Addw,
+    /// …). The immediate case (`imm_c = 1`) is a per-row branch that the row-
+    /// independent op-DAG can't express, so immediate-capable chips are not device-
+    /// ported through this path. Mirrors the `imm_c = false` branch of [`Self::populate`].
+    #[allow(clippy::too_many_arguments)]
+    pub fn witgen<WB: WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut ALUTypeReader<WB::Field>,
+        op_a: WB::Nat,
+        a_prev_value: WB::Nat,
+        a_prev_ts: WB::Nat,
+        a_cur_ts: WB::Nat,
+        op_b: WB::Nat,
+        b_prev_value: WB::Nat,
+        b_prev_ts: WB::Nat,
+        b_cur_ts: WB::Nat,
+        op_c: WB::Nat,
+        c_prev_value: WB::Nat,
+        c_prev_ts: WB::Nat,
+        c_cur_ts: WB::Nat,
+    ) {
+        cols.op_a = wb.nat_to_field(op_a);
+        RegisterAccessCols::<WB::Field>::witgen(
+            wb,
+            &mut cols.op_a_memory,
+            a_prev_value,
+            a_prev_ts,
+            a_cur_ts,
+        );
+        let zero = wb.const_nat(0);
+        let a_is_zero = wb.eq(op_a, zero);
+        cols.op_a_0 = wb.nat_to_field(a_is_zero);
+        cols.op_b = wb.nat_to_field(op_b);
+        RegisterAccessCols::<WB::Field>::witgen(
+            wb,
+            &mut cols.op_b_memory,
+            b_prev_value,
+            b_prev_ts,
+            b_cur_ts,
+        );
+        // `op_c` is the instruction's op_c field as a Word (4 u16 limbs); for a
+        // register operand this is the register index. No range checks (cf. populate).
+        for i in 0..WORD_SIZE {
+            let limb = wb.bits(op_c, (i as u32) * 16, 16);
+            cols.op_c[i] = wb.nat_to_field(limb);
+        }
+        // Register operand: imm_c = 0, and op_c_memory is a real register read.
+        cols.imm_c = wb.nat_to_field(zero);
+        RegisterAccessCols::<WB::Field>::witgen(
+            wb,
+            &mut cols.op_c_memory,
+            c_prev_value,
+            c_prev_ts,
+            c_cur_ts,
+        );
     }
 }
 
