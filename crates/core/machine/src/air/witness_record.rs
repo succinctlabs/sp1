@@ -174,6 +174,94 @@ pub fn interpret<F: Field, R: ByteRecord>(
         .collect()
 }
 
+/// Flat, `#[repr(C)]` form of one [`WitOp`], suitable for upload to the device and
+/// interpretation by the GPU kernel (which reads this exact layout). The fields are
+/// overloaded per `tag`:
+///
+/// | tag | op            | a       | b   | imm0          | imm1   |
+/// |-----|---------------|---------|-----|---------------|--------|
+/// | 0   | ConstNat      | -       | -   | value         | -      |
+/// | 1   | WrappingAdd   | lhs     | rhs | -             | -      |
+/// | 2   | Bits          | src     | -   | offset        | width  |
+/// | 3   | NatToField    | src     | -   | -             | -      |
+/// | 4   | FieldAdd      | lhs     | rhs | -             | -      |
+/// | 5   | FieldInverse  | src     | -   | -             | -      |
+/// | 6   | U16RangeCheck | src     | -   | -             | -      |
+/// | 7   | BitRangeCheck | src     | -   | bits          | -      |
+///
+/// Tags 6/7 are lookups: they emit no wire and are skipped by the columns-only
+/// interpreter (lookups are produced by `generate_dependencies`, not the trace).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(C)]
+pub struct WitOpC {
+    pub tag: u32,
+    pub a: u32,
+    pub b: u32,
+    pub imm1: u32,
+    pub imm0: u64,
+}
+
+impl WitProgram {
+    /// Lower the op-DAG to the flat device layout.
+    pub fn to_c(&self) -> Vec<WitOpC> {
+        self.ops
+            .iter()
+            .map(|op| match *op {
+                WitOp::ConstNat(v) => WitOpC { tag: 0, a: 0, b: 0, imm1: 0, imm0: v },
+                WitOp::WrappingAdd(a, b) => WitOpC { tag: 1, a: a.0, b: b.0, imm1: 0, imm0: 0 },
+                WitOp::Bits { src, offset, width } => {
+                    WitOpC { tag: 2, a: src.0, b: 0, imm1: width, imm0: offset as u64 }
+                }
+                WitOp::NatToField(a) => WitOpC { tag: 3, a: a.0, b: 0, imm1: 0, imm0: 0 },
+                WitOp::FieldAdd(a, b) => WitOpC { tag: 4, a: a.0, b: b.0, imm1: 0, imm0: 0 },
+                WitOp::FieldInverse(a) => WitOpC { tag: 5, a: a.0, b: 0, imm1: 0, imm0: 0 },
+                WitOp::U16RangeCheck(a) => WitOpC { tag: 6, a: a.0, b: 0, imm1: 0, imm0: 0 },
+                WitOp::BitRangeCheck { src, bits } => {
+                    WitOpC { tag: 7, a: src.0, b: 0, imm1: 0, imm0: bits as u64 }
+                }
+            })
+            .collect()
+    }
+}
+
+/// Columns-only interpreter over the flat [`WitOpC`] layout — the exact reference
+/// the GPU kernel ports (one thread per row). Skips lookup ops; returns the field
+/// value of every wire, so column `c` reads index `col_wires[c]`.
+pub fn interpret_c_columns<F: Field>(
+    ops: &[WitOpC],
+    num_inputs: u32,
+    inputs: &[u64],
+    col_wires: &[u32],
+) -> Vec<F> {
+    assert_eq!(inputs.len() as u32, num_inputs);
+    let mut wires: Vec<Val<F>> = inputs.iter().map(|&v| Val::Nat(v)).collect();
+    for op in ops {
+        match op.tag {
+            0 => wires.push(Val::Nat(op.imm0)),
+            1 => wires.push(Val::Nat(
+                wires[op.a as usize].nat().wrapping_add(wires[op.b as usize].nat()),
+            )),
+            2 => {
+                let x = wires[op.a as usize].nat();
+                let mask = if op.imm1 >= 64 { u64::MAX } else { (1u64 << op.imm1) - 1 };
+                wires.push(Val::Nat((x >> op.imm0) & mask));
+            }
+            3 => wires.push(Val::Field(F::from_canonical_u64(wires[op.a as usize].nat()))),
+            4 => wires.push(Val::Field(wires[op.a as usize].field() + wires[op.b as usize].field())),
+            5 => wires.push(Val::Field(wires[op.a as usize].field().inverse())),
+            6 | 7 => {} // lookup: no wire, skipped for columns
+            t => panic!("unknown WitOpC tag {t}"),
+        }
+    }
+    col_wires
+        .iter()
+        .map(|&w| match wires[w as usize] {
+            Val::Field(f) => f,
+            Val::Nat(n) => F::from_canonical_u64(n),
+        })
+        .collect()
+}
+
 /// View a column struct recorded over [`WireId`]s as the flat slice of its column
 /// wires: index `i` is the wire that produces column `i`. Column structs are
 /// `#[repr(C)]` (`AlignedBorrow`), so for `T = WireId` they are a contiguous array
@@ -242,6 +330,18 @@ mod tests {
 
             assert_eq!(host_cols.value, int_cols, "columns mismatch for ({a:#x}, {b:#x})");
             assert_eq!(host_lookups, int_lookups, "lookups mismatch for ({a:#x}, {b:#x})");
+
+            // Validate the flat `WitOpC` columns-only interpreter — the exact
+            // reference the GPU kernel ports (it reads this layout, one thread/row).
+            let ops_c = program.to_c();
+            let col_wire_idx: Vec<u32> = col_wires.iter().map(|w| w.0).collect();
+            let flat_cols =
+                interpret_c_columns::<F>(&ops_c, program.num_inputs, &[a, b], &col_wire_idx);
+            assert_eq!(
+                host_cols.value.to_vec(),
+                flat_cols,
+                "flat-C columns mismatch for ({a:#x}, {b:#x})"
+            );
         }
     }
 }
