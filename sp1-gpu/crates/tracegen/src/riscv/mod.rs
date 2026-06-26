@@ -1,5 +1,6 @@
 mod add;
 mod global;
+mod sub;
 
 use slop_alloc::mem::CopyError;
 use sp1_core_machine::riscv::RiscvAir;
@@ -12,6 +13,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
         match self {
             Self::Global(chip) => chip.supports_device_main_tracegen(),
             Self::Add(chip) => chip.supports_device_main_tracegen(),
+            Self::Sub(chip) => chip.supports_device_main_tracegen(),
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => false,
         }
@@ -26,6 +28,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
         match self {
             Self::Global(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::Add(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::Sub(chip) => chip.generate_trace_device(input, output, scope).await,
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => unimplemented!(),
         }
