@@ -10,7 +10,7 @@ mod tests {
     use slop_alloc::Buffer;
     use sp1_core_machine::air::{columns_as_wires, RecordingWitnessBuilder, WireId};
     use sp1_core_machine::adapter::state::CPUState;
-    use sp1_core_machine::memory::RegisterAccessTimestamp;
+    use sp1_core_machine::memory::{RegisterAccessCols, RegisterAccessTimestamp};
     use sp1_core_machine::air::{interpret_c_columns as _interp, WitProgram};
     use sp1_core_machine::operations::{AddOperation, AddrAddOperation, AddressOperation};
     use sp1_gpu_cudart::{args, DeviceBuffer, TaskScope, WitgenInterpKernel};
@@ -22,14 +22,12 @@ mod tests {
     async fn check_gadget(scope: TaskScope, program: WitProgram, col_wires: Vec<u32>) {
         let ops_c = program.to_c();
         let n_cols = col_wires.len();
-        let num_inputs = program.num_inputs;
-        assert_eq!(num_inputs, 2, "this helper drives 2-input gadgets");
+        let num_inputs = program.num_inputs as usize;
 
         let n_rows = 1usize << 12;
         let mut rng = StdRng::seed_from_u64(7);
-        let mut inputs: Vec<u64> = Vec::with_capacity(n_rows * 2);
-        for _ in 0..n_rows {
-            inputs.push(rng.gen::<u64>() & ((1u64 << 40) - 1));
+        let mut inputs: Vec<u64> = Vec::with_capacity(n_rows * num_inputs);
+        for _ in 0..n_rows * num_inputs {
             inputs.push(rng.gen::<u64>() & ((1u64 << 40) - 1));
         }
 
@@ -53,7 +51,7 @@ mod tests {
                 ops_c.len(),
                 col_dev.as_ptr(),
                 n_cols,
-                num_inputs,
+                program.num_inputs,
                 in_dev.as_ptr(),
                 n_rows
             );
@@ -63,7 +61,12 @@ mod tests {
 
         let got: Vec<F> = out.to_host().unwrap();
         for r in 0..n_rows {
-            let cpu = _interp::<F>(&ops_c, num_inputs, &inputs[r * 2..r * 2 + 2], &col_wires);
+            let cpu = _interp::<F>(
+                &ops_c,
+                program.num_inputs,
+                &inputs[r * num_inputs..(r + 1) * num_inputs],
+                &col_wires,
+            );
             for c in 0..n_cols {
                 assert_eq!(got[c * n_rows + r], cpu[c], "mismatch at row {r}, col {c}");
             }
@@ -161,6 +164,27 @@ mod tests {
                 &mut cols_w,
                 RecordingWitnessBuilder::input(0),
                 RecordingWitnessBuilder::input(1),
+            );
+            let col_wires: Vec<u32> = columns_as_wires(&cols_w).iter().map(|w| w.0).collect();
+            check_gadget(scope, rec.finish(), col_wires).await;
+        })
+        .await
+        .unwrap();
+    }
+
+    /// RegisterAccessCols (prev value Word + timestamp) — a full register read's
+    /// columns, composing RegisterAccessTimestamp. 3 inputs (value, prev_ts, cur_ts).
+    #[tokio::test]
+    async fn witgen_interp_reg_access_columns() {
+        sp1_gpu_cudart::spawn(move |scope: TaskScope| async move {
+            let mut rec = RecordingWitnessBuilder::new(3);
+            let mut cols_w = RegisterAccessCols::<WireId>::default();
+            RegisterAccessCols::<WireId>::witgen(
+                &mut rec,
+                &mut cols_w,
+                RecordingWitnessBuilder::input(0),
+                RecordingWitnessBuilder::input(1),
+                RecordingWitnessBuilder::input(2),
             );
             let col_wires: Vec<u32> = columns_as_wires(&cols_w).iter().map(|w| w.0).collect();
             check_gadget(scope, rec.finish(), col_wires).await;

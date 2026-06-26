@@ -1,5 +1,6 @@
 use slop_algebra::PrimeField32;
 use sp1_core_executor::events::{ByteRecord, MemoryRecordEnum, PageProtRecord};
+use sp1_primitives::consts::WORD_SIZE;
 
 use super::{
     MemoryAccessCols, MemoryAccessColsU8, MemoryAccessTimestamp, PageProtAccessCols,
@@ -19,15 +20,41 @@ impl<F: PrimeField32> MemoryAccessCols<F> {
     }
 }
 
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T> RegisterAccessCols<T> {
+    /// Backend-agnostic witgen: the previous value (4 u16 limbs) and the access
+    /// timestamp (composing [`RegisterAccessTimestamp::witgen`]).
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut RegisterAccessCols<WB::Field>,
+        prev_value: WB::Nat,
+        prev_timestamp: WB::Nat,
+        current_timestamp: WB::Nat,
+    ) {
+        for i in 0..WORD_SIZE {
+            let limb = wb.bits(prev_value, (i as u32) * 16, 16);
+            cols.prev_value[i] = wb.nat_to_field(limb);
+        }
+        RegisterAccessTimestamp::<WB::Field>::witgen(
+            wb,
+            &mut cols.access_timestamp,
+            prev_timestamp,
+            current_timestamp,
+        );
+    }
+}
+
 impl<F: PrimeField32> RegisterAccessCols<F> {
     pub fn populate(&mut self, record: MemoryRecordEnum, output: &mut impl ByteRecord) {
         let prev_record = record.previous_record();
         let current_record = record.current_record();
-        self.prev_value = prev_record.value.into();
-        self.access_timestamp.populate_timestamp(
+        let mut wb = crate::air::HostWitnessBuilder::<F, _>::new(output);
+        Self::witgen(
+            &mut wb,
+            self,
+            prev_record.value,
             prev_record.timestamp,
             current_record.timestamp,
-            output,
         );
     }
 }
