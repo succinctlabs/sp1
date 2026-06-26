@@ -35,6 +35,8 @@ pub enum WitOp {
     WrappingSub(WireId, WireId),
     Bits { src: WireId, offset: u32, width: u32 },
     Eq(WireId, WireId),
+    Shl(WireId, WireId),
+    Shr(WireId, WireId),
     Select { cond: WireId, a: WireId, b: WireId },
     NatToField(WireId),
     FieldAdd(WireId, WireId),
@@ -44,6 +46,8 @@ pub enum WitOp {
     U16RangeCheck(WireId),
     U8RangeCheck(WireId, WireId),
     BitRangeCheck { src: WireId, bits: u8 },
+    /// Variable-width range check: `bits` is a wire (per-row width).
+    BitRangeCheckVar { src: WireId, bits: WireId },
     /// Guarded lookups: emitted only on rows where `guard != 0` (per-row branches).
     U16RangeCheckGuarded { guard: WireId, src: WireId },
     U8RangeCheckGuarded { guard: WireId, a: WireId, b: WireId },
@@ -119,6 +123,12 @@ impl WitnessBuilder for RecordingWitnessBuilder {
     fn eq(&mut self, a: WireId, b: WireId) -> WireId {
         self.value(WitOp::Eq(a, b))
     }
+    fn shl(&mut self, a: WireId, shift: WireId) -> WireId {
+        self.value(WitOp::Shl(a, shift))
+    }
+    fn shr(&mut self, a: WireId, shift: WireId) -> WireId {
+        self.value(WitOp::Shr(a, shift))
+    }
     fn select(&mut self, cond: WireId, a: WireId, b: WireId) -> WireId {
         self.value(WitOp::Select { cond, a, b })
     }
@@ -157,6 +167,11 @@ impl WitnessBuilder for RecordingWitnessBuilder {
             None => WitOp::BitRangeCheck { src: a, bits },
         };
         self.program.ops.push(op);
+    }
+    fn add_bit_range_check_var(&mut self, a: WireId, bits: WireId) {
+        // Used only outside guarded scopes (the shift chips' limb range checks).
+        debug_assert!(self.guard.is_none(), "guarded variable-width range check unsupported");
+        self.program.ops.push(WitOp::BitRangeCheckVar { src: a, bits });
     }
     fn add_byte_lookup(&mut self, opcode: WireId, a: WireId, b: WireId, c: WireId) {
         let op = match self.guard {
@@ -225,6 +240,12 @@ pub fn interpret<F: Field, R: ByteRecord>(
             WitOp::Eq(a, b) => wires.push(Val::Nat(u64::from(
                 wires[a.0 as usize].nat() == wires[b.0 as usize].nat(),
             ))),
+            WitOp::Shl(a, s) => {
+                wires.push(Val::Nat(wires[a.0 as usize].nat() << wires[s.0 as usize].nat()))
+            }
+            WitOp::Shr(a, s) => {
+                wires.push(Val::Nat(wires[a.0 as usize].nat() >> wires[s.0 as usize].nat()))
+            }
             WitOp::Select { cond, a, b } => {
                 let c = wires[cond.0 as usize].nat();
                 wires.push(if c != 0 { wires[a.0 as usize] } else { wires[b.0 as usize] });
@@ -251,6 +272,10 @@ pub fn interpret<F: Field, R: ByteRecord>(
             WitOp::BitRangeCheck { src, bits } => {
                 record.add_bit_range_check(wires[src.0 as usize].nat() as u16, bits)
             }
+            WitOp::BitRangeCheckVar { src, bits } => record.add_bit_range_check(
+                wires[src.0 as usize].nat() as u16,
+                wires[bits.0 as usize].nat() as u8,
+            ),
             WitOp::U16RangeCheckGuarded { guard, src } => {
                 if wires[guard.0 as usize].nat() != 0 {
                     record.add_u16_range_check(wires[src.0 as usize].nat() as u16)
@@ -342,6 +367,7 @@ impl WitProgram {
                         op,
                         WitOp::U16RangeCheck(..)
                             | WitOp::BitRangeCheck { .. }
+                            | WitOp::BitRangeCheckVar { .. }
                             | WitOp::U8RangeCheck(..)
                             | WitOp::U16RangeCheckGuarded { .. }
                             | WitOp::U8RangeCheckGuarded { .. }
@@ -362,6 +388,11 @@ impl WitProgram {
                 WitOp::WrappingSub(a, b) => WitOpC { tag: 8, a: a.0, b: b.0, imm1: 0, imm0: 0 },
                 WitOp::U8RangeCheck(a, b) => WitOpC { tag: 9, a: a.0, b: b.0, imm1: 0, imm0: 0 },
                 WitOp::Eq(a, b) => WitOpC { tag: 11, a: a.0, b: b.0, imm1: 0, imm0: 0 },
+                WitOp::Shl(a, s) => WitOpC { tag: 20, a: a.0, b: s.0, imm1: 0, imm0: 0 },
+                WitOp::Shr(a, s) => WitOpC { tag: 21, a: a.0, b: s.0, imm1: 0, imm0: 0 },
+                WitOp::BitRangeCheckVar { src, bits } => {
+                    WitOpC { tag: 22, a: src.0, b: bits.0, imm1: 0, imm0: 0 }
+                }
                 WitOp::Select { cond, a, b } => {
                     WitOpC { tag: 12, a: cond.0, b: a.0, imm1: b.0, imm0: 0 }
                 }
@@ -431,6 +462,8 @@ pub fn interpret_c_columns<F: Field>(
             11 => wires.push(Val::Nat(u64::from(
                 wires[op.a as usize].nat() == wires[op.b as usize].nat(),
             ))),
+            20 => wires.push(Val::Nat(wires[op.a as usize].nat() << wires[op.b as usize].nat())),
+            21 => wires.push(Val::Nat(wires[op.a as usize].nat() >> wires[op.b as usize].nat())),
             12 => {
                 let c = wires[op.a as usize].nat();
                 wires.push(if c != 0 {
@@ -447,8 +480,8 @@ pub fn interpret_c_columns<F: Field>(
                 let cond = wires[op.a as usize].nat();
                 wires.push(if cond != 0 { wires[op.b as usize] } else { wires[op.imm1 as usize] });
             }
-            // lookups (incl. guarded + byte-table): no wire, skipped for columns
-            6 | 7 | 9 | 13 | 14 | 15 | 16 | 17 => {}
+            // lookups (incl. guarded + byte-table + var-width): no wire, skipped for columns
+            6 | 7 | 9 | 13 | 14 | 15 | 16 | 17 | 22 => {}
             t => panic!("unknown WitOpC tag {t}"),
         }
     }
@@ -514,6 +547,8 @@ pub fn interpret_c_lookups(
                     wires.push((x >> op.imm0) & mask);
                 }
                 11 => wires.push(u64::from(wires[op.a as usize] == wires[op.b as usize])),
+                20 => wires.push(wires[op.a as usize] << wires[op.b as usize]),
+                21 => wires.push(wires[op.a as usize] >> wires[op.b as usize]),
                 12 => {
                     let c = wires[op.a as usize];
                     wires.push(if c != 0 { wires[op.b as usize] } else { wires[op.imm1 as usize] });
@@ -529,6 +564,12 @@ pub fn interpret_c_lookups(
                 7 => {
                     let v = wires[op.a as usize] as u16 as usize;
                     range_hist[v + (1usize << op.imm0)] += 1;
+                }
+                // BitRangeCheckVar: {Range, a: v, bits} where bits = nat[b] (a wire).
+                22 => {
+                    let v = wires[op.a as usize] as u16 as usize;
+                    let bits = wires[op.b as usize];
+                    range_hist[v + (1usize << bits)] += 1;
                 }
                 // U8RangeCheck: {U8Range, b: nat[a], c: nat[b]}.
                 9 => {
@@ -938,5 +979,34 @@ mod tests {
             lookups,
             vec![ByteLookupEvent { opcode: ByteOpcode::XOR, a: 0xAB, b: 0x12, c: 0x34 }]
         );
+    }
+
+    /// Variable shift ops (`shl`/`shr`) and the variable-width range check: columns
+    /// compute `a << s` / `a >> s`, and the range lookup indexes by the per-row width.
+    #[test]
+    fn shifts_and_var_range_check() {
+        use crate::air::WitnessBuilder;
+        use slop_algebra::AbstractField;
+        let mut rec = RecordingWitnessBuilder::new(2);
+        let a = RecordingWitnessBuilder::input(0);
+        let s = RecordingWitnessBuilder::input(1);
+        let l = rec.shl(a, s);
+        let r = rec.shr(a, s);
+        rec.add_bit_range_check_var(l, s); // {Range, l as u16, bits = s}
+        let program = rec.finish();
+        let ops_c = program.to_c();
+
+        let inputs = [0x1234u64, 4];
+        let col_wires = [l.0, r.0];
+        let cols = interpret_c_columns::<F>(&ops_c, 2, &inputs, &col_wires);
+        assert_eq!(cols[0], F::from_canonical_u64(0x1234 << 4));
+        assert_eq!(cols[1], F::from_canonical_u64(0x1234 >> 4));
+
+        let mut range = vec![0u32; RANGE_HIST_ROWS];
+        let mut byte = vec![0u32; BYTE_HIST_ROWS * NUM_BYTE_MULT_COLS];
+        interpret_c_lookups(&ops_c, 2, &inputs, 1, &mut range, &mut byte);
+        let v = ((0x1234u64 << 4) as u16) as usize;
+        assert_eq!(range[v + (1 << 4)], 1, "var-width range lookup index");
+        assert_eq!(range.iter().sum::<u32>(), 1);
     }
 }

@@ -75,6 +75,16 @@ __global__ void witgen_interp_kernel(
                 is_field[wc] = false;
                 ++wc;
                 break;
+            case 20: // Shl: a << shift
+                nat[wc] = nat[op.a] << nat[op.b];
+                is_field[wc] = false;
+                ++wc;
+                break;
+            case 21: // Shr: a >> shift
+                nat[wc] = nat[op.a] >> nat[op.b];
+                is_field[wc] = false;
+                ++wc;
+                break;
             case 3: // NatToField
                 fld[wc] = T::from_canonical_u32((uint32_t)nat[op.a]);
                 is_field[wc] = true;
@@ -108,6 +118,7 @@ __global__ void witgen_interp_kernel(
             case 15: // Guarded U8RangeCheck  (lookup, no wire)
             case 16: // ByteLookup           (lookup, no wire)
             case 17: // Guarded ByteLookup    (lookup, no wire)
+            case 22: // BitRangeCheckVar      (lookup, no wire)
                 break;
             }
         }
@@ -181,6 +192,12 @@ __global__ void witgen_lookup_kernel(
             case 12: // Select
                 nat[wc++] = nat[op.a] ? nat[op.b] : nat[op.imm1];
                 break;
+            case 20: // Shl
+                nat[wc++] = nat[op.a] << nat[op.b];
+                break;
+            case 21: // Shr
+                nat[wc++] = nat[op.a] >> nat[op.b];
+                break;
             case 3:  // NatToField
             case 4:  // FieldAdd
             case 5:  // FieldInverse
@@ -196,6 +213,12 @@ __global__ void witgen_lookup_kernel(
             case 7: { // BitRangeCheck -> {Range, a: v, bits: imm0}
                 uint32_t v = (uint32_t)(uint16_t)nat[op.a];
                 atomicAdd(&range_hist[v + (1u << (uint32_t)op.imm0)], 1u);
+                break;
+            }
+            case 22: { // BitRangeCheckVar -> {Range, a: v, bits: nat[op.b]}
+                uint32_t v = (uint32_t)(uint16_t)nat[op.a];
+                uint32_t bits = (uint32_t)nat[op.b];
+                atomicAdd(&range_hist[v + (1u << bits)], 1u);
                 break;
             }
             case 9: { // U8RangeCheck -> {U8Range, b: nat[a], c: nat[b]}

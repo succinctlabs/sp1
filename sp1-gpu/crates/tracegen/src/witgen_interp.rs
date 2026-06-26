@@ -543,6 +543,76 @@ mod tests {
         .unwrap();
     }
 
+    /// Variable shifts (`shl`/`shr`) feeding a variable-width range check on the
+    /// device: the lookup kernel's nat shifts + var-width Range index must equal the
+    /// CPU `interpret_c_lookups` model over random `(a, shift∈0..16)` rows.
+    #[tokio::test]
+    async fn witgen_lookup_shifts_var_range_matches_cpu() {
+        sp1_gpu_cudart::spawn(move |scope: TaskScope| async move {
+            use sp1_core_machine::air::WitnessBuilder;
+            // input(0)=a, input(1)=shift; range-check (a<<shift) with width=shift, and
+            // (a>>shift) with width=shift — exercises shl/shr + var-width range check.
+            let mut rec = RecordingWitnessBuilder::new(2);
+            let a = RecordingWitnessBuilder::input(0);
+            let s = RecordingWitnessBuilder::input(1);
+            let l = rec.shl(a, s);
+            let r = rec.shr(a, s);
+            rec.add_bit_range_check_var(l, s);
+            rec.add_bit_range_check_var(r, s);
+            let program = rec.finish();
+            let ops_c = program.to_c();
+
+            let n_rows = 1usize << 12;
+            let mut rng = StdRng::seed_from_u64(0x5417);
+            let mut inputs: Vec<u64> = Vec::with_capacity(n_rows * 2);
+            for _ in 0..n_rows {
+                inputs.push(rng.gen::<u64>() & 0xFFFF); // a (u16)
+                inputs.push(rng.gen_range(0u64..16)); // shift 0..15
+            }
+
+            let mut cpu_range = vec![0u32; RANGE_HIST_ROWS];
+            let mut cpu_byte = vec![0u32; BYTE_HIST_ROWS * NUM_BYTE_MULT_COLS];
+            interpret_c_lookups(&ops_c, 2, &inputs, n_rows, &mut cpu_range, &mut cpu_byte);
+
+            let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone()).unwrap();
+            ops_dev.extend_from_host_slice(&ops_c).unwrap();
+            let mut in_dev = Buffer::try_with_capacity_in(inputs.len(), scope.clone()).unwrap();
+            in_dev.extend_from_host_slice(&inputs).unwrap();
+            let range_len = RANGE_HIST_ROWS;
+            let byte_len = BYTE_HIST_ROWS * NUM_BYTE_MULT_COLS;
+            let mut range_buf = Buffer::try_with_capacity_in(range_len, scope.clone()).unwrap();
+            range_buf.extend_from_host_slice(&vec![0u32; range_len]).unwrap();
+            let mut byte_buf = Buffer::try_with_capacity_in(byte_len, scope.clone()).unwrap();
+            byte_buf.extend_from_host_slice(&vec![0u32; byte_len]).unwrap();
+            let mut range_dev = DeviceBuffer::from_raw(range_buf);
+            let mut byte_dev = DeviceBuffer::from_raw(byte_buf);
+
+            unsafe {
+                const BLOCK: usize = 64;
+                let grid = n_rows.div_ceil(BLOCK);
+                let args = args!(
+                    ops_dev.as_ptr(),
+                    ops_c.len(),
+                    program.num_inputs,
+                    in_dev.as_ptr(),
+                    n_rows,
+                    range_dev.as_mut_ptr(),
+                    byte_dev.as_mut_ptr()
+                );
+                scope
+                    .launch_kernel(TaskScope::witgen_lookup_kernel(), grid, BLOCK, &args, 0)
+                    .unwrap();
+            }
+            scope.synchronize_blocking().unwrap();
+
+            let gpu_range: Vec<u32> = range_dev.to_host().unwrap();
+            assert!(cpu_range.iter().any(|&m| m > 0), "no range lookups produced");
+            assert_eq!(gpu_range, cpu_range, "shifts/var-range histogram: GPU != CPU model");
+        })
+        .await
+        .unwrap();
+    }
+
     /// `field_sub` on the device: device columns == CPU `interpret_c_columns`.
     #[tokio::test]
     async fn witgen_interp_field_sub() {

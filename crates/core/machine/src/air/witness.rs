@@ -70,6 +70,13 @@ pub trait WitnessBuilder {
     /// Integer equality: returns 1 if `a == b`, else 0.
     fn eq(&mut self, a: Self::Nat, b: Self::Nat) -> Self::Nat;
 
+    /// Variable left shift: `a << shift` (shift is a per-row nat). Unlike [`bits`],
+    /// the shift amount is data-dependent (needed by the shift chips).
+    fn shl(&mut self, a: Self::Nat, shift: Self::Nat) -> Self::Nat;
+
+    /// Variable right shift: `a >> shift` (shift is a per-row nat).
+    fn shr(&mut self, a: Self::Nat, shift: Self::Nat) -> Self::Nat;
+
     /// Integer select: `cond` (0 or 1) ? `a` : `b`.
     fn select(&mut self, cond: Self::Nat, a: Self::Nat, b: Self::Nat) -> Self::Nat;
 
@@ -98,6 +105,10 @@ pub trait WitnessBuilder {
 
     /// Emit a lookup proving `a < 2^bits`.
     fn add_bit_range_check(&mut self, a: Self::Nat, bits: u8);
+
+    /// Emit a lookup proving `a < 2^bits` where `bits` is a per-row nat (variable
+    /// width — needed by the shift chips, whose limb splits depend on the shift).
+    fn add_bit_range_check_var(&mut self, a: Self::Nat, bits: Self::Nat);
 
     /// Emit a general byte-table lookup `{opcode, a, b, c}` where `opcode` is a
     /// `ByteOpcode` discriminant (0..=6). Covers the per-row-opcode byte ops
@@ -173,6 +184,16 @@ impl<F: Field, R: ByteRecord> WitnessBuilder for HostWitnessBuilder<'_, F, R> {
     }
 
     #[inline]
+    fn shl(&mut self, a: u64, shift: u64) -> u64 {
+        a << shift
+    }
+
+    #[inline]
+    fn shr(&mut self, a: u64, shift: u64) -> u64 {
+        a >> shift
+    }
+
+    #[inline]
     fn select(&mut self, cond: u64, a: u64, b: u64) -> u64 {
         if cond != 0 {
             a
@@ -232,6 +253,14 @@ impl<F: Field, R: ByteRecord> WitnessBuilder for HostWitnessBuilder<'_, F, R> {
             return;
         }
         self.record.add_bit_range_check(a as u16, bits);
+    }
+
+    #[inline]
+    fn add_bit_range_check_var(&mut self, a: u64, bits: u64) {
+        if self.suppressed() {
+            return;
+        }
+        self.record.add_bit_range_check(a as u16, bits as u8);
     }
 
     #[inline]
