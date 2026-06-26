@@ -40,7 +40,11 @@ impl<F: PrimeField32> AddressOperation<F> {
         let mut wb = HostWitnessBuilder::<F, _>::new(record);
         Self::witgen(&mut wb, self, b, c)
     }
+}
 
+// Witgen lives in an unconstrained `impl<T>` (see `AddrAddOperation::witgen`): the
+// column type is the builder's `Field`, a wire id under the recording backend.
+impl<T> AddressOperation<T> {
     /// Backend-agnostic witness generation: derives the aligned u48 memory address
     /// `b + c`, fills `addr_operation` (composing [`AddrAddOperation::witgen`]),
     /// computes `top_two_limb_inv`, and emits the alignment bit-range check. The
