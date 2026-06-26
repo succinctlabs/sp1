@@ -82,6 +82,11 @@ pub trait WitnessBuilder {
     /// Field multiplicative inverse (of a non-zero element).
     fn field_inverse(&mut self, a: Self::Field) -> Self::Field;
 
+    /// Field select: `cond` (a 0/1 nat) ? `a` : `b`. Merges field columns between two
+    /// per-row branches (e.g. an immediate operand's columns vs a register read's),
+    /// paired with [`push_guard`](Self::push_guard) for the branches' lookups.
+    fn field_select(&mut self, cond: Self::Nat, a: Self::Field, b: Self::Field) -> Self::Field;
+
     /// Emit a `u16` range-check lookup for `a`.
     fn add_u16_range_check(&mut self, a: Self::Nat);
 
@@ -186,6 +191,15 @@ impl<F: Field, R: ByteRecord> WitnessBuilder for HostWitnessBuilder<'_, F, R> {
     #[inline]
     fn field_inverse(&mut self, a: F) -> F {
         a.inverse()
+    }
+
+    #[inline]
+    fn field_select(&mut self, cond: u64, a: F, b: F) -> F {
+        if cond != 0 {
+            a
+        } else {
+            b
+        }
     }
 
     #[inline]

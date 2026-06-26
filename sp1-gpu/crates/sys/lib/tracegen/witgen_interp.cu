@@ -90,6 +90,11 @@ __global__ void witgen_interp_kernel(
                 is_field[wc] = true;
                 ++wc;
                 break;
+            case 18: // FieldSelect: cond=a (nat), then-field=b, else-field=imm1
+                fld[wc] = nat[op.a] ? fld[op.b] : fld[op.imm1];
+                is_field[wc] = true;
+                ++wc;
+                break;
             case 6:  // U16RangeCheck (lookup, no wire)
             case 7:  // BitRangeCheck (lookup, no wire)
             case 9:  // U8RangeCheck  (lookup, no wire)
@@ -171,9 +176,10 @@ __global__ void witgen_lookup_kernel(
             case 12: // Select
                 nat[wc++] = nat[op.a] ? nat[op.b] : nat[op.imm1];
                 break;
-            case 3: // NatToField
-            case 4: // FieldAdd
-            case 5: // FieldInverse
+            case 3:  // NatToField
+            case 4:  // FieldAdd
+            case 5:  // FieldInverse
+            case 18: // FieldSelect
                 nat[wc++] = 0; // field wire: placeholder (never read by a lookup)
                 break;
             case 6: { // U16RangeCheck -> {Range, a: v, bits: 16}

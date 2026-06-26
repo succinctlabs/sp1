@@ -372,4 +372,174 @@ mod tests {
         .await
         .unwrap();
     }
+
+    /// Validate the GUARDED lookup kernel (per-row conditional execution): a guarded
+    /// u16 range check emits only on rows where the guard wire != 0. Device histogram
+    /// must equal the CPU `interpret_c_lookups` model over random guard/value rows.
+    #[tokio::test]
+    async fn witgen_lookup_guarded_matches_cpu() {
+        sp1_gpu_cudart::spawn(move |scope: TaskScope| async move {
+            use sp1_core_machine::air::WitnessBuilder;
+
+            // input(0) = guard (0/1), input(1) = value. One guarded + one unguarded.
+            let mut rec = RecordingWitnessBuilder::new(2);
+            let g = RecordingWitnessBuilder::input(0);
+            let v = RecordingWitnessBuilder::input(1);
+            rec.push_guard(g);
+            rec.add_u16_range_check(v);
+            rec.pop_guard();
+            rec.add_u16_range_check(v);
+            let program = rec.finish();
+            let ops_c = program.to_c();
+
+            let n_rows = 1usize << 12;
+            let mut rng = StdRng::seed_from_u64(0x67A2D);
+            let mut inputs: Vec<u64> = Vec::with_capacity(n_rows * 2);
+            for _ in 0..n_rows {
+                inputs.push(rng.gen::<bool>() as u64); // guard
+                inputs.push(rng.gen::<u64>() & 0xFFFF); // value
+            }
+
+            let mut cpu_range = vec![0u32; RANGE_HIST_ROWS];
+            let mut cpu_byte = vec![0u32; BYTE_HIST_ROWS * NUM_BYTE_MULT_COLS];
+            interpret_c_lookups(&ops_c, 2, &inputs, n_rows, &mut cpu_range, &mut cpu_byte);
+
+            let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone()).unwrap();
+            ops_dev.extend_from_host_slice(&ops_c).unwrap();
+            let mut in_dev = Buffer::try_with_capacity_in(inputs.len(), scope.clone()).unwrap();
+            in_dev.extend_from_host_slice(&inputs).unwrap();
+
+            let range_len = RANGE_HIST_ROWS;
+            let byte_len = BYTE_HIST_ROWS * NUM_BYTE_MULT_COLS;
+            let mut range_buf = Buffer::try_with_capacity_in(range_len, scope.clone()).unwrap();
+            range_buf.extend_from_host_slice(&vec![0u32; range_len]).unwrap();
+            let mut byte_buf = Buffer::try_with_capacity_in(byte_len, scope.clone()).unwrap();
+            byte_buf.extend_from_host_slice(&vec![0u32; byte_len]).unwrap();
+            let mut range_dev = DeviceBuffer::from_raw(range_buf);
+            let mut byte_dev = DeviceBuffer::from_raw(byte_buf);
+
+            unsafe {
+                const BLOCK: usize = 64;
+                let grid = n_rows.div_ceil(BLOCK);
+                let args = args!(
+                    ops_dev.as_ptr(),
+                    ops_c.len(),
+                    program.num_inputs,
+                    in_dev.as_ptr(),
+                    n_rows,
+                    range_dev.as_mut_ptr(),
+                    byte_dev.as_mut_ptr()
+                );
+                scope
+                    .launch_kernel(TaskScope::witgen_lookup_kernel(), grid, BLOCK, &args, 0)
+                    .unwrap();
+            }
+            scope.synchronize_blocking().unwrap();
+
+            let gpu_range: Vec<u32> = range_dev.to_host().unwrap();
+            let gpu_byte: Vec<u32> = byte_dev.to_host().unwrap();
+
+            assert!(cpu_range.iter().any(|&m| m > 0), "no range lookups produced");
+            assert_eq!(gpu_range, cpu_range, "guarded range histogram: GPU != CPU model");
+            assert_eq!(gpu_byte, cpu_byte, "guarded byte histogram: GPU != CPU model");
+        })
+        .await
+        .unwrap();
+    }
+
+    /// Validate the general byte-table lookup kernel (per-row opcode): the device
+    /// byte histogram, indexed by `(opcode, b, c)`, must equal the CPU
+    /// `interpret_c_lookups` model over random opcode/byte rows.
+    #[tokio::test]
+    async fn witgen_lookup_byte_op_matches_cpu() {
+        sp1_gpu_cudart::spawn(move |scope: TaskScope| async move {
+            use sp1_core_machine::air::WitnessBuilder;
+
+            // input(0)=opcode, input(1)=a (result, ignored), input(2)=b, input(3)=c.
+            let mut rec = RecordingWitnessBuilder::new(4);
+            let opcode = RecordingWitnessBuilder::input(0);
+            let a = RecordingWitnessBuilder::input(1);
+            let b = RecordingWitnessBuilder::input(2);
+            let c = RecordingWitnessBuilder::input(3);
+            rec.add_byte_lookup(opcode, a, b, c);
+            let program = rec.finish();
+            let ops_c = program.to_c();
+
+            let n_rows = 1usize << 12;
+            let mut rng = StdRng::seed_from_u64(0xB47E0);
+            let mut inputs: Vec<u64> = Vec::with_capacity(n_rows * 4);
+            for _ in 0..n_rows {
+                inputs.push(rng.gen_range(0u64..6)); // opcode 0..=5
+                inputs.push(rng.gen::<u64>() & 0xFFFF); // a (result, ignored)
+                inputs.push(rng.gen::<u64>() & 0xFF); // b
+                inputs.push(rng.gen::<u64>() & 0xFF); // c
+            }
+
+            let mut cpu_range = vec![0u32; RANGE_HIST_ROWS];
+            let mut cpu_byte = vec![0u32; BYTE_HIST_ROWS * NUM_BYTE_MULT_COLS];
+            interpret_c_lookups(&ops_c, 4, &inputs, n_rows, &mut cpu_range, &mut cpu_byte);
+
+            let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone()).unwrap();
+            ops_dev.extend_from_host_slice(&ops_c).unwrap();
+            let mut in_dev = Buffer::try_with_capacity_in(inputs.len(), scope.clone()).unwrap();
+            in_dev.extend_from_host_slice(&inputs).unwrap();
+
+            let range_len = RANGE_HIST_ROWS;
+            let byte_len = BYTE_HIST_ROWS * NUM_BYTE_MULT_COLS;
+            let mut range_buf = Buffer::try_with_capacity_in(range_len, scope.clone()).unwrap();
+            range_buf.extend_from_host_slice(&vec![0u32; range_len]).unwrap();
+            let mut byte_buf = Buffer::try_with_capacity_in(byte_len, scope.clone()).unwrap();
+            byte_buf.extend_from_host_slice(&vec![0u32; byte_len]).unwrap();
+            let mut range_dev = DeviceBuffer::from_raw(range_buf);
+            let mut byte_dev = DeviceBuffer::from_raw(byte_buf);
+
+            unsafe {
+                const BLOCK: usize = 64;
+                let grid = n_rows.div_ceil(BLOCK);
+                let args = args!(
+                    ops_dev.as_ptr(),
+                    ops_c.len(),
+                    program.num_inputs,
+                    in_dev.as_ptr(),
+                    n_rows,
+                    range_dev.as_mut_ptr(),
+                    byte_dev.as_mut_ptr()
+                );
+                scope
+                    .launch_kernel(TaskScope::witgen_lookup_kernel(), grid, BLOCK, &args, 0)
+                    .unwrap();
+            }
+            scope.synchronize_blocking().unwrap();
+
+            let gpu_range: Vec<u32> = range_dev.to_host().unwrap();
+            let gpu_byte: Vec<u32> = byte_dev.to_host().unwrap();
+
+            assert!(cpu_byte.iter().any(|&m| m > 0), "no byte lookups produced");
+            assert_eq!(gpu_byte, cpu_byte, "byte-op histogram: GPU != CPU model");
+            assert_eq!(gpu_range, cpu_range, "byte-op range histogram: GPU != CPU model");
+        })
+        .await
+        .unwrap();
+    }
+
+    /// `field_select` (merge field columns between per-row branches) on the device:
+    /// device columns must equal the CPU `interpret_c_columns` reference.
+    #[tokio::test]
+    async fn witgen_interp_field_select() {
+        sp1_gpu_cudart::spawn(move |scope: TaskScope| async move {
+            use sp1_core_machine::air::WitnessBuilder;
+            // input(0)=cond, input(1)=a, input(2)=b; columns: a, b, select(cond,a,b).
+            let mut rec = RecordingWitnessBuilder::new(3);
+            let cond = RecordingWitnessBuilder::input(0);
+            let a = RecordingWitnessBuilder::input(1);
+            let b = RecordingWitnessBuilder::input(2);
+            let fa = rec.nat_to_field(a);
+            let fb = rec.nat_to_field(b);
+            let sel = rec.field_select(cond, fa, fb);
+            let col_wires = vec![fa.0, fb.0, sel.0];
+            check_gadget(scope, rec.finish(), col_wires).await;
+        })
+        .await
+        .unwrap();
+    }
 }
