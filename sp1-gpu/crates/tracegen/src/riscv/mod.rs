@@ -39,4 +39,25 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             _ => unimplemented!(),
         }
     }
+
+    fn supports_device_dependencies(&self) -> bool {
+        match self {
+            Self::Add(chip) => chip.supports_device_dependencies(),
+            Self::Sub(chip) => chip.supports_device_dependencies(),
+            _ => false,
+        }
+    }
+
+    async fn generate_device_dependencies(
+        &self,
+        input: &Self::Record,
+        output: &mut Self::Record,
+        scope: &TaskScope,
+    ) -> Result<(), CopyError> {
+        match self {
+            Self::Add(chip) => chip.generate_device_dependencies(input, output, scope).await,
+            Self::Sub(chip) => chip.generate_device_dependencies(input, output, scope).await,
+            _ => unimplemented!(),
+        }
+    }
 }

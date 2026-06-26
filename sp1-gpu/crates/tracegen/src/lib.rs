@@ -405,6 +405,28 @@ pub trait CudaTracegenAir<F: Field>: MachineAir<F> {
         #[allow(unreachable_code)]
         ready(unimplemented!())
     }
+
+    /// Whether this AIR generates its dependencies (byte lookups) on the device. When
+    /// true, the host `generate_dependencies` SKIPS this chip (see
+    /// `AirProver::host_dependency_skip_chips`) and the prover instead calls
+    /// [`CudaTracegenAir::generate_device_dependencies`], merging the result into the
+    /// shard record (so the Byte/Range chips' host tracegen is unchanged).
+    fn supports_device_dependencies(&self) -> bool {
+        false
+    }
+
+    /// Generate this chip's dependencies on the device, writing them into `output`
+    /// exactly as the host `generate_dependencies(input, output)` would (the caller
+    /// then does `record.append(&mut output)`). Default: no-op.
+    #[allow(unused_variables)]
+    fn generate_device_dependencies(
+        &self,
+        input: &Self::Record,
+        output: &mut Self::Record,
+        scope: &TaskScope,
+    ) -> impl Future<Output = Result<(), CopyError>> + Send {
+        ready(Ok(()))
+    }
 }
 
 #[cfg(test)]

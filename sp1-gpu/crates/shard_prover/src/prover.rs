@@ -26,7 +26,7 @@ use sp1_hypercube::prover::ZerocheckAir;
 use sp1_hypercube::{
     air::{MachineAir, MachineProgram},
     prover::{AirProver, PreprocessedData, ProverPermit, ProverSemaphore, ProvingKey},
-    Machine, MachineVerifyingKey, ShardProof,
+    Machine, MachineRecord, MachineVerifyingKey, ShardProof,
 };
 use sp1_hypercube::{SP1PcsProof, ShardContextImpl};
 use std::collections::{BTreeMap, BTreeSet};
@@ -162,6 +162,33 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
     fn machine(&self) -> &Machine<GC::F, PC::Air> {
         &self.machine
     }
+
+    /// Generate on the device the dependencies (byte lookups) of every chip that
+    /// supports it, and merge them into `record` — the device counterpart of the
+    /// host `generate_dependencies` for those chips (which the host now SKIPS, see
+    /// `host_dependency_skip_chips`). Mirrors the host pattern: each chip writes into
+    /// a scratch `output` record, then `record.append(&mut output)`. No-op when no
+    /// chip supports device dependencies (e.g. recursion/wrap).
+    async fn merge_device_dependencies(&self, record: &mut <PC::Air as MachineAir<GC::F>>::Record) {
+        let device_chips: Vec<_> = self
+            .machine()
+            .chips()
+            .iter()
+            .filter(|c| c.air.supports_device_dependencies())
+            .cloned()
+            .collect();
+        if device_chips.is_empty() {
+            return;
+        }
+        let mut output = <PC::Air as MachineAir<GC::F>>::Record::default();
+        for chip in &device_chips {
+            chip.air
+                .generate_device_dependencies(record, &mut output, &self.backend)
+                .await
+                .expect("device dependency generation should succeed");
+        }
+        record.append(&mut output);
+    }
 }
 
 impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
@@ -178,6 +205,18 @@ where
 
     fn machine(&self) -> &Machine<GC::F, PC::Air> {
         &self.inner.machine
+    }
+
+    /// Chips whose dependencies are generated on the device (so the host
+    /// `generate_dependencies` skips them — the device prover re-adds them in
+    /// [`CudaShardProverInner::merge_device_dependencies`] before tracegen).
+    fn host_dependency_skip_chips(&self) -> Vec<String> {
+        self.machine()
+            .chips()
+            .iter()
+            .filter(|c| c.air.supports_device_dependencies())
+            .map(|c| c.name().to_string())
+            .collect()
     }
 
     /// Setup a shard, using a verifying key if provided.
@@ -243,6 +282,10 @@ where
 
         let buffer = self.inner.get_buffer().await;
 
+        // Generate on-device the dependencies of device-tracegen chips (skipped by the
+        // host `generate_dependencies`) and merge them into the record before tracegen.
+        let mut record = record;
+        self.inner.merge_device_dependencies(&mut record).await;
         let record = Arc::new(record);
 
         // Generate trace.
@@ -318,7 +361,9 @@ where
         record: <PC::Air as MachineAir<GC::F>>::Record,
         prover_permits: ProverSemaphore,
     ) -> (ShardProof<GC, <PC::C as MultilinearPcsVerifier<GC>>::Proof>, ProverPermit) {
-        // Generate the traces.
+        // Generate device dependencies (see `merge_device_dependencies`), then traces.
+        let mut record = record;
+        self.inner.merge_device_dependencies(&mut record).await;
         let record = Arc::new(record);
 
         let buffer = self.inner.get_buffer().await;
