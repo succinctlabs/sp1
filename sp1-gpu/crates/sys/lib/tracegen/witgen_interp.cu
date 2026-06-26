@@ -85,6 +85,11 @@ __global__ void witgen_interp_kernel(
                 is_field[wc] = true;
                 ++wc;
                 break;
+            case 19: // FieldSub
+                fld[wc] = fld[op.a] - fld[op.b];
+                is_field[wc] = true;
+                ++wc;
+                break;
             case 5: // FieldInverse
                 fld[wc] = fld[op.a].reciprocal();
                 is_field[wc] = true;
@@ -180,6 +185,7 @@ __global__ void witgen_lookup_kernel(
             case 4:  // FieldAdd
             case 5:  // FieldInverse
             case 18: // FieldSelect
+            case 19: // FieldSub
                 nat[wc++] = 0; // field wire: placeholder (never read by a lookup)
                 break;
             case 6: { // U16RangeCheck -> {Range, a: v, bits: 16}

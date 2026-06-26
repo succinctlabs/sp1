@@ -38,6 +38,7 @@ pub enum WitOp {
     Select { cond: WireId, a: WireId, b: WireId },
     NatToField(WireId),
     FieldAdd(WireId, WireId),
+    FieldSub(WireId, WireId),
     FieldInverse(WireId),
     FieldSelect { cond: WireId, a: WireId, b: WireId },
     U16RangeCheck(WireId),
@@ -126,6 +127,9 @@ impl WitnessBuilder for RecordingWitnessBuilder {
     }
     fn field_add(&mut self, a: WireId, b: WireId) -> WireId {
         self.value(WitOp::FieldAdd(a, b))
+    }
+    fn field_sub(&mut self, a: WireId, b: WireId) -> WireId {
+        self.value(WitOp::FieldSub(a, b))
     }
     fn field_inverse(&mut self, a: WireId) -> WireId {
         self.value(WitOp::FieldInverse(a))
@@ -230,6 +234,9 @@ pub fn interpret<F: Field, R: ByteRecord>(
             }
             WitOp::FieldAdd(a, b) => {
                 wires.push(Val::Field(wires[a.0 as usize].field() + wires[b.0 as usize].field()))
+            }
+            WitOp::FieldSub(a, b) => {
+                wires.push(Val::Field(wires[a.0 as usize].field() - wires[b.0 as usize].field()))
             }
             WitOp::FieldInverse(a) => {
                 wires.push(Val::Field(wires[a.0 as usize].field().inverse()))
@@ -363,6 +370,7 @@ impl WitProgram {
                 }
                 WitOp::NatToField(a) => WitOpC { tag: 3, a: a.0, b: 0, imm1: 0, imm0: 0 },
                 WitOp::FieldAdd(a, b) => WitOpC { tag: 4, a: a.0, b: b.0, imm1: 0, imm0: 0 },
+                WitOp::FieldSub(a, b) => WitOpC { tag: 19, a: a.0, b: b.0, imm1: 0, imm0: 0 },
                 WitOp::FieldInverse(a) => WitOpC { tag: 5, a: a.0, b: 0, imm1: 0, imm0: 0 },
                 WitOp::FieldSelect { cond, a, b } => {
                     WitOpC { tag: 18, a: cond.0, b: a.0, imm1: b.0, imm0: 0 }
@@ -433,6 +441,7 @@ pub fn interpret_c_columns<F: Field>(
             }
             3 => wires.push(Val::Field(F::from_canonical_u64(wires[op.a as usize].nat()))),
             4 => wires.push(Val::Field(wires[op.a as usize].field() + wires[op.b as usize].field())),
+            19 => wires.push(Val::Field(wires[op.a as usize].field() - wires[op.b as usize].field())),
             5 => wires.push(Val::Field(wires[op.a as usize].field().inverse())),
             18 => {
                 let cond = wires[op.a as usize].nat();
@@ -510,7 +519,7 @@ pub fn interpret_c_lookups(
                     wires.push(if c != 0 { wires[op.b as usize] } else { wires[op.imm1 as usize] });
                 }
                 // Field-producing ops: placeholder wire (never read by a lookup).
-                3 | 4 | 5 | 18 => wires.push(0),
+                3 | 4 | 5 | 18 | 19 => wires.push(0),
                 // U16RangeCheck: {Range, a: v, bits: 16}.
                 6 => {
                     let v = wires[op.a as usize] as u16 as usize;

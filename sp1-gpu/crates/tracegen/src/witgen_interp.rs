@@ -542,4 +542,22 @@ mod tests {
         .await
         .unwrap();
     }
+
+    /// `field_sub` on the device: device columns == CPU `interpret_c_columns`.
+    #[tokio::test]
+    async fn witgen_interp_field_sub() {
+        sp1_gpu_cudart::spawn(move |scope: TaskScope| async move {
+            use sp1_core_machine::air::WitnessBuilder;
+            let mut rec = RecordingWitnessBuilder::new(2);
+            let a = RecordingWitnessBuilder::input(0);
+            let b = RecordingWitnessBuilder::input(1);
+            let fa = rec.nat_to_field(a);
+            let fb = rec.nat_to_field(b);
+            let diff = rec.field_sub(fa, fb);
+            let col_wires = vec![fa.0, fb.0, diff.0];
+            check_gadget(scope, rec.finish(), col_wires).await;
+        })
+        .await
+        .unwrap();
+    }
 }

@@ -79,6 +79,9 @@ pub trait WitnessBuilder {
     /// Field addition.
     fn field_add(&mut self, a: Self::Field, b: Self::Field) -> Self::Field;
 
+    /// Field subtraction.
+    fn field_sub(&mut self, a: Self::Field, b: Self::Field) -> Self::Field;
+
     /// Field multiplicative inverse (of a non-zero element).
     fn field_inverse(&mut self, a: Self::Field) -> Self::Field;
 
@@ -186,6 +189,11 @@ impl<F: Field, R: ByteRecord> WitnessBuilder for HostWitnessBuilder<'_, F, R> {
     #[inline]
     fn field_add(&mut self, a: F, b: F) -> F {
         a + b
+    }
+
+    #[inline]
+    fn field_sub(&mut self, a: F, b: F) -> F {
+        a - b
     }
 
     #[inline]
