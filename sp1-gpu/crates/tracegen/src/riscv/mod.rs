@@ -2,6 +2,12 @@ mod add;
 mod global;
 mod sub;
 
+/// Per-thread wire-array capacity in the witgen interpreter kernel
+/// (`WITGEN_MAX_WIRES` in `witgen_interp.cu`). A recorded gadget whose
+/// [`num_wires`](sp1_core_machine::air::WitProgram::num_wires) exceeds this would
+/// overflow the kernel's per-thread arrays, so device tracegen asserts against it.
+pub(crate) const WITGEN_MAX_WIRES: usize = 256;
+
 use slop_alloc::mem::CopyError;
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_gpu_cudart::{DeviceMle, TaskScope};

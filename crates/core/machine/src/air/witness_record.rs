@@ -231,6 +231,25 @@ pub struct WitOpC {
 
 impl WitProgram {
     /// Lower the op-DAG to the flat device layout.
+    /// Total live wires the interpreter needs per row: the inputs plus every
+    /// value-producing op (lookup ops emit no wire). The GPU kernel's per-thread
+    /// wire arrays must be at least this large.
+    pub fn num_wires(&self) -> usize {
+        self.num_inputs as usize
+            + self
+                .ops
+                .iter()
+                .filter(|op| {
+                    !matches!(
+                        op,
+                        WitOp::U16RangeCheck(..)
+                            | WitOp::BitRangeCheck { .. }
+                            | WitOp::U8RangeCheck(..)
+                    )
+                })
+                .count()
+    }
+
     pub fn to_c(&self) -> Vec<WitOpC> {
         self.ops
             .iter()

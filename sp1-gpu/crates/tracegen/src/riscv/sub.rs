@@ -56,6 +56,12 @@ impl CudaTracegenAir<F> for SubChip<SupervisorMode> {
             wire(15),
         );
         let program = rec.finish();
+        assert!(
+            program.num_wires() <= super::WITGEN_MAX_WIRES,
+            "Sub gadget needs {} wires > kernel capacity {}",
+            program.num_wires(),
+            super::WITGEN_MAX_WIRES
+        );
         let ops_c = program.to_c();
         let col_wires: Vec<u32> = columns_as_wires(&cols_w).iter().map(|w| w.0).collect();
         let n_cols = col_wires.len();
