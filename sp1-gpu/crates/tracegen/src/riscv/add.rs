@@ -4,6 +4,7 @@
 //! the column-only port of the CPU `generate_trace_into`. Byte lookups still come
 //! from the CPU `generate_dependencies` (device lookups are a later step).
 
+use rayon::prelude::*;
 use slop_alloc::mem::CopyError;
 use slop_alloc::Buffer;
 use slop_tensor::Tensor;
@@ -68,28 +69,31 @@ impl CudaTracegenAir<F> for AddChip<SupervisorMode> {
         let n_events = if height == 0 { 0 } else { events.len() };
 
         // Pack each event's inputs (mirrors the fields the CPU `populate` reads).
-        let mut inputs: Vec<u64> = Vec::with_capacity(n_events * NUM_ADD_INPUTS);
-        for (alu, r) in events.iter().take(n_events) {
-            let (a, b, c) = (r.a, r.b, r.c);
-            inputs.extend_from_slice(&[
-                alu.clk,
-                alu.pc,
-                alu.b,
-                alu.c,
-                r.op_a as u64,
-                r.op_b,
-                r.op_c,
-                a.previous_record().value,
-                a.previous_record().timestamp,
-                a.current_record().timestamp,
-                b.previous_record().value,
-                b.previous_record().timestamp,
-                b.current_record().timestamp,
-                c.previous_record().value,
-                c.previous_record().timestamp,
-                c.current_record().timestamp,
-            ]);
-        }
+        // Parallel: the serial pack dominated wall-time at large sizes.
+        let mut inputs: Vec<u64> = vec![0u64; n_events * NUM_ADD_INPUTS];
+        inputs.par_chunks_mut(NUM_ADD_INPUTS).zip(events.par_iter()).for_each(
+            |(slot, (alu, r))| {
+                let (a, b, c) = (r.a, r.b, r.c);
+                slot.copy_from_slice(&[
+                    alu.clk,
+                    alu.pc,
+                    alu.b,
+                    alu.c,
+                    r.op_a as u64,
+                    r.op_b,
+                    r.op_c,
+                    a.previous_record().value,
+                    a.previous_record().timestamp,
+                    a.current_record().timestamp,
+                    b.previous_record().value,
+                    b.previous_record().timestamp,
+                    b.current_record().timestamp,
+                    c.previous_record().value,
+                    c.previous_record().timestamp,
+                    c.current_record().timestamp,
+                ]);
+            },
+        );
 
         // Upload op-DAG, column→wire map, and inputs.
         let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone()).unwrap();
