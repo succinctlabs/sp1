@@ -41,6 +41,9 @@ pub trait WitnessBuilder {
     /// Wrapping integer addition.
     fn wrapping_add(&mut self, a: Self::Nat, b: Self::Nat) -> Self::Nat;
 
+    /// Wrapping integer subtraction.
+    fn wrapping_sub(&mut self, a: Self::Nat, b: Self::Nat) -> Self::Nat;
+
     /// Extract `width` bits of `a` starting at bit `offset` (i.e. `(a >> offset) &
     /// ((1 << width) - 1)`). The common limb/byte decomposition primitive.
     fn bits(&mut self, a: Self::Nat, offset: u32, width: u32) -> Self::Nat;
@@ -56,6 +59,9 @@ pub trait WitnessBuilder {
 
     /// Emit a `u16` range-check lookup for `a`.
     fn add_u16_range_check(&mut self, a: Self::Nat);
+
+    /// Emit a `u8` range-check lookup verifying `a` and `b` are bytes.
+    fn add_u8_range_check(&mut self, a: Self::Nat, b: Self::Nat);
 
     /// Emit a lookup proving `a < 2^bits`.
     fn add_bit_range_check(&mut self, a: Self::Nat, bits: u8);
@@ -91,6 +97,11 @@ impl<F: Field, R: ByteRecord> WitnessBuilder for HostWitnessBuilder<'_, F, R> {
     }
 
     #[inline]
+    fn wrapping_sub(&mut self, a: u64, b: u64) -> u64 {
+        a.wrapping_sub(b)
+    }
+
+    #[inline]
     fn bits(&mut self, a: u64, offset: u32, width: u32) -> u64 {
         debug_assert!(width > 0 && width <= 64);
         let mask = if width == 64 { u64::MAX } else { (1u64 << width) - 1 };
@@ -115,6 +126,11 @@ impl<F: Field, R: ByteRecord> WitnessBuilder for HostWitnessBuilder<'_, F, R> {
     #[inline]
     fn add_u16_range_check(&mut self, a: u64) {
         self.record.add_u16_range_check(a as u16);
+    }
+
+    #[inline]
+    fn add_u8_range_check(&mut self, a: u64, b: u64) {
+        self.record.add_u8_range_check(a as u8, b as u8);
     }
 
     #[inline]

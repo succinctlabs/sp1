@@ -53,6 +53,11 @@ __global__ void witgen_interp_kernel(
                 is_field[wc] = false;
                 ++wc;
                 break;
+            case 8: // WrappingSub (u64 wraps naturally)
+                nat[wc] = nat[op.a] - nat[op.b];
+                is_field[wc] = false;
+                ++wc;
+                break;
             case 2: { // Bits: (src >> offset) & ((1<<width)-1)
                 uint64_t mask = (op.imm1 >= 64) ? ~0ULL : ((1ULL << op.imm1) - 1);
                 nat[wc] = (nat[op.a] >> op.imm0) & mask;
@@ -75,8 +80,9 @@ __global__ void witgen_interp_kernel(
                 is_field[wc] = true;
                 ++wc;
                 break;
-            case 6: // U16RangeCheck  (lookup, no wire)
-            case 7: // BitRangeCheck  (lookup, no wire)
+            case 6: // U16RangeCheck (lookup, no wire)
+            case 7: // BitRangeCheck (lookup, no wire)
+            case 9: // U8RangeCheck  (lookup, no wire)
                 break;
             }
         }

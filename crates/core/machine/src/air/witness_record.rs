@@ -26,11 +26,13 @@ pub struct WireId(pub u32);
 pub enum WitOp {
     ConstNat(u64),
     WrappingAdd(WireId, WireId),
+    WrappingSub(WireId, WireId),
     Bits { src: WireId, offset: u32, width: u32 },
     NatToField(WireId),
     FieldAdd(WireId, WireId),
     FieldInverse(WireId),
     U16RangeCheck(WireId),
+    U8RangeCheck(WireId, WireId),
     BitRangeCheck { src: WireId, bits: u8 },
 }
 
@@ -82,6 +84,9 @@ impl WitnessBuilder for RecordingWitnessBuilder {
     fn wrapping_add(&mut self, a: WireId, b: WireId) -> WireId {
         self.value(WitOp::WrappingAdd(a, b))
     }
+    fn wrapping_sub(&mut self, a: WireId, b: WireId) -> WireId {
+        self.value(WitOp::WrappingSub(a, b))
+    }
     fn bits(&mut self, a: WireId, offset: u32, width: u32) -> WireId {
         self.value(WitOp::Bits { src: a, offset, width })
     }
@@ -96,6 +101,9 @@ impl WitnessBuilder for RecordingWitnessBuilder {
     }
     fn add_u16_range_check(&mut self, a: WireId) {
         self.program.ops.push(WitOp::U16RangeCheck(a));
+    }
+    fn add_u8_range_check(&mut self, a: WireId, b: WireId) {
+        self.program.ops.push(WitOp::U8RangeCheck(a, b));
     }
     fn add_bit_range_check(&mut self, a: WireId, bits: u8) {
         self.program.ops.push(WitOp::BitRangeCheck { src: a, bits });
@@ -143,6 +151,9 @@ pub fn interpret<F: Field, R: ByteRecord>(
             WitOp::WrappingAdd(a, b) => {
                 wires.push(Val::Nat(wires[a.0 as usize].nat().wrapping_add(wires[b.0 as usize].nat())))
             }
+            WitOp::WrappingSub(a, b) => {
+                wires.push(Val::Nat(wires[a.0 as usize].nat().wrapping_sub(wires[b.0 as usize].nat())))
+            }
             WitOp::Bits { src, offset, width } => {
                 let x = wires[src.0 as usize].nat();
                 let mask = if width >= 64 { u64::MAX } else { (1u64 << width) - 1 };
@@ -158,6 +169,8 @@ pub fn interpret<F: Field, R: ByteRecord>(
                 wires.push(Val::Field(wires[a.0 as usize].field().inverse()))
             }
             WitOp::U16RangeCheck(a) => record.add_u16_range_check(wires[a.0 as usize].nat() as u16),
+            WitOp::U8RangeCheck(a, b) => record
+                .add_u8_range_check(wires[a.0 as usize].nat() as u8, wires[b.0 as usize].nat() as u8),
             WitOp::BitRangeCheck { src, bits } => {
                 record.add_bit_range_check(wires[src.0 as usize].nat() as u16, bits)
             }
@@ -209,6 +222,8 @@ impl WitProgram {
             .map(|op| match *op {
                 WitOp::ConstNat(v) => WitOpC { tag: 0, a: 0, b: 0, imm1: 0, imm0: v },
                 WitOp::WrappingAdd(a, b) => WitOpC { tag: 1, a: a.0, b: b.0, imm1: 0, imm0: 0 },
+                WitOp::WrappingSub(a, b) => WitOpC { tag: 8, a: a.0, b: b.0, imm1: 0, imm0: 0 },
+                WitOp::U8RangeCheck(a, b) => WitOpC { tag: 9, a: a.0, b: b.0, imm1: 0, imm0: 0 },
                 WitOp::Bits { src, offset, width } => {
                     WitOpC { tag: 2, a: src.0, b: 0, imm1: width, imm0: offset as u64 }
                 }
@@ -241,6 +256,9 @@ pub fn interpret_c_columns<F: Field>(
             1 => wires.push(Val::Nat(
                 wires[op.a as usize].nat().wrapping_add(wires[op.b as usize].nat()),
             )),
+            8 => wires.push(Val::Nat(
+                wires[op.a as usize].nat().wrapping_sub(wires[op.b as usize].nat()),
+            )),
             2 => {
                 let x = wires[op.a as usize].nat();
                 let mask = if op.imm1 >= 64 { u64::MAX } else { (1u64 << op.imm1) - 1 };
@@ -249,7 +267,7 @@ pub fn interpret_c_columns<F: Field>(
             3 => wires.push(Val::Field(F::from_canonical_u64(wires[op.a as usize].nat()))),
             4 => wires.push(Val::Field(wires[op.a as usize].field() + wires[op.b as usize].field())),
             5 => wires.push(Val::Field(wires[op.a as usize].field().inverse())),
-            6 | 7 => {} // lookup: no wire, skipped for columns
+            6 | 7 | 9 => {} // lookup: no wire, skipped for columns
             t => panic!("unknown WitOpC tag {t}"),
         }
     }

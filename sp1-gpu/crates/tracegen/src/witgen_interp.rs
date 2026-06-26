@@ -9,6 +9,7 @@ mod tests {
     use slop_algebra::AbstractField;
     use slop_alloc::Buffer;
     use sp1_core_machine::air::{columns_as_wires, RecordingWitnessBuilder, WireId};
+    use sp1_core_machine::adapter::state::CPUState;
     use sp1_core_machine::air::{interpret_c_columns as _interp, WitProgram};
     use sp1_core_machine::operations::{AddOperation, AddrAddOperation, AddressOperation};
     use sp1_gpu_cudart::{args, DeviceBuffer, TaskScope, WitgenInterpKernel};
@@ -115,6 +116,26 @@ mod tests {
             let mut rec = RecordingWitnessBuilder::new(2);
             let mut cols_w = AddOperation::<WireId>::default();
             AddOperation::<WireId>::witgen(
+                &mut rec,
+                &mut cols_w,
+                RecordingWitnessBuilder::input(0),
+                RecordingWitnessBuilder::input(1),
+            );
+            let col_wires: Vec<u32> = columns_as_wires(&cols_w).iter().map(|w| w.0).collect();
+            check_gadget(scope, rec.finish(), col_wires).await;
+        })
+        .await
+        .unwrap();
+    }
+
+    /// CPUState (clk/pc decomposition) — exercises `wrapping_sub` + `u8_range_check`
+    /// (the new ops) on the device. A core piece of every RISC-V instruction chip.
+    #[tokio::test]
+    async fn witgen_interp_cpu_state_columns() {
+        sp1_gpu_cudart::spawn(move |scope: TaskScope| async move {
+            let mut rec = RecordingWitnessBuilder::new(2);
+            let mut cols_w = CPUState::<WireId>::default();
+            CPUState::<WireId>::witgen(
                 &mut rec,
                 &mut cols_w,
                 RecordingWitnessBuilder::input(0),
