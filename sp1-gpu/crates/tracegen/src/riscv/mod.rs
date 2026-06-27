@@ -70,11 +70,16 @@ fn device_chip_name(air: &RiscvAir<F>) -> Option<&'static str> {
     })
 }
 
-/// Runtime gate for bisecting device-tracegen correctness. If `AR_DEVICE_CHIPS` is
-/// unset, every device-capable chip uses the device path (production behavior). If
-/// set to a comma-list of chip names, only those use the device path (the rest fall
-/// back to host) — letting us isolate a buggy chip by restarting the server, no
-/// recompile. Set it to e.g. `none` to force the all-host baseline.
+/// Runtime gate for the device-tracegen path.
+///
+/// The device-tracegen DSL (witgen → op-DAG → generic interpreter) was built and
+/// validated for the full RISC-V ALU+memory+control ISA (iters 005–039), but the
+/// e2e bench (iters 040–043) showed it **regresses ~17%** (correct but slower: the
+/// per-chip-per-shard histogram readback + input-packing H2D + per-thread local-mem
+/// traffic dwarf the modest column-gen win). So it is **off by default** — only
+/// `Global` (the pre-existing baseline device chip) runs on device, matching the
+/// baseline. Set `AR_DEVICE_CHIPS` to a comma-list to re-enable specific chips for
+/// study (e.g. to re-bisect or profile); the code + tests are retained.
 fn device_chip_enabled(name: &str) -> bool {
     use std::collections::HashSet;
     use std::sync::OnceLock;
@@ -85,7 +90,7 @@ fn device_chip_enabled(name: &str) -> bool {
         })
     });
     match filter {
-        None => true,
+        None => name == "Global", // default: baseline behavior (only Global on device)
         Some(set) => set.contains(name),
     }
 }
