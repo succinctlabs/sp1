@@ -75,6 +75,90 @@ pub struct LoadWordColumns<T, M: TrustMode> {
     pub adapter_cols: M::AdapterCols<T>,
 }
 
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T, M: TrustMode> LoadWordColumns<T, M> {
+    /// Backend-agnostic witgen for the `LoadWord` chip (lw/lwu): the memory access,
+    /// the address operation, the offset bit selecting which 32-bit half of the
+    /// 64-bit memory word, the selected word's two u16 limbs, and (for signed lw)
+    /// the msb of the high limb for sign extension. The memory value equals the
+    /// access's `prev_value` (a read leaves it unchanged).
+    #[allow(clippy::too_many_arguments)]
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut LoadWordColumns<WB::Field, M>,
+        clk: WB::Nat,
+        pc: WB::Nat,
+        op_a: WB::Nat,
+        a_prev_value: WB::Nat,
+        a_prev_ts: WB::Nat,
+        a_cur_ts: WB::Nat,
+        op_b: WB::Nat,
+        b_prev_value: WB::Nat,
+        b_prev_ts: WB::Nat,
+        b_cur_ts: WB::Nat,
+        op_c: WB::Nat,
+        b_val: WB::Nat,
+        c_val: WB::Nat,
+        mem_prev_value: WB::Nat,
+        mem_prev_ts: WB::Nat,
+        mem_cur_ts: WB::Nat,
+        opcode: WB::Nat,
+    ) {
+        let zero = wb.const_nat(0);
+        let zero_f = wb.nat_to_field(zero);
+
+        MemoryAccessCols::<WB::Field>::witgen(
+            wb,
+            &mut cols.memory_access,
+            mem_prev_value,
+            mem_prev_ts,
+            mem_cur_ts,
+        );
+        let memory_addr =
+            AddressOperation::<WB::Field>::witgen(wb, &mut cols.address_operation, b_val, c_val);
+
+        // Bit 2 of the address selects the high vs low 32-bit half.
+        let bit_2 = wb.bits(memory_addr, 2, 1);
+        cols.offset_bit = wb.nat_to_field(bit_2);
+        let lo0 = wb.bits(mem_prev_value, 0, 16);
+        let hi0 = wb.bits(mem_prev_value, 32, 16);
+        let limb_0 = wb.select(bit_2, hi0, lo0);
+        cols.selected_word[0] = wb.nat_to_field(limb_0);
+        let lo1 = wb.bits(mem_prev_value, 16, 16);
+        let hi1 = wb.bits(mem_prev_value, 48, 16);
+        let limb_1 = wb.select(bit_2, hi1, lo1);
+        cols.selected_word[1] = wb.nat_to_field(limb_1);
+
+        let o_lw = wb.const_nat(Opcode::LW as u64);
+        let o_lwu = wb.const_nat(Opcode::LWU as u64);
+        let is_lw = wb.eq(opcode, o_lw);
+        cols.is_lw = wb.nat_to_field(is_lw);
+        let is_lwu = wb.eq(opcode, o_lwu);
+        cols.is_lwu = wb.nat_to_field(is_lwu);
+
+        // Sign bit of the high limb (signed lw only).
+        wb.push_guard(is_lw);
+        U16MSBOperation::<WB::Field>::witgen(wb, &mut cols.msb, limb_1);
+        wb.pop_guard();
+        cols.msb.msb = wb.field_select(is_lw, cols.msb.msb, zero_f);
+
+        CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
+        ITypeReader::<WB::Field>::witgen(
+            wb,
+            &mut cols.adapter,
+            op_a,
+            a_prev_value,
+            a_prev_ts,
+            a_cur_ts,
+            op_b,
+            b_prev_value,
+            b_prev_ts,
+            b_cur_ts,
+            op_c,
+        );
+    }
+}
+
 impl<F, M: TrustMode> BaseAir<F> for LoadWordChip<M> {
     fn width(&self) -> usize {
         if M::IS_TRUSTED {

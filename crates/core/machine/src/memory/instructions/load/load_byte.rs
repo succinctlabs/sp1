@@ -83,6 +83,104 @@ pub struct LoadByteColumns<T, M: TrustMode> {
     pub adapter_cols: M::AdapterCols<T>,
 }
 
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T, M: TrustMode> LoadByteColumns<T, M> {
+    /// Backend-agnostic witgen for the `LoadByte` chip (lb/lbu): selects one of the
+    /// four u16 limbs (address bits 1–2), then one of its two bytes (address bit 0);
+    /// signed `lb` takes the byte's msb (a plain column + an explicit MSB byte
+    /// lookup). The selected limb's two bytes are always u8-range-checked.
+    #[allow(clippy::too_many_arguments)]
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut LoadByteColumns<WB::Field, M>,
+        clk: WB::Nat,
+        pc: WB::Nat,
+        op_a: WB::Nat,
+        a_prev_value: WB::Nat,
+        a_prev_ts: WB::Nat,
+        a_cur_ts: WB::Nat,
+        op_b: WB::Nat,
+        b_prev_value: WB::Nat,
+        b_prev_ts: WB::Nat,
+        b_cur_ts: WB::Nat,
+        op_c: WB::Nat,
+        b_val: WB::Nat,
+        c_val: WB::Nat,
+        mem_prev_value: WB::Nat,
+        mem_prev_ts: WB::Nat,
+        mem_cur_ts: WB::Nat,
+        opcode: WB::Nat,
+    ) {
+        let zero = wb.const_nat(0);
+        let zero_f = wb.nat_to_field(zero);
+        MemoryAccessCols::<WB::Field>::witgen(
+            wb,
+            &mut cols.memory_access,
+            mem_prev_value,
+            mem_prev_ts,
+            mem_cur_ts,
+        );
+        let memory_addr =
+            AddressOperation::<WB::Field>::witgen(wb, &mut cols.address_operation, b_val, c_val);
+
+        let bit0 = wb.bits(memory_addr, 0, 1);
+        let bit1 = wb.bits(memory_addr, 1, 1);
+        let bit2 = wb.bits(memory_addr, 2, 1);
+        cols.offset_bit[0] = wb.nat_to_field(bit0);
+        cols.offset_bit[1] = wb.nat_to_field(bit1);
+        cols.offset_bit[2] = wb.nat_to_field(bit2);
+
+        // Select the u16 limb (bits 1-2), then the byte within it (bit 0).
+        let l0 = wb.bits(mem_prev_value, 0, 16);
+        let l1 = wb.bits(mem_prev_value, 16, 16);
+        let l2 = wb.bits(mem_prev_value, 32, 16);
+        let l3 = wb.bits(mem_prev_value, 48, 16);
+        let sel_low = wb.select(bit1, l1, l0);
+        let sel_high = wb.select(bit1, l3, l2);
+        let limb = wb.select(bit2, sel_high, sel_low);
+        cols.selected_limb = wb.nat_to_field(limb);
+        let limb_low = wb.bits(limb, 0, 8);
+        let limb_high = wb.bits(limb, 8, 8);
+        cols.selected_limb_low_byte = wb.nat_to_field(limb_low);
+        let byte = wb.select(bit0, limb_high, limb_low);
+        cols.selected_byte = wb.nat_to_field(byte);
+        wb.add_u8_range_check(limb_low, limb_high);
+
+        let o_lb = wb.const_nat(Opcode::LB as u64);
+        let o_lbu = wb.const_nat(Opcode::LBU as u64);
+        let is_lb = wb.eq(opcode, o_lb);
+        cols.is_lb = wb.nat_to_field(is_lb);
+        let is_lbu = wb.eq(opcode, o_lbu);
+        cols.is_lbu = wb.nat_to_field(is_lbu);
+
+        // Signed lb: msb of the byte + an MSB byte lookup.
+        let msb_op = wb.const_nat(ByteOpcode::MSB as u64);
+        let msb_bit = wb.bits(byte, 7, 1);
+        wb.push_guard(is_lb);
+        wb.add_byte_lookup(msb_op, msb_bit, byte, zero);
+        wb.pop_guard();
+        cols.msb = {
+            let m = wb.nat_to_field(msb_bit);
+            wb.field_select(is_lb, m, zero_f)
+        };
+
+        CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
+        ITypeReader::<WB::Field>::witgen(
+            wb,
+            &mut cols.adapter,
+            op_a,
+            a_prev_value,
+            a_prev_ts,
+            a_cur_ts,
+            op_b,
+            b_prev_value,
+            b_prev_ts,
+            b_cur_ts,
+            op_c,
+        );
+    }
+}
+
 impl<F, M: TrustMode> BaseAir<F> for LoadByteChip<M> {
     fn width(&self) -> usize {
         if M::IS_TRUSTED {

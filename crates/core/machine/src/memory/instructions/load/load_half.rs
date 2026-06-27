@@ -76,6 +76,87 @@ pub struct LoadHalfColumns<T, M: TrustMode> {
     pub adapter_cols: M::AdapterCols<T>,
 }
 
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T, M: TrustMode> LoadHalfColumns<T, M> {
+    /// Backend-agnostic witgen for the `LoadHalf` chip (lh/lhu): selects one of the
+    /// four u16 limbs of the memory word via address bits 1–2, and (signed lh)
+    /// takes its msb for sign extension.
+    #[allow(clippy::too_many_arguments)]
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut LoadHalfColumns<WB::Field, M>,
+        clk: WB::Nat,
+        pc: WB::Nat,
+        op_a: WB::Nat,
+        a_prev_value: WB::Nat,
+        a_prev_ts: WB::Nat,
+        a_cur_ts: WB::Nat,
+        op_b: WB::Nat,
+        b_prev_value: WB::Nat,
+        b_prev_ts: WB::Nat,
+        b_cur_ts: WB::Nat,
+        op_c: WB::Nat,
+        b_val: WB::Nat,
+        c_val: WB::Nat,
+        mem_prev_value: WB::Nat,
+        mem_prev_ts: WB::Nat,
+        mem_cur_ts: WB::Nat,
+        opcode: WB::Nat,
+    ) {
+        let zero = wb.const_nat(0);
+        let zero_f = wb.nat_to_field(zero);
+        MemoryAccessCols::<WB::Field>::witgen(
+            wb,
+            &mut cols.memory_access,
+            mem_prev_value,
+            mem_prev_ts,
+            mem_cur_ts,
+        );
+        let memory_addr =
+            AddressOperation::<WB::Field>::witgen(wb, &mut cols.address_operation, b_val, c_val);
+
+        let bit_1 = wb.bits(memory_addr, 1, 1);
+        let bit_2 = wb.bits(memory_addr, 2, 1);
+        cols.offset_bit[0] = wb.nat_to_field(bit_1);
+        cols.offset_bit[1] = wb.nat_to_field(bit_2);
+        let l0 = wb.bits(mem_prev_value, 0, 16);
+        let l1 = wb.bits(mem_prev_value, 16, 16);
+        let l2 = wb.bits(mem_prev_value, 32, 16);
+        let l3 = wb.bits(mem_prev_value, 48, 16);
+        let sel_low = wb.select(bit_1, l1, l0);
+        let sel_high = wb.select(bit_1, l3, l2);
+        let limb = wb.select(bit_2, sel_high, sel_low);
+        cols.selected_half = wb.nat_to_field(limb);
+
+        let o_lh = wb.const_nat(Opcode::LH as u64);
+        let o_lhu = wb.const_nat(Opcode::LHU as u64);
+        let is_lh = wb.eq(opcode, o_lh);
+        cols.is_lh = wb.nat_to_field(is_lh);
+        let is_lhu = wb.eq(opcode, o_lhu);
+        cols.is_lhu = wb.nat_to_field(is_lhu);
+
+        wb.push_guard(is_lh);
+        U16MSBOperation::<WB::Field>::witgen(wb, &mut cols.msb, limb);
+        wb.pop_guard();
+        cols.msb.msb = wb.field_select(is_lh, cols.msb.msb, zero_f);
+
+        CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
+        ITypeReader::<WB::Field>::witgen(
+            wb,
+            &mut cols.adapter,
+            op_a,
+            a_prev_value,
+            a_prev_ts,
+            a_cur_ts,
+            op_b,
+            b_prev_value,
+            b_prev_ts,
+            b_cur_ts,
+            op_c,
+        );
+    }
+}
+
 impl<F, M: TrustMode> BaseAir<F> for LoadHalfChip<M> {
     fn width(&self) -> usize {
         if M::IS_TRUSTED {
