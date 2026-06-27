@@ -90,13 +90,16 @@ impl<T, M: TrustMode> AddwCols<T, M> {
         c_prev_value: WB::Nat,
         c_prev_ts: WB::Nat,
         c_cur_ts: WB::Nat,
+        imm_c: WB::Nat,
     ) {
         let one = wb.const_nat(1);
         cols.is_real = wb.nat_to_field(one);
         AddwOperation::<WB::Field>::witgen(wb, &mut cols.addw_operation, b, c);
         CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
-        // ADDW is register-register: op_c is always a register (imm_c = 0).
-        let imm_c = wb.const_nat(0);
+        // ADDW handles both register (ADDW) and immediate (ADDIW) op_c; the
+        // generalized ALUTypeReader guards the register read / field-selects the
+        // op_c columns per row by `imm_c` (real workloads include immediate rows,
+        // which the iter-020 register-only port wrongly asserted against).
         ALUTypeReader::<WB::Field>::witgen(
             wb,
             &mut cols.adapter,

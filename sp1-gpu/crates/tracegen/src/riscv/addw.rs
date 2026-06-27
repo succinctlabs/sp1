@@ -26,16 +26,24 @@ use sp1_hypercube::air::MachineAir;
 use crate::{CudaTracegenAir, F};
 
 /// Number of witgen inputs per `Addw` row (see [`AddwCols::witgen`]).
-const NUM_ADDW_INPUTS: usize = 16;
+const NUM_ADDW_INPUTS: usize = 17;
 
-/// Pack each event's witgen inputs in `AddwCols::witgen` order. `op_c` is a register
-/// (ADDW is register-register), so `record.c` is always `Some`.
+/// Pack each event's witgen inputs in `AddwCols::witgen` order. ADDW handles both
+/// register (ADDW) and immediate (ADDIW) op_c, so `record.c` may be `None`; the
+/// `imm_c` flag (input 16) drives the adapter's per-row branch.
 fn pack_addw_inputs(events: &[(AluEvent, ALUTypeRecord)]) -> Vec<u64> {
     let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_ADDW_INPUTS];
     inputs.par_chunks_mut(NUM_ADDW_INPUTS).zip(events.par_iter()).for_each(|(slot, (alu, r))| {
         let a = r.a;
         let b = r.b;
-        let c = r.c.expect("ADDW op_c must be a register");
+        let (c_pv, c_pt, c_ct) = match r.c {
+            Some(c) => (
+                c.previous_record().value,
+                c.previous_record().timestamp,
+                c.current_record().timestamp,
+            ),
+            None => (0, 0, 0),
+        };
         slot.copy_from_slice(&[
             alu.clk,
             alu.pc,
@@ -50,9 +58,10 @@ fn pack_addw_inputs(events: &[(AluEvent, ALUTypeRecord)]) -> Vec<u64> {
             b.previous_record().value,
             b.previous_record().timestamp,
             b.current_record().timestamp,
-            c.previous_record().value,
-            c.previous_record().timestamp,
-            c.current_record().timestamp,
+            c_pv,
+            c_pt,
+            c_ct,
+            r.c.is_none() as u64,
         ]);
     });
     inputs
@@ -66,6 +75,7 @@ fn record_addw_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
     AddwCols::<WireId, SupervisorMode>::witgen(
         &mut rec, &mut cols_w, wire(0), wire(1), wire(2), wire(3), wire(4), wire(5), wire(6),
         wire(7), wire(8), wire(9), wire(10), wire(11), wire(12), wire(13), wire(14), wire(15),
+        wire(16),
     );
     let program = rec.finish();
     assert!(
@@ -242,14 +252,17 @@ mod tests {
                     );
                     // op_a/op_b/op_c are register indices (< field order); operand
                     // values live in `b`/`c` and the memory records.
+                    // Mix register (ADDW) and immediate (ADDIW) op_c to exercise the
+                    // adapter's per-row imm_c branch (the bug the e2e bench caught).
+                    let imm = i % 2 == 0;
                     let record = ALUTypeRecord {
                         op_a: rng.gen_range(1..32),
                         a: read(&mut rng),
                         op_b: rng.gen_range(1..32),
                         b: read(&mut rng),
-                        op_c: rng.gen_range(1..32),
-                        c: Some(read(&mut rng)),
-                        is_imm: false,
+                        op_c: if imm { c } else { rng.gen_range(1..32) },
+                        c: if imm { None } else { Some(read(&mut rng)) },
+                        is_imm: imm,
                         is_untrusted: false,
                     };
                     (alu, record)
