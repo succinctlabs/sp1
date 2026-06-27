@@ -90,6 +90,14 @@ fn device_chip_enabled(name: &str) -> bool {
     }
 }
 
+/// Whether the device byte-lookup dependency path is enabled (`AR_DEVICE_DEPS != 0`).
+/// Lets the bench separate the device main-trace cost from the histogram-readback cost.
+fn device_deps_enabled() -> bool {
+    use std::sync::OnceLock;
+    static ON: OnceLock<bool> = OnceLock::new();
+    *ON.get_or_init(|| std::env::var("AR_DEVICE_DEPS").map(|v| v != "0").unwrap_or(true))
+}
+
 impl CudaTracegenAir<F> for RiscvAir<F> {
     fn supports_device_main_tracegen(&self) -> bool {
         device_chip_name(self).is_some_and(device_chip_enabled)
@@ -135,7 +143,11 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
 
     fn supports_device_dependencies(&self) -> bool {
         // Same gate as main tracegen, but `Global` has no device dependency path.
-        device_chip_name(self).is_some_and(|n| n != "Global" && device_chip_enabled(n))
+        // `AR_DEVICE_DEPS=0` disables the device byte-lookup path globally (host
+        // generates dependencies) to isolate the device main-trace cost from the
+        // dense-histogram readback cost in the e2e bench.
+        device_deps_enabled()
+            && device_chip_name(self).is_some_and(|n| n != "Global" && device_chip_enabled(n))
     }
 
     async fn generate_device_dependencies(
