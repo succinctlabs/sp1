@@ -82,6 +82,107 @@ pub struct StoreByteColumns<T, M: TrustMode> {
     pub adapter_cols: M::AdapterCols<T>,
 }
 
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T, M: TrustMode> StoreByteColumns<T, M> {
+    /// Backend-agnostic witgen for the `StoreByte` chip (sb): selects the target u16
+    /// limb of the OLD memory value (address bits 1-2), splits the register's low
+    /// limb, and computes the `increment` (the field delta applied to the limb to
+    /// install the stored byte at the position chosen by address bit 0). The stored
+    /// word is the access's new value.
+    #[allow(clippy::too_many_arguments)]
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut StoreByteColumns<WB::Field, M>,
+        clk: WB::Nat,
+        pc: WB::Nat,
+        op_a: WB::Nat,
+        a_prev_value: WB::Nat,
+        a_prev_ts: WB::Nat,
+        a_cur_ts: WB::Nat,
+        op_b: WB::Nat,
+        b_prev_value: WB::Nat,
+        b_prev_ts: WB::Nat,
+        b_cur_ts: WB::Nat,
+        op_c: WB::Nat,
+        b_val: WB::Nat,
+        c_val: WB::Nat,
+        mem_prev_value: WB::Nat,
+        mem_prev_ts: WB::Nat,
+        mem_cur_ts: WB::Nat,
+        mem_value: WB::Nat,
+        reg_a: WB::Nat,
+    ) {
+        let one = wb.const_nat(1);
+        cols.is_real = wb.nat_to_field(one);
+        MemoryAccessCols::<WB::Field>::witgen(
+            wb,
+            &mut cols.memory_access,
+            mem_prev_value,
+            mem_prev_ts,
+            mem_cur_ts,
+        );
+        let memory_addr =
+            AddressOperation::<WB::Field>::witgen(wb, &mut cols.address_operation, b_val, c_val);
+
+        let bit0 = wb.bits(memory_addr, 0, 1);
+        let bit1 = wb.bits(memory_addr, 1, 1);
+        let bit2 = wb.bits(memory_addr, 2, 1);
+        cols.offset_bit[0] = wb.nat_to_field(bit0);
+        cols.offset_bit[1] = wb.nat_to_field(bit1);
+        cols.offset_bit[2] = wb.nat_to_field(bit2);
+
+        // Select the target u16 limb of the OLD memory value (bits 1-2).
+        let l0 = wb.bits(mem_prev_value, 0, 16);
+        let l1 = wb.bits(mem_prev_value, 16, 16);
+        let l2 = wb.bits(mem_prev_value, 32, 16);
+        let l3 = wb.bits(mem_prev_value, 48, 16);
+        let sel_low = wb.select(bit1, l1, l0);
+        let sel_high = wb.select(bit1, l3, l2);
+        let limb = wb.select(bit2, sel_high, sel_low);
+        let limb_low = wb.bits(limb, 0, 8);
+        let limb_high = wb.bits(limb, 8, 8);
+        let reg_low = wb.bits(reg_a, 0, 8);
+        let reg_high = wb.bits(reg_a, 8, 8);
+        wb.add_u8_range_check(limb_low, limb_high);
+        wb.add_u8_range_check(reg_low, reg_high);
+
+        cols.mem_limb = wb.nat_to_field(limb);
+        cols.mem_limb_low_byte = wb.nat_to_field(limb_low);
+        cols.register_low_byte = wb.nat_to_field(reg_low);
+        for i in 0..sp1_primitives::consts::WORD_SIZE {
+            let v = wb.bits(mem_value, (i as u32) * 16, 16);
+            cols.store_value[i] = wb.nat_to_field(v);
+        }
+
+        // increment = bit0 ? (256*reg_low - limb + limb_low) : (reg_low - limb_low).
+        let rlb_f = wb.nat_to_field(reg_low);
+        let mllb_f = wb.nat_to_field(limb_low);
+        let ml_f = wb.nat_to_field(limb);
+        let diff1 = wb.field_sub(rlb_f, mllb_f);
+        let eight = wb.const_nat(8);
+        let r256 = wb.shl(reg_low, eight);
+        let r256_f = wb.nat_to_field(r256);
+        let sum = wb.field_add(r256_f, mllb_f);
+        let term2 = wb.field_sub(sum, ml_f);
+        cols.increment = wb.field_select(bit0, term2, diff1);
+
+        CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
+        ITypeReader::<WB::Field>::witgen(
+            wb,
+            &mut cols.adapter,
+            op_a,
+            a_prev_value,
+            a_prev_ts,
+            a_cur_ts,
+            op_b,
+            b_prev_value,
+            b_prev_ts,
+            b_cur_ts,
+            op_c,
+        );
+    }
+}
+
 impl<F, M: TrustMode> BaseAir<F> for StoreByteChip<M> {
     fn width(&self) -> usize {
         if M::IS_TRUSTED {

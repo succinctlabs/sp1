@@ -67,6 +67,67 @@ pub struct StoreWordColumns<T, M: TrustMode> {
     pub adapter_cols: M::AdapterCols<T>,
 }
 
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T, M: TrustMode> StoreWordColumns<T, M> {
+    /// Backend-agnostic witgen for the `StoreWord` chip (sw): memory access, address
+    /// operation, the offset bit (address bit 2), and the stored word (the access's
+    /// new value).
+    #[allow(clippy::too_many_arguments)]
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut StoreWordColumns<WB::Field, M>,
+        clk: WB::Nat,
+        pc: WB::Nat,
+        op_a: WB::Nat,
+        a_prev_value: WB::Nat,
+        a_prev_ts: WB::Nat,
+        a_cur_ts: WB::Nat,
+        op_b: WB::Nat,
+        b_prev_value: WB::Nat,
+        b_prev_ts: WB::Nat,
+        b_cur_ts: WB::Nat,
+        op_c: WB::Nat,
+        b_val: WB::Nat,
+        c_val: WB::Nat,
+        mem_prev_value: WB::Nat,
+        mem_prev_ts: WB::Nat,
+        mem_cur_ts: WB::Nat,
+        mem_value: WB::Nat,
+    ) {
+        let one = wb.const_nat(1);
+        cols.is_real = wb.nat_to_field(one);
+        MemoryAccessCols::<WB::Field>::witgen(
+            wb,
+            &mut cols.memory_access,
+            mem_prev_value,
+            mem_prev_ts,
+            mem_cur_ts,
+        );
+        let memory_addr =
+            AddressOperation::<WB::Field>::witgen(wb, &mut cols.address_operation, b_val, c_val);
+        let bit = wb.bits(memory_addr, 2, 1);
+        cols.offset_bit = wb.nat_to_field(bit);
+        for i in 0..sp1_primitives::consts::WORD_SIZE {
+            let limb = wb.bits(mem_value, (i as u32) * 16, 16);
+            cols.store_value[i] = wb.nat_to_field(limb);
+        }
+        CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
+        ITypeReader::<WB::Field>::witgen(
+            wb,
+            &mut cols.adapter,
+            op_a,
+            a_prev_value,
+            a_prev_ts,
+            a_cur_ts,
+            op_b,
+            b_prev_value,
+            b_prev_ts,
+            b_cur_ts,
+            op_c,
+        );
+    }
+}
+
 impl<F, M: TrustMode> BaseAir<F> for StoreWordChip<M> {
     fn width(&self) -> usize {
         if M::IS_TRUSTED {

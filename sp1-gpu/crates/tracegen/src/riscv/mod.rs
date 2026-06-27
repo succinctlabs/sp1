@@ -14,6 +14,10 @@ mod lt;
 mod mul;
 mod sll;
 mod sr;
+mod store_byte;
+mod store_double;
+mod store_half;
+mod store_word;
 mod sub;
 mod subw;
 
@@ -50,6 +54,10 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::LoadHalf(chip) => chip.supports_device_main_tracegen(),
             Self::LoadByte(chip) => chip.supports_device_main_tracegen(),
             Self::LoadX0(chip) => chip.supports_device_main_tracegen(),
+            Self::StoreDouble(chip) => chip.supports_device_main_tracegen(),
+            Self::StoreWord(chip) => chip.supports_device_main_tracegen(),
+            Self::StoreHalf(chip) => chip.supports_device_main_tracegen(),
+            Self::StoreByte(chip) => chip.supports_device_main_tracegen(),
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => false,
         }
@@ -80,6 +88,10 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::LoadHalf(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::LoadByte(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::LoadX0(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::StoreDouble(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::StoreWord(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::StoreHalf(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::StoreByte(chip) => chip.generate_trace_device(input, output, scope).await,
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => unimplemented!(),
         }
@@ -104,6 +116,10 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::LoadHalf(chip) => chip.supports_device_dependencies(),
             Self::LoadByte(chip) => chip.supports_device_dependencies(),
             Self::LoadX0(chip) => chip.supports_device_dependencies(),
+            Self::StoreDouble(chip) => chip.supports_device_dependencies(),
+            Self::StoreWord(chip) => chip.supports_device_dependencies(),
+            Self::StoreHalf(chip) => chip.supports_device_dependencies(),
+            Self::StoreByte(chip) => chip.supports_device_dependencies(),
             _ => false,
         }
     }
@@ -132,6 +148,10 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::LoadHalf(chip) => chip.generate_device_dependencies(input, output, scope).await,
             Self::LoadByte(chip) => chip.generate_device_dependencies(input, output, scope).await,
             Self::LoadX0(chip) => chip.generate_device_dependencies(input, output, scope).await,
+            Self::StoreDouble(chip) => chip.generate_device_dependencies(input, output, scope).await,
+            Self::StoreWord(chip) => chip.generate_device_dependencies(input, output, scope).await,
+            Self::StoreHalf(chip) => chip.generate_device_dependencies(input, output, scope).await,
+            Self::StoreByte(chip) => chip.generate_device_dependencies(input, output, scope).await,
             _ => unimplemented!(),
         }
     }
