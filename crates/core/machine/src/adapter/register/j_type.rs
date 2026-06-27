@@ -39,6 +39,40 @@ impl<F: PrimeField32> JTypeReader<F> {
 }
 
 impl<T> JTypeReader<T> {
+    /// Backend-agnostic witgen dual of [`Self::populate`]: the single op_a register
+    /// access (write target), the `op_a == 0` flag, and the two immediate words.
+    #[allow(clippy::too_many_arguments)]
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut JTypeReader<WB::Field>,
+        op_a: WB::Nat,
+        a_prev_value: WB::Nat,
+        a_prev_ts: WB::Nat,
+        a_cur_ts: WB::Nat,
+        op_b: WB::Nat,
+        op_c: WB::Nat,
+    ) {
+        cols.op_a = wb.nat_to_field(op_a);
+        crate::memory::RegisterAccessCols::<WB::Field>::witgen(
+            wb,
+            &mut cols.op_a_memory,
+            a_prev_value,
+            a_prev_ts,
+            a_cur_ts,
+        );
+        let zero = wb.const_nat(0);
+        let is_zero = wb.eq(op_a, zero);
+        cols.op_a_0 = wb.nat_to_field(is_zero);
+        for i in 0..sp1_primitives::consts::WORD_SIZE {
+            let l = wb.bits(op_b, (i as u32) * 16, 16);
+            cols.op_b_imm[i] = wb.nat_to_field(l);
+        }
+        for i in 0..sp1_primitives::consts::WORD_SIZE {
+            let l = wb.bits(op_c, (i as u32) * 16, 16);
+            cols.op_c_imm[i] = wb.nat_to_field(l);
+        }
+    }
+
     pub fn prev_a(&self) -> &Word<T> {
         &self.op_a_memory.prev_value
     }
