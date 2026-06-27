@@ -679,18 +679,28 @@ pub fn byte_lookups_from_histograms(
         }
         let row = idx / NUM_BYTE_MULT_COLS;
         let col = idx % NUM_BYTE_MULT_COLS;
-        let opcode = match col {
-            0 => ByteOpcode::AND,
-            1 => ByteOpcode::OR,
-            2 => ByteOpcode::XOR,
-            3 => ByteOpcode::U8Range,
-            4 => ByteOpcode::LTU,
-            5 => ByteOpcode::MSB,
-            _ => unreachable!("byte table has {NUM_BYTE_MULT_COLS} columns"),
-        };
         let b = (row >> 8) as u8;
         let c = (row & 0xFF) as u8;
-        map.insert(ByteLookupEvent { opcode, a: 0, b, c }, mult as usize);
+        // The histogram indexes by (opcode, b, c) only; the result `a` is dropped to
+        // halve the table. But `a` is part of the `ByteLookupEvent` HashMap key the
+        // consumer (Byte chip) reads, so it must be reconstructed as the *exact* value
+        // the host emits — a deterministic function of (opcode, b, c). Getting this
+        // wrong (e.g. `a = 0` for AND/OR/XOR, whose host `a = b OP c` is non-zero)
+        // splits the LogUp tuples → GKR cumulative-sum mismatch (caught by the e2e
+        // bench on real Bitwise rows; synthetic-only chips like Add/Sub emit just
+        // U8Range/Range where `a = 0`, which is why it slipped earlier).
+        let (opcode, a) = match col {
+            0 => (ByteOpcode::AND, (b & c) as u16),
+            1 => (ByteOpcode::OR, (b | c) as u16),
+            2 => (ByteOpcode::XOR, (b ^ c) as u16),
+            3 => (ByteOpcode::U8Range, 0),
+            // LTU lookups are emitted to assert `b < c`, so the host result is 1.
+            4 => (ByteOpcode::LTU, 1),
+            // MSB of the byte `b` (the lookups always pass `c = 0`).
+            5 => (ByteOpcode::MSB, (b >> 7) as u16),
+            _ => unreachable!("byte table has {NUM_BYTE_MULT_COLS} columns"),
+        };
+        map.insert(ByteLookupEvent { opcode, a, b, c }, mult as usize);
     }
     map
 }
