@@ -29,7 +29,7 @@ mod utype;
 /// (`WITGEN_MAX_WIRES` in `witgen_interp.cu`). A recorded gadget whose
 /// [`num_wires`](sp1_core_machine::air::WitProgram::num_wires) exceeds this would
 /// overflow the kernel's per-thread arrays, so device tracegen asserts against it.
-pub(crate) const WITGEN_MAX_WIRES: usize = 1536;
+pub(crate) const WITGEN_MAX_WIRES: usize = 256;
 
 use slop_alloc::mem::CopyError;
 use sp1_core_machine::riscv::RiscvAir;
@@ -50,8 +50,8 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Addi(chip) => chip.supports_device_main_tracegen(),
             Self::ShiftLeft(chip) => chip.supports_device_main_tracegen(),
             Self::ShiftRight(chip) => chip.supports_device_main_tracegen(),
-            Self::Mul(chip) => chip.supports_device_main_tracegen(),
-            Self::DivRem(chip) => chip.supports_device_main_tracegen(),
+            Self::Mul(_) => false, // gated: 531 wires would force a large per-thread kernel array (OOM)
+            Self::DivRem(_) => false, // gated: 1393 wires (OOM)
             Self::AluX0(chip) => chip.supports_device_main_tracegen(),
             Self::LoadDouble(chip) => chip.supports_device_main_tracegen(),
             Self::LoadWord(chip) => chip.supports_device_main_tracegen(),
@@ -120,8 +120,8 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Addi(chip) => chip.supports_device_dependencies(),
             Self::ShiftLeft(chip) => chip.supports_device_dependencies(),
             Self::ShiftRight(chip) => chip.supports_device_dependencies(),
-            Self::Mul(chip) => chip.supports_device_dependencies(),
-            Self::DivRem(chip) => chip.supports_device_dependencies(),
+            Self::Mul(_) => false,
+            Self::DivRem(_) => false,
             Self::AluX0(chip) => chip.supports_device_dependencies(),
             Self::LoadDouble(chip) => chip.supports_device_dependencies(),
             Self::LoadWord(chip) => chip.supports_device_dependencies(),

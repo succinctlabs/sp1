@@ -14,7 +14,7 @@
 
 // Max wires (inputs + value ops) per gadget. Small gadgets use < 16; the host side
 // asserts the recorded program fits.
-#define WITGEN_MAX_WIRES 1536
+#define WITGEN_MAX_WIRES 256
 
 template <class T>
 __global__ void witgen_interp_kernel(
