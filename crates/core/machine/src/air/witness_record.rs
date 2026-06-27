@@ -71,9 +71,11 @@ pub struct WitProgram {
 pub struct RecordingWitnessBuilder {
     program: WitProgram,
     next_wire: u32,
-    /// Current guard wire (`Some` inside a guarded scope); lookups recorded while set
-    /// become guarded variants.
-    guard: Option<WireId>,
+    /// Stack of effective guard wires. Each entry is the AND (product) of all
+    /// enclosing scopes' guards; lookups recorded while non-empty become guarded
+    /// variants conditioned on the top wire. Nesting records a `Mul` of the new
+    /// guard with the enclosing one, so an inner gadget composes with its caller.
+    guard_stack: Vec<WireId>,
 }
 
 impl RecordingWitnessBuilder {
@@ -82,7 +84,7 @@ impl RecordingWitnessBuilder {
         Self {
             program: WitProgram { ops: Vec::new(), num_inputs },
             next_wire: num_inputs,
-            guard: None,
+            guard_stack: Vec::new(),
         }
     }
 
@@ -152,21 +154,21 @@ impl WitnessBuilder for RecordingWitnessBuilder {
         self.value(WitOp::FieldSelect { cond, a, b })
     }
     fn add_u16_range_check(&mut self, a: WireId) {
-        let op = match self.guard {
+        let op = match self.guard_stack.last().copied() {
             Some(guard) => WitOp::U16RangeCheckGuarded { guard, src: a },
             None => WitOp::U16RangeCheck(a),
         };
         self.program.ops.push(op);
     }
     fn add_u8_range_check(&mut self, a: WireId, b: WireId) {
-        let op = match self.guard {
+        let op = match self.guard_stack.last().copied() {
             Some(guard) => WitOp::U8RangeCheckGuarded { guard, a, b },
             None => WitOp::U8RangeCheck(a, b),
         };
         self.program.ops.push(op);
     }
     fn add_bit_range_check(&mut self, a: WireId, bits: u8) {
-        let op = match self.guard {
+        let op = match self.guard_stack.last().copied() {
             Some(guard) => WitOp::BitRangeCheckGuarded { guard, src: a, bits },
             None => WitOp::BitRangeCheck { src: a, bits },
         };
@@ -174,21 +176,29 @@ impl WitnessBuilder for RecordingWitnessBuilder {
     }
     fn add_bit_range_check_var(&mut self, a: WireId, bits: WireId) {
         // Used only outside guarded scopes (the shift chips' limb range checks).
-        debug_assert!(self.guard.is_none(), "guarded variable-width range check unsupported");
+        debug_assert!(
+            self.guard_stack.is_empty(),
+            "guarded variable-width range check unsupported"
+        );
         self.program.ops.push(WitOp::BitRangeCheckVar { src: a, bits });
     }
     fn add_byte_lookup(&mut self, opcode: WireId, a: WireId, b: WireId, c: WireId) {
-        let op = match self.guard {
+        let op = match self.guard_stack.last().copied() {
             Some(guard) => WitOp::ByteLookupGuarded { guard, opcode, a, b, c },
             None => WitOp::ByteLookup { opcode, a, b, c },
         };
         self.program.ops.push(op);
     }
     fn push_guard(&mut self, guard: WireId) {
-        self.guard = Some(guard);
+        // Effective guard = AND (product) of the new guard with the enclosing one.
+        let eff = match self.guard_stack.last().copied() {
+            Some(prev) => self.value(WitOp::Mul(prev, guard)),
+            None => guard,
+        };
+        self.guard_stack.push(eff);
     }
     fn pop_guard(&mut self) {
-        self.guard = None;
+        self.guard_stack.pop();
     }
 }
 

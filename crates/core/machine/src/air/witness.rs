@@ -138,21 +138,23 @@ pub trait WitnessBuilder {
 /// the hand-written `populate`.
 pub struct HostWitnessBuilder<'a, F, R: ByteRecord> {
     record: &'a mut R,
-    /// Current guard (`Some(0)` suppresses lookups; `None`/`Some(≠0)` emits them).
-    guard: Option<u64>,
+    /// Stack of effective guards (the AND/product of all enclosing scopes). A scope
+    /// suppresses lookups iff the top is 0. Nesting multiplies, so an inner gadget's
+    /// own `push_guard` composes with the caller's rather than overwriting it.
+    guard_stack: Vec<u64>,
     _field: PhantomData<F>,
 }
 
 impl<'a, F, R: ByteRecord> HostWitnessBuilder<'a, F, R> {
     /// Create a host builder that emits lookups into `record`.
     pub fn new(record: &'a mut R) -> Self {
-        Self { record, guard: None, _field: PhantomData }
+        Self { record, guard_stack: Vec::new(), _field: PhantomData }
     }
 
     /// Whether lookups are currently suppressed by an active guard of value 0.
     #[inline]
     fn suppressed(&self) -> bool {
-        matches!(self.guard, Some(0))
+        matches!(self.guard_stack.last(), Some(0))
     }
 }
 
@@ -287,11 +289,12 @@ impl<F: Field, R: ByteRecord> WitnessBuilder for HostWitnessBuilder<'_, F, R> {
 
     #[inline]
     fn push_guard(&mut self, guard: u64) {
-        self.guard = Some(guard);
+        let eff = self.guard_stack.last().copied().unwrap_or(1) * guard;
+        self.guard_stack.push(eff);
     }
 
     #[inline]
     fn pop_guard(&mut self) {
-        self.guard = None;
+        self.guard_stack.pop();
     }
 }

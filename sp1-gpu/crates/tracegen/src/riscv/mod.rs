@@ -2,6 +2,7 @@ mod add;
 mod addi;
 mod addw;
 mod bitwise;
+mod divrem;
 mod global;
 mod lt;
 mod mul;
@@ -14,7 +15,7 @@ mod subw;
 /// (`WITGEN_MAX_WIRES` in `witgen_interp.cu`). A recorded gadget whose
 /// [`num_wires`](sp1_core_machine::air::WitProgram::num_wires) exceeds this would
 /// overflow the kernel's per-thread arrays, so device tracegen asserts against it.
-pub(crate) const WITGEN_MAX_WIRES: usize = 768;
+pub(crate) const WITGEN_MAX_WIRES: usize = 1536;
 
 use slop_alloc::mem::CopyError;
 use sp1_core_machine::riscv::RiscvAir;
@@ -36,6 +37,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::ShiftLeft(chip) => chip.supports_device_main_tracegen(),
             Self::ShiftRight(chip) => chip.supports_device_main_tracegen(),
             Self::Mul(chip) => chip.supports_device_main_tracegen(),
+            Self::DivRem(chip) => chip.supports_device_main_tracegen(),
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => false,
         }
@@ -59,6 +61,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::ShiftLeft(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::ShiftRight(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::Mul(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::DivRem(chip) => chip.generate_trace_device(input, output, scope).await,
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => unimplemented!(),
         }
@@ -76,6 +79,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::ShiftLeft(chip) => chip.supports_device_dependencies(),
             Self::ShiftRight(chip) => chip.supports_device_dependencies(),
             Self::Mul(chip) => chip.supports_device_dependencies(),
+            Self::DivRem(chip) => chip.supports_device_dependencies(),
             _ => false,
         }
     }
@@ -97,6 +101,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::ShiftLeft(chip) => chip.generate_device_dependencies(input, output, scope).await,
             Self::ShiftRight(chip) => chip.generate_device_dependencies(input, output, scope).await,
             Self::Mul(chip) => chip.generate_device_dependencies(input, output, scope).await,
+            Self::DivRem(chip) => chip.generate_device_dependencies(input, output, scope).await,
             _ => unimplemented!(),
         }
     }

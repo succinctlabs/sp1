@@ -36,6 +36,30 @@ pub struct IsZeroOperation<T> {
     pub result: T,
 }
 
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T> IsZeroOperation<T> {
+    /// Backend-agnostic witgen dual of [`Self::populate`] for a small (≤u16) nat
+    /// input: `result = (a == 0)` and `inverse = a^{-1}` (0 when `a == 0`). Returns
+    /// the 0/1 `result` as a nat.
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut IsZeroOperation<WB::Field>,
+        a: WB::Nat,
+    ) -> WB::Nat {
+        let zero = wb.const_nat(0);
+        let one = wb.const_nat(1);
+        let is_z = wb.eq(a, zero);
+        cols.result = wb.nat_to_field(is_z);
+        let a_f = wb.nat_to_field(a);
+        let one_f = wb.nat_to_field(one);
+        let zero_f = wb.nat_to_field(zero);
+        let safe = wb.field_select(is_z, one_f, a_f);
+        let inv = wb.field_inverse(safe);
+        cols.inverse = wb.field_select(is_z, zero_f, inv);
+        is_z
+    }
+}
+
 impl<F: Field> IsZeroOperation<F> {
     pub fn populate(&mut self, a: u64) -> u64 {
         self.populate_from_field_element(F::from_canonical_u64(a))

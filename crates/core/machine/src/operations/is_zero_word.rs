@@ -42,6 +42,36 @@ pub struct IsZeroWordOperation<T> {
     pub result: T,
 }
 
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T> IsZeroWordOperation<T> {
+    /// Backend-agnostic witgen dual of [`Self::populate`]: per-limb `IsZeroOperation`
+    /// over the four u16 limbs of `a`, plus the two half-products and the overall
+    /// `result`. Returns the 0/1 `result` as a nat.
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut IsZeroWordOperation<WB::Field>,
+        a: WB::Nat,
+    ) -> WB::Nat {
+        let zero = wb.const_nat(0);
+        let mut is_z = [zero; WORD_SIZE];
+        for i in 0..WORD_SIZE {
+            let limb = wb.bits(a, (i as u32) * 16, 16);
+            is_z[i] = super::IsZeroOperation::<WB::Field>::witgen(
+                wb,
+                &mut cols.is_zero_limb[i],
+                limb,
+            );
+        }
+        let fh = wb.select(is_z[0], is_z[1], zero);
+        cols.is_zero_first_half = wb.nat_to_field(fh);
+        let sh = wb.select(is_z[2], is_z[3], zero);
+        cols.is_zero_second_half = wb.nat_to_field(sh);
+        let res = wb.select(fh, sh, zero);
+        cols.result = wb.nat_to_field(res);
+        res
+    }
+}
+
 impl<F: Field> IsZeroWordOperation<F> {
     pub fn populate(&mut self, a_u64: u64) -> u64 {
         self.populate_from_field_element(Word::from(a_u64))
