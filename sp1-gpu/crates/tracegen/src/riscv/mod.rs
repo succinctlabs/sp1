@@ -3,6 +3,7 @@ mod addi;
 mod alu_x0;
 mod addw;
 mod bitwise;
+mod branch;
 mod divrem;
 mod global;
 mod jal;
@@ -64,6 +65,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::UType(chip) => chip.supports_device_main_tracegen(),
             Self::Jal(chip) => chip.supports_device_main_tracegen(),
             Self::Jalr(chip) => chip.supports_device_main_tracegen(),
+            Self::Branch(chip) => chip.supports_device_main_tracegen(),
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => false,
         }
@@ -101,6 +103,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::UType(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::Jal(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::Jalr(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::Branch(chip) => chip.generate_trace_device(input, output, scope).await,
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => unimplemented!(),
         }
@@ -132,6 +135,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::UType(chip) => chip.supports_device_dependencies(),
             Self::Jal(chip) => chip.supports_device_dependencies(),
             Self::Jalr(chip) => chip.supports_device_dependencies(),
+            Self::Branch(chip) => chip.supports_device_dependencies(),
             _ => false,
         }
     }
@@ -167,6 +171,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::UType(chip) => chip.generate_device_dependencies(input, output, scope).await,
             Self::Jal(chip) => chip.generate_device_dependencies(input, output, scope).await,
             Self::Jalr(chip) => chip.generate_device_dependencies(input, output, scope).await,
+            Self::Branch(chip) => chip.generate_device_dependencies(input, output, scope).await,
             _ => unimplemented!(),
         }
     }
