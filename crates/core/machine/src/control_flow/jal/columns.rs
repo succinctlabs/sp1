@@ -58,6 +58,12 @@ impl<T, M: TrustMode> JalColumns<T, M> {
         cols.is_real = wb.nat_to_field(one);
         AddOperation::<WB::Field>::witgen(wb, &mut cols.add_operation, pc, event_b);
 
+        // PC-alignment check on the jump target's low limb (`next_pc/4` fits 14 bits)
+        // — emitted by `generate_dependencies` (matches Jalr; was missing here).
+        let next_pc = wb.wrapping_add(pc, event_b);
+        let lq = wb.bits(next_pc, 2, 14);
+        wb.add_bit_range_check(lq, 14);
+
         let four = wb.const_nat(4);
         let is_op_a_zero = wb.eq(op_a, zero);
         let op_a_nz = wb.eq(is_op_a_zero, zero);
