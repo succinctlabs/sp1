@@ -64,6 +64,59 @@ pub struct LoadDoubleColumns<T, M: TrustMode> {
     pub adapter_cols: M::AdapterCols<T>,
 }
 
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T, M: TrustMode> LoadDoubleColumns<T, M> {
+    /// Backend-agnostic witgen for the `LoadDouble` chip (full 64-bit load): the
+    /// `MemoryAccessCols` (the read), the `AddressOperation` (`addr = b + c`), the
+    /// `CPUState`, and the immediate-only `ITypeReader` adapter.
+    #[allow(clippy::too_many_arguments)]
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut LoadDoubleColumns<WB::Field, M>,
+        clk: WB::Nat,
+        pc: WB::Nat,
+        op_a: WB::Nat,
+        a_prev_value: WB::Nat,
+        a_prev_ts: WB::Nat,
+        a_cur_ts: WB::Nat,
+        op_b: WB::Nat,
+        b_prev_value: WB::Nat,
+        b_prev_ts: WB::Nat,
+        b_cur_ts: WB::Nat,
+        op_c: WB::Nat,
+        b_val: WB::Nat,
+        c_val: WB::Nat,
+        mem_prev_value: WB::Nat,
+        mem_prev_ts: WB::Nat,
+        mem_cur_ts: WB::Nat,
+    ) {
+        let one = wb.const_nat(1);
+        cols.is_real = wb.nat_to_field(one);
+        MemoryAccessCols::<WB::Field>::witgen(
+            wb,
+            &mut cols.memory_access,
+            mem_prev_value,
+            mem_prev_ts,
+            mem_cur_ts,
+        );
+        AddressOperation::<WB::Field>::witgen(wb, &mut cols.address_operation, b_val, c_val);
+        CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
+        ITypeReader::<WB::Field>::witgen(
+            wb,
+            &mut cols.adapter,
+            op_a,
+            a_prev_value,
+            a_prev_ts,
+            a_cur_ts,
+            op_b,
+            b_prev_value,
+            b_prev_ts,
+            b_cur_ts,
+            op_c,
+        );
+    }
+}
+
 impl<F, M: TrustMode> BaseAir<F> for LoadDoubleChip<M> {
     fn width(&self) -> usize {
         if M::IS_TRUSTED {

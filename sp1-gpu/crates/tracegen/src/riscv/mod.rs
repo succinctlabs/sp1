@@ -5,6 +5,7 @@ mod addw;
 mod bitwise;
 mod divrem;
 mod global;
+mod load_double;
 mod lt;
 mod mul;
 mod sll;
@@ -40,6 +41,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Mul(chip) => chip.supports_device_main_tracegen(),
             Self::DivRem(chip) => chip.supports_device_main_tracegen(),
             Self::AluX0(chip) => chip.supports_device_main_tracegen(),
+            Self::LoadDouble(chip) => chip.supports_device_main_tracegen(),
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => false,
         }
@@ -65,6 +67,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Mul(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::DivRem(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::AluX0(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::LoadDouble(chip) => chip.generate_trace_device(input, output, scope).await,
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => unimplemented!(),
         }
@@ -84,6 +87,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Mul(chip) => chip.supports_device_dependencies(),
             Self::DivRem(chip) => chip.supports_device_dependencies(),
             Self::AluX0(chip) => chip.supports_device_dependencies(),
+            Self::LoadDouble(chip) => chip.supports_device_dependencies(),
             _ => false,
         }
     }
@@ -107,6 +111,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Mul(chip) => chip.generate_device_dependencies(input, output, scope).await,
             Self::DivRem(chip) => chip.generate_device_dependencies(input, output, scope).await,
             Self::AluX0(chip) => chip.generate_device_dependencies(input, output, scope).await,
+            Self::LoadDouble(chip) => chip.generate_device_dependencies(input, output, scope).await,
             _ => unimplemented!(),
         }
     }

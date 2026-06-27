@@ -1,7 +1,7 @@
 mod bump;
 mod consistency;
 mod global;
-mod instructions;
+pub mod instructions;
 mod local;
 mod page_prot;
 mod page_prot_global;

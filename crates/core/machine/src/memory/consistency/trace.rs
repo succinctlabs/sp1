@@ -7,15 +7,41 @@ use super::{
     RegisterAccessCols, RegisterAccessTimestamp,
 };
 
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T> MemoryAccessCols<T> {
+    /// Backend-agnostic witgen dual of [`Self::populate`]: the previous value (4 u16
+    /// limbs) and the access timestamp (composing [`MemoryAccessTimestamp::witgen`]).
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut MemoryAccessCols<WB::Field>,
+        prev_value: WB::Nat,
+        prev_timestamp: WB::Nat,
+        current_timestamp: WB::Nat,
+    ) {
+        for i in 0..WORD_SIZE {
+            let limb = wb.bits(prev_value, (i as u32) * 16, 16);
+            cols.prev_value[i] = wb.nat_to_field(limb);
+        }
+        MemoryAccessTimestamp::<WB::Field>::witgen(
+            wb,
+            &mut cols.access_timestamp,
+            prev_timestamp,
+            current_timestamp,
+        );
+    }
+}
+
 impl<F: PrimeField32> MemoryAccessCols<F> {
     pub fn populate(&mut self, record: MemoryRecordEnum, output: &mut impl ByteRecord) {
         let prev_record = record.previous_record();
         let current_record = record.current_record();
-        self.prev_value = prev_record.value.into();
-        self.access_timestamp.populate_timestamp(
+        let mut wb = crate::air::HostWitnessBuilder::<F, _>::new(output);
+        Self::witgen(
+            &mut wb,
+            self,
+            prev_record.value,
             prev_record.timestamp,
             current_record.timestamp,
-            output,
         );
     }
 }
@@ -86,6 +112,44 @@ impl<F: PrimeField32> PageProtAccessCols<F> {
             current_timestamp,
             output,
         );
+    }
+}
+
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T> MemoryAccessTimestamp<T> {
+    /// Backend-agnostic witgen dual of [`Self::populate_timestamp`]: the high/low
+    /// 24-bit split of the previous timestamp, the `compare_low` selector (whether
+    /// the high limbs match), and the `(diff − 1)` limbs of the access-time gap
+    /// (with their range checks).
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut MemoryAccessTimestamp<WB::Field>,
+        prev_timestamp: WB::Nat,
+        current_timestamp: WB::Nat,
+    ) {
+        let prev_high = wb.bits(prev_timestamp, 24, 32);
+        let prev_low = wb.bits(prev_timestamp, 0, 24);
+        let current_high = wb.bits(current_timestamp, 24, 32);
+        let current_low = wb.bits(current_timestamp, 0, 24);
+        cols.prev_high = wb.nat_to_field(prev_high);
+        cols.prev_low = wb.nat_to_field(prev_low);
+
+        let use_low = wb.eq(prev_high, current_high);
+        cols.compare_low = wb.nat_to_field(use_low);
+        let prev_tv = wb.select(use_low, prev_low, prev_high);
+        let cur_tv = wb.select(use_low, current_low, current_high);
+
+        let one = wb.const_nat(1);
+        let cm = wb.wrapping_sub(cur_tv, prev_tv);
+        let diff_minus_one = wb.wrapping_sub(cm, one);
+        let diff_low_limb = wb.bits(diff_minus_one, 0, 16);
+        cols.diff_low_limb = wb.nat_to_field(diff_low_limb);
+        let diff_high_limb = wb.bits(diff_minus_one, 16, 8);
+        cols.diff_high_limb = wb.nat_to_field(diff_high_limb);
+
+        let zero = wb.const_nat(0);
+        wb.add_bit_range_check(diff_low_limb, 16);
+        wb.add_u8_range_check(diff_high_limb, zero);
     }
 }
 
