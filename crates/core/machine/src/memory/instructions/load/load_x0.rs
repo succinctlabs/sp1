@@ -82,6 +82,79 @@ pub struct LoadX0Columns<T, M: TrustMode> {
     pub adapter_cols: M::AdapterCols<T>,
 }
 
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T, M: TrustMode> LoadX0Columns<T, M> {
+    /// Backend-agnostic witgen for the `LoadX0` chip (loads writing to x0; the
+    /// loaded value is discarded). Just the memory access, the address operation,
+    /// the address low-bit offset flags, and the per-opcode selectors.
+    #[allow(clippy::too_many_arguments)]
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut LoadX0Columns<WB::Field, M>,
+        clk: WB::Nat,
+        pc: WB::Nat,
+        op_a: WB::Nat,
+        a_prev_value: WB::Nat,
+        a_prev_ts: WB::Nat,
+        a_cur_ts: WB::Nat,
+        op_b: WB::Nat,
+        b_prev_value: WB::Nat,
+        b_prev_ts: WB::Nat,
+        b_cur_ts: WB::Nat,
+        op_c: WB::Nat,
+        b_val: WB::Nat,
+        c_val: WB::Nat,
+        mem_prev_value: WB::Nat,
+        mem_prev_ts: WB::Nat,
+        mem_cur_ts: WB::Nat,
+        opcode: WB::Nat,
+    ) {
+        MemoryAccessCols::<WB::Field>::witgen(
+            wb,
+            &mut cols.memory_access,
+            mem_prev_value,
+            mem_prev_ts,
+            mem_cur_ts,
+        );
+        let memory_addr =
+            AddressOperation::<WB::Field>::witgen(wb, &mut cols.address_operation, b_val, c_val);
+        let bit0 = wb.bits(memory_addr, 0, 1);
+        cols.offset_bit[0] = wb.nat_to_field(bit0);
+        let bit1 = wb.bits(memory_addr, 1, 1);
+        cols.offset_bit[1] = wb.nat_to_field(bit1);
+        let bit2 = wb.bits(memory_addr, 2, 1);
+        cols.offset_bit[2] = wb.nat_to_field(bit2);
+
+        let flag = |wb: &mut WB, op: Opcode| {
+            let c = wb.const_nat(op as u64);
+            let e = wb.eq(opcode, c);
+            wb.nat_to_field(e)
+        };
+        cols.is_lb = flag(wb, Opcode::LB);
+        cols.is_lbu = flag(wb, Opcode::LBU);
+        cols.is_lh = flag(wb, Opcode::LH);
+        cols.is_lhu = flag(wb, Opcode::LHU);
+        cols.is_lw = flag(wb, Opcode::LW);
+        cols.is_lwu = flag(wb, Opcode::LWU);
+        cols.is_ld = flag(wb, Opcode::LD);
+
+        CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
+        ITypeReader::<WB::Field>::witgen(
+            wb,
+            &mut cols.adapter,
+            op_a,
+            a_prev_value,
+            a_prev_ts,
+            a_cur_ts,
+            op_b,
+            b_prev_value,
+            b_prev_ts,
+            b_cur_ts,
+            op_c,
+        );
+    }
+}
+
 impl<F, M: TrustMode> BaseAir<F> for LoadX0Chip<M> {
     fn width(&self) -> usize {
         if M::IS_TRUSTED {

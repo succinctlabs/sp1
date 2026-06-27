@@ -9,6 +9,7 @@ mod load_byte;
 mod load_double;
 mod load_half;
 mod load_word;
+mod load_x0;
 mod lt;
 mod mul;
 mod sll;
@@ -48,6 +49,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::LoadWord(chip) => chip.supports_device_main_tracegen(),
             Self::LoadHalf(chip) => chip.supports_device_main_tracegen(),
             Self::LoadByte(chip) => chip.supports_device_main_tracegen(),
+            Self::LoadX0(chip) => chip.supports_device_main_tracegen(),
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => false,
         }
@@ -77,6 +79,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::LoadWord(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::LoadHalf(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::LoadByte(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::LoadX0(chip) => chip.generate_trace_device(input, output, scope).await,
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => unimplemented!(),
         }
@@ -100,6 +103,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::LoadWord(chip) => chip.supports_device_dependencies(),
             Self::LoadHalf(chip) => chip.supports_device_dependencies(),
             Self::LoadByte(chip) => chip.supports_device_dependencies(),
+            Self::LoadX0(chip) => chip.supports_device_dependencies(),
             _ => false,
         }
     }
@@ -127,6 +131,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::LoadWord(chip) => chip.generate_device_dependencies(input, output, scope).await,
             Self::LoadHalf(chip) => chip.generate_device_dependencies(input, output, scope).await,
             Self::LoadByte(chip) => chip.generate_device_dependencies(input, output, scope).await,
+            Self::LoadX0(chip) => chip.generate_device_dependencies(input, output, scope).await,
             _ => unimplemented!(),
         }
     }
