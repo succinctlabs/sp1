@@ -161,6 +161,14 @@ impl MinimalExecutorRunner {
         self.inner.into_public_values_stream()
     }
 
+    /// The bounded guest `fd=2` (stderr) tail captured during execution, as lossy UTF-8.
+    /// `None` when the guest wrote nothing to stderr. Untrusted, guest-controlled text.
+    #[must_use]
+    #[inline]
+    pub fn stderr_tail(&self) -> Option<String> {
+        self.inner.stderr_tail()
+    }
+
     /// Get the public value digest words committed by the guest via `COMMIT` syscalls.
     #[must_use]
     #[inline]

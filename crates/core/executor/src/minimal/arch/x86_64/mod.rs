@@ -233,6 +233,14 @@ impl<M: ExecutionMode> MinimalExecutor<M> {
         self.compiled.public_values_stream
     }
 
+    /// The bounded guest `fd=2` (stderr) tail captured during execution, as lossy UTF-8.
+    /// `None` when the guest wrote nothing to stderr. Untrusted, guest-controlled text.
+    #[must_use]
+    pub fn stderr_tail(&self) -> Option<String> {
+        (!self.compiled.stderr_tail.is_empty())
+            .then(|| String::from_utf8_lossy(&self.compiled.stderr_tail).into_owned())
+    }
+
     /// Get the public value digest words committed by the guest via `COMMIT` syscalls.
     #[must_use]
     pub fn public_value_digest(&self) -> [u32; PUBLIC_VALUE_DIGEST_WORDS] {

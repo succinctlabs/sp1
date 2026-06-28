@@ -108,6 +108,11 @@ mod tests {
         stdin.write(&10usize);
         let (_, report) = client.execute(elf, stdin).await.unwrap();
         assert_eq!(report.exit_code, 1);
+        // The guest panics via `assert_eq!`; its stderr (panic message + source location)
+        // is captured into the bounded `stderr_tail`.
+        let stderr_tail = report.stderr_tail.expect("panic should capture a stderr tail");
+        assert!(stderr_tail.contains("panicked at"), "stderr_tail={stderr_tail}");
+        assert!(stderr_tail.contains("main.rs"), "stderr_tail={stderr_tail}");
     }
 
     // TODO: reimplement the cycle limit logic and revive this test.

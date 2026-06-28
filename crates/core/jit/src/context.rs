@@ -9,6 +9,22 @@ use std::{collections::VecDeque, io, os::fd::RawFd, ptr::NonNull, sync::mpsc};
 /// pulling `sp1-hypercube` into the JIT crate's dependency graph.
 pub const PUBLIC_VALUE_DIGEST_WORDS: usize = 8;
 
+/// Maximum number of guest `fd=2` (stderr) bytes retained as a tail for panic debugging.
+pub const STDERR_TAIL_MAX: usize = 2048;
+
+/// Append `bytes` to `buf`, keeping only the last [`STDERR_TAIL_MAX`] bytes.
+///
+/// Guest stderr is unbounded and attacker-controlled, so only a bounded tail is retained.
+/// A panic writes its message and location to stderr immediately before halting, so the
+/// tail preserves the most relevant output while older bytes are dropped.
+pub fn push_stderr_tail(buf: &mut Vec<u8>, bytes: &[u8]) {
+    buf.extend_from_slice(bytes);
+    let len = buf.len();
+    if len > STDERR_TAIL_MAX {
+        buf.drain(0..len - STDERR_TAIL_MAX);
+    }
+}
+
 pub trait SyscallContext {
     /// Read a value from a register.
     fn rr(&self, reg: RiscRegister) -> u64;
@@ -70,6 +86,12 @@ pub trait SyscallContext {
     fn input_buffer(&mut self) -> &mut VecDeque<Vec<u8>>;
     /// Get the public values stream.
     fn public_values_stream(&mut self) -> &mut Vec<u8>;
+    /// Record bytes written by the guest to `fd=2` (stderr).
+    ///
+    /// Default is a no-op; executors that surface a bounded stderr tail (for panic
+    /// debugging) override this. The bytes are guest-controlled and untrusted; implementors
+    /// must bound what they retain.
+    fn record_stderr(&mut self, _bytes: &[u8]) {}
     /// Enter the unconstrained context.
     fn enter_unconstrained(&mut self) -> io::Result<()>;
     /// Exit the unconstrained context.
@@ -260,6 +282,13 @@ impl SyscallContext for JitContext {
         unsafe { self.public_values_stream() }
     }
 
+    fn record_stderr(&mut self, bytes: &[u8]) {
+        // SAFETY: `stderr_tail` points to the owning `JitFunction`'s `Vec`, which is valid
+        // for the duration of the call (same invariant as `public_values_stream`).
+        let buf = unsafe { self.stderr_tail.as_mut() };
+        push_stderr_tail(buf, bytes);
+    }
+
     fn enter_unconstrained(&mut self) -> io::Result<()> {
         self.enter_unconstrained()
     }
@@ -380,6 +409,8 @@ pub struct JitContext {
     pub(crate) input_buffer: NonNull<VecDeque<Vec<u8>>>,
     /// A stream of public values from the program (global to entire program).
     pub(crate) public_values_stream: NonNull<Vec<u8>>,
+    /// Bounded tail of guest `fd=2` (stderr) output, captured for panic debugging.
+    pub(crate) stderr_tail: NonNull<Vec<u8>>,
     /// The hints read by the program, with their corresponding start address.
     pub(crate) hints: NonNull<Vec<(u64, Vec<u8>)>>,
     /// The memory file descriptor, this is used to create the COW memory at runtime.
@@ -730,5 +761,31 @@ impl<'a> ContextMemory<'a> {
 
         let new_entry = MemValue { value: val, clk: 0 };
         unsafe { std::ptr::write(ptr, new_entry) };
+    }
+}
+
+#[cfg(test)]
+mod stderr_tail_tests {
+    use super::{push_stderr_tail, STDERR_TAIL_MAX};
+
+    #[test]
+    fn keeps_last_bytes_when_over_cap() {
+        let mut buf = Vec::new();
+        // Write more than the cap; only the last STDERR_TAIL_MAX bytes are retained.
+        let head = vec![b'a'; STDERR_TAIL_MAX];
+        let tail = b"panicked at src/main.rs:9:5: boom";
+        push_stderr_tail(&mut buf, &head);
+        push_stderr_tail(&mut buf, tail);
+        assert_eq!(buf.len(), STDERR_TAIL_MAX);
+        // The most recent bytes (the panic) survive; the oldest are dropped.
+        assert!(buf.ends_with(tail));
+        assert!(!buf.starts_with(&head));
+    }
+
+    #[test]
+    fn keeps_all_bytes_when_under_cap() {
+        let mut buf = Vec::new();
+        push_stderr_tail(&mut buf, b"short panic");
+        assert_eq!(buf, b"short panic");
     }
 }
