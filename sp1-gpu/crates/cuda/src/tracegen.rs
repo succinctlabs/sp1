@@ -213,6 +213,11 @@ pub unsafe trait WitgenInterpKernel<F> {
     /// Fused column + lookup kernel: one op-DAG pass writes columns AND accumulates
     /// the byte/range histograms (see `lib/tracegen/witgen_interp.cu`).
     fn witgen_fused_kernel() -> KernelPtr;
+    /// Convert a row-major u32 lookup histogram into the column-major field trace of the
+    /// Byte/Range table chip (the trace IS the histogram). See `hist_to_trace_kernel`.
+    fn hist_to_trace_kernel() -> KernelPtr;
+    /// Scatter-add host-chip lookups (col-major index, multiplicity) into a trace.
+    fn hist_trace_scatter_kernel() -> KernelPtr;
 }
 
 unsafe impl WitgenInterpKernel<SP1Field> for TaskScope {
@@ -224,5 +229,11 @@ unsafe impl WitgenInterpKernel<SP1Field> for TaskScope {
     }
     fn witgen_fused_kernel() -> KernelPtr {
         unsafe { sp1_gpu_sys::tracegen::witgen_fused_koala_bear_kernel() }
+    }
+    fn hist_to_trace_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::hist_to_trace_koala_bear_kernel() }
+    }
+    fn hist_trace_scatter_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::hist_trace_scatter_koala_bear_kernel() }
     }
 }

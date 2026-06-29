@@ -21,4 +21,6 @@ extern "C" {
     pub fn witgen_interp_koala_bear_kernel() -> KernelPtr;
     pub fn witgen_lookup_koala_bear_kernel() -> KernelPtr;
     pub fn witgen_fused_koala_bear_kernel() -> KernelPtr;
+    pub fn hist_to_trace_koala_bear_kernel() -> KernelPtr;
+    pub fn hist_trace_scatter_koala_bear_kernel() -> KernelPtr;
 }

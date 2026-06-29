@@ -470,9 +470,51 @@ __global__ void witgen_fused_kernel(
     }
 }
 
+// --- Byte/Range lookup-table trace from the shared histogram ---
+//
+// The Byte and Range table chips' traces ARE the dense multiplicity histograms (each
+// cell = the lookup count), so once the device-dependency chips have accumulated the
+// shared histogram we can build these traces directly on-device — no readback, no host
+// `byte_lookups` reconstruction, no CPU `generate_trace`. This kernel converts the
+// row-major u32 histogram (`hist[row * n_cols + col]`, matching range/trace.rs and
+// bytes/trace.rs), so the conversion is a pure element-wise u32->field cast; the caller
+// transposes the result to the column-major MLE via the existing `DeviceTensor::transpose`
+// path (exactly as host traces). Host-chip lookups (chips not on the device) are
+// scattered in separately first (see `hist_trace_scatter_kernel`).
+template <class T>
+__global__ void hist_to_trace_kernel(T* trace, const uint32_t* hist, uintptr_t total) {
+    for (uintptr_t i = blockIdx.x * blockDim.x + threadIdx.x; i < total;
+         i += (uintptr_t)blockDim.x * gridDim.x) {
+        trace[i] = T::from_canonical_u32(hist[i]);
+    }
+}
+
+// Scatter-add the host chips' lookups into the row-major u32 histogram BEFORE the
+// conversion: each (row_major_index, mult) entry adds `mult` to one histogram cell.
+// `idxs[i]` is the pre-computed row-major offset `row * n_cols + col`; `mults[i]` the
+// multiplicity. Used for the (few) chips whose dependencies are NOT generated on the
+// device, so the host work is O(host lookups), not O(histogram).
+__global__ void hist_trace_scatter_kernel(
+    uint32_t* hist,
+    const uint64_t* idxs,
+    const uint32_t* mults,
+    uintptr_t n) {
+    // Host-map keys are unique, so each `idxs[i]` is distinct → no atomics needed.
+    for (uintptr_t i = blockIdx.x * blockDim.x + threadIdx.x; i < n;
+         i += (uintptr_t)blockDim.x * gridDim.x) {
+        hist[idxs[i]] += mults[i];
+    }
+}
+
 namespace sp1_gpu_sys {
 extern KernelPtr witgen_interp_koala_bear_kernel() {
     return (KernelPtr)::witgen_interp_kernel<kb31_t>;
+}
+extern KernelPtr hist_to_trace_koala_bear_kernel() {
+    return (KernelPtr)::hist_to_trace_kernel<kb31_t>;
+}
+extern KernelPtr hist_trace_scatter_koala_bear_kernel() {
+    return (KernelPtr)::hist_trace_scatter_kernel;
 }
 extern KernelPtr witgen_lookup_koala_bear_kernel() {
     return (KernelPtr)::witgen_lookup_kernel;
