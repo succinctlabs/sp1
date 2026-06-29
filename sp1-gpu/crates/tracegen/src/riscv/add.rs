@@ -242,4 +242,87 @@ mod tests {
         .await
         .unwrap();
     }
+
+    /// The FUSED kernel must produce, in ONE pass, columns identical to the CPU trace
+    /// AND a byte/range histogram identical to the standalone lookup kernel (the union
+    /// of the two separate kernels, with no interference between the column and lookup
+    /// outputs).
+    #[tokio::test]
+    async fn test_add_fused_kernel() {
+        sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
+            let mut rng = StdRng::seed_from_u64(0xF05ED);
+            let add_events = (0..1000)
+                .map(|i| {
+                    let b = rng.gen::<u32>() as u64;
+                    let c = rng.gen::<u32>() as u64;
+                    let a = b.wrapping_add(c);
+                    let alu = AluEvent::new(
+                        (i as u64) * 8 + 8,
+                        (i as u64) * 4 + 4,
+                        Opcode::ADD,
+                        a,
+                        b,
+                        c,
+                        false,
+                    );
+                    let record = RTypeRecord {
+                        op_a: rng.gen_range(1..32),
+                        a: read(&mut rng),
+                        op_b: rng.gen_range(1..32),
+                        b: read(&mut rng),
+                        op_c: rng.gen_range(1..32),
+                        c: read(&mut rng),
+                        is_untrusted: false,
+                    };
+                    (alu, record)
+                })
+                .collect::<Vec<_>>();
+
+            let gpu_shard =
+                ExecutionRecord { add_events: add_events.clone(), ..Default::default() };
+            let chip = AddChip::<SupervisorMode>::default();
+
+            // CPU reference columns.
+            let cpu_trace = Tensor::<F>::from(
+                chip.generate_trace(&gpu_shard, &mut ExecutionRecord::default()),
+            );
+
+            // Build the op-DAG + packed inputs once (shared by both device paths).
+            let (program, col_wires) = super::record_add_program();
+            let n_cols = col_wires.len();
+            let height =
+                <AddChip<SupervisorMode> as MachineAir<F>>::num_rows(&chip, &gpu_shard).unwrap();
+            let n_events = if height == 0 { 0 } else { add_events.len() };
+            let inputs = super::pack_add_inputs(&add_events[..n_events]);
+
+            // Reference histogram from the standalone lookup kernel.
+            let (mut r_ref, mut b_ref) = crate::new_byte_histograms(&scope);
+            crate::riscv::accumulate_lookups(
+                &program, &inputs, n_events, &mut r_ref, &mut b_ref, &scope,
+            )
+            .await
+            .unwrap();
+            let r_ref_h: Vec<u32> = r_ref.to_host().unwrap();
+            let b_ref_h: Vec<u32> = b_ref.to_host().unwrap();
+
+            // Fused kernel: columns + histogram in a single op-DAG pass.
+            let (mut r_f, mut b_f) = crate::new_byte_histograms(&scope);
+            let fused_trace = crate::riscv::generate_trace_and_lookups(
+                &program, &col_wires, n_cols, &inputs, n_events, height, &mut r_f, &mut b_f, &scope,
+            )
+            .await
+            .expect("fused tracegen should succeed")
+            .to_host()
+            .expect("copy fused trace to host")
+            .into_guts();
+            let r_f_h: Vec<u32> = r_f.to_host().unwrap();
+            let b_f_h: Vec<u32> = b_f.to_host().unwrap();
+
+            crate::tests::test_traces_eq(&cpu_trace, &fused_trace, &add_events);
+            assert_eq!(r_f_h, r_ref_h, "fused range histogram must match the lookup kernel");
+            assert_eq!(b_f_h, b_ref_h, "fused byte histogram must match the lookup kernel");
+        })
+        .await
+        .unwrap();
+    }
 }

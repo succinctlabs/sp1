@@ -20,4 +20,5 @@ extern "C" {
     pub fn recursion_sbox_generate_trace_koala_bear_kernel() -> KernelPtr;
     pub fn witgen_interp_koala_bear_kernel() -> KernelPtr;
     pub fn witgen_lookup_koala_bear_kernel() -> KernelPtr;
+    pub fn witgen_fused_koala_bear_kernel() -> KernelPtr;
 }

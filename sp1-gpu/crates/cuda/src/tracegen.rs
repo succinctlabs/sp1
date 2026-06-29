@@ -210,6 +210,9 @@ unsafe impl TracegenRecursionSBoxKernel<SP1Field> for TaskScope {
 pub unsafe trait WitgenInterpKernel<F> {
     fn witgen_interp_kernel() -> KernelPtr;
     fn witgen_lookup_kernel() -> KernelPtr;
+    /// Fused column + lookup kernel: one op-DAG pass writes columns AND accumulates
+    /// the byte/range histograms (see `lib/tracegen/witgen_interp.cu`).
+    fn witgen_fused_kernel() -> KernelPtr;
 }
 
 unsafe impl WitgenInterpKernel<SP1Field> for TaskScope {
@@ -218,5 +221,8 @@ unsafe impl WitgenInterpKernel<SP1Field> for TaskScope {
     }
     fn witgen_lookup_kernel() -> KernelPtr {
         unsafe { sp1_gpu_sys::tracegen::witgen_lookup_koala_bear_kernel() }
+    }
+    fn witgen_fused_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::witgen_fused_koala_bear_kernel() }
     }
 }

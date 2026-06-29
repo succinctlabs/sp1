@@ -33,12 +33,65 @@ pub(crate) const WITGEN_MAX_WIRES: usize = 256;
 
 use slop_alloc::mem::CopyError;
 use slop_alloc::Buffer;
+use slop_tensor::Tensor;
 use sp1_core_executor::events::ByteRecord;
 use sp1_core_machine::air::{byte_lookups_from_histograms, WitProgram};
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKernel};
 
 use crate::{CudaTracegenAir, F};
+
+/// Run the FUSED witgen kernel for one chip: a single op-DAG pass that both writes the
+/// gadget's trace columns (returned) AND accumulates its byte/range lookups into the
+/// SHARED shard histograms `range_dev`/`byte_dev`. This is the union of
+/// [`accumulate_lookups`] (lookup kernel) and the per-chip `generate_trace_device`
+/// (column kernel) — running the witgen ONCE instead of twice over the same inputs,
+/// so there is no separate device dependency pre-pass and no duplicate input upload.
+pub(crate) async fn generate_trace_and_lookups(
+    program: &WitProgram,
+    col_wires: &[u32],
+    n_cols: usize,
+    inputs: &[u64],
+    n_events: usize,
+    height: usize,
+    range_dev: &mut DeviceBuffer<u32>,
+    byte_dev: &mut DeviceBuffer<u32>,
+    scope: &TaskScope,
+) -> Result<DeviceMle<F>, CopyError> {
+    let ops_c = program.to_c();
+    let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone()).unwrap();
+    ops_dev.extend_from_host_slice(&ops_c)?;
+    let mut col_dev = Buffer::try_with_capacity_in(col_wires.len(), scope.clone()).unwrap();
+    col_dev.extend_from_host_slice(col_wires)?;
+    let mut in_dev = Buffer::try_with_capacity_in(inputs.len().max(1), scope.clone()).unwrap();
+    in_dev.extend_from_host_slice(inputs)?;
+
+    // Zeroed trace; only event rows are written (padding rows stay 0 — is_real=0).
+    let mut trace = Tensor::<F, TaskScope>::zeros_in([n_cols, height], scope.clone());
+
+    if n_events > 0 {
+        unsafe {
+            const BLOCK: usize = 64;
+            let grid = n_events.div_ceil(BLOCK);
+            let args = args!(
+                trace.as_mut_ptr(),
+                height,
+                ops_dev.as_ptr(),
+                ops_c.len(),
+                col_dev.as_ptr(),
+                n_cols,
+                program.num_inputs,
+                in_dev.as_ptr(),
+                n_events,
+                range_dev.as_mut_ptr(),
+                byte_dev.as_mut_ptr()
+            );
+            scope.launch_kernel(TaskScope::witgen_fused_kernel(), grid, BLOCK, &args, 0).unwrap();
+        }
+    }
+
+    Ok(DeviceMle::from(trace))
+}
 
 /// Pack-and-launch the byte-lookup kernel for one chip, accumulating its byte/range
 /// multiplicities into the SHARED shard histograms `range_dev`/`byte_dev`. Factored out
