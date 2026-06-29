@@ -13,17 +13,12 @@ use slop_alloc::mem::CopyError;
 use slop_alloc::Buffer;
 use slop_tensor::Tensor;
 use sp1_core_executor::{
-    events::{AluEvent, ByteRecord},
-    get_msb, get_quotient_and_remainder, is_signed_64bit_operation, is_signed_word_operation,
-    is_unsigned_word_operation, RTypeRecord,
+    events::AluEvent, get_msb, get_quotient_and_remainder, is_signed_64bit_operation,
+    is_signed_word_operation, is_unsigned_word_operation, RTypeRecord,
 };
 use sp1_core_machine::{
-    air::{
-        byte_lookups_from_histograms, columns_as_wires, RecordingWitnessBuilder, WireId,
-        BYTE_HIST_ROWS, RANGE_HIST_ROWS,
-    },
+    air::{columns_as_wires, RecordingWitnessBuilder, WireId},
     alu::divrem::{DivRemChip, DivRemCols, NUM_DIVREM_COLS_SUPERVISOR},
-    bytes::columns::NUM_BYTE_MULT_COLS,
     SupervisorMode,
 };
 use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKernel};
@@ -265,7 +260,8 @@ impl CudaTracegenAir<F> for DivRemChip<SupervisorMode> {
     async fn generate_device_dependencies(
         &self,
         input: &Self::Record,
-        output: &mut Self::Record,
+        range_dev: &mut DeviceBuffer<u32>,
+        byte_dev: &mut DeviceBuffer<u32>,
         scope: &TaskScope,
     ) -> Result<(), CopyError> {
         let height = <Self as MachineAir<F>>::num_rows(self, input)
@@ -277,45 +273,8 @@ impl CudaTracegenAir<F> for DivRemChip<SupervisorMode> {
         }
 
         let (program, _col_wires) = record_divrem_program();
-        let ops_c = program.to_c();
         let inputs = pack_divrem_inputs(&events[..n_events]);
-
-        let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone()).unwrap();
-        ops_dev.extend_from_host_slice(&ops_c)?;
-        let mut in_dev = Buffer::try_with_capacity_in(inputs.len(), scope.clone()).unwrap();
-        in_dev.extend_from_host_slice(&inputs)?;
-
-        let range_len = RANGE_HIST_ROWS;
-        let byte_len = BYTE_HIST_ROWS * NUM_BYTE_MULT_COLS;
-        let mut range_buf = Buffer::try_with_capacity_in(range_len, scope.clone()).unwrap();
-        range_buf.extend_from_host_slice(&vec![0u32; range_len])?;
-        let mut byte_buf = Buffer::try_with_capacity_in(byte_len, scope.clone()).unwrap();
-        byte_buf.extend_from_host_slice(&vec![0u32; byte_len])?;
-        let mut range_dev = DeviceBuffer::from_raw(range_buf);
-        let mut byte_dev = DeviceBuffer::from_raw(byte_buf);
-
-        unsafe {
-            const BLOCK: usize = 64;
-            let grid = n_events.div_ceil(BLOCK);
-            let args = args!(
-                ops_dev.as_ptr(),
-                ops_c.len(),
-                program.num_inputs,
-                in_dev.as_ptr(),
-                n_events,
-                range_dev.as_mut_ptr(),
-                byte_dev.as_mut_ptr()
-            );
-            scope
-                .launch_kernel(TaskScope::witgen_lookup_kernel(), grid, BLOCK, &args, 0)
-                .unwrap();
-        }
-
-        let range_hist: Vec<u32> = range_dev.to_host()?;
-        let byte_hist: Vec<u32> = byte_dev.to_host()?;
-        let map = byte_lookups_from_histograms(&range_hist, &byte_hist);
-        output.add_byte_lookup_events_from_maps(vec![&map]);
-        Ok(())
+        super::accumulate_lookups(&program, &inputs, n_events, range_dev, byte_dev, scope).await
     }
 }
 

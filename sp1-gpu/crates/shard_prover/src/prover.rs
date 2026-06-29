@@ -19,7 +19,7 @@ use sp1_gpu_jagged_sumcheck::{generate_jagged_sumcheck_poly, jagged_sumcheck};
 use sp1_gpu_jagged_tracegen::{full_tracegen_permit, main_tracegen_permit, CudaShardProverData};
 use sp1_gpu_logup_gkr::{prove_logup_gkr, CudaLogUpGkrOptions, Interactions};
 use sp1_gpu_merkle_tree::{CudaTcsProver, SingleLayerMerkleTreeProverError};
-use sp1_gpu_tracegen::CudaTracegenAir;
+use sp1_gpu_tracegen::{new_byte_histograms, CudaTracegenAir};
 use sp1_gpu_utils::{Ext, Felt, JaggedTraceMle};
 use sp1_gpu_zerocheck::prover::{upload_machine_bytecode, zerocheck, MachineBytecode};
 use sp1_hypercube::prover::ZerocheckAir;
@@ -180,13 +180,22 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
         if device_chips.is_empty() {
             return;
         }
-        let mut output = <PC::Air as MachineAir<GC::F>>::Record::default();
+        // One shared histogram pair for the whole shard: every device-dependency chip
+        // accumulates its byte/range multiplicities into it, then we read it back (one
+        // D2H) and reconstruct the `byte_lookups` map ONCE — instead of an alloc/zero,
+        // readback, and host reconstruct per chip (heed iter-004; the dense histograms
+        // are opcode-indexed, so the single reconstruct equals the union of per-chip).
+        let (mut range_dev, mut byte_dev) = new_byte_histograms(&self.backend);
         for chip in &device_chips {
             chip.air
-                .generate_device_dependencies(record, &mut output, &self.backend)
+                .generate_device_dependencies(record, &mut range_dev, &mut byte_dev, &self.backend)
                 .await
                 .expect("device dependency generation should succeed");
         }
+        let range_hist = range_dev.to_host().expect("read back range histogram");
+        let byte_hist = byte_dev.to_host().expect("read back byte histogram");
+        let mut output = <PC::Air as MachineAir<GC::F>>::Record::default();
+        device_chips[0].air.add_lookups_from_histograms(&range_hist, &byte_hist, &mut output);
         record.append(&mut output);
     }
 }

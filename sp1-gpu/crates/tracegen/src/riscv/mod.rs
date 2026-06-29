@@ -32,10 +32,52 @@ mod utype;
 pub(crate) const WITGEN_MAX_WIRES: usize = 256;
 
 use slop_alloc::mem::CopyError;
+use slop_alloc::Buffer;
+use sp1_core_executor::events::ByteRecord;
+use sp1_core_machine::air::{byte_lookups_from_histograms, WitProgram};
 use sp1_core_machine::riscv::RiscvAir;
-use sp1_gpu_cudart::{DeviceMle, TaskScope};
+use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKernel};
 
 use crate::{CudaTracegenAir, F};
+
+/// Pack-and-launch the byte-lookup kernel for one chip, accumulating its byte/range
+/// multiplicities into the SHARED shard histograms `range_dev`/`byte_dev`. Factored out
+/// of every chip's `generate_device_dependencies` — the per-chip part is just recording
+/// the op-DAG and packing inputs; the upload + launch are identical. The histograms are
+/// allocated once per shard by the prover (see [`crate::new_byte_histograms`]) and read
+/// back / reconstructed once, not per chip.
+pub(crate) async fn accumulate_lookups(
+    program: &WitProgram,
+    inputs: &[u64],
+    n_events: usize,
+    range_dev: &mut DeviceBuffer<u32>,
+    byte_dev: &mut DeviceBuffer<u32>,
+    scope: &TaskScope,
+) -> Result<(), CopyError> {
+    if n_events == 0 {
+        return Ok(());
+    }
+    let ops_c = program.to_c();
+    let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone()).unwrap();
+    ops_dev.extend_from_host_slice(&ops_c)?;
+    let mut in_dev = Buffer::try_with_capacity_in(inputs.len(), scope.clone()).unwrap();
+    in_dev.extend_from_host_slice(inputs)?;
+    unsafe {
+        const BLOCK: usize = 64;
+        let grid = n_events.div_ceil(BLOCK);
+        let args = args!(
+            ops_dev.as_ptr(),
+            ops_c.len(),
+            program.num_inputs,
+            in_dev.as_ptr(),
+            n_events,
+            range_dev.as_mut_ptr(),
+            byte_dev.as_mut_ptr()
+        );
+        scope.launch_kernel(TaskScope::witgen_lookup_kernel(), grid, BLOCK, &args, 0).unwrap();
+    }
+    Ok(())
+}
 
 /// Name of the device-capable chip variant (`None` for chips without a device
 /// tracegen impl, and for `Mul`/`DivRem` which are gated to host — too wide for the
@@ -158,36 +200,57 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
     async fn generate_device_dependencies(
         &self,
         input: &Self::Record,
-        output: &mut Self::Record,
+        range_dev: &mut DeviceBuffer<u32>,
+        byte_dev: &mut DeviceBuffer<u32>,
         scope: &TaskScope,
     ) -> Result<(), CopyError> {
+        macro_rules! dispatch {
+            ($chip:expr) => {
+                $chip.generate_device_dependencies(input, range_dev, byte_dev, scope).await
+            };
+        }
         match self {
-            Self::Add(chip) => chip.generate_device_dependencies(input, output, scope).await,
-            Self::Sub(chip) => chip.generate_device_dependencies(input, output, scope).await,
-            Self::Subw(chip) => chip.generate_device_dependencies(input, output, scope).await,
-            Self::Addw(chip) => chip.generate_device_dependencies(input, output, scope).await,
-            Self::Bitwise(chip) => chip.generate_device_dependencies(input, output, scope).await,
-            Self::Lt(chip) => chip.generate_device_dependencies(input, output, scope).await,
-            Self::Addi(chip) => chip.generate_device_dependencies(input, output, scope).await,
-            Self::ShiftLeft(chip) => chip.generate_device_dependencies(input, output, scope).await,
-            Self::ShiftRight(chip) => chip.generate_device_dependencies(input, output, scope).await,
-            Self::Mul(chip) => chip.generate_device_dependencies(input, output, scope).await,
-            Self::DivRem(chip) => chip.generate_device_dependencies(input, output, scope).await,
-            Self::AluX0(chip) => chip.generate_device_dependencies(input, output, scope).await,
-            Self::LoadDouble(chip) => chip.generate_device_dependencies(input, output, scope).await,
-            Self::LoadWord(chip) => chip.generate_device_dependencies(input, output, scope).await,
-            Self::LoadHalf(chip) => chip.generate_device_dependencies(input, output, scope).await,
-            Self::LoadByte(chip) => chip.generate_device_dependencies(input, output, scope).await,
-            Self::LoadX0(chip) => chip.generate_device_dependencies(input, output, scope).await,
-            Self::StoreDouble(chip) => chip.generate_device_dependencies(input, output, scope).await,
-            Self::StoreWord(chip) => chip.generate_device_dependencies(input, output, scope).await,
-            Self::StoreHalf(chip) => chip.generate_device_dependencies(input, output, scope).await,
-            Self::StoreByte(chip) => chip.generate_device_dependencies(input, output, scope).await,
-            Self::UType(chip) => chip.generate_device_dependencies(input, output, scope).await,
-            Self::Jal(chip) => chip.generate_device_dependencies(input, output, scope).await,
-            Self::Jalr(chip) => chip.generate_device_dependencies(input, output, scope).await,
-            Self::Branch(chip) => chip.generate_device_dependencies(input, output, scope).await,
+            Self::Add(chip) => dispatch!(chip),
+            Self::Sub(chip) => dispatch!(chip),
+            Self::Subw(chip) => dispatch!(chip),
+            Self::Addw(chip) => dispatch!(chip),
+            Self::Bitwise(chip) => dispatch!(chip),
+            Self::Lt(chip) => dispatch!(chip),
+            Self::Addi(chip) => dispatch!(chip),
+            Self::ShiftLeft(chip) => dispatch!(chip),
+            Self::ShiftRight(chip) => dispatch!(chip),
+            Self::Mul(chip) => dispatch!(chip),
+            Self::DivRem(chip) => dispatch!(chip),
+            Self::AluX0(chip) => dispatch!(chip),
+            Self::LoadDouble(chip) => dispatch!(chip),
+            Self::LoadWord(chip) => dispatch!(chip),
+            Self::LoadHalf(chip) => dispatch!(chip),
+            Self::LoadByte(chip) => dispatch!(chip),
+            Self::LoadX0(chip) => dispatch!(chip),
+            Self::StoreDouble(chip) => dispatch!(chip),
+            Self::StoreWord(chip) => dispatch!(chip),
+            Self::StoreHalf(chip) => dispatch!(chip),
+            Self::StoreByte(chip) => dispatch!(chip),
+            Self::UType(chip) => dispatch!(chip),
+            Self::Jal(chip) => dispatch!(chip),
+            Self::Jalr(chip) => dispatch!(chip),
+            Self::Branch(chip) => dispatch!(chip),
             _ => unimplemented!(),
         }
+    }
+
+    /// Reconstruct the `byte_lookups` map from the shared shard histograms (already read
+    /// back to host) ONCE and merge it into `output`. Chip-independent: the dense
+    /// histograms are opcode-indexed, so this single call yields the union of what the
+    /// per-chip reconstructs used to produce. Mirrors the host `generate_dependencies`
+    /// output that the Byte/Range chips consume.
+    fn add_lookups_from_histograms(
+        &self,
+        range_hist: &[u32],
+        byte_hist: &[u32],
+        output: &mut Self::Record,
+    ) {
+        let map = byte_lookups_from_histograms(range_hist, byte_hist);
+        output.add_byte_lookup_events_from_maps(vec![&map]);
     }
 }

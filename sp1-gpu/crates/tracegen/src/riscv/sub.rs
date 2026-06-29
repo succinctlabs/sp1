@@ -7,17 +7,10 @@ use rayon::prelude::*;
 use slop_alloc::mem::CopyError;
 use slop_alloc::Buffer;
 use slop_tensor::Tensor;
-use sp1_core_executor::{
-    events::{AluEvent, ByteRecord},
-    RTypeRecord,
-};
+use sp1_core_executor::{events::AluEvent, RTypeRecord};
 use sp1_core_machine::{
-    air::{
-        byte_lookups_from_histograms, columns_as_wires, RecordingWitnessBuilder, WireId,
-        BYTE_HIST_ROWS, RANGE_HIST_ROWS,
-    },
+    air::{columns_as_wires, RecordingWitnessBuilder, WireId},
     alu::add_sub::sub::{SubChip, SubCols, NUM_SUB_COLS_SUPERVISOR},
-    bytes::columns::NUM_BYTE_MULT_COLS,
     SupervisorMode,
 };
 use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKernel};
@@ -142,12 +135,13 @@ impl CudaTracegenAir<F> for SubChip<SupervisorMode> {
     async fn generate_device_dependencies(
         &self,
         input: &Self::Record,
-        output: &mut Self::Record,
+        range_dev: &mut DeviceBuffer<u32>,
+        byte_dev: &mut DeviceBuffer<u32>,
         scope: &TaskScope,
     ) -> Result<(), CopyError> {
-        // Run the lookup kernel (not the column kernel) to accumulate byte/range
-        // multiplicities into two device histograms, reconstruct the `byte_lookups`
-        // map (matches host `generate_dependencies`), and write it into `output`.
+        // Run the lookup kernel (not the column kernel) to accumulate this chip's
+        // byte/range multiplicities into the SHARED shard histograms (matches host
+        // `generate_dependencies`); the prover reads them back once across all chips.
         let height = <Self as MachineAir<F>>::num_rows(self, input)
             .expect("num_rows(...) should be Some(_)");
         let events = &input.sub_events;
@@ -157,45 +151,8 @@ impl CudaTracegenAir<F> for SubChip<SupervisorMode> {
         }
 
         let (program, _col_wires) = record_sub_program();
-        let ops_c = program.to_c();
         let inputs = pack_sub_inputs(&events[..n_events]);
-
-        let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone()).unwrap();
-        ops_dev.extend_from_host_slice(&ops_c)?;
-        let mut in_dev = Buffer::try_with_capacity_in(inputs.len(), scope.clone()).unwrap();
-        in_dev.extend_from_host_slice(&inputs)?;
-
-        let range_len = RANGE_HIST_ROWS;
-        let byte_len = BYTE_HIST_ROWS * NUM_BYTE_MULT_COLS;
-        let mut range_buf = Buffer::try_with_capacity_in(range_len, scope.clone()).unwrap();
-        range_buf.extend_from_host_slice(&vec![0u32; range_len])?;
-        let mut byte_buf = Buffer::try_with_capacity_in(byte_len, scope.clone()).unwrap();
-        byte_buf.extend_from_host_slice(&vec![0u32; byte_len])?;
-        let mut range_dev = DeviceBuffer::from_raw(range_buf);
-        let mut byte_dev = DeviceBuffer::from_raw(byte_buf);
-
-        unsafe {
-            const BLOCK: usize = 64;
-            let grid = n_events.div_ceil(BLOCK);
-            let args = args!(
-                ops_dev.as_ptr(),
-                ops_c.len(),
-                program.num_inputs,
-                in_dev.as_ptr(),
-                n_events,
-                range_dev.as_mut_ptr(),
-                byte_dev.as_mut_ptr()
-            );
-            scope
-                .launch_kernel(TaskScope::witgen_lookup_kernel(), grid, BLOCK, &args, 0)
-                .unwrap();
-        }
-
-        let range_hist: Vec<u32> = range_dev.to_host()?;
-        let byte_hist: Vec<u32> = byte_dev.to_host()?;
-        let map = byte_lookups_from_histograms(&range_hist, &byte_hist);
-        output.add_byte_lookup_events_from_maps(vec![&map]);
-        Ok(())
+        super::accumulate_lookups(&program, &inputs, n_events, range_dev, byte_dev, scope).await
     }
 }
 

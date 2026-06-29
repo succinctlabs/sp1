@@ -14,8 +14,9 @@ use rayon::prelude::*;
 use slop_air::BaseAir;
 use slop_algebra::Field;
 use slop_alloc::mem::CopyError;
+use slop_alloc::Buffer;
 use slop_multilinear::{Mle, PaddedMle};
-use sp1_gpu_cudart::{DeviceMle, DeviceTransposeKernel, TaskScope};
+use sp1_gpu_cudart::{DeviceBuffer, DeviceMle, DeviceTransposeKernel, TaskScope};
 use sp1_hypercube::prover::{MainTraceData, PreprocessedTraceData, ProverSemaphore, TraceData};
 use sp1_hypercube::{
     air::MachineAir,
@@ -409,24 +410,59 @@ pub trait CudaTracegenAir<F: Field>: MachineAir<F> {
     /// Whether this AIR generates its dependencies (byte lookups) on the device. When
     /// true, the host `generate_dependencies` SKIPS this chip (see
     /// `AirProver::host_dependency_skip_chips`) and the prover instead calls
-    /// [`CudaTracegenAir::generate_device_dependencies`], merging the result into the
-    /// shard record (so the Byte/Range chips' host tracegen is unchanged).
+    /// [`CudaTracegenAir::generate_device_dependencies`], accumulating the chip's byte
+    /// lookups into the SHARED shard histograms, then reconstructs the `byte_lookups`
+    /// map ONCE via [`CudaTracegenAir::add_lookups_from_histograms`] (so the Byte/Range
+    /// chips' host tracegen is unchanged).
     fn supports_device_dependencies(&self) -> bool {
         false
     }
 
-    /// Generate this chip's dependencies on the device, writing them into `output`
-    /// exactly as the host `generate_dependencies(input, output)` would (the caller
-    /// then does `record.append(&mut output)`). Default: no-op.
+    /// Accumulate this chip's byte-lookup dependencies into the SHARED shard-level
+    /// histograms `range_dev`/`byte_dev` (allocated once by the prover via
+    /// [`new_byte_histograms`], shared across all device-dependency chips). The dense
+    /// histograms are opcode-indexed, so accumulating every chip into one pair and
+    /// reconstructing once equals the union of the per-chip maps — but with a single
+    /// alloc/zero, a single D2H readback, and a single host reconstruct per shard
+    /// instead of one set per chip (heed iter-004). Default: no-op.
     #[allow(unused_variables)]
     fn generate_device_dependencies(
         &self,
         input: &Self::Record,
-        output: &mut Self::Record,
+        range_dev: &mut DeviceBuffer<u32>,
+        byte_dev: &mut DeviceBuffer<u32>,
         scope: &TaskScope,
     ) -> impl Future<Output = Result<(), CopyError>> + Send {
         ready(Ok(()))
     }
+
+    /// Reconstruct the `byte_lookups` map from the shared histograms (already read back
+    /// to host) and merge it into `output`. Called ONCE per shard, after every device
+    /// chip has accumulated into the shared histograms. Default: no-op.
+    #[allow(unused_variables)]
+    fn add_lookups_from_histograms(
+        &self,
+        range_hist: &[u32],
+        byte_hist: &[u32],
+        output: &mut Self::Record,
+    ) {
+    }
+}
+
+/// Allocate the two shard-level byte-lookup histograms (`range`, `byte`), zeroed, on
+/// the device. Shared across every device-dependency chip in a shard: each accumulates
+/// via the byte-lookup kernel, then the host reconstructs the `byte_lookups` map ONCE
+/// (heed iter-004 — one dense histogram pair per shard, not one per chip per shard).
+pub fn new_byte_histograms(scope: &TaskScope) -> (DeviceBuffer<u32>, DeviceBuffer<u32>) {
+    use sp1_core_machine::air::{BYTE_HIST_ROWS, RANGE_HIST_ROWS};
+    use sp1_core_machine::bytes::columns::NUM_BYTE_MULT_COLS;
+    let range_len = RANGE_HIST_ROWS;
+    let byte_len = BYTE_HIST_ROWS * NUM_BYTE_MULT_COLS;
+    let mut range_buf = Buffer::try_with_capacity_in(range_len, scope.clone()).unwrap();
+    range_buf.extend_from_host_slice(&vec![0u32; range_len]).unwrap();
+    let mut byte_buf = Buffer::try_with_capacity_in(byte_len, scope.clone()).unwrap();
+    byte_buf.extend_from_host_slice(&vec![0u32; byte_len]).unwrap();
+    (DeviceBuffer::from_raw(range_buf), DeviceBuffer::from_raw(byte_buf))
 }
 
 #[cfg(test)]
