@@ -1,0 +1,23 @@
+[package]
+name = "keccak-script"
+description = "Host driver for the keccak guest: feeds arbitrary bytes, executes the guest, and asserts the public output digest equals a host-computed keccak256."
+version = { workspace = true }
+edition = { workspace = true }
+publish = false
+
+[[bin]]
+name = "keccak-execute"
+path = "src/execute.rs"
+
+[[bin]]
+name = "keccak-prove"
+path = "src/prove.rs"
+
+[dependencies]
+sp1-sdk = { workspace = true }
+tiny-keccak = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[build-dependencies]
+sp1-build = { workspace = true }

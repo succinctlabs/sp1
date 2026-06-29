@@ -627,10 +627,7 @@ pub(super) async fn create_core_proving_task<A: ArtifactClient, W: WorkerClient>
             .as_ref()
             .map(|m| Artifact::from(m.task_id.to_string()))
             .unwrap_or(Artifact::from("dummy marker task".to_string())),
-        deferred_output: deferred_message
-            .as_ref()
-            .map(|m| m.record.clone())
-            .unwrap_or(Artifact::from("dummy output artifact".to_string())),
+        deferred_output: deferred_message.as_ref().map(|m| m.record.clone()),
         context,
     };
 

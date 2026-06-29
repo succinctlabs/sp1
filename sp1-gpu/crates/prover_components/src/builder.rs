@@ -23,7 +23,7 @@ use crate::{
     SP1CudaProverComponents,
 };
 
-pub fn local_gpu_opts() -> (SP1CoreOpts, bool) {
+pub fn local_gpu_opts() -> SP1CoreOpts {
     let mut opts = SP1CoreOpts::default();
 
     let log2_shard_size = 24;
@@ -49,7 +49,11 @@ pub fn local_gpu_opts() -> (SP1CoreOpts, bool) {
 
     opts.global_dependencies_opt = true;
 
-    (opts, gpu_memory_gb <= 30)
+    // Always recompute GKR trace
+    // TODO: tune relative to GPU memory
+    opts.recompute_gkr_trace = true;
+
+    opts
 }
 
 /// Create a [SP1CudaProverWorkerBuilder] with a default machine.
@@ -64,12 +68,12 @@ pub async fn core_prover_and_verifier(
     CudaShardProver<SP1GlobalContext, CudaProverCoreComponents>,
     MachineVerifier<SP1GlobalContext, InnerSC<RiscvAir<SP1Field>>>,
 ) {
-    let (opts, recompute_first_layer) = local_gpu_opts();
+    let opts = local_gpu_opts();
     let num_elts =
         opts.sharding_threshold.element_threshold as usize + (1 << CORE_LOG_STACKING_HEIGHT);
     let core_verifier = SP1CudaProverComponents::core_verifier(machine);
     (
-        new_cuda_prover(&core_verifier, num_elts, 4, recompute_first_layer, scope).await,
+        new_cuda_prover(&core_verifier, num_elts, 4, opts.recompute_gkr_trace, scope).await,
         core_verifier,
     )
 }
@@ -96,7 +100,7 @@ pub async fn cuda_worker_builder_with_machine(
     let prover_permits = ProverSemaphore::new(1);
 
     // Get the core options.
-    let (opts, _) = local_gpu_opts();
+    let opts = local_gpu_opts();
 
     let core_prover = Arc::new(core_prover_and_verifier(scope.clone(), machine.clone()).await.0);
 

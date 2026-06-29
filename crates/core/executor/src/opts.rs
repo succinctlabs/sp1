@@ -84,6 +84,8 @@ pub struct SP1CoreOpts {
     pub retained_events_presets: HashSet<RetainedEventsPreset>,
     /// Use optimized `generate_dependencies` for global chip.
     pub global_dependencies_opt: bool,
+    /// Recompute GKR trace
+    pub recompute_gkr_trace: bool,
 }
 
 impl Default for SP1CoreOpts {
@@ -141,6 +143,7 @@ impl Default for SP1CoreOpts {
             sharding_threshold,
             retained_events_presets,
             global_dependencies_opt: false,
+            recompute_gkr_trace: false,
         }
     }
 }

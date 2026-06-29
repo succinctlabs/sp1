@@ -1,0 +1,23 @@
+[package]
+name = "sha256-c-script"
+description = "Host driver for sha256-c. Same shape as sha256-script but loads a C-built ELF."
+version = { workspace = true }
+edition = { workspace = true }
+publish = false
+
+[[bin]]
+name = "sha256-c-execute"
+path = "src/execute.rs"
+
+[[bin]]
+name = "sha256-c-prove"
+path = "src/prove.rs"
+
+[dependencies]
+sp1-sdk = { workspace = true }
+sha2 = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[build-dependencies]
+zkevm-c-build = { path = "../../c-build" }

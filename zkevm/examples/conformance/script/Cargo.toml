@@ -1,0 +1,26 @@
+[package]
+name = "conformance-script"
+description = "Host driver for the conformance guest: converts the vendored official vector suites (libzkevm/tests/data) to C-ABI batches, executes the guest over the real syscall paths, and asserts zero failures."
+version = { workspace = true }
+edition = { workspace = true }
+publish = false
+
+[[bin]]
+name = "conformance-execute"
+path = "src/execute.rs"
+
+[dependencies]
+sp1-sdk = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+sha2 = { workspace = true }
+# Host-side fallback paths of the same accelerators, used to derive the
+# expected ecrecover pubkey (the geth vector only carries the address).
+libzkevm = { workspace = true }
+# Vector parsing — same crates the libzkevm conformance tests use.
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+hex = "0.4"
+
+[build-dependencies]
+sp1-build = { workspace = true }
