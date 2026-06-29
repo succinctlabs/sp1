@@ -41,12 +41,29 @@ use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKerne
 
 use crate::{CudaTracegenAir, F};
 
+/// Raw device pointers to the shard's shared byte/range histograms, shareable across
+/// the concurrently-launched device-tracegen futures (each fused kernel `atomicAdd`s
+/// into them — safe under concurrency). The buffers are owned by the trace phase and
+/// outlive the launches; the histogram is read back only after the device stream
+/// drains. `Send`/`Sync` because the only access is enqueuing kernel launches that
+/// take the pointers by value (the device-side atomics serialize the writes).
+#[derive(Clone, Copy)]
+pub struct LookupHist {
+    pub range: *mut u32,
+    pub byte: *mut u32,
+}
+// SAFETY: see the type doc — the pointers are only handed to kernel launches, whose
+// histogram writes are atomic; no host-side aliasing of the pointee occurs until the
+// stream is drained and the owner reads it back.
+unsafe impl Send for LookupHist {}
+unsafe impl Sync for LookupHist {}
+
 /// Run the FUSED witgen kernel for one chip: a single op-DAG pass that both writes the
 /// gadget's trace columns (returned) AND accumulates its byte/range lookups into the
-/// SHARED shard histograms `range_dev`/`byte_dev`. This is the union of
-/// [`accumulate_lookups`] (lookup kernel) and the per-chip `generate_trace_device`
-/// (column kernel) — running the witgen ONCE instead of twice over the same inputs,
-/// so there is no separate device dependency pre-pass and no duplicate input upload.
+/// shared shard histograms `hist`. This is the union of [`accumulate_lookups`] (lookup
+/// kernel) and the per-chip `generate_trace_device` (column kernel) — running the
+/// witgen ONCE instead of twice over the same inputs, so there is no separate device
+/// dependency pre-pass and no duplicate input upload.
 pub(crate) async fn generate_trace_and_lookups(
     program: &WitProgram,
     col_wires: &[u32],
@@ -54,10 +71,31 @@ pub(crate) async fn generate_trace_and_lookups(
     inputs: &[u64],
     n_events: usize,
     height: usize,
-    range_dev: &mut DeviceBuffer<u32>,
-    byte_dev: &mut DeviceBuffer<u32>,
+    hist: LookupHist,
     scope: &TaskScope,
 ) -> Result<DeviceMle<F>, CopyError> {
+    // Zeroed trace; only event rows are written (padding rows stay 0 — is_real=0).
+    let trace = Tensor::<F, TaskScope>::zeros_in([n_cols, height], scope.clone());
+    generate_trace_and_lookups_into(program, col_wires, inputs, n_events, height, trace, hist, scope)
+        .await
+}
+
+/// Like [`generate_trace_and_lookups`] but writes into a caller-provided `trace` that
+/// is already initialized — for chips whose padding rows are NOT all-zero (e.g.
+/// ShiftLeft/ShiftRight broadcast a non-zero column template across padding rows before
+/// the kernel overwrites the event rows). Uploads the op-DAG + column map + inputs and
+/// launches the fused column+lookup kernel into `trace`.
+pub(crate) async fn generate_trace_and_lookups_into(
+    program: &WitProgram,
+    col_wires: &[u32],
+    inputs: &[u64],
+    n_events: usize,
+    height: usize,
+    mut trace: Tensor<F, TaskScope>,
+    hist: LookupHist,
+    scope: &TaskScope,
+) -> Result<DeviceMle<F>, CopyError> {
+    let n_cols = col_wires.len();
     let ops_c = program.to_c();
     let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone()).unwrap();
     ops_dev.extend_from_host_slice(&ops_c)?;
@@ -65,9 +103,6 @@ pub(crate) async fn generate_trace_and_lookups(
     col_dev.extend_from_host_slice(col_wires)?;
     let mut in_dev = Buffer::try_with_capacity_in(inputs.len().max(1), scope.clone()).unwrap();
     in_dev.extend_from_host_slice(inputs)?;
-
-    // Zeroed trace; only event rows are written (padding rows stay 0 — is_real=0).
-    let mut trace = Tensor::<F, TaskScope>::zeros_in([n_cols, height], scope.clone());
 
     if n_events > 0 {
         unsafe {
@@ -83,8 +118,8 @@ pub(crate) async fn generate_trace_and_lookups(
                 program.num_inputs,
                 in_dev.as_ptr(),
                 n_events,
-                range_dev.as_mut_ptr(),
-                byte_dev.as_mut_ptr()
+                hist.range,
+                hist.byte
             );
             scope.launch_kernel(TaskScope::witgen_fused_kernel(), grid, BLOCK, &args, 0).unwrap();
         }
@@ -305,5 +340,64 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
     ) {
         let map = byte_lookups_from_histograms(range_hist, byte_hist);
         output.add_byte_lookup_events_from_maps(vec![&map]);
+    }
+
+    async fn generate_trace_device_with_lookups(
+        &self,
+        input: &Self::Record,
+        hist: crate::LookupHist,
+        scope: &TaskScope,
+    ) -> Result<DeviceMle<F>, CopyError> {
+        macro_rules! dispatch {
+            ($chip:expr) => {
+                $chip.generate_trace_device_with_lookups(input, hist, scope).await
+            };
+        }
+        match self {
+            Self::Add(chip) => dispatch!(chip),
+            Self::Sub(chip) => dispatch!(chip),
+            Self::Subw(chip) => dispatch!(chip),
+            Self::Addw(chip) => dispatch!(chip),
+            Self::Bitwise(chip) => dispatch!(chip),
+            Self::Lt(chip) => dispatch!(chip),
+            Self::Addi(chip) => dispatch!(chip),
+            Self::ShiftLeft(chip) => dispatch!(chip),
+            Self::ShiftRight(chip) => dispatch!(chip),
+            Self::Mul(chip) => dispatch!(chip),
+            Self::DivRem(chip) => dispatch!(chip),
+            Self::AluX0(chip) => dispatch!(chip),
+            Self::LoadDouble(chip) => dispatch!(chip),
+            Self::LoadWord(chip) => dispatch!(chip),
+            Self::LoadHalf(chip) => dispatch!(chip),
+            Self::LoadByte(chip) => dispatch!(chip),
+            Self::LoadX0(chip) => dispatch!(chip),
+            Self::StoreDouble(chip) => dispatch!(chip),
+            Self::StoreWord(chip) => dispatch!(chip),
+            Self::StoreHalf(chip) => dispatch!(chip),
+            Self::StoreByte(chip) => dispatch!(chip),
+            Self::UType(chip) => dispatch!(chip),
+            Self::Jal(chip) => dispatch!(chip),
+            Self::Jalr(chip) => dispatch!(chip),
+            Self::Branch(chip) => dispatch!(chip),
+            _ => unimplemented!(),
+        }
+    }
+
+    /// Build a (minimal) record carrying the FULL `byte_lookups` map — the host chips'
+    /// lookups already in `base` (from the host `generate_dependencies`) unioned with the
+    /// device chips' lookups reconstructed from the shared histograms — so the deferred
+    /// Byte/Range table chips can generate their traces from it. Replaces the old
+    /// `merge_device_dependencies` pre-pass: the device lookups now come from the fused
+    /// main-trace kernels, so this runs once after device tracegen completes.
+    fn record_with_byte_lookups(
+        &self,
+        base: &Self::Record,
+        range_hist: &[u32],
+        byte_hist: &[u32],
+    ) -> Self::Record {
+        let dev_map = byte_lookups_from_histograms(range_hist, byte_hist);
+        let mut rec = Self::Record::default();
+        rec.add_byte_lookup_events_from_maps(vec![&base.byte_lookups, &dev_map]);
+        rec
     }
 }

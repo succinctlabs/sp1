@@ -114,6 +114,29 @@ impl CudaTracegenAir<F> for JalChip<SupervisorMode> {
         Ok(DeviceMle::from(trace))
     }
 
+    async fn generate_trace_device_with_lookups(
+        &self,
+        input: &Self::Record,
+        hist: crate::LookupHist,
+        scope: &TaskScope,
+    ) -> Result<DeviceMle<F>, CopyError> {
+        // Fused: one op-DAG pass writes the columns AND accumulates this chip's
+        // byte/range lookups into the shared shard histograms — replaces the separate
+        // `generate_trace_device` + dependency pass for this chip.
+        let (program, col_wires) = record_jal_program();
+        let n_cols = col_wires.len();
+        debug_assert_eq!(n_cols, NUM_JAL_COLS_SUPERVISOR);
+        let height = <Self as MachineAir<F>>::num_rows(self, input)
+            .expect("num_rows(...) should be Some(_)");
+        let events = &input.jal_events;
+        let n_events = if height == 0 { 0 } else { events.len() };
+        let inputs = pack_jal_inputs(&events[..n_events]);
+        super::generate_trace_and_lookups(
+            &program, &col_wires, n_cols, &inputs, n_events, height, hist, scope,
+        )
+        .await
+    }
+
     fn supports_device_dependencies(&self) -> bool {
         true
     }

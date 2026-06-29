@@ -1,5 +1,6 @@
 mod recursion;
 mod riscv;
+pub use riscv::LookupHist;
 #[cfg(test)]
 mod witgen_interp;
 
@@ -49,6 +50,11 @@ impl<A: MachineAir<F>> CudaTraceGenerator<F, A> {
 struct HostPhaseTracegen<F, A> {
     pub device_airs: Vec<Arc<A>>,
     pub host_traces: futures::channel::mpsc::UnboundedReceiver<(String, Mle<F>)>,
+    /// Byte/Range lookup-table chips deferred out of the concurrent host set: their
+    /// traces depend on the full `byte_lookups` map, which (when device chips generate
+    /// dependencies on the GPU via the fused kernel) is not complete until device
+    /// tracegen finishes. Empty unless device-dependency chips are present.
+    pub byte_range_airs: Vec<Arc<A>>,
 }
 
 /// TODO(tqn) documentation
@@ -90,7 +96,7 @@ where
             // If we are the last users of the program, this will expensively drop it.
             drop(program);
         });
-        HostPhaseTracegen { device_airs, host_traces }
+        HostPhaseTracegen { device_airs, host_traces, byte_range_airs: Vec::new() }
     }
 
     #[instrument(skip_all, level = "debug")]
@@ -100,7 +106,8 @@ where
         max_log_row_count: usize,
         host_phase_tracegen: HostPhaseTracegen<F, A>,
     ) -> Traces<F, TaskScope> {
-        let HostPhaseTracegen { device_airs, host_traces } = host_phase_tracegen;
+        let HostPhaseTracegen { device_airs, host_traces, byte_range_airs: _ } =
+            host_phase_tracegen;
 
         // Stream that, when polled, copies the host traces to the device.
         let copied_host_traces = pin!(host_traces.then(|(name, trace)| async move {
@@ -165,7 +172,20 @@ where
             .map(|chip| chip.air.clone())
             .partition(|c| c.supports_device_main_tracegen());
 
-        // Spawn a rayon task to generate the traces on the CPU.
+        // When device chips generate their byte-lookup dependencies on the GPU (fused
+        // into the main-trace kernel), the full `byte_lookups` map isn't complete until
+        // device tracegen finishes — so defer the Byte/Range lookup-table chips out of
+        // the concurrent host set; `device_main_tracegen` generates them afterward from
+        // the reconstructed map. With no device-dependency chips (e.g. recursion/wrap),
+        // nothing is deferred and the host set is unchanged.
+        let defer_byte_range = device_airs.iter().any(|c| c.supports_device_dependencies());
+        let (byte_range_airs, host_airs): (Vec<_>, Vec<_>) = if defer_byte_range {
+            host_airs.into_iter().partition(|c| c.name() == "Byte" || c.name() == "Range")
+        } else {
+            (Vec::new(), host_airs)
+        };
+
+        // Spawn a rayon task to generate the (remaining) host traces on the CPU.
         // `host_traces` is a futures Stream that will immediately begin buffering traces.
         let (host_traces_tx, host_traces) = futures::channel::mpsc::unbounded();
         slop_futures::rayon::spawn(move || {
@@ -199,7 +219,7 @@ where
             .collect::<BTreeMap<_, _>>();
 
         (
-            HostPhaseTracegen { device_airs, host_traces },
+            HostPhaseTracegen { device_airs, host_traces, byte_range_airs },
             HostPhaseShapePadding { shard_chips, padded_traces },
         )
     }
@@ -216,27 +236,49 @@ where
         F: Field,
         A: CudaTracegenAir<F>,
     {
-        let HostPhaseTracegen { device_airs, host_traces } = host_phase_tracegen;
+        let HostPhaseTracegen { device_airs, host_traces, byte_range_airs } = host_phase_tracegen;
+
+        // When any device chip generates its byte-lookup dependencies on the GPU, all
+        // such chips accumulate into ONE shared shard histogram pair via the fused
+        // kernel (no separate dependency pre-pass). Shared by raw pointer across the
+        // concurrent device futures — the device-side atomicAdds serialize the writes,
+        // and the histogram is read back only after the stream drains.
+        let has_device_deps = device_airs.iter().any(|c| c.supports_device_dependencies());
+        let histograms = has_device_deps.then(|| new_byte_histograms(&self.trace_allocator));
+        let hist = match &histograms {
+            Some((range_dev, byte_dev)) => LookupHist {
+                range: range_dev.as_ptr() as *mut u32,
+                byte: byte_dev.as_ptr() as *mut u32,
+            },
+            None => LookupHist { range: std::ptr::null_mut(), byte: std::ptr::null_mut() },
+        };
 
         // Stream that, when polled, copies the host traces to the device.
         let copied_host_traces = pin!(host_traces.then(|(name, trace)| async move {
             (name, DeviceMle::from_host(&trace, &self.trace_allocator).unwrap().into())
         }));
         // Stream that, when polled, copies events to the device and generates traces.
+        // Device-dependency chips use the FUSED kernel (columns + lookups in one pass,
+        // accumulating into the shared histogram); others (e.g. Global) the plain one.
         let device_traces = device_airs
             .into_iter()
             .map(|air| {
                 // We want to borrow the record and move the chip.
                 let record = record.as_ref();
                 async move {
-                    let trace = air
-                        .generate_trace_device(
+                    let trace = if air.supports_device_dependencies() {
+                        air.generate_trace_device_with_lookups(record, hist, &self.trace_allocator)
+                            .await
+                            .unwrap()
+                    } else {
+                        air.generate_trace_device(
                             record,
                             &mut A::Record::default(),
                             &self.trace_allocator,
                         )
                         .await
-                        .unwrap();
+                        .unwrap()
+                    };
                     (air.name().to_string(), trace.into())
                 }
             })
@@ -254,6 +296,37 @@ where
                 ready(())
             })
             .await;
+
+        // Reconstruct the full `byte_lookups` map and generate the deferred Byte/Range
+        // table traces from it. The device-dependency chips ran the fused kernel on
+        // their own task streams (concurrently), accumulating into the shared histogram;
+        // we MUST synchronize the scope so every fused kernel's atomicAdds are visible
+        // before reading the histogram back (otherwise the readback races the kernels
+        // and yields an incomplete map → GKR cumulative-sum mismatch).
+        if let Some((range_dev, byte_dev)) = histograms {
+            self.trace_allocator.synchronize().await.expect("synchronize device tracegen");
+            let range_hist = range_dev.to_host().expect("read back range histogram");
+            let byte_hist = byte_dev.to_host().expect("read back byte histogram");
+            if let Some(first) = byte_range_airs.first() {
+                // host chips' lookups (already in `record`) unioned with the device
+                // chips' lookups reconstructed from the shared histogram.
+                let merged =
+                    first.record_with_byte_lookups(record.as_ref(), &range_hist, &byte_hist);
+                for air in &byte_range_airs {
+                    let host_trace =
+                        Mle::from(air.generate_trace(&merged, &mut A::Record::default()));
+                    let device_trace =
+                        DeviceMle::from_host(&host_trace, &self.trace_allocator).unwrap();
+                    all_traces.insert(
+                        air.name().to_string(),
+                        PaddedMle::padded_with_zeros(
+                            Arc::new(device_trace.into()),
+                            max_log_row_count as u32,
+                        ),
+                    );
+                }
+            }
+        }
 
         // All traces are now generated, so the public values are ready.
         // That is, this value will have the correct global cumulative sum.
@@ -446,6 +519,37 @@ pub trait CudaTracegenAir<F: Field>: MachineAir<F> {
         byte_hist: &[u32],
         output: &mut Self::Record,
     ) {
+    }
+
+    /// FUSED main tracegen: generate this chip's trace columns AND accumulate its
+    /// byte/range lookups into the shared shard histograms `hist` in a single op-DAG
+    /// pass (the device counterpart of running `generate_trace_device` +
+    /// `generate_device_dependencies` separately, but with the witgen evaluated once).
+    /// Called for chips with [`supports_device_dependencies`] during the device trace
+    /// phase, so the separate dependency pre-pass is unnecessary. Default: unsupported.
+    #[allow(unused_variables)]
+    fn generate_trace_device_with_lookups(
+        &self,
+        input: &Self::Record,
+        hist: LookupHist,
+        scope: &TaskScope,
+    ) -> impl Future<Output = Result<DeviceMle<F>, CopyError>> + Send {
+        #[allow(unreachable_code)]
+        ready(unimplemented!())
+    }
+
+    /// Build a record carrying the full `byte_lookups` map (the host chips' lookups in
+    /// `base` unioned with the device chips' lookups reconstructed from the shared
+    /// histograms) for the deferred Byte/Range table chips to generate their traces
+    /// from. Called ONCE after device tracegen completes. Default: empty record.
+    #[allow(unused_variables)]
+    fn record_with_byte_lookups(
+        &self,
+        base: &Self::Record,
+        range_hist: &[u32],
+        byte_hist: &[u32],
+    ) -> Self::Record {
+        Self::Record::default()
     }
 }
 

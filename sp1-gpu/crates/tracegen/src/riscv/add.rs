@@ -133,6 +133,29 @@ impl CudaTracegenAir<F> for AddChip<SupervisorMode> {
         Ok(DeviceMle::from(trace))
     }
 
+    async fn generate_trace_device_with_lookups(
+        &self,
+        input: &Self::Record,
+        hist: crate::LookupHist,
+        scope: &TaskScope,
+    ) -> Result<DeviceMle<F>, CopyError> {
+        // Fused: one op-DAG pass writes the columns AND accumulates this chip's
+        // byte/range lookups into the shared shard histograms — replaces the separate
+        // `generate_trace_device` + dependency pass for this chip.
+        let (program, col_wires) = record_add_program();
+        let n_cols = col_wires.len();
+        debug_assert_eq!(n_cols, NUM_ADD_COLS_SUPERVISOR);
+        let height = <Self as MachineAir<F>>::num_rows(self, input)
+            .expect("num_rows(...) should be Some(_)");
+        let events = &input.add_events;
+        let n_events = if height == 0 { 0 } else { events.len() };
+        let inputs = pack_add_inputs(&events[..n_events]);
+        super::generate_trace_and_lookups(
+            &program, &col_wires, n_cols, &inputs, n_events, height, hist, scope,
+        )
+        .await
+    }
+
     fn supports_device_dependencies(&self) -> bool {
         true
     }
@@ -307,8 +330,12 @@ mod tests {
 
             // Fused kernel: columns + histogram in a single op-DAG pass.
             let (mut r_f, mut b_f) = crate::new_byte_histograms(&scope);
+            let hist = crate::LookupHist {
+                range: r_f.as_ptr() as *mut u32,
+                byte: b_f.as_ptr() as *mut u32,
+            };
             let fused_trace = crate::riscv::generate_trace_and_lookups(
-                &program, &col_wires, n_cols, &inputs, n_events, height, &mut r_f, &mut b_f, &scope,
+                &program, &col_wires, n_cols, &inputs, n_events, height, hist, &scope,
             )
             .await
             .expect("fused tracegen should succeed")

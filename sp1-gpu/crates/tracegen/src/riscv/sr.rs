@@ -156,6 +156,53 @@ impl CudaTracegenAir<F> for ShiftRightChip<SupervisorMode> {
         Ok(DeviceMle::from(trace))
     }
 
+    async fn generate_trace_device_with_lookups(
+        &self,
+        input: &Self::Record,
+        hist: crate::LookupHist,
+        scope: &TaskScope,
+    ) -> Result<DeviceMle<F>, CopyError> {
+        // Fused column+lookup pass. ShiftRight padding rows are NOT all-zero: the CPU
+        // padding template sets v_01=16, v_012=256, v_0123=65536, so initialize the
+        // device trace with that template (broadcast to all rows) before the kernel
+        // overwrites event rows — same as `generate_trace_device`, but the fused kernel
+        // also accumulates this chip's byte/range lookups into the shared histograms.
+        let (program, col_wires) = record_sr_program();
+        let n_cols = col_wires.len();
+        debug_assert_eq!(n_cols, NUM_SHIFT_RIGHT_COLS_SUPERVISOR);
+        let height = <Self as MachineAir<F>>::num_rows(self, input)
+            .expect("num_rows(...) should be Some(_)");
+        let events = &input.shift_right_events;
+        let n_events = if height == 0 { 0 } else { events.len() };
+        let inputs = pack_sr_inputs(&events[..n_events]);
+
+        let trace = {
+            let mut tmpl = vec![F::zero(); n_cols];
+            {
+                let cols: &mut ShiftRightCols<F, SupervisorMode> = tmpl.as_mut_slice().borrow_mut();
+                cols.v_01 = F::from_canonical_u32(16);
+                cols.v_012 = F::from_canonical_u32(256);
+                cols.v_0123 = F::from_canonical_u32(65536);
+            }
+            let mut init = vec![F::zero(); n_cols * height];
+            for col in 0..n_cols {
+                if tmpl[col] != F::zero() {
+                    for r in 0..height {
+                        init[col * height + r] = tmpl[col];
+                    }
+                }
+            }
+            let mut buf = Buffer::try_with_capacity_in(init.len().max(1), scope.clone()).unwrap();
+            buf.extend_from_host_slice(&init)?;
+            Tensor::<F, TaskScope>::from(buf).reshape([n_cols, height])
+        };
+
+        super::generate_trace_and_lookups_into(
+            &program, &col_wires, &inputs, n_events, height, trace, hist, scope,
+        )
+        .await
+    }
+
     fn supports_device_dependencies(&self) -> bool {
         true
     }

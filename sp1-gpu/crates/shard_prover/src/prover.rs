@@ -19,14 +19,14 @@ use sp1_gpu_jagged_sumcheck::{generate_jagged_sumcheck_poly, jagged_sumcheck};
 use sp1_gpu_jagged_tracegen::{full_tracegen_permit, main_tracegen_permit, CudaShardProverData};
 use sp1_gpu_logup_gkr::{prove_logup_gkr, CudaLogUpGkrOptions, Interactions};
 use sp1_gpu_merkle_tree::{CudaTcsProver, SingleLayerMerkleTreeProverError};
-use sp1_gpu_tracegen::{new_byte_histograms, CudaTracegenAir};
+use sp1_gpu_tracegen::CudaTracegenAir;
 use sp1_gpu_utils::{Ext, Felt, JaggedTraceMle};
 use sp1_gpu_zerocheck::prover::{upload_machine_bytecode, zerocheck, MachineBytecode};
 use sp1_hypercube::prover::ZerocheckAir;
 use sp1_hypercube::{
     air::{MachineAir, MachineProgram},
     prover::{AirProver, PreprocessedData, ProverPermit, ProverSemaphore, ProvingKey},
-    Machine, MachineRecord, MachineVerifyingKey, ShardProof,
+    Machine, MachineVerifyingKey, ShardProof,
 };
 use sp1_hypercube::{SP1PcsProof, ShardContextImpl};
 use std::collections::{BTreeMap, BTreeSet};
@@ -163,41 +163,6 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
         &self.machine
     }
 
-    /// Generate on the device the dependencies (byte lookups) of every chip that
-    /// supports it, and merge them into `record` — the device counterpart of the
-    /// host `generate_dependencies` for those chips (which the host now SKIPS, see
-    /// `host_dependency_skip_chips`). Mirrors the host pattern: each chip writes into
-    /// a scratch `output` record, then `record.append(&mut output)`. No-op when no
-    /// chip supports device dependencies (e.g. recursion/wrap).
-    async fn merge_device_dependencies(&self, record: &mut <PC::Air as MachineAir<GC::F>>::Record) {
-        let device_chips: Vec<_> = self
-            .machine()
-            .chips()
-            .iter()
-            .filter(|c| c.air.supports_device_dependencies())
-            .cloned()
-            .collect();
-        if device_chips.is_empty() {
-            return;
-        }
-        // One shared histogram pair for the whole shard: every device-dependency chip
-        // accumulates its byte/range multiplicities into it, then we read it back (one
-        // D2H) and reconstruct the `byte_lookups` map ONCE — instead of an alloc/zero,
-        // readback, and host reconstruct per chip (heed iter-004; the dense histograms
-        // are opcode-indexed, so the single reconstruct equals the union of per-chip).
-        let (mut range_dev, mut byte_dev) = new_byte_histograms(&self.backend);
-        for chip in &device_chips {
-            chip.air
-                .generate_device_dependencies(record, &mut range_dev, &mut byte_dev, &self.backend)
-                .await
-                .expect("device dependency generation should succeed");
-        }
-        let range_hist = range_dev.to_host().expect("read back range histogram");
-        let byte_hist = byte_dev.to_host().expect("read back byte histogram");
-        let mut output = <PC::Air as MachineAir<GC::F>>::Record::default();
-        device_chips[0].air.add_lookups_from_histograms(&range_hist, &byte_hist, &mut output);
-        record.append(&mut output);
-    }
 }
 
 impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
@@ -217,8 +182,8 @@ where
     }
 
     /// Chips whose dependencies are generated on the device (so the host
-    /// `generate_dependencies` skips them — the device prover re-adds them in
-    /// [`CudaShardProverInner::merge_device_dependencies`] before tracegen).
+    /// `generate_dependencies` skips them — their byte-lookups are produced on-device,
+    /// fused into the main trace kernel in jagged_tracegen `device_main_tracegen`).
     fn host_dependency_skip_chips(&self) -> Vec<String> {
         self.machine()
             .chips()
@@ -291,10 +256,10 @@ where
 
         let buffer = self.inner.get_buffer().await;
 
-        // Generate on-device the dependencies of device-tracegen chips (skipped by the
-        // host `generate_dependencies`) and merge them into the record before tracegen.
-        let mut record = record;
-        self.inner.merge_device_dependencies(&mut record).await;
+        // Device-tracegen chips' byte-lookup dependencies are generated on-device FUSED
+        // into the main trace kernel (see jagged_tracegen `device_main_tracegen`), so
+        // there is no separate dependency pre-pass; the host `generate_dependencies`
+        // still skips them (see `host_dependency_skip_chips`).
         let record = Arc::new(record);
 
         // Generate trace.
@@ -370,9 +335,9 @@ where
         record: <PC::Air as MachineAir<GC::F>>::Record,
         prover_permits: ProverSemaphore,
     ) -> (ShardProof<GC, <PC::C as MultilinearPcsVerifier<GC>>::Proof>, ProverPermit) {
-        // Generate device dependencies (see `merge_device_dependencies`), then traces.
-        let mut record = record;
-        self.inner.merge_device_dependencies(&mut record).await;
+        // Device-tracegen chips' byte-lookup dependencies are generated on-device fused
+        // into the main trace kernel (see jagged_tracegen `device_main_tracegen`), so
+        // there is no separate dependency pre-pass here.
         let record = Arc::new(record);
 
         let buffer = self.inner.get_buffer().await;
