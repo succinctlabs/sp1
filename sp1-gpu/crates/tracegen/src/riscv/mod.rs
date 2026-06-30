@@ -400,4 +400,31 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
         rec.add_byte_lookup_events_from_maps(vec![&base.byte_lookups, &dev_map]);
         rec
     }
+
+    fn host_lookup_scatter(
+        &self,
+        record: &Self::Record,
+    ) -> (Vec<u64>, Vec<u32>, Vec<u64>, Vec<u32>) {
+        use sp1_core_executor::ByteOpcode;
+        use sp1_core_machine::bytes::columns::NUM_BYTE_MULT_COLS;
+        let n = record.byte_lookups.len();
+        let (mut range_idx, mut range_mult) = (Vec::with_capacity(n), Vec::with_capacity(n));
+        let (mut byte_idx, mut byte_mult) = (Vec::with_capacity(n), Vec::with_capacity(n));
+        for (lookup, &mult) in record.byte_lookups.iter() {
+            // Mirror range/trace.rs and bytes/trace.rs `generate_trace_into` index math
+            // (and the inverse in `byte_lookups_from_histograms`), so the scattered host
+            // multiplicities land in the same cells the device chips' atomics did.
+            if lookup.opcode == ByteOpcode::Range {
+                let idx = lookup.a as usize + (1usize << lookup.b);
+                range_idx.push(idx as u64);
+                range_mult.push(mult as u32);
+            } else {
+                let row = ((lookup.b as usize) << 8) + lookup.c as usize;
+                let idx = row * NUM_BYTE_MULT_COLS + lookup.opcode as usize;
+                byte_idx.push(idx as u64);
+                byte_mult.push(mult as u32);
+            }
+        }
+        (range_idx, range_mult, byte_idx, byte_mult)
+    }
 }

@@ -479,6 +479,23 @@ pub trait CudaTracegenAir<F: Field>: MachineAir<F> {
     ) -> Self::Record {
         Self::Record::default()
     }
+
+    /// Split the HOST chips' `byte_lookups` (the lookups NOT produced on the device, plus
+    /// the Byte/Range chips' own self-dependencies) into row-major histogram-index +
+    /// multiplicity arrays — `(range_idx, range_mult, byte_idx, byte_mult)` — so they can
+    /// be scattered into the shared device histograms (which already hold the device
+    /// chips' lookups) BEFORE building the Byte/Range table traces on-device. The indices
+    /// match the consumer chips' own `generate_trace_into` exactly (Range:
+    /// `a + (1<<bits)`; Byte: `((b<<8)+c)*NUM_BYTE_MULT_COLS + opcode`). Host-map keys are
+    /// unique, so each index is distinct (the scatter kernel needs no atomics). Default:
+    /// empty (no host lookups to fold in).
+    #[allow(unused_variables)]
+    fn host_lookup_scatter(
+        &self,
+        record: &Self::Record,
+    ) -> (Vec<u64>, Vec<u32>, Vec<u64>, Vec<u32>) {
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new())
+    }
 }
 
 /// Allocate the two shard-level byte-lookup histograms (`range`, `byte`), zeroed, on

@@ -25,7 +25,7 @@ use sp1_gpu_cudart::sys::kernels::{
     count_and_add_kernel, fill_buffer, generate_col_index, generate_start_indices,
     sum_to_trace_kernel,
 };
-use sp1_gpu_cudart::{args, DeviceBuffer, DeviceTensor, PinnedBuffer, TaskScope};
+use sp1_gpu_cudart::{args, DeviceBuffer, DeviceTensor, PinnedBuffer, TaskScope, WitgenInterpKernel};
 use sp1_gpu_tracegen::{new_byte_histograms, CudaTracegenAir, LookupHist};
 use sp1_hypercube::prover::{ProverPermit, ProverSemaphore};
 
@@ -826,6 +826,36 @@ where
 
 /// Puts traces on device. Returns (traces, public values).
 #[instrument(skip_all, level = "debug")]
+/// Scatter-add host-chip lookups (row-major histogram index, multiplicity) into a shared
+/// device histogram via `hist_trace_scatter_kernel`. Host-map keys are unique → indices
+/// are distinct → no atomics needed. Launched on the outer scope after the device fused
+/// kernels are synchronized, so the histogram already holds the device chips' lookups and
+/// the subsequent `hist_to_trace` (same stream) sees the complete counts. No-op if empty.
+fn scatter_into_histogram(
+    hist: &mut DeviceBuffer<u32>,
+    idxs: &[u64],
+    mults: &[u32],
+    backend: &TaskScope,
+) {
+    if idxs.is_empty() {
+        return;
+    }
+    let mut idx_dev: Buffer<u64, TaskScope> = Buffer::with_capacity_in(idxs.len(), backend.clone());
+    idx_dev.extend_from_host_slice(idxs).unwrap();
+    let mut mult_dev: Buffer<u32, TaskScope> =
+        Buffer::with_capacity_in(mults.len(), backend.clone());
+    mult_dev.extend_from_host_slice(mults).unwrap();
+    let n = idxs.len();
+    unsafe {
+        const BLOCK: usize = 256;
+        let grid = n.div_ceil(BLOCK);
+        let kargs = args!(hist.as_mut_ptr(), idx_dev.as_ptr(), mult_dev.as_ptr(), n);
+        backend
+            .launch_kernel(TaskScope::hist_trace_scatter_kernel(), grid, BLOCK, &kargs, 0)
+            .unwrap();
+    }
+}
+
 async fn device_main_tracegen<A: CudaTracegenAir<Felt>>(
     host_phase_tracegen: HostPhaseTracegen<A>,
     record: Arc<<A as MachineAir<Felt>>::Record>,
@@ -907,33 +937,48 @@ async fn device_main_tracegen<A: CudaTracegenAir<Felt>>(
         .await;
 
     // The device-dependency chips ran the fused kernel on their own task streams,
-    // accumulating into the shared histogram. Synchronize the scope (so every fused
-    // kernel's atomicAdds are visible — otherwise the readback races them → an
-    // incomplete map → GKR cumulative-sum mismatch), read the histogram back, then
-    // reconstruct the full `byte_lookups` map (host chips' lookups already in `record`,
-    // unioned with the device chips' from the histogram) and generate the deferred
-    // Byte/Range table traces from it.
-    if let Some((range_dev, byte_dev)) = histograms {
+    // accumulating their byte/range lookups into the shared histogram. Synchronize the
+    // scope (so every fused kernel's atomicAdds are visible — otherwise the work below
+    // races them → an incomplete histogram → GKR cumulative-sum mismatch), then build the
+    // deferred Byte/Range table traces ENTIRELY ON-DEVICE from the resident histogram:
+    // the table trace IS the multiplicity histogram (range/trace.rs, bytes/trace.rs), so
+    // (1) scatter the few HOST-chip lookups into the histogram (the device chips' are
+    // already there), then (2) convert each histogram region to a field trace on-device
+    // and transpose to the column-major MLE. No readback, no host `byte_lookups`
+    // reconstruction, no serial CPU `generate_trace` tail (iter-051's GPU-idle source).
+    if let Some((mut range_dev, mut byte_dev)) = histograms {
         backend.synchronize().await.expect("synchronize device tracegen");
-        let range_hist = range_dev.to_host().expect("read back range histogram");
-        let byte_hist = byte_dev.to_host().expect("read back byte histogram");
         if let Some(first) = byte_range_airs.first() {
-            let merged = first.record_with_byte_lookups(record.as_ref(), &range_hist, &byte_hist);
+            // (1) Fold the host chips' lookups into the device histograms. Host-map keys
+            // are unique → distinct indices → the scatter kernel needs no atomics.
+            let (range_idx, range_mult, byte_idx, byte_mult) =
+                first.host_lookup_scatter(record.as_ref());
+            scatter_into_histogram(&mut range_dev, &range_idx, &range_mult, backend);
+            scatter_into_histogram(&mut byte_dev, &byte_idx, &byte_mult, backend);
+
+            // (2) Build each table trace on-device from its (now complete) histogram.
             for air in &byte_range_airs {
-                let height = air.num_rows(&merged).unwrap();
+                let height = air.num_rows(record.as_ref()).unwrap();
                 let width = air.width();
-                let trace_len = height * width;
-                let mut host_buf: Vec<MaybeUninit<Felt>> = Vec::with_capacity(trace_len);
-                // SAFETY: `generate_trace_into` writes exactly `trace_len` elements.
-                unsafe { host_buf.set_len(trace_len) };
-                air.generate_trace_into(&merged, &mut A::Record::default(), &mut host_buf);
-                let init: &[Felt] =
-                    unsafe { std::slice::from_raw_parts(host_buf.as_ptr() as *const Felt, trace_len) };
-                let mut storage: Buffer<Felt, TaskScope> =
-                    Buffer::with_capacity_in(trace_len, backend.clone());
-                storage.extend_from_host_slice(init).unwrap();
-                let dims: Dimensions = [height, width].try_into().unwrap();
-                let tensor = Tensor { storage, dimensions: dims };
+                let total = height * width;
+                let hist = match air.name() {
+                    "Byte" => &byte_dev,
+                    "Range" => &range_dev,
+                    other => panic!("unexpected deferred byte/range chip {other}"),
+                };
+                // Row-major `[height, width]` field trace; the kernel writes every cell
+                // (`trace[i] = hist[i]`), so the `zeros_in` allocation is just the buffer.
+                let mut tensor = Tensor::<Felt, TaskScope>::zeros_in([height, width], backend.clone());
+                unsafe {
+                    const BLOCK: usize = 256;
+                    let grid = total.div_ceil(BLOCK);
+                    let kargs = args!(tensor.as_mut_ptr(), hist.as_ptr(), total);
+                    backend
+                        .launch_kernel(TaskScope::hist_to_trace_kernel(), grid, BLOCK, &kargs, 0)
+                        .unwrap();
+                }
+                // Transpose row-major `[height, width]` → column-major MLE, exactly as the
+                // host-trace path does.
                 let guts = DeviceTensor::from_raw(tensor).transpose().into_inner();
                 all_traces.insert(air.name().to_string(), Trace::Real(Mle::new(guts)));
             }
