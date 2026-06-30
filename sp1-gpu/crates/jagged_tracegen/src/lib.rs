@@ -54,6 +54,11 @@ pub struct HostPhaseTracegen<A> {
     /// dependencies on the GPU fused into the main-trace kernel) is not complete until
     /// device tracegen finishes. Empty unless device-dependency chips are present.
     pub byte_range_airs: Vec<Arc<A>>,
+    /// Pre-packed device-kernel inputs (chip name -> flat `u64` row buffer), packed in
+    /// the permit-FREE host phase so the CPU pack overlaps the previous shard's proving
+    /// instead of stalling the GPU under the permit. Keyed by chip name; consumed by
+    /// `device_main_tracegen`. Empty for chips without device dependencies.
+    pub device_packed: BTreeMap<String, Vec<u64>>,
 }
 
 /// Information about the traces generated in the host phase.
@@ -430,7 +435,15 @@ async fn host_preprocessed_tracegen<A: CudaTracegenAir<Felt>>(
     .await
     .unwrap();
 
-    (HostPhaseTracegen { device_airs, host_traces, byte_range_airs: Vec::new() }, total_size)
+    (
+        HostPhaseTracegen {
+            device_airs,
+            host_traces,
+            byte_range_airs: Vec::new(),
+            device_packed: BTreeMap::new(),
+        },
+        total_size,
+    )
 }
 
 #[instrument(skip_all, level = "debug")]
@@ -439,7 +452,8 @@ async fn device_preprocessed_tracegen<A: CudaTracegenAir<Felt>>(
     host_phase_tracegen: HostPhaseTracegen<A>,
     backend: &TaskScope,
 ) -> BTreeMap<String, Trace<TaskScope>> {
-    let HostPhaseTracegen { device_airs, host_traces, byte_range_airs: _ } = host_phase_tracegen;
+    let HostPhaseTracegen { device_airs, host_traces, byte_range_airs: _, device_packed: _ } =
+        host_phase_tracegen;
 
     // Stream that, when polled, copies the host traces to the device.
     let copied_host_traces =
@@ -737,7 +751,7 @@ where
 
     // Move ALL CPU-intensive work into spawn_blocking to avoid blocking the async runtime.
     // This includes: chip filtering, num_rows() calls, and trace generation.
-    let (device_airs, host_traces, byte_range_airs, chip_set, shard_chips) =
+    let (device_airs, host_traces, byte_range_airs, chip_set, shard_chips, device_packed) =
         tokio::task::spawn_blocking(move || {
             // Set of chips we need to generate traces for.
             let chip_set: BTreeSet<_> = chips
@@ -765,6 +779,21 @@ where
             } else {
                 (Vec::new(), host_airs)
             };
+
+            // Pre-pack the device-dependency chips' kernel inputs HERE, in the permit-free
+            // host phase, in parallel with the host column-gen below. Moving the (CPU) pack
+            // off the GPU-permit-held `device_main_tracegen` lets it overlap the previous
+            // shard's proving instead of stalling the GPU while it holds the permit.
+            let device_packed: BTreeMap<String, Vec<u64>> = device_airs
+                .iter()
+                .filter(|c| c.supports_device_dependencies())
+                .cloned()
+                .collect::<Vec<_>>()
+                .into_par_iter()
+                .map(|air| {
+                    (air.name().to_string(), air.pack_device_lookup_inputs(record.as_ref()))
+                })
+                .collect();
 
             let mut total_size = start_idx;
             let mut jobs = Vec::new();
@@ -802,7 +831,7 @@ where
                 drop(record);
             });
 
-            (device_airs, host_traces, byte_range_airs, chip_set, shard_chips)
+            (device_airs, host_traces, byte_range_airs, chip_set, shard_chips, device_packed)
         })
         .await
         .unwrap();
@@ -819,7 +848,8 @@ where
 
     let host_phase_shape_info = HostPhaseShapeInfo { traces_by_name: initial_traces, chip_set };
 
-    let host_phase_tracegen = HostPhaseTracegen { device_airs, host_traces, byte_range_airs };
+    let host_phase_tracegen =
+        HostPhaseTracegen { device_airs, host_traces, byte_range_airs, device_packed };
 
     (host_phase_tracegen, host_phase_shape_info)
 }
@@ -862,7 +892,8 @@ async fn device_main_tracegen<A: CudaTracegenAir<Felt>>(
     initial_traces: BTreeMap<String, Trace>,
     backend: &TaskScope,
 ) -> (BTreeMap<String, Trace>, Vec<Felt>) {
-    let HostPhaseTracegen { device_airs, host_traces, byte_range_airs } = host_phase_tracegen;
+    let HostPhaseTracegen { device_airs, host_traces, byte_range_airs, mut device_packed } =
+        host_phase_tracegen;
 
     // When any device chip generates its byte-lookup dependencies on the GPU, all such
     // chips accumulate into ONE shared shard histogram pair via the fused kernel (no
@@ -905,12 +936,19 @@ async fn device_main_tracegen<A: CudaTracegenAir<Felt>>(
             // We want to borrow the record and move the chip.
             let record = record.as_ref();
             let outer_span = outer_span.clone();
+            // Take this chip's pre-packed inputs (packed in the permit-free host phase);
+            // empty for non-dependency chips (e.g. Global), which don't use the fused path.
+            let packed = if air.supports_device_dependencies() {
+                device_packed.remove(air.name()).unwrap_or_default()
+            } else {
+                Vec::new()
+            };
             async move {
                 // Device-dependency chips use the FUSED kernel (columns + lookups in one
                 // pass, accumulating into the shared histogram); others (e.g. Global) the
                 // plain one.
                 let trace = if air.supports_device_dependencies() {
-                    air.generate_trace_device_with_lookups(record, hist, backend)
+                    air.generate_trace_device_with_lookups(record, packed, hist, backend)
                         .instrument(tracing::trace_span!(parent: &outer_span, "device chip fused tracegen", chip = %air.name()))
                         .await
                         .unwrap()

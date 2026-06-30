@@ -342,15 +342,67 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
         output.add_byte_lookup_events_from_maps(vec![&map]);
     }
 
+    fn pack_device_lookup_inputs(&self, input: &Self::Record) -> Vec<u64> {
+        let height =
+            <Self as sp1_hypercube::air::MachineAir<F>>::num_rows(self, input).unwrap_or(0);
+        macro_rules! pk {
+            ($events:expr, $packfn:path) => {{
+                let n = if height == 0 { 0 } else { $events.len() };
+                $packfn(&$events[..n])
+            }};
+        }
+        match self {
+            Self::Add(_) => pk!(input.add_events, add::pack_add_inputs),
+            Self::Sub(_) => pk!(input.sub_events, sub::pack_sub_inputs),
+            Self::Subw(_) => pk!(input.subw_events, subw::pack_subw_inputs),
+            Self::Addw(_) => pk!(input.addw_events, addw::pack_addw_inputs),
+            Self::Bitwise(_) => pk!(input.bitwise_events, bitwise::pack_bitwise_inputs),
+            Self::Lt(_) => pk!(input.lt_events, lt::pack_lt_inputs),
+            Self::Addi(_) => pk!(input.addi_events, addi::pack_addi_inputs),
+            Self::ShiftLeft(_) => pk!(input.shift_left_events, sll::pack_sll_inputs),
+            Self::ShiftRight(_) => pk!(input.shift_right_events, sr::pack_sr_inputs),
+            Self::AluX0(_) => pk!(input.alu_x0_events, alu_x0::pack_alu_x0_inputs),
+            Self::LoadDouble(_) => {
+                pk!(input.memory_load_double_events, load_double::pack_ld_inputs)
+            }
+            Self::LoadWord(_) => pk!(input.memory_load_word_events, load_word::pack_lw_inputs),
+            Self::LoadHalf(_) => {
+                pk!(input.memory_load_half_events, load_half::pack_load_half_inputs)
+            }
+            Self::LoadByte(_) => {
+                pk!(input.memory_load_byte_events, load_byte::pack_load_byte_inputs)
+            }
+            Self::LoadX0(_) => pk!(input.memory_load_x0_events, load_x0::pack_lx0_inputs),
+            Self::StoreDouble(_) => {
+                pk!(input.memory_store_double_events, store_double::pack_store_double_inputs)
+            }
+            Self::StoreWord(_) => {
+                pk!(input.memory_store_word_events, store_word::pack_store_word_inputs)
+            }
+            Self::StoreHalf(_) => {
+                pk!(input.memory_store_half_events, store_half::pack_store_half_inputs)
+            }
+            Self::StoreByte(_) => {
+                pk!(input.memory_store_byte_events, store_byte::pack_store_byte_inputs)
+            }
+            Self::UType(_) => pk!(input.utype_events, utype::pack_utype_inputs),
+            Self::Jal(_) => pk!(input.jal_events, jal::pack_jal_inputs),
+            Self::Jalr(_) => pk!(input.jalr_events, jalr::pack_jalr_inputs),
+            Self::Branch(_) => pk!(input.branch_events, branch::pack_branch_inputs),
+            _ => Vec::new(),
+        }
+    }
+
     async fn generate_trace_device_with_lookups(
         &self,
         input: &Self::Record,
+        inputs: Vec<u64>,
         hist: crate::LookupHist,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
         macro_rules! dispatch {
             ($chip:expr) => {
-                $chip.generate_trace_device_with_lookups(input, hist, scope).await
+                $chip.generate_trace_device_with_lookups(input, inputs, hist, scope).await
             };
         }
         match self {

@@ -449,16 +449,30 @@ pub trait CudaTracegenAir<F: Field>: MachineAir<F> {
     ) {
     }
 
+    /// Pack this chip's events into the flat per-row `u64` input array consumed by the
+    /// device witgen kernel — the **CPU half** of device tracegen. Split out so the
+    /// caller can run it BEFORE acquiring the GPU permit (in the permit-free host phase),
+    /// so the packing overlaps the previous shard's proving instead of stalling the GPU
+    /// while it holds the permit. `generate_trace_device_with_lookups` then consumes this
+    /// pre-packed buffer and only does the (cheap) upload + kernel launch. Default: empty.
+    #[allow(unused_variables)]
+    fn pack_device_lookup_inputs(&self, input: &Self::Record) -> Vec<u64> {
+        Vec::new()
+    }
+
     /// FUSED main tracegen: generate this chip's trace columns AND accumulate its
     /// byte/range lookups into the shared shard histograms `hist` in a single op-DAG
     /// pass (the device counterpart of running `generate_trace_device` +
     /// `generate_device_dependencies` separately, but with the witgen evaluated once).
     /// Called for chips with [`supports_device_dependencies`] during the device trace
-    /// phase, so the separate dependency pre-pass is unnecessary. Default: unsupported.
+    /// phase, so the separate dependency pre-pass is unnecessary. `inputs` is the
+    /// pre-packed buffer from [`pack_device_lookup_inputs`] (packed pre-permit).
+    /// Default: unsupported.
     #[allow(unused_variables)]
     fn generate_trace_device_with_lookups(
         &self,
         input: &Self::Record,
+        inputs: Vec<u64>,
         hist: LookupHist,
         scope: &TaskScope,
     ) -> impl Future<Output = Result<DeviceMle<F>, CopyError>> + Send {

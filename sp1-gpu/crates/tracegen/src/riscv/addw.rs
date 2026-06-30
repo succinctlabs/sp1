@@ -24,7 +24,7 @@ const NUM_ADDW_INPUTS: usize = 17;
 /// Pack each event's witgen inputs in `AddwCols::witgen` order. ADDW handles both
 /// register (ADDW) and immediate (ADDIW) op_c, so `record.c` may be `None`; the
 /// `imm_c` flag (input 16) drives the adapter's per-row branch.
-fn pack_addw_inputs(events: &[(AluEvent, ALUTypeRecord)]) -> Vec<u64> {
+pub(crate) fn pack_addw_inputs(events: &[(AluEvent, ALUTypeRecord)]) -> Vec<u64> {
     let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_ADDW_INPUTS];
     inputs.par_chunks_mut(NUM_ADDW_INPUTS).zip(events.par_iter()).for_each(|(slot, (alu, r))| {
         let a = r.a;
@@ -140,6 +140,7 @@ impl CudaTracegenAir<F> for AddwChip<SupervisorMode> {
     async fn generate_trace_device_with_lookups(
         &self,
         input: &Self::Record,
+        inputs: Vec<u64>,
         hist: crate::LookupHist,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
@@ -151,9 +152,7 @@ impl CudaTracegenAir<F> for AddwChip<SupervisorMode> {
         debug_assert_eq!(n_cols, NUM_ADDW_COLS_SUPERVISOR);
         let height = <Self as MachineAir<F>>::num_rows(self, input)
             .expect("num_rows(...) should be Some(_)");
-        let events = &input.addw_events;
-        let n_events = if height == 0 { 0 } else { events.len() };
-        let inputs = pack_addw_inputs(&events[..n_events]);
+        let n_events = if height == 0 { 0 } else { inputs.len() / program.num_inputs as usize };
         super::generate_trace_and_lookups(
             &program, &col_wires, n_cols, &inputs, n_events, height, hist, scope,
         )

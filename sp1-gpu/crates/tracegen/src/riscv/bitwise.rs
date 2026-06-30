@@ -25,7 +25,7 @@ const NUM_BITWISE_INPUTS: usize = 19;
 /// Pack each event's witgen inputs in `BitwiseCols::witgen` order. `op_c` may be an
 /// immediate (no register read): on those rows the `c` memory fields are unused
 /// (any value), so we pack zeros.
-fn pack_bitwise_inputs(events: &[(AluEvent, ALUTypeRecord)]) -> Vec<u64> {
+pub(crate) fn pack_bitwise_inputs(events: &[(AluEvent, ALUTypeRecord)]) -> Vec<u64> {
     let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_BITWISE_INPUTS];
     inputs.par_chunks_mut(NUM_BITWISE_INPUTS).zip(events.par_iter()).for_each(|(slot, (alu, r))| {
         let a = r.a;
@@ -142,6 +142,7 @@ impl CudaTracegenAir<F> for BitwiseChip<SupervisorMode> {
     async fn generate_trace_device_with_lookups(
         &self,
         input: &Self::Record,
+        inputs: Vec<u64>,
         hist: crate::LookupHist,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
@@ -153,9 +154,7 @@ impl CudaTracegenAir<F> for BitwiseChip<SupervisorMode> {
         debug_assert_eq!(n_cols, NUM_BITWISE_COLS_SUPERVISOR);
         let height = <Self as MachineAir<F>>::num_rows(self, input)
             .expect("num_rows(...) should be Some(_)");
-        let events = &input.bitwise_events;
-        let n_events = if height == 0 { 0 } else { events.len() };
-        let inputs = pack_bitwise_inputs(&events[..n_events]);
+        let n_events = if height == 0 { 0 } else { inputs.len() / program.num_inputs as usize };
         super::generate_trace_and_lookups(
             &program, &col_wires, n_cols, &inputs, n_events, height, hist, scope,
         )

@@ -21,7 +21,7 @@ use crate::{CudaTracegenAir, F};
 /// Number of witgen inputs per `Mul` row (see [`MulCols::witgen`]).
 const NUM_MUL_INPUTS: usize = 18;
 
-fn pack_mul_inputs(events: &[(AluEvent, RTypeRecord)]) -> Vec<u64> {
+pub(crate) fn pack_mul_inputs(events: &[(AluEvent, RTypeRecord)]) -> Vec<u64> {
     let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_MUL_INPUTS];
     inputs.par_chunks_mut(NUM_MUL_INPUTS).zip(events.par_iter()).for_each(|(slot, (alu, r))| {
         let (a, b, c) = (r.a, r.b, r.c);

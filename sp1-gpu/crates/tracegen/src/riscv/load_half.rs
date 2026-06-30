@@ -22,7 +22,7 @@ use crate::{CudaTracegenAir, F};
 /// Number of witgen inputs per `LoadHalfChip` row (see [`LoadHalfColumns::witgen`]).
 const NUM_LOAD_HALF_INPUTS: usize = 17;
 
-fn pack_load_half_inputs(events: &[(MemInstrEvent, ITypeRecord)]) -> Vec<u64> {
+pub(crate) fn pack_load_half_inputs(events: &[(MemInstrEvent, ITypeRecord)]) -> Vec<u64> {
     let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_LOAD_HALF_INPUTS];
     inputs.par_chunks_mut(NUM_LOAD_HALF_INPUTS).zip(events.par_iter()).for_each(|(slot, (ev, r))| {
         let a = r.a;
@@ -130,6 +130,7 @@ impl CudaTracegenAir<F> for LoadHalfChip<SupervisorMode> {
     async fn generate_trace_device_with_lookups(
         &self,
         input: &Self::Record,
+        inputs: Vec<u64>,
         hist: crate::LookupHist,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
@@ -141,9 +142,7 @@ impl CudaTracegenAir<F> for LoadHalfChip<SupervisorMode> {
         debug_assert_eq!(n_cols, NUM_LOAD_HALF_COLS_SUPERVISOR);
         let height = <Self as MachineAir<F>>::num_rows(self, input)
             .expect("num_rows(...) should be Some(_)");
-        let events = &input.memory_load_half_events;
-        let n_events = if height == 0 { 0 } else { events.len() };
-        let inputs = pack_load_half_inputs(&events[..n_events]);
+        let n_events = if height == 0 { 0 } else { inputs.len() / program.num_inputs as usize };
         super::generate_trace_and_lookups(
             &program, &col_wires, n_cols, &inputs, n_events, height, hist, scope,
         )
