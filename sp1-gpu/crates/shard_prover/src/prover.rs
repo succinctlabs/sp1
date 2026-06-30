@@ -627,8 +627,10 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
             ],
         };
 
-        let stacked_basefold_proof =
-            SP1PcsProof { basefold_proof: pcs_proof, batch_evaluations: host_batch_evaluations };
+        let stacked_basefold_proof = SP1PcsProof {
+            batched_basefold_proof: pcs_proof,
+            batch_evaluations: host_batch_evaluations,
+        };
 
         let PrefixSumsMaxLogRowCount { log_m, .. } =
             unzip_and_prefix_sums(&row_counts_and_column_counts);

@@ -11,7 +11,7 @@ use slop_commit::Message;
 pub use slop_fri::fold_even_odd as host_fold_even_odd;
 use slop_futures::OwnedBorrow;
 use slop_merkle_tree::TensorCsProver;
-use slop_multilinear::{Mle, MleEval};
+use slop_multilinear::{Mle, MleEncoder, MleEval};
 use slop_tensor::Tensor;
 
 use crate::CpuDftEncoder;
@@ -73,8 +73,7 @@ impl<GC: IopCtx<F: TwoAdicField>, P: TensorCsProver<GC, CpuBackend>> FriCpuProve
         let batch_mle_f = Buffer::from(batch_mle.clone().into_guts().storage.as_slice().to_vec())
             .flatten_to_base::<GC::F>();
         let batch_mle_f = Tensor::from(batch_mle_f).reshape([1 << num_variables, GC::EF::D]);
-        let batch_codeword = encoder.encode_batch(Message::from(Mle::new(batch_mle_f))).unwrap();
-        let batch_codeword = (*batch_codeword[0]).clone();
+        let batch_codeword = encoder.encode(Mle::new(batch_mle_f));
 
         (batch_mle, batch_codeword, batched_eval_claim)
     }

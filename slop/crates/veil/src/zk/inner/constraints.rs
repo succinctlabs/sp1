@@ -9,7 +9,7 @@ use itertools::Itertools;
 use slop_algebra::AbstractField;
 
 use super::transcript::{
-    MleCommitmentIndex, Point, TranscriptIndex, TranscriptLinConstraint, TranscriptMulConstraint,
+    MleCommitmentIndex, TranscriptIndex, TranscriptLinConstraint, TranscriptMulConstraint,
 };
 use super::ZkIopCtx;
 use crate::compiler::TranscriptReadError;
@@ -19,6 +19,17 @@ use crate::compiler::TranscriptReadError;
 pub trait ConstraintContextInner<K: AbstractField + Copy>: Clone {
     /// The element type for this context (ProverElement or VerifierElement)
     type Element: ZkElement<K>;
+
+    /// The Fiat-Shamir challenger type (the context's `GC::Challenger`).
+    type Challenger;
+
+    /// Run a closure with mutable access to the Fiat-Shamir challenger.
+    ///
+    /// Backs [`ConstraintContextInnerExt::with_challenger`]; use that via the public facade.
+    ///
+    /// Implementations hold an internal lock for the duration of `f`, so `f` must not
+    /// re-enter the same context (e.g. call `read_next`/`challenger`-equivalents on it).
+    fn with_challenger_inner<R>(&mut self, f: impl FnOnce(&mut Self::Challenger) -> R) -> R;
 
     /// Adds multiple linear constraints to the context.
     fn add_lin_constraints(
@@ -81,16 +92,9 @@ pub trait ConstraintContextInner<K: AbstractField + Copy>: Clone {
         b: <Self::Element as ZkElement<K>>::LinExpr,
     ) -> Option<Self::Element>;
 
-    /// Adds a (possibly batched) PCS evaluation claim for one or more commitments at the same point.
-    ///
-    /// A single commitment produces a length-1 claim; multiple commitments at the same point
-    /// produce a batched proof.
-    fn add_eval_claim(
-        &mut self,
-        commitment_indices: Vec<MleCommitmentIndex>,
-        point: Point<K>,
-        eval_exprs: Vec<ExpressionIndex<K, Self>>,
-    );
+    /// Returns `log2` of the number of stacked columns for a registered commitment, used to build
+    /// the default stacked MLE decomposition.
+    fn commitment_log_num_cols(&self, index: MleCommitmentIndex) -> usize;
 
     fn assert_zero_inner(&mut self, expr: ExpressionIndex<K, Self>) {
         let constraint = expr.into_expr();
@@ -417,6 +421,15 @@ pub trait ConstraintContextInnerExt<K: AbstractField + Copy>: Clone {
         + Mul<K, Output = Self::Expr>
         + Mul<Self::Expr, Output = Self::Expr>;
 
+    /// The Fiat-Shamir challenger type (the context's `GC::Challenger`).
+    type Challenger;
+
+    /// Run a closure with mutable access to the Fiat-Shamir challenger.
+    ///
+    /// Implementations hold an internal lock for the duration of `f`, so `f` must not
+    /// re-enter the same context (e.g. call `read_next`/`challenger`-equivalents on it).
+    fn with_challenger<R>(&mut self, f: impl FnOnce(&mut Self::Challenger) -> R) -> R;
+
     fn assert_zero(&mut self, expr: Self::Expr);
 
     /// assert_zero(a * b - c) materializes the product of a and b. This is unnecessary specifically
@@ -429,26 +442,6 @@ pub trait ConstraintContextInnerExt<K: AbstractField + Copy>: Clone {
     #[cfg(sp1_debug_constraints)]
     fn name_last_lin_constraint(&self, _name: impl Into<String>) {}
 
-    /// Creates an expression from a polynomial evaluation: `poly(point)`.
-    ///
-    /// Computes: `coeff_0 + point * coeff_1 + ... + point^{n-1} * coeff_n`
-    fn poly_eval(poly: &[Self::Expr], point: K) -> Self::Expr {
-        let mut iter = poly.iter().rev();
-        let first = iter.next().expect("poly_eval requires non-empty polynomial").clone();
-        iter.fold(first, |acc, term| acc * point + term.clone())
-    }
-
-    /// Creates an expression from `eval(1) + eval(0)` of a polynomial.
-    ///
-    /// Computes: `2 * coeff_0 + coeff_1 + ... + coeff_n`
-    fn eval_one_plus_eval_zero(poly: &[Self::Expr]) -> Self::Expr {
-        let mut iter = poly.iter();
-        let first = iter.next().expect("eval_one_plus_eval_zero requires non-empty polynomial");
-        // Start with 2 * coeff_0, then add the rest
-        let two_first = first.clone() + first.clone();
-        iter.fold(two_first, |acc, term| acc + term.clone())
-    }
-
     /// Creates an expression from an MLE evaluation at point.
     ///
     /// Assumes the input vec of elements' entries are the evaluations of the MLE
@@ -457,10 +450,10 @@ pub trait ConstraintContextInnerExt<K: AbstractField + Copy>: Clone {
     /// # Panics
     ///
     /// Requires exactly 2^{dim(Point)} many entries in `coeffs`.
-    fn mle_eval(point: slop_multilinear::Point<K>, coeffs: &[Self::Expr]) -> Self::Expr {
+    fn mle_eval(point: &slop_multilinear::Point<K>, coeffs: &[Self::Expr]) -> Self::Expr {
         use slop_multilinear::partial_lagrange_blocking;
 
-        let lagrange_coeffs = partial_lagrange_blocking(&point).into_buffer().into_vec();
+        let lagrange_coeffs = partial_lagrange_blocking(point).into_buffer().into_vec();
 
         let mut iter = lagrange_coeffs.into_iter().zip_eq(coeffs.iter());
         let (first_coeff, first_index) =
@@ -468,31 +461,6 @@ pub trait ConstraintContextInnerExt<K: AbstractField + Copy>: Clone {
         let first = first_index.clone() * first_coeff;
         iter.fold(first, |acc, (coeff, index)| acc + index.clone() * coeff)
     }
-
-    /// Asserts that a committed MLE evaluates to `eval_expr` at `point`.
-    ///
-    /// Registers an evaluation claim that will be proven/verified during
-    /// the PCS proof generation/verification phase.
-    ///
-    /// Default implementation delegates to `assert_mle_multi_eval` with a single claim.
-    fn assert_mle_eval(
-        &mut self,
-        commitment_index: MleCommitmentIndex,
-        point: Point<K>,
-        eval_expr: Self::Expr,
-    ) {
-        self.assert_mle_multi_eval(vec![(commitment_index, eval_expr)], point);
-    }
-
-    /// Asserts that multiple committed MLEs evaluate to the given values at a shared point.
-    ///
-    /// This produces a single batched PCS proof covering all commitments,
-    /// which is more efficient than calling `assert_mle_eval` once per commitment.
-    fn assert_mle_multi_eval(
-        &mut self,
-        claims: Vec<(MleCommitmentIndex, Self::Expr)>,
-        point: Point<K>,
-    );
 }
 
 pub(in crate::zk::inner) mod private {
@@ -505,6 +473,11 @@ impl<K: AbstractField + Copy, C: ConstraintContextInner<K> + private::Sealed>
     ConstraintContextInnerExt<K> for C
 {
     type Expr = ExpressionIndex<K, C>;
+    type Challenger = <C as ConstraintContextInner<K>>::Challenger;
+
+    fn with_challenger<R>(&mut self, f: impl FnOnce(&mut Self::Challenger) -> R) -> R {
+        self.with_challenger_inner(f)
+    }
 
     #[cfg_attr(sp1_debug_constraints, track_caller)]
     fn assert_zero(&mut self, expr: Self::Expr) {
@@ -529,19 +502,12 @@ impl<K: AbstractField + Copy, C: ConstraintContextInner<K> + private::Sealed>
     fn name_last_lin_constraint(&self, name: impl Into<String>) {
         self.name_last_lin_constraint_inner(name)
     }
-
-    fn assert_mle_multi_eval(
-        &mut self,
-        claims: Vec<(MleCommitmentIndex, Self::Expr)>,
-        point: Point<K>,
-    ) {
-        let (commitment_indices, eval_exprs): (Vec<_>, Vec<_>) = claims.into_iter().unzip();
-        self.add_eval_claim(commitment_indices, point, eval_exprs)
-    }
 }
 
 /// Trait for reading ProofTranscripts
-pub trait ZkCnstrAndReadingCtxInner<GC: ZkIopCtx>: ConstraintContextInnerExt<GC::EF> {
+pub trait ZkCnstrAndReadingCtxInner<GC: ZkIopCtx>:
+    ConstraintContextInnerExt<GC::EF, Challenger = GC::Challenger>
+{
     /// Read the next single element from the transcript.
     fn read_one(&mut self) -> Result<Self::Expr, TranscriptReadError> {
         // `read_next(1)` on success returns a Vec of length 1, so `pop` is infallible.
@@ -551,12 +517,6 @@ pub trait ZkCnstrAndReadingCtxInner<GC: ZkIopCtx>: ConstraintContextInnerExt<GC:
     /// Read the next `num` elements from the transcript
     fn read_next(&mut self, num: usize) -> Result<Vec<Self::Expr>, TranscriptReadError>;
 
-    /// Run a closure with mutable access to the Fiat-Shamir challenger.
-    ///
-    /// Implementations hold an internal lock for the duration of `f`, so `f` must not
-    /// re-enter the same context (e.g. call `read_next`/`challenger`-equivalents on it).
-    fn with_challenger<R>(&mut self, f: impl FnOnce(&mut GC::Challenger) -> R) -> R;
-
     /// Reads the next PCS commitment from the transcript.
     ///
     /// Checks that the parameters match and observes the commitment in the Fiat-Shamir challenger.
@@ -564,7 +524,7 @@ pub trait ZkCnstrAndReadingCtxInner<GC: ZkIopCtx>: ConstraintContextInnerExt<GC:
     /// # Arguments
     /// * `num_vars` — number of variables per stacked polynomial (encoding width).
     ///   Must match the value the PCS was initialized with.
-    /// * `log_num_polys` — log2 of the number of stacked polynomials (tensor height).
+    /// * `log_num_polys` — log2 of the number of stacked columns (the commitment's column count).
     ///
     /// # Returns
     /// `Some(MleCommitmentIndex)` if successful, `None` if parameters don't match

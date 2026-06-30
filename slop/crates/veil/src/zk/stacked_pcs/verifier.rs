@@ -1,19 +1,18 @@
 use crate::zk::inner::{
-    ConstraintContextInnerExt, PcsMultiEvalClaim, VerifierValue, ZkCnstrAndReadingCtxInner,
+    ConstraintContextInnerExt, MleCommitmentIndex, VerifierValue, ZkCnstrAndReadingCtxInner,
     ZkIopCtx, ZkPcsVerificationError, ZkPcsVerifier, ZkVerificationContext,
 };
 use derive_where::derive_where;
-use itertools::Itertools;
-use rayon::prelude::*;
 use slop_algebra::{AbstractExtensionField, AbstractField, TwoAdicField};
-use slop_basefold::BaseFoldVerifierError;
 use slop_challenger::{FieldChallenger, IopCtx};
-use slop_merkle_tree::MerkleTreeTcsError;
-use slop_multilinear::{partial_lagrange_blocking, Point};
+use slop_commit::Rounds;
+use slop_multilinear::{partial_lagrange_blocking, BatchPcsVerifier, Point};
+use slop_stacked::stacking_combine;
 use slop_utils::reverse_bits_len;
+use std::marker::PhantomData;
 use thiserror::Error;
 
-use super::basefold_verifier_wrapper::ZkStackedPcsVerifier;
+use super::padding::VEIL_EXTRA_QUERIES;
 use super::ZkStackedPcsProof;
 
 /// Type alias for `VerifierValue` when using the ZK stacked PCS.
@@ -30,345 +29,307 @@ pub type StackedPcsZkVerificationContext<GC> = ZkVerificationContext<GC>;
 
 #[derive(Debug, Error)]
 pub enum ZkStackedVerifierError {
-    #[error("Merkle Opening Error")]
-    MerkleError(MerkleTreeTcsError),
     #[error("PCS error: {0}")]
-    PcsError(BaseFoldVerifierError<MerkleTreeTcsError>),
+    PcsError(String),
     #[error("Inconsistent RLC commitment")]
     RLCCommitmentInconsistency,
     #[error("Proof has incorrect shape")]
     IncorrectShape(String),
 }
 
-impl<GC: ZkIopCtx> ZkStackedPcsVerifier<GC>
-where
-    GC::F: TwoAdicField,
-{
-    /// Verifies a ZK stacked PCS proof for a single evaluation claim.
-    ///
-    /// Thin wrapper around [`Self::verify_zk_stacked_pcs_batched`] for the single-commitment case.
-    pub fn verify_zk_stacked_pcs<C: ZkCnstrAndReadingCtxInner<GC>>(
-        &self,
-        commitment: &GC::Digest,
-        point: &Point<GC::EF>,
-        claim_expr: &C::Expr,
-        proof: ZkStackedPcsProof<GC>,
-        context: &mut C,
-    ) -> Result<ZkStackedPcsConstraintData<GC, C>, ZkStackedVerifierError> {
-        self.verify_zk_stacked_pcs_batched(
-            &[(*commitment, claim_expr.clone())],
-            point,
-            proof,
-            context,
-        )
+/// The verifier for the ZK stacked PCS: a thin wrapper around the base [`BatchPcsVerifier`] that
+/// checks the batched evaluation proof.
+///
+/// This is the verifier-side analogue of the [`super::prover`] ZK commit/prove logic. The base PCS supplies
+/// everything the ZK protocol needs (the opening check, the stacking height, the query count and
+/// the blowup), so the wrapper carries no state of its own; its [`ZkPcsVerifier`] impl below is
+/// the external API.
+#[derive(Clone, Debug)]
+pub struct ZkStackedVerifier<GC: ZkIopCtx, V: BatchPcsVerifier<GC, Commitment = GC::Digest>> {
+    /// The base PCS verifier that checks the batched evaluation proof.
+    pub base_verifier: V,
+    _marker: PhantomData<GC>,
+}
+
+impl<GC: ZkIopCtx, V: BatchPcsVerifier<GC, Commitment = GC::Digest>> ZkStackedVerifier<GC, V> {
+    /// Wraps a base PCS verifier into a ZK stacked PCS verifier.
+    pub const fn new(base_verifier: V) -> Self {
+        Self { base_verifier, _marker: PhantomData }
     }
 
-    /// Verifies a batched ZK stacked PCS proof for multiple evaluation claims at the same point.
+    /// The query count of the ZK protocol: the base PCS's query count plus the
+    /// [`VEIL_EXTRA_QUERIES`] rate-correction margin (the ZK padding slightly raises the
+    /// committed code's rate — see [`super::padding`]). This is the number of hiding/padding rows
+    /// the prover commits per polynomial, and every veil-side use of the base PCS query count
+    /// goes through it. Mirrors the prover-side `num_zk_queries` in [`super::prover`].
+    pub fn num_zk_queries(&self) -> usize {
+        self.base_verifier.num_queries() + VEIL_EXTRA_QUERIES
+    }
+
+    /// Verifies a batched ZK stacked PCS opening of `commitments` at the shared `reduced_point`,
+    /// where commitment `j` has `column_counts[j]` data columns.
     ///
-    /// Each entry in `commitments_and_claims` is a `(commitment, claim_expr)` pair.
-    /// All commitments must share the same `log_num_polys` and `mle_num_vars`.
+    /// Commitments may have **different** column counts (`log_num_polys`) — the single union eq
+    /// batches them regardless. What they *must* share is `mle_num_vars` (the encoding height):
+    /// `reduced_point` is where the base PCS opens every commitment's columns, so it pins the
+    /// per-column variable count. Equivalently, the callers' per-claim eval points may differ in
+    /// their (variable-length) column-index prefix but must share their last `mle_num_vars` (reduced)
+    /// coordinates.
     ///
-    /// Returns the constraint data on success.
-    /// The caller is responsible for adding constraints to the context.
-    pub fn verify_zk_stacked_pcs_batched<C: ZkCnstrAndReadingCtxInner<GC>>(
+    /// Returns the constraint data (column sub-evaluations + RLC consistency) on success. The
+    /// caller asserts the decomposition and discharges the RLC constraint via the returned data.
+    #[allow(clippy::type_complexity)]
+    pub fn verify_zk_stacked_pcs_batched<C>(
         &self,
-        commitments_and_claims: &[(GC::Digest, C::Expr)],
-        point: &Point<GC::EF>,
-        proof: ZkStackedPcsProof<GC>,
+        commitments: &[GC::Digest],
+        column_counts: &[usize],
+        reduced_point: &Point<GC::EF>,
+        proof: ZkStackedPcsProof<GC, V::Proof>,
         context: &mut C,
-    ) -> Result<ZkStackedPcsConstraintData<GC, C>, ZkStackedVerifierError> {
-        let num_claims = commitments_and_claims.len();
-        if num_claims == 0 {
-            return Err(ZkStackedVerifierError::IncorrectShape(
-                "must have at least one claim".to_string(),
-            ));
-        }
+    ) -> Result<ZkStackedPcsConstraintData<GC, C>, ZkStackedVerifierError>
+    where
+        C: ZkCnstrAndReadingCtxInner<GC>,
+    {
+        let num_claims = commitments.len();
+        assert!(num_claims > 0, "must have at least one claim");
+        assert_eq!(column_counts.len(), num_claims, "one column count per commitment");
 
-        let ZkStackedPcsProof {
-            rlc_eval_proof,
-            rlc_eval_claim,
-            rlc_padding_vec,
-            log_num_data_cols,
-        } = proof;
+        let ZkStackedPcsProof { rlc_eval_proof, rlc_eval_claim, rlc_padding_vec } = proof;
 
-        let verifier = &self.inner.basefold_verifier;
-        let num_encoding_variables = self.inner.log_stacking_height as usize;
-        let num_polys = (1 << log_num_data_cols) + GC::EF::D; // +deg(EF/F) for mask
+        let num_encoding_variables = self.base_verifier.num_encoding_variables() as usize;
 
-        // Shape check: point must have the right dimension
-        if log_num_data_cols + num_encoding_variables != point.dimension() {
+        // Shape check: the reduced point (where the base PCS opens) must have the encoding dimension.
+        if reduced_point.dimension() != num_encoding_variables {
             return Err(ZkStackedVerifierError::IncorrectShape("Inconsistent dimensions".into()));
         }
 
-        // Shape check: one opening per commitment in the proof
-        if rlc_eval_proof.component_polynomials_query_openings_and_proofs.len() != num_claims {
-            return Err(ZkStackedVerifierError::IncorrectShape(
-                "Number of openings doesn't match number of commitments".into(),
-            ));
-        }
+        // Note: the base PCS verifier is responsible for checking that the proof contains exactly one
+        // opening per commitment (Basefold does this against `commitments.len()`), so we don't
+        // introspect the (now opaque) base proof here.
 
         // Padding matches expected query count
-        let query_count = verifier.fri_config.num_queries;
+        let query_count = self.num_zk_queries();
         if rlc_padding_vec.len() != query_count {
             return Err(ZkStackedVerifierError::IncorrectShape("padding length wrong".into()));
         }
 
-        // Step 1: Read evals from context for each commitment.
-        // Only commitment 0 includes mask column evaluations;
-        // the others only have data column evaluations.
+        // Step 1: Read evals from context for each commitment (its own `column_counts[j]` data
+        // evals; commitment 0 also carries the shared `EF::D` mask evals).
         let mut per_claim_evals = Vec::with_capacity(num_claims);
-        for j in 0..num_claims {
-            let num_to_read = if j == 0 { num_polys } else { 1 << log_num_data_cols };
+        for (j, &count) in column_counts.iter().enumerate() {
+            let num_to_read = if j == 0 { count + GC::EF::D } else { count };
             let evals = context.read_next(num_to_read).map_err(|_| {
                 ZkStackedVerifierError::IncorrectShape("Failed to get evals".into())
             })?;
             per_claim_evals.push(evals);
         }
 
-        // Step 2: Sample shared RLC point (dimension = log_num_data_cols)
+        // Step 2: Sample the RLC point — a single eq over every data column of every commitment
+        // (dimension = log2 of the total data-column count, rounded up to a power of two). No
+        // separate α batching challenge.
+        let total_data_cols: usize = column_counts.iter().sum();
+        let log_total_data_cols = total_data_cols.next_power_of_two().trailing_zeros() as usize;
         let rlc_point = context.with_challenger(|challenger| {
             let coords: Vec<GC::EF> =
-                (0..log_num_data_cols).map(|_| challenger.sample_ext_element()).collect();
+                (0..log_total_data_cols).map(|_| challenger.sample_ext_element()).collect();
             Point::new(coords.into())
         });
 
-        // Step 3: Sample batching challenge α
-        let batching_challenge: GC::EF = context.with_challenger(|c| c.sample_ext_element());
-
-        // Step 4: Observe combined padding and eval claim
+        // Step 3: Observe combined padding and eval claim
         context.with_challenger(|c| {
             c.observe_ext_element_slice(&rlc_padding_vec);
             c.observe_ext_element(rlc_eval_claim);
         });
 
-        // Precompute α powers and eq evals
-        let alpha_powers: Vec<GC::EF> = batching_challenge.powers().take(num_claims + 1).collect();
-
         let eq_evals = partial_lagrange_blocking(&rlc_point).into_buffer().into_vec();
-        let num_original = 1 << log_num_data_cols;
 
-        // Step 5: Compute expected combined evals from all commitments' query openings
-        // For each query index q:
-        //   combined_eval[q] = Σ_j α^j * data_rlc_j[q] + α^k * mask_0[q]
-        let num_queries =
-            rlc_eval_proof.component_polynomials_query_openings_and_proofs[0].values.sizes()[0];
-        let expected_combined_eval: Vec<GC::EF> = (0..num_queries)
-            .into_par_iter()
-            .map(|q| {
-                let mut combined = GC::EF::zero();
-                for (j, opening_and_proof) in rlc_eval_proof
-                    .component_polynomials_query_openings_and_proofs
-                    .iter()
-                    .enumerate()
-                {
-                    let opening_tensor = &opening_and_proof.values;
-                    let row_width = opening_tensor.sizes()[1];
-                    let row = &opening_tensor.as_slice()[q * row_width..(q + 1) * row_width];
-
-                    let eq_sum: GC::EF = eq_evals
-                        .iter()
-                        .zip_eq(row[..num_original].iter())
-                        .map(|(eq_val, &mle_val)| *eq_val * GC::EF::from(mle_val))
-                        .sum();
-                    combined += alpha_powers[j] * eq_sum;
-
-                    // Only include the mask from commitment 0
-                    if j == 0 {
-                        combined += alpha_powers[num_claims]
-                            * GC::EF::from_base_slice(&row[num_original..]);
-                    }
-                }
-                combined
-            })
-            .collect();
-
-        // Step 6: Define virtual oracle with combined padding correction
-        let (eval_point, _) = point.split_at(point.dimension() - log_num_data_cols);
+        // Step 4: Define the virtual oracle. For a single query, this combines the opened values
+        // (one round per commitment, in commitment order) into
+        //     combined = Σ_c eq(rlc_point, c) * data_leaf_c + mask_0
+        // — one eq over all commitments' data columns plus commitment 0's mask (coefficient 1) — and
+        // subtracts the RLC padding correction to produce the value of the virtual oracle at the
+        // corresponding FRI domain point. The Basefold verifier has already checked the Merkle
+        // openings, so the evaluator only ever sees field values.
+        let eval_point = reduced_point;
         let point_dim = eval_point.dimension();
-        let compute_batch_evals = |query_indices: &[usize], log_tensor_height: usize| {
-            let root = GC::EF::two_adic_generator(log_tensor_height);
-            let corrections = query_indices.iter().map(|&i| {
-                let x = root.exp_u64(reverse_bits_len(i, log_tensor_height) as u64);
-                let padding_eval = rlc_padding_vec
-                    .iter()
-                    .rev()
-                    .fold(GC::EF::zero(), |acc, &coeff| acc * x + coeff);
-                let x_to_unpadded_size = x.exp_u64(1 << point_dim);
-                padding_eval * x_to_unpadded_size
-            });
-            expected_combined_eval
-                .into_iter()
-                .zip(corrections)
-                .map(|(eval, correction)| eval - correction)
-                .collect()
+        // The committed codewords live on an evaluation domain of size `2^(point_dim + log_blowup)`.
+        let log_tensor_height = point_dim + self.base_verifier.log_blowup();
+        let root = GC::EF::two_adic_generator(log_tensor_height);
+        let to_virtual_oracle = |values: Rounds<&[GC::F]>, query_idx: usize| -> GC::EF {
+            // Commitment `j` is committed with `column_counts[j]` data columns (and, for commitment
+            // 0, an extra `EF::D` mask block). `values[j]` is its opened row for this query, in
+            // commitment order; `global_col` walks the single eq weight vector across all rows.
+            let mut combined = GC::EF::zero();
+            let mut global_col = 0;
+            for (j, (row, &count)) in values.iter().zip(column_counts).enumerate() {
+                let weights = &eq_evals[global_col..global_col + count];
+                combined += stacking_combine::<GC::F, GC::EF>(weights, &row[..count]);
+                // Only include the mask from commitment 0 (coefficient 1); it follows its data cols.
+                if j == 0 {
+                    combined += GC::EF::from_base_slice(&row[count..]);
+                }
+                global_col += count;
+            }
+
+            let x = root.exp_u64(reverse_bits_len(query_idx, log_tensor_height) as u64);
+            let padding_eval =
+                rlc_padding_vec.iter().rev().fold(GC::EF::zero(), |acc, &coeff| acc * x + coeff);
+            let correction = padding_eval * x.exp_u64(1 << point_dim);
+
+            combined - correction
         };
 
-        // Step 7: Verify basefold proof with all commitments
-        let commitments: Vec<GC::Digest> = commitments_and_claims.iter().map(|(c, _)| *c).collect();
+        // Step 5: Verify the base-PCS evaluation proof over all commitments
         let pcs_result = context.with_challenger(|challenger| {
-            self.verify_trusted_ext_mle_evaluation(
-                &commitments,
+            self.base_verifier.verify(
+                commitments,
                 eval_point,
                 rlc_eval_claim,
+                to_virtual_oracle,
                 &rlc_eval_proof,
-                compute_batch_evals,
                 challenger,
             )
         });
         if let Err(e) = pcs_result {
-            return Err(ZkStackedVerifierError::PcsError(e));
+            return Err(ZkStackedVerifierError::PcsError(e.to_string()));
         }
 
-        // Build constraint data
-        let claim_datas: Vec<_> = commitments_and_claims
-            .iter()
-            .zip(per_claim_evals)
-            .map(|((_, claim_expr), evals)| ZkStackedPcsClaimData {
-                point: point.clone(),
-                orig_eval_index: claim_expr.clone(),
-                evals,
-            })
-            .collect();
-
+        // Build constraint data: the per-commitment column sub-evaluations + RLC consistency data.
         let constraint_data = ZkStackedPcsConstraintData {
-            log_num_cols: log_num_data_cols,
+            column_counts: column_counts.to_vec(),
             rlc_point,
-            batching_challenge,
             combined_rlc_eval_claim: rlc_eval_claim,
-            claims: claim_datas,
+            claims: Rounds { rounds: per_claim_evals },
         };
 
         Ok(constraint_data)
     }
 }
 
-/// Per-claim constraint data for a single evaluation claim within a batched proof.
-#[derive(Clone)]
-#[derive_where(Debug; C::Expr)]
-pub struct ZkStackedPcsClaimData<GC: IopCtx, C: ConstraintContextInnerExt<GC::EF>> {
-    /// Evaluation point for this claim
-    pub point: Point<GC::EF>,
-    /// Transcript element of the original evaluation claim
-    pub orig_eval_index: C::Expr,
-    /// Transcript elements of the sub-polynomial evaluations (y_{q,ℓ})
-    pub evals: Vec<C::Expr>,
-}
-
 /// Self-contained constraint data for a ZK stacked PCS evaluation proof.
 ///
-/// This struct contains all the data needed to generate linear constraints
-/// for the stacked PCS protocol without additional inputs.
+/// Holds the per-commitment column sub-evaluations (`claims`) and the data needed to assert the
+/// RLC-consistency constraint. The *decomposition* (`orig_eval == combiner(column_evals)`) is
+/// asserted by the caller at its own expression level, using [`Self::data_column_evals`].
 /// Generic over the context type `C` which can be `ZkVerificationContext` or `ZkProverContext`.
 #[derive(Clone)]
 #[derive_where(Debug; C::Expr)]
 pub struct ZkStackedPcsConstraintData<GC: IopCtx, C: ConstraintContextInnerExt<GC::EF>> {
-    /// Log of the number of columns (polynomials) in the stacking
-    pub log_num_cols: usize,
-    /// RLC point for eq-based linear combination (dimension = log_num_cols)
+    /// Per-commitment data-column counts (commitment-major). Commitments may differ in column count.
+    pub column_counts: Vec<usize>,
+    /// The single RLC point: one eq over *all* data columns of *all* commitments (dimension = log2
+    /// of the total data-column count, rounded up to a power of two).
     pub rlc_point: Point<GC::EF>,
-    /// Batching challenge α used to combine multiple claims
-    pub batching_challenge: GC::EF,
-    /// Combined RLC evaluation claim: Σ_j α^j * data_rlc_eval_j + Σ_j α^{k+j} * mask_eval_j
+    /// Combined RLC evaluation claim: `Σ_c eq(rlc_point, c) * data_eval_c + mask_eval_0`, where `c`
+    /// runs over every commitment's data columns and the mask is added with coefficient 1.
     pub combined_rlc_eval_claim: GC::EF,
-    /// Per-commitment claim data
-    pub claims: Vec<ZkStackedPcsClaimData<GC, C>>,
+    /// Per-commitment column sub-evaluations (`y_{q,ℓ}`), one [`Rounds`] entry per commitment: data
+    /// columns, followed by the `EF::D` mask columns for commitment 0 only.
+    pub claims: Rounds<Vec<C::Expr>>,
 }
 
 impl<GC: ZkIopCtx, C: ConstraintContextInnerExt<GC::EF>> ZkStackedPcsConstraintData<GC, C> {
+    /// The per-commitment **data** column sub-evaluations (excluding the mask columns), one
+    /// [`Rounds`] entry per commitment. These are what the caller feeds to the decomposition
+    /// combiner.
+    pub fn data_column_evals(&self) -> Rounds<Vec<C::Expr>> {
+        self.claims
+            .iter()
+            .zip(&self.column_counts)
+            .map(|(evals, &count)| evals[0..count].to_vec())
+            .collect()
+    }
+}
+
+impl<GC: ZkIopCtx, C: ConstraintContextInnerExt<GC::EF>> ZkStackedPcsConstraintData<GC, C> {
+    /// Builds and asserts the linear constraints decomposing each commitment's claimed evaluation
+    /// into its column sub-evaluations. Consumes `self` to drop the stored context references.
     pub fn build_constraints(self) {
-        let mut context = self.claims[0].evals[0].as_ref().clone();
+        let mut context = self.claims[0][0].as_ref().clone();
 
-        let num_original = 1 << self.log_num_cols;
-        let num_claims = self.claims.len();
-
-        let alpha_powers: Vec<GC::EF> =
-            self.batching_challenge.powers().take(num_claims + 1).collect();
-
-        // Combined RLC constraint:
-        // Σ_j α^j * mle_eval(rlc_point, evals_j[0..2^p])
-        //   + α^k * mask_sum_0 == combined_rlc_eval_claim
-        //
-        // Build data RLC terms and the single mask term.
-        let mut terms: Vec<(GC::EF, C::Expr)> = Vec::with_capacity(num_claims + 1);
-        for (j, claim) in self.claims.iter().enumerate() {
-            terms.push((
-                alpha_powers[j],
-                C::mle_eval(self.rlc_point.clone(), &claim.evals[0..num_original]),
-            ));
-        }
-        // Single mask from commitment 0
+        // RLC consistency constraint, mirroring the prover's combined eval claim:
+        //   Σ_c eq(rlc_point, c) * data_eval_c + mask_sum_0 == combined_rlc_eval_claim
+        // a single eq over every commitment's data column evals (commitment-major, per-commitment
+        // counts), plus commitment 0's mask (coefficient 1, recombined via the monomial EF-over-F
+        // basis after that commitment's data evals).
+        let weights = partial_lagrange_blocking(&self.rlc_point).into_buffer().into_vec();
+        let data_term = self
+            .claims
+            .iter()
+            .zip(&self.column_counts)
+            .flat_map(|(evals, &count)| evals[0..count].iter().cloned())
+            .zip(weights.iter())
+            .map(|(eval, &w)| eval * w)
+            .reduce(|acc, term| acc + term)
+            .expect("at least one data column");
+        let count_0 = self.column_counts[0];
         let mask_sum_0 = (0..GC::EF::D)
-            .map(|i| self.claims[0].evals[num_original + i].clone() * GC::EF::monomial(i))
+            .map(|i| self.claims[0][count_0 + i].clone() * GC::EF::monomial(i))
             .reduce(|acc, term| acc + term)
             .unwrap();
-        terms.push((alpha_powers[num_claims], mask_sum_0));
-
-        let mut iter = terms.into_iter();
-        let (first_alpha, first_term) = iter.next().unwrap();
-        let combined_expr =
-            iter.fold(first_term * first_alpha, |acc, (alpha, term)| acc + term * alpha);
-        context.assert_zero(combined_expr - self.combined_rlc_eval_claim);
-
-        // Per-claim MLE decomposition: mle_eval(stack_point, evals[0..2^p]) == y_q
-        for claim in &self.claims {
-            let (_, stack_point) =
-                claim.point.split_at(claim.point.dimension() - self.log_num_cols);
-            let mle_decomp_constraint = C::mle_eval(stack_point, &claim.evals[0..num_original])
-                - claim.orig_eval_index.clone();
-            context.assert_zero(mle_decomp_constraint);
-        }
+        context.assert_zero(data_term + mask_sum_0 - self.combined_rlc_eval_claim);
     }
 }
 
 // ============================================================================
-// ZkPcsVerifier trait implementation
+// External API: ZkPcsVerifier, generic over the base PCS verifier
 // ============================================================================
 
-impl<GC: ZkIopCtx<PcsProof = ZkStackedPcsProof<GC>>> ZkPcsVerifier<GC> for ZkStackedPcsVerifier<GC>
+impl<GC, V> ZkPcsVerifier<GC> for ZkStackedVerifier<GC, V>
 where
-    GC::F: TwoAdicField,
+    GC: ZkIopCtx,
+    V: BatchPcsVerifier<GC, Commitment = GC::Digest>,
+    <V as BatchPcsVerifier<GC>>::Proof: Clone,
 {
-    type Proof = ZkStackedPcsProof<GC>;
+    type Proof = ZkStackedPcsProof<GC, <V as BatchPcsVerifier<GC>>::Proof>;
 
     fn num_encoding_variables(&self) -> u32 {
-        self.inner.log_stacking_height
+        self.base_verifier.num_encoding_variables()
     }
 
+    #[allow(clippy::type_complexity)]
     fn verify_multi_eval(
         &self,
-        ctx: &mut ZkVerificationContext<GC>,
-        claim: PcsMultiEvalClaim<GC::EF, VerifierValue<GC>>,
+        ctx: &mut ZkVerificationContext<GC, Self::Proof>,
+        commitment_indices: Rounds<MleCommitmentIndex>,
+        reduced_point: &Point<GC::EF>,
         proof: &Self::Proof,
-    ) -> Result<(), ZkPcsVerificationError> {
-        // Collect commitment digests and claim expressions
-        let commitments_and_claims: Vec<_> = claim
-            .commitment_indices
-            .iter()
-            .zip(claim.eval_exprs.iter())
-            .map(|(idx, eval_expr)| {
-                let entry = ctx.get_commitment_entry(*idx).ok_or_else(|| {
-                    ZkPcsVerificationError::VerificationFailed(format!(
-                        "invalid commitment index: {}",
-                        idx.index()
-                    ))
-                })?;
-                Ok((entry.digest, eval_expr.clone()))
+    ) -> Result<Rounds<Vec<VerifierValue<GC, Self::Proof>>>, ZkPcsVerificationError> {
+        // Collect each commitment's digest and data-column count (`2^log_num_polys`) from its
+        // registered entry — the counts may differ across commitments.
+        let (commitments, column_counts): (Vec<GC::Digest>, Vec<usize>) = commitment_indices
+            .into_iter()
+            .map(|idx| {
+                ctx.get_commitment_entry(idx)
+                    .map(|entry| (entry.digest, 1usize << entry.log_num_polys))
+                    .ok_or_else(|| {
+                        ZkPcsVerificationError::VerificationFailed(format!(
+                            "invalid commitment index: {}",
+                            idx.index()
+                        ))
+                    })
             })
-            .collect::<Result<Vec<_>, ZkPcsVerificationError>>()?;
+            .collect::<Result<Vec<_>, ZkPcsVerificationError>>()?
+            .into_iter()
+            .unzip();
 
-        // Verify the batched stacked PCS proof
+        // Verify the batched stacked PCS proof, delegating the evaluation-proof check to the
+        // base PCS through the `BatchPcsVerifier` trait.
         let constraint_data = self
             .verify_zk_stacked_pcs_batched(
-                &commitments_and_claims,
-                &claim.point,
+                &commitments,
+                &column_counts,
+                reduced_point,
                 proof.clone(),
                 ctx,
             )
             .map_err(|e| ZkPcsVerificationError::VerificationFailed(e.to_string()))?;
 
-        // Build constraints from the constraint data
+        // The per-commitment data-column sub-evaluations the caller combines into the original eval.
+        let columns = constraint_data.data_column_evals();
+        // Discharge only the RLC-consistency constraint here.
         constraint_data.build_constraints();
 
-        Ok(())
+        Ok(columns)
     }
 }

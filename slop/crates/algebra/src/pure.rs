@@ -9,12 +9,12 @@ use std::{
 use p3_field::{AbstractField, Field};
 use serde::{Deserialize, Serialize};
 
-pub trait Module<R>:
+pub trait Extension<R>:
     Clone + Add<R, Output = Self> + Sub<R, Output = Self> + Mul<R, Output = Self> + Neg<Output = Self>
 {
 }
 
-impl<R, E> Module<R> for E
+impl<R, E> Extension<R> for E
 where
     R: AbstractField,
     E: Clone + Add<R, Output = E> + Sub<R, Output = E> + Mul<R, Output = E> + Neg<Output = E>,
@@ -22,9 +22,9 @@ where
 }
 
 /// An abstract algebra over a field.
-pub trait Algebra<R>: AbstractField + Module<R> {}
+pub trait Algebra<R>: AbstractField + Extension<R> {}
 
-impl<R, E> Algebra<R> for E where E: AbstractField + Module<R> {}
+impl<R, E> Algebra<R> for E where E: AbstractField + Extension<R> {}
 
 /// A struct representing the `Dorroh extension` of a module.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -48,7 +48,7 @@ impl<F: Default, E> Default for Dorroh<F, E> {
 impl<F, E> Add for Dorroh<F, E>
 where
     F: Field,
-    E: Module<F> + Add<Output = E>,
+    E: Extension<F> + Add<Output = E>,
 {
     type Output = Self;
 
@@ -65,7 +65,7 @@ where
 impl<F, E> AddAssign for Dorroh<F, E>
 where
     F: Field,
-    E: Module<F> + Add<Output = E>,
+    E: Extension<F> + Add<Output = E>,
 {
     fn add_assign(&mut self, rhs: Self) {
         *self = self.clone() + rhs;
@@ -75,7 +75,7 @@ where
 impl<F, E> Sub for Dorroh<F, E>
 where
     F: Field,
-    E: Module<F> + Sub<Output = E>,
+    E: Extension<F> + Sub<Output = E>,
 {
     type Output = Self;
 
@@ -92,7 +92,7 @@ where
 impl<F, E> SubAssign for Dorroh<F, E>
 where
     F: Field,
-    E: Module<F> + Sub<Output = E>,
+    E: Extension<F> + Sub<Output = E>,
 {
     fn sub_assign(&mut self, rhs: Self) {
         *self = self.clone() - rhs;
@@ -102,7 +102,7 @@ where
 impl<F, E> Neg for Dorroh<F, E>
 where
     F: Field,
-    E: Module<F>,
+    E: Extension<F>,
 {
     type Output = Self;
 
@@ -117,7 +117,7 @@ where
 impl<F, E> Mul for Dorroh<F, E>
 where
     F: Field,
-    E: Module<F> + Mul<Output = E>,
+    E: Extension<F> + Mul<Output = E>,
 {
     type Output = Self;
 
@@ -134,7 +134,7 @@ where
 impl<F, E> MulAssign for Dorroh<F, E>
 where
     F: Field,
-    E: Module<F> + Mul<Output = E>,
+    E: Extension<F> + Mul<Output = E>,
 {
     fn mul_assign(&mut self, rhs: Self) {
         *self = self.clone() * rhs;
@@ -144,7 +144,7 @@ where
 impl<F, E> Sum for Dorroh<F, E>
 where
     F: Field,
-    E: Module<F> + Mul<Output = E> + Add<Output = E> + Sub<Output = E> + Debug,
+    E: Extension<F> + Mul<Output = E> + Add<Output = E> + Sub<Output = E> + Debug,
 {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
         iter.fold(Self::zero(), |acc, x| acc + x)
@@ -154,7 +154,7 @@ where
 impl<F, E> Product for Dorroh<F, E>
 where
     F: Field,
-    E: Module<F> + Mul<Output = E> + Add<Output = E> + Sub<Output = E> + Debug,
+    E: Extension<F> + Mul<Output = E> + Add<Output = E> + Sub<Output = E> + Debug,
 {
     fn product<I: Iterator<Item = Self>>(iter: I) -> Self {
         iter.fold(Self::one(), |acc, x| acc * x)
@@ -164,7 +164,7 @@ where
 impl<F, E> Add<F> for Dorroh<F, E>
 where
     F: Field,
-    E: Module<F>,
+    E: Extension<F>,
 {
     type Output = Self;
 
@@ -179,7 +179,7 @@ where
 impl<F, E> Sub<F> for Dorroh<F, E>
 where
     F: Field,
-    E: Module<F>,
+    E: Extension<F>,
 {
     type Output = Self;
 
@@ -194,7 +194,7 @@ where
 impl<F, E> Mul<F> for Dorroh<F, E>
 where
     F: Field,
-    E: Module<F>,
+    E: Extension<F>,
 {
     type Output = Self;
 
@@ -209,7 +209,7 @@ where
 impl<F, E> AbstractField for Dorroh<F, E>
 where
     F: Field,
-    E: Module<F> + Mul<Output = E> + Add<Output = E> + Sub<Output = E> + Debug,
+    E: Extension<F> + Mul<Output = E> + Add<Output = E> + Sub<Output = E> + Debug,
 {
     type F = F;
 

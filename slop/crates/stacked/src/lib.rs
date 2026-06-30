@@ -18,8 +18,10 @@
 
 mod fixed_rate;
 mod prover;
+mod stacked_oracle;
 mod verifier;
 
 pub use fixed_rate::*;
 pub use prover::*;
+pub use stacked_oracle::*;
 pub use verifier::*;

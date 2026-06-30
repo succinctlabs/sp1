@@ -17,7 +17,8 @@ use slop_challenger::IopCtx;
 use slop_koala_bear::KoalaBearDegree4Duplex;
 use slop_merkle_tree::Poseidon2KoalaBear16Prover;
 use slop_veil::compiler::{ConstraintCtx, ReadingCtx, SendingCtx};
-use slop_veil::transparent::{TransparentProverCtx, TransparentVerifierCtx};
+use slop_veil::protocols::ProtocolError;
+use slop_veil::transparent::{BasefoldTransparentProverCtx, BasefoldTransparentVerifierCtx};
 use slop_veil::zk::{compute_mask_length, NoPcsConfig, ZkProverCtx, ZkVerifierCtx};
 
 type GC = KoalaBearDegree4Duplex;
@@ -34,10 +35,13 @@ fn root_prove<C: SendingCtx>(ctx: &mut C, secret_root: C::Extension) {
 }
 
 /// Unified read+constrain pass: read the root and assert `p(root) == 0`.
-fn root_verify<C: ReadingCtx>(coeffs: &[C::Extension], ctx: &mut C) {
-    let root = ctx.read_one().unwrap();
+fn root_verify<C: ReadingCtx>(
+    coeffs: &[C::Extension],
+    ctx: &mut C,
+) -> Result<(), ProtocolError<C::AssertError>> {
+    let root = ctx.read_one()?;
     let eval = horner_eval::<C>(coeffs, root);
-    ctx.assert_zero(eval).unwrap();
+    ctx.assert_zero(eval).map_err(ProtocolError::Assert)
 }
 
 /// Horner's method: evaluate a polynomial with public extension-field coefficients
@@ -80,7 +84,7 @@ fn main() {
     // ZK backend.
     eprintln!("\n=== ZK BACKEND ===");
     // No MLE commitments in this protocol, so the encoding width is irrelevant.
-    let mask_length = compute_mask_length::<GC>(0, |ctx| root_verify(&poly_coeffs, ctx));
+    let mask_length = compute_mask_length::<GC, _>(0, |ctx| root_verify(&poly_coeffs, ctx));
     eprintln!("Mask length: {mask_length}");
 
     let zk_proof = {
@@ -88,14 +92,14 @@ fn main() {
         let mut pctx: ZkProverCtx<GC, NoPcsConfig<MK>> =
             ZkProverCtx::initialize_without_pcs(mask_length, &mut rng).expect("zk init failed");
         root_prove(&mut pctx, secret_root);
-        root_verify(&poly_coeffs, &mut pctx);
+        root_verify(&poly_coeffs, &mut pctx).expect("zk assert failed");
         let proof = pctx.prove(&mut rng).expect("zk prove failed");
         eprintln!("Prover time: {:?}", now.elapsed());
         proof
     };
     {
-        let mut vctx = ZkVerifierCtx::init(zk_proof, None);
-        root_verify(&poly_coeffs, &mut vctx);
+        let mut vctx = ZkVerifierCtx::init_without_pcs(zk_proof);
+        root_verify(&poly_coeffs, &mut vctx).expect("zk assert failed");
         vctx.verify().expect("zk verification failed");
     }
     eprintln!("ZK backend: PASSED");
@@ -104,16 +108,17 @@ fn main() {
     eprintln!("\n=== TRANSPARENT BACKEND ===");
     let transparent_proof = {
         let now = std::time::Instant::now();
-        let mut pctx: TransparentProverCtx<GC, MK> = TransparentProverCtx::initialize_without_pcs();
+        let mut pctx: BasefoldTransparentProverCtx<GC, MK> =
+            BasefoldTransparentProverCtx::initialize_without_pcs();
         root_prove(&mut pctx, secret_root);
-        root_verify(&poly_coeffs, &mut pctx);
+        root_verify(&poly_coeffs, &mut pctx).expect("transparent assert failed");
         let proof = pctx.prove(&mut rng).expect("transparent prove failed");
         eprintln!("Prover time: {:?}", now.elapsed());
         proof
     };
     {
-        let mut vctx = TransparentVerifierCtx::<GC>::new(transparent_proof, None);
-        root_verify(&poly_coeffs, &mut vctx);
+        let mut vctx = BasefoldTransparentVerifierCtx::<GC>::new(transparent_proof, None);
+        root_verify(&poly_coeffs, &mut vctx).expect("transparent assert failed");
         vctx.verify().expect("transparent verification failed");
     }
     eprintln!("Transparent backend: PASSED");

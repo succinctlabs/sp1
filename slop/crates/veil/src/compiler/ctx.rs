@@ -4,23 +4,9 @@ use std::fmt::Debug;
 
 use itertools::Itertools;
 use slop_algebra::{Algebra, ExtensionField, Field};
-use slop_commit::Message;
-use slop_multilinear::{Mle, Point};
+use slop_commit::{Message, Rounds};
+use slop_multilinear::{Mle, OracleEval, Point};
 use thiserror::Error;
-
-/// Error returned by `assert_zero` when eagerly-checking contexts (e.g. the
-/// transparent verifier) encounter a non-zero argument. Carries the failing
-/// expression so callers / panic messages can identify what failed.
-#[derive(Debug)]
-pub struct AssertZeroError<E: Debug>(pub E);
-
-impl<E: Debug> std::fmt::Display for AssertZeroError<E> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "assertion failed: expression did not evaluate to zero (got {:?})", self.0)
-    }
-}
-
-impl<E: Debug + 'static> Error for AssertZeroError<E> {}
 
 pub trait ConstraintCtx {
     type Field: Field;
@@ -28,17 +14,17 @@ pub trait ConstraintCtx {
 
     type Expr: Algebra<Self::Extension> + Algebra<Self::Challenge>;
     type Challenge: ExtensionField<Self::Field> + Algebra<Self::Extension> + Into<Self::Extension>;
-    type MleOracle;
+    /// An opaque handle to a committed MLE. `Copy` because handles are cheap indices into the
+    /// context's commitment records, which lets the `assert_mle_*` API take them as slices.
+    type MleCommit: Copy;
 
-    /// Error returned by `assert_zero` / `assert_a_times_b_equals_c`.
+    /// Error returned by `assert_zero` / `assert_a_times_b_equals_c` / the `assert_mle_*` methods.
     ///
-    /// Eager contexts (the transparent verifier) use a real error type like
-    /// [`AssertZeroError`] that identifies the failing constraint. Deferred
-    /// contexts (provers, ZK verifiers, mask counters) use
-    /// [`std::convert::Infallible`] — they only queue claims for later
-    /// discharge, so the assertion itself cannot fail at call time. Generic
-    /// protocol code typically `.unwrap()`s the result: a no-op on `Infallible`,
-    /// a panic with the failing expression on transparent failures.
+    /// Contexts that discharge MLE-eval openings eagerly (the ZK and transparent prover/verifier)
+    /// use a real error type carrying the PCS / assertion failure. The mask counter, which only
+    /// tallies and never actually checks anything, uses [`std::convert::Infallible`]. Generic
+    /// protocol code propagates the result with `?` (wrapping it in
+    /// [`ProtocolError::Assert`](crate::protocols::ProtocolError::Assert)).
     type AssertError: Error;
 
     fn assert_zero(&mut self, expr: Self::Expr) -> Result<(), Self::AssertError>;
@@ -82,10 +68,10 @@ pub trait ConstraintCtx {
     /// # Panics
     ///
     /// Requires exactly 2^{dim(Point)} many entries in `coeffs`.
-    fn mle_eval(point: Point<Self::Expr>, coeffs: &[Self::Expr]) -> Self::Expr {
+    fn mle_eval(point: &Point<Self::Expr>, coeffs: &[Self::Expr]) -> Self::Expr {
         use slop_multilinear::partial_lagrange_blocking;
 
-        let lagrange_coeffs = partial_lagrange_blocking(&point).into_buffer().into_vec();
+        let lagrange_coeffs = partial_lagrange_blocking(point).into_buffer().into_vec();
 
         let mut iter = lagrange_coeffs.into_iter().zip_eq(coeffs.iter());
         let (first_coeff, first_index) =
@@ -94,30 +80,99 @@ pub trait ConstraintCtx {
         iter.fold(first, |acc, (coeff, index)| acc + index.clone() * coeff)
     }
 
-    /// Asserts that a committed MLE evaluates to `eval_expr` at `point`.
+    /// Asserts that a committed MLE evaluates to `eval_expr` at `point`, and eagerly proves
+    /// (prover) or verifies (verifier) the hash part of the evaluation right here.
     ///
-    /// Registers an evaluation claim that will be proven/verified during
-    /// the PCS proof generation/verification phase.
+    /// The required linear constraints (like all others) are batched and proven/checked once
+    /// at the very end, in `prove`/`verify`.
     ///
     /// Default implementation delegates to `assert_mle_multi_eval` with a single claim.
     fn assert_mle_eval(
         &mut self,
-        oracle: Self::MleOracle,
-        point: Point<Self::Challenge>,
+        oracle: Self::MleCommit,
+        point: &Point<Self::Challenge>,
         eval_expr: Self::Expr,
-    ) {
-        self.assert_mle_multi_eval(vec![(oracle, eval_expr)], point);
+    ) -> Result<(), Self::AssertError> {
+        self.assert_mle_multi_eval(vec![(oracle, eval_expr)], point)
     }
 
-    /// Asserts that multiple committed MLEs evaluate to the given values at a shared point.
+    /// Asserts that multiple committed MLEs evaluate to the given values at a shared point, eagerly
+    /// proving/verifying the hash part of the opening (see [`Self::assert_mle_eval`]).
     ///
     /// This produces a single batched PCS proof covering all commitments,
     /// which is more efficient than calling `assert_mle_eval` once per commitment.
     fn assert_mle_multi_eval(
         &mut self,
-        claims: Vec<(Self::MleOracle, Self::Expr)>,
-        point: Point<Self::Challenge>,
-    );
+        claims: Vec<(Self::MleCommit, Self::Expr)>,
+        point: &Point<Self::Challenge>,
+    ) -> Result<(), Self::AssertError>;
+
+    /// Like [`Self::assert_mle_eval`] but with a caller-supplied MLE decomposition.
+    ///
+    /// `reduced_point` is the inner point at which the PCS opens the committed columns, and
+    /// `oracle_eval` is the combiner mapping the column sub-evaluations to the original evaluation
+    /// (`eval_expr == oracle_eval(column_evals)`). They are a matched pair. The plain
+    /// [`Self::assert_mle_eval`] selects the default (eq-coefficient stacking) decomposition.
+    ///
+    /// The combiner is applied at this (outer) expression type — the PCS opening returns the column
+    /// sub-evaluations and this context combines them — so `oracle_eval` may be any
+    /// [`OracleEval<Self::Expr, Self::Expr>`], including a non-linear one or a plain closure.
+    ///
+    /// This is the one-claim specialization of [`Self::assert_mle_multi_eval_with_oracle`].
+    fn assert_mle_eval_with_oracle<O: OracleEval<Self::Expr, Self::Expr>>(
+        &mut self,
+        commits: &[Self::MleCommit],
+        reduced_point: &Point<Self::Challenge>,
+        reduced_eval: Self::Expr,
+        oracle_eval: O,
+    ) -> Result<(), Self::AssertError> {
+        self.assert_mle_multi_eval_with_oracle(
+            vec![MleEvalClaim {
+                commits: Rounds { rounds: commits.to_vec() },
+                claimed_eval: reduced_eval,
+                oracle_eval,
+            }],
+            reduced_point,
+        )
+    }
+
+    /// The general PCS evaluation assertion: a batch of N (possibly *cross-commitment*) claims that
+    /// share a common reduced `point`.
+    ///
+    /// The point being shared is exactly what preserves the multi-eval batching: every commitment
+    /// read by any claim is opened *together* in a single base proof at `point`. A claim reading
+    /// several commitments is *cross-commitment*: its combiner runs across all of its commitments'
+    /// columns (e.g. `f(p0) + g(p1)` for full points `p0`, `p1` sharing their reduced coordinates).
+    ///
+    /// For claim `c`: `c.claimed_eval == c.oracle_eval(columns)`, where `columns` is the `Rounds` of
+    /// `c`'s opened commitments' column sub-evaluations, in `c.commits` order.
+    ///
+    /// Every other `assert_mle_*` method specializes this one: the `with_oracle` forms supply custom
+    /// decompositions directly, while the plain forms build the default (eq-coefficient stacking)
+    /// decomposition. Every commitment opened across the whole request must be distinct (each is
+    /// opened at most once).
+    fn assert_mle_multi_eval_with_oracle<O: OracleEval<Self::Expr, Self::Expr>>(
+        &mut self,
+        claims: Vec<MleEvalClaim<Self::MleCommit, Self::Expr, O>>,
+        point: &Point<Self::Challenge>,
+    ) -> Result<(), Self::AssertError>;
+}
+
+/// A single (possibly cross-commitment) MLE-eval claim for
+/// [`ConstraintCtx::assert_mle_multi_eval_with_oracle`].
+///
+/// The claim asserts `claimed_eval == oracle_eval(columns)`, where `columns` are the column
+/// sub-evaluations of the MLEs in `commits`, all opened at the shared `point` argument. A one-round
+/// `commits` is an ordinary single-commitment claim; a multi-round `commits` is a
+/// *cross-commitment* claim whose value depends on several commitments jointly.
+pub struct MleEvalClaim<Commit, Expr, O> {
+    /// The commitments this claim reads. The combiner receives their columns as a
+    /// `slop_commit::Rounds` in this order.
+    pub commits: Rounds<Commit>,
+    /// The single claimed evaluation value.
+    pub claimed_eval: Expr,
+    /// The combiner mapping the commitments' column sub-evaluations to `claimed_eval`.
+    pub oracle_eval: O,
 }
 
 #[derive(Clone, Copy, Debug, Error)]
@@ -128,6 +183,15 @@ pub enum TranscriptReadError {
     TranscriptReadMismatch { expected: usize, got: usize },
     #[error("unspecified transcript read error")]
     TranscriptReadUnspecified,
+    /// A transcript read was attempted after an MLE-eval claim (PCS opening) was made. PCS
+    /// openings are *terminal*: they consume the post-main-protocol Fiat-Shamir state, so any
+    /// further `read_*` would silently read from the wrong place. All reads must precede every
+    /// `assert_mle_eval` / `assert_mle_multi_eval`.
+    #[error(
+        "transcript read attempted after a PCS eval claim; all transcript reads must precede any \
+         assert_mle_eval (PCS openings are terminal)"
+    )]
+    ReadAfterPcsClaim,
 }
 
 /// Extension of `ConstraintCtx` that can read from the proof transcript and sample challenges.
@@ -152,7 +216,7 @@ pub trait ReadingCtx: ConstraintCtx {
     ///   is subtracted from this to recover the number of stacked polynomials.
     ///
     /// Returns `None` if the transcript is exhausted or parameters don't match.
-    fn read_oracle(&mut self, num_variables: u32) -> Option<Self::MleOracle>;
+    fn read_oracle(&mut self, num_variables: u32) -> Option<Self::MleCommit>;
 
     /// Sample a Fiat-Shamir challenge from the transcript.
     fn sample(&mut self) -> Self::Challenge;
@@ -194,6 +258,12 @@ pub trait SendingCtx: ConstraintCtx {
     /// Error returned by [`Self::commit_mle`].
     type CommitError: Error;
 
+    /// The fixed encoding width of the backend's PCS: every committed column is a polynomial over
+    /// this many variables, so [`Self::commit_mle`] expects its input pre-stacked into
+    /// `[2^num_encoding_variables, num_columns]` block columns (see
+    /// `slop_stacked::stack_multilinear`). Panics if the context was built without a PCS.
+    fn num_encoding_variables(&self) -> u32;
+
     /// Send a single value to the verifier (adds it to the proof transcript).
     fn send_value(&mut self, value: Self::Extension) -> Self::Expr;
 
@@ -223,14 +293,19 @@ pub trait SendingCtx: ConstraintCtx {
     /// handle to its data without an expensive deep clone; the buffer is only read, and is
     /// moved (rather than copied) when the caller holds no other reference.
     ///
-    /// The number of stacked polynomials is recovered as
-    /// `mle[0].num_variables() - num_encoding_variables`, where `num_encoding_variables` is
-    /// the fixed encoding width the backend's PCS was constructed with.
+    /// The MLE must be **pre-stacked**, given as one or more data components committed jointly under
+    /// a single commitment: each `mle[i]` is a `[2^num_encoding_variables, cols_i]` block-column
+    /// tensor (column `ℓ` = a consecutive block `f_ℓ`), as produced by
+    /// `slop_stacked::stack_multilinear` from a flat evaluation vector — or held directly by a
+    /// column-major producer (e.g. jagged's `LongMle`). Their columns concatenate, in order, into
+    /// the commitment's column set; the common case is a single component.
+    /// `num_encoding_variables` is the fixed encoding width the backend's PCS was constructed with,
+    /// and must equal `mle[i].num_variables()` for every component.
     fn commit_mle<RNG: rand::CryptoRng + rand::Rng>(
         &mut self,
         mle: Message<Mle<Self::Field>>,
         rng: &mut RNG,
-    ) -> Result<Self::MleOracle, Self::CommitError>
+    ) -> Result<Self::MleCommit, Self::CommitError>
     where
         rand::distributions::Standard: rand::distributions::Distribution<Self::Field>;
 

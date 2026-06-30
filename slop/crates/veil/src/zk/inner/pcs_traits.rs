@@ -1,17 +1,18 @@
 //! Abstract PCS (Polynomial Commitment Scheme) traits for dependency inversion.
 //!
-//! These traits allow zk-builder to work with any PCS implementation without
-//! directly depending on specific PCS crates. Crates like zk-stacked-pcs can
-//! implement these traits to integrate with the zk-builder constraint system.
+//! These traits let the ZK constraint contexts ([`ZkProverContext`] /
+//! [`ZkVerificationContext`]) work with any polynomial-commitment scheme without
+//! depending on its concrete types. The stacked-PCS backend in
+//! [`crate::zk::stacked_pcs`] implements them to integrate with the constraint system.
 
 use std::fmt::Debug;
 
 use slop_alloc::CpuBackend;
-use slop_commit::Message;
+use slop_commit::{Message, Rounds};
 use slop_multilinear::Mle;
 use thiserror::Error;
 
-use super::transcript::PcsMultiEvalClaim;
+use super::transcript::{MleCommitmentIndex, Point};
 use super::{
     ProverValue, VerifierValue, ZkIopCtx, ZkMerkleizer, ZkProverContext, ZkVerificationContext,
 };
@@ -42,12 +43,16 @@ pub enum ZkPcsVerificationError {
 /// * `GC` - The ZK IOP context type (e.g., `KoalaBearDegree4Duplex`)
 /// * `MK` - The merkleizer type used by the inner constraint prover
 pub trait ZkPcsProver<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> {
+    /// The PCS opening-proof wire format this prover produces. Threaded explicitly (rather than
+    /// fixed on `GC`) so a single context type can be used with any PCS.
+    type Proof: Clone + serde::Serialize + serde::de::DeserializeOwned;
+
     /// The prover data type returned from committing an MLE.
     ///
     /// This typically contains information needed to open the commitment
     /// at arbitrary points, such as the original polynomial coefficients
     /// or Merkle tree authentication paths.
-    type ProverData;
+    type ProverData: Clone;
 
     /// Error type returned by [`Self::prove_multi_eval`]. Concrete impls thread their
     /// own typed error here so a top-level `prove()` failure carries the original
@@ -60,16 +65,17 @@ pub trait ZkPcsProver<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> {
     /// is `mle.num_variables() - num_encoding_variables`.
     fn num_encoding_variables(&self) -> u32;
 
-    /// Commits to an MLE, interpreting it as a stacked tensor internally.
+    /// Commits to a **pre-stacked** MLE.
     ///
-    /// The flat MLE is interpreted as a tensor with `2^log_num_polynomials` columns,
-    /// each over `num_encoding_variables = mle[0].num_variables() - log_num_polynomials`
-    /// variables. The MLE is passed as a [`Message`] so its buffer can be read without
-    /// cloning or consuming the caller's data.
+    /// `mle[0]` is the block-column tensor `[2^num_encoding_variables, num_columns]` (column `ℓ` is
+    /// the consecutive block `f_ℓ`), as produced by [`slop_stacked::stack_multilinear`] or held
+    /// directly by a column-major producer (e.g. jagged). The number of stacked columns and the
+    /// encoding width are read from the tensor's shape; no transpose is performed here. The MLE is
+    /// passed as a [`Message`] so its buffer can be read without cloning or consuming the caller's
+    /// data.
     ///
     /// # Arguments
-    /// * `mle` — the flat (unstacked) MLE to commit to.
-    /// * `log_num_polynomials` — log2 of the number of stacked polynomials (tensor height).
+    /// * `mle` — the pre-stacked block-column MLE to commit to.
     /// * `rng` — cryptographically secure random number generator.
     ///
     /// # Returns
@@ -77,28 +83,30 @@ pub trait ZkPcsProver<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> {
     fn commit_mle<RNG: rand::CryptoRng + rand::Rng>(
         &self,
         mle: Message<Mle<GC::F, CpuBackend>>,
-        log_num_polynomials: usize,
         rng: &mut RNG,
     ) -> Result<(GC::Digest, Self::ProverData), ZkPcsCommitmentError>
     where
         rand::distributions::Standard: rand::distributions::Distribution<GC::F>;
 
-    /// Generates a (possibly batched) evaluation proof for one or more commitments
-    /// at the same point.
-    ///
-    /// # Arguments
-    /// * `ctx` - The prover constraint context
-    /// * `claim` - The evaluation claim (may contain one or multiple commitments)
+    /// Opens one or more commitments at the (already reduced) `reduced_point`, proving and
+    /// discharging the PCS-internal consistency, and returns the proof together with the
+    /// per-commitment **column sub-evaluations**. The caller is responsible for asserting how those
+    /// columns combine into each commitment's claimed evaluation (the decomposition).
     ///
     /// # Returns
-    /// A single proof covering all commitments in the claim, or [`Self::ProveError`]
-    /// on failure.
+    /// `(proof, columns)` where `columns` is a [`Rounds`] with one entry per commitment (in
+    /// `commitment_indices` order): `columns[j]` are commitment `j`'s data-column sub-evaluation
+    /// expressions. Returns [`Self::ProveError`] on failure.
     #[allow(clippy::type_complexity)]
     fn prove_multi_eval(
         &self,
-        ctx: &mut ZkProverContext<GC, MK, Self::ProverData>,
-        claim: PcsMultiEvalClaim<GC::EF, ProverValue<GC, MK, Self::ProverData>>,
-    ) -> Result<GC::PcsProof, Self::ProveError>;
+        ctx: &mut ZkProverContext<GC, MK, Self::ProverData, Self::Proof>,
+        commitment_indices: Rounds<MleCommitmentIndex>,
+        reduced_point: &Point<GC::EF>,
+    ) -> Result<
+        (Self::Proof, Rounds<Vec<ProverValue<GC, MK, Self::ProverData, Self::Proof>>>),
+        Self::ProveError,
+    >;
 }
 
 /// Trait for PCS verifiers that verify evaluation proofs.
@@ -106,35 +114,36 @@ pub trait ZkPcsProver<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> {
 /// Implementations verify zero-knowledge proofs for MLE evaluations
 /// and build the corresponding constraints on the verification context.
 ///
-/// The `Proof` associated type must equal `GC::PcsProof` when used with
-/// [`ZkVerificationContext::verify`].
+/// The proof type verified is the context's [`ZkIopCtx::PcsProof`] — the wire format the
+/// prover and verifier agree on through `GC`.
 ///
 /// # Type Parameters
 /// * `GC` - The ZK IOP context type
 pub trait ZkPcsVerifier<GC: ZkIopCtx> {
-    /// The proof type to verify. Must equal `GC::PcsProof` in practice.
-    type Proof;
+    /// The PCS opening-proof wire format this verifier consumes (matches the prover's
+    /// [`ZkPcsProver::Proof`]).
+    type Proof: Clone;
 
     /// The fixed number of encoding variables (log of the stacking height) this PCS
     /// was configured with. Used to recover `log_num_polynomials` from an oracle's
     /// total number of variables: `log_num_polynomials = num_variables - num_encoding_variables`.
     fn num_encoding_variables(&self) -> u32;
 
-    /// Verifies a (possibly batched) evaluation proof for one or more commitments
-    /// at the same point.
-    ///
-    /// # Arguments
-    /// * `ctx` - The verifier constraint context
-    /// * `claim` - The evaluation claim (may contain one or multiple commitments)
-    /// * `proof` - The proof to verify
+    /// Verifies a (possibly batched) opening of one or more commitments at the (already reduced)
+    /// `reduced_point`, discharging the PCS-internal consistency, and returns the per-commitment
+    /// **column sub-evaluations**. The caller asserts how those columns combine into each
+    /// commitment's claimed evaluation (the decomposition).
     ///
     /// # Returns
-    /// `Ok(())` if verification succeeds, or an error describing the failure.
+    /// `Ok(columns)` where `columns` is a [`Rounds`] with one entry per commitment (in
+    /// `commitment_indices` order): `columns[j]` are commitment `j`'s data-column sub-evaluation
+    /// expressions. Returns an error describing the failure otherwise.
     #[allow(clippy::type_complexity)]
     fn verify_multi_eval(
         &self,
-        ctx: &mut ZkVerificationContext<GC>,
-        claim: PcsMultiEvalClaim<GC::EF, VerifierValue<GC>>,
+        ctx: &mut ZkVerificationContext<GC, Self::Proof>,
+        commitment_indices: Rounds<MleCommitmentIndex>,
+        reduced_point: &Point<GC::EF>,
         proof: &Self::Proof,
-    ) -> Result<(), ZkPcsVerificationError>;
+    ) -> Result<Rounds<Vec<VerifierValue<GC, Self::Proof>>>, ZkPcsVerificationError>;
 }

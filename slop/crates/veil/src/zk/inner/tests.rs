@@ -25,7 +25,12 @@ const _: () = {
     _assert_send_sync::<ZkProverContext<KoalaBearDegree4Duplex, MK>>();
     _assert_send_sync::<super::verifier::ZkVerificationContext<KoalaBearDegree4Duplex>>();
     _assert_send_sync::<super::mask_counter::MaskCounterContext<KoalaBearDegree4Duplex>>();
-    _assert_send_sync::<crate::zk::ZkVerifierCtx<KoalaBearDegree4Duplex>>();
+    _assert_send_sync::<
+        crate::zk::ZkVerifierCtx<
+            KoalaBearDegree4Duplex,
+            crate::zk::stacked_pcs::ZkBasefoldVerifier<KoalaBearDegree4Duplex>,
+        >,
+    >();
 };
 
 /// Single source of truth constraint builder.

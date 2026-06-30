@@ -10,15 +10,16 @@ use slop_challenger::IopCtx;
 use slop_koala_bear::KoalaBearDegree4Duplex;
 use slop_merkle_tree::Poseidon2KoalaBear16Prover;
 use slop_veil::transparent::{
-    initialize_transparent_prover_and_verifier, TransparentProverCtx, TransparentVerifierCtx,
+    initialize_transparent_prover_and_verifier, BasefoldTransparentProverCtx,
+    BasefoldTransparentVerifierCtx,
 };
 
 use crate::sumcheck_test_primitives::{
     generate_random_hadamard_product, generate_random_single_mle,
     sumcheck_batched_single_mles_prove, sumcheck_batched_single_mles_verify,
     sumcheck_hadamard_prove, sumcheck_hadamard_verify, sumcheck_no_pcs_prove,
-    sumcheck_no_pcs_verify, sumcheck_single_mle_prove, sumcheck_single_mle_verify,
-    sumcheck_triple_hadamard_prove, sumcheck_triple_hadamard_verify,
+    sumcheck_no_pcs_verify, sumcheck_single_mle_multi_component_prove, sumcheck_single_mle_prove,
+    sumcheck_single_mle_verify, sumcheck_triple_hadamard_prove, sumcheck_triple_hadamard_verify,
 };
 
 type GC = KoalaBearDegree4Duplex;
@@ -38,15 +39,16 @@ fn test_sumcheck_no_pcs() {
     let (_, _, product, claim) = generate_random_hadamard_product::<F, EF>(&mut rng, NUM_VARIABLES);
 
     let proof = {
-        let mut pctx: TransparentProverCtx<GC, MK> = TransparentProverCtx::initialize_without_pcs();
+        let mut pctx: BasefoldTransparentProverCtx<GC, MK> =
+            BasefoldTransparentProverCtx::initialize_without_pcs();
         sumcheck_no_pcs_prove(&mut pctx, NUM_VARIABLES, product, claim);
-        sumcheck_no_pcs_verify(&mut pctx, NUM_VARIABLES, claim);
+        sumcheck_no_pcs_verify(&mut pctx, NUM_VARIABLES, claim).expect("transparent assert failed");
         pctx.prove(&mut rng).expect("transparent prove failed")
     };
 
     {
-        let mut vctx = TransparentVerifierCtx::<GC>::new(proof, None);
-        sumcheck_no_pcs_verify(&mut vctx, NUM_VARIABLES, claim);
+        let mut vctx = BasefoldTransparentVerifierCtx::<GC>::new(proof, None);
+        sumcheck_no_pcs_verify(&mut vctx, NUM_VARIABLES, claim).expect("transparent assert failed");
         vctx.verify().expect("transparent verification failed");
     }
 }
@@ -65,23 +67,62 @@ fn test_sumcheck_single_mle_with_pcs() {
     let (original_mle, mle_ef, claim) =
         generate_random_single_mle::<F, EF>(&mut rng, NUM_VARIABLES);
 
-    let (stacked_prover, stacked_verifier) = initialize_transparent_prover_and_verifier::<GC, MK>(
-        1,
-        NUM_ENCODING_VARIABLES,
-        LOG_NUM_POLYNOMIALS,
-    );
+    let (stacked_prover, stacked_verifier) =
+        initialize_transparent_prover_and_verifier::<GC, MK>(1, NUM_ENCODING_VARIABLES);
 
     let proof = {
-        let mut pctx: TransparentProverCtx<GC, MK> =
-            TransparentProverCtx::initialize(stacked_prover);
+        let mut pctx: BasefoldTransparentProverCtx<GC, MK> =
+            BasefoldTransparentProverCtx::initialize(stacked_prover);
         sumcheck_single_mle_prove(&mut pctx, NUM_VARIABLES, original_mle, mle_ef, claim, &mut rng);
-        sumcheck_single_mle_verify(&mut pctx, NUM_VARIABLES, claim);
+        sumcheck_single_mle_verify(&mut pctx, NUM_VARIABLES, claim)
+            .expect("transparent assert failed");
         pctx.prove(&mut rng).expect("transparent prove failed")
     };
 
     {
-        let mut vctx = TransparentVerifierCtx::<GC>::new(proof, Some(stacked_verifier));
-        sumcheck_single_mle_verify(&mut vctx, NUM_VARIABLES, claim);
+        let mut vctx = BasefoldTransparentVerifierCtx::<GC>::new(proof, Some(stacked_verifier));
+        sumcheck_single_mle_verify(&mut vctx, NUM_VARIABLES, claim)
+            .expect("transparent assert failed");
+        vctx.verify().expect("transparent verification failed");
+    }
+}
+
+/// Like #2, but the oracle is committed as several pre-stacked data components under one commitment
+/// (the "longer message" path). Must verify identically to the single-component case.
+#[test]
+fn test_sumcheck_single_mle_multi_component() {
+    let mut rng = ChaCha20Rng::from_entropy();
+    const NUM_ENCODING_VARIABLES: u32 = 16;
+    const LOG_NUM_POLYNOMIALS: u32 = 8;
+    const NUM_VARIABLES: u32 = NUM_ENCODING_VARIABLES + LOG_NUM_POLYNOMIALS;
+
+    let (original_mle, mle_ef, claim) =
+        generate_random_single_mle::<F, EF>(&mut rng, NUM_VARIABLES);
+
+    let (stacked_prover, stacked_verifier) =
+        initialize_transparent_prover_and_verifier::<GC, MK>(1, NUM_ENCODING_VARIABLES);
+
+    let proof = {
+        let mut pctx: BasefoldTransparentProverCtx<GC, MK> =
+            BasefoldTransparentProverCtx::initialize(stacked_prover);
+        sumcheck_single_mle_multi_component_prove(
+            &mut pctx,
+            NUM_VARIABLES,
+            original_mle,
+            mle_ef,
+            claim,
+            4,
+            &mut rng,
+        );
+        sumcheck_single_mle_verify(&mut pctx, NUM_VARIABLES, claim)
+            .expect("transparent assert failed");
+        pctx.prove(&mut rng).expect("transparent prove failed")
+    };
+
+    {
+        let mut vctx = BasefoldTransparentVerifierCtx::<GC>::new(proof, Some(stacked_verifier));
+        sumcheck_single_mle_verify(&mut vctx, NUM_VARIABLES, claim)
+            .expect("transparent assert failed");
         vctx.verify().expect("transparent verification failed");
     }
 }
@@ -100,15 +141,12 @@ fn test_sumcheck_hadamard_with_pcs() {
     let (mle_base, mle_ext, product, claim) =
         generate_random_hadamard_product::<F, EF>(&mut rng, NUM_VARIABLES);
 
-    let (stacked_prover, stacked_verifier) = initialize_transparent_prover_and_verifier::<GC, MK>(
-        2,
-        NUM_ENCODING_VARIABLES,
-        LOG_NUM_POLYNOMIALS,
-    );
+    let (stacked_prover, stacked_verifier) =
+        initialize_transparent_prover_and_verifier::<GC, MK>(2, NUM_ENCODING_VARIABLES);
 
     let proof = {
-        let mut pctx: TransparentProverCtx<GC, MK> =
-            TransparentProverCtx::initialize(stacked_prover);
+        let mut pctx: BasefoldTransparentProverCtx<GC, MK> =
+            BasefoldTransparentProverCtx::initialize(stacked_prover);
         sumcheck_hadamard_prove(
             &mut pctx,
             NUM_VARIABLES,
@@ -118,13 +156,15 @@ fn test_sumcheck_hadamard_with_pcs() {
             claim,
             &mut rng,
         );
-        sumcheck_hadamard_verify(&mut pctx, NUM_VARIABLES, claim);
+        sumcheck_hadamard_verify(&mut pctx, NUM_VARIABLES, claim)
+            .expect("transparent assert failed");
         pctx.prove(&mut rng).expect("transparent prove failed")
     };
 
     {
-        let mut vctx = TransparentVerifierCtx::<GC>::new(proof, Some(stacked_verifier));
-        sumcheck_hadamard_verify(&mut vctx, NUM_VARIABLES, claim);
+        let mut vctx = BasefoldTransparentVerifierCtx::<GC>::new(proof, Some(stacked_verifier));
+        sumcheck_hadamard_verify(&mut vctx, NUM_VARIABLES, claim)
+            .expect("transparent assert failed");
         vctx.verify().expect("transparent verification failed");
     }
 }
@@ -151,15 +191,12 @@ fn test_sumcheck_batched_single_mles_with_pcs() {
         claims.push(claim);
     }
 
-    let (stacked_prover, stacked_verifier) = initialize_transparent_prover_and_verifier::<GC, MK>(
-        NUM_CLAIMS,
-        NUM_ENCODING_VARIABLES,
-        LOG_NUM_POLYNOMIALS,
-    );
+    let (stacked_prover, stacked_verifier) =
+        initialize_transparent_prover_and_verifier::<GC, MK>(NUM_CLAIMS, NUM_ENCODING_VARIABLES);
 
     let proof = {
-        let mut pctx: TransparentProverCtx<GC, MK> =
-            TransparentProverCtx::initialize(stacked_prover);
+        let mut pctx: BasefoldTransparentProverCtx<GC, MK> =
+            BasefoldTransparentProverCtx::initialize(stacked_prover);
         sumcheck_batched_single_mles_prove(
             &mut pctx,
             NUM_VARIABLES,
@@ -168,19 +205,22 @@ fn test_sumcheck_batched_single_mles_with_pcs() {
             &claims,
             &mut rng,
         );
-        sumcheck_batched_single_mles_verify(&mut pctx, NUM_VARIABLES, &claims);
+        sumcheck_batched_single_mles_verify(&mut pctx, NUM_VARIABLES, &claims)
+            .expect("transparent assert failed");
         pctx.prove(&mut rng).expect("transparent prove failed")
     };
 
     {
-        let mut vctx = TransparentVerifierCtx::<GC>::new(proof, Some(stacked_verifier));
-        sumcheck_batched_single_mles_verify(&mut vctx, NUM_VARIABLES, &claims);
+        let mut vctx = BasefoldTransparentVerifierCtx::<GC>::new(proof, Some(stacked_verifier));
+        sumcheck_batched_single_mles_verify(&mut vctx, NUM_VARIABLES, &claims)
+            .expect("transparent assert failed");
         vctx.verify().expect("transparent verification failed");
     }
 }
 
 // ============================================================================
-// #5: Triple Hadamard, multi-point. ZK panics; transparent handles it.
+// #5: Triple Hadamard, multi-point. The ZK backend rejects the repeated opening;
+// the transparent backend evaluates directly and handles multi-point openings.
 // ============================================================================
 
 #[test]
@@ -221,15 +261,12 @@ fn test_sumcheck_triple_hadamard_multi_point() {
     let claim_gh = compute_claim(&mle_g, &mle_h);
     let claim_hf = compute_claim(&mle_h, &mle_f);
 
-    let (stacked_prover, stacked_verifier) = initialize_transparent_prover_and_verifier::<GC, MK>(
-        1,
-        NUM_ENCODING_VARIABLES,
-        LOG_NUM_POLYNOMIALS,
-    );
+    let (stacked_prover, stacked_verifier) =
+        initialize_transparent_prover_and_verifier::<GC, MK>(1, NUM_ENCODING_VARIABLES);
 
     let proof = {
-        let mut pctx: TransparentProverCtx<GC, MK> =
-            TransparentProverCtx::initialize(stacked_prover);
+        let mut pctx: BasefoldTransparentProverCtx<GC, MK> =
+            BasefoldTransparentProverCtx::initialize(stacked_prover);
         sumcheck_triple_hadamard_prove(
             &mut pctx,
             NUM_VARIABLES,
@@ -244,13 +281,15 @@ fn test_sumcheck_triple_hadamard_multi_point() {
             claim_hf,
             &mut rng,
         );
-        sumcheck_triple_hadamard_verify(&mut pctx, NUM_VARIABLES, claim_fg, claim_gh, claim_hf);
+        sumcheck_triple_hadamard_verify(&mut pctx, NUM_VARIABLES, claim_fg, claim_gh, claim_hf)
+            .expect("transparent assert failed");
         pctx.prove(&mut rng).expect("transparent prove failed")
     };
 
     {
-        let mut vctx = TransparentVerifierCtx::<GC>::new(proof, Some(stacked_verifier));
-        sumcheck_triple_hadamard_verify(&mut vctx, NUM_VARIABLES, claim_fg, claim_gh, claim_hf);
+        let mut vctx = BasefoldTransparentVerifierCtx::<GC>::new(proof, Some(stacked_verifier));
+        sumcheck_triple_hadamard_verify(&mut vctx, NUM_VARIABLES, claim_fg, claim_gh, claim_hf)
+            .expect("transparent assert failed");
         vctx.verify().expect("transparent verification failed");
     }
 }

@@ -14,6 +14,8 @@
 //! [`compute_mask_length`](slop_veil::zk::compute_mask_length) consumes the
 //! `*_verify` function directly.
 
+use std::sync::Arc;
+
 use rand::distributions::{Distribution, Standard};
 use rand::{CryptoRng, Rng};
 use slop_algebra::{AbstractExtensionField, AbstractField, Field};
@@ -21,10 +23,12 @@ use slop_commit::Message;
 use slop_jagged::{HadamardProduct, LongMle};
 use slop_matrix::dense::RowMajorMatrix;
 use slop_multilinear::{Mle, Point};
+use slop_stacked::stack_multilinear;
 use slop_sumcheck::SumcheckPolyFirstRound;
 
 use slop_veil::compiler::{ReadingCtx, SendingCtx};
 use slop_veil::protocols::sumcheck::{SumcheckInputClaim, SumcheckParam};
+use slop_veil::protocols::ProtocolError;
 
 // ============================================================================
 // Scenario #1: Hadamard-product sumcheck, no PCS.
@@ -42,11 +46,14 @@ where
     SumcheckParam::with_component_evals(num_variables, 2, 2).prove(&in_claim, poly, ctx);
 }
 
-pub fn sumcheck_no_pcs_verify<C: ReadingCtx>(ctx: &mut C, num_variables: u32, claim: C::Extension) {
+pub fn sumcheck_no_pcs_verify<C: ReadingCtx>(
+    ctx: &mut C,
+    num_variables: u32,
+    claim: C::Extension,
+) -> Result<(), ProtocolError<C::AssertError>> {
     let in_claim = SumcheckInputClaim::from_value(claim);
-    SumcheckParam::with_component_evals(num_variables, 2, 2)
-        .verify(&in_claim, ctx)
-        .expect("sumcheck verify failed");
+    SumcheckParam::with_component_evals(num_variables, 2, 2).verify(&in_claim, ctx)?;
+    Ok(())
 }
 
 // ============================================================================
@@ -65,7 +72,8 @@ pub fn sumcheck_single_mle_prove<C, RNG>(
     RNG: CryptoRng + Rng,
     Standard: Distribution<C::Field>,
 {
-    ctx.commit_mle(Message::from(original_mle), rng).expect("commit_mle failed");
+    let enc = ctx.num_encoding_variables();
+    ctx.commit_mle(stack_multilinear(original_mle, enc), rng).expect("commit_mle failed");
     let in_claim = SumcheckInputClaim::from_value(claim);
     SumcheckParam::new(num_variables, 1).prove(&in_claim, mle_ef, ctx);
 }
@@ -74,14 +82,55 @@ pub fn sumcheck_single_mle_verify<C: ReadingCtx>(
     ctx: &mut C,
     num_variables: u32,
     claim: C::Extension,
-) {
-    let oracle = ctx.read_oracle(num_variables).expect("read_oracle failed");
+) -> Result<(), ProtocolError<C::AssertError>> {
+    let oracle = ctx.read_oracle(num_variables).ok_or(ProtocolError::MissingOracle)?;
     let in_claim = SumcheckInputClaim::from_value(claim);
-    let out_claim = SumcheckParam::new(num_variables, 1)
-        .verify(&in_claim, ctx)
-        .expect("sumcheck verify failed");
+    let out_claim = SumcheckParam::new(num_variables, 1).verify(&in_claim, ctx)?;
     let point = Point::from(out_claim.point.clone());
-    ctx.assert_mle_eval(oracle, point, out_claim.claimed_eval);
+    ctx.assert_mle_eval(oracle, &point, out_claim.claimed_eval).map_err(ProtocolError::Assert)
+}
+
+/// Splits a flat MLE into `num_components` pre-stacked block-column components (contiguous block
+/// ranges), as a multi-component producer (e.g. jagged) would hand to the commit. Their columns
+/// concatenate, in order, into the full block-column set.
+fn split_into_components<F: Field>(
+    flat: &Mle<F>,
+    num_encoding_variables: u32,
+    num_components: usize,
+) -> Message<Mle<F>> {
+    let data = flat.guts().as_slice();
+    assert_eq!(data.len() % num_components, 0);
+    let per = data.len() / num_components;
+    let mut components: Vec<Arc<Mle<F>>> = Vec::with_capacity(num_components);
+    for k in 0..num_components {
+        let sub = Mle::from(data[k * per..(k + 1) * per].to_vec());
+        components.extend(stack_multilinear(sub, num_encoding_variables));
+    }
+    Message::from(components)
+}
+
+/// Like [`sumcheck_single_mle_prove`], but commits the oracle as `num_components` separate
+/// pre-stacked data components under a single commitment (the "longer message" path). The verify
+/// side is component-agnostic, so [`sumcheck_single_mle_verify`] is reused unchanged.
+#[allow(clippy::too_many_arguments)]
+pub fn sumcheck_single_mle_multi_component_prove<C, RNG>(
+    ctx: &mut C,
+    num_variables: u32,
+    original_mle: Mle<C::Field>,
+    mle_ef: Mle<C::Extension>,
+    claim: C::Extension,
+    num_components: usize,
+    rng: &mut RNG,
+) where
+    C: SendingCtx,
+    RNG: CryptoRng + Rng,
+    Standard: Distribution<C::Field>,
+{
+    let enc = ctx.num_encoding_variables();
+    let components = split_into_components(&original_mle, enc, num_components);
+    ctx.commit_mle(components, rng).expect("commit_mle failed");
+    let in_claim = SumcheckInputClaim::from_value(claim);
+    SumcheckParam::new(num_variables, 1).prove(&in_claim, mle_ef, ctx);
 }
 
 // ============================================================================
@@ -102,8 +151,9 @@ pub fn sumcheck_hadamard_prove<C, RNG>(
     RNG: CryptoRng + Rng,
     Standard: Distribution<C::Field>,
 {
-    ctx.commit_mle(Message::from(mle_base), rng).expect("commit base failed");
-    ctx.commit_mle(Message::from(mle_ext), rng).expect("commit ext failed");
+    let enc = ctx.num_encoding_variables();
+    ctx.commit_mle(stack_multilinear(mle_base, enc), rng).expect("commit base failed");
+    ctx.commit_mle(stack_multilinear(mle_ext, enc), rng).expect("commit ext failed");
     let in_claim = SumcheckInputClaim::from_value(claim);
     SumcheckParam::with_component_evals(num_variables, 2, 2).prove(&in_claim, product, ctx);
 }
@@ -112,21 +162,21 @@ pub fn sumcheck_hadamard_verify<C: ReadingCtx>(
     ctx: &mut C,
     num_variables: u32,
     claim: C::Extension,
-) {
-    let oracle_base = ctx.read_oracle(num_variables).expect("read_oracle base failed");
-    let oracle_ext = ctx.read_oracle(num_variables).expect("read_oracle ext failed");
+) -> Result<(), ProtocolError<C::AssertError>> {
+    let oracle_base = ctx.read_oracle(num_variables).ok_or(ProtocolError::MissingOracle)?;
+    let oracle_ext = ctx.read_oracle(num_variables).ok_or(ProtocolError::MissingOracle)?;
     let in_claim = SumcheckInputClaim::from_value(claim);
-    let out_claim = SumcheckParam::with_component_evals(num_variables, 2, 2)
-        .verify(&in_claim, ctx)
-        .expect("sumcheck verify failed");
+    let out_claim =
+        SumcheckParam::with_component_evals(num_variables, 2, 2).verify(&in_claim, ctx)?;
     let point = Point::from(out_claim.point.clone());
     let base_eval = out_claim.component_evals[0][0].clone();
     let ext_eval = out_claim.component_evals[0][1].clone();
     ctx.assert_a_times_b_equals_c(base_eval.clone(), ext_eval.clone(), out_claim.claimed_eval)
-        .unwrap();
+        .map_err(ProtocolError::Assert)?;
     // Batch both oracles at the shared sumcheck point into a single multi-eval
     // group → one PCS proof covering both commits.
-    ctx.assert_mle_multi_eval(vec![(oracle_base, base_eval), (oracle_ext, ext_eval)], point);
+    ctx.assert_mle_multi_eval(vec![(oracle_base, base_eval), (oracle_ext, ext_eval)], &point)
+        .map_err(ProtocolError::Assert)
 }
 
 // ============================================================================
@@ -153,8 +203,9 @@ pub fn sumcheck_batched_single_mles_prove<C, RNG>(
     assert_eq!(originals.len(), mles_ef.len());
     assert_eq!(originals.len(), claims.len());
 
+    let enc = ctx.num_encoding_variables();
     for mle in originals {
-        ctx.commit_mle(Message::from(mle), rng).expect("commit failed");
+        ctx.commit_mle(stack_multilinear(mle, enc), rng).expect("commit failed");
     }
     let lambda = ctx.sample();
     let num_claims = claims.len();
@@ -172,23 +223,22 @@ pub fn sumcheck_batched_single_mles_verify<C: ReadingCtx>(
     ctx: &mut C,
     num_variables: u32,
     claims: &[C::Extension],
-) {
+) -> Result<(), ProtocolError<C::AssertError>> {
     let oracles: Vec<_> = (0..claims.len())
-        .map(|_| ctx.read_oracle(num_variables).expect("read_oracle failed"))
-        .collect();
+        .map(|_| ctx.read_oracle(num_variables).ok_or(ProtocolError::MissingOracle))
+        .collect::<Result<_, _>>()?;
     // Sample the RLC coefficient *after* all oracle commits have been observed.
     let lambda = ctx.sample();
     let in_claims: Vec<SumcheckInputClaim<C>> =
         claims.iter().map(|c| SumcheckInputClaim::from_value(*c)).collect();
     let out_claim =
         SumcheckParam::with_poly_component_counts(num_variables, 1, vec![1; claims.len()])
-            .verify_batched(&in_claims, lambda, ctx)
-            .expect("sumcheck verify failed");
+            .verify_batched(&in_claims, lambda, ctx)?;
     let point = Point::from(out_claim.point.clone());
     let per_mle_evals: Vec<C::Expr> =
         out_claim.component_evals.iter().map(|v| v[0].clone()).collect();
     let claims_vec: Vec<_> = oracles.into_iter().zip(per_mle_evals).collect();
-    ctx.assert_mle_multi_eval(claims_vec, point);
+    ctx.assert_mle_multi_eval(claims_vec, &point).map_err(ProtocolError::Assert)
 }
 
 // ============================================================================
@@ -199,9 +249,9 @@ pub fn sumcheck_batched_single_mles_verify<C: ReadingCtx>(
 // point PCS discharge path. Requires `C::MleOracle: Clone` since each commit is
 // handed to two separate `assert_mle_eval` calls.
 //
-// The ZK backend currently panics with "Multiple eval claims on the same PCS
-// commitment" when the same commit is opened at multiple points, so the ZK
-// facade marks this test `#[should_panic]`.
+// The ZK backend opens each commitment at most once (a second opening would break
+// zero-knowledge), so the second `assert_mle_eval` on the same commit returns
+// `ZkProveError::DuplicateEvalClaim`; the ZK facade matches on that error.
 // ============================================================================
 
 #[allow(clippy::too_many_arguments)]
@@ -223,9 +273,10 @@ pub fn sumcheck_triple_hadamard_prove<C, RNG>(
     RNG: CryptoRng + Rng,
     Standard: Distribution<C::Field>,
 {
-    ctx.commit_mle(Message::from(mle_f), rng).expect("commit f failed");
-    ctx.commit_mle(Message::from(mle_g), rng).expect("commit g failed");
-    ctx.commit_mle(Message::from(mle_h), rng).expect("commit h failed");
+    let enc = ctx.num_encoding_variables();
+    ctx.commit_mle(stack_multilinear(mle_f, enc), rng).expect("commit f failed");
+    ctx.commit_mle(stack_multilinear(mle_g, enc), rng).expect("commit g failed");
+    ctx.commit_mle(stack_multilinear(mle_h, enc), rng).expect("commit h failed");
     let param = SumcheckParam::with_component_evals(num_variables, 2, 2);
     param.prove(&SumcheckInputClaim::from_value(claim_fg), product_fg, ctx);
     param.prove(&SumcheckInputClaim::from_value(claim_gh), product_gh, ctx);
@@ -238,24 +289,19 @@ pub fn sumcheck_triple_hadamard_verify<C>(
     claim_fg: C::Extension,
     claim_gh: C::Extension,
     claim_hf: C::Extension,
-) where
+) -> Result<(), ProtocolError<C::AssertError>>
+where
     C: ReadingCtx,
-    C::MleOracle: Clone,
+    C::MleCommit: Clone,
 {
-    let oracle_f = ctx.read_oracle(num_variables).expect("read_oracle f failed");
-    let oracle_g = ctx.read_oracle(num_variables).expect("read_oracle g failed");
-    let oracle_h = ctx.read_oracle(num_variables).expect("read_oracle h failed");
+    let oracle_f = ctx.read_oracle(num_variables).ok_or(ProtocolError::MissingOracle)?;
+    let oracle_g = ctx.read_oracle(num_variables).ok_or(ProtocolError::MissingOracle)?;
+    let oracle_h = ctx.read_oracle(num_variables).ok_or(ProtocolError::MissingOracle)?;
     let param = SumcheckParam::with_component_evals(num_variables, 2, 2);
 
-    let out_fg = param
-        .verify(&SumcheckInputClaim::from_value(claim_fg), ctx)
-        .expect("sumcheck fg verify failed");
-    let out_gh = param
-        .verify(&SumcheckInputClaim::from_value(claim_gh), ctx)
-        .expect("sumcheck gh verify failed");
-    let out_hf = param
-        .verify(&SumcheckInputClaim::from_value(claim_hf), ctx)
-        .expect("sumcheck hf verify failed");
+    let out_fg = param.verify(&SumcheckInputClaim::from_value(claim_fg), ctx)?;
+    let out_gh = param.verify(&SumcheckInputClaim::from_value(claim_gh), ctx)?;
+    let out_hf = param.verify(&SumcheckInputClaim::from_value(claim_hf), ctx)?;
 
     let f_at_p1 = out_fg.component_evals[0][0].clone();
     let g_at_p1 = out_fg.component_evals[0][1].clone();
@@ -273,17 +319,21 @@ pub fn sumcheck_triple_hadamard_verify<C>(
     let claimed_eval_hf = out_hf.claimed_eval.clone();
 
     // Multiplicative constraints: f(p_i) * g/h(p_i) = claimed_eval_i.
-    ctx.assert_a_times_b_equals_c(f_at_p1.clone(), g_at_p1.clone(), claimed_eval_fg).unwrap();
-    ctx.assert_a_times_b_equals_c(g_at_p2.clone(), h_at_p2.clone(), claimed_eval_gh).unwrap();
-    ctx.assert_a_times_b_equals_c(h_at_p3.clone(), f_at_p3.clone(), claimed_eval_hf).unwrap();
+    ctx.assert_a_times_b_equals_c(f_at_p1.clone(), g_at_p1.clone(), claimed_eval_fg)
+        .map_err(ProtocolError::Assert)?;
+    ctx.assert_a_times_b_equals_c(g_at_p2.clone(), h_at_p2.clone(), claimed_eval_gh)
+        .map_err(ProtocolError::Assert)?;
+    ctx.assert_a_times_b_equals_c(h_at_p3.clone(), f_at_p3.clone(), claimed_eval_hf)
+        .map_err(ProtocolError::Assert)?;
 
     // Per-commit multi-point openings: f at {p1, p3}, g at {p1, p2}, h at {p2, p3}.
-    ctx.assert_mle_eval(oracle_f.clone(), point_p1.clone(), f_at_p1);
-    ctx.assert_mle_eval(oracle_f, point_p3.clone(), f_at_p3);
-    ctx.assert_mle_eval(oracle_g.clone(), point_p1, g_at_p1);
-    ctx.assert_mle_eval(oracle_g, point_p2.clone(), g_at_p2);
-    ctx.assert_mle_eval(oracle_h.clone(), point_p2, h_at_p2);
-    ctx.assert_mle_eval(oracle_h, point_p3, h_at_p3);
+    ctx.assert_mle_eval(oracle_f, &point_p1, f_at_p1).map_err(ProtocolError::Assert)?;
+    ctx.assert_mle_eval(oracle_f, &point_p3, f_at_p3).map_err(ProtocolError::Assert)?;
+    ctx.assert_mle_eval(oracle_g, &point_p1, g_at_p1).map_err(ProtocolError::Assert)?;
+    ctx.assert_mle_eval(oracle_g, &point_p2, g_at_p2).map_err(ProtocolError::Assert)?;
+    ctx.assert_mle_eval(oracle_h, &point_p2, h_at_p2).map_err(ProtocolError::Assert)?;
+    ctx.assert_mle_eval(oracle_h, &point_p3, h_at_p3).map_err(ProtocolError::Assert)?;
+    Ok(())
 }
 
 // ============================================================================

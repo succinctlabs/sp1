@@ -1,6 +1,6 @@
 use slop_algebra::{AbstractField, TwoAdicField};
 use slop_alloc::CpuBackend;
-use slop_basefold::BasefoldProof;
+use slop_basefold::BatchedBasefoldProof;
 use slop_basefold_prover::{BaseFoldConfigProverError, BasefoldProver, BasefoldProverData};
 use slop_challenger::IopCtx;
 use slop_commit::{Message, Rounds};
@@ -65,7 +65,7 @@ where
         eval_point: &Point<GC::EF>,
         prover_data: ProverData<GC, P>,
         challenger: &mut GC::Challenger,
-    ) -> Result<Proof<GC::EF, BasefoldProof<GC>>, BaseFoldConfigProverError<GC, P>> {
+    ) -> Result<Proof<GC::EF, BatchedBasefoldProof<GC>>, BaseFoldConfigProverError<GC, P>> {
         // Compute the evaluation claim
         let v = poly.eval_at(eval_point);
 

@@ -1,4 +1,5 @@
 #![allow(clippy::disallowed_types)]
+#![allow(dead_code)]
 
 //! Single MLE benchmark sweep across parameter space.
 //!
@@ -7,10 +8,7 @@
 use std::fs::File;
 use std::io::Write;
 
-#[path = "common.rs"]
-#[allow(dead_code)]
-mod common;
-use common::*;
+include!("common.rs");
 
 fn main() {
     const NUM_WARMUP: usize = 1;

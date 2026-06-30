@@ -1,5 +1,5 @@
 pub use crate::zk::prover_ctx::{MerkleProverData, ZkMerkleizer};
-pub use crate::zk::verifier_ctx::ZkIopCtx;
+pub use crate::zk::ZkIopCtx;
 
 pub mod constraints;
 #[cfg(sp1_debug_constraints)]

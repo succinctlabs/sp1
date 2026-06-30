@@ -6520,6 +6520,7 @@ dependencies = [
  "slop-baby-bear",
  "slop-bn254 6.3.1",
  "slop-challenger 6.3.1",
+ "slop-commit",
  "slop-koala-bear 6.3.1",
  "slop-merkle-tree",
  "slop-multilinear",
@@ -6971,6 +6972,7 @@ dependencies = [
  "slop-utils",
  "thiserror 1.0.69",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

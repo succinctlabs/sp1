@@ -5,7 +5,7 @@ use crate::{
     CircuitConfig, SP1FieldConfigVariable,
 };
 use slop_alloc::Buffer;
-use slop_basefold::BasefoldProof;
+use slop_basefold::BatchedBasefoldProof;
 use slop_challenger::{GrindingChallenger, IopCtx};
 use slop_merkle_tree::{MerkleTreeOpeningAndProof, MerkleTreeTcsProof};
 use slop_multilinear::{Evaluations, Mle, MleEval};
@@ -123,7 +123,9 @@ where
     }
 }
 
-impl<C, GC> Witnessable<C> for BasefoldProof<GC>
+// The circuit models the grinding witness inline in [`RecursiveBasefoldProof`], so the host
+// [`BatchedBasefoldProof`] (proof + witness) is what maps onto it.
+impl<C, GC> Witnessable<C> for BatchedBasefoldProof<GC>
 where
     C: CircuitConfig,
     GC: IopCtx<F = SP1Field, EF = SP1ExtensionField> + SP1FieldConfigVariable<C>,
@@ -139,13 +141,14 @@ where
     type WitnessVariable = RecursiveBasefoldProof<C, GC>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
-        let univariate_messages = self.univariate_messages.read(builder);
-        let fri_commitments = self.fri_commitments.read(builder);
+        let univariate_messages = self.basefold_proof.univariate_messages.read(builder);
+        let fri_commitments = self.basefold_proof.fri_commitments.read(builder);
         let component_polynomials_query_openings =
-            self.component_polynomials_query_openings_and_proofs.read(builder);
-        let query_phase_openings = self.query_phase_openings_and_proofs.read(builder);
-        let final_poly = self.final_poly.read(builder);
-        let pow_witness = self.pow_witness.read(builder);
+            self.basefold_proof.component_polynomials_query_openings_and_proofs.read(builder);
+        let query_phase_openings =
+            self.basefold_proof.query_phase_openings_and_proofs.read(builder);
+        let final_poly = self.basefold_proof.final_poly.read(builder);
+        let pow_witness = self.basefold_proof.pow_witness.read(builder);
         let batch_grinding_witness = self.batch_grinding_witness.read(builder);
         RecursiveBasefoldProof::<C, GC> {
             univariate_messages,
@@ -158,12 +161,12 @@ where
         }
     }
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
-        self.univariate_messages.write(witness);
-        self.fri_commitments.write(witness);
-        self.component_polynomials_query_openings_and_proofs.write(witness);
-        self.query_phase_openings_and_proofs.write(witness);
-        self.final_poly.write(witness);
-        self.pow_witness.write(witness);
+        self.basefold_proof.univariate_messages.write(witness);
+        self.basefold_proof.fri_commitments.write(witness);
+        self.basefold_proof.component_polynomials_query_openings_and_proofs.write(witness);
+        self.basefold_proof.query_phase_openings_and_proofs.write(witness);
+        self.basefold_proof.final_poly.write(witness);
+        self.basefold_proof.pow_witness.write(witness);
         self.batch_grinding_witness.write(witness);
     }
 }
@@ -172,13 +175,13 @@ impl<GC: IopCtx<F = SP1Field, EF = SP1ExtensionField>, C, RecursivePcsProof> Wit
     for SP1PcsProof<GC>
 where
     C: CircuitConfig,
-    BasefoldProof<GC>: Witnessable<C, WitnessVariable = RecursivePcsProof>,
+    BatchedBasefoldProof<GC>: Witnessable<C, WitnessVariable = RecursivePcsProof>,
 {
     type WitnessVariable = RecursiveStackedPcsProof<RecursivePcsProof, SP1Field, SP1ExtensionField>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let batch_evaluations = self.batch_evaluations.read(builder);
-        let pcs_proof = self.basefold_proof.read(builder);
+        let pcs_proof = self.batched_basefold_proof.read(builder);
         RecursiveStackedPcsProof::<RecursivePcsProof, SP1Field, SP1ExtensionField> {
             pcs_proof,
             batch_evaluations,
@@ -187,6 +190,6 @@ where
 
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
         self.batch_evaluations.write(witness);
-        self.basefold_proof.write(witness);
+        self.batched_basefold_proof.write(witness);
     }
 }

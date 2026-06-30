@@ -1,64 +1,58 @@
 use slop_algebra::TwoAdicField;
 use slop_alloc::CpuBackend;
 use slop_basefold::{BasefoldVerifier, FriConfig};
-use slop_basefold_prover::{BasefoldProver, BasefoldProverError};
+use slop_basefold_prover::BasefoldProver;
 use slop_challenger::{CanObserve, FieldChallenger, IopCtx};
-use slop_commit::{Message, Rounds};
+use slop_commit::Message;
 use slop_merkle_tree::ComputeTcsOpenings;
-use slop_multilinear::{Mle, MultilinearPcsProver, Point};
-use slop_stacked::{
-    StackedBasefoldProof, StackedBasefoldProverData, StackedPcsProver, StackedPcsVerifier,
-};
+use slop_multilinear::{BatchPcsProver, Mle, OracleEval, Point};
+use slop_stacked::{StackedPcsProver, StackedPcsVerifier};
 
 use thiserror::Error;
 
-use crate::compiler::{ConstraintCtx, ReadingCtx, SendingCtx, TranscriptReadError};
+use crate::compiler::{ConstraintCtx, MleEvalClaim, ReadingCtx, SendingCtx, TranscriptReadError};
+use crate::transparent::pcs::{self, TransparentCommitData};
 
-/// Error returned by [`TransparentProverCtx::commit_mle`].
-///
-/// Wraps the underlying basefold prover error and adds the shape-check failures that the
-/// transparent context performs before handing the MLE to the PCS.
+/// Error returned by [`TransparentProverCtx::commit_mle`]. `E` is the base PCS prover's error.
 #[derive(Debug, Error)]
 pub enum TransparentCommitError<E: std::error::Error + 'static> {
     /// `commit_mle` was called on a context built via [`TransparentProverCtx::initialize_without_pcs`].
     #[error("commit_mle called on a transparent prover built without a PCS")]
     NoPcsProver,
-    /// The MLE has fewer variables than the PCS's fixed encoding width.
+    /// A committed data component's variable count does not match the PCS's fixed encoding width
+    /// (pre-stacked components must each be over exactly `num_encoding_variables` variables).
     #[error(
-        "MLE has {num_variables} variables, fewer than the PCS's \
-         {num_encoding_variables} encoding variables"
+        "MLE component has {num_variables} variables, but the PCS's fixed encoding width is \
+         {num_encoding_variables}"
     )]
-    MleTooSmall { num_variables: u32, num_encoding_variables: u32 },
-    /// The MLE's implied number of stacked polynomials does not match the PCS's
-    /// configured batch size.
-    #[error("MLE implies batch size {got}, but the PCS was configured with batch size {expected}")]
-    BatchSizeMismatch { expected: usize, got: usize },
-    /// The underlying basefold prover failed.
+    WrongEncodingWidth { num_variables: u32, num_encoding_variables: u32 },
+    /// The underlying base PCS prover failed.
     #[error(transparent)]
-    Basefold(#[from] BasefoldProverError<E>),
+    Pcs(E),
 }
 
-/// Error returned by [`TransparentProverCtx::prove`].
-///
-/// Wraps the underlying basefold prover error and adds the missing-PCS variant
-/// for contexts built via [`TransparentProverCtx::initialize_without_pcs`] that
-/// nonetheless emitted MLE-eval claims.
+/// Error returned by [`TransparentProverCtx::prove`] / the eager `assert_mle_*` openings. `E` is the
+/// base PCS prover's error.
 #[derive(Debug, Error)]
 pub enum TransparentProveError<E: std::error::Error + 'static> {
     /// MLE-eval claims were registered but the context was built via
     /// [`TransparentProverCtx::initialize_without_pcs`].
     #[error("MLE-eval claims exist but the transparent prover has no PCS backend")]
     NoPcsProver,
-    /// The underlying basefold prover failed during opening proof generation.
+    /// The underlying base PCS prover failed during opening proof generation.
     #[error(transparent)]
-    Basefold(#[from] BasefoldProverError<E>),
+    Pcs(E),
 }
 
-/// Convenience alias for the stacked-basefold PCS prover data attached to each
-/// committed oracle.
+/// Basefold specialization of the transparent backend's base PCS prover: the Basefold prover
+/// pinned to its fixed encoding width (= stacking height). The fixed width and the mid-proof RLC
+/// encoder both come from the base [`BatchPcsProver`] itself; the transparent backend does its
+/// own (mask-free) stacking through [`crate::transparent::pcs`].
 #[allow(type_alias_bounds)]
-pub type TransparentProverData<GC: IopCtx, MK: ComputeTcsOpenings<GC, CpuBackend>> =
-    StackedBasefoldProverData<Mle<GC::F>, GC::F, MK::ProverData>;
+pub type BasefoldTransparentProver<
+    GC: IopCtx<F: TwoAdicField>,
+    MK: ComputeTcsOpenings<GC, CpuBackend>,
+> = StackedPcsProver<MK, GC>;
 
 /// Oracle handle on the transparent prover side.
 ///
@@ -66,8 +60,7 @@ pub type TransparentProverData<GC: IopCtx, MK: ComputeTcsOpenings<GC, CpuBackend
 /// shape, and heavy stacked-basefold prover data) — mirroring the verifier's
 /// [`TransparentVerifierOracle`](super::TransparentVerifierOracle) and the ZK
 /// backend's `MleCommit`. Being `Copy`, handing it around (including replaying it)
-/// is free; the `prover_data` is never copied just to move a handle, only when an
-/// opening proof genuinely needs an owned copy at `prove()`.
+/// is free.
 #[derive(Clone, Copy, Debug)]
 pub struct TransparentMleOracle {
     /// Index into `TransparentProverCtx::oracles`.
@@ -76,32 +69,34 @@ pub struct TransparentMleOracle {
 
 /// One committed oracle: its commitment + shape (emitted into the proof) and the
 /// stacked-basefold prover data needed to answer openings. Indexed by
-/// [`TransparentMleOracle::idx`]; the `prover_data` is `take()`n (or cloned, for
-/// repeat opens) at `prove()` so the last opening can move it out without a copy.
-struct OracleEntry<GC: IopCtx, MK: ComputeTcsOpenings<GC, CpuBackend>> {
+/// [`TransparentMleOracle::idx`]; the `prover_data` is cloned (cheaply —
+/// `Arc`/`Message`-backed) by each eager opening, since an oracle may be opened at
+/// several points.
+struct OracleEntry<GC: IopCtx, Inner: BatchPcsProver<GC>> {
     commitment: GC::Digest,
     num_encoding_variables: u32,
     log_num_polynomials: u32,
-    prover_data: Option<TransparentProverData<GC, MK>>,
+    prover_data: Option<TransparentCommitData<GC, Inner>>,
 }
 
-/// One group of pending MLE-evaluation claims — all at a single shared opening point,
-/// as emitted by a single `assert_mle_multi_eval` call. Each group is later discharged
-/// into a single stacked-basefold opening proof at `prove()` time. Oracles are stored
-/// by index; their `prover_data` is fetched from `oracle_store` at `prove()` time.
-struct PendingEvalClaims<EF> {
-    oracle_indices: Vec<usize>,
-    point: Point<EF>,
-}
-
-/// Finalized transparent proof: raw transcript, oracle digests paired with their
-/// shape `(num_encoding_variables, log_num_polynomials)`, and one stacked-basefold
-/// opening proof per `assert_mle_multi_eval` call.
-pub struct TransparentProof<GC: IopCtx> {
+/// Finalized transparent proof: raw transcript, oracle digests paired with their shape
+/// `(num_encoding_variables, log_num_polynomials)`, and one base-PCS opening proof per
+/// `assert_mle_multi_eval` call, in call order. `Proof` is the base PCS's proof type.
+pub struct TransparentProof<GC: IopCtx, Proof> {
     pub transcript: Vec<Vec<GC::EF>>,
     pub oracle_commits: Vec<(GC::Digest, u32, u32)>,
-    pub pcs_proofs: Vec<StackedBasefoldProof<GC>>,
+    pub pcs_proofs: Vec<Proof>,
 }
+
+/// Basefold specialization of [`TransparentProof`].
+pub type BasefoldTransparentProof<GC> = TransparentProof<GC, slop_basefold::BasefoldProof<GC>>;
+
+/// Basefold specialization of [`TransparentProverCtx`] (the context used in tests/examples).
+#[allow(type_alias_bounds)]
+pub type BasefoldTransparentProverCtx<
+    GC: IopCtx<F: TwoAdicField>,
+    MK: ComputeTcsOpenings<GC, CpuBackend>,
+> = TransparentProverCtx<GC, StackedPcsProver<MK, GC>>;
 
 /// Transparent prover context.
 ///
@@ -110,39 +105,36 @@ pub struct TransparentProof<GC: IopCtx> {
 /// drawn from a challenger observing that transcript.
 ///
 /// Unlike a more elaborate compiled prover, this context does not track polynomial
-/// constraints (those are the verifier's concern in the raw protocol). It *does*,
-/// however, record every `assert_mle_eval` / `assert_mle_multi_eval` claim so that
-/// at `prove()` time it can batch them all into a single stacked-basefold opening.
+/// constraints (those are the verifier's concern in the raw protocol). MLE-eval
+/// openings are discharged **eagerly**: each `assert_mle_eval` / `assert_mle_multi_eval`
+/// call immediately produces its stacked-basefold opening proof (advancing the
+/// Fiat-Shamir challenger over it) and pushes it onto `pcs_proofs`, matching the ZK
+/// backend. `prove()` then just emits the already-collected proofs.
 ///
-/// Commitments go through [`StackedPcsProver`] from `slop-stacked`. The transparent
-/// context treats every `commit_mle` as its own round: we flatten the stacked PCS's
-/// `Rounds<_>` abstraction by keeping one handle per commit and bundling them into
-/// `Rounds` only at `prove()` time.
-///
-/// Each `assert_mle_multi_eval` call is recorded as its own claim group (one opening
-/// point, one or more oracles at that point) and becomes one stacked-basefold opening
-/// proof. Multiple calls at different points turn into multiple proofs — matching the
-/// zk case, which emits one `PcsProof` per claim group.
-pub struct TransparentProverCtx<GC, MK>
+/// Commitments and openings go through the base [`BatchPcsProver`] directly (via
+/// [`crate::transparent::pcs`]), with the transparent backend doing its own mask-free stacking —
+/// no stacked-protocol machinery, and no dependence on the ZK stacked PCS. Each
+/// `assert_mle_multi_eval` call (one opening point, one or more oracles at that point) becomes one
+/// opening proof — matching the zk case, which emits one `PcsProof` per claim group.
+pub struct TransparentProverCtx<GC, Inner>
 where
     GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>,
-    MK: ComputeTcsOpenings<GC, CpuBackend>,
+    Inner: BatchPcsProver<GC>,
 {
     /// All sent extension-field messages, grouped by `send_value` / `send_values` call.
     transcript: Vec<Vec<GC::EF>>,
     /// Fiat-Shamir challenger; observes every sent message and oracle commitment.
     challenger: GC::Challenger,
-    /// Configured stacked-basefold prover used to commit MLEs and produce openings;
-    /// `None` for protocols that don't use MLE commitments (e.g. pure-constraint
-    /// proofs like `root.rs`).
-    pcs_prover: Option<StackedPcsProver<MK, GC>>,
+    /// Configured base PCS prover used to commit MLEs and produce openings; `None` for
+    /// protocols that don't use MLE commitments (e.g. pure-constraint proofs like `root.rs`).
+    pcs_prover: Option<Inner>,
     /// All committed oracles in send order: commitment + shape + prover data. The
-    /// commitments/shapes are emitted into the proof; the prover data is consumed at
-    /// `prove()`. `TransparentMleOracle` is just an index into this vector.
-    oracles: Vec<OracleEntry<GC, MK>>,
-    /// Accumulated MLE-eval claim groups to be discharged at `prove()` time; one
-    /// entry per `assert_mle_multi_eval` call.
-    pending_eval_claims: Vec<PendingEvalClaims<GC::EF>>,
+    /// commitments/shapes are emitted into the proof; the prover data is read (cloned)
+    /// by each eager opening. `TransparentMleOracle` is just an index into this vector.
+    oracles: Vec<OracleEntry<GC, Inner>>,
+    /// Opening proofs produced eagerly at each `assert_mle_multi_eval` call, in call order.
+    /// Moved into the [`TransparentProof`] by `prove()`.
+    pcs_proofs: Vec<Inner::Proof>,
     /// Replay log backing the prover's [`ReadingCtx`] impl.
     /// Records, in order, every value sent and challenge sampled during the
     /// `SendingCtx` pass, so the unified `verify` body can be replayed on the prover
@@ -154,14 +146,17 @@ where
     replay_challenges: Vec<GC::EF>,
     replay_challenge_cursor: usize,
     replay_oracle_cursor: usize,
+    /// Set once any MLE-eval claim has been recorded. Guards against further transcript reads,
+    /// which would read past the (terminal) PCS openings.
+    pcs_claim_made: bool,
 }
 
-impl<GC, MK> TransparentProverCtx<GC, MK>
+impl<GC, PCS> TransparentProverCtx<GC, PCS>
 where
     GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>,
-    MK: ComputeTcsOpenings<GC, CpuBackend>,
+    PCS: BatchPcsProver<GC>,
 {
-    pub fn initialize(pcs_prover: StackedPcsProver<MK, GC>) -> Self {
+    pub fn initialize(pcs_prover: PCS) -> Self {
         Self::new_inner(Some(pcs_prover))
     }
 
@@ -171,86 +166,76 @@ where
         Self::new_inner(None)
     }
 
-    fn new_inner(pcs_prover: Option<StackedPcsProver<MK, GC>>) -> Self {
+    fn new_inner(pcs_prover: Option<PCS>) -> Self {
         Self {
             transcript: Vec::new(),
             challenger: GC::default_challenger(),
             pcs_prover,
             oracles: Vec::new(),
-            pending_eval_claims: Vec::new(),
+            pcs_proofs: Vec::new(),
             replay_sent: Vec::new(),
             replay_sent_cursor: 0,
             replay_challenges: Vec::new(),
             replay_challenge_cursor: 0,
             replay_oracle_cursor: 0,
+            pcs_claim_made: false,
         }
     }
 
     /// Finalize the proof: consume the context and emit the raw transcript, oracle
-    /// commits, and one stacked-basefold opening proof per `assert_mle_multi_eval`
-    /// call group. `rng` is unused — transparent mode doesn't mask.
+    /// commits, and the stacked-basefold opening proofs already produced eagerly at each
+    /// `assert_mle_multi_eval` call. `rng` is unused — transparent mode doesn't mask.
     pub fn prove<RNG: rand::CryptoRng + rand::Rng>(
-        mut self,
+        self,
         _rng: &mut RNG,
-    ) -> Result<TransparentProof<GC>, TransparentProveError<MK::ProverError>>
+    ) -> Result<TransparentProof<GC, PCS::Proof>, TransparentProveError<PCS::ProverError>>
     where
         rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
-        // Only needed for the multi-open path below (an oracle opened at >1 point);
-        // single-open proofs move the data out of `oracles` and never clone.
-        TransparentProverData<GC, MK>: Clone,
     {
-        let pcs_proofs = if self.pending_eval_claims.is_empty() {
-            Vec::new()
-        } else {
-            // Per-index opening multiplicity: an oracle opened N times needs N owned
-            // copies of its prover data. We move the data out on its *last* opening and
-            // clone only for the earlier ones, so single-open proofs do zero clones.
-            let mut remaining = vec![0usize; self.oracles.len()];
-            for group in &self.pending_eval_claims {
-                for &idx in &group.oracle_indices {
-                    remaining[idx] += 1;
-                }
-            }
-
-            let pcs_prover = self.pcs_prover.as_ref().ok_or(TransparentProveError::NoPcsProver)?;
-            // `prove_trusted_evaluation` ignores its `evaluation_claim` argument — the
-            // per-oracle claims are checked by the verifier against the proof's embedded
-            // batch evaluations — but we still need to pass something.
-            let placeholder_eval = <GC::EF as slop_algebra::AbstractField>::zero();
-
-            let mut pcs_proofs = Vec::with_capacity(self.pending_eval_claims.len());
-            for group in std::mem::take(&mut self.pending_eval_claims) {
-                let prover_datas: Vec<_> = group
-                    .oracle_indices
-                    .iter()
-                    .map(|&idx| {
-                        remaining[idx] -= 1;
-                        let data = &mut self.oracles[idx].prover_data;
-                        if remaining[idx] == 0 {
-                            data.take().expect("oracle data already taken")
-                        } else {
-                            data.as_ref().expect("oracle data missing").clone()
-                        }
-                    })
-                    .collect();
-                let rounds = Rounds { rounds: prover_datas };
-                pcs_proofs.push(pcs_prover.prove_trusted_evaluation(
-                    group.point,
-                    placeholder_eval,
-                    rounds,
-                    &mut self.challenger,
-                )?);
-            }
-            pcs_proofs
-        };
-
         let oracle_commits = self
             .oracles
             .iter()
             .map(|o| (o.commitment, o.num_encoding_variables, o.log_num_polynomials))
             .collect();
 
-        Ok(TransparentProof { transcript: self.transcript, oracle_commits, pcs_proofs })
+        // Openings were discharged eagerly at each `assert_mle_multi_eval` call, in order.
+        Ok(TransparentProof {
+            transcript: self.transcript,
+            oracle_commits,
+            pcs_proofs: self.pcs_proofs,
+        })
+    }
+
+    /// Eagerly opens the given oracles at `point` (all sharing it) through the base PCS, advancing
+    /// the Fiat-Shamir challenger over the opening, and records the proof. `claimed_evals` are the
+    /// per-oracle evaluations the protocol claims (bound by the opening). All oracles must share the
+    /// same shape (encoding width + `log_num_polynomials`).
+    fn open_mle_commitment(
+        &mut self,
+        oracle_indices: &[usize],
+        claimed_evals: &[GC::EF],
+        point: &Point<GC::EF>,
+    ) -> Result<(), TransparentProveError<PCS::ProverError>>
+    where
+        PCS::ProverData: Clone,
+    {
+        let log_stacking_height = self.oracles[oracle_indices[0]].num_encoding_variables as usize;
+        let commit_datas: Vec<&TransparentCommitData<GC, PCS>> = oracle_indices
+            .iter()
+            .map(|&idx| self.oracles[idx].prover_data.as_ref().expect("oracle data missing"))
+            .collect();
+        let pcs_prover = self.pcs_prover.as_ref().ok_or(TransparentProveError::NoPcsProver)?;
+        let proof = pcs::open(
+            pcs_prover,
+            &commit_datas,
+            point,
+            claimed_evals,
+            log_stacking_height,
+            &mut self.challenger,
+        )
+        .map_err(TransparentProveError::Pcs)?;
+        self.pcs_proofs.push(proof);
+        Ok(())
     }
 }
 
@@ -262,18 +247,16 @@ where
 /// # Arguments
 /// * `num_expected_commitments` — upper bound on the number of MLE commitments made
 ///   during the protocol (passed through to the underlying `BasefoldVerifier`).
-/// * `num_encoding_variables` — number of variables per stacked polynomial (encoding
-///   width). Every subsequent [`commit_mle`](crate::compiler::SendingCtx::commit_mle)
-///   / [`read_oracle`](crate::compiler::ReadingCtx::read_oracle) call must use a
-///   matching `num_encoding_variables`.
-/// * `log_num_polynomials` — log2 of the number of stacked polynomials per commit.
-///   Fixes the prover's `batch_size` at `1 << log_num_polynomials`; all commits must
-///   use this value.
+/// * `num_encoding_variables` — number of variables per stacked column (encoding width). Every
+///   subsequent [`commit_mle`](crate::compiler::SendingCtx::commit_mle) /
+///   [`read_oracle`](crate::compiler::ReadingCtx::read_oracle) call must use a matching
+///   `num_encoding_variables`; the number of stacked columns is inferred per commit from the MLE
+///   size, so no fixed batch size is needed.
+#[allow(clippy::type_complexity)]
 pub fn initialize_transparent_prover_and_verifier<GC, MK>(
     num_expected_commitments: usize,
     num_encoding_variables: u32,
-    log_num_polynomials: u32,
-) -> (StackedPcsProver<MK, GC>, StackedPcsVerifier<GC>)
+) -> (BasefoldTransparentProver<GC, MK>, super::BasefoldTransparentVerifier<GC>)
 where
     GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>,
     MK: ComputeTcsOpenings<GC, CpuBackend> + Default,
@@ -281,31 +264,33 @@ where
     let basefold_verifier =
         BasefoldVerifier::<GC>::new(FriConfig::default_fri_config(), num_expected_commitments);
     let basefold_prover = BasefoldProver::<GC, MK>::new(&basefold_verifier);
-    let stacked_prover = StackedPcsProver::new(
-        basefold_prover,
-        num_encoding_variables,
-        1usize << log_num_polynomials,
-    );
-    let stacked_verifier = StackedPcsVerifier::new(basefold_verifier, num_encoding_variables);
-    (stacked_prover, stacked_verifier)
+    // `batch_size` only parameterizes the stacked interleaving commit, which the base-PCS
+    // (`BatchPcsProver`) path never touches; any value works here.
+    let prover = StackedPcsProver::new(basefold_prover, num_encoding_variables, 1);
+    let verifier = StackedPcsVerifier::new(basefold_verifier, num_encoding_variables);
+    (prover, verifier)
 }
 
 // ============================================================================
-// ConstraintCtx: polynomial-identity asserts are no-ops; MLE-eval asserts queue
-//                claims for discharge at `prove()` time.
+// ConstraintCtx: polynomial-identity asserts are no-ops; MLE-eval asserts are
+//                discharged eagerly into a stacked-basefold opening at the call site.
 // ============================================================================
 
-impl<GC, MK> ConstraintCtx for TransparentProverCtx<GC, MK>
+impl<GC, PCS> ConstraintCtx for TransparentProverCtx<GC, PCS>
 where
     GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>,
-    MK: ComputeTcsOpenings<GC, CpuBackend>,
+    PCS: BatchPcsProver<GC>,
+    // The eager opening clones each oracle's base prover data (cheap — `Arc`/`Message`-backed).
+    PCS::ProverData: Clone,
 {
     type Field = GC::F;
     type Extension = GC::EF;
     type Expr = GC::EF;
     type Challenge = GC::EF;
-    type MleOracle = TransparentMleOracle;
-    type AssertError = std::convert::Infallible;
+    type MleCommit = TransparentMleOracle;
+    // MLE-eval openings are produced eagerly, so an assertion can fail here (missing PCS prover or
+    // a base-PCS prover error). The plain `assert_zero` only no-ops and returns `Ok(())`.
+    type AssertError = TransparentProveError<PCS::ProverError>;
 
     fn assert_zero(&mut self, _expr: Self::Expr) -> Result<(), Self::AssertError> {
         Ok(())
@@ -313,14 +298,29 @@ where
 
     fn assert_mle_multi_eval(
         &mut self,
-        claims: Vec<(Self::MleOracle, Self::Expr)>,
-        point: Point<Self::Challenge>,
-    ) {
-        // The transparent prover discharges these via `prove_trusted_evaluation`, which
-        // ignores the claimed evals (the verifier checks them against the proof's embedded
-        // batch evaluations), so only the oracle indices and opening point are retained.
-        let oracle_indices = claims.into_iter().map(|(oracle, _eval)| oracle.idx).collect();
-        self.pending_eval_claims.push(PendingEvalClaims { oracle_indices, point });
+        claims: Vec<(Self::MleCommit, Self::Expr)>,
+        point: &Point<Self::Challenge>,
+    ) -> Result<(), Self::AssertError> {
+        self.pcs_claim_made = true;
+        // Eagerly open all the claims' oracles at the shared point, binding their claimed evals.
+        let oracle_indices: Vec<usize> = claims.iter().map(|(oracle, _)| oracle.idx).collect();
+        let claimed_evals: Vec<GC::EF> = claims.iter().map(|(_, eval)| *eval).collect();
+        self.open_mle_commitment(&oracle_indices, &claimed_evals, point)
+    }
+
+    fn assert_mle_multi_eval_with_oracle<O: OracleEval<Self::Expr, Self::Expr>>(
+        &mut self,
+        _claims: Vec<MleEvalClaim<Self::MleCommit, Self::Expr, O>>,
+        _point: &Point<Self::Challenge>,
+    ) -> Result<(), Self::AssertError> {
+        // The general (custom-combiner / cross-commitment) form is expressed over PCS column
+        // sub-evaluations, which the transparent backend (direct MLE evaluation, no stacked-column
+        // opening) does not surface. Only the default-decomposition `assert_mle_multi_eval` /
+        // `assert_mle_eval` paths (which this backend implements directly) are supported here.
+        unimplemented!(
+            "custom-oracle / cross-commitment MLE-eval claims are not supported by the transparent \
+             backend"
+        )
     }
 }
 
@@ -329,12 +329,13 @@ where
 // finalize the proof.
 // ============================================================================
 
-impl<GC, MK> SendingCtx for TransparentProverCtx<GC, MK>
+impl<GC, PCS> SendingCtx for TransparentProverCtx<GC, PCS>
 where
     GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>,
-    MK: ComputeTcsOpenings<GC, CpuBackend>,
+    PCS: BatchPcsProver<GC>,
+    PCS::ProverData: Clone,
 {
-    type CommitError = TransparentCommitError<MK::ProverError>;
+    type CommitError = TransparentCommitError<PCS::ProverError>;
 
     fn send_value(&mut self, value: GC::EF) -> GC::EF {
         self.challenger.observe_ext_element(value);
@@ -362,38 +363,49 @@ where
         challenge
     }
 
-    /// The number of stacked polynomials (`mle.num_variables() - num_encoding_variables`)
-    /// must match the stacked-PCS's configured `batch_size` (= 2^log_num_polynomials).
-    /// `rng` is unused — transparent mode doesn't mask.
+    fn num_encoding_variables(&self) -> u32 {
+        self.pcs_prover
+            .as_ref()
+            .expect("num_encoding_variables requires a PCS-backed context")
+            .num_encoding_variables()
+    }
+
+    /// Commits a **pre-stacked** block-column MLE (`mle[0]` is the `[2^num_encoding_variables,
+    /// num_columns]` tensor, column `ℓ` = the block `f_ℓ`) through the base PCS. `rng` is unused —
+    /// transparent mode doesn't mask.
     fn commit_mle<RNG: rand::CryptoRng + rand::Rng>(
         &mut self,
         mle: Message<Mle<GC::F>>,
         _rng: &mut RNG,
-    ) -> Result<Self::MleOracle, Self::CommitError>
+    ) -> Result<Self::MleCommit, Self::CommitError>
     where
         rand::distributions::Standard: rand::distributions::Distribution<GC::F>,
     {
         let pcs_prover = self.pcs_prover.as_ref().ok_or(TransparentCommitError::NoPcsProver)?;
-        let num_encoding_variables = pcs_prover.log_stacking_height;
-        let num_variables = mle[0].num_variables();
-        let log_num_polynomials = num_variables
-            .checked_sub(num_encoding_variables)
-            .ok_or(TransparentCommitError::MleTooSmall { num_variables, num_encoding_variables })?;
-        let expected_batch_size = 1usize << log_num_polynomials;
-        if expected_batch_size != pcs_prover.batch_size {
-            return Err(TransparentCommitError::BatchSizeMismatch {
-                expected: pcs_prover.batch_size,
-                got: expected_batch_size,
-            });
+        let num_encoding_variables = pcs_prover.num_encoding_variables();
+        // Pre-stacked data components: every component's columns are over exactly
+        // `num_encoding_variables` variables; their widths sum to the commitment's column count.
+        let mut num_data_cols = 0usize;
+        for component in mle.iter() {
+            let num_variables = component.num_variables();
+            if num_variables != num_encoding_variables {
+                return Err(TransparentCommitError::WrongEncodingWidth {
+                    num_variables,
+                    num_encoding_variables,
+                });
+            }
+            num_data_cols += component.num_polynomials();
         }
-        let (commitment, prover_data, _num_added_vals) = pcs_prover.commit_multilinears(mle)?;
+        let log_num_polynomials = num_data_cols.next_power_of_two().trailing_zeros();
+        let (commitment, commit_data) =
+            pcs::commit(pcs_prover, mle).map_err(TransparentCommitError::Pcs)?;
         self.challenger.observe(commitment);
         let idx = self.oracles.len();
         self.oracles.push(OracleEntry {
             commitment,
             num_encoding_variables,
             log_num_polynomials,
-            prover_data: Some(prover_data),
+            prover_data: Some(commit_data),
         });
         // No replay buffer needed: `read_oracle` reconstructs this handle from a
         // cursor, since indices are assigned in commit order.
@@ -410,12 +422,16 @@ where
 // replayed from `replay_challenges` — so the post-compute Fiat-Shamir state that
 // `prove()` uses to derive PCS openings is left untouched.
 
-impl<GC, MK> ReadingCtx for TransparentProverCtx<GC, MK>
+impl<GC, PCS> ReadingCtx for TransparentProverCtx<GC, PCS>
 where
     GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>,
-    MK: ComputeTcsOpenings<GC, CpuBackend>,
+    PCS: BatchPcsProver<GC>,
+    PCS::ProverData: Clone,
 {
     fn read_exact(&mut self, buf: &mut [Self::Expr]) -> Result<(), TranscriptReadError> {
+        if self.pcs_claim_made {
+            return Err(TranscriptReadError::ReadAfterPcsClaim);
+        }
         let end = self.replay_sent_cursor + buf.len();
         let slice = self
             .replay_sent
@@ -426,7 +442,7 @@ where
         Ok(())
     }
 
-    fn read_oracle(&mut self, _num_variables: u32) -> Option<Self::MleOracle> {
+    fn read_oracle(&mut self, _num_variables: u32) -> Option<Self::MleCommit> {
         // Oracle indices are `0, 1, 2, …` in commit order, so the cursor *is* the
         // next handle — no recorded buffer required.
         let idx = self.replay_oracle_cursor;

@@ -1,11 +1,11 @@
 use derive_where::derive_where;
 use itertools::Itertools;
 use slop_algebra::TwoAdicField;
-use slop_basefold::{BaseFoldVerifierError, BasefoldProof, BasefoldVerifier};
+use slop_basefold::{BaseFoldVerifierError, BasefoldProof, BasefoldVerifier, BatchedBasefoldProof};
 use slop_challenger::IopCtx;
 use slop_commit::Rounds;
 use slop_merkle_tree::MerkleTreeTcsError;
-use slop_multilinear::{Mle, MleEval, MultilinearPcsVerifier, Point};
+use slop_multilinear::{BatchPcsVerifier, Mle, MleEval, MultilinearPcsVerifier, OracleEval, Point};
 use thiserror::Error;
 #[derive(Clone, Debug)]
 pub struct StackedPcsVerifier<GC: IopCtx> {
@@ -24,9 +24,9 @@ pub enum StackedVerifierError<PcsError> {
     IncorrectShape,
 }
 
-#[derive_where(Debug, Clone, Serialize, Deserialize; MleEval<GC::EF>, BasefoldProof<GC>)]
+#[derive_where(Debug, Clone, Serialize, Deserialize; MleEval<GC::EF>, BatchedBasefoldProof<GC>)]
 pub struct StackedBasefoldProof<GC: IopCtx> {
-    pub basefold_proof: BasefoldProof<GC>,
+    pub batched_basefold_proof: BatchedBasefoldProof<GC>,
     pub batch_evaluations: Rounds<MleEval<GC::EF>>,
 }
 
@@ -91,10 +91,56 @@ impl<GC: IopCtx> StackedPcsVerifier<GC> {
                 commitments,
                 stack_point,
                 &proof.batch_evaluations,
-                &proof.basefold_proof,
+                &proof.batched_basefold_proof,
                 challenger,
             )
             .map_err(StackedVerifierError::PcsError)
+    }
+}
+
+/// A [`StackedPcsVerifier`] is a [`BatchPcsVerifier`]: a Basefold verifier pinned to a fixed
+/// message size (`num_encoding_variables = log_stacking_height`). The opening protocol itself is
+/// plain prebatched Basefold; the stacking height fixes how long the MLEs behind the commitments
+/// are allowed to be, i.e. the dimension of the reduced point the committed oracles open at.
+///
+/// This is a temporary connector until stacked is refactored based on the new basefold API.
+impl<GC: IopCtx> BatchPcsVerifier<GC> for StackedPcsVerifier<GC>
+where
+    GC::F: TwoAdicField,
+{
+    type Proof = BasefoldProof<GC>;
+    type Commitment = GC::Digest;
+    type VerifierError = BaseFoldVerifierError<MerkleTreeTcsError>;
+
+    fn num_queries(&self) -> usize {
+        self.basefold_verifier.fri_config.num_queries
+    }
+
+    fn num_encoding_variables(&self) -> u32 {
+        self.log_stacking_height
+    }
+
+    fn log_blowup(&self) -> usize {
+        self.basefold_verifier.fri_config.log_blowup
+    }
+
+    fn verify(
+        &self,
+        commits: &[Self::Commitment],
+        reduced_point: &Point<GC::EF>,
+        reduced_eval: GC::EF,
+        oracle_evaluator: impl OracleEval<GC::F, GC::EF>,
+        proof: &Self::Proof,
+        challenger: &mut GC::Challenger,
+    ) -> Result<(), Self::VerifierError> {
+        self.basefold_verifier.verify_from_prebatched_inputs(
+            commits,
+            reduced_point.clone(),
+            reduced_eval,
+            proof,
+            oracle_evaluator,
+            challenger,
+        )
     }
 }
 

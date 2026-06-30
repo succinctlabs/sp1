@@ -1,9 +1,7 @@
 #![allow(clippy::disallowed_types)]
+#![allow(dead_code)]
 
-#[path = "common.rs"]
-#[allow(dead_code)]
-mod common;
-use common::*;
+include!("common.rs");
 
 // ============================================================================
 // Single MLE benchmark

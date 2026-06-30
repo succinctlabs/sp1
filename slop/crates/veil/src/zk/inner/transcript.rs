@@ -1,10 +1,8 @@
 use std::marker::PhantomData;
 use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use slop_algebra::AbstractField;
-use slop_multilinear::partial_lagrange_blocking;
 pub use slop_multilinear::Point;
 
 /// Wraps masked values and their breakpoints for the proof.
@@ -187,46 +185,6 @@ impl<K: AbstractField + Copy> TranscriptLinConstraint<K> {
     pub fn iter(&self) -> impl Iterator<Item = &(K, TranscriptIndex<K>)> {
         self.0.iter()
     }
-
-    /// Creates a constraint from a polynomial evaluation: `poly(point) = 0`.
-    ///
-    /// Generates: `coeff_0 + point * coeff_1 + ... + point^{n-1} * coeff_n = 0`
-    pub fn poly_eval<T: Into<TranscriptLinConstraint<K>> + Clone>(poly: &[T], point: K) -> Self {
-        poly.iter()
-            .rev()
-            .fold(TranscriptLinConstraint::default(), |acc, term| acc * point + term.clone().into())
-    }
-
-    /// Creates a constraint from `eval(1) + eval(0) = 0`.
-    ///
-    /// Generates: `2 * coeff_0 + coeff_1 + ... + coeff_n = 0`
-    pub fn eval_one_plus_eval_zero<T: Into<TranscriptLinConstraint<K>> + Clone>(
-        poly: &[T],
-    ) -> Self {
-        poly.iter().fold(TranscriptLinConstraint::default(), |acc, term| acc + term.clone().into())
-            + poly[0].clone()
-    }
-
-    /// Creates a constraint from an MLE evaluation at point equalling zero.
-    ///
-    /// Assumes the input vec of elements' entries are the evaluations of the MLE on the hypercube in standard order.
-    ///
-    /// # Panics
-    ///
-    /// Requires exactly 2^{dim(Point)} many entries in `coeffs`.
-    pub fn mle_eval<T: Into<TranscriptLinConstraint<K>> + Clone>(
-        point: Point<K>,
-        coeffs: &[T],
-    ) -> Self {
-        partial_lagrange_blocking(&point)
-            .into_buffer()
-            .into_vec()
-            .into_iter()
-            .zip_eq(coeffs.iter())
-            .fold(TranscriptLinConstraint::default(), |acc, (coeff, index)| {
-                acc + index.clone().into() * coeff
-            })
-    }
 }
 
 // Convert TranscriptIndex to TranscriptLinConstraint with coefficient 1
@@ -403,18 +361,4 @@ pub struct PcsCommitmentEntry<D> {
     pub num_vars: usize,
     /// Log2 of the number of polynomials in the stacking
     pub log_num_polys: usize,
-}
-
-/// A batched evaluation claim for multiple committed MLEs at the same point.
-///
-/// Groups several commitments that are all evaluated at a common point,
-/// enabling a single batched PCS proof instead of one proof per commitment.
-#[derive(Clone)]
-pub struct PcsMultiEvalClaim<K, Expr> {
-    /// Indices of the commitments being evaluated
-    pub commitment_indices: Vec<MleCommitmentIndex>,
-    /// The shared evaluation point
-    pub point: Point<K>,
-    /// Expressions representing the claimed evaluation values (one per commitment)
-    pub eval_exprs: Vec<Expr>,
 }

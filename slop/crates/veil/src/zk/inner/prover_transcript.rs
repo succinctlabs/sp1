@@ -197,11 +197,11 @@ impl<K: AbstractField + Copy> ZkLinExpression<K, ProverElement<K>> for ProverLin
 
 #[allow(type_alias_bounds)]
 /// Placeholder Value!
-pub type ProverValue<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD = ()> =
-    ExpressionIndex<GC::EF, ZkProverContext<GC, MK, PD>>;
+pub type ProverValue<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD = (), P = ()> =
+    ExpressionIndex<GC::EF, ZkProverContext<GC, MK, PD, P>>;
 
-impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD: Clone>
-    ExpressionIndex<GC::EF, ZkProverContext<GC, MK, PD>>
+impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD: Clone, P>
+    ExpressionIndex<GC::EF, ZkProverContext<GC, MK, PD, P>>
 {
     /// Computes just the value associated to a given Prover Expression Index.
     ///

@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use slop_algebra::AbstractField;
 use slop_alloc::{CpuBackend, GLOBAL_CPU_BACKEND};
-use slop_basefold::BasefoldProof;
+use slop_basefold::{BasefoldProof, BatchedBasefoldProof};
 use slop_challenger::{GrindingChallenger, IopCtx};
 use slop_commit::Rounds;
 use slop_jagged::{JaggedPcsProof, JaggedSumcheckEvalProof};
@@ -200,14 +200,15 @@ pub fn create_dummy_recursion_proof(
         fri_commitments: vec![],
         final_poly: SP1ExtensionField::zero(),
         pow_witness: SP1Field::zero(),
-        batch_grinding_witness: SP1Field::zero(),
         component_polynomials_query_openings_and_proofs: vec![],
         query_phase_openings_and_proofs: dummy_query_proof,
     };
+    let batched_basefold_proof =
+        BatchedBasefoldProof { basefold_proof, batch_grinding_witness: SP1Field::zero() };
 
     let batch_evaluations: Rounds<MleEval<SP1ExtensionField, CpuBackend>> = Rounds::default();
 
-    let stacked_proof = SP1PcsProof { basefold_proof, batch_evaluations };
+    let stacked_proof = SP1PcsProof { batched_basefold_proof, batch_evaluations };
 
     let jagged_eval_proof = JaggedSumcheckEvalProof {
         partial_sumcheck_proof: PartialSumcheckProof::dummy(),

@@ -4,14 +4,16 @@ use crate::compiler::TranscriptReadError;
 use crate::zk::dot_product::{dot_product, verify_zk_dot_product, ZkDotProductError};
 use crate::zk::error_correcting_code::RsFromCoefficients;
 use crate::zk::hadamard_product::{verify_zk_hadamard_and_dots, ZkHadamardAndDotsError};
+use derive_where::derive_where;
 use slop_algebra::AbstractField;
 use slop_challenger::{CanObserve, FieldChallenger};
+use slop_commit::Rounds;
 use thiserror::Error;
 
 use super::prover::{ZkCnstrProof, ZkMulCnstrProof, ZkProof};
 use super::transcript::{
-    MleCommitmentIndex, PcsCommitmentEntry, PcsMultiEvalClaim, Point, ProofTranscript,
-    TranscriptLinConstraint, TranscriptMulConstraint,
+    MleCommitmentIndex, PcsCommitmentEntry, Point, ProofTranscript, TranscriptLinConstraint,
+    TranscriptMulConstraint,
 };
 use super::verifier_transcript::{VerifierElement, VerifierLinExpression, VerifierValue};
 use super::{
@@ -26,12 +28,13 @@ use super::{
 /// to hold references back to the context, while remaining `Send + Sync`.
 ///
 /// # Type Parameters
-/// * `GC` - The ZK IOP context type; `GC::PcsProof` is the PCS proof type.
+/// * `GC` - The ZK IOP context type.
+/// * `P` - The PCS proof wire format (threaded explicitly; `()` when no PCS is used).
 ///
 /// Contains a challenger which can be accessed using self.borrow_mut().challenger
-#[derive(Clone)]
-pub struct ZkVerificationContext<GC: ZkIopCtx> {
-    inner: Arc<Mutex<ZkVerificationContextInner<GC>>>,
+#[derive_where(Clone)]
+pub struct ZkVerificationContext<GC: ZkIopCtx, P = ()> {
+    inner: Arc<Mutex<ZkVerificationContextInner<GC, P>>>,
 }
 
 /// Verification context that accumulates constraints during verification.
@@ -40,9 +43,10 @@ pub struct ZkVerificationContext<GC: ZkIopCtx> {
 /// and accumulating linear and multiplicative constraints.
 ///
 /// # Type Parameters
-/// * `GC` - The ZK IOP context type; `GC::PcsProof` is the PCS proof type.
-#[derive(Clone)]
-pub struct ZkVerificationContextInner<GC: ZkIopCtx> {
+/// * `GC` - The ZK IOP context type.
+/// * `P` - The PCS proof wire format (threaded explicitly; `()` when no PCS is used).
+#[derive_where(Clone; P)]
+pub struct ZkVerificationContextInner<GC: ZkIopCtx, P = ()> {
     /// The challenger for Fiat-Shamir
     challenger: GC::Challenger,
 
@@ -64,17 +68,22 @@ pub struct ZkVerificationContextInner<GC: ZkIopCtx> {
     /// Current index into pcs_commitment_transcript for reading
     pcs_commitment_current_index: usize,
 
-    /// PCS evaluation claims to be verified (each may batch multiple commitments at same point)
-    pcs_eval_claims: Vec<PcsMultiEvalClaim<GC::EF, VerifierValue<GC>>>,
+    /// Cursor into `proof.pcs_proofs`, advanced once per eager MLE-eval verification.
+    pcs_proof_cursor: usize,
 
     /// The stored constraint proof
-    proof: ZkCnstrProof<GC>,
+    proof: ZkCnstrProof<GC, P>,
 }
 
-impl<GC: ZkIopCtx> super::constraints::private::Sealed for ZkVerificationContext<GC> {}
+impl<GC: ZkIopCtx, P> super::constraints::private::Sealed for ZkVerificationContext<GC, P> {}
 
-impl<GC: ZkIopCtx> ConstraintContextInner<GC::EF> for ZkVerificationContext<GC> {
+impl<GC: ZkIopCtx, P> ConstraintContextInner<GC::EF> for ZkVerificationContext<GC, P> {
     type Element = VerifierElement<GC::EF>;
+    type Challenger = GC::Challenger;
+
+    fn with_challenger_inner<R>(&mut self, f: impl FnOnce(&mut GC::Challenger) -> R) -> R {
+        f(&mut self.borrow_mut().challenger)
+    }
 
     fn add_lin_constraints(
         &mut self,
@@ -93,7 +102,7 @@ impl<GC: ZkIopCtx> ConstraintContextInner<GC::EF> for ZkVerificationContext<GC> 
     fn add_expr(
         &mut self,
         expr: ZkExpression<GC::EF, VerifierElement<GC::EF>>,
-    ) -> VerifierValue<GC> {
+    ) -> VerifierValue<GC, P> {
         self.borrow_mut().expressions.push(expr);
         ExpressionIndex::new(self.borrow().expressions.len() - 1, self.clone())
     }
@@ -112,17 +121,8 @@ impl<GC: ZkIopCtx> ConstraintContextInner<GC::EF> for ZkVerificationContext<GC> 
         Some(index)
     }
 
-    fn add_eval_claim(
-        &mut self,
-        commitment_indices: Vec<MleCommitmentIndex>,
-        point: Point<GC::EF>,
-        eval_exprs: Vec<VerifierValue<GC>>,
-    ) {
-        self.borrow_mut().pcs_eval_claims.push(PcsMultiEvalClaim {
-            commitment_indices,
-            point,
-            eval_exprs,
-        });
+    fn commitment_log_num_cols(&self, index: MleCommitmentIndex) -> usize {
+        self.borrow().pcs_commitment_transcript[index.index()].log_num_polys
     }
 }
 
@@ -140,15 +140,17 @@ pub enum ZkVerifierError {
     PcsProofCountMismatch { expected: usize, actual: usize },
     #[error("PCS verification failed for claim {index}: {error}")]
     PcsVerificationFailed { index: usize, error: ZkPcsVerificationError },
+    #[error("MLE-eval opening asserted but no PCS verifier was provided")]
+    NoPcsVerifier,
 }
 
-impl<GC: ZkIopCtx> ZkProof<GC> {
+impl<GC: ZkIopCtx, P> ZkProof<GC, P> {
     /// Opens a zkproof for verification.
     ///
     /// Returns an initialized mutable [`ZkVerificationContext`] containing the proof.
     ///
     /// Creates a default challenger internally and observes the mask commitment.
-    pub(crate) fn open(self) -> ZkVerificationContext<GC> {
+    pub(crate) fn open(self) -> ZkVerificationContext<GC, P> {
         let mut challenger = GC::default_challenger();
         challenger.observe(self.proof.mask_commitment);
 
@@ -161,7 +163,7 @@ impl<GC: ZkIopCtx> ZkProof<GC> {
             expressions: vec![],
             pcs_commitment_transcript: self.pcs_commitment_transcript,
             pcs_commitment_current_index: 0,
-            pcs_eval_claims: vec![],
+            pcs_proof_cursor: 0,
             proof: self.proof,
         };
 
@@ -169,14 +171,14 @@ impl<GC: ZkIopCtx> ZkProof<GC> {
     }
 }
 
-impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
+impl<GC: ZkIopCtx, P> ZkVerificationContext<GC, P> {
     /// Lock the inner context mutably and return a guard.
-    pub fn borrow_mut(&self) -> MutexGuard<'_, ZkVerificationContextInner<GC>> {
+    pub fn borrow_mut(&self) -> MutexGuard<'_, ZkVerificationContextInner<GC, P>> {
         self.inner.lock().expect("ZkVerificationContext mutex poisoned")
     }
 
     /// Lock the inner context and return a guard.
-    pub fn borrow(&self) -> MutexGuard<'_, ZkVerificationContextInner<GC>> {
+    pub fn borrow(&self) -> MutexGuard<'_, ZkVerificationContextInner<GC, P>> {
         self.inner.lock().expect("ZkVerificationContext mutex poisoned")
     }
 
@@ -210,19 +212,40 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
         Ok([block_index, 0])
     }
 
-    /// Returns the index of the next block to be read.
-    pub fn next_block_index(&self) -> usize {
-        self.borrow().values_current_index
-    }
+    /// Eagerly verifies a (possibly batched) MLE-eval opening at `reduced_point` and returns the
+    /// per-commitment column sub-evaluation expressions. The caller asserts how those columns
+    /// combine into each claimed evaluation.
+    ///
+    /// Consumes the next proof from `proof.pcs_proofs` (openings are verified in the same order the
+    /// prover produced them) and reads the opening's transcript messages, advancing the Fiat-Shamir
+    /// challenger over them. Must only be called once the main protocol transcript is exhausted —
+    /// i.e. openings are terminal.
+    #[allow(clippy::type_complexity)]
+    pub(in crate::zk) fn verify_mle_eval<V>(
+        &mut self,
+        pcs_verifier: &V,
+        commitment_indices: Rounds<MleCommitmentIndex>,
+        reduced_point: &Point<GC::EF>,
+    ) -> Result<Rounds<Vec<VerifierValue<GC, P>>>, ZkVerifierError>
+    where
+        V: ZkPcsVerifier<GC, Proof = P>,
+        P: Clone,
+    {
+        let cursor = self.borrow().pcs_proof_cursor;
+        let proof = {
+            let inner = self.borrow();
+            inner.proof.pcs_proofs.get(cursor).cloned().ok_or(
+                ZkVerifierError::PcsProofCountMismatch {
+                    expected: cursor + 1,
+                    actual: inner.proof.pcs_proofs.len(),
+                },
+            )?
+        };
+        self.borrow_mut().pcs_proof_cursor += 1;
 
-    /// Returns the PCS commitment entries from the proof.
-    pub fn pcs_commitments(&self) -> Vec<PcsCommitmentEntry<GC::Digest>> {
-        self.borrow().pcs_commitment_transcript.clone()
-    }
-
-    /// Returns the PCS evaluation claims registered so far.
-    pub fn pcs_eval_claims(&self) -> Vec<PcsMultiEvalClaim<GC::EF, VerifierValue<GC>>> {
-        self.borrow().pcs_eval_claims.clone()
+        pcs_verifier
+            .verify_multi_eval(self, commitment_indices, reduced_point, &proof)
+            .map_err(|error| ZkVerifierError::PcsVerificationFailed { index: cursor, error })
     }
 
     /// Returns the commitment entry for a given commitment index.
@@ -237,20 +260,27 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
 
     /// Verifies the constraints built up in the context (call after all these are added).
     ///
-    /// # Arguments
-    /// * `pcs_verifier` - Optional PCS verifier. If provided, verifies evaluation proofs
-    ///   for all registered PCS eval claims using proofs from the stored proof.
-    ///   If `None` and there are eval claims, returns an error.
-    ///
-    /// # Type Parameters
-    /// * `V` - The PCS verifier type implementing `ZkPcsVerifier<GC>`
-    pub fn verify<V>(mut self, pcs_verifier: Option<&V>) -> Result<(), ZkVerifierError>
+    /// PCS evaluation proofs are verified eagerly at each `assert_mle_eval` (see
+    /// [`Self::verify_mle_eval`]), so this only discharges the linear and multiplicative
+    /// constraints. It does check that every PCS proof carried in the proof was consumed by an
+    /// opening.
+    pub fn verify(mut self) -> Result<(), ZkVerifierError>
     where
         GC: ZkIopCtx,
-        V: ZkPcsVerifier<GC, Proof = GC::PcsProof>,
+        P: Clone,
     {
-        // Handle PCS evaluation claims first
-        self.verify_pcs_claims(pcs_verifier)?;
+        // Every PCS proof must have been consumed by a (terminal) eager opening.
+        {
+            let inner = self.borrow();
+            let consumed = inner.pcs_proof_cursor;
+            let available = inner.proof.pcs_proofs.len();
+            if consumed != available {
+                return Err(ZkVerifierError::PcsProofCountMismatch {
+                    expected: consumed,
+                    actual: available,
+                });
+            }
+        }
 
         // Handle multiplicative constraints - extract proof first
         let mul_proof = self.borrow().proof.mul_proof_wrapper.clone();
@@ -294,46 +324,6 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
         Ok(())
     }
 
-    /// Helper method to verify PCS evaluation claims.
-    ///
-    /// One proof is verified per claim. Each claim may batch multiple commitments.
-    fn verify_pcs_claims<V>(&mut self, pcs_verifier: Option<&V>) -> Result<(), ZkVerifierError>
-    where
-        V: ZkPcsVerifier<GC, Proof = GC::PcsProof>,
-    {
-        let eval_claims = self.pcs_eval_claims();
-        let pcs_proofs = self.borrow().proof.pcs_proofs.clone();
-
-        if eval_claims.is_empty() {
-            return Ok(());
-        }
-
-        let pcs_verifier = pcs_verifier.ok_or(ZkVerifierError::PcsProofCountMismatch {
-            expected: eval_claims.len(),
-            actual: 0,
-        })?;
-
-        // Verify that we have the right number of PCS proofs
-        if pcs_proofs.len() != eval_claims.len() {
-            return Err(ZkVerifierError::PcsProofCountMismatch {
-                expected: eval_claims.len(),
-                actual: pcs_proofs.len(),
-            });
-        }
-
-        // Verify each PCS proof
-        for (i, (claim, pcs_proof)) in eval_claims.into_iter().zip(pcs_proofs.iter()).enumerate() {
-            pcs_verifier
-                .verify_multi_eval(self, claim, pcs_proof)
-                .map_err(|e| ZkVerifierError::PcsVerificationFailed { index: i, error: e })?;
-        }
-
-        // Clear eval claims to drop VerifierValue references before calling verify
-        self.borrow_mut().pcs_eval_claims.clear();
-
-        Ok(())
-    }
-
     /// Helper method to verify multiplicative constraint proofs.
     fn verify_mul_proof(
         &mut self,
@@ -358,16 +348,16 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
             .read_next(6)
             .map_err(|_| ZkVerifierError::InvalidMulConstrProofShape)?
             .try_into()
-            .map_err(|_| ZkVerifierError::InvalidMulConstrProofShape)?;
+            .unwrap();
         self.constrain_mul_triple(
-            a1.try_into_index().ok_or(ZkVerifierError::InvalidMulConstrProofShape)?,
-            b1.try_into_index().ok_or(ZkVerifierError::InvalidMulConstrProofShape)?,
-            c1.try_into_index().ok_or(ZkVerifierError::InvalidMulConstrProofShape)?,
+            a1.try_into_index().unwrap(),
+            b1.try_into_index().unwrap(),
+            c1.try_into_index().unwrap(),
         );
         self.constrain_mul_triple(
-            a2.try_into_index().ok_or(ZkVerifierError::InvalidMulConstrProofShape)?,
-            b2.try_into_index().ok_or(ZkVerifierError::InvalidMulConstrProofShape)?,
-            c2.try_into_index().ok_or(ZkVerifierError::InvalidMulConstrProofShape)?,
+            a2.try_into_index().unwrap(),
+            b2.try_into_index().unwrap(),
+            c2.try_into_index().unwrap(),
         );
 
         let mul_len = self.borrow().mul_constraints.len();
@@ -408,46 +398,7 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
     }
 }
 
-/// A no-op PCS verifier for when no PCS is needed.
-///
-/// This type is used as a default when calling `verify` without PCS support.
-#[derive(Clone, Copy, Debug)]
-pub struct NoPcsVerifier;
-
-impl<GC: ZkIopCtx> ZkPcsVerifier<GC> for NoPcsVerifier {
-    type Proof = GC::PcsProof;
-
-    fn num_encoding_variables(&self) -> u32 {
-        panic!("NoPcsVerifier::num_encoding_variables should never be called")
-    }
-
-    fn verify_multi_eval(
-        &self,
-        _ctx: &mut ZkVerificationContext<GC>,
-        _claim: PcsMultiEvalClaim<GC::EF, VerifierValue<GC>>,
-        _proof: &GC::PcsProof,
-    ) -> Result<(), ZkPcsVerificationError> {
-        panic!("NoPcsVerifier::verify_multi_eval should never be called")
-    }
-}
-
-impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
-    /// Convenience method to verify a proof without PCS support.
-    ///
-    /// This only verifies the linear and multiplicative constraints.
-    ///
-    /// # Errors
-    /// Returns an error if there are any PCS evaluation claims registered
-    /// (use `verify` with a PCS verifier instead).
-    pub fn verify_without_pcs(self) -> Result<(), ZkVerifierError>
-    where
-        GC: ZkIopCtx,
-    {
-        self.verify::<NoPcsVerifier>(None)
-    }
-}
-
-impl<GC: ZkIopCtx> ZkCnstrAndReadingCtxInner<GC> for ZkVerificationContext<GC> {
+impl<GC: ZkIopCtx, P> ZkCnstrAndReadingCtxInner<GC> for ZkVerificationContext<GC, P> {
     /// Receives the next message of length 1, observes it, and outputs a single [`ExpressionIndex`].
     ///
     /// Errors if the transcript is exhausted or the message length isn't 1.
@@ -467,10 +418,6 @@ impl<GC: ZkIopCtx> ZkCnstrAndReadingCtxInner<GC> for ZkVerificationContext<GC> {
     ) -> Result<Vec<<Self as ConstraintContextInnerExt<GC::EF>>::Expr>, TranscriptReadError> {
         let (block_index, len) = self.read_raw(num)?;
         Ok((0..len).map(|i| self.add_expr([block_index, i].into())).collect())
-    }
-
-    fn with_challenger<R>(&mut self, f: impl FnOnce(&mut GC::Challenger) -> R) -> R {
-        f(&mut self.borrow_mut().challenger)
     }
 
     fn read_next_pcs_commitment(

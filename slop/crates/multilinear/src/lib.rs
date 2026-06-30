@@ -1,5 +1,6 @@
 #![allow(clippy::disallowed_types)]
 mod base;
+mod batch_pcs;
 mod eval;
 mod fold;
 mod lagrange;
@@ -12,6 +13,7 @@ mod two_to_one;
 mod virtual_geq;
 
 pub use base::*;
+pub use batch_pcs::*;
 pub use eval::*;
 pub use fold::*;
 pub use lagrange::*;

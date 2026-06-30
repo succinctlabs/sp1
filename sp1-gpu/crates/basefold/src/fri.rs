@@ -3,7 +3,7 @@ use std::{marker::PhantomData, sync::Arc};
 
 use slop_algebra::{AbstractExtensionField, AbstractField, ExtensionField, TwoAdicField};
 use slop_alloc::{Buffer, HasBackend};
-use slop_basefold::{BasefoldProof, FriConfig, BATCH_GRINDING_BITS};
+use slop_basefold::{BasefoldProof, BatchedBasefoldProof, FriConfig, BATCH_GRINDING_BITS};
 use slop_basefold_prover::{host_fold_even_odd, BasefoldProverError};
 use slop_challenger::{CanObserve, CanSampleBits, FieldChallenger, IopCtx};
 use slop_commit::{Message, Rounds};
@@ -319,7 +319,7 @@ where
         mles: &JaggedTraceMle<GC::F, TaskScope>,
         prover_data: Rounds<&CudaStackedPcsProverData<GC>>,
         challenger: &mut GC::Challenger,
-    ) -> Result<BasefoldProof<GC>, BasefoldProverError<SingleLayerMerkleTreeProverError>>
+    ) -> Result<BatchedBasefoldProof<GC>, BasefoldProverError<SingleLayerMerkleTreeProverError>>
     where
         GC::Challenger: DeviceGrindingChallenger<Witness = GC::F>,
     {
@@ -460,13 +460,15 @@ where
             query_phase_openings_and_proofs.push(opening);
         }
 
-        Ok(BasefoldProof {
-            univariate_messages,
-            fri_commitments,
-            component_polynomials_query_openings_and_proofs,
-            query_phase_openings_and_proofs,
-            final_poly,
-            pow_witness,
+        Ok(BatchedBasefoldProof {
+            basefold_proof: BasefoldProof {
+                univariate_messages,
+                fri_commitments,
+                component_polynomials_query_openings_and_proofs,
+                query_phase_openings_and_proofs,
+                final_poly,
+                pow_witness,
+            },
             batch_grinding_witness,
         })
     }

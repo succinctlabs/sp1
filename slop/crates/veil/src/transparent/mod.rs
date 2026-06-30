@@ -7,6 +7,7 @@
 //! against which the ZK backend's behaviour can be compared, and as the simplest
 //! point of comparison when generating soundness statements.
 
+pub mod pcs;
 mod prover;
 mod verifier;
 

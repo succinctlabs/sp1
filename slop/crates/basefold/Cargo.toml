@@ -11,6 +11,7 @@ categories.workspace = true
 
 [dependencies]
 slop-algebra = { workspace = true }
+slop-commit = { workspace = true }
 slop-multilinear = { workspace = true }
 slop-challenger = { workspace = true }
 slop-utils = { workspace = true }

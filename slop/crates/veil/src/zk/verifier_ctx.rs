@@ -1,44 +1,36 @@
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use slop_algebra::{Dorroh, TwoAdicField};
-use slop_challenger::{FieldChallenger, IopCtx};
-use slop_multilinear::Point;
+use slop_algebra::{AbstractField, Dorroh};
+use slop_challenger::FieldChallenger;
+use slop_commit::Rounds;
+use slop_multilinear::{LinearOracleEval, OracleEval, Point};
+use slop_stacked::{stacked_oracle_eval, stacked_reduced_point};
 
-use crate::compiler::{ConstraintCtx, ReadingCtx, TranscriptReadError};
+use crate::compiler::{ConstraintCtx, MleEvalClaim, ReadingCtx, TranscriptReadError};
 use crate::zk::inner::{
-    ConstraintContextInnerExt, ExpressionIndex, MleCommitmentIndex, ZkCnstrAndReadingCtxInner,
-    ZkPcsVerifier, ZkVerificationContext, ZkVerifierError,
+    ConstraintContextInner, ConstraintContextInnerExt, ExpressionIndex, MleCommitmentIndex,
+    ZkCnstrAndReadingCtxInner, ZkPcsVerifier, ZkVerificationContext, ZkVerifierError,
 };
-use crate::zk::ZkProof;
+use crate::zk::{ZkIopCtx, ZkProof};
 
-/// Extension of [`IopCtx`] for IOP contexts that can be used with VEIL.
-///
-/// Currently, we simply limit this to hash based IOPs using Reed-Solomon encoding. Future
-/// implementation can expend to other codes.
-///
-/// The `PcsProof` associated type identifies the proof type produced by the PCS scheme
-/// used with this context.
-pub trait ZkIopCtx: IopCtx<F: TwoAdicField, EF: TwoAdicField> {
-    /// The PCS proof type for this context.
-    type PcsProof: Clone + Serialize + DeserializeOwned;
-
-    type PcsVerifier: ZkPcsVerifier<Self, Proof = Self::PcsProof>;
+pub struct ZkVerifierCtx<GC: ZkIopCtx, V: ZkPcsVerifier<GC>> {
+    inner: ZkVerificationContext<GC, V::Proof>,
+    pcs_verifier: Option<V>,
+    /// Set once any MLE-eval claim (eager PCS opening) has been verified. Guards against further
+    /// transcript reads, which would read past the (terminal) PCS openings.
+    pcs_claim_made: bool,
 }
 
-pub struct ZkVerifierCtx<GC: ZkIopCtx> {
-    inner: ZkVerificationContext<GC>,
-    pcs_verifier: Option<GC::PcsVerifier>,
-}
-
-impl<GC: ZkIopCtx> ZkVerifierCtx<GC> {
-    pub fn init(proof: ZkProof<GC>, pcs_verifier: Option<GC::PcsVerifier>) -> Self {
+impl<GC: ZkIopCtx, V: ZkPcsVerifier<GC>> ZkVerifierCtx<GC, V> {
+    pub fn init(proof: ZkProof<GC, V::Proof>, pcs_verifier: Option<V>) -> Self {
         let inner = proof.open();
-        Self { inner, pcs_verifier }
+        Self { inner, pcs_verifier, pcs_claim_made: false }
     }
 
-    /// Verify after consuming the transcript and building all constraints
+    /// Verify after consuming the transcript and building all constraints.
+    ///
+    /// MLE-eval openings are verified eagerly at the `assert_mle_eval` call site (which returns any
+    /// failure there); this finalizes the linear and multiplicative constraints.
     pub fn verify(self) -> Result<(), ZkVerifierError> {
-        self.inner.verify(self.pcs_verifier.as_ref())
+        self.inner.verify()
     }
 }
 
@@ -47,22 +39,51 @@ impl<GC: ZkIopCtx> ZkVerifierCtx<GC> {
 /// Either a concrete field constant (`Dorroh::Constant`) or an opaque expression index
 /// into the verifier transcript (`Dorroh::Element`).
 #[allow(type_alias_bounds)]
-pub type TranscriptElement<GC: ZkIopCtx> =
-    Dorroh<GC::EF, ExpressionIndex<GC::EF, ZkVerificationContext<GC>>>;
+pub type TranscriptElement<GC: ZkIopCtx, P = ()> =
+    Dorroh<GC::EF, ExpressionIndex<GC::EF, ZkVerificationContext<GC, P>>>;
 
 #[derive(Clone, Copy)]
 pub struct MleCommit {
     pub(crate) inner: MleCommitmentIndex,
 }
 
+/// `(reduced_point, default-decomposition claims)` — the output of [`default_stacked_eval_claims`].
+type DefaultStackedClaims<Commit, Expr, EF> =
+    (Point<EF>, Vec<MleEvalClaim<Commit, Expr, LinearOracleEval<EF>>>);
+
+/// Builds the default stacked decomposition for a batch of single-commitment eval claims (the
+/// `assert_mle_multi_eval` path, shared by the prover and verifier contexts).
+///
+/// Returns the shared reduced opening point (the encoding coords) and one [`MleEvalClaim`] per
+/// `(commitment, eval)`, each combining its commitment's columns with the eq-coefficient stacking
+/// oracle. `log_num_cols` is the (batch-shared) commitment column-count log.
+pub(crate) fn default_stacked_eval_claims<Commit, Expr, EF: AbstractField + Copy>(
+    point: &Point<EF>,
+    log_num_cols: usize,
+    claims: Vec<(Commit, Expr)>,
+) -> DefaultStackedClaims<Commit, Expr, EF> {
+    let log_stacking_height = point.dimension() - log_num_cols;
+    let reduced_point = stacked_reduced_point(point, log_stacking_height);
+    let oracle_eval = stacked_oracle_eval(point, log_stacking_height);
+    let eval_claims = claims
+        .into_iter()
+        .map(|(commit, eval)| MleEvalClaim {
+            commits: Rounds { rounds: vec![commit] },
+            claimed_eval: eval,
+            oracle_eval: oracle_eval.clone(),
+        })
+        .collect();
+    (reduced_point, eval_claims)
+}
+
 // ============================================================================
 // Conversion helper: HiddenElement → VerifierValue
 // ============================================================================
 
-fn into_verifier_value<GC: ZkIopCtx>(
-    elem: TranscriptElement<GC>,
-    ctx: &mut ZkVerificationContext<GC>,
-) -> ExpressionIndex<GC::EF, ZkVerificationContext<GC>> {
+fn into_verifier_value<GC: ZkIopCtx, P>(
+    elem: TranscriptElement<GC, P>,
+    ctx: &mut ZkVerificationContext<GC, P>,
+) -> ExpressionIndex<GC::EF, ZkVerificationContext<GC, P>> {
     match elem {
         Dorroh::Constant(f) => ctx.cst(f),
         Dorroh::Element(e) => e,
@@ -73,15 +94,21 @@ fn into_verifier_value<GC: ZkIopCtx>(
 // ConstraintCtx impl
 // ============================================================================
 
-impl<GC: ZkIopCtx> ConstraintCtx for ZkVerifierCtx<GC> {
+impl<GC: ZkIopCtx, V: ZkPcsVerifier<GC>> ConstraintCtx for ZkVerifierCtx<GC, V> {
     type Field = GC::F;
     type Extension = GC::EF;
-    type Expr = TranscriptElement<GC>;
+    type Expr = TranscriptElement<GC, V::Proof>;
     type Challenge = GC::EF;
-    type MleOracle = MleCommit;
-    type AssertError = std::convert::Infallible;
+    type MleCommit = MleCommit;
+    // MLE-eval openings are verified eagerly, so an assertion can fail here (a failed PCS proof or
+    // a missing PCS verifier). The plain `assert_zero`/`assert_a_times_b_equals_c` only queue
+    // constraints and never fail, so they return `Ok(())`.
+    type AssertError = ZkVerifierError;
 
-    fn assert_zero(&mut self, expr: TranscriptElement<GC>) -> Result<(), Self::AssertError> {
+    fn assert_zero(
+        &mut self,
+        expr: TranscriptElement<GC, V::Proof>,
+    ) -> Result<(), Self::AssertError> {
         let idx = into_verifier_value(expr, &mut self.inner);
         self.inner.assert_zero(idx);
         Ok(())
@@ -89,9 +116,9 @@ impl<GC: ZkIopCtx> ConstraintCtx for ZkVerifierCtx<GC> {
 
     fn assert_a_times_b_equals_c(
         &mut self,
-        a: TranscriptElement<GC>,
-        b: TranscriptElement<GC>,
-        c: TranscriptElement<GC>,
+        a: TranscriptElement<GC, V::Proof>,
+        b: TranscriptElement<GC, V::Proof>,
+        c: TranscriptElement<GC, V::Proof>,
     ) -> Result<(), Self::AssertError> {
         let ai = into_verifier_value(a, &mut self.inner);
         let bi = into_verifier_value(b, &mut self.inner);
@@ -102,17 +129,60 @@ impl<GC: ZkIopCtx> ConstraintCtx for ZkVerifierCtx<GC> {
 
     fn assert_mle_multi_eval(
         &mut self,
-        claims: Vec<(MleCommit, TranscriptElement<GC>)>,
-        point: Point<GC::EF>,
-    ) {
-        let inner_claims: Vec<_> = claims
-            .into_iter()
-            .map(|(oracle, eval_expr)| {
-                let eval_idx = into_verifier_value(eval_expr, &mut self.inner);
-                (oracle.inner, eval_idx)
-            })
-            .collect();
-        self.inner.assert_mle_multi_eval(inner_claims, point);
+        claims: Vec<(MleCommit, TranscriptElement<GC, V::Proof>)>,
+        point: &Point<GC::EF>,
+    ) -> Result<(), Self::AssertError> {
+        // No custom decomposition supplied: build the default single-commitment stacked claims
+        // (eq-coefficient combiner + matching reduced point) and defer to the general method. The
+        // first commitment's column count is shared by the whole batch.
+        let log_num_cols = self.inner.commitment_log_num_cols(claims[0].0.inner);
+        let (reduced_point, eval_claims) = default_stacked_eval_claims(point, log_num_cols, claims);
+        self.assert_mle_multi_eval_with_oracle(eval_claims, &reduced_point)
+    }
+
+    /// The general PCS assertion: every commitment read by any claim is opened together at `point`
+    /// in a single base proof; each claim's combiner then runs over its own commitments' columns to
+    /// assert `claimed_eval == oracle_eval(columns)`.
+    fn assert_mle_multi_eval_with_oracle<O: OracleEval<Self::Expr, Self::Expr>>(
+        &mut self,
+        claims: Vec<MleEvalClaim<MleCommit, TranscriptElement<GC, V::Proof>, O>>,
+        point: &Point<GC::EF>,
+    ) -> Result<(), Self::AssertError> {
+        self.pcs_claim_made = true;
+
+        // Open all the claims' commitments (flattened in claim order) together at `point` in one
+        // base proof.
+        let commitment_indices: Rounds<MleCommitmentIndex> =
+            claims.iter().flat_map(|c| c.commits.iter().map(|commit| commit.inner)).collect();
+        let per_commit_cols = match self.pcs_verifier.as_ref() {
+            Some(pcs_verifier) => {
+                self.inner.verify_mle_eval(pcs_verifier, commitment_indices, point)?
+            }
+            None => return Err(ZkVerifierError::NoPcsVerifier),
+        };
+
+        // Hand each claim back its commitments' columns (a `Rounds` in `commits` order, the idiom
+        // the combiner consumes) and constrain the combined value to the claimed eval.
+        let mut cols_iter = per_commit_cols.into_iter();
+        for claim in claims {
+            let claim_cols: Vec<Vec<TranscriptElement<GC, V::Proof>>> = claim
+                .commits
+                .iter()
+                .map(|_| {
+                    cols_iter
+                        .next()
+                        .expect("one column set per opened commitment")
+                        .into_iter()
+                        .map(Dorroh::Element)
+                        .collect()
+                })
+                .collect();
+            let rounds: Rounds<&[TranscriptElement<GC, V::Proof>]> =
+                claim_cols.iter().map(|c| c.as_slice()).collect();
+            let combined = claim.oracle_eval.evaluate_oracle(rounds, 0);
+            self.assert_zero(claim.claimed_eval - combined)?;
+        }
+        Ok(())
     }
 }
 
@@ -120,8 +190,11 @@ impl<GC: ZkIopCtx> ConstraintCtx for ZkVerifierCtx<GC> {
 // ReadingCtx impl
 // ============================================================================
 
-impl<GC: ZkIopCtx> ReadingCtx for ZkVerifierCtx<GC> {
+impl<GC: ZkIopCtx, V: ZkPcsVerifier<GC>> ReadingCtx for ZkVerifierCtx<GC, V> {
     fn read_exact(&mut self, buf: &mut [Self::Expr]) -> Result<(), TranscriptReadError> {
+        if self.pcs_claim_made {
+            return Err(TranscriptReadError::ReadAfterPcsClaim);
+        }
         // If we only want one element, use a more efficient method that avoids allocations.
         if buf.len() == 1 {
             buf[0] = Dorroh::Element(self.inner.read_one()?);

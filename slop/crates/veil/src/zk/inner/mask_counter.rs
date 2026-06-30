@@ -34,6 +34,27 @@ impl<GC: IopCtx> MaskCounterContext<GC> {
     pub fn count(&self) -> usize {
         *self.counter.lock().expect("MaskCounterContext counter poisoned")
     }
+
+    /// Accounts for the transcript elements a (possibly batched) PCS opening will add.
+    ///
+    /// Mirrors the prover's [`crate::zk::stacked_pcs`] opening (`zk_generate_eval_proof_for_mles`):
+    /// each commitment contributes `2^log_num_polys` data-column evaluations, plus a single shared
+    /// block of `GC::EF::D` mask-column evaluations for the whole batch. A custom decomposition does
+    /// not change these counts.
+    pub(crate) fn count_mle_multi_eval(&self, commitment_indices: &[super::MleCommitmentIndex])
+    where
+        GC: ZkIopCtx,
+    {
+        let pcs_commitments =
+            self.pcs_commitments.lock().expect("MaskCounterContext pcs_commitments poisoned");
+        let mut counter = self.counter.lock().expect("MaskCounterContext counter poisoned");
+        for commitment_index in commitment_indices {
+            let log_num_polys = pcs_commitments[commitment_index.index()];
+            *counter += 1 << log_num_polys;
+        }
+        // Mask column evaluations are sent only once, from the first commitment in the batch.
+        *counter += <GC::EF as AbstractExtensionField<GC::F>>::D;
+    }
 }
 
 impl<GC: IopCtx> Default for MaskCounterContext<GC> {
@@ -122,6 +143,11 @@ impl<GC: IopCtx> std::ops::Neg for MaskCounterContext<GC> {
 
 impl<GC: ZkIopCtx> ConstraintContextInnerExt<GC::EF> for MaskCounterContext<GC> {
     type Expr = MaskCounterContext<GC>;
+    type Challenger = GC::Challenger;
+
+    fn with_challenger<R>(&mut self, f: impl FnOnce(&mut GC::Challenger) -> R) -> R {
+        f(&mut self.challenger.lock().expect("MaskCounterContext challenger poisoned"))
+    }
 
     fn assert_zero(&mut self, _expr: Self::Expr) {}
 
@@ -129,24 +155,6 @@ impl<GC: ZkIopCtx> ConstraintContextInnerExt<GC::EF> for MaskCounterContext<GC> 
 
     fn cst(&mut self, _value: GC::EF) -> Self::Expr {
         self.clone()
-    }
-
-    fn assert_mle_multi_eval(
-        &mut self,
-        claims: Vec<(super::MleCommitmentIndex, Self::Expr)>,
-        _point: super::Point<GC::EF>,
-    ) {
-        let pcs_commitments =
-            self.pcs_commitments.lock().expect("MaskCounterContext pcs_commitments poisoned");
-        // Each claim corresponds to evaluating a commitment at a point, which requires reading
-        // the data column evaluations.
-        for (commitment_index, _) in claims.iter() {
-            let log_num_polys = pcs_commitments[commitment_index.index()];
-            let num_data = 1 << log_num_polys;
-            *self.counter.lock().expect("MaskCounterContext counter poisoned") += num_data;
-        }
-        // Account for mask column evaluations (only once, from the first commitment)
-        *self.counter.lock().expect("MaskCounterContext counter poisoned") += GC::EF::D;
     }
 }
 
@@ -158,10 +166,6 @@ impl<GC: ZkIopCtx> ZkCnstrAndReadingCtxInner<GC> for MaskCounterContext<GC> {
         // Return placeholder expressions. The counter never fails — it isn't bounded by
         // any real transcript — so this is infallible.
         Ok(vec![self.clone(); num])
-    }
-
-    fn with_challenger<R>(&mut self, f: impl FnOnce(&mut GC::Challenger) -> R) -> R {
-        f(&mut self.challenger.lock().expect("MaskCounterContext challenger poisoned"))
     }
 
     fn read_next_pcs_commitment(

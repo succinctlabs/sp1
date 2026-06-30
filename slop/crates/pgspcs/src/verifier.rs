@@ -1,5 +1,5 @@
 use slop_algebra::TwoAdicField;
-use slop_basefold::{BaseFoldVerifierError, BasefoldProof, BasefoldVerifier};
+use slop_basefold::{BaseFoldVerifierError, BasefoldVerifier, BatchedBasefoldProof};
 use slop_challenger::IopCtx;
 use slop_merkle_tree::MerkleTreeTcsError;
 use slop_multilinear::{Mle, Point};
@@ -32,7 +32,7 @@ where
         commitment: GC::Digest,
         eval_point: &Point<GC::EF>,
         evaluation_claim: GC::EF,
-        proof: &Proof<GC::EF, BasefoldProof<GC>>,
+        proof: &Proof<GC::EF, BatchedBasefoldProof<GC>>,
         challenger: &mut GC::Challenger,
     ) -> Result<(), VerifierError<BaseFoldVerifierError<MerkleTreeTcsError>>> {
         // Verify the sumcheck proof

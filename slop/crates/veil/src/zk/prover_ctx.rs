@@ -1,21 +1,21 @@
 use std::collections::VecDeque;
-use std::marker::PhantomData;
 
 use rand::distributions::{Distribution, Standard};
 use rand::{CryptoRng, Rng};
 use slop_algebra::Dorroh;
 use slop_alloc::CpuBackend;
 use slop_challenger::{FieldChallenger, IopCtx};
-use slop_commit::Message;
-use slop_merkle_tree::{ComputeTcsOpenings, TensorCsProver};
-use slop_multilinear::{Mle, Point};
+use slop_commit::{Message, Rounds};
+use slop_merkle_tree::TensorCsProver;
+use slop_multilinear::{Mle, OracleEval, Point};
 use thiserror::Error;
 
-use crate::compiler::{ConstraintCtx, ReadingCtx, SendingCtx, TranscriptReadError};
+use crate::compiler::{ConstraintCtx, MleEvalClaim, ReadingCtx, SendingCtx, TranscriptReadError};
 use crate::zk::inner::{
-    ConstraintContextInnerExt, NoPcsProver, ProverValue, ZkPcsProver, ZkProveError, ZkProverContext,
+    ConstraintContextInner, ConstraintContextInnerExt, MleCommitmentIndex, ProverValue,
+    ZkPcsProver, ZkProveError, ZkProverContext,
 };
-use crate::zk::verifier_ctx::MleCommit;
+use crate::zk::verifier_ctx::{default_stacked_eval_claims, MleCommit};
 use crate::zk::{ZkIopCtx, ZkProof};
 
 /// The full `ZkProveError` instantiation for a [`ZkProverCtx<GC, PC>`]. Spells
@@ -38,32 +38,35 @@ pub type ZkProverCtxInitError<GC: ZkIopCtx, PC: PcsProverConfig<GC>> =
 /// satisfies this trait. Pass it as a separate generic `MK: ZkMerkleizer<GC>` on
 /// prover-side structs and functions instead of baking it into `ZkIopCtx`.
 pub trait ZkMerkleizer<GC: IopCtx>:
-    TensorCsProver<GC, CpuBackend> + ComputeTcsOpenings<GC, CpuBackend> + Default
+    TensorCsProver<GC, CpuBackend> + slop_merkle_tree::ComputeTcsOpenings<GC, CpuBackend> + Default
 {
 }
 
 impl<MK, GC: IopCtx> ZkMerkleizer<GC> for MK where
-    MK: TensorCsProver<GC, CpuBackend> + ComputeTcsOpenings<GC, CpuBackend> + Default
+    MK: TensorCsProver<GC, CpuBackend>
+        + slop_merkle_tree::ComputeTcsOpenings<GC, CpuBackend>
+        + Default
 {
 }
 
 /// Type alias for the prover data produced by a `ZkMerkleizer`.
 pub type MerkleProverData<GC, MK> = <MK as TensorCsProver<GC, CpuBackend>>::ProverData;
 
+/// Trait packaging PCS choices for the prover.
 pub trait PcsProverConfig<GC: ZkIopCtx> {
     type Merkelizer: ZkMerkleizer<GC>;
-    type PcsProverData: Clone;
-    type PcsProver: ZkPcsProver<GC, Self::Merkelizer, ProverData = Self::PcsProverData>;
+    type PcsProver: ZkPcsProver<GC, Self::Merkelizer>;
 }
 
-/// A `PcsProverConfig` for proofs that don't use a PCS (pure constraint proofs).
-pub struct NoPcsConfig<MK>(PhantomData<MK>);
+/// The PCS opening-proof wire format produced by a [`PcsProverConfig`]'s PCS prover.
+#[allow(type_alias_bounds)]
+pub type PcsProofOf<GC: ZkIopCtx, PC: PcsProverConfig<GC>> =
+    <PC::PcsProver as ZkPcsProver<GC, PC::Merkelizer>>::Proof;
 
-impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> PcsProverConfig<GC> for NoPcsConfig<MK> {
-    type Merkelizer = MK;
-    type PcsProverData = ();
-    type PcsProver = NoPcsProver;
-}
+/// The PCS prover data produced by a [`PcsProverConfig`]'s PCS prover.
+#[allow(type_alias_bounds)]
+pub type PcsProverDataOf<GC: ZkIopCtx, PC: PcsProverConfig<GC>> =
+    <PC::PcsProver as ZkPcsProver<GC, PC::Merkelizer>>::ProverData;
 
 /// An abstract representation of a prover transcript extension field element.
 ///
@@ -71,12 +74,12 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> PcsProverConfig<GC> for NoPcsConfig<MK>
 /// into the prover transcript (`Dorroh::Element`).
 #[allow(type_alias_bounds)]
 pub type ProverTranscriptElement<GC: ZkIopCtx, PC: PcsProverConfig<GC>> =
-    Dorroh<GC::EF, ProverValue<GC, PC::Merkelizer, PC::PcsProverData>>;
+    Dorroh<GC::EF, ProverValue<GC, PC::Merkelizer, PcsProverDataOf<GC, PC>, PcsProofOf<GC, PC>>>;
 
 pub struct ZkProverCtx<GC: ZkIopCtx, PC: PcsProverConfig<GC>> {
-    inner: ZkProverContext<GC, PC::Merkelizer, PC::PcsProverData>,
+    inner: ZkProverContext<GC, PC::Merkelizer, PcsProverDataOf<GC, PC>, PcsProofOf<GC, PC>>,
     pcs_prover: Option<PC::PcsProver>,
-    /// Replay log backing the prover's [`ReadingCtx`].
+    /// Replay log backing the prover's [`ReadingCtx`] impl.
     ///
     /// During the `SendingCtx` (compute) pass we record, in order, every
     /// transcript handle returned by `send_*`, every sampled challenge, and
@@ -86,6 +89,9 @@ pub struct ZkProverCtx<GC: ZkIopCtx, PC: PcsProverConfig<GC>> {
     /// challenger untouched is what keeps the post-compute Fiat-Shamir state
     /// (used by `prove()` to derive PCS openings) intact.
     replay: ProverReplay<GC, PC>,
+    /// Set once any MLE-eval claim (eager PCS opening) has been discharged. Guards against
+    /// further transcript reads, which would read past the (terminal) PCS openings.
+    pcs_claim_made: bool,
 }
 
 /// Ordered record/replay buffers for [`ZkProverCtx`]'s [`ReadingCtx`] impl.
@@ -118,10 +124,10 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> Default for ProverReplay<GC, PC> {
 
 impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
     fn new(
-        inner: ZkProverContext<GC, PC::Merkelizer, PC::PcsProverData>,
+        inner: ZkProverContext<GC, PC::Merkelizer, PcsProverDataOf<GC, PC>, PcsProofOf<GC, PC>>,
         pcs_prover: Option<PC::PcsProver>,
     ) -> Self {
-        Self { inner, pcs_prover, replay: ProverReplay::default() }
+        Self { inner, pcs_prover, replay: ProverReplay::default(), pcs_claim_made: false }
     }
 }
 
@@ -131,8 +137,8 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
 
 fn into_prover_value<GC: ZkIopCtx, PC: PcsProverConfig<GC>>(
     elem: ProverTranscriptElement<GC, PC>,
-    ctx: &mut ZkProverContext<GC, PC::Merkelizer, PC::PcsProverData>,
-) -> ProverValue<GC, PC::Merkelizer, PC::PcsProverData> {
+    ctx: &mut ZkProverContext<GC, PC::Merkelizer, PcsProverDataOf<GC, PC>, PcsProofOf<GC, PC>>,
+) -> ProverValue<GC, PC::Merkelizer, PcsProverDataOf<GC, PC>, PcsProofOf<GC, PC>> {
     match elem {
         Dorroh::Constant(f) => ctx.cst(f),
         Dorroh::Element(e) => e,
@@ -148,8 +154,11 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ConstraintCtx for ZkProverCtx<GC, PC
     type Extension = GC::EF;
     type Expr = ProverTranscriptElement<GC, PC>;
     type Challenge = GC::EF;
-    type MleOracle = MleCommit;
-    type AssertError = std::convert::Infallible;
+    type MleCommit = MleCommit;
+    // MLE-eval openings are discharged eagerly, so an assertion can fail here (missing PCS prover,
+    // duplicate opening, or a PCS-prover error). The plain `assert_zero`/`assert_a_times_b_equals_c`
+    // only queue constraints and never fail, so they return `Ok(())`.
+    type AssertError = ZkProverCtxProveError<GC, PC>;
 
     fn assert_zero(
         &mut self,
@@ -176,16 +185,57 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ConstraintCtx for ZkProverCtx<GC, PC
     fn assert_mle_multi_eval(
         &mut self,
         claims: Vec<(MleCommit, ProverTranscriptElement<GC, PC>)>,
-        point: Point<GC::EF>,
-    ) {
-        let inner_claims: Vec<_> = claims
-            .into_iter()
-            .map(|(oracle, eval_expr)| {
-                let eval_idx = into_prover_value::<GC, PC>(eval_expr, &mut self.inner);
-                (oracle.inner, eval_idx)
-            })
-            .collect();
-        self.inner.assert_mle_multi_eval(inner_claims, point);
+        point: &Point<GC::EF>,
+    ) -> Result<(), Self::AssertError> {
+        // No custom decomposition supplied: build the default single-commitment stacked claims
+        // (eq-coefficient combiner + matching reduced point) and defer to the general method. The
+        // first commitment's column count is shared by the whole batch.
+        let log_num_cols = self.inner.commitment_log_num_cols(claims[0].0.inner);
+        let (reduced_point, eval_claims) = default_stacked_eval_claims(point, log_num_cols, claims);
+        self.assert_mle_multi_eval_with_oracle(eval_claims, &reduced_point)
+    }
+
+    /// The general PCS assertion: every commitment read by any claim is opened together at `point`
+    /// in a single base proof; each claim's combiner then runs over its own commitments' columns to
+    /// assert `claimed_eval == oracle_eval(columns)`.
+    fn assert_mle_multi_eval_with_oracle<O: OracleEval<Self::Expr, Self::Expr>>(
+        &mut self,
+        claims: Vec<MleEvalClaim<MleCommit, ProverTranscriptElement<GC, PC>, O>>,
+        point: &Point<GC::EF>,
+    ) -> Result<(), Self::AssertError> {
+        self.pcs_claim_made = true;
+
+        // Open all the claims' commitments (flattened in claim order) together at `point` in one
+        // base proof.
+        let commitment_indices: Rounds<MleCommitmentIndex> =
+            claims.iter().flat_map(|c| c.commits.iter().map(|commit| commit.inner)).collect();
+        let per_commit_cols = match self.pcs_prover.as_ref() {
+            Some(pcs_prover) => self.inner.open_mle_eval(pcs_prover, commitment_indices, point)?,
+            None => return Err(ZkProveError::NoPcsProver),
+        };
+
+        // Hand each claim back its commitments' columns (a `Rounds` in `commits` order, the idiom
+        // the combiner consumes) and constrain the combined value to the claimed eval.
+        let mut cols_iter = per_commit_cols.into_iter();
+        for claim in claims {
+            let claim_cols: Vec<Vec<ProverTranscriptElement<GC, PC>>> = claim
+                .commits
+                .iter()
+                .map(|_| {
+                    cols_iter
+                        .next()
+                        .expect("one column set per opened commitment")
+                        .into_iter()
+                        .map(Dorroh::Element)
+                        .collect()
+                })
+                .collect();
+            let rounds: Rounds<&[ProverTranscriptElement<GC, PC>]> =
+                claim_cols.iter().map(|c| c.as_slice()).collect();
+            let combined = claim.oracle_eval.evaluate_oracle(rounds, 0);
+            self.assert_zero(claim.claimed_eval - combined)?;
+        }
+        Ok(())
     }
 }
 
@@ -222,6 +272,13 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> SendingCtx for ZkProverCtx<GC, PC> {
         challenge
     }
 
+    fn num_encoding_variables(&self) -> u32 {
+        self.pcs_prover
+            .as_ref()
+            .expect("num_encoding_variables requires a PCS-backed context")
+            .num_encoding_variables()
+    }
+
     fn commit_mle<RNG: CryptoRng + Rng>(
         &mut self,
         mle: Message<Mle<GC::F>>,
@@ -231,27 +288,24 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> SendingCtx for ZkProverCtx<GC, PC> {
         Standard: Distribution<GC::F>,
     {
         let pcs_prover = self.pcs_prover.as_ref().ok_or(PcsCommitError::NoPcsProver)?;
-        let log_num_polynomials = log_num_polynomials(mle[0].num_variables(), pcs_prover)?;
-        let commit = self
-            .inner
-            .commit_mle(mle, log_num_polynomials, pcs_prover, rng)
-            .map(|idx| MleCommit { inner: idx })?;
+        // The input is pre-stacked: each `mle[i]` is a `[2^num_encoding_variables, cols_i]`
+        // block-column data component, so every component's columns are over exactly
+        // `num_encoding_variables` variables.
+        let num_encoding_variables = pcs_prover.num_encoding_variables();
+        for component in mle.iter() {
+            let num_variables = component.num_variables();
+            if num_variables != num_encoding_variables {
+                return Err(PcsCommitError::WrongEncodingWidth {
+                    num_variables,
+                    num_encoding_variables,
+                });
+            }
+        }
+        let commit =
+            self.inner.commit_mle(mle, pcs_prover, rng).map(|idx| MleCommit { inner: idx })?;
         self.replay.oracles.push(commit);
         Ok(commit)
     }
-}
-
-/// Recovers `log_num_polynomials` from the MLE's total number of variables and the PCS's
-/// fixed `num_encoding_variables`. Errors if the MLE is too small for the PCS.
-fn log_num_polynomials<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD>(
-    mle_num_variables: u32,
-    pcs_prover: &impl ZkPcsProver<GC, MK, ProverData = PD>,
-) -> Result<usize, PcsCommitError> {
-    let num_encoding_variables = pcs_prover.num_encoding_variables();
-    let log_num_polynomials = mle_num_variables.checked_sub(num_encoding_variables).ok_or(
-        PcsCommitError::MleTooSmall { num_variables: mle_num_variables, num_encoding_variables },
-    )?;
-    Ok(log_num_polynomials as usize)
 }
 
 // ============================================================================
@@ -266,6 +320,9 @@ fn log_num_polynomials<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD>(
 
 impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ReadingCtx for ZkProverCtx<GC, PC> {
     fn read_exact(&mut self, buf: &mut [Self::Expr]) -> Result<(), TranscriptReadError> {
+        if self.pcs_claim_made {
+            return Err(TranscriptReadError::ReadAfterPcsClaim);
+        }
         // Atomic all-or-nothing: a correct prove/verify mirror never under-fills,
         // but bail before mutating the queue if it would.
         if self.replay.sent.len() < buf.len() {
@@ -300,37 +357,35 @@ pub enum PcsCommitError {
     Failed(#[from] super::inner::ZkPcsCommitmentError),
     #[error("Context not initialized with Pcs Prover")]
     NoPcsProver,
+    /// A committed data component's variable count does not match the PCS's fixed encoding width
+    /// (pre-stacked components must each be over exactly `num_encoding_variables` variables).
     #[error(
-        "MLE has {num_variables} variables, fewer than the PCS's \
-         {num_encoding_variables} encoding variables"
+        "MLE component has {num_variables} variables, but the PCS's fixed encoding width is \
+         {num_encoding_variables}"
     )]
-    MleTooSmall { num_variables: u32, num_encoding_variables: u32 },
+    WrongEncodingWidth { num_variables: u32, num_encoding_variables: u32 },
 }
 
 impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
-    /// Run `f` with mutable access to the Fiat-Shamir challenger.
-    pub fn with_challenger<R>(&mut self, f: impl FnOnce(&mut GC::Challenger) -> R) -> R {
-        self.inner.with_challenger(f)
-    }
-
     /// Generates a zero-knowledge proof. Consumes self.
     pub fn prove<RNG: CryptoRng + Rng>(
         mut self,
         rng: &mut RNG,
-    ) -> Result<ZkProof<GC>, ZkProverCtxProveError<GC, PC>>
+    ) -> Result<ZkProof<GC, PcsProofOf<GC, PC>>, ZkProverCtxProveError<GC, PC>>
     where
         Standard: Distribution<GC::EF>,
     {
-        // Release the recorded handles here in case.
-        // They each hold an `Rc` clone of the inner context; left dangling, they'd
-        // force `inner.prove` to deep-clone the context instead of unwrapping it.
+        // Release any transcript handles still sitting in the replay queue. Each holds an
+        // `Rc` clone of the inner context; left dangling, they'd force `inner.prove` to
+        // deep-clone the context instead of unwrapping it. The unified `verify` body drains
+        // this queue by move, so it is normally already empty here — this is a safety net for
+        // callers that `prove()` without first replaying `verify`.
         self.replay.sent.clear();
-        self.inner.prove(rng, self.pcs_prover.as_ref())
+        // Widen the no-PCS inner error (`ZkProveError<Infallible, _>`) into this context's full
+        // error type via the panic-free `widen` conversion.
+        self.inner.prove(rng).map_err(ZkProveError::widen)
     }
-}
 
-impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
-    /// Initializes a prover that supports both linear and multiplicative constraints.
     pub fn initialize<RNG: CryptoRng + Rng>(
         length: usize,
         rng: &mut RNG,
@@ -352,51 +407,5 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
         Standard: Distribution<GC::EF>,
     {
         Ok(Self::new(ZkProverContext::initialize_only_lin_constraints(length, rng)?, pcs_prover))
-    }
-}
-
-// ============================================================================
-// No-PCS convenience methods
-// ============================================================================
-
-impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkProverCtx<GC, NoPcsConfig<MK>> {
-    /// Generates a proof without PCS support. Returns
-    /// [`ZkProveError::NoPcsProver`] if PCS eval claims were registered.
-    #[allow(clippy::type_complexity)]
-    pub fn prove_without_pcs<RNG: CryptoRng + Rng>(
-        mut self,
-        rng: &mut RNG,
-    ) -> Result<
-        ZkProof<GC>,
-        ZkProveError<std::convert::Infallible, <MK as TensorCsProver<GC, CpuBackend>>::ProverError>,
-    >
-    where
-        Standard: Distribution<GC::EF>,
-    {
-        // See `prove`: release recorded handles so the inner context can be unwrapped.
-        self.replay.sent.clear();
-        self.inner.prove_without_pcs(rng)
-    }
-
-    /// Initializes a no-PCS prover with both linear and multiplicative constraints.
-    pub fn initialize_without_pcs<RNG: CryptoRng + Rng>(
-        length: usize,
-        rng: &mut RNG,
-    ) -> Result<Self, <MK as TensorCsProver<GC, CpuBackend>>::ProverError>
-    where
-        Standard: Distribution<GC::EF>,
-    {
-        Ok(Self::new(ZkProverContext::initialize(length, rng)?, None))
-    }
-
-    /// Initializes a no-PCS prover with only linear constraints.
-    pub fn initialize_without_pcs_only_lin<RNG: CryptoRng + Rng>(
-        length: usize,
-        rng: &mut RNG,
-    ) -> Result<Self, <MK as TensorCsProver<GC, CpuBackend>>::ProverError>
-    where
-        Standard: Distribution<GC::EF>,
-    {
-        Ok(Self::new(ZkProverContext::initialize_only_lin_constraints(length, rng)?, None))
     }
 }

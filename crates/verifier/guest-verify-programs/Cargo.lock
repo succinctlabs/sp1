@@ -1437,6 +1437,7 @@ dependencies = [
  "slop-baby-bear",
  "slop-bn254",
  "slop-challenger",
+ "slop-commit",
  "slop-koala-bear",
  "slop-merkle-tree",
  "slop-multilinear",

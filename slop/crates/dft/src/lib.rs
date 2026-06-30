@@ -33,6 +33,23 @@ pub trait Dft<T: Field, A: Backend = CpuBackend>: 'static + Send + Sync {
         dim: usize,
     ) -> Result<(), Self::Error>;
 
+    /// Discrete Fourier transform of `src` zero-extended along `dim` to `padded_len` coefficient
+    /// rows (which must be a power of two and at least `src.sizes()[dim]`).
+    ///
+    /// The result is identical to first padding `src` with zero rows up to `padded_len` and calling
+    /// [`Self::dft`], but an implementor may fold the zero padding into the buffer it has to load
+    /// `src` into anyway — so the caller never has to materialize a padded copy of `src`. This lets a
+    /// caller encode a non-power-of-two (or deliberately under-filled) input without an extra copy.
+    /// The output has `padded_len << log_blowup` rows along `dim`.
+    fn dft_zero_padded(
+        &self,
+        src: &Tensor<T, A>,
+        padded_len: usize,
+        log_blowup: usize,
+        ordering: DftOrdering,
+        dim: usize,
+    ) -> Result<Tensor<T, A>, Self::Error>;
+
     fn coset_dft(
         &self,
         src: &Tensor<T, A>,

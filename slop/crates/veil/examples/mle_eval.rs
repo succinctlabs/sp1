@@ -16,13 +16,15 @@
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use slop_challenger::IopCtx;
-use slop_commit::Message;
 use slop_koala_bear::KoalaBearDegree4Duplex;
 use slop_merkle_tree::Poseidon2KoalaBear16Prover;
 use slop_multilinear::Mle;
+use slop_stacked::stack_multilinear;
 use slop_veil::compiler::{ReadingCtx, SendingCtx};
+use slop_veil::protocols::ProtocolError;
 use slop_veil::transparent::{
-    initialize_transparent_prover_and_verifier, TransparentProverCtx, TransparentVerifierCtx,
+    initialize_transparent_prover_and_verifier, BasefoldTransparentProverCtx,
+    BasefoldTransparentVerifierCtx,
 };
 use slop_veil::zk::stacked_pcs::{initialize_zk_prover_and_verifier, StackedPcsZkProverCtx};
 use slop_veil::zk::{compute_mask_length, ZkProverCtx, ZkVerifierCtx};
@@ -48,21 +50,21 @@ where
     RNG: rand::CryptoRng + rand::Rng,
     rand::distributions::Standard: rand::distributions::Distribution<C::Field>,
 {
-    let mle = Message::from(mle);
-    ctx.commit_mle(mle.clone(), rng).expect("failed to commit mle");
+    let enc = ctx.num_encoding_variables();
+    ctx.commit_mle(stack_multilinear(mle.clone(), enc), rng).expect("failed to commit mle");
     let point = ctx.sample_point(NUM_VARIABLES);
-    let eval = mle[0].eval_at(&point).evaluations().as_slice()[0];
+    let eval = mle.eval_at(&point).evaluations().as_slice()[0];
     ctx.send_value(eval.into());
 }
 
 /// Unified read+constrain pass. Reads the oracle, samples the opening point, reads
 /// the claimed eval, and registers the PCS opening claim. Runs on the verifier and
 /// (via the prover's replay `ReadingCtx`) on the prover.
-fn mle_eval_verify<C: ReadingCtx>(ctx: &mut C) {
-    let oracle = ctx.read_oracle(NUM_VARIABLES).unwrap();
+fn mle_eval_verify<C: ReadingCtx>(ctx: &mut C) -> Result<(), ProtocolError<C::AssertError>> {
+    let oracle = ctx.read_oracle(NUM_VARIABLES).ok_or(ProtocolError::MissingOracle)?;
     let point = ctx.sample_point(NUM_VARIABLES);
-    let claimed_eval = ctx.read_one().unwrap();
-    ctx.assert_mle_eval(oracle, point, claimed_eval);
+    let claimed_eval = ctx.read_one()?;
+    ctx.assert_mle_eval(oracle, &point, claimed_eval).map_err(ProtocolError::Assert)
 }
 
 fn main() {
@@ -77,14 +79,14 @@ fn main() {
 
     let zk_proof = {
         let now = std::time::Instant::now();
-        let mask_length = compute_mask_length::<GC>(NUM_ENCODING_VARIABLES, mle_eval_verify);
+        let mask_length = compute_mask_length::<GC, _>(NUM_ENCODING_VARIABLES, mle_eval_verify);
         eprintln!("Mask length: {mask_length}");
 
         let mut pctx: StackedPcsZkProverCtx<GC, MK> =
             ZkProverCtx::initialize_with_pcs_only_lin(mask_length, zk_pcs_prover, &mut rng)
                 .expect("zk init failed");
         mle_eval_prove(&mut pctx, p.clone(), &mut rng);
-        mle_eval_verify(&mut pctx);
+        mle_eval_verify(&mut pctx).expect("zk eager opening failed");
         let proof = pctx.prove(&mut rng).expect("zk prove failed");
 
         eprintln!("Prover time: {:?}", now.elapsed());
@@ -92,32 +94,30 @@ fn main() {
     };
     {
         let mut vctx = ZkVerifierCtx::init(zk_proof, Some(zk_pcs_verifier));
-        mle_eval_verify(&mut vctx);
+        mle_eval_verify(&mut vctx).expect("zk eager verification failed");
         vctx.verify().expect("zk verification failed");
     }
     eprintln!("ZK backend: PASSED");
 
     // Transparent backend.
     eprintln!("\n=== TRANSPARENT BACKEND ===");
-    let (stacked_prover, stacked_verifier) = initialize_transparent_prover_and_verifier::<GC, MK>(
-        1,
-        NUM_ENCODING_VARIABLES,
-        LOG_NUM_POLYNOMIALS,
-    );
+    let (stacked_prover, stacked_verifier) =
+        initialize_transparent_prover_and_verifier::<GC, MK>(1, NUM_ENCODING_VARIABLES);
 
     let transparent_proof = {
         let now = std::time::Instant::now();
-        let mut pctx: TransparentProverCtx<GC, MK> =
-            TransparentProverCtx::initialize(stacked_prover);
+        let mut pctx: BasefoldTransparentProverCtx<GC, MK> =
+            BasefoldTransparentProverCtx::initialize(stacked_prover);
         mle_eval_prove(&mut pctx, p.clone(), &mut rng);
-        mle_eval_verify(&mut pctx);
+        mle_eval_verify(&mut pctx).expect("transparent eager opening failed");
         let proof = pctx.prove(&mut rng).expect("transparent prove failed");
         eprintln!("Prover time: {:?}", now.elapsed());
         proof
     };
     {
-        let mut vctx = TransparentVerifierCtx::<GC>::new(transparent_proof, Some(stacked_verifier));
-        mle_eval_verify(&mut vctx);
+        let mut vctx =
+            BasefoldTransparentVerifierCtx::<GC>::new(transparent_proof, Some(stacked_verifier));
+        mle_eval_verify(&mut vctx).expect("transparent eager verification failed");
         vctx.verify().expect("transparent verification failed");
     }
     eprintln!("Transparent backend: PASSED");

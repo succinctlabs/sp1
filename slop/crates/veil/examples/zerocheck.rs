@@ -29,16 +29,18 @@ use slop_algebra::{
     interpolate_univariate_polynomial, AbstractExtensionField, AbstractField, UnivariatePolynomial,
 };
 use slop_challenger::IopCtx;
-use slop_commit::Message;
 use slop_koala_bear::KoalaBearDegree4Duplex;
 use slop_matrix::dense::RowMajorMatrix;
 use slop_merkle_tree::Poseidon2KoalaBear16Prover;
 use slop_multilinear::{Mle, Point};
+use slop_stacked::stack_multilinear;
 use slop_sumcheck::{ComponentPoly, SumcheckPoly, SumcheckPolyBase, SumcheckPolyFirstRound};
 use slop_veil::compiler::{ReadingCtx, SendingCtx};
 use slop_veil::protocols::sumcheck::{SumcheckInputClaim, SumcheckParam};
+use slop_veil::protocols::ProtocolError;
 use slop_veil::transparent::{
-    initialize_transparent_prover_and_verifier, TransparentProverCtx, TransparentVerifierCtx,
+    initialize_transparent_prover_and_verifier, BasefoldTransparentProverCtx,
+    BasefoldTransparentVerifierCtx,
 };
 use slop_veil::zk::stacked_pcs::{initialize_zk_prover_and_verifier, StackedPcsZkProverCtx};
 use slop_veil::zk::{compute_mask_length, ZkProverCtx, ZkVerifierCtx};
@@ -209,9 +211,10 @@ fn zerocheck_prove<C, RNG>(
     RNG: rand::CryptoRng + rand::Rng,
     rand::distributions::Standard: rand::distributions::Distribution<C::Field>,
 {
-    ctx.commit_mle(Message::from(p_base), rng).expect("commit p failed");
-    ctx.commit_mle(Message::from(q_base), rng).expect("commit q failed");
-    ctx.commit_mle(Message::from(r_base), rng).expect("commit r failed");
+    let enc = ctx.num_encoding_variables();
+    ctx.commit_mle(stack_multilinear(p_base, enc), rng).expect("commit p failed");
+    ctx.commit_mle(stack_multilinear(q_base, enc), rng).expect("commit q failed");
+    ctx.commit_mle(stack_multilinear(r_base, enc), rng).expect("commit r failed");
 
     let z_0: Point<EF> = ctx.sample_point(NUM_VARIABLES);
 
@@ -231,18 +234,19 @@ fn zerocheck_prove<C, RNG>(
 /// constrains), then ties the reduced claim to `eq(z, z_0) * (p*q - r)` and
 /// registers the PCS opening claims — all in one function, generic over any
 /// `ReadingCtx`. Used by both the verifier and the (replaying) prover.
-fn zerocheck_verify<C: ReadingCtx<Challenge = EF>>(ctx: &mut C) {
-    let p_oracle = ctx.read_oracle(NUM_VARIABLES).unwrap();
-    let q_oracle = ctx.read_oracle(NUM_VARIABLES).unwrap();
-    let r_oracle = ctx.read_oracle(NUM_VARIABLES).unwrap();
+fn zerocheck_verify<C: ReadingCtx<Challenge = EF>>(
+    ctx: &mut C,
+) -> Result<(), ProtocolError<C::AssertError>> {
+    let p_oracle = ctx.read_oracle(NUM_VARIABLES).ok_or(ProtocolError::MissingOracle)?;
+    let q_oracle = ctx.read_oracle(NUM_VARIABLES).ok_or(ProtocolError::MissingOracle)?;
+    let r_oracle = ctx.read_oracle(NUM_VARIABLES).ok_or(ProtocolError::MissingOracle)?;
 
     let z_0 = ctx.sample_point(NUM_VARIABLES);
 
     // f(x) = eq(z_0, x) * (p(x) * q(x) - r(x)): degree 3, 3 component evals (p, q, r).
     let sumcheck_in_claim = SumcheckInputClaim::zero();
-    let out_claim = SumcheckParam::with_component_evals(NUM_VARIABLES, 3, 3)
-        .verify(&sumcheck_in_claim, ctx)
-        .expect("sumcheck verify failed");
+    let out_claim =
+        SumcheckParam::with_component_evals(NUM_VARIABLES, 3, 3).verify(&sumcheck_in_claim, ctx)?;
 
     let z = Point::from(out_claim.point.clone());
     let p_eval = out_claim.component_evals[0][0].clone();
@@ -253,10 +257,11 @@ fn zerocheck_verify<C: ReadingCtx<Challenge = EF>>(ctx: &mut C) {
     let eq_eval = Mle::<EF>::full_lagrange_eval(&z_0, &z);
     let pq_minus_r = p_eval.clone() * q_eval.clone() - r_eval.clone();
     let constraint = pq_minus_r * eq_eval - out_claim.claimed_eval.clone();
-    ctx.assert_zero(constraint).unwrap();
+    ctx.assert_zero(constraint).map_err(ProtocolError::Assert)?;
 
     // PCS evaluation claims for p, q, r at the shared point z (one multi-eval group).
-    ctx.assert_mle_multi_eval(vec![(p_oracle, p_eval), (q_oracle, q_eval), (r_oracle, r_eval)], z);
+    ctx.assert_mle_multi_eval(vec![(p_oracle, p_eval), (q_oracle, q_eval), (r_oracle, r_eval)], &z)
+        .map_err(ProtocolError::Assert)
 }
 
 // ============================================================================
@@ -279,7 +284,7 @@ fn main() {
 
     let zk_proof = {
         let now = std::time::Instant::now();
-        let mask_length = compute_mask_length::<GC>(LOG_ENCODING_VARS, zerocheck_verify);
+        let mask_length = compute_mask_length::<GC, _>(LOG_ENCODING_VARS, zerocheck_verify);
         eprintln!("Mask length: {mask_length}");
         let mut pctx: StackedPcsZkProverCtx<GC, MK> =
             ZkProverCtx::initialize_with_pcs(mask_length, zk_pcs_prover, &mut rng)
@@ -295,39 +300,37 @@ fn main() {
             &mut rng,
         );
         // Prover replays the SAME verify body to build constraints.
-        zerocheck_verify(&mut pctx);
+        zerocheck_verify(&mut pctx).expect("zk eager opening failed");
         let proof = pctx.prove(&mut rng).expect("zk prove failed");
         eprintln!("Prover time: {:?}", now.elapsed());
         proof
     };
     {
         let mut vctx = ZkVerifierCtx::init(zk_proof, Some(zk_pcs_verifier));
-        zerocheck_verify(&mut vctx);
+        zerocheck_verify(&mut vctx).expect("zk eager verification failed");
         vctx.verify().expect("zk verification failed");
     }
     eprintln!("ZK backend: PASSED");
 
     // Transparent backend.
     eprintln!("\n=== TRANSPARENT BACKEND ===");
-    let (stacked_prover, stacked_verifier) = initialize_transparent_prover_and_verifier::<GC, MK>(
-        3,
-        LOG_ENCODING_VARS,
-        LOG_NUM_POLYNOMIALS,
-    );
+    let (stacked_prover, stacked_verifier) =
+        initialize_transparent_prover_and_verifier::<GC, MK>(3, LOG_ENCODING_VARS);
 
     let transparent_proof = {
         let now = std::time::Instant::now();
-        let mut pctx: TransparentProverCtx<GC, MK> =
-            TransparentProverCtx::initialize(stacked_prover);
+        let mut pctx: BasefoldTransparentProverCtx<GC, MK> =
+            BasefoldTransparentProverCtx::initialize(stacked_prover);
         zerocheck_prove(&mut pctx, p_base, q_base, r_base, p_ef, q_ef, r_ef, &mut rng);
-        zerocheck_verify(&mut pctx);
+        zerocheck_verify(&mut pctx).expect("transparent eager opening failed");
         let proof = pctx.prove(&mut rng).expect("transparent prove failed");
         eprintln!("Prover time: {:?}", now.elapsed());
         proof
     };
     {
-        let mut vctx = TransparentVerifierCtx::<GC>::new(transparent_proof, Some(stacked_verifier));
-        zerocheck_verify(&mut vctx);
+        let mut vctx =
+            BasefoldTransparentVerifierCtx::<GC>::new(transparent_proof, Some(stacked_verifier));
+        zerocheck_verify(&mut vctx).expect("transparent eager verification failed");
         vctx.verify().expect("transparent verification failed");
     }
     eprintln!("Transparent backend: PASSED");

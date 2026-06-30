@@ -1,18 +1,23 @@
 use serde::{Deserialize, Serialize};
 use slop_algebra::{Field, TwoAdicField};
 use slop_alloc::{CpuBackend, ToHost};
-use slop_basefold_prover::{BasefoldProver, BasefoldProverData, BasefoldProverError};
+use slop_basefold::BasefoldProof;
+use slop_basefold_prover::{
+    BasefoldProver, BasefoldProverData, BasefoldProverError, CpuDftEncoder,
+};
 use slop_challenger::IopCtx;
 use slop_commit::{Message, Rounds};
 use slop_merkle_tree::ComputeTcsOpenings;
-use slop_multilinear::{Evaluations, Mle, MleEval, MultilinearPcsProver, Point, ToMle};
+use slop_multilinear::{
+    BatchPcsProver, Evaluations, Mle, MleEncoder, MleEval, MultilinearPcsProver, Point, ToMle,
+};
 use std::fmt::Debug;
 
 use crate::{interleave_multilinears_with_fixed_rate, StackedBasefoldProof};
 
 #[derive(Clone)]
 pub struct StackedPcsProver<P: ComputeTcsOpenings<GC, CpuBackend>, GC: IopCtx<F: TwoAdicField>> {
-    basefold_prover: BasefoldProver<GC, P>,
+    pub basefold_prover: BasefoldProver<GC, P>,
     pub log_stacking_height: u32,
     pub batch_size: usize,
     _marker: std::marker::PhantomData<GC>,
@@ -94,6 +99,64 @@ where
     }
 }
 
+/// A [`StackedPcsProver`] is a [`BatchPcsProver`]: a Basefold prover pinned to a fixed message
+/// size (`num_encoding_variables = log_stacking_height`), mirroring the
+/// [`BatchPcsVerifier`](slop_multilinear::BatchPcsVerifier) impl on
+/// [`crate::StackedPcsVerifier`]. The opening protocol itself is plain prebatched Basefold;
+/// the stacking height fixes how long the committed MLEs are allowed to be. `batch_size` and the
+/// interleaving commit play no role on this path.
+///
+/// This is a temporary connector until stacked is refactored based on the new basefold API.
+impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>, P: ComputeTcsOpenings<GC, CpuBackend>>
+    BatchPcsProver<GC> for StackedPcsProver<P, GC>
+{
+    type Proof = BasefoldProof<GC>;
+    type ProverError = BasefoldProverError<P::ProverError>;
+    type Encoder = CpuDftEncoder<GC::F>;
+    type Commitment = GC::Digest;
+    type ProverData = BasefoldProverData<GC::F, P::ProverData>;
+
+    fn num_queries(&self) -> usize {
+        self.basefold_prover.encoder.config().num_queries
+    }
+
+    fn num_encoding_variables(&self) -> u32 {
+        self.log_stacking_height
+    }
+
+    fn encoder(&self) -> &Self::Encoder {
+        &self.basefold_prover.encoder
+    }
+
+    fn commit_mles_with_log_blowup(
+        &self,
+        mles: Message<Mle<GC::F>>,
+        log_blowup: usize,
+    ) -> Result<(Self::Commitment, Self::ProverData), Self::ProverError> {
+        // Delegate to the basefold commit at the requested rate.
+        self.basefold_prover.commit_mles_with_log_blowup(mles, log_blowup)
+    }
+
+    fn prove(
+        &self,
+        point: &Point<GC::EF>,
+        eval: GC::EF,
+        batched_polynomial: Mle<GC::EF>,
+        batched_codeword: <Self::Encoder as MleEncoder<GC::F>>::Codeword,
+        prover_data: Rounds<Self::ProverData>,
+        challenger: &mut GC::Challenger,
+    ) -> Result<Self::Proof, Self::ProverError> {
+        self.basefold_prover.prove_from_prebatched_inputs(
+            point.clone(),
+            batched_polynomial,
+            eval,
+            batched_codeword,
+            prover_data,
+            challenger,
+        )
+    }
+}
+
 impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>, P: ComputeTcsOpenings<GC, CpuBackend>>
     MultilinearPcsProver<GC, StackedBasefoldProof<GC>> for StackedPcsProver<P, GC>
 {
@@ -140,7 +203,7 @@ impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>, P: ComputeTcsOpenings<GC, Cp
         let (_, stack_point) =
             eval_point.split_at(eval_point.dimension() - self.log_stacking_height as usize);
 
-        let pcs_proof = self.basefold_prover.prove_untrusted_evaluations(
+        let batched_basefold_proof = self.basefold_prover.prove_untrusted_evaluations(
             stack_point,
             mle_rounds,
             batch_evaluations,
@@ -154,7 +217,7 @@ impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>, P: ComputeTcsOpenings<GC, Cp
             .collect::<Rounds<_>>();
 
         Ok(StackedBasefoldProof {
-            basefold_proof: pcs_proof,
+            batched_basefold_proof,
             batch_evaluations: host_batch_evaluations,
         })
     }
