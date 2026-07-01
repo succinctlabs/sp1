@@ -4,8 +4,8 @@
 
 use sp1_jit::{
     debug::{self, DebugState},
-    trace_capacity, Interrupt, MemValue, PageProtValue, RiscRegister, SyscallContext,
-    TraceChunkRaw, PUBLIC_VALUE_DIGEST_WORDS,
+    push_stderr_tail, trace_capacity, Interrupt, MemValue, PageProtValue, RiscRegister,
+    SyscallContext, TraceChunkRaw, PUBLIC_VALUE_DIGEST_WORDS,
 };
 use sp1_primitives::consts::{
     LOG_PAGE_SIZE, PROT_EXEC, PROT_FAILURE_EXEC, PROT_FAILURE_READ, PROT_FAILURE_WRITE, PROT_READ,
@@ -63,6 +63,8 @@ pub struct MinimalExecutor<M: ExecutionMode> {
     exit_code: u32,
     max_trace_size: Option<u64>,
     public_values_stream: Vec<u8>,
+    /// Bounded tail of guest `fd=2` (stderr) output, captured for panic debugging.
+    stderr_tail: Vec<u8>,
     public_value_digest: [u32; PUBLIC_VALUE_DIGEST_WORDS],
     hints: Vec<(u64, Vec<u8>)>,
     maybe_unconstrained: Option<UnconstrainedCtx>,
@@ -253,6 +255,10 @@ impl<M: ExecutionMode> SyscallContext for MinimalExecutor<M> {
 
     fn public_values_stream(&mut self) -> &mut Vec<u8> {
         &mut self.public_values_stream
+    }
+
+    fn record_stderr(&mut self, bytes: &[u8]) {
+        push_stderr_tail(&mut self.stderr_tail, bytes);
     }
 
     fn enter_unconstrained(&mut self) -> io::Result<()> {
@@ -449,6 +455,7 @@ impl<M: ExecutionMode> MinimalExecutor<M> {
             traces: None,
             max_trace_size,
             public_values_stream: Vec::new(),
+            stderr_tail: Vec::new(),
             public_value_digest: [0; PUBLIC_VALUE_DIGEST_WORDS],
             hints: Vec::new(),
             maybe_unconstrained: None,
@@ -595,6 +602,14 @@ impl<M: ExecutionMode> MinimalExecutor<M> {
     #[must_use]
     pub fn into_public_values_stream(self) -> Vec<u8> {
         self.public_values_stream
+    }
+
+    /// The bounded guest `fd=2` (stderr) tail captured during execution, as lossy UTF-8.
+    /// `None` when the guest wrote nothing to stderr. Untrusted, guest-controlled text.
+    #[must_use]
+    pub fn stderr_tail(&self) -> Option<String> {
+        (!self.stderr_tail.is_empty())
+            .then(|| String::from_utf8_lossy(&self.stderr_tail).into_owned())
     }
 
     /// Get the public value digest words committed by the guest via `COMMIT` syscalls.

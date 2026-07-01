@@ -105,6 +105,9 @@ impl ReportGenerator {
             touched_memory_addresses: 0,
             gas: Some(gas),
             exit_code: self.exit_code,
+            // Populated by the execute-only driver from the executor's captured stderr, not
+            // by gas estimation.
+            stderr_tail: None,
         }
     }
 

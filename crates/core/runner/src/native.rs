@@ -6,6 +6,7 @@ use sp1_core_executor::{
 use sp1_core_executor_runner_binary::{Input, Output};
 use sp1_jit::{
     memory::SharedMemory,
+    push_stderr_tail,
     shm::{ShmTraceRing, TraceResult},
     trace_capacity, MemValue, MinimalTrace, TraceChunkRaw,
 };
@@ -18,7 +19,7 @@ use std::{
     ptr::NonNull,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc,
+        Arc, Mutex,
     },
     thread::{self, JoinHandle},
     time::Duration,
@@ -39,6 +40,10 @@ pub struct MinimalExecutorRunner {
     // budget, so that kill can be told apart from an external (OOM-killer) one.
     process: Option<(Child, JoinHandle<()>, Arc<AtomicBool>)>,
     output: Option<Result<Output, ExecutionError>>,
+
+    /// Bounded tail of the guest's `fd=2` (stderr) output, accumulated by the stderr-drain
+    /// thread for execute-only panic debugging. Untrusted, guest-controlled text.
+    stderr_tail: Arc<Mutex<Vec<u8>>>,
 
     global_clk: u64,
     clk: u64,
@@ -76,7 +81,16 @@ impl MinimalExecutorRunner {
         };
         let (memory, consumer) = create(&input);
 
-        Self { input, consumer, memory, process: None, output: None, global_clk: 0, clk: 0 }
+        Self {
+            input,
+            consumer,
+            memory,
+            process: None,
+            output: None,
+            stderr_tail: Arc::new(Mutex::new(Vec::new())),
+            global_clk: 0,
+            clk: 0,
+        }
     }
 
     /// Create a new minimal executor with no tracing or debugging.
@@ -145,9 +159,20 @@ impl MinimalExecutorRunner {
             // from the start also preserves its diagnostics if it dies before reading input.
             let stderr = child.stderr.take().expect("open stderr");
             let id = self.input.id.clone();
+            let stderr_tail = Arc::clone(&self.stderr_tail);
             let log_handle = thread::spawn(move || {
                 let reader = BufReader::new(stderr);
                 for l in reader.lines().map_while(Result::ok) {
+                    // The in-process executor prefixes guest `fd=2` writes with "stderr: "
+                    // (see `minimal::write::handle_output`). Capture a bounded tail of those
+                    // lines so a guest panic's message and location survive; other child
+                    // diagnostics are logged but not captured.
+                    if let Some(guest) = l.strip_prefix("stderr: ") {
+                        if let Ok(mut buf) = stderr_tail.lock() {
+                            push_stderr_tail(&mut buf, guest.as_bytes());
+                            push_stderr_tail(&mut buf, b"\n");
+                        }
+                    }
                     tracing::debug!("CHILD {}: {}", id, l);
                 }
             });
@@ -357,6 +382,14 @@ impl MinimalExecutorRunner {
     #[must_use]
     pub fn into_public_values_stream(self) -> Vec<u8> {
         self.take_output().public_values_stream
+    }
+
+    /// The bounded guest `fd=2` (stderr) tail captured by the drain thread, as lossy UTF-8.
+    /// `None` when the guest wrote nothing to stderr. Untrusted, guest-controlled text.
+    #[must_use]
+    pub fn stderr_tail(&self) -> Option<String> {
+        let buf = self.stderr_tail.lock().ok()?;
+        (!buf.is_empty()).then(|| String::from_utf8_lossy(&buf).into_owned())
     }
 
     /// Get the public value digest words committed by the guest via `COMMIT` syscalls.

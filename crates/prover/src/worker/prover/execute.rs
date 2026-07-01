@@ -168,6 +168,7 @@ pub async fn execute_with_options_and_machine(
         PublicValues {
             public_values: SP1PublicValues,
             public_value_digest: [u32; PV_DIGEST_NUM_WORDS],
+            stderr_tail: Option<String>,
             #[cfg(feature = "profiling")]
             cycle_tracker: hashbrown::HashMap<String, u64>,
             #[cfg(feature = "profiling")]
@@ -285,6 +286,8 @@ pub async fn execute_with_options_and_machine(
         let invocation_tracker = minimal_executor.take_invocation_tracker();
 
         let public_value_digest = minimal_executor.public_value_digest();
+        // Capture the guest stderr tail before consuming the executor.
+        let stderr_tail = minimal_executor.stderr_tail();
         let public_value_stream = minimal_executor.into_public_values_stream();
         let public_values = SP1PublicValues::from(&public_value_stream);
 
@@ -292,6 +295,7 @@ pub async fn execute_with_options_and_machine(
         Ok::<_, anyhow::Error>(ExecutorOutput::PublicValues {
             public_values,
             public_value_digest,
+            stderr_tail,
             #[cfg(feature = "profiling")]
             cycle_tracker,
             #[cfg(feature = "profiling")]
@@ -303,6 +307,7 @@ pub async fn execute_with_options_and_machine(
     let mut final_report = ExecutionReport::default();
     let mut public_values = SP1PublicValues::default();
     let mut minimal_executor_digest: Option<[u32; PV_DIGEST_NUM_WORDS]> = None;
+    let mut stderr_tail_data: Option<String> = None;
     #[cfg(feature = "profiling")]
     let mut cycle_tracker_data: Option<(
         hashbrown::HashMap<String, u64>,
@@ -315,6 +320,7 @@ pub async fn execute_with_options_and_machine(
                 ExecutorOutput::PublicValues {
                     public_values: pv,
                     public_value_digest: pvd,
+                    stderr_tail,
                     #[cfg(feature = "profiling")]
                     cycle_tracker,
                     #[cfg(feature = "profiling")]
@@ -322,6 +328,7 @@ pub async fn execute_with_options_and_machine(
                 } => {
                     public_values = pv;
                     minimal_executor_digest = Some(pvd);
+                    stderr_tail_data = stderr_tail;
                     #[cfg(feature = "profiling")]
                     {
                         cycle_tracker_data = Some((cycle_tracker, invocation_tracker));
@@ -348,6 +355,10 @@ pub async fn execute_with_options_and_machine(
         final_report.cycle_tracker = cycle_tracker;
         final_report.invocation_tracker = invocation_tracker;
     }
+
+    // Attach the bounded guest stderr tail (panic message + location) captured by the
+    // executor, for execute-only failure debugging.
+    final_report.stderr_tail = stderr_tail_data;
 
     // Extract the public value digest. Prefer the value tracked by the gas-estimating VM (set when
     // `calculate_gas` is enabled), and fall back to the digest captured by the minimal executor
