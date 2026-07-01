@@ -241,4 +241,81 @@ mod tests {
         .await
         .unwrap();
     }
+
+    /// Register allocation on the (widest) Mul op-DAG: assert it (1) shrinks the
+    /// per-thread footprint far below the 256-wire cap that gates Mul off device, and
+    /// (2) produces bit-identical columns to the SSA interpreter — the CPU model the
+    /// tiered register-allocated kernel will port. Uses real packed inputs.
+    #[test]
+    fn mul_regalloc_shrinks_and_matches() {
+        use sp1_core_machine::air::{
+            columns_as_wires, interpret_c_columns, interpret_slots_columns,
+            RecordingWitnessBuilder, WireId,
+        };
+        use sp1_core_machine::alu::mul::MulCols;
+
+        // Build the Mul program inline (`record_mul_program` asserts <=256; Mul is 531).
+        let mut rec = RecordingWitnessBuilder::new(super::NUM_MUL_INPUTS as u32);
+        let mut cols_w = MulCols::<WireId, SupervisorMode>::default();
+        let w = |i: u32| RecordingWitnessBuilder::input(i);
+        MulCols::<WireId, SupervisorMode>::witgen(
+            &mut rec, &mut cols_w, w(0), w(1), w(2), w(3), w(4), w(5), w(6), w(7), w(8), w(9),
+            w(10), w(11), w(12), w(13), w(14), w(15), w(16), w(17),
+        );
+        let program = rec.finish();
+        let col_wires: Vec<u32> = columns_as_wires(&cols_w).iter().map(|w| w.0).collect();
+
+        let (slot, max_slots) = program.allocate_slots(&col_wires);
+        assert!(
+            max_slots <= 128,
+            "Mul reg-alloc: max_slots={max_slots} (num_wires={}) should fit a 128-tier",
+            program.num_wires()
+        );
+
+        // Real events → packed 18/row inputs; compare SSA vs slot interpreter per row.
+        let mut rng = StdRng::seed_from_u64(0x6017);
+        let ops = [Opcode::MUL, Opcode::MULH, Opcode::MULHU, Opcode::MULHSU, Opcode::MULW];
+        let events = (0..64)
+            .map(|i| {
+                let opcode = ops[i % 5];
+                let b = rng.gen::<u64>();
+                let c = rng.gen::<u64>();
+                let (bi, ci) = (b as i64 as i128, c as i64 as i128);
+                let (bu, cu) = (b as u128, c as u128);
+                let a = match opcode {
+                    Opcode::MUL => b.wrapping_mul(c),
+                    Opcode::MULH => ((bi * ci) >> 64) as u64,
+                    Opcode::MULHU => ((bu * cu) >> 64) as u64,
+                    Opcode::MULHSU => ((bi * (cu as i128)) >> 64) as u64,
+                    _ => ((b as i32).wrapping_mul(c as i32) as i64) as u64,
+                };
+                let alu = AluEvent::new((i as u64) * 8 + 8, (i as u64) * 4 + 4, opcode, a, b, c, false);
+                let record = RTypeRecord {
+                    op_a: rng.gen_range(1..32),
+                    a: read(&mut rng),
+                    op_b: rng.gen_range(1..32),
+                    b: read(&mut rng),
+                    op_c: rng.gen_range(1..32),
+                    c: read(&mut rng),
+                    is_untrusted: false,
+                };
+                (alu, record)
+            })
+            .collect::<Vec<_>>();
+        let inputs = super::pack_mul_inputs(&events);
+        let ops_c = program.to_c();
+        let ni = super::NUM_MUL_INPUTS;
+        for row in 0..events.len() {
+            let row_in = &inputs[row * ni..(row + 1) * ni];
+            let ssa: Vec<F> = interpret_c_columns(&ops_c, ni as u32, row_in, &col_wires);
+            let alloc: Vec<F> =
+                interpret_slots_columns(&program, row_in, &col_wires, &slot, max_slots);
+            assert_eq!(ssa, alloc, "reg-alloc column mismatch at row {row}");
+        }
+        println!(
+            "Mul reg-alloc OK: num_wires={} -> max_slots={max_slots} ({:.1}x)",
+            program.num_wires(),
+            program.num_wires() as f64 / max_slots as f64
+        );
+    }
 }
