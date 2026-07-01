@@ -1004,10 +1004,13 @@ async fn device_main_tracegen<A: CudaTracegenAir<Felt>>(
                     "Range" => &range_dev,
                     other => panic!("unexpected deferred byte/range chip {other}"),
                 };
-                // Row-major `[height, width]` field trace; the kernel writes every cell
-                // (`trace[i] = hist[i]`), so the `zeros_in` allocation is just the buffer.
-                let mut tensor = Tensor::<Felt, TaskScope>::zeros_in([height, width], backend.clone());
+                // Row-major `[height, width]` field trace. `hist_to_trace_kernel` writes
+                // EVERY cell (`trace[i] = hist[i]`), so allocate uninitialized — the
+                // `zeros_in` memset would be pure waste (immediately overwritten).
+                let mut tensor =
+                    Tensor::<Felt, TaskScope>::with_sizes_in([height, width], backend.clone());
                 unsafe {
+                    tensor.assume_init();
                     const BLOCK: usize = 256;
                     let grid = total.div_ceil(BLOCK);
                     let kargs = args!(tensor.as_mut_ptr(), hist.as_ptr(), total);
