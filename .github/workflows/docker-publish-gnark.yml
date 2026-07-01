@@ -55,15 +55,41 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push AMD64 image
+      # Push only a per-arch tag; merge-manifest assembles the bare tag below.
+      - name: Build and push ${{ matrix.arch }} image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile.gnark-ffi
           platforms: ${{ matrix.platform }}
           push: ${{ inputs.dry-run != true }}
-          tags: |
-            ghcr.io/succinctlabs/sp1-gnark:${{ inputs.docker-tag }}
-            ghcr.io/succinctlabs/sp1-gnark:${{ github.sha }}-${{ matrix.arch }}
+          tags: ghcr.io/succinctlabs/sp1-gnark:${{ github.sha }}-${{ matrix.arch }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # Assemble the bare tag's manifest list from the per-arch images
+  merge-manifest:
+    name: merge-manifest
+    needs: docker-publish-gnark
+    if: ${{ inputs.dry-run != true }}
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - name: Set up Docker BuildX
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log into registry ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create multi-arch manifest
+        run: |
+          docker buildx imagetools create \
+            -t ghcr.io/succinctlabs/sp1-gnark:${{ inputs.docker-tag }} \
+            ghcr.io/succinctlabs/sp1-gnark:${{ github.sha }}-amd64 \
+            ghcr.io/succinctlabs/sp1-gnark:${{ github.sha }}-arm64
