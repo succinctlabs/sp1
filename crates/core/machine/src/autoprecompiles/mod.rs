@@ -64,6 +64,54 @@ pub fn sp1_vm_config<'a>(handler: &'a Sp1InstructionHandler<SP1Field>) -> VmConf
     }
 }
 
+/// Create APCs (chip-side [`Sp1Apc`] + executor-side [`sp1_core_executor::Apc`]) from a program
+/// and a list of `pc_idx` ranges. Test-only helper used by the APC proving tests.
+#[cfg(test)]
+pub fn create_apcs(
+    program: &Program,
+    pc_idx_ranges: &[(usize, usize)],
+) -> (Vec<Arc<Sp1Apc<SP1Field>>>, Vec<sp1_core_executor::Apc>) {
+    use powdr_autoprecompiles::{blocks::BasicBlock, blocks::PcStep, export::ExportOptions};
+    use sp1_core_executor::{Apc, ApcRange};
+
+    let apc_ranges: Vec<ApcRange> = pc_idx_ranges.iter().map(ApcRange::from).collect::<Vec<_>>();
+
+    apc_ranges
+        .into_iter()
+        .map(|range| {
+            let instructions = program.instructions[range.start().unwrap()..=range.end().unwrap()]
+                .iter()
+                .cloned()
+                .map(Sp1Instruction::from)
+                .collect();
+
+            let pc_step = Sp1Instruction::pc_step() as u64;
+            let start_pc = (range.start().unwrap() as u64) * pc_step + program.pc_base;
+
+            // Create a dummy basic block with the original instructions.
+            let block = BasicBlock { start_pc, instructions };
+
+            let empirical_constraints = EmpiricalConstraints::default();
+            let handler = Sp1InstructionHandler::<SP1Field>::new();
+            let apc = powdr_autoprecompiles::build::<Sp1ApcAdapter>(
+                block.into(),
+                sp1_vm_config(&handler),
+                DEFAULT_DEGREE_BOUND,
+                ExportOptions::default(),
+                &empirical_constraints,
+            )
+            .expect("Failed to build APC");
+
+            let cost = apc.machine.main_columns().count() as u64;
+            let optimistic_constraints = apc.optimistic_constraints.clone();
+
+            let execution_apc = Apc::new(range, cost, optimistic_constraints);
+
+            (Arc::new(apc), execution_apc)
+        })
+        .unzip()
+}
+
 pub fn build_elf(guest_path: &str) -> Vec<u8> {
     let build_args = powdr_default_build_args();
     let elf_path = build_elf_path(guest_path, build_args);
