@@ -2000,6 +2000,35 @@ pub mod tests {
         run_test_small_trace(Arc::new(program), stdin).await.unwrap();
     }
 
+    #[tokio::test]
+    #[cfg(feature = "apc")]
+    async fn test_add_apc_prove() {
+        use crate::{
+            autoprecompiles::create_apcs, io::SP1Stdin, riscv::RiscvAir,
+            utils::run_test_with_machine,
+        };
+
+        setup_logger();
+        let mut instructions = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 30, 0, 37, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
+            Instruction::new(Opcode::ADDI, 27, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 28, 0, 37, false, true),
+            Instruction::new(Opcode::ADD, 26, 28, 27, false, false),
+        ];
+
+        add_halt(&mut instructions);
+        let apc_ranges = vec![(0, 2), (3, 5)];
+        let program = Program::new(instructions, 0, 0);
+        let (apcs, apc_range_and_costs) = create_apcs(&program, &apc_ranges);
+        let program = program.with_apcs(apc_range_and_costs);
+        let stdin = SP1Stdin::new();
+        run_test_with_machine(Arc::new(program), stdin, RiscvAir::machine_with_apcs(apcs))
+            .await
+            .unwrap();
+    }
+
     #[test]
     fn test_chips_main_width_interaction_ratio() {
         let chips = RiscvAir::<SP1Field>::chips();
