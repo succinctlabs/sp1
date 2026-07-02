@@ -1,4 +1,5 @@
 use derive_where::derive_where;
+use rayon::prelude::*;
 use slop_algebra::Field;
 use std::collections::BTreeSet;
 
@@ -106,8 +107,39 @@ where
             })
             .collect::<Vec<_>>();
 
+        // APC chips (name starts with "APC_") are pure byte-lookup producers: their
+        // `generate_dependencies` reads only the record's captured APC invocations and writes only
+        // `output.byte_lookups` (verified — nothing later-consumed such as local-mem / page-prot /
+        // global-interaction events). They also read nothing another chip's `generate_dependencies`
+        // produces, and byte-lookup accumulation is commutative, so they can run in parallel and be
+        // merged before the (order-independent) rest. This is the dominant `generate_deps` cost
+        // under record-in-chip (each APC chip re-executes its blocks), so parallelizing matters.
+        let mut apc_chips = Vec::new();
+        let mut other_chips = Vec::new();
+        for &chip in &chips {
+            if chip.name().starts_with("APC_") {
+                apc_chips.push(chip);
+            } else {
+                other_chips.push(chip);
+            }
+        }
+
         records.for_each(|record| {
-            chips.iter().for_each(|chip| {
+            if !apc_chips.is_empty() {
+                let mut apc_outputs = apc_chips
+                    .par_iter()
+                    .map(|chip| {
+                        let mut output = A::Record::default();
+                        chip.generate_dependencies(record, &mut output);
+                        output
+                    })
+                    .collect::<Vec<_>>();
+                for output in &mut apc_outputs {
+                    record.append(output);
+                }
+            }
+
+            other_chips.iter().for_each(|chip| {
                 let mut output = A::Record::default();
                 chip.generate_dependencies(record, &mut output);
                 record.append(&mut output);
