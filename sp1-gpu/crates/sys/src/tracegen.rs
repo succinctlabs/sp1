@@ -25,6 +25,7 @@ extern "C" {
     // per-thread wire array bounded by max-live slots, not one cell per op.
     pub fn witgen_interp_slots_koala_bear_kernel() -> KernelPtr;
     pub fn witgen_lookup_slots_koala_bear_kernel() -> KernelPtr;
+    pub fn witgen_fused_slots_koala_bear_kernel() -> KernelPtr;
     pub fn hist_to_trace_koala_bear_kernel() -> KernelPtr;
     pub fn hist_trace_scatter_koala_bear_kernel() -> KernelPtr;
 }

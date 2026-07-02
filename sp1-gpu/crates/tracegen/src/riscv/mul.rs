@@ -100,6 +100,31 @@ impl CudaTracegenAir<F> for MulChip<SupervisorMode> {
         .await
     }
 
+    /// Fused device path — the one the PROVER actually calls for Mul (since
+    /// `supports_device_dependencies` is true): columns + byte/range lookups in one
+    /// register-allocated pass. `inputs` is pre-packed pre-permit by
+    /// `pack_device_lookup_inputs` (the Mul arm in mod.rs). Missing this override was the
+    /// iter-067 hang — the enum dispatch hit the trait-default `unimplemented!()`.
+    async fn generate_trace_device_with_lookups(
+        &self,
+        input: &Self::Record,
+        inputs: Vec<u64>,
+        hist: crate::LookupHist,
+        scope: &TaskScope,
+    ) -> Result<DeviceMle<F>, CopyError> {
+        let (program, col_wires) = record_mul_program();
+        let n_cols = col_wires.len();
+        debug_assert_eq!(n_cols, NUM_MUL_COLS_SUPERVISOR);
+        let height = <Self as MachineAir<F>>::num_rows(self, input)
+            .expect("num_rows(...) should be Some(_)");
+        let n_events =
+            if height == 0 { 0 } else { inputs.len() / program.num_inputs as usize };
+        super::generate_trace_and_lookups_slots(
+            &program, &col_wires, n_cols, &inputs, n_events, height, hist, scope,
+        )
+        .await
+    }
+
     fn supports_device_dependencies(&self) -> bool {
         true
     }

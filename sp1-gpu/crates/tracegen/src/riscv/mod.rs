@@ -227,6 +227,69 @@ pub(crate) async fn generate_columns_slots_into(
     Ok(DeviceMle::from(trace))
 }
 
+/// Slot-indexed FUSED tracegen for WIDE device-dependency gadgets (Mul): the
+/// register-allocated counterpart of [`generate_trace_and_lookups`]. One op-DAG pass
+/// writes the columns AND accumulates the byte/range lookups into the shared shard
+/// histograms via `witgen_fused_slots_kernel`. This is the path the prover actually
+/// calls for chips with `supports_device_dependencies` (see `generate_trace_device_with_lookups`).
+pub(crate) async fn generate_trace_and_lookups_slots(
+    program: &WitProgram,
+    col_wires: &[u32],
+    n_cols: usize,
+    inputs: &[u64],
+    n_events: usize,
+    height: usize,
+    hist: LookupHist,
+    scope: &TaskScope,
+) -> Result<DeviceMle<F>, CopyError> {
+    let (slot, max_slots) = program.allocate_slots(col_wires);
+    assert!(
+        max_slots as usize <= WITGEN_MAX_WIRES,
+        "reg-alloc: {max_slots} live slots > kernel capacity {WITGEN_MAX_WIRES}"
+    );
+    let ops_c = program.to_c_slots(&slot);
+    let ni = program.num_inputs as usize;
+    let input_slots: Vec<u32> = slot[..ni].to_vec();
+    let col_slots: Vec<u32> = col_wires.iter().map(|&w| slot[w as usize]).collect();
+
+    let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone()).unwrap();
+    ops_dev.extend_from_host_slice(&ops_c)?;
+    let mut col_dev = Buffer::try_with_capacity_in(col_slots.len(), scope.clone()).unwrap();
+    col_dev.extend_from_host_slice(&col_slots)?;
+    let mut inslot_dev =
+        Buffer::try_with_capacity_in(input_slots.len().max(1), scope.clone()).unwrap();
+    inslot_dev.extend_from_host_slice(&input_slots)?;
+    let mut in_dev = Buffer::try_with_capacity_in(inputs.len().max(1), scope.clone()).unwrap();
+    in_dev.extend_from_host_slice(inputs)?;
+
+    // Zeroed trace; only event rows are written (padding rows stay 0 — is_real=0).
+    let mut trace = Tensor::<F, TaskScope>::zeros_in([n_cols, height], scope.clone());
+    if n_events > 0 {
+        unsafe {
+            const BLOCK: usize = 64;
+            let grid = n_events.div_ceil(BLOCK);
+            let args = args!(
+                trace.as_mut_ptr(),
+                height,
+                ops_dev.as_ptr(),
+                ops_c.len(),
+                col_dev.as_ptr(),
+                n_cols,
+                program.num_inputs,
+                inslot_dev.as_ptr(),
+                in_dev.as_ptr(),
+                n_events,
+                hist.range,
+                hist.byte
+            );
+            scope
+                .launch_kernel(TaskScope::witgen_fused_slots_kernel(), grid, BLOCK, &args, 0)
+                .unwrap();
+        }
+    }
+    Ok(DeviceMle::from(trace))
+}
+
 /// Slot-indexed dual of [`accumulate_lookups`] for WIDE gadgets: same shard-histogram
 /// accumulation via `witgen_lookup_slots_kernel`, register-allocated so wide gadgets
 /// fit. Uses the SAME `allocate_slots(col_wires)` map as the column launch so the two
@@ -280,8 +343,8 @@ pub(crate) async fn accumulate_lookups_slots(
 }
 
 /// Name of the device-capable chip variant (`None` for chips without a device
-/// tracegen impl, and for `Mul`/`DivRem` which are gated to host — too wide for the
-/// 256-wire kernel). Used by the `AR_DEVICE_CHIPS` runtime gate.
+/// tracegen impl, and for `DivRem` which is still host-gated — too wide for the
+/// 256-slot kernel; `Mul` now fits via reg-alloc). Used by the `AR_DEVICE_CHIPS` gate.
 fn device_chip_name(air: &RiscvAir<F>) -> Option<&'static str> {
     Some(match air {
         RiscvAir::Global(_) => "Global",
@@ -308,6 +371,10 @@ fn device_chip_name(air: &RiscvAir<F>) -> Option<&'static str> {
         RiscvAir::Jal(_) => "Jal",
         RiscvAir::Jalr(_) => "Jalr",
         RiscvAir::Branch(_) => "Branch",
+        // Wide gadget on device via the register-allocated slot kernels (iter-066).
+        // Off by default (needs AR_DEVICE_CHIPS=...,Mul); device==CPU trace validated
+        // by `test_mul_generate_trace_device`.
+        RiscvAir::Mul(_) => "Mul",
         _ => return None,
     })
 }
@@ -501,6 +568,9 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Jal(_) => pk!(input.jal_events, jal::pack_jal_inputs),
             Self::Jalr(_) => pk!(input.jalr_events, jalr::pack_jalr_inputs),
             Self::Branch(_) => pk!(input.branch_events, branch::pack_branch_inputs),
+            // Wide gadget on device (iter-066/067): without this arm the fused path gets
+            // empty inputs → no Mul trace → failed verification.
+            Self::Mul(_) => pk!(input.mul_events, mul::pack_mul_inputs),
             _ => Vec::new(),
         }
     }

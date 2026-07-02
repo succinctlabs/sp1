@@ -732,7 +732,177 @@ __global__ void witgen_lookup_slots_kernel(
     }
 }
 
+// Slot-indexed FUSED kernel (columns + lookups in one op-DAG pass) for WIDE gadgets —
+// the register-allocated union of witgen_interp_slots_kernel + witgen_lookup_slots_kernel,
+// mirroring witgen_fused_kernel. Used by device-dependency chips (e.g. Mul) whose prove
+// path is the fused `generate_trace_device_with_lookups`.
+template <class T>
+__global__ void witgen_fused_slots_kernel(
+    T* trace,
+    uintptr_t trace_height,
+    const sp1_gpu_sys::WitOpCSlot* ops,
+    uintptr_t n_ops,
+    const uint32_t* col_slots,
+    uintptr_t n_cols,
+    uint32_t num_inputs,
+    const uint32_t* input_slots,
+    const uint64_t* inputs,
+    uintptr_t n_rows,
+    uint32_t* range_hist,
+    uint32_t* byte_hist) {
+    int row = blockIdx.x * blockDim.x + threadIdx.x;
+    for (; row < n_rows; row += blockDim.x * gridDim.x) {
+        uint64_t nat[WITGEN_MAX_WIRES];
+        T fld[WITGEN_MAX_WIRES];
+        bool is_field[WITGEN_MAX_WIRES];
+
+        for (uint32_t i = 0; i < num_inputs; ++i) {
+            uint32_t s = input_slots[i];
+            nat[s] = inputs[row * num_inputs + i];
+            is_field[s] = false;
+        }
+
+        for (uintptr_t k = 0; k < n_ops; ++k) {
+            const sp1_gpu_sys::WitOpCSlot op = ops[k];
+            switch (op.tag) {
+            // --- value ops (from witgen_interp_slots_kernel) ---
+            case 0:
+                nat[op.out] = op.imm0;
+                is_field[op.out] = false;
+                break;
+            case 1:
+                nat[op.out] = nat[op.a] + nat[op.b];
+                is_field[op.out] = false;
+                break;
+            case 8:
+                nat[op.out] = nat[op.a] - nat[op.b];
+                is_field[op.out] = false;
+                break;
+            case 2: {
+                uint64_t mask = (op.imm1 >= 64) ? ~0ULL : ((1ULL << op.imm1) - 1);
+                nat[op.out] = (nat[op.a] >> op.imm0) & mask;
+                is_field[op.out] = false;
+                break;
+            }
+            case 11:
+                nat[op.out] = (nat[op.a] == nat[op.b]) ? 1 : 0;
+                is_field[op.out] = false;
+                break;
+            case 12:
+                nat[op.out] = nat[op.a] ? nat[op.b] : nat[op.imm1];
+                is_field[op.out] = false;
+                break;
+            case 20:
+                nat[op.out] = nat[op.a] << nat[op.b];
+                is_field[op.out] = false;
+                break;
+            case 21:
+                nat[op.out] = nat[op.a] >> nat[op.b];
+                is_field[op.out] = false;
+                break;
+            case 23:
+                nat[op.out] = nat[op.a] * nat[op.b];
+                is_field[op.out] = false;
+                break;
+            case 3:
+                fld[op.out] = T::from_canonical_u32((uint32_t)nat[op.a]);
+                is_field[op.out] = true;
+                break;
+            case 4:
+                fld[op.out] = fld[op.a] + fld[op.b];
+                is_field[op.out] = true;
+                break;
+            case 19:
+                fld[op.out] = fld[op.a] - fld[op.b];
+                is_field[op.out] = true;
+                break;
+            case 5:
+                fld[op.out] = fld[op.a].reciprocal();
+                is_field[op.out] = true;
+                break;
+            case 18:
+                fld[op.out] = nat[op.a] ? fld[op.b] : fld[op.imm1];
+                is_field[op.out] = true;
+                break;
+            // --- lookup ops (from witgen_lookup_slots_kernel) ---
+            case 6: {
+                uint32_t v = (uint32_t)(uint16_t)nat[op.a];
+                atomicAdd(&range_hist[v + (1u << 16)], 1u);
+                break;
+            }
+            case 7: {
+                uint32_t v = (uint32_t)(uint16_t)nat[op.a];
+                atomicAdd(&range_hist[v + (1u << (uint32_t)op.imm0)], 1u);
+                break;
+            }
+            case 22: {
+                uint32_t v = (uint32_t)(uint16_t)nat[op.a];
+                uint32_t bits = (uint32_t)nat[op.b];
+                atomicAdd(&range_hist[v + (1u << bits)], 1u);
+                break;
+            }
+            case 9: {
+                uint32_t b = (uint32_t)(uint8_t)nat[op.a];
+                uint32_t c = (uint32_t)(uint8_t)nat[op.b];
+                uint32_t r = (b << 8) + c;
+                atomicAdd(&byte_hist[r * WITGEN_NUM_BYTE_MULT_COLS + WITGEN_BYTE_U8RANGE_COL], 1u);
+                break;
+            }
+            case 13: {
+                if (nat[op.b]) {
+                    uint32_t v = (uint32_t)(uint16_t)nat[op.a];
+                    atomicAdd(&range_hist[v + (1u << 16)], 1u);
+                }
+                break;
+            }
+            case 14: {
+                if (nat[op.b]) {
+                    uint32_t v = (uint32_t)(uint16_t)nat[op.a];
+                    atomicAdd(&range_hist[v + (1u << (uint32_t)op.imm0)], 1u);
+                }
+                break;
+            }
+            case 15: {
+                if (nat[op.imm1]) {
+                    uint32_t b = (uint32_t)(uint8_t)nat[op.a];
+                    uint32_t c = (uint32_t)(uint8_t)nat[op.b];
+                    uint32_t r = (b << 8) + c;
+                    atomicAdd(
+                        &byte_hist[r * WITGEN_NUM_BYTE_MULT_COLS + WITGEN_BYTE_U8RANGE_COL], 1u);
+                }
+                break;
+            }
+            case 16: {
+                uint32_t b = (uint32_t)(uint8_t)nat[op.a];
+                uint32_t c = (uint32_t)(uint8_t)nat[op.b];
+                uint32_t opc = (uint32_t)nat[op.imm1];
+                atomicAdd(&byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
+                break;
+            }
+            case 17: {
+                if (nat[(uintptr_t)op.imm0]) {
+                    uint32_t b = (uint32_t)(uint8_t)nat[op.a];
+                    uint32_t c = (uint32_t)(uint8_t)nat[op.b];
+                    uint32_t opc = (uint32_t)nat[op.imm1];
+                    atomicAdd(&byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
+                }
+                break;
+            }
+            }
+        }
+
+        for (uintptr_t c = 0; c < n_cols; ++c) {
+            uint32_t s = col_slots[c];
+            trace[row + c * trace_height] =
+                is_field[s] ? fld[s] : T::from_canonical_u32((uint32_t)nat[s]);
+        }
+    }
+}
+
 namespace sp1_gpu_sys {
+extern KernelPtr witgen_fused_slots_koala_bear_kernel() {
+    return (KernelPtr)::witgen_fused_slots_kernel<kb31_t>;
+}
 extern KernelPtr witgen_interp_slots_koala_bear_kernel() {
     return (KernelPtr)::witgen_interp_slots_kernel<kb31_t>;
 }
