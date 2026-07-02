@@ -72,6 +72,12 @@ pub struct CoreVM<'a, M: ExecutionMode, S> {
     decoded_instruction_cache: HashMap<u32, Instruction>,
     /// The candidate tracker for autoprecompiles.
     pub apc_candidates: ApcCandidates<CoreExecutionState, Apc, S>,
+    /// Whether to run APC-candidate tracking (`try_insert` on fetch, `check_conditions` /
+    /// `extract_calls` on advance). Disabled for record-in-chip block replay
+    /// ([`CoreVM::new_untracked`]), which ignores candidate output: this avoids both the
+    /// per-construction clone of `apc_by_index` and the per-cycle candidate work — the dominant
+    /// cost of block re-execution (hundreds of thousands of calls per run).
+    track_apc_candidates: bool,
     /// Phantom data for the execution mode.
     _mode: PhantomData<M>,
 }
@@ -79,7 +85,11 @@ pub struct CoreVM<'a, M: ExecutionMode, S> {
 /// The execution state which is passed to the candidate checker
 pub struct CoreExecutionState {
     pc: u64,
-    registers: [MemoryRecord; 32],
+    /// Raw borrow of the `CoreVM`'s registers — avoids copying 32 `MemoryRecord`s (512 B) into
+    /// this transient state every cycle. Sound because the candidate machine reads the state only
+    /// within `check_conditions`/`try_insert` and never stores it (it retains only the
+    /// optimistic-constraint evaluator), so the pointer cannot dangle past its use.
+    registers: *const [MemoryRecord; 32],
     global_clk: u64,
 }
 
@@ -93,7 +103,8 @@ impl ExecutionState for CoreExecutionState {
     }
 
     fn reg(&self, addr: &Self::RegisterAddress) -> Self::Value {
-        self.registers[*addr as usize].value
+        // SAFETY: see the `registers` field doc — the pointer outlives every transient use.
+        unsafe { (*self.registers)[*addr as usize].value }
     }
 
     fn value_limb(value: Self::Value, limb_index: usize) -> Self::Value {
@@ -126,6 +137,28 @@ impl<'a, M: ExecutionMode, S> CoreVM<'a, M, S> {
         opts: SP1CoreOpts,
         proof_nonce: [u32; PROOF_NONCE_NUM_WORDS],
     ) -> Self {
+        Self::new_inner(trace, program, opts, proof_nonce, true)
+    }
+
+    /// Like [`CoreVM::new`] but without APC-candidate tracking (no `apc_by_index` clone, no
+    /// per-cycle candidate work). Used for record-in-chip block replay, which ignores candidate
+    /// output.
+    pub fn new_untracked<T: MinimalTrace>(
+        trace: &'a T,
+        program: Arc<Program>,
+        opts: SP1CoreOpts,
+        proof_nonce: [u32; PROOF_NONCE_NUM_WORDS],
+    ) -> Self {
+        Self::new_inner(trace, program, opts, proof_nonce, false)
+    }
+
+    fn new_inner<T: MinimalTrace>(
+        trace: &'a T,
+        program: Arc<Program>,
+        opts: SP1CoreOpts,
+        proof_nonce: [u32; PROOF_NONCE_NUM_WORDS],
+        track_apc_candidates: bool,
+    ) -> Self {
         let start_clk = trace.clk_start();
 
         // SAFETY: We're mapping a [T; 32] -> [T; 32] infallibly.
@@ -157,8 +190,12 @@ impl<'a, M: ExecutionMode, S> CoreVM<'a, M, S> {
             assert_eq!(trace.pc_start(), program.pc_start_abs);
         }
 
-        let apc_candidates: ApcCandidates<CoreExecutionState, Apc, S> =
-            ApcCandidates::new(program.apcs.apc_by_index.clone());
+        // Only clone the (potentially large) APC table when tracking is on; replay passes empty.
+        let apc_candidates: ApcCandidates<CoreExecutionState, Apc, S> = if track_apc_candidates {
+            ApcCandidates::new(program.apcs.apc_by_index.clone())
+        } else {
+            ApcCandidates::new(Vec::new())
+        };
 
         Self {
             registers,
@@ -178,6 +215,7 @@ impl<'a, M: ExecutionMode, S> CoreVM<'a, M, S> {
             transpiler: InstructionTranspiler,
             decoded_instruction_cache: HashMap::new(),
             apc_candidates,
+            track_apc_candidates,
             _mode: PhantomData,
         }
     }
@@ -222,16 +260,19 @@ impl<'a, M: ExecutionMode, S> CoreVM<'a, M, S> {
         self.next_pc = self.pc.wrapping_add(PC_INC);
         self.global_clk = self.global_clk.wrapping_add(1);
 
-        self.apc_candidates.check_conditions(
-            &CoreExecutionState {
-                pc: self.pc,
-                registers: self.registers,
-                global_clk: self.global_clk,
-            },
-            &snapshot_callback,
-        );
-
-        let outputs = self.apc_candidates.extract_calls();
+        let outputs = if self.track_apc_candidates {
+            self.apc_candidates.check_conditions(
+                &CoreExecutionState {
+                    pc: self.pc,
+                    registers: std::ptr::addr_of!(self.registers),
+                    global_clk: self.global_clk,
+                },
+                &snapshot_callback,
+            );
+            self.apc_candidates.extract_calls()
+        } else {
+            Vec::new()
+        };
 
         // Check if the program has halted.
         if self.pc == HALT_PC {
@@ -652,12 +693,12 @@ impl<S> CoreVM<'_, SupervisorMode, S> {
     pub fn fetch(&mut self, snapshot_callback: impl Fn() -> S) -> Instruction {
         let snapshot_callback = &snapshot_callback;
         let (i, apc_indices) = self.program.fetch_with_apcs(self.pc).unwrap();
-        if let Some(apc_indices) = apc_indices {
+        if let (true, Some(apc_indices)) = (self.track_apc_candidates, apc_indices) {
             for apc in apc_indices {
                 let _ = self.apc_candidates.try_insert(
                     &CoreExecutionState {
                         pc: self.pc,
-                        registers: self.registers,
+                        registers: std::ptr::addr_of!(self.registers),
                         global_clk: self.global_clk,
                     },
                     *apc,
@@ -765,12 +806,12 @@ impl<S> CoreVM<'_, UserMode, S> {
     ) -> Result<FetchResult, ExecutionError> {
         let snapshot_callback = &snapshot_callback;
         if let Some((instruction, apc_indices)) = self.program.fetch_with_apcs(self.pc) {
-            if let Some(apc_indices) = apc_indices {
+            if let (true, Some(apc_indices)) = (self.track_apc_candidates, apc_indices) {
                 for apc in apc_indices {
                     let _ = self.apc_candidates.try_insert(
                         &CoreExecutionState {
                             pc: self.pc,
-                            registers: self.registers,
+                            registers: std::ptr::addr_of!(self.registers),
                             global_clk: self.global_clk,
                         },
                         *apc,
