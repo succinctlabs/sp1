@@ -147,8 +147,7 @@ fn conv_map_fp(input: &[u8]) -> Option<Vec<u8>> {
 
 fn conv_map_fp2(input: &[u8]) -> Option<Vec<u8>> {
     (input.len() == 128).then_some(())?;
-    // wire: c0(64) || c1(64); ABI Fp2: c1(48) || c0(48).
-    Some([unpad_fp(&input[64..128])?.as_slice(), unpad_fp(&input[0..64])?.as_slice()].concat())
+    Some([unpad_fp(&input[0..64])?.as_slice(), unpad_fp(&input[64..128])?.as_slice()].concat())
 }
 
 fn exp_g1(e: &[u8]) -> Vec<u8> {

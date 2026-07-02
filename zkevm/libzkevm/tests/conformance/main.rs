@@ -10,9 +10,9 @@
 //! wholesale, never sampled — the adversarial tail is the point.
 //!
 //! The `support::wire` module is the EVM-wire-format ↔ C-ABI glue an
-//! EVM client integrating this SDK needs (EIP-2537 64-byte padded Fp,
-//! `c0 || c1` Fp2 order, all-zeros infinity — versus the ABI's 48-byte
-//! Fp, `c1 || c0`, `0x40` flag-bit infinity).
+//! EVM client integrating this SDK needs (EIP-2537 64-byte padded Fp
+//! versus the ABI's 48-byte Fp; both share the `c0 || c1` Fp2 order and
+//! all-zeros infinity).
 
 mod bls;
 mod evm;

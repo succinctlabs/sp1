@@ -3746,7 +3746,7 @@ dependencies = [
 
 [[package]]
 name = "libzkevm"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "bls12_381 0.8.0",
  "k256 0.13.4 (git+https://github.com/sp1-patches/elliptic-curves?tag=patch-k256-13.4-sp1-6.2.0)",
@@ -6138,7 +6138,7 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
 name = "slop-air"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "p3-air",
 ]
@@ -6156,7 +6156,7 @@ dependencies = [
 
 [[package]]
 name = "slop-algebra"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "itertools 0.14.0",
  "p3-field 0.4.3-succinct",
@@ -6165,42 +6165,42 @@ dependencies = [
 
 [[package]]
 name = "slop-alloc"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "serde",
- "slop-algebra 6.2.4",
+ "slop-algebra 6.3.1",
  "thiserror 1.0.69",
 ]
 
 [[package]]
 name = "slop-baby-bear"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "lazy_static",
  "p3-baby-bear",
  "serde",
- "slop-algebra 6.2.4",
- "slop-challenger 6.2.4",
- "slop-poseidon2 6.2.4",
- "slop-symmetric 6.2.4",
+ "slop-algebra 6.3.1",
+ "slop-challenger 6.3.1",
+ "slop-poseidon2 6.3.1",
+ "slop-symmetric 6.3.1",
 ]
 
 [[package]]
 name = "slop-basefold"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "derive-where",
  "itertools 0.14.0",
  "serde",
- "slop-algebra 6.2.4",
+ "slop-algebra 6.3.1",
  "slop-alloc",
  "slop-baby-bear",
- "slop-bn254 6.2.4",
- "slop-challenger 6.2.4",
- "slop-koala-bear 6.2.4",
+ "slop-bn254 6.3.1",
+ "slop-challenger 6.3.1",
+ "slop-koala-bear 6.3.1",
  "slop-merkle-tree",
  "slop-multilinear",
- "slop-primitives 6.2.4",
+ "slop-primitives 6.3.1",
  "slop-tensor",
  "slop-utils",
  "thiserror 1.0.69",
@@ -6208,23 +6208,23 @@ dependencies = [
 
 [[package]]
 name = "slop-basefold-prover"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "derive-where",
  "itertools 0.14.0",
  "rand 0.8.6",
  "serde",
- "slop-algebra 6.2.4",
+ "slop-algebra 6.3.1",
  "slop-alloc",
  "slop-baby-bear",
  "slop-basefold",
- "slop-bn254 6.2.4",
- "slop-challenger 6.2.4",
+ "slop-bn254 6.3.1",
+ "slop-challenger 6.3.1",
  "slop-commit",
  "slop-dft",
  "slop-fri",
  "slop-futures",
- "slop-koala-bear 6.2.4",
+ "slop-koala-bear 6.3.1",
  "slop-merkle-tree",
  "slop-multilinear",
  "slop-tensor",
@@ -6249,15 +6249,15 @@ dependencies = [
 
 [[package]]
 name = "slop-bn254"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "ff 0.13.1",
  "p3-bn254-fr 0.4.3-succinct",
  "serde",
- "slop-algebra 6.2.4",
- "slop-challenger 6.2.4",
- "slop-poseidon2 6.2.4",
- "slop-symmetric 6.2.4",
+ "slop-algebra 6.3.1",
+ "slop-challenger 6.3.1",
+ "slop-poseidon2 6.3.1",
+ "slop-symmetric 6.3.1",
 ]
 
 [[package]]
@@ -6275,18 +6275,18 @@ dependencies = [
 
 [[package]]
 name = "slop-challenger"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "futures",
  "p3-challenger 0.4.3-succinct",
  "serde",
- "slop-algebra 6.2.4",
- "slop-symmetric 6.2.4",
+ "slop-algebra 6.3.1",
+ "slop-symmetric 6.3.1",
 ]
 
 [[package]]
 name = "slop-commit"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "p3-commit",
  "serde",
@@ -6295,11 +6295,11 @@ dependencies = [
 
 [[package]]
 name = "slop-dft"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "p3-dft 0.4.3-succinct",
  "serde",
- "slop-algebra 6.2.4",
+ "slop-algebra 6.3.1",
  "slop-alloc",
  "slop-matrix",
  "slop-tensor",
@@ -6307,14 +6307,14 @@ dependencies = [
 
 [[package]]
 name = "slop-fri"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "p3-fri",
 ]
 
 [[package]]
 name = "slop-futures"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "crossbeam",
  "futures",
@@ -6327,7 +6327,7 @@ dependencies = [
 
 [[package]]
 name = "slop-jagged"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "derive-where",
  "futures",
@@ -6336,21 +6336,21 @@ dependencies = [
  "rand 0.8.6",
  "rayon",
  "serde",
- "slop-algebra 6.2.4",
+ "slop-algebra 6.3.1",
  "slop-alloc",
  "slop-baby-bear",
  "slop-basefold",
  "slop-basefold-prover",
- "slop-bn254 6.2.4",
- "slop-challenger 6.2.4",
+ "slop-bn254 6.3.1",
+ "slop-challenger 6.3.1",
  "slop-commit",
  "slop-futures",
- "slop-koala-bear 6.2.4",
+ "slop-koala-bear 6.3.1",
  "slop-merkle-tree",
  "slop-multilinear",
  "slop-stacked",
  "slop-sumcheck",
- "slop-symmetric 6.2.4",
+ "slop-symmetric 6.3.1",
  "slop-tensor",
  "slop-utils",
  "thiserror 1.0.69",
@@ -6359,7 +6359,7 @@ dependencies = [
 
 [[package]]
 name = "slop-keccak-air"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "p3-keccak-air",
 ]
@@ -6381,50 +6381,50 @@ dependencies = [
 
 [[package]]
 name = "slop-koala-bear"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "lazy_static",
  "p3-koala-bear 0.4.3-succinct",
  "serde",
- "slop-algebra 6.2.4",
- "slop-challenger 6.2.4",
- "slop-poseidon2 6.2.4",
- "slop-symmetric 6.2.4",
+ "slop-algebra 6.3.1",
+ "slop-challenger 6.3.1",
+ "slop-poseidon2 6.3.1",
+ "slop-symmetric 6.3.1",
 ]
 
 [[package]]
 name = "slop-matrix"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "p3-matrix 0.4.3-succinct",
 ]
 
 [[package]]
 name = "slop-maybe-rayon"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "p3-maybe-rayon 0.4.3-succinct",
 ]
 
 [[package]]
 name = "slop-merkle-tree"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "derive-where",
  "itertools 0.14.0",
  "p3-merkle-tree",
  "serde",
- "slop-algebra 6.2.4",
+ "slop-algebra 6.3.1",
  "slop-alloc",
  "slop-baby-bear",
- "slop-bn254 6.2.4",
- "slop-challenger 6.2.4",
+ "slop-bn254 6.3.1",
+ "slop-challenger 6.3.1",
  "slop-commit",
  "slop-futures",
- "slop-koala-bear 6.2.4",
+ "slop-koala-bear 6.3.1",
  "slop-matrix",
- "slop-poseidon2 6.2.4",
- "slop-symmetric 6.2.4",
+ "slop-poseidon2 6.3.1",
+ "slop-symmetric 6.3.1",
  "slop-tensor",
  "slop-utils",
  "thiserror 1.0.69",
@@ -6432,7 +6432,7 @@ dependencies = [
 
 [[package]]
 name = "slop-multilinear"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "derive-where",
  "futures",
@@ -6440,9 +6440,9 @@ dependencies = [
  "rand 0.8.6",
  "rayon",
  "serde",
- "slop-algebra 6.2.4",
+ "slop-algebra 6.3.1",
  "slop-alloc",
- "slop-challenger 6.2.4",
+ "slop-challenger 6.3.1",
  "slop-commit",
  "slop-futures",
  "slop-matrix",
@@ -6460,7 +6460,7 @@ dependencies = [
 
 [[package]]
 name = "slop-poseidon2"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "p3-poseidon2 0.4.3-succinct",
 ]
@@ -6476,24 +6476,24 @@ dependencies = [
 
 [[package]]
 name = "slop-primitives"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
- "slop-algebra 6.2.4",
+ "slop-algebra 6.3.1",
 ]
 
 [[package]]
 name = "slop-stacked"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "derive-where",
  "futures",
  "itertools 0.14.0",
  "serde",
- "slop-algebra 6.2.4",
+ "slop-algebra 6.3.1",
  "slop-alloc",
  "slop-basefold",
  "slop-basefold-prover",
- "slop-challenger 6.2.4",
+ "slop-challenger 6.3.1",
  "slop-commit",
  "slop-futures",
  "slop-merkle-tree",
@@ -6504,16 +6504,16 @@ dependencies = [
 
 [[package]]
 name = "slop-sumcheck"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "futures",
  "itertools 0.14.0",
  "rayon",
  "serde",
- "slop-algebra 6.2.4",
+ "slop-algebra 6.3.1",
  "slop-alloc",
  "slop-baby-bear",
- "slop-challenger 6.2.4",
+ "slop-challenger 6.3.1",
  "slop-multilinear",
  "thiserror 1.0.69",
 ]
@@ -6529,14 +6529,14 @@ dependencies = [
 
 [[package]]
 name = "slop-symmetric"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "p3-symmetric 0.4.3-succinct",
 ]
 
 [[package]]
 name = "slop-tensor"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "arrayvec",
  "derive-where",
@@ -6544,7 +6544,7 @@ dependencies = [
  "rand 0.8.6",
  "rayon",
  "serde",
- "slop-algebra 6.2.4",
+ "slop-algebra 6.3.1",
  "slop-alloc",
  "slop-futures",
  "slop-matrix",
@@ -6554,14 +6554,14 @@ dependencies = [
 
 [[package]]
 name = "slop-uni-stark"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "p3-uni-stark",
 ]
 
 [[package]]
 name = "slop-utils"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "p3-util 0.4.3-succinct",
  "tracing-forest",
@@ -6570,7 +6570,7 @@ dependencies = [
 
 [[package]]
 name = "slop-whir"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "derive-where",
  "futures",
@@ -6578,15 +6578,15 @@ dependencies = [
  "rand 0.8.6",
  "rayon",
  "serde",
- "slop-algebra 6.2.4",
+ "slop-algebra 6.3.1",
  "slop-alloc",
  "slop-baby-bear",
  "slop-basefold",
- "slop-challenger 6.2.4",
+ "slop-challenger 6.3.1",
  "slop-commit",
  "slop-dft",
  "slop-jagged",
- "slop-koala-bear 6.2.4",
+ "slop-koala-bear 6.3.1",
  "slop-matrix",
  "slop-merkle-tree",
  "slop-multilinear",
@@ -6637,19 +6637,19 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "anyhow",
  "cargo_metadata",
  "chrono",
  "clap",
  "dirs",
- "sp1-primitives 6.2.4",
+ "sp1-primitives 6.3.1",
 ]
 
 [[package]]
 name = "sp1-core-executor"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -6670,13 +6670,13 @@ dependencies = [
  "serde_arrays",
  "serde_json",
  "slop-air",
- "slop-algebra 6.2.4",
+ "slop-algebra 6.3.1",
  "slop-maybe-rayon",
- "slop-symmetric 6.2.4",
+ "slop-symmetric 6.3.1",
  "sp1-curves",
  "sp1-hypercube",
  "sp1-jit",
- "sp1-primitives 6.2.4",
+ "sp1-primitives 6.3.1",
  "strum",
  "subenum",
  "thiserror 1.0.69",
@@ -6688,7 +6688,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor-runner"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "base64 0.22.1",
  "bincode",
@@ -6700,7 +6700,7 @@ dependencies = [
  "sp1-core-executor",
  "sp1-core-executor-runner-binary",
  "sp1-jit",
- "sp1-primitives 6.2.4",
+ "sp1-primitives 6.3.1",
  "sysinfo",
  "tracing",
  "uuid",
@@ -6708,7 +6708,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor-runner-binary"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "bincode",
  "crash-handler",
@@ -6721,7 +6721,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-machine"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "bincode",
  "cfg-if",
@@ -6738,8 +6738,8 @@ dependencies = [
  "serde",
  "serde_json",
  "slop-air",
- "slop-algebra 6.2.4",
- "slop-challenger 6.2.4",
+ "slop-algebra 6.3.1",
+ "slop-challenger 6.3.1",
  "slop-futures",
  "slop-keccak-air",
  "slop-matrix",
@@ -6752,7 +6752,7 @@ dependencies = [
  "sp1-derive",
  "sp1-hypercube",
  "sp1-jit",
- "sp1-primitives 6.2.4",
+ "sp1-primitives 6.3.1",
  "static_assertions",
  "struct-reflection",
  "strum",
@@ -6768,7 +6768,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cuda"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "bincode",
  "bytes",
@@ -6778,7 +6778,7 @@ dependencies = [
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-hypercube",
- "sp1-primitives 6.2.4",
+ "sp1-primitives 6.3.1",
  "sp1-prover",
  "sp1-prover-types",
  "thiserror 1.0.69",
@@ -6788,7 +6788,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "cfg-if",
  "dashu",
@@ -6799,15 +6799,15 @@ dependencies = [
  "num",
  "p256 0.13.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde",
- "slop-algebra 6.2.4",
+ "slop-algebra 6.3.1",
  "snowbridge-amcl",
- "sp1-primitives 6.2.4",
+ "sp1-primitives 6.3.1",
  "typenum",
 ]
 
 [[package]]
 name = "sp1-derive"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6816,7 +6816,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-hypercube"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "arrayref",
  "deepsize2",
@@ -6831,28 +6831,28 @@ dependencies = [
  "rayon-scan",
  "serde",
  "slop-air",
- "slop-algebra 6.2.4",
+ "slop-algebra 6.3.1",
  "slop-alloc",
  "slop-basefold",
  "slop-basefold-prover",
- "slop-bn254 6.2.4",
- "slop-challenger 6.2.4",
+ "slop-bn254 6.3.1",
+ "slop-challenger 6.3.1",
  "slop-commit",
  "slop-futures",
  "slop-jagged",
- "slop-koala-bear 6.2.4",
+ "slop-koala-bear 6.3.1",
  "slop-matrix",
  "slop-merkle-tree",
  "slop-multilinear",
- "slop-poseidon2 6.2.4",
+ "slop-poseidon2 6.3.1",
  "slop-stacked",
  "slop-sumcheck",
- "slop-symmetric 6.2.4",
+ "slop-symmetric 6.3.1",
  "slop-tensor",
  "slop-uni-stark",
  "slop-whir",
  "sp1-derive",
- "sp1-primitives 6.2.4",
+ "sp1-primitives 6.3.1",
  "struct-reflection",
  "strum",
  "thiserror 1.0.69",
@@ -6863,7 +6863,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-jit"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "dynasmrt",
  "hashbrown 0.14.5",
@@ -6871,7 +6871,7 @@ dependencies = [
  "memfd",
  "memmap2",
  "serde",
- "sp1-primitives 6.2.4",
+ "sp1-primitives 6.3.1",
  "tracing",
  "uuid",
 ]
@@ -6914,7 +6914,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "bincode",
  "blake3",
@@ -6925,18 +6925,18 @@ dependencies = [
  "num-bigint 0.4.6",
  "serde",
  "sha2 0.10.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "slop-algebra 6.2.4",
- "slop-bn254 6.2.4",
- "slop-challenger 6.2.4",
- "slop-koala-bear 6.2.4",
- "slop-poseidon2 6.2.4",
- "slop-primitives 6.2.4",
- "slop-symmetric 6.2.4",
+ "slop-algebra 6.3.1",
+ "slop-bn254 6.3.1",
+ "slop-challenger 6.3.1",
+ "slop-koala-bear 6.3.1",
+ "slop-poseidon2 6.3.1",
+ "slop-primitives 6.3.1",
+ "slop-symmetric 6.3.1",
 ]
 
 [[package]]
 name = "sp1-prover"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -6962,22 +6962,22 @@ dependencies = [
  "serial_test",
  "sha2 0.10.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "slop-air",
- "slop-algebra 6.2.4",
+ "slop-algebra 6.3.1",
  "slop-basefold",
- "slop-bn254 6.2.4",
- "slop-challenger 6.2.4",
+ "slop-bn254 6.3.1",
+ "slop-challenger 6.3.1",
  "slop-futures",
  "slop-jagged",
  "slop-multilinear",
  "slop-stacked",
- "slop-symmetric 6.2.4",
+ "slop-symmetric 6.3.1",
  "sp1-core-executor",
  "sp1-core-executor-runner",
  "sp1-core-machine",
  "sp1-derive",
  "sp1-hypercube",
  "sp1-jit",
- "sp1-primitives 6.2.4",
+ "sp1-primitives 6.3.1",
  "sp1-prover-types",
  "sp1-recursion-circuit",
  "sp1-recursion-compiler",
@@ -6998,7 +6998,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover-types"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "anyhow",
  "async-scoped",
@@ -7011,7 +7011,7 @@ dependencies = [
  "serde",
  "sp1-core-machine",
  "sp1-hypercube",
- "sp1-primitives 6.2.4",
+ "sp1-primitives 6.3.1",
  "tokio",
  "tonic",
  "tonic-build",
@@ -7020,7 +7020,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "bincode",
  "itertools 0.14.0",
@@ -7028,28 +7028,28 @@ dependencies = [
  "rayon",
  "serde",
  "slop-air",
- "slop-algebra 6.2.4",
+ "slop-algebra 6.3.1",
  "slop-alloc",
  "slop-basefold",
  "slop-basefold-prover",
- "slop-bn254 6.2.4",
- "slop-challenger 6.2.4",
+ "slop-bn254 6.3.1",
+ "slop-challenger 6.3.1",
  "slop-commit",
  "slop-jagged",
- "slop-koala-bear 6.2.4",
+ "slop-koala-bear 6.3.1",
  "slop-matrix",
  "slop-merkle-tree",
  "slop-multilinear",
  "slop-stacked",
  "slop-sumcheck",
- "slop-symmetric 6.2.4",
+ "slop-symmetric 6.3.1",
  "slop-tensor",
  "slop-whir",
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-derive",
  "sp1-hypercube",
- "sp1-primitives 6.2.4",
+ "sp1-primitives 6.3.1",
  "sp1-recursion-compiler",
  "sp1-recursion-executor",
  "sp1-recursion-machine",
@@ -7058,18 +7058,18 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "backtrace",
  "cfg-if",
  "itertools 0.14.0",
  "serde",
- "slop-algebra 6.2.4",
- "slop-bn254 6.2.4",
- "slop-symmetric 6.2.4",
+ "slop-algebra 6.3.1",
+ "slop-bn254 6.3.1",
+ "slop-symmetric 6.3.1",
  "sp1-core-machine",
  "sp1-hypercube",
- "sp1-primitives 6.2.4",
+ "sp1-primitives 6.3.1",
  "sp1-recursion-executor",
  "tracing",
  "vec_map",
@@ -7077,7 +7077,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-executor"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "backtrace",
  "cfg-if",
@@ -7085,10 +7085,10 @@ dependencies = [
  "itertools 0.14.0",
  "range-set-blaze",
  "serde",
- "slop-algebra 6.2.4",
+ "slop-algebra 6.3.1",
  "slop-maybe-rayon",
- "slop-poseidon2 6.2.4",
- "slop-symmetric 6.2.4",
+ "slop-poseidon2 6.3.1",
+ "slop-symmetric 6.3.1",
  "smallvec",
  "sp1-derive",
  "sp1-hypercube",
@@ -7099,7 +7099,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -7109,10 +7109,10 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "slop-algebra 6.2.4",
- "slop-symmetric 6.2.4",
+ "slop-algebra 6.3.1",
+ "slop-symmetric 6.3.1",
  "sp1-hypercube",
- "sp1-primitives 6.2.4",
+ "sp1-primitives 6.3.1",
  "sp1-recursion-compiler",
  "sp1-verifier",
  "tempfile",
@@ -7121,19 +7121,19 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-machine"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "itertools 0.14.0",
  "rand 0.8.6",
  "slop-air",
- "slop-algebra 6.2.4",
+ "slop-algebra 6.3.1",
  "slop-basefold",
  "slop-matrix",
  "slop-maybe-rayon",
- "slop-symmetric 6.2.4",
+ "slop-symmetric 6.3.1",
  "sp1-derive",
  "sp1-hypercube",
- "sp1-primitives 6.2.4",
+ "sp1-primitives 6.3.1",
  "sp1-recursion-executor",
  "strum",
  "tracing",
@@ -7141,7 +7141,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "alloy-primitives",
  "alloy-signer",
@@ -7174,7 +7174,7 @@ dependencies = [
  "sp1-core-machine",
  "sp1-cuda",
  "sp1-hypercube",
- "sp1-primitives 6.2.4",
+ "sp1-primitives 6.3.1",
  "sp1-prover",
  "sp1-prover-types",
  "sp1-recursion-executor",
@@ -7191,7 +7191,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-verifier"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "bincode",
  "blake3",
@@ -7201,12 +7201,12 @@ dependencies = [
  "lazy_static",
  "serde",
  "sha2 0.10.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "slop-algebra 6.2.4",
- "slop-challenger 6.2.4",
- "slop-primitives 6.2.4",
- "slop-symmetric 6.2.4",
+ "slop-algebra 6.3.1",
+ "slop-challenger 6.3.1",
+ "slop-primitives 6.3.1",
+ "slop-symmetric 6.3.1",
  "sp1-hypercube",
- "sp1-primitives 6.2.4",
+ "sp1-primitives 6.3.1",
  "sp1-recursion-executor",
  "sp1-recursion-machine",
  "strum",
@@ -7216,7 +7216,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "cfg-if",
  "critical-section",
@@ -7226,7 +7226,7 @@ dependencies = [
  "lazy_static",
  "rand 0.8.6",
  "sha2 0.10.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp1-primitives 6.2.4",
+ "sp1-primitives 6.3.1",
 ]
 
 [[package]]
