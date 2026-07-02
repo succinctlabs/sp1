@@ -5,14 +5,34 @@ use sp1_core_executor::{Program, SP1Context, SP1CoreOpts};
 use sp1_core_executor_runner::MinimalExecutorRunner;
 use sp1_hypercube::{
     prover::{CpuShardProver, SP1InnerPcsProver, SimpleProver},
-    MachineProof, MachineVerifierConfigError, SP1InnerPcs, SP1PcsProofInner, ShardVerifier,
+    Machine, MachineProof, MachineVerifierConfigError, SP1InnerPcs, SP1PcsProofInner,
+    ShardVerifier,
 };
-use sp1_primitives::{io::SP1PublicValues, SP1GlobalContext};
+use sp1_primitives::{io::SP1PublicValues, SP1Field, SP1GlobalContext};
 use tracing::Instrument;
 
 use crate::{io::SP1Stdin, riscv::RiscvAir};
 
 use super::prove_core;
+
+/// Like [`run_test`] but with a caller-supplied [`Machine`] (e.g. one carrying APC chips built via
+/// [`crate::autoprecompiles::create_apcs`]).
+pub async fn run_test_with_machine(
+    program: Arc<Program>,
+    inputs: SP1Stdin,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>> {
+    let mut executor = MinimalExecutorRunner::simple(program.clone());
+    for buf in &inputs.buffer {
+        executor.with_input(buf);
+    }
+    while executor.execute_chunk().is_some() {}
+    let public_values = SP1PublicValues::from(executor.public_values_stream());
+
+    let _ = run_test_core_with_machine(program, inputs, 21, 22, machine, SP1CoreOpts::default())
+        .await?;
+    Ok(public_values)
+}
 
 // /// This type is the function signature used for malicious trace and public values generators for
 // /// failure test cases.
@@ -125,6 +145,43 @@ pub async fn run_test_core(
     .instrument(tracing::debug_span!("prove core"))
     .await
     .unwrap();
+
+    prover.verify(&vk, &proof)?;
+    Ok(proof)
+}
+
+/// Like [`run_test_core`] but proves with a caller-supplied [`Machine`] (e.g. one carrying APC
+/// chips) instead of the default `RiscvAir::machine()`.
+pub async fn run_test_core_with_machine(
+    program: Arc<Program>,
+    inputs: SP1Stdin,
+    log_stacking_height: u32,
+    max_log_row_count: usize,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+    opts: SP1CoreOpts,
+) -> Result<
+    MachineProof<SP1GlobalContext, SP1PcsProofInner>,
+    MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>,
+> {
+    let verifier = ShardVerifier::from_basefold_parameters(
+        FriConfig::default_fri_config(),
+        log_stacking_height,
+        max_log_row_count,
+        machine.clone(),
+    );
+    let shard_prover = CpuShardProver::<SP1GlobalContext, SP1InnerPcs, SP1InnerPcsProver, _>::new(
+        verifier.clone(),
+    );
+    let prover = SimpleProver::new(verifier, shard_prover);
+
+    let (pk, vk) =
+        prover.setup(program.clone()).instrument(tracing::debug_span!("setup").or_current()).await;
+    let pk = unsafe { pk.into_inner() };
+
+    let (proof, _) = prove_core(&prover, pk, program, inputs, opts, SP1Context::default(), machine)
+        .instrument(tracing::debug_span!("prove core"))
+        .await
+        .unwrap();
 
     prover.verify(&vk, &proof)?;
     Ok(proof)

@@ -1,7 +1,6 @@
 use crate::events::{TrapExecEvent, TrapMemInstrEvent};
 use deepsize2::DeepSizeOf;
 use hashbrown::HashMap;
-use itertools::izip;
 use powdr_autoprecompiles::execution::ApcCall;
 use slop_air::AirBuilder;
 use slop_algebra::{AbstractField, Field, PrimeField, PrimeField32};
@@ -24,11 +23,11 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    autoprecompiles::{ExecutionRecordSnapshot, ExecutionRecordSnapshotWithPc},
+    autoprecompiles::{ApcInvocation, ApcInvocations, ExecutionRecordSnapshot},
     events::{
-        AluEvent, ApcEvents, ApcEventsForId, BranchEvent, ByteLookupEvent, ByteRecord,
-        GlobalInteractionEvent, InstructionDecodeEvent, InstructionFetchEvent, JumpEvent,
-        MemInstrEvent, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryRecordEnum,
+        AluEvent, BranchEvent, ByteLookupEvent, ByteRecord, GlobalInteractionEvent,
+        InstructionDecodeEvent, InstructionFetchEvent, JumpEvent, MemInstrEvent,
+        MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryRecordEnum,
         PageProtInitializeFinalizeEvent, PageProtLocalEvent, PrecompileEvent, PrecompileEvents,
         SyscallEvent, UTypeEvent,
     },
@@ -113,8 +112,11 @@ pub struct ExecutionRecord {
     pub cpu_local_page_prot_access: Vec<PageProtLocalEvent>,
     /// A trace of all the syscall events.
     pub syscall_events: Vec<(SyscallEvent, RTypeRecord)>,
-    /// A trace for all APC events.
-    pub apc_events: ApcEvents,
+    /// The record-in-chip APC invocations, keyed by `apc_id`. Replaces the materialized
+    /// `ApcEvents`: instead of extracting each block's per-opcode events during tracing, the
+    /// executor stores a minimal per-invocation capture here and the APC chip regenerates its
+    /// trace by re-executing these (see `ApcChip::b1_synthetic_record`).
+    pub apc_invocations: ApcInvocations,
     /// A trace of all the global interaction events.
     pub global_interaction_events: Vec<GlobalInteractionEvent>,
     /// A trace of all instruction fetch events.
@@ -153,6 +155,14 @@ pub struct ExecutionRecord {
     pub exit_code: u32,
     /// Use optimized `generate_dependencies` for global chip.
     pub global_dependencies_opt: bool,
+    /// Read-oracle cursor for the record-in-chip capture: the number of memory reads consumed so
+    /// far by the `CoreVM`. Snapshotted at each APC block's from/to boundaries so the block's read
+    /// slice can be sliced out of the shard read-oracle for re-execution (see `TracingVM`).
+    pub mem_reads_remaining: usize,
+    /// Per-cycle gate that suppresses per-opcode event emission while an APC block's invocation is
+    /// in progress (the "skip" half of record-in-chip). Set by `TracingVM::execute_instruction`;
+    /// checked by every `emit_*`. Local-memory / page-prot / trap plumbing is unaffected.
+    pub skip_writes: bool,
 }
 
 impl ExecutionRecord {
@@ -535,31 +545,43 @@ impl ExecutionRecord {
         self.precompile_events.get_events(syscall_code).expect("Precompile events not found")
     }
 
-    /// Get all the apc events for an apc id.
+    /// Get the record-in-chip invocations for an apc id, in execution order.
     #[inline]
     #[must_use]
-    pub fn get_apc_events(&self, apc_id: usize) -> Option<&ApcEventsForId> {
-        self.apc_events.get_events(apc_id)
+    pub fn get_apc_invocations(&self, apc_id: usize) -> &[ApcInvocation] {
+        self.apc_invocations.for_id(apc_id)
+    }
+
+    /// Number of APC chip rows for `apc_id` (= its invocation count).
+    #[inline]
+    #[must_use]
+    pub fn apc_event_count(&self, apc_id: usize) -> usize {
+        self.apc_invocations.count(apc_id)
+    }
+
+    /// Whether any APC invocation was captured for `apc_id`.
+    #[inline]
+    #[must_use]
+    pub fn has_apc_events(&self, apc_id: usize) -> bool {
+        self.apc_invocations.has(apc_id)
     }
 
     /// Get all the local memory events.
+    ///
+    /// Note: with record-in-chip, an APC block's local-memory accesses stay in
+    /// `cpu_local_memory_access` (the skip gate keeps `insert_record` running), so there is no
+    /// separate APC source to chain here.
     #[inline]
     pub fn get_local_mem_events(&self) -> impl Iterator<Item = &MemoryLocalEvent> {
         let precompile_local_mem_events = self.precompile_events.get_local_mem_events();
-        let apc_local_mem_events = self.apc_events.get_local_mem_events();
-        precompile_local_mem_events
-            .chain(apc_local_mem_events)
-            .chain(self.cpu_local_memory_access.iter())
+        precompile_local_mem_events.chain(self.cpu_local_memory_access.iter())
     }
 
     /// Get all the local page prot events.
     #[inline]
     pub fn get_local_page_prot_events(&self) -> impl Iterator<Item = &PageProtLocalEvent> {
         let precompile_local_page_prot_events = self.precompile_events.get_local_page_prot_events();
-        let apc_local_page_prot_events = self.apc_events.get_local_page_prot_events();
-        precompile_local_page_prot_events
-            .chain(apc_local_page_prot_events)
-            .chain(self.cpu_local_page_prot_access.iter())
+        precompile_local_page_prot_events.chain(self.cpu_local_page_prot_access.iter())
     }
 
     /// Reset the record, without deallocating the event vecs.
@@ -607,6 +629,9 @@ impl ExecutionRecord {
         self.global_interaction_event_count = 0;
         self.bump_memory_events.truncate(0);
         self.bump_state_events.truncate(0);
+        self.apc_invocations = ApcInvocations::default();
+        self.mem_reads_remaining = 0;
+        self.skip_writes = false;
         let _ = self.public_values.reset();
         self.next_nonce = 0;
         self.shape = None;
@@ -628,365 +653,30 @@ impl ExecutionRecord {
 
         ExecutionRecordSnapshot {
             cpu_event_count: self.cpu_event_count,
-            alu_x0_events_len: self.alu_x0_events.len(),
-            add_events_len: self.add_events.len(),
-            addw_events_len: self.addw_events.len(),
-            addi_events_len: self.addi_events.len(),
-            mul_events_len: self.mul_events.len(),
-            sub_events_len: self.sub_events.len(),
-            subw_events_len: self.subw_events.len(),
-            bitwise_events_len: self.bitwise_events.len(),
-            shift_left_events_len: self.shift_left_events.len(),
-            shift_right_events_len: self.shift_right_events.len(),
-            divrem_events_len: self.divrem_events.len(),
-            lt_events_len: self.lt_events.len(),
-            memory_load_byte_events_len: self.memory_load_byte_events.len(),
-            memory_load_half_events_len: self.memory_load_half_events.len(),
-            memory_load_word_events_len: self.memory_load_word_events.len(),
-            memory_load_x0_events_len: self.memory_load_x0_events.len(),
-            memory_load_double_events_len: self.memory_load_double_events.len(),
-            memory_store_byte_events_len: self.memory_store_byte_events.len(),
-            memory_store_half_events_len: self.memory_store_half_events.len(),
-            memory_store_word_events_len: self.memory_store_word_events.len(),
-            memory_store_double_events_len: self.memory_store_double_events.len(),
-            utype_events_len: self.utype_events.len(),
-            branch_events_len: self.branch_events.len(),
-            jal_events_len: self.jal_events.len(),
-            jalr_events_len: self.jalr_events.len(),
-            precompile_events_len: self.precompile_events.len(),
-            global_memory_initialize_events_len: self.global_memory_initialize_events.len(),
-            global_memory_finalize_events_len: self.global_memory_finalize_events.len(),
-            cpu_local_memory_access_len: self.cpu_local_memory_access.len(),
-            syscall_events_len: self.syscall_events.len(),
-            apc_events_len: self.apc_events.len(),
             global_interaction_event_count: self.global_interaction_event_count,
-            bump_memory_events_len: self.bump_memory_events.len(),
-            bump_state_events_len: self.bump_state_events.len(),
-            instruction_fetch_events_len: self.instruction_fetch_events.len(),
-            instruction_decode_events_len: self.instruction_decode_events.len(),
-            global_page_prot_initialize_events_len: self.global_page_prot_initialize_events.len(),
-            global_page_prot_finalize_events_len: self.global_page_prot_finalize_events.len(),
-            cpu_local_page_prot_access_len: self.cpu_local_page_prot_access.len(),
+            mem_reads_remaining: self.mem_reads_remaining,
         }
     }
 
-    /// Modify this record using a series of successful apc calls
-    pub fn apply_calls(&mut self, calls: &[ApcCall<ExecutionRecordSnapshotWithPc>]) {
+    /// Modify this record's scalar counts for a series of successful APC calls.
+    ///
+    /// With record-in-chip, the block's per-opcode events are NOT materialized here — they were
+    /// suppressed during tracing (the skip gate) and are regenerated by the APC chip from the
+    /// captured [`ApcInvocations`]. So `apply_calls` only adjusts the scalar counters that the
+    /// snapshots track: each APC call replaces `cpu_diff` CPU events with 1 APC-call row, and
+    /// removes `gi_diff` global-interaction events. Under the skip gate both diffs are 0 (nothing
+    /// was emitted inside the block), so this is `cpu_event_count += 1` per call.
+    pub fn apply_calls(&mut self, calls: &[ApcCall<ExecutionRecordSnapshot>]) {
         if calls.is_empty() {
             return;
         }
-
-        let apc_records = self.extract_records(calls);
-
-        // Add the apc event to the record.
-        // TODO: we could merge directly into the cummulative record inside
-        // `self.apc_events` instead of going through this intermediate
-        // `apc_record`
-
-        // Update the CPU event count, since we are running apc, only one cpu_event
-        // happened per apc record
-        self.cpu_event_count += apc_records.len() as u32;
-
-        for (apc_id, record) in apc_records {
-            self.apc_events.add_event(apc_id, record);
+        for call in calls {
+            let cpu_diff = call.to.cpu_event_count - call.from.cpu_event_count;
+            self.cpu_event_count -= cpu_diff - 1;
+            let gi_diff =
+                call.to.global_interaction_event_count - call.from.global_interaction_event_count;
+            self.global_interaction_event_count -= gi_diff;
         }
-    }
-
-    /// Extract the records related to each call so they are ready to be added as apc events
-    /// TODO: Maybe this is not required and instead we can keep the record append-only and store the snapshots in the apc events
-    /// During tracegen, all events are currently accessible to all chips, so in software tracegen, we could ignore the software events that are in the range of any apc call
-    #[allow(clippy::too_many_lines)]
-    fn extract_records(
-        &mut self,
-        calls: &[ApcCall<ExecutionRecordSnapshotWithPc>],
-    ) -> Vec<(usize, ExecutionRecord)> {
-        // Go through the candidates in reverse order and split them off from the end of the record
-
-        // Extracts events from vector `v` at the given (from, to) index ranges.
-        // Returns Vec<Vec<T>> where each inner Vec contains the events for one APC call.
-        //
-        // We process outputs in reverse order to preserve indices during drain/split_off.
-        // This means apc_records ends up reversed, so we reverse it at the end to match
-        // the original order (important: apc_records gets zipped with apc_ids in izip!).
-        //
-        // Note: software_records (events between APC ranges that stay in v) end up in
-        // scrambled order, but this is fine because chips process events independently of order.
-        fn extract<T>(
-            v: &mut Vec<T>,
-            outputs: impl DoubleEndedIterator<Item = (usize, usize)>,
-        ) -> Vec<Vec<T>> {
-            let (mut apc_records, software_records): (Vec<Vec<T>>, Vec<T>) = outputs.rev().fold(
-                (vec![], vec![]),
-                |(mut extracted, mut to_add_to_software), (from, to)| {
-                    to_add_to_software.extend(v.drain(to..));
-                    extracted.push(v.split_off(from));
-                    (extracted, to_add_to_software)
-                },
-            );
-            v.extend(software_records);
-            apc_records.reverse();
-            apc_records
-        }
-
-        fn extract_diff(v: &mut u32, outputs: impl Iterator<Item = (u32, u32)>) -> Vec<u32> {
-            let (apc_records, total_removed) =
-                outputs.fold((Vec::new(), 0), |(mut records, removed), (from, to)| {
-                    let len = to - from;
-                    records.push(len);
-                    (records, removed + len)
-                });
-            debug_assert!(total_removed <= *v);
-            *v -= total_removed;
-            apc_records
-        }
-
-        fn extract_empty<T: Default>(
-            outputs: impl Iterator<Item = (usize, usize)>,
-        ) -> impl Iterator<Item = T> {
-            outputs.map(|(from, to)| {
-                assert_eq!(from, to);
-                T::default()
-            })
-        }
-
-        macro_rules! extract_vec {
-            ($field:ident, $len_field:ident) => {
-                extract(
-                    &mut self.$field,
-                    calls
-                        .iter()
-                        .map(|output| (output.from.record.$len_field, output.to.record.$len_field)),
-                )
-            };
-            (empty $len_field:ident) => {
-                extract_empty(
-                    calls
-                        .iter()
-                        .map(|output| (output.from.record.$len_field, output.to.record.$len_field)),
-                )
-            };
-        }
-
-        let alu_x0 = extract_vec!(alu_x0_events, alu_x0_events_len);
-        let add = extract_vec!(add_events, add_events_len);
-        let sub = extract_vec!(sub_events, sub_events_len);
-        let addw = extract_vec!(addw_events, addw_events_len);
-        let addi = extract_vec!(addi_events, addi_events_len);
-        let mul = extract_vec!(mul_events, mul_events_len);
-        let subw = extract_vec!(subw_events, subw_events_len);
-        let bitwise = extract_vec!(bitwise_events, bitwise_events_len);
-        let shift_left = extract_vec!(shift_left_events, shift_left_events_len);
-        let shift_right = extract_vec!(shift_right_events, shift_right_events_len);
-        let divrem = extract_vec!(divrem_events, divrem_events_len);
-        let lt = extract_vec!(lt_events, lt_events_len);
-        let memory_load_byte = extract_vec!(memory_load_byte_events, memory_load_byte_events_len);
-        let memory_load_half = extract_vec!(memory_load_half_events, memory_load_half_events_len);
-        let memory_load_word = extract_vec!(memory_load_word_events, memory_load_word_events_len);
-        let memory_load_x0 = extract_vec!(memory_load_x0_events, memory_load_x0_events_len);
-        let memory_load_double =
-            extract_vec!(memory_load_double_events, memory_load_double_events_len);
-        let memory_store_byte =
-            extract_vec!(memory_store_byte_events, memory_store_byte_events_len);
-        let memory_store_half =
-            extract_vec!(memory_store_half_events, memory_store_half_events_len);
-        let memory_store_word =
-            extract_vec!(memory_store_word_events, memory_store_word_events_len);
-        let memory_store_double =
-            extract_vec!(memory_store_double_events, memory_store_double_events_len);
-        let utype = extract_vec!(utype_events, utype_events_len);
-        let branch = extract_vec!(branch_events, branch_events_len);
-        let jal = extract_vec!(jal_events, jal_events_len);
-        let jalr = extract_vec!(jalr_events, jalr_events_len);
-        let instruction_fetch = extract_vec!(empty instruction_fetch_events_len);
-        let instruction_decode = extract_vec!(empty instruction_decode_events_len);
-        let global_page_prot_initialize = extract_vec!(
-            global_page_prot_initialize_events,
-            global_page_prot_initialize_events_len
-        );
-        let global_page_prot_finalize =
-            extract_vec!(global_page_prot_finalize_events, global_page_prot_finalize_events_len);
-        let cpu_local_page_prot_access = extract_vec!(empty cpu_local_page_prot_access_len);
-        let global_memory_initialize =
-            extract_vec!(global_memory_initialize_events, global_memory_initialize_events_len);
-        let global_memory_finalize =
-            extract_vec!(global_memory_finalize_events, global_memory_finalize_events_len);
-        let cpu_local_memory_access =
-            extract_vec!(cpu_local_memory_access, cpu_local_memory_access_len);
-        let syscall = extract_vec!(syscall_events, syscall_events_len);
-        let bump_memory = extract_vec!(bump_memory_events, bump_memory_events_len);
-        let bump_state = extract_vec!(bump_state_events, bump_state_events_len);
-        let global_interaction_event_count = extract_diff(
-            &mut self.global_interaction_event_count,
-            calls.iter().map(|output| {
-                (
-                    output.from.record.global_interaction_event_count,
-                    output.to.record.global_interaction_event_count,
-                )
-            }),
-        );
-        let precompile_events = extract_vec!(empty precompile_events_len);
-        let apc_events = extract_vec!(empty apc_events_len);
-        let cpu_event_count = extract_diff(
-            &mut self.cpu_event_count,
-            calls.iter().map(|output| {
-                (output.from.record.cpu_event_count, output.to.record.cpu_event_count)
-            }),
-        );
-        let next_pc = calls.iter().map(|output| output.to.pc);
-        let apc_ids = calls.iter().map(|output| output.apc_id);
-        izip!(
-            apc_ids,
-            alu_x0,
-            add,
-            sub,
-            addw,
-            addi,
-            mul,
-            subw,
-            bitwise,
-            shift_left,
-            shift_right,
-            divrem,
-            lt,
-            memory_load_byte,
-            memory_load_half,
-            memory_load_word,
-            memory_load_x0,
-            memory_load_double,
-            memory_store_byte,
-            memory_store_half,
-            memory_store_word,
-            memory_store_double,
-            utype,
-            branch,
-            jal,
-            jalr,
-            instruction_fetch,
-            instruction_decode,
-            global_page_prot_initialize,
-            global_page_prot_finalize,
-            cpu_local_page_prot_access,
-            global_memory_initialize,
-            global_memory_finalize,
-            cpu_local_memory_access,
-            syscall,
-            global_interaction_event_count,
-            bump_memory,
-            bump_state,
-            precompile_events,
-            apc_events,
-            cpu_event_count,
-            next_pc,
-        )
-        .map(
-            |(
-                apc_id,
-                alu_x0_events,
-                add_events,
-                sub_events,
-                addw_events,
-                addi_events,
-                mul_events,
-                subw_events,
-                bitwise_events,
-                shift_left_events,
-                shift_right_events,
-                divrem_events,
-                lt_events,
-                memory_load_byte_events,
-                memory_load_half_events,
-                memory_load_word_events,
-                memory_load_x0_events,
-                memory_load_double_events,
-                memory_store_byte_events,
-                memory_store_half_events,
-                memory_store_word_events,
-                memory_store_double_events,
-                utype_events,
-                branch_events,
-                jal_events,
-                jalr_events,
-                instruction_fetch_events,
-                instruction_decode_events,
-                global_page_prot_initialize_events,
-                global_page_prot_finalize_events,
-                cpu_local_page_prot_access,
-                global_memory_initialize_events,
-                global_memory_finalize_events,
-                cpu_local_memory_access,
-                syscall_events,
-                global_interaction_event_count,
-                bump_memory_events,
-                bump_state_events,
-                precompile_events,
-                apc_events,
-                cpu_event_count,
-                next_pc,
-            )| {
-                (
-                    apc_id,
-                    ExecutionRecord {
-                        alu_x0_events,
-                        add_events,
-                        sub_events,
-                        addw_events,
-                        addi_events,
-                        mul_events,
-                        subw_events,
-                        bitwise_events,
-                        shift_left_events,
-                        shift_right_events,
-                        divrem_events,
-                        lt_events,
-                        memory_load_byte_events,
-                        memory_load_half_events,
-                        memory_load_word_events,
-                        memory_load_x0_events,
-                        memory_load_double_events,
-                        memory_store_byte_events,
-                        memory_store_half_events,
-                        memory_store_word_events,
-                        memory_store_double_events,
-                        utype_events,
-                        branch_events,
-                        jal_events,
-                        jalr_events,
-                        instruction_fetch_events,
-                        instruction_decode_events,
-                        trap_exec_events: Vec::default(),
-                        trap_load_store_events: Vec::default(),
-                        global_page_prot_initialize_events,
-                        global_page_prot_finalize_events,
-                        cpu_local_page_prot_access,
-                        global_memory_initialize_events,
-                        global_memory_finalize_events,
-                        cpu_local_memory_access,
-                        syscall_events,
-                        bump_memory_events,
-                        bump_state_events,
-                        program: self.program.clone(),
-                        cpu_event_count,
-                        byte_lookups: HashMap::default(),
-                        precompile_events,
-                        apc_events,
-                        global_interaction_events: Vec::default(),
-                        global_cumulative_sum: self.global_cumulative_sum.clone(),
-                        global_interaction_event_count,
-                        public_values: self.public_values,
-                        next_nonce: self.next_nonce,
-                        shape: self.shape.clone(),
-                        estimated_trace_area: self.estimated_trace_area,
-                        initial_timestamp: self.initial_timestamp,
-                        last_timestamp: self.last_timestamp,
-                        pc_start: self.pc_start,
-                        next_pc,
-                        exit_code: self.exit_code,
-                        global_dependencies_opt: self.global_dependencies_opt,
-                    },
-                )
-            },
-        )
-        .collect()
     }
 }
 
@@ -1246,7 +936,7 @@ impl MachineRecord for ExecutionRecord {
         self.jalr_events.append(&mut other.jalr_events);
         self.utype_events.append(&mut other.utype_events);
         self.syscall_events.append(&mut other.syscall_events);
-        self.apc_events.append(&mut other.apc_events);
+        self.apc_invocations.append(&mut other.apc_invocations);
         self.bump_memory_events.append(&mut other.bump_memory_events);
         self.bump_state_events.append(&mut other.bump_state_events);
         self.precompile_events.append(&mut other.precompile_events);
