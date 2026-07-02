@@ -24,6 +24,7 @@ slop-multilinear = { workspace = true }
 slop-commit = { workspace = true }
 slop-futures = { workspace = true }
 slop-basefold = { workspace = true }
+slop-stacked = { workspace = true }
 slop-merkle-tree = { workspace = true }
 slop-tensor = { workspace = true }
 slop-challenger = { workspace = true }

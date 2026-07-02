@@ -13,6 +13,7 @@ categories.workspace = true
 slop-algebra = { workspace = true }
 slop-basefold-prover = { workspace = true }
 slop-basefold = { workspace = true }
+slop-stacked = { workspace = true }
 slop-commit = { workspace = true }
 slop-multilinear = { workspace = true }
 slop-merkle-tree = { workspace = true }

@@ -128,7 +128,7 @@ fn zk_commit_mles<GC, P, RNG>(
     data_mles: Message<Mle<GC::F, CpuBackend>>,
     rng: &mut RNG,
 ) -> Result<
-    (P::Commitment, ZkStackedPcsProverData<GC, PcsProverData<GC, P>>),
+    (GC::Digest, ZkStackedPcsProverData<GC, PcsProverData<GC, P>>),
     ZkStackedPcsProverError<P::ProverError>,
 >
 where
@@ -466,7 +466,7 @@ where
     {
         let (commit, prover_data) = zk_commit_mles(self, mle, rng)
             .map_err(|e| ZkPcsCommitmentError::CommitmentFailed(e.to_string()))?;
-        Ok((commit.into(), prover_data))
+        Ok((commit, prover_data))
     }
 
     #[allow(clippy::type_complexity)]

@@ -6794,6 +6794,7 @@ dependencies = [
  "slop-commit",
  "slop-merkle-tree",
  "slop-multilinear",
+ "slop-stacked",
  "slop-sumcheck",
 ]
 
@@ -6864,6 +6865,7 @@ dependencies = [
  "slop-challenger 6.3.1",
  "slop-commit",
  "slop-futures",
+ "slop-koala-bear 6.3.1",
  "slop-merkle-tree",
  "slop-multilinear",
  "slop-tensor",
@@ -7358,6 +7360,7 @@ dependencies = [
  "serial_test",
  "slop-algebra 6.3.1",
  "slop-alloc",
+ "slop-basefold-prover",
  "slop-challenger 6.3.1",
  "slop-dft",
  "slop-futures",

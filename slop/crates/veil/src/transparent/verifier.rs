@@ -1,7 +1,7 @@
 use slop_algebra::{Field, TwoAdicField};
+use slop_basefold::BasefoldVerifier;
 use slop_challenger::{CanObserve, FieldChallenger, IopCtx};
 use slop_multilinear::{BatchPcsVerifier, OracleEval, Point};
-use slop_stacked::StackedPcsVerifier;
 use thiserror::Error;
 
 use crate::compiler::{ConstraintCtx, MleEvalClaim, ReadingCtx, TranscriptReadError};
@@ -12,12 +12,12 @@ use crate::transparent::prover::TransparentProof;
 /// pinned to its fixed encoding width (= stacking height). Verifier-side mirror of
 /// [`TransparentPcsProver`](crate::transparent::TransparentPcsProver).
 #[allow(type_alias_bounds)]
-pub type BasefoldTransparentVerifier<GC: IopCtx> = StackedPcsVerifier<GC>;
+pub type BasefoldTransparentVerifier<GC: IopCtx> = BasefoldVerifier<GC>;
 
 /// Basefold specialization of [`TransparentVerifierCtx`] (the context used in tests/examples).
 #[allow(type_alias_bounds)]
 pub type BasefoldTransparentVerifierCtx<GC: IopCtx> =
-    TransparentVerifierCtx<GC, StackedPcsVerifier<GC>>;
+    TransparentVerifierCtx<GC, BasefoldVerifier<GC>>;
 
 /// Opaque handle the verifier hands out for each committed oracle. The digest and
 /// shape live in [`TransparentVerifierCtx::oracle_commits`]; this is just an index.
@@ -106,7 +106,7 @@ impl<GC: IopCtx, PCS: BatchPcsVerifier<GC>> TransparentVerifierCtx<GC, PCS> {
 impl<GC, PCS> ConstraintCtx for TransparentVerifierCtx<GC, PCS>
 where
     GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>,
-    PCS: BatchPcsVerifier<GC, Commitment = GC::Digest>,
+    PCS: BatchPcsVerifier<GC>,
     PCS::Proof: Clone,
 {
     type Field = GC::F;
@@ -184,7 +184,7 @@ where
 impl<GC, PCS> ReadingCtx for TransparentVerifierCtx<GC, PCS>
 where
     GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>,
-    PCS: BatchPcsVerifier<GC, Commitment = GC::Digest>,
+    PCS: BatchPcsVerifier<GC>,
     PCS::Proof: Clone,
 {
     fn read_exact(&mut self, buf: &mut [Self::Expr]) -> Result<(), TranscriptReadError> {

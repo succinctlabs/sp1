@@ -16,11 +16,13 @@
 //! multilinear evaluation algorithm in a smaller number of variables). This is essentially the
 //! the interleaving algorithm of `Ligero`(https://eprint.iacr.org/2022/1608).
 
+mod batched;
 mod fixed_rate;
 mod prover;
 mod stacked_oracle;
 mod verifier;
 
+pub use batched::*;
 pub use fixed_rate::*;
 pub use prover::*;
 pub use stacked_oracle::*;

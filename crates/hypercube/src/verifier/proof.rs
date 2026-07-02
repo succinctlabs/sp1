@@ -3,20 +3,20 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use slop_algebra::AbstractField;
 use slop_alloc::{CpuBackend, GLOBAL_CPU_BACKEND};
-use slop_basefold::{BasefoldProof, BatchedBasefoldProof};
 use slop_challenger::{GrindingChallenger, IopCtx};
 use slop_commit::Rounds;
 use slop_jagged::{JaggedPcsProof, JaggedSumcheckEvalProof};
 use slop_matrix::dense::RowMajorMatrixView;
-use slop_multilinear::{Mle, MleEval, MultilinearPcsVerifier, Point};
+use slop_multilinear::{BatchPcsVerifier, Mle, MleEval, Point};
+use slop_stacked::{EqBatchedProof, StackedProof};
 use slop_sumcheck::PartialSumcheckProof;
 use slop_symmetric::PseudoCompressionFunction;
 use slop_tensor::Tensor;
 use sp1_primitives::{utils::reverse_bits_len, SP1ExtensionField, SP1Field, SP1GlobalContext};
 
 use crate::{
-    LogUpEvaluations, LogUpGkrOutput, LogupGkrProof, MachineVerifyingKey, SP1PcsProof,
-    SP1PcsProofInner, SP1VerifyingKey, ShardContext, DIGEST_SIZE,
+    LogUpEvaluations, LogUpGkrOutput, LogupGkrProof, MachineVerifyingKey, SP1PcsProofInner,
+    SP1VerifyingKey, ShardContext, DIGEST_SIZE,
 };
 
 /// The maximum number of elements that can be stored in the public values vec.  Both SP1 and
@@ -61,7 +61,7 @@ pub struct ShardProof<GC: IopCtx, Proof> {
 
 /// The `ShardProof` type generic in `GC` and `SC`.
 pub type ShardContextProof<GC, SC> =
-    ShardProof<GC, <<SC as ShardContext<GC>>::Config as MultilinearPcsVerifier<GC>>::Proof>;
+    ShardProof<GC, <<SC as ShardContext<GC>>::Config as BatchPcsVerifier<GC>>::Proof>;
 
 /// The values of the chips in the shard at a random point.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -195,7 +195,7 @@ pub fn create_dummy_recursion_proof(
 
     // Create dummy basefold proof.
     let dummy_query_proof = Vec::new();
-    let basefold_proof = BasefoldProof::<SP1GlobalContext> {
+    let basefold_proof = SP1PcsProofInner {
         univariate_messages: vec![],
         fri_commitments: vec![],
         final_poly: SP1ExtensionField::zero(),
@@ -203,12 +203,12 @@ pub fn create_dummy_recursion_proof(
         component_polynomials_query_openings_and_proofs: vec![],
         query_phase_openings_and_proofs: dummy_query_proof,
     };
-    let batched_basefold_proof =
-        BatchedBasefoldProof { basefold_proof, batch_grinding_witness: SP1Field::zero() };
+    let inner_proof =
+        EqBatchedProof { inner_proof: basefold_proof, batch_grinding_witness: SP1Field::zero() };
 
     let batch_evaluations: Rounds<MleEval<SP1ExtensionField, CpuBackend>> = Rounds::default();
 
-    let stacked_proof = SP1PcsProof { batched_basefold_proof, batch_evaluations };
+    let stacked_proof = StackedProof { inner_proof, batch_evaluations };
 
     let jagged_eval_proof = JaggedSumcheckEvalProof {
         partial_sumcheck_proof: PartialSumcheckProof::dummy(),

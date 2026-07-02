@@ -3,13 +3,15 @@ use std::{marker::PhantomData, sync::Arc};
 
 use slop_algebra::{AbstractExtensionField, AbstractField, ExtensionField, TwoAdicField};
 use slop_alloc::{Buffer, HasBackend};
-use slop_basefold::{BasefoldProof, BatchedBasefoldProof, FriConfig, BATCH_GRINDING_BITS};
+use slop_basefold::{FriConfig, BATCH_GRINDING_BITS};
 use slop_basefold_prover::{host_fold_even_odd, BasefoldProverError};
 use slop_challenger::{CanObserve, CanSampleBits, FieldChallenger, IopCtx};
 use slop_commit::{Message, Rounds};
 use slop_merkle_tree::MerkleTreeOpeningAndProof;
 use slop_multilinear::{partial_lagrange_blocking, Mle, MultilinearPcsChallenger, Point};
+use slop_stacked::EqBatchedProof;
 use slop_tensor::Tensor;
+use sp1_hypercube::SP1PcsProof;
 use sp1_primitives::{SP1ExtensionField, SP1Field};
 
 use sp1_gpu_cudart::{
@@ -60,6 +62,14 @@ pub struct FriCudaProver<GC, P, F> {
     pub log_height: u32,
     _marker: PhantomData<GC>,
 }
+
+type BasefoldCudaProverResult<GC> = Result<
+    EqBatchedProof<
+        SP1PcsProof<GC>,
+        <<GC as IopCtx>::Challenger as slop_challenger::GrindingChallenger>::Witness,
+    >,
+    BasefoldProverError<SingleLayerMerkleTreeProverError>,
+>;
 
 impl<GC: IopCtx<F = Felt, EF = Ext>, P> FriCudaProver<GC, P, GC::F>
 where
@@ -319,7 +329,7 @@ where
         mles: &JaggedTraceMle<GC::F, TaskScope>,
         prover_data: Rounds<&CudaStackedPcsProverData<GC>>,
         challenger: &mut GC::Challenger,
-    ) -> Result<BatchedBasefoldProof<GC>, BasefoldProverError<SingleLayerMerkleTreeProverError>>
+    ) -> BasefoldCudaProverResult<GC>
     where
         GC::Challenger: DeviceGrindingChallenger<Witness = GC::F>,
     {
@@ -460,8 +470,8 @@ where
             query_phase_openings_and_proofs.push(opening);
         }
 
-        Ok(BatchedBasefoldProof {
-            basefold_proof: BasefoldProof {
+        Ok(EqBatchedProof {
+            inner_proof: SP1PcsProof {
                 univariate_messages,
                 fri_commitments,
                 component_polynomials_query_openings_and_proofs,
@@ -509,7 +519,10 @@ mod tests {
     use slop_futures::queue::WorkerQueue;
     use slop_merkle_tree::Poseidon2KoalaBear16Prover;
     use slop_multilinear::{Evaluations, Mle, MleEval};
-    use slop_stacked::interleave_multilinears_with_fixed_rate;
+    use slop_stacked::{
+        interleave_multilinears_with_fixed_rate, EqBatchedEvalClaim, EqBatchedProver,
+        EqBatchedVerifier,
+    };
     use sp1_gpu_cudart::{run_sync_in_place, PinnedBuffer};
     use sp1_gpu_merkle_tree::{CudaTcsProver, Poseidon2SP1Field16CudaProver};
     use sp1_gpu_tracegen::CudaTraceGenerator;
@@ -533,16 +546,26 @@ mod tests {
             rt.block_on(tracegen_setup::setup(&test_artifacts::FIBONACCI_ELF, SP1Stdin::new()));
 
         run_sync_in_place(|scope| {
-            let verifier = BasefoldVerifier::<SP1GlobalContext>::new(core_fri_config(), 2);
-            let old_prover =
-                BasefoldProver::<SP1GlobalContext, Poseidon2KoalaBear16Prover>::new(&verifier);
+            let basefold_verifier = BasefoldVerifier::<SP1GlobalContext>::new(
+                core_fri_config(),
+                2,
+                LOG_STACKING_HEIGHT,
+            );
+            let old_prover = EqBatchedProver::new(
+                BasefoldProver::<SP1GlobalContext, Poseidon2KoalaBear16Prover>::new(
+                    &basefold_verifier,
+                ),
+                BATCH_GRINDING_BITS,
+            );
 
             let new_cuda_prover = FriCudaProver::<TestGC, _, Felt> {
                 tcs_prover: Poseidon2SP1Field16CudaProver::new(&scope),
-                config: verifier.fri_config,
+                config: basefold_verifier.fri_config,
                 log_height: LOG_STACKING_HEIGHT,
                 _marker: PhantomData::<TestGC>,
             };
+
+            let verifier = EqBatchedVerifier::new(basefold_verifier, BATCH_GRINDING_BITS);
 
             // Generate traces using the host tracegen.
             let semaphore = ProverSemaphore::new(1);
@@ -603,7 +626,7 @@ mod tests {
             let dst = Tensor::<Felt, TaskScope>::with_sizes_in(
                 [
                     new_traces.0.dense().preprocessed_offset >> LOG_STACKING_HEIGHT,
-                    1 << (LOG_STACKING_HEIGHT as usize + verifier.fri_config.log_blowup()),
+                    1 << (LOG_STACKING_HEIGHT as usize + verifier.inner.fri_config.log_blowup()),
                 ],
                 scope.clone(),
             );
@@ -616,7 +639,7 @@ mod tests {
             let dst = Tensor::<Felt, TaskScope>::with_sizes_in(
                 [
                     new_traces.0.dense().main_size() >> LOG_STACKING_HEIGHT,
-                    1 << (LOG_STACKING_HEIGHT as usize + verifier.fri_config.log_blowup()),
+                    1 << (LOG_STACKING_HEIGHT as usize + verifier.inner.fri_config.log_blowup()),
                 ],
                 scope.clone(),
             );
@@ -699,13 +722,18 @@ mod tests {
             scope.synchronize_blocking().unwrap();
             let now = std::time::Instant::now();
 
+            let old_claim = EqBatchedEvalClaim {
+                point: eval_point_host.clone(),
+                // One flattened `MleEval` per committed round.
+                evaluations: vec![evaluation_claims_1.clone(), evaluation_claims_2.clone()]
+                    .into_iter()
+                    .map(|round| round.into_iter().flatten().collect::<MleEval<_>>())
+                    .collect(),
+            };
             let basefold_proof = old_prover
                 .prove_trusted_mle_evaluations(
-                    eval_point_host.clone(),
+                    &old_claim,
                     vec![interleaved_message, interleaved_message_2].into_iter().collect(),
-                    vec![evaluation_claims_1.clone(), evaluation_claims_2.clone()]
-                        .into_iter()
-                        .collect(),
                     vec![old_preprocessed_prover_data, old_main_prover_data].into_iter().collect(),
                     &mut challenger,
                 )
@@ -745,11 +773,15 @@ mod tests {
             // point, univariate messages, etc.) to diverge. Instead of comparing proof
             // components directly, we verify both proofs independently.
 
+            let verify_claim = EqBatchedEvalClaim {
+                point: eval_point_host.clone(),
+                // `flattened_evaluation_claims` is already one flattened `MleEval` per commitment.
+                evaluations: flattened_evaluation_claims.clone(),
+            };
             verifier
                 .verify_mle_evaluations(
                     &[old_preprocessed_commitment, old_main_commitment],
-                    eval_point_host.clone(),
-                    &flattened_evaluation_claims,
+                    &verify_claim,
                     &basefold_proof,
                     &mut SP1GlobalContext::default_challenger(),
                 )
@@ -758,8 +790,7 @@ mod tests {
             verifier
                 .verify_mle_evaluations(
                     &[new_preprocessed_commit, new_main_commit],
-                    eval_point_host,
-                    &flattened_evaluation_claims,
+                    &verify_claim,
                     &new_basefold_proof,
                     &mut SP1GlobalContext::default_challenger(),
                 )

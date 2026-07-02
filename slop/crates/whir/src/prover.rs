@@ -7,7 +7,6 @@ use std::{
 use crate::{
     config::WhirProofShape,
     verifier::{map_to_pow, ParsedCommitment, ProofOfWork, SumcheckPoly, WhirProof},
-    Verifier,
 };
 use derive_where::derive_where;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
@@ -18,13 +17,8 @@ use slop_challenger::{
     VariableLengthChallenger,
 };
 use slop_commit::{Message, Rounds};
-use slop_dft::{p3::Radix2DitParallel, Dft};
-use slop_jagged::{DefaultJaggedProver, JaggedEvalSumcheckProver, JaggedProver};
-use slop_koala_bear::KoalaBearDegree4Duplex;
-use slop_merkle_tree::{
-    ComputeTcsOpenings, FieldMerkleTreeProver, MerkleTreeOpeningAndProof,
-    Poseidon2KoalaBear16Prover, TensorCsProver,
-};
+use slop_dft::Dft;
+use slop_merkle_tree::{ComputeTcsOpenings, MerkleTreeOpeningAndProof, TensorCsProver};
 use slop_multilinear::{
     monomial_basis_evals_blocking, partial_lagrange_blocking, Mle, MultilinearPcsProver, PaddedMle,
     Point, ToMle,
@@ -614,27 +608,6 @@ where
     }
 }
 
-impl DefaultJaggedProver<KoalaBearDegree4Duplex, Verifier<KoalaBearDegree4Duplex>>
-    for Prover<KoalaBearDegree4Duplex, Poseidon2KoalaBear16Prover, Radix2DitParallel>
-{
-    fn prover_from_verifier(
-        verifier: &slop_jagged::JaggedPcsVerifier<
-            KoalaBearDegree4Duplex,
-            Verifier<KoalaBearDegree4Duplex>,
-        >,
-    ) -> slop_jagged::JaggedProver<KoalaBearDegree4Duplex, WhirProof<KoalaBearDegree4Duplex>, Self>
-    {
-        let merkle_prover = FieldMerkleTreeProver::default();
-        let prover = Prover::<_, _, _>::new(
-            Radix2DitParallel,
-            merkle_prover,
-            verifier.pcs_verifier.config.clone(),
-        );
-
-        JaggedProver::new(verifier.max_log_row_count, prover, JaggedEvalSumcheckProver::default())
-    }
-}
-
 enum KOrEfMle<K, EF> {
     K(PaddedMle<K>),
     EF(PaddedMle<EF>),
@@ -821,13 +794,12 @@ mod tests {
     use slop_baby_bear::BabyBear;
     use slop_commit::Rounds;
     use slop_dft::p3::Radix2DitParallel;
-    use slop_jagged::{JaggedEvalSumcheckProver, JaggedPcsVerifier, JaggedProver};
     use slop_koala_bear::{KoalaBear, KoalaBearDegree4Duplex};
     use slop_matrix::{bitrev::BitReversableMatrix, dense::RowMajorMatrix, Matrix};
     use slop_merkle_tree::{
         FieldMerkleTreeProver, MerkleTreeTcs, Poseidon2BabyBear16Prover, Poseidon2KoalaBear16Prover,
     };
-    use slop_multilinear::{Evaluations, MultilinearPcsVerifier, PaddedMle};
+    use slop_multilinear::MultilinearPcsVerifier;
     use slop_utils::setup_logger;
 
     use super::*;
@@ -1317,131 +1289,5 @@ mod tests {
         let config = WhirProofShape::big_beautiful_whir_config();
         let merkle_prover: Poseidon2BabyBear16Prover = FieldMerkleTreeProver::default();
         whir_test_single_round::<_, _>(config, 28, merkle_prover);
-    }
-
-    #[test]
-    fn jagged_whir_test_baby_bear() {
-        let config = WhirProofShape::default_whir_config();
-        let merkle_prover: Poseidon2BabyBear16Prover = FieldMerkleTreeProver::default();
-
-        test_jagged_whir_generic::<_, _>(config, merkle_prover);
-    }
-
-    fn test_jagged_whir_generic<
-        GC: IopCtx<F: TwoAdicField, EF: TwoAdicField + ExtensionField<GC::F>>,
-        MerkleProver: TensorCsProver<GC, CpuBackend> + ComputeTcsOpenings<GC, CpuBackend>,
-    >(
-        config: WhirProofShape<GC::F>,
-        merkle_prover: MerkleProver,
-    ) where
-        rand::distributions::Standard: rand::distributions::Distribution<GC::F>,
-        rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
-    {
-        let row_counts_rounds = vec![vec![1 << 10, 0, (1 << 9) - (1 << 7) - 1], vec![1 << 9]];
-        let column_counts_rounds = vec![vec![32, 45, 32], vec![32]];
-        let num_rounds = row_counts_rounds.len();
-        let max_log_row_count = 12;
-
-        let row_counts = row_counts_rounds.into_iter().collect::<Rounds<Vec<usize>>>();
-        let column_counts = column_counts_rounds.into_iter().collect::<Rounds<Vec<usize>>>();
-
-        assert!(row_counts.len() == column_counts.len());
-
-        let mut rng = thread_rng();
-
-        let round_mles = row_counts
-            .iter()
-            .zip(column_counts.iter())
-            .map(|(row_counts, col_counts)| {
-                row_counts
-                    .iter()
-                    .zip(col_counts.iter())
-                    .map(|(num_rows, num_cols)| {
-                        if *num_rows == 0 {
-                            PaddedMle::zeros(*num_cols, max_log_row_count)
-                        } else {
-                            let mle = Tensor::<GC::F>::rand(&mut rng, [*num_rows, *num_cols]);
-                            PaddedMle::padded_with_zeros(Arc::new(Mle::new(mle)), max_log_row_count)
-                        }
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Rounds<_>>();
-
-        let merkle_verifier = MerkleTreeTcs::default();
-        let mut challenger_verifier = GC::default_challenger();
-        let verifier = Verifier::<GC>::new(
-            merkle_verifier,
-            config.clone(),
-            num_rounds,
-            &mut challenger_verifier,
-        );
-
-        let jagged_verifier =
-            JaggedPcsVerifier::<GC, Verifier<GC>>::new(verifier, max_log_row_count as usize);
-
-        // Begin the commit rounds
-        let prover = Prover::<_, _, _>::new(Radix2DitParallel, merkle_prover, config.clone());
-
-        let mut challenger_prover = jagged_verifier.challenger();
-        // Write the config to the challenger before proving.
-        config.write_to_challenger(&mut challenger_prover);
-
-        let jagged_prover =
-            JaggedProver::<GC, WhirProof<GC>, Prover<GC, MerkleProver, Radix2DitParallel>>::new(
-                max_log_row_count as usize,
-                prover,
-                JaggedEvalSumcheckProver::default(),
-            );
-
-        let eval_point = (0..max_log_row_count).map(|_| rng.gen::<GC::EF>()).collect::<Point<_>>();
-
-        let mut prover_data = Rounds::new();
-        let mut commitments = Rounds::new();
-        for round in round_mles.iter() {
-            let (commit, data) = jagged_prover.commit_multilinears(round.clone()).ok().unwrap();
-            challenger_prover.observe(commit);
-            prover_data.push(data);
-            commitments.push(commit);
-        }
-
-        let mut evaluation_claims = Rounds::new();
-        for round in round_mles.iter() {
-            let mut evals = Evaluations::default();
-            for mle in round.iter() {
-                let eval = mle.eval_at(&eval_point);
-                evals.push(eval);
-            }
-            evaluation_claims.push(evals);
-        }
-
-        let proof = jagged_prover
-            .prove_trusted_evaluations(
-                eval_point.clone(),
-                evaluation_claims.clone(),
-                prover_data,
-                &mut challenger_prover,
-            )
-            .ok()
-            .unwrap();
-
-        for commitment in commitments.iter() {
-            challenger_verifier.observe(*commitment);
-        }
-
-        let evaluation_claims = evaluation_claims
-            .into_iter()
-            .map(|round| round.into_iter().flat_map(|v| v.into_iter()).collect())
-            .collect::<Vec<_>>();
-
-        jagged_verifier
-            .verify_trusted_evaluations(
-                &commitments,
-                eval_point,
-                &evaluation_claims,
-                &proof,
-                &mut challenger_verifier,
-            )
-            .unwrap();
     }
 }

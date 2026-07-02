@@ -78,7 +78,8 @@ where
     let max_log_row_count = verifier.max_log_row_count();
 
     // Create the basefold prover from the verifier's PCS config
-    let basefold_verifier = BasefoldVerifier::<GC>::new(*verifier.fri_config(), 2);
+    let basefold_verifier =
+        BasefoldVerifier::<GC>::new(*verifier.fri_config(), 2, log_stacking_height);
 
     let tcs_prover = PC::P::new(&scope);
     let basefold_prover = FriCudaProver::<GC, PC::P, GC::F>::new(

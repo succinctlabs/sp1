@@ -33,8 +33,11 @@ pub fn dummy_shard_proof<A: MachineAir<SP1Field>>(
     log_stacking_height_multiples: &[usize],
     added_cols: &[usize],
 ) -> ShardProof<SP1GlobalContext, SP1PcsProofInner> {
-    let default_verifier =
-        BasefoldVerifier::<SP1GlobalContext>::new(fri_config, NUM_SP1_COMMITMENTS);
+    let default_verifier = BasefoldVerifier::<SP1GlobalContext>::new(
+        fri_config,
+        NUM_SP1_COMMITMENTS,
+        log_stacking_height as u32,
+    );
 
     let fri_queries = default_verifier.fri_config.num_queries;
     let log_blowup = default_verifier.fri_config.log_blowup;

@@ -8,9 +8,7 @@ use slop_challenger::{CanObserve, FieldChallenger, IopCtx, VariableLengthChallen
 use slop_commit::Rounds;
 use slop_jagged::{DefaultJaggedProver, JaggedProver, JaggedProverData};
 use slop_matrix::dense::RowMajorMatrixView;
-use slop_multilinear::{
-    Evaluations, MleEval, MultilinearPcsProver, MultilinearPcsVerifier, Point, VirtualGeq,
-};
+use slop_multilinear::{BatchPcsProver, BatchPcsVerifier, Evaluations, MleEval, Point, VirtualGeq};
 use slop_sumcheck::{reduce_sumcheck_to_evaluation, PartialSumcheckProof};
 use slop_tensor::Tensor;
 use std::{
@@ -38,7 +36,7 @@ use crate::{
 use super::{TraceGenerator, Traces};
 
 /// The PCS proof type associated to a shard context.
-pub type PcsProof<GC, SC> = <<SC as ShardContext<GC>>::Config as MultilinearPcsVerifier<GC>>::Proof;
+pub type PcsProof<GC, SC> = <<SC as ShardContext<GC>>::Config as BatchPcsVerifier<GC>>::Proof;
 
 /// A prover for an AIR.
 #[allow(clippy::type_complexity)]
@@ -166,47 +164,35 @@ impl<T> PreprocessedData<T> {
 }
 
 /// Inner struct containing the actual prover data.
-pub struct ShardProverInner<
-    GC: IopCtx,
-    SC: ShardContext<GC>,
-    C: MultilinearPcsProver<GC, PcsProof<GC, SC>>,
-> {
+pub struct ShardProverInner<GC: IopCtx, SC: ShardContext<GC>, C: BatchPcsProver<GC>> {
     /// The trace generator.
     pub trace_generator: DefaultTraceGenerator<GC::F, SC::Air, CpuBackend>,
     /// The logup GKR prover.
     pub logup_gkr_prover: GkrProverImpl<GC, SC>,
     /// A prover for the PCS.
-    pub pcs_prover: JaggedProver<GC, PcsProof<GC, SC>, C>,
+    pub pcs_prover: JaggedProver<GC, C>,
 }
 
 /// A prover for the hypercube STARK, given a configuration.
 /// Wrapped in Arc for cheap cloning to enable `spawn_blocking`.
-pub struct ShardProver<
-    GC: IopCtx,
-    SC: ShardContext<GC>,
-    C: MultilinearPcsProver<GC, PcsProof<GC, SC>>,
-> {
+pub struct ShardProver<GC: IopCtx, SC: ShardContext<GC>, C: BatchPcsProver<GC>> {
     inner: Arc<ShardProverInner<GC, SC, C>>,
 }
 
 // Implement Clone manually to avoid requiring Clone bounds on generic parameters.
 // Arc::clone doesn't need the inner type to be Clone.
-impl<GC: IopCtx, SC: ShardContext<GC>, C: MultilinearPcsProver<GC, PcsProof<GC, SC>>> Clone
-    for ShardProver<GC, SC, C>
-{
+impl<GC: IopCtx, SC: ShardContext<GC>, C: BatchPcsProver<GC>> Clone for ShardProver<GC, SC, C> {
     fn clone(&self) -> Self {
         Self { inner: Arc::clone(&self.inner) }
     }
 }
 
-impl<GC: IopCtx, SC: ShardContext<GC>, C: MultilinearPcsProver<GC, PcsProof<GC, SC>>>
-    ShardProver<GC, SC, C>
-{
+impl<GC: IopCtx, SC: ShardContext<GC>, C: BatchPcsProver<GC>> ShardProver<GC, SC, C> {
     /// Create a new `ShardProver` from its components.
     pub fn from_components(
         trace_generator: DefaultTraceGenerator<GC::F, SC::Air, CpuBackend>,
         logup_gkr_prover: GkrProverImpl<GC, SC>,
-        pcs_prover: JaggedProver<GC, PcsProof<GC, SC>, C>,
+        pcs_prover: JaggedProver<GC, C>,
     ) -> Self {
         Self { inner: Arc::new(ShardProverInner { trace_generator, logup_gkr_prover, pcs_prover }) }
     }
@@ -225,7 +211,7 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: MultilinearPcsProver<GC, PcsProof<GC, 
 
     /// Access the PCS prover.
     #[must_use]
-    pub fn pcs_prover(&self) -> &JaggedProver<GC, PcsProof<GC, SC>, C> {
+    pub fn pcs_prover(&self) -> &JaggedProver<GC, C> {
         &self.inner.pcs_prover
     }
 }
@@ -233,7 +219,7 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: MultilinearPcsProver<GC, PcsProof<GC, 
 impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>> AirProver<GC, SC>
     for ShardProver<GC, SC, C>
 {
-    type PreprocessedData = ShardProverData<GC, SC, C>;
+    type PreprocessedData = ShardProverData<GC, C>;
 
     fn machine(&self) -> &Machine<GC::F, SC::Air> {
         self.inner.trace_generator.machine()
@@ -409,7 +395,7 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
         initial_global_cumulative_sum: SepticDigest<GC::F>,
         preprocessed_traces: Traces<GC::F, CpuBackend>,
         untrusted_config: UntrustedConfig<GC::F>,
-    ) -> (ShardProverData<GC, SC, C>, MachineVerifyingKey<GC>) {
+    ) -> (ShardProverData<GC, C>, MachineVerifyingKey<GC>) {
         // Commit to the preprocessed traces, if there are any.
         assert!(!preprocessed_traces.is_empty(), "preprocessed trace cannot be empty");
         let message = preprocessed_traces.values().cloned().collect::<Vec<_>>();
@@ -841,11 +827,7 @@ where
 #[serde(bound(
     deserialize = "Tensor<GC::F, CpuBackend>: Deserialize<'de>, JaggedProverData<GC, C::ProverData>: Deserialize<'de>, GC::F: Deserialize<'de>, "
 ))]
-pub struct ShardProverData<
-    GC: IopCtx,
-    SC: ShardContext<GC>,
-    C: MultilinearPcsProver<GC, PcsProof<GC, SC>>,
-> {
+pub struct ShardProverData<GC: IopCtx, C: BatchPcsProver<GC>> {
     /// The preprocessed traces.
     pub preprocessed_traces: Traces<GC::F, CpuBackend>,
     /// The pcs data for the preprocessed traces.

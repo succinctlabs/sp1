@@ -78,15 +78,15 @@ mod tests {
 
     use super::*;
 
-    use slop_basefold::{BasefoldVerifier, FriConfig};
+    use slop_basefold::{BasefoldVerifier, FriConfig, BATCH_GRINDING_BITS};
     use slop_basefold_prover::BasefoldProver;
     use slop_challenger::CanObserve;
 
     use slop_commit::Rounds;
 
     use crate::challenger::CanObserveVariable;
-    use slop_multilinear::{Mle, MultilinearPcsProver};
-    use slop_stacked::StackedPcsProver;
+    use slop_multilinear::Mle;
+    use slop_stacked::{EqBatchedProver, StackedEvalClaim, StackedPcsProver};
     use sp1_hypercube::{inner_perm, prover::SP1MerkleTreeProver};
     use sp1_recursion_compiler::circuit::{AsmBuilder, AsmCompiler};
     use sp1_recursion_executor::Executor;
@@ -123,10 +123,14 @@ mod tests {
         let pcs_verifier = BasefoldVerifier::<SC>::new(
             FriConfig::default_fri_config(),
             round_widths_and_log_heights.len(),
+            log_stacking_height,
         );
         let pcs_prover = Prover::new(&pcs_verifier);
 
-        let prover = StackedPcsProver::new(pcs_prover, log_stacking_height, batch_size);
+        let prover = StackedPcsProver::new(
+            EqBatchedProver::new(pcs_prover, BATCH_GRINDING_BITS),
+            batch_size,
+        );
 
         let mut challenger = SC::default_challenger();
         let mut commitments = vec![];
@@ -137,7 +141,7 @@ mod tests {
         let (batch_point, stack_point) =
             point.split_at(point.dimension() - log_stacking_height as usize);
         for mles in round_mles.iter() {
-            let (commitment, data, _) = prover.commit_multilinear(mles.clone()).unwrap();
+            let (commitment, data, _) = prover.commit_multilinears(mles.clone()).unwrap();
             challenger.observe(commitment);
             commitments.push(commitment);
             let evaluations = prover.round_batch_evaluations(&stack_point, &data);
@@ -151,8 +155,13 @@ mod tests {
         // Verify that the climed evaluations matched the interpolated evaluations.
         let eval_claim = batch_evaluations_mle.eval_at(&batch_point)[0];
 
+        let stacked_claim = StackedEvalClaim {
+            round_areas: prover.round_areas(&prover_data),
+            point: point.clone(),
+            evaluation: eval_claim,
+        };
         let proof = prover
-            .prove_untrusted_evaluation(point.clone(), eval_claim, prover_data, &mut challenger)
+            .prove_untrusted_evaluation(&stacked_claim, prover_data, &mut challenger)
             .unwrap();
 
         let mut builder = AsmBuilder::default();
@@ -178,6 +187,7 @@ mod tests {
         let verifier = BasefoldVerifier::<SC>::new(
             FriConfig::default_fri_config(),
             round_widths_and_log_heights.len(),
+            log_stacking_height,
         );
         let recursive_verifier = RecursiveBasefoldVerifier::<C, SC> {
             fri_config: verifier.fri_config,

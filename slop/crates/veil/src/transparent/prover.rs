@@ -6,7 +6,6 @@ use slop_challenger::{CanObserve, FieldChallenger, IopCtx};
 use slop_commit::Message;
 use slop_merkle_tree::ComputeTcsOpenings;
 use slop_multilinear::{BatchPcsProver, Mle, OracleEval, Point};
-use slop_stacked::{StackedPcsProver, StackedPcsVerifier};
 
 use thiserror::Error;
 
@@ -52,7 +51,7 @@ pub enum TransparentProveError<E: std::error::Error + 'static> {
 pub type BasefoldTransparentProver<
     GC: IopCtx<F: TwoAdicField>,
     MK: ComputeTcsOpenings<GC, CpuBackend>,
-> = StackedPcsProver<MK, GC>;
+> = BasefoldProver<GC, MK>;
 
 /// Oracle handle on the transparent prover side.
 ///
@@ -96,7 +95,7 @@ pub type BasefoldTransparentProof<GC> = TransparentProof<GC, slop_basefold::Base
 pub type BasefoldTransparentProverCtx<
     GC: IopCtx<F: TwoAdicField>,
     MK: ComputeTcsOpenings<GC, CpuBackend>,
-> = TransparentProverCtx<GC, StackedPcsProver<MK, GC>>;
+> = TransparentProverCtx<GC, BasefoldProver<GC, MK>>;
 
 /// Transparent prover context.
 ///
@@ -261,14 +260,16 @@ where
     GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>,
     MK: ComputeTcsOpenings<GC, CpuBackend> + Default,
 {
-    let basefold_verifier =
-        BasefoldVerifier::<GC>::new(FriConfig::default_fri_config(), num_expected_commitments);
+    // The Basefold verifier pins the encoding width (= stacking height); the prover inherits it.
+    let basefold_verifier = BasefoldVerifier::<GC>::new(
+        FriConfig::default_fri_config(),
+        num_expected_commitments,
+        num_encoding_variables,
+    );
     let basefold_prover = BasefoldProver::<GC, MK>::new(&basefold_verifier);
-    // `batch_size` only parameterizes the stacked interleaving commit, which the base-PCS
-    // (`BatchPcsProver`) path never touches; any value works here.
-    let prover = StackedPcsProver::new(basefold_prover, num_encoding_variables, 1);
-    let verifier = StackedPcsVerifier::new(basefold_verifier, num_encoding_variables);
-    (prover, verifier)
+    // The transparent backend drives the base PCS purely through `BatchPcsProver`, so the Basefold
+    // prover and verifier are used directly — no `slop-stacked` interleaving wrapper is involved.
+    (basefold_prover, basefold_verifier)
 }
 
 // ============================================================================

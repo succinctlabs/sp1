@@ -53,7 +53,7 @@ fn run_prove_trusted_evaluations<R: Rng>(
 ) {
     let jagged_trace_data = device_mle;
 
-    let verifier = BasefoldVerifier::<TestGC>::new(core_fri_config(), 2);
+    let verifier = BasefoldVerifier::<TestGC>::new(core_fri_config(), 2, LOG_STACKING_HEIGHT);
     let basefold_prover = FriCudaProver::<TestGC, _, Felt>::new(
         Poseidon2SP1Field16CudaProver::new(scope),
         verifier.fri_config,

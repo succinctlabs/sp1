@@ -5,6 +5,7 @@ use slop_jagged::{
     JaggedSumcheckEvalProof, PrefixSumsMaxLogRowCount,
 };
 use slop_multilinear::Point;
+use slop_stacked::StackedProof;
 use sp1_primitives::{SP1ExtensionField, SP1Field};
 use sp1_recursion_compiler::ir::Builder;
 
@@ -102,7 +103,7 @@ impl<GC, C, Proof> Witnessable<C> for JaggedPcsProof<GC, Proof>
 where
     GC: IopCtx<F = SP1Field, EF = SP1ExtensionField> + SP1FieldConfigVariable<C>,
     C: CircuitConfig,
-    Proof: Witnessable<
+    StackedProof<GC, Proof>: Witnessable<
         C,
         WitnessVariable = RecursiveStackedPcsProof<
             RecursiveBasefoldProof<C, GC>,

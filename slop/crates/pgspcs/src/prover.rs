@@ -1,20 +1,25 @@
 use slop_algebra::{AbstractField, TwoAdicField};
 use slop_alloc::CpuBackend;
-use slop_basefold::BatchedBasefoldProof;
+use slop_basefold::{BasefoldProof, BATCH_GRINDING_BITS};
 use slop_basefold_prover::{BaseFoldConfigProverError, BasefoldProver, BasefoldProverData};
-use slop_challenger::IopCtx;
+use slop_challenger::{GrindingChallenger, IopCtx};
 use slop_commit::{Message, Rounds};
 use slop_merkle_tree::ComputeTcsOpenings;
-use slop_multilinear::{Evaluations, Mle, Point};
+use slop_multilinear::{Mle, Point};
+use slop_stacked::{EqBatchedEvalClaim, EqBatchedProof, EqBatchedProver};
 use slop_sumcheck::{reduce_sumcheck_to_evaluation, PartialSumcheckProof};
 
 use crate::{sparse_poly::SparsePolynomial, sumcheck_polynomials::SparsePCSSumcheckPoly};
+
+/// The batched Basefold proof produced by the sparse PCS opening protocol.
+pub type SparsePCSBasefoldProof<GC> =
+    EqBatchedProof<BasefoldProof<GC>, <<GC as IopCtx>::Challenger as GrindingChallenger>::Witness>;
 
 pub struct SparsePCSProver<GC: IopCtx, P: ComputeTcsOpenings<GC, CpuBackend>>
 where
     GC::F: TwoAdicField,
 {
-    pub multilinear_prover: BasefoldProver<GC, P>,
+    pub multilinear_prover: EqBatchedProver<GC, BasefoldProver<GC, P>>,
 }
 
 pub struct ProverData<GC: IopCtx, P: ComputeTcsOpenings<GC, CpuBackend>>
@@ -37,7 +42,7 @@ where
     GC::EF: TwoAdicField,
 {
     pub fn new(prover: BasefoldProver<GC, P>) -> Self {
-        Self { multilinear_prover: prover }
+        Self { multilinear_prover: EqBatchedProver::new(prover, BATCH_GRINDING_BITS) }
     }
 
     #[allow(clippy::type_complexity)]
@@ -65,7 +70,7 @@ where
         eval_point: &Point<GC::EF>,
         prover_data: ProverData<GC, P>,
         challenger: &mut GC::Challenger,
-    ) -> Result<Proof<GC::EF, BatchedBasefoldProof<GC>>, BaseFoldConfigProverError<GC, P>> {
+    ) -> Result<Proof<GC::EF, SparsePCSBasefoldProof<GC>>, BaseFoldConfigProverError<GC, P>> {
         // Compute the evaluation claim
         let v = poly.eval_at(eval_point);
 
@@ -84,12 +89,15 @@ where
         let new_evaluation_claims = matrix_component_evals[0].clone();
 
         // Prove the evaluations (untrusted because we send them)
+        let claim = EqBatchedEvalClaim {
+            point: new_eval_point,
+            // One committed round; the matrix component_evals are its evaluations, in order.
+            evaluations: vec![new_evaluation_claims.clone().into()],
+        };
         let pcs_proof = self.multilinear_prover.prove_untrusted_evaluations(
-            new_eval_point,
+            &claim,
             // prover_data.mles = [index_1, ..., index_n, val]
             Rounds { rounds: vec![prover_data.mles] },
-            // The matrix component_evals already contains the evaluations in the same order
-            Rounds { rounds: vec![Evaluations::new(vec![new_evaluation_claims.clone().into()])] },
             Rounds { rounds: vec![prover_data.multilinear_prover_data] },
             challenger,
         )?;
@@ -135,7 +143,8 @@ mod tests {
         );
         let alpha = Point::new((0..num_variables).map(|_| rng.gen::<EF>()).collect());
 
-        let basefold_verifier = BackendVerifier::new(FriConfig::default_fri_config(), 1);
+        let basefold_verifier =
+            BackendVerifier::new(FriConfig::default_fri_config(), 1, num_variables as u32);
         let basefold_prover = BackendProver::new(&basefold_verifier);
 
         let mut challenger = GC::default_challenger();

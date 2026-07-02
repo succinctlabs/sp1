@@ -1,6 +1,6 @@
 use std::ops::{Add, Mul};
 
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Serialize};
 use slop_challenger::IopCtx;
 use slop_commit::{Message, Rounds};
 
@@ -93,13 +93,11 @@ where
 
 /// A verifier for a PCS that acts on MLEs committed virtually: the MLE is a bunch of literally
 /// committed MLEs that have been batched in some sense.
-pub trait BatchPcsVerifier<GC: IopCtx> {
-    type Proof;
-    /// The commitment to a single committed oracle — the same unit as
-    /// [`BatchPcsProver::Commitment`]. A single [`Self::verify`] call opens a *slice* of these
-    /// (one per oracle batched into the proof).
-    type Commitment: Into<GC::Digest>;
+pub trait BatchPcsVerifier<GC: IopCtx>: 'static + Send + Sync + Clone {
+    type Proof: 'static + Clone + Serialize + DeserializeOwned + Send + Sync;
     type VerifierError: std::error::Error + 'static;
+
+    fn num_expected_commitments(&self) -> usize;
 
     /// The number of query openings contained in a proof (the query count required for a sound proximity-test).
     fn num_queries(&self) -> usize;
@@ -128,7 +126,7 @@ pub trait BatchPcsVerifier<GC: IopCtx> {
     /// - `challenger` carries the Fiat–Shamir state; it must match the prover's.
     fn verify(
         &self,
-        commits: &[Self::Commitment],
+        commits: &[GC::Digest],
         reduced_point: &Point<GC::EF>,
         reduced_eval: GC::EF,
         oracle_evaluator: impl OracleEval<GC::F, GC::EF>,
@@ -139,19 +137,16 @@ pub trait BatchPcsVerifier<GC: IopCtx> {
 
 /// A prover for a PCS that acts on MLEs committed virtually: the MLE is a bunch of literally
 /// committed MLEs that have been batched in some sense.
-pub trait BatchPcsProver<GC: IopCtx> {
-    type Proof;
+pub trait BatchPcsProver<GC: IopCtx>: 'static + Send + Sync {
+    type Proof: 'static + Clone + Serialize + DeserializeOwned + Send + Sync;
     type ProverError: std::error::Error + 'static;
-    /// The commitment to a batch of committed oracles. Convertible into the context's canonical
-    /// digest type, since it is observed by the Fiat–Shamir challenger as a digest.
-    type Commitment: Into<GC::Digest>;
     /// The encoder producing the codewords [`Self::prove`] consumes. The implementor must
     /// guarantee it encodes exactly the way [`Self::commit_mles`] encodes the committed oracles —
     /// see the consistency requirements on [`MleEncoder`].
     type Encoder: MleEncoder<GC::F>;
     /// Per-commitment prover data captured by [`Self::commit_mles`], used to open the committed
     /// columns.
-    type ProverData;
+    type ProverData: 'static + Send + Sync + Clone;
 
     /// The number of query openings a proof will contain (the query count required for a sound
     /// proximity-test). Matches the corresponding [`BatchPcsVerifier::num_queries`].
@@ -176,7 +171,7 @@ pub trait BatchPcsProver<GC: IopCtx> {
         &self,
         mles: Message<Mle<GC::F>>,
         log_blowup: usize,
-    ) -> Result<(Self::Commitment, Self::ProverData), Self::ProverError>;
+    ) -> Result<(GC::Digest, Self::ProverData), Self::ProverError>;
 
     /// Commit to a batch of multilinears at the encoder's configured blowup
     /// ([`MleEncoder::log_blowup`]), returning the commitment and the prover data needed to later
@@ -184,7 +179,7 @@ pub trait BatchPcsProver<GC: IopCtx> {
     fn commit_mles(
         &self,
         mles: Message<Mle<GC::F>>,
-    ) -> Result<(Self::Commitment, Self::ProverData), Self::ProverError> {
+    ) -> Result<(GC::Digest, Self::ProverData), Self::ProverError> {
         self.commit_mles_with_log_blowup(mles, self.encoder().log_blowup())
     }
 

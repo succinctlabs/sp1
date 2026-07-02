@@ -10,6 +10,7 @@ use slop_algebra::{extension::BinomialExtensionField, AbstractExtensionField, Ab
 use slop_bn254::Bn254Fr;
 use slop_challenger::{GrindingChallenger, IopCtx};
 use slop_commit::Rounds;
+use slop_stacked::StackedProof;
 use sp1_hypercube::{
     septic_curve::SepticCurve, septic_digest::SepticDigest, septic_extension::SepticExtension,
     AirOpenedValues, ChipOpenedValues, MachineVerifyingKey, ShardOpenedValues, ShardProof,
@@ -286,7 +287,7 @@ where
         Witnessable<C, WitnessVariable = <GC as FieldHasherVariable<C>>::DigestVariable>,
     <GC::Challenger as GrindingChallenger>::Witness:
         Witnessable<C, WitnessVariable = Felt<SP1Field>>,
-    Proof: Witnessable<
+    StackedProof<GC, Proof>: Witnessable<
         C,
         WitnessVariable = RecursiveStackedPcsProof<
             RecursiveBasefoldProof<C, GC>,

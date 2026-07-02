@@ -8,7 +8,8 @@ use slop_jagged::{
     unzip_and_prefix_sums, JaggedLittlePolynomialProverParams, JaggedPcsProof, JaggedProverData,
     JaggedProverError, PrefixSumsMaxLogRowCount,
 };
-use slop_multilinear::{MleEval, MultilinearPcsVerifier, Point};
+use slop_multilinear::{BatchPcsVerifier, MleEval, Point};
+use slop_stacked::{EqBatchedProof, StackedProof};
 use sp1_gpu_air::ir::{ChunkBudget, DagBuilder};
 use sp1_gpu_basefold::{CudaStackedPcsProverData, DeviceGrindingChallenger, FriCudaProver};
 use sp1_gpu_challenger::FromHostChallengerSync;
@@ -42,7 +43,7 @@ pub trait CudaShardProverComponents<GC: IopCtx>: Send + Sync + 'static {
     type Air: CudaTracegenAir<GC::F>
         + ZerocheckAir<Felt, Ext>
         + for<'a> slop_air::Air<DagBuilder<'a>>;
-    type C: MultilinearPcsVerifier<GC> + Send + Sync;
+    type C: BatchPcsVerifier<GC> + Send + Sync;
     /// The device challenger type used for GPU-based challenger operations.
     type DeviceChallenger: sp1_gpu_jagged_assist::AsMutRawChallenger
         + FromChallenger<GC::Challenger, TaskScope>
@@ -110,7 +111,7 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>> CudaShar
         prover_data: Rounds<&JaggedProverData<GC, CudaStackedPcsProverData<GC>>>,
         challenger: &mut GC::Challenger,
     ) -> Result<
-        JaggedPcsProof<GC, <PC::C as MultilinearPcsVerifier<GC>>::Proof>,
+        JaggedPcsProof<GC, <PC::C as BatchPcsVerifier<GC>>::Proof>,
         JaggedProverError<CudaShardProverError>,
     >
     where
@@ -118,7 +119,7 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>> CudaShar
         GC::Challenger: slop_challenger::FieldChallenger<
             <GC::Challenger as slop_challenger::GrindingChallenger>::Witness,
         >,
-        SP1PcsProof<GC>: Into<<PC::C as MultilinearPcsVerifier<GC>>::Proof>,
+        SP1PcsProof<GC>: Into<<PC::C as BatchPcsVerifier<GC>>::Proof>,
         TaskScope:
             sp1_gpu_jagged_assist::BranchingProgramKernel<GC::F, GC::EF, PC::DeviceChallenger>,
     {
@@ -171,7 +172,7 @@ where
     GC::Challenger: slop_challenger::FieldChallenger<
         <GC::Challenger as slop_challenger::GrindingChallenger>::Witness,
     >,
-    SP1PcsProof<GC>: Into<<PC::C as MultilinearPcsVerifier<GC>>::Proof>,
+    SP1PcsProof<GC>: Into<<PC::C as BatchPcsVerifier<GC>>::Proof>,
     TaskScope: sp1_gpu_jagged_assist::BranchingProgramKernel<GC::F, GC::EF, PC::DeviceChallenger>,
 {
     type PreprocessedData = Mutex<CudaShardProverData<GC, PC::Air>>;
@@ -225,7 +226,7 @@ where
         prover_permits: ProverSemaphore,
     ) -> (
         MachineVerifyingKey<GC>,
-        ShardProof<GC, <PC::C as MultilinearPcsVerifier<GC>>::Proof>,
+        ShardProof<GC, <PC::C as BatchPcsVerifier<GC>>::Proof>,
         ProverPermit,
     ) {
         // Get the initial global cumulative sum and pc start.
@@ -317,7 +318,7 @@ where
         pk: Arc<ProvingKey<GC, ShardContextImpl<GC, PC::C, PC::Air>, Self>>,
         record: <PC::Air as MachineAir<GC::F>>::Record,
         prover_permits: ProverSemaphore,
-    ) -> (ShardProof<GC, <PC::C as MultilinearPcsVerifier<GC>>::Proof>, ProverPermit) {
+    ) -> (ShardProof<GC, <PC::C as BatchPcsVerifier<GC>>::Proof>, ProverPermit) {
         // Generate the traces.
         let record = Arc::new(record);
 
@@ -421,7 +422,7 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
         prover_data: Rounds<&JaggedProverData<GC, CudaStackedPcsProverData<GC>>>,
         challenger: &mut GC::Challenger,
     ) -> Result<
-        JaggedPcsProof<GC, <PC::C as MultilinearPcsVerifier<GC>>::Proof>,
+        JaggedPcsProof<GC, <PC::C as BatchPcsVerifier<GC>>::Proof>,
         JaggedProverError<CudaShardProverError>,
     >
     where
@@ -429,7 +430,7 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
         GC::Challenger: slop_challenger::FieldChallenger<
             <GC::Challenger as slop_challenger::GrindingChallenger>::Witness,
         >,
-        SP1PcsProof<GC>: Into<<PC::C as MultilinearPcsVerifier<GC>>::Proof>,
+        SP1PcsProof<GC>: Into<<PC::C as BatchPcsVerifier<GC>>::Proof>,
         TaskScope:
             sp1_gpu_jagged_assist::BranchingProgramKernel<GC::F, GC::EF, PC::DeviceChallenger>,
     {
@@ -580,8 +581,10 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
         let original_commitments: Rounds<_> =
             prover_data.iter().map(|data| data.original_commitment).collect();
 
-        let stacked_prover_data =
-            prover_data.iter().map(|data| &data.pcs_prover_data).collect::<Rounds<_>>();
+        let stacked_prover_data = prover_data
+            .iter()
+            .map(|data| data.pcs_prover_data.pcs_batch_data())
+            .collect::<Rounds<_>>();
 
         let final_eval_point = sumcheck_proof.point_and_eval.0.clone();
 
@@ -627,8 +630,14 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
             ],
         };
 
-        let stacked_basefold_proof = SP1PcsProof {
-            batched_basefold_proof: pcs_proof,
+        // Lift the Basefold opening into the jagged proof's `StackedProof<GC, C::Proof>` shape,
+        // converting the inner Basefold proof into the config's proof type via the
+        // `SP1PcsProof: Into<C::Proof>` bound (`SP1PcsProof` is now the bare Basefold proof).
+        let stacked_proof = StackedProof {
+            inner_proof: EqBatchedProof {
+                inner_proof: pcs_proof.inner_proof.into(),
+                batch_grinding_witness: pcs_proof.batch_grinding_witness,
+            },
             batch_evaluations: host_batch_evaluations,
         };
 
@@ -636,7 +645,7 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
             unzip_and_prefix_sums(&row_counts_and_column_counts);
 
         Ok(JaggedPcsProof {
-            pcs_proof: stacked_basefold_proof.into(),
+            pcs_proof: stacked_proof,
             sumcheck_proof,
             jagged_eval_proof,
             boolean_batched_proof,
@@ -663,13 +672,13 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
         &self,
         data: ShardData<GC, PC>,
         mut challenger: GC::Challenger,
-    ) -> (ShardProof<GC, <PC::C as MultilinearPcsVerifier<GC>>::Proof>, ProverPermit)
+    ) -> (ShardProof<GC, <PC::C as BatchPcsVerifier<GC>>::Proof>, ProverPermit)
     where
         GC::Challenger: DeviceGrindingChallenger<Witness = GC::F>,
         GC::Challenger: slop_challenger::FieldChallenger<
             <GC::Challenger as slop_challenger::GrindingChallenger>::Witness,
         >,
-        SP1PcsProof<GC>: Into<<PC::C as MultilinearPcsVerifier<GC>>::Proof>,
+        SP1PcsProof<GC>: Into<<PC::C as BatchPcsVerifier<GC>>::Proof>,
         TaskScope:
             sp1_gpu_jagged_assist::BranchingProgramKernel<GC::F, GC::EF, PC::DeviceChallenger>,
     {
@@ -864,7 +873,8 @@ mod tests {
 
             let jagged_trace_data = Arc::new(jagged_trace_data);
 
-            let verifier = BasefoldVerifier::<TestGC>::new(core_fri_config(), 2);
+            let verifier =
+                BasefoldVerifier::<TestGC>::new(core_fri_config(), 2, LOG_STACKING_HEIGHT);
 
             let basefold_prover = FriCudaProver::<TestGC, _, Felt>::new(
                 Poseidon2SP1Field16CudaProver::new(&scope),

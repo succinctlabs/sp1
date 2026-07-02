@@ -1,12 +1,12 @@
 use slop_algebra::AbstractField;
 use slop_alloc::CpuBackend;
-use slop_basefold::{BasefoldProof, BatchedBasefoldProof};
 use slop_commit::Rounds;
 use slop_jagged::{JaggedPcsProof, JaggedSumcheckEvalProof, K, K1, K2, NUM_BITS};
 use slop_merkle_tree::{MerkleTreeOpeningAndProof, MerkleTreeTcsProof};
 use slop_multilinear::MleEval;
+use slop_stacked::{EqBatchedProof, StackedProof};
 use slop_tensor::Tensor;
-use sp1_hypercube::{log2_ceil_usize, SP1PcsProof, SP1PcsProofInner, NUM_SP1_COMMITMENTS};
+use sp1_hypercube::{log2_ceil_usize, SP1PcsProofInner, NUM_SP1_COMMITMENTS};
 use sp1_primitives::{SP1Field, SP1GlobalContext};
 use sp1_recursion_executor::DIGEST_SIZE;
 
@@ -74,7 +74,7 @@ pub fn dummy_pcs_proof(
             },
         }
     });
-    let basefold_proof = BasefoldProof::<SP1GlobalContext> {
+    let basefold_proof = SP1PcsProofInner {
         univariate_messages: vec![[InnerChallenge::zero(); 2]; max_pcs_log_height],
         fri_commitments: vec![dummy_hash(); max_pcs_log_height],
         final_poly: InnerChallenge::zero(),
@@ -86,8 +86,8 @@ pub fn dummy_pcs_proof(
             fri_queries,
         ),
     };
-    let batched_basefold_proof =
-        BatchedBasefoldProof { basefold_proof, batch_grinding_witness: InnerVal::zero() };
+    let inner_proof =
+        EqBatchedProof { inner_proof: basefold_proof, batch_grinding_witness: InnerVal::zero() };
 
     let batch_evaluations: Rounds<MleEval<InnerChallenge, CpuBackend>> = Rounds {
         rounds: log_stacking_height_multiples
@@ -96,7 +96,7 @@ pub fn dummy_pcs_proof(
             .collect(),
     };
 
-    let stacked_proof = SP1PcsProof { batched_basefold_proof, batch_evaluations };
+    let stacked_proof = StackedProof { inner_proof, batch_evaluations };
 
     let total_trace = log2_ceil_usize(
         log_stacking_height_multiples.iter().sum::<usize>() * (1 << log_stacking_height),
@@ -169,7 +169,7 @@ pub fn dummy_pcs_proof(
 mod tests {
 
     use rand::{thread_rng, Rng};
-    use slop_basefold::{BasefoldProof, FriConfig};
+    use slop_basefold::FriConfig;
     use sp1_primitives::{SP1ExtensionField, SP1Field, SP1GlobalContext};
     use std::sync::Arc;
 
@@ -192,7 +192,7 @@ mod tests {
         let max_log_row_count = 9;
 
         type JC = SP1InnerPcs;
-        type Prover = JaggedProver<SP1GlobalContext, SP1PcsProofInner, SP1InnerPcsProver>;
+        type Prover = JaggedProver<SP1GlobalContext, SP1InnerPcsProver>;
         type F = SP1Field;
         type EF = SP1ExtensionField;
 
@@ -373,22 +373,22 @@ mod tests {
             assert_eq!(round.num_polynomials(), dummy_round.num_polynomials());
         }
         // Check that the BaseFold proof is the right shape.
-        let BasefoldProof {
+        let SP1PcsProofInner {
             univariate_messages: dummy_univariate_messages,
             fri_commitments: dummy_fri_commitments,
             component_polynomials_query_openings_and_proofs:
                 dummy_component_polynomials_query_openings,
             query_phase_openings_and_proofs: dummy_query_phase_openings,
             ..
-        } = dummy_proof.pcs_proof.batched_basefold_proof.basefold_proof;
+        } = dummy_proof.pcs_proof.inner_proof.inner_proof;
 
-        let BasefoldProof {
+        let SP1PcsProofInner {
             univariate_messages,
             fri_commitments,
             component_polynomials_query_openings_and_proofs,
             query_phase_openings_and_proofs,
             ..
-        } = proof.pcs_proof.batched_basefold_proof.basefold_proof;
+        } = proof.pcs_proof.inner_proof.inner_proof;
 
         assert_eq!(dummy_univariate_messages.len(), univariate_messages.len());
         assert_eq!(dummy_fri_commitments.len(), fri_commitments.len());

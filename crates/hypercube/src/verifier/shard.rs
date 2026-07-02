@@ -1,9 +1,5 @@
 use derive_where::derive_where;
-use slop_basefold::FriConfig;
-use slop_merkle_tree::MerkleTreeTcs;
-#[allow(clippy::disallowed_types)]
-use slop_stacked::{StackedBasefoldProof, StackedPcsVerifier};
-use slop_whir::{Verifier, WhirProofShape};
+use slop_basefold::{BasefoldVerifier, FriConfig};
 use sp1_primitives::{SP1GlobalContext, SP1OuterGlobalContext};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -19,7 +15,7 @@ use slop_challenger::{CanObserve, FieldChallenger, IopCtx, VariableLengthChallen
 use slop_commit::Rounds;
 use slop_jagged::{JaggedPcsVerifier, JaggedPcsVerifierError};
 use slop_matrix::dense::RowMajorMatrixView;
-use slop_multilinear::{full_geq, Evaluations, Mle, MleEval, MultilinearPcsVerifier};
+use slop_multilinear::{full_geq, BatchPcsVerifier, Evaluations, Mle, MleEval};
 use slop_sumcheck::{partially_verify_sumcheck_proof, SumcheckError};
 use thiserror::Error;
 
@@ -27,8 +23,7 @@ use crate::{
     air::MachineAir,
     prover::{CoreProofShape, PcsProof, ZerocheckAir},
     Chip, ChipOpenedValues, LogUpEvaluations, LogUpGkrVerifier, LogupGkrVerificationError, Machine,
-    ShardContext, ShardContextImpl, VerifierConstraintFolder, MAX_CONSTRAINT_DEGREE,
-    PROOF_MAX_NUM_PVS, SP1SC,
+    ShardContext, VerifierConstraintFolder, MAX_CONSTRAINT_DEGREE, PROOF_MAX_NUM_PVS, SP1SC,
 };
 
 use super::{MachineVerifyingKey, ShardOpenedValues, ShardProof};
@@ -40,9 +35,9 @@ pub const NUM_SP1_COMMITMENTS: usize = 2;
 /// The number of bits to grind in sampling the GKR randomness.
 pub const GKR_GRINDING_BITS: usize = 12;
 
-#[allow(clippy::disallowed_types)]
-/// The Multilinear PCS used in SP1 shard proofs, generic in the `IopCtx`.
-pub type SP1Pcs<GC> = StackedPcsVerifier<GC>;
+/// The Multilinear PCS used in SP1 shard proofs, generic in the `IopCtx`. Jagged wraps this base
+/// (batch) PCS verifier in its own stacking layer internally.
+pub type SP1Pcs<GC> = BasefoldVerifier<GC>;
 
 /// The PCS used for all stages of SP1 proving except for wrap.
 pub type SP1InnerPcs = SP1Pcs<SP1GlobalContext>;
@@ -50,9 +45,14 @@ pub type SP1InnerPcs = SP1Pcs<SP1GlobalContext>;
 /// The PCS used for wrap proving.
 pub type SP1OuterPcs = SP1Pcs<SP1OuterGlobalContext>;
 
-/// The PCS proof type used in SP1 shard proofs.
+/// The PCS proof type used in SP1 shard proofs: the base (batch) PCS proof that the jagged proof
+/// wraps. Jagged's internal stacking proof is nested inside [`slop_jagged::JaggedPcsProof`].
+///
+/// This alias is the single place SP1 pins its concrete base-PCS proof to Basefold; the rest of
+/// the codebase names `SP1PcsProof` so swapping the PCS here propagates automatically. Hence the
+/// `disallowed_types` allow: this definition is the sanctioned home for `BasefoldProof`.
 #[allow(clippy::disallowed_types)]
-pub type SP1PcsProof<GC> = StackedBasefoldProof<GC>;
+pub type SP1PcsProof<GC> = slop_basefold::BasefoldProof<GC>;
 
 /// The proof type for all stages of SP1 proving except for wrap.
 pub type SP1PcsProofInner = SP1PcsProof<SP1GlobalContext>;
@@ -119,7 +119,7 @@ pub enum ShardVerifierError<EF, PcsError> {
 
 /// Derive the error type from the jagged config.
 pub type ShardVerifierConfigError<GC, C> =
-    ShardVerifierError<<GC as IopCtx>::EF, <C as MultilinearPcsVerifier<GC>>::VerifierError>;
+    ShardVerifierError<<GC as IopCtx>::EF, <C as BatchPcsVerifier<GC>>::VerifierError>;
 
 /// An error that occurs when the shape of the openings does not match the expected shape.
 #[derive(Debug, Error)]
@@ -159,7 +159,7 @@ impl<GC: IopCtx, SC: ShardContext<GC>> ShardVerifier<GC, SC> {
     #[must_use]
     #[inline]
     pub fn log_stacking_height(&self) -> u32 {
-        <SC::Config>::log_stacking_height(&self.jagged_pcs_verifier.pcs_verifier)
+        self.jagged_pcs_verifier.stacked_pcs_verifier.log_stacking_height()
     }
 
     /// Get a new challenger.
@@ -293,10 +293,7 @@ where
         proof: &ShardProof<GC, PcsProof<GC, SC>>,
         public_values: &[GC::F],
         challenger: &mut GC::Challenger,
-    ) -> Result<
-        (),
-        ShardVerifierError<GC::EF, <SC::Config as MultilinearPcsVerifier<GC>>::VerifierError>,
-    >
+    ) -> Result<(), ShardVerifierError<GC::EF, <SC::Config as BatchPcsVerifier<GC>>::VerifierError>>
 where {
         let max_log_row_count = self.jagged_pcs_verifier.max_log_row_count;
 
@@ -366,7 +363,7 @@ where {
         if proof.zerocheck_proof.point_and_eval.1 != rlc_eval {
             return Err(ShardVerifierError::<
                 _,
-                <SC::Config as MultilinearPcsVerifier<GC>>::VerifierError,
+                <SC::Config as BatchPcsVerifier<GC>>::VerifierError,
             >::ConstraintsCheckFailed(SumcheckError::InconsistencyWithEval));
         }
 
@@ -401,7 +398,7 @@ where {
         if proof.zerocheck_proof.claimed_sum != zerocheck_sum_modification {
             return Err(ShardVerifierError::<
                 _,
-                <SC::Config as MultilinearPcsVerifier<GC>>::VerifierError,
+                <SC::Config as BatchPcsVerifier<GC>>::VerifierError,
             >::ConstraintsCheckFailed(
                 SumcheckError::InconsistencyWithClaimedSum
             ));
@@ -417,7 +414,7 @@ where {
         .map_err(|e| {
             ShardVerifierError::<
                 _,
-                <SC::Config as MultilinearPcsVerifier<GC>>::VerifierError,
+                <SC::Config as BatchPcsVerifier<GC>>::VerifierError,
             >::ConstraintsCheckFailed(e)
         })?;
 
@@ -763,34 +760,5 @@ where
             NUM_SP1_COMMITMENTS,
         );
         Self { jagged_pcs_verifier: pcs_verifier, machine }
-    }
-}
-
-impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>, A>
-    ShardVerifier<GC, ShardContextImpl<GC, Verifier<GC>, A>>
-where
-    A: ZerocheckAir<GC::F, GC::EF>,
-    GC::F: PrimeField32,
-{
-    /// Create a shard verifier from basefold parameters.
-    #[must_use]
-    pub fn from_config(
-        config: &WhirProofShape<GC::F>,
-        max_log_row_count: usize,
-        machine: Machine<GC::F, A>,
-        num_expected_commitments: usize,
-        challenger: &mut GC::Challenger,
-    ) -> Self {
-        let merkle_verifier = MerkleTreeTcs::default();
-        let verifier = Verifier::<GC>::new(
-            merkle_verifier,
-            config.clone(),
-            num_expected_commitments,
-            challenger,
-        );
-
-        let jagged_verifier =
-            JaggedPcsVerifier::<GC, Verifier<GC>>::new(verifier, max_log_row_count);
-        Self { jagged_pcs_verifier: jagged_verifier, machine }
     }
 }

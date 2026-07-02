@@ -7,9 +7,7 @@ use slop_challenger::{
 };
 use slop_commit::Rounds;
 use slop_merkle_tree::{MerkleTreeOpeningAndProof, MerkleTreeTcs, MerkleTreeTcsError};
-use slop_multilinear::{
-    partial_lagrange_blocking, MleEval, MultilinearPcsChallenger, OracleEval, Point,
-};
+use slop_multilinear::{BatchPcsVerifier, OracleEval, Point};
 use slop_utils::reverse_bits_len;
 use thiserror::Error;
 
@@ -23,6 +21,7 @@ pub struct BasefoldVerifier<GC: IopCtx> {
     pub fri_config: crate::FriConfig<GC::F>,
     pub tcs: MerkleTreeTcs<GC>,
     pub num_expected_commitments: usize,
+    pub num_encoding_variables: u32,
 }
 
 impl<GC: IopCtx> std::fmt::Debug for BasefoldVerifier<GC> {
@@ -35,9 +34,18 @@ impl<GC: IopCtx> std::fmt::Debug for BasefoldVerifier<GC> {
 }
 
 impl<GC: IopCtx> BasefoldVerifier<GC> {
-    pub fn new(fri_config: crate::FriConfig<GC::F>, num_expected_commitments: usize) -> Self {
+    pub fn new(
+        fri_config: crate::FriConfig<GC::F>,
+        num_expected_commitments: usize,
+        num_encoding_variables: u32,
+    ) -> Self {
         assert_ne!(num_expected_commitments, 0, "commitment must exist");
-        Self { fri_config, tcs: MerkleTreeTcs::default(), num_expected_commitments }
+        Self {
+            fri_config,
+            tcs: MerkleTreeTcs::default(),
+            num_expected_commitments,
+            num_encoding_variables,
+        }
     }
 }
 
@@ -127,22 +135,6 @@ pub struct BasefoldProof<GC: IopCtx> {
     pub pow_witness: <<GC as IopCtx>::Challenger as GrindingChallenger>::Witness,
 }
 
-/// A [`BasefoldProof`] bundled with the grinding witness for the batching randomness sampled
-/// before BaseFold.
-///
-/// This is what the *batched* proving entry points (`prove_trusted_mle_evaluations`,
-/// `prove_untrusted_evaluations`) produce and what the corresponding verification entry points
-/// ([`BasefoldVerifier::verify_mle_evaluations`], [`BasefoldVerifier::verify_untrusted_evaluations`])
-/// consume.
-#[derive(Clone, Serialize, Deserialize)]
-#[serde(bound(serialize = "", deserialize = ""))]
-pub struct BatchedBasefoldProof<GC: IopCtx> {
-    /// The BaseFold proof for the batched evaluation claim.
-    pub basefold_proof: BasefoldProof<GC>,
-    /// The grinding witness for the batching randomness.
-    pub batch_grinding_witness: BatchGrindingWitness<GC>,
-}
-
 impl<GC: IopCtx> BasefoldVerifier<GC>
 where
     GC::F: TwoAdicField,
@@ -169,7 +161,9 @@ where
         challenger: &mut GC::Challenger,
     ) -> Result<(), BaseFoldVerifierError<MerkleTreeTcsError>> {
         // number of oracle opening proofs matches number of oracles
-        if proof.component_polynomials_query_openings_and_proofs.len() != commitments.len() {
+        if proof.component_polynomials_query_openings_and_proofs.len() != commitments.len()
+            || commitments.len() != self.num_expected_commitments
+        {
             return Err(BaseFoldVerifierError::IncorrectShape);
         }
 
@@ -322,68 +316,6 @@ where
         Ok(())
     }
 
-    pub fn verify_mle_evaluations(
-        &self,
-        commitments: &[GC::Digest],
-        point: Point<GC::EF>,
-        evaluation_claims: &[MleEval<GC::EF>],
-        proof: &BatchedBasefoldProof<GC>,
-        challenger: &mut GC::Challenger,
-    ) -> Result<(), BaseFoldVerifierError<MerkleTreeTcsError>> {
-        // Check batch grinding witness.
-        if !challenger.check_witness(BATCH_GRINDING_BITS, proof.batch_grinding_witness) {
-            return Err(BaseFoldVerifierError::BatchPow);
-        }
-
-        // Sample the challenge used to batch all the different polynomials.
-        let total_len = evaluation_claims
-            .iter()
-            .map(|batch_claims| batch_claims.num_polynomials())
-            .sum::<usize>();
-
-        let num_batching_variables = total_len.next_power_of_two().ilog2();
-        let batching_point = challenger.sample_point::<GC::EF>(num_batching_variables);
-        let batching_coefficients = partial_lagrange_blocking(&batching_point);
-
-        // Compute the batched evaluation claim.
-        let eval_claim = evaluation_claims
-            .iter()
-            .flat_map(|batch_claims| batch_claims.iter())
-            .zip(batching_coefficients.as_slice())
-            .map(|(eval, batch_power)| *eval * *batch_power)
-            .sum::<GC::EF>();
-
-        if evaluation_claims.len() != commitments.len()
-            || commitments.len()
-                != proof.basefold_proof.component_polynomials_query_openings_and_proofs.len()
-            || commitments.len() != self.num_expected_commitments
-        {
-            return Err(BaseFoldVerifierError::IncorrectShape);
-        }
-
-        // The virtual oracle is just the random linear combination of the component polynomials:
-        // for each query, the opened values (one round per commitment, in commitment order) are
-        // flattened and combined against the batching coefficients, which are laid out in that same
-        // order.
-        let to_virtual_oracle = |values: Rounds<&[GC::F]>, _index: usize| -> GC::EF {
-            values
-                .iter()
-                .flat_map(|round| round.iter())
-                .zip(batching_coefficients.as_slice())
-                .map(|(value, batching_coefficient)| *batching_coefficient * *value)
-                .sum()
-        };
-
-        self.verify_from_prebatched_inputs(
-            commitments,
-            point,
-            eval_claim,
-            &proof.basefold_proof,
-            to_virtual_oracle,
-            challenger,
-        )
-    }
-
     /// The FRI verifier for a single query. We modify this from Plonky3 to be compatible with
     /// opening only a single vector.
     fn verify_queries(
@@ -489,23 +421,53 @@ where
 
         Ok(())
     }
+}
 
-    pub fn verify_untrusted_evaluations(
+/// A [`StackedPcsVerifier`] is a [`BatchPcsVerifier`]: a Basefold verifier pinned to a fixed
+/// message size (`num_encoding_variables = log_stacking_height`). The opening protocol itself is
+/// plain prebatched Basefold; the stacking height fixes how long the MLEs behind the commitments
+/// are allowed to be, i.e. the dimension of the reduced point the committed oracles open at.
+///
+/// This is a temporary connector until stacked is refactored based on the new basefold API.
+impl<GC: IopCtx> BatchPcsVerifier<GC> for BasefoldVerifier<GC>
+where
+    GC::F: TwoAdicField,
+{
+    type Proof = BasefoldProof<GC>;
+    type VerifierError = BaseFoldVerifierError<MerkleTreeTcsError>;
+
+    fn num_expected_commitments(&self) -> usize {
+        self.num_expected_commitments
+    }
+
+    fn num_queries(&self) -> usize {
+        self.fri_config.num_queries
+    }
+
+    fn num_encoding_variables(&self) -> u32 {
+        self.num_encoding_variables
+    }
+
+    fn log_blowup(&self) -> usize {
+        self.fri_config.log_blowup
+    }
+
+    fn verify(
         &self,
-        commitments: &[GC::Digest],
-        eval_point: Point<GC::EF>,
-        evaluation_claims: &[MleEval<GC::EF>],
-        proof: &BatchedBasefoldProof<GC>,
+        commits: &[GC::Digest],
+        reduced_point: &Point<GC::EF>,
+        reduced_eval: GC::EF,
+        oracle_evaluator: impl OracleEval<GC::F, GC::EF>,
+        proof: &Self::Proof,
         challenger: &mut GC::Challenger,
-    ) -> Result<(), BaseFoldVerifierError<MerkleTreeTcsError>> {
-        // Observe the evaluation claims.
-        for round in evaluation_claims.iter() {
-            // We assume that in the process of producing `commitments`, the prover is bound
-            // to the number of polynomials in each round. Thus, we can observe the evaluation
-            // claims without observing their length.
-            challenger.observe_constant_length_extension_slice(round);
-        }
-
-        self.verify_mle_evaluations(commitments, eval_point, evaluation_claims, proof, challenger)
+    ) -> Result<(), Self::VerifierError> {
+        self.verify_from_prebatched_inputs(
+            commits,
+            reduced_point.clone(),
+            reduced_eval,
+            proof,
+            oracle_evaluator,
+            challenger,
+        )
     }
 }

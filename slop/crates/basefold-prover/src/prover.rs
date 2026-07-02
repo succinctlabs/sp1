@@ -6,20 +6,13 @@ use derive_where::derive_where;
 use itertools::Itertools;
 use slop_algebra::TwoAdicField;
 use slop_alloc::CpuBackend;
-use slop_basefold::{
-    BasefoldProof, BasefoldVerifier, BatchedBasefoldProof, RsCodeWord, BATCH_GRINDING_BITS,
-};
-use slop_challenger::{
-    CanObserve, CanSampleBits, FieldChallenger, GrindingChallenger, IopCtx,
-    VariableLengthChallenger,
-};
+use slop_basefold::{BasefoldProof, BasefoldVerifier, RsCodeWord};
+use slop_challenger::{CanObserve, CanSampleBits, FieldChallenger, GrindingChallenger, IopCtx};
 use slop_commit::{Message, Rounds};
 use slop_dft::p3::Radix2DitParallel;
 use slop_futures::OwnedBorrow;
 use slop_merkle_tree::{ComputeTcsOpenings, MerkleTreeOpeningAndProof, TensorCsProver};
-use slop_multilinear::{
-    partial_lagrange_blocking, Evaluations, Mle, MultilinearPcsChallenger, Point,
-};
+use slop_multilinear::{BatchPcsProver, Mle, MleEncoder, Point};
 use slop_tensor::Tensor;
 use thiserror::Error;
 
@@ -53,6 +46,7 @@ pub type BaseFoldConfigProverError<GC, P> =
 #[derive(Clone)]
 pub struct BasefoldProver<GC: IopCtx<F: TwoAdicField>, P: ComputeTcsOpenings<GC, CpuBackend>> {
     pub encoder: CpuDftEncoder<GC::F>,
+    pub num_encoding_variables: u32,
     pub tcs_prover: P,
 }
 
@@ -60,8 +54,12 @@ impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>, P: ComputeTcsOpenings<GC, Cp
     BasefoldProver<GC, P>
 {
     #[inline]
-    pub const fn from_parts(encoder: CpuDftEncoder<GC::F>, tcs_prover: P) -> Self {
-        Self { encoder, tcs_prover }
+    pub const fn from_parts(
+        encoder: CpuDftEncoder<GC::F>,
+        tcs_prover: P,
+        num_encoding_variables: u32,
+    ) -> Self {
+        Self { encoder, tcs_prover, num_encoding_variables }
     }
 
     #[inline]
@@ -72,7 +70,8 @@ impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>, P: ComputeTcsOpenings<GC, Cp
         let tcs_prover = P::default();
         let encoder =
             CpuDftEncoder { config: verifier.fri_config, dft: Arc::new(Radix2DitParallel) };
-        Self { encoder, tcs_prover }
+        let num_encoding_variables = verifier.num_encoding_variables;
+        Self { encoder, tcs_prover, num_encoding_variables }
     }
 
     /// Reed–Solomon encode a batch of MLEs at an arbitrary `log_blowup` and commit to the resulting
@@ -241,85 +240,59 @@ impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>, P: ComputeTcsOpenings<GC, Cp
             pow_witness,
         })
     }
+}
 
-    #[inline]
-    pub fn prove_trusted_mle_evaluations(
-        &self,
-        eval_point: Point<GC::EF>,
-        mle_rounds: Rounds<Message<Mle<GC::F>>>,
-        evaluation_claims: Rounds<Evaluations<GC::EF>>,
-        prover_data: Rounds<BasefoldProverData<GC::F, P::ProverData>>,
-        challenger: &mut GC::Challenger,
-    ) -> Result<BatchedBasefoldProof<GC>, BaseFoldConfigProverError<GC, P>> {
-        let fri_prover = FriCpuProver::<GC, P>(PhantomData);
-        // Get all the mles from all rounds in order.
-        let mles = mle_rounds
-            .iter()
-            .flat_map(|round| round.clone().into_iter())
-            .collect::<Message<Mle<_, _>>>();
+/// A [`StackedPcsProver`] is a [`BatchPcsProver`]: a Basefold prover pinned to a fixed message
+/// size (`num_encoding_variables = log_stacking_height`), mirroring the
+/// [`BatchPcsVerifier`](slop_multilinear::BatchPcsVerifier) impl on
+/// [`crate::StackedPcsVerifier`]. The opening protocol itself is plain prebatched Basefold;
+/// the stacking height fixes how long the committed MLEs are allowed to be. `batch_size` and the
+/// interleaving commit play no role on this path.
+///
+/// This is a temporary connector until stacked is refactored based on the new basefold API.
+impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>, P: ComputeTcsOpenings<GC, CpuBackend>>
+    BatchPcsProver<GC> for BasefoldProver<GC, P>
+{
+    type Proof = BasefoldProof<GC>;
+    type ProverError = BasefoldProverError<P::ProverError>;
+    type Encoder = CpuDftEncoder<GC::F>;
+    type ProverData = BasefoldProverData<GC::F, P::ProverData>;
 
-        let encoded_messages = prover_data
-            .iter()
-            .flat_map(|data| data.encoded_messages.iter().cloned())
-            .collect::<Message<RsCodeWord<_, _>>>();
-
-        let evaluation_claims = evaluation_claims.into_iter().flatten().collect::<Vec<_>>();
-
-        // Grind for batch randomness.
-        let batch_grinding_witness = challenger.grind(BATCH_GRINDING_BITS);
-
-        // Sample batching coefficients via partial Lagrange basis.
-        let total_len = mles.iter().map(|mle| mle.num_polynomials()).sum::<usize>();
-        let num_batching_variables = total_len.next_power_of_two().ilog2();
-        let batching_point = challenger.sample_point::<GC::EF>(num_batching_variables);
-
-        let batching_coefficients = partial_lagrange_blocking(&batching_point);
-
-        // Batch the mles and codewords.
-        let (mle_batch, codeword_batch, batched_eval_claim) = fri_prover.batch(
-            &batching_coefficients,
-            mles,
-            encoded_messages,
-            evaluation_claims,
-            &self.encoder,
-        );
-
-        // Run the BaseFold protocol on the random linear combination codeword,
-        // the random linear combination multilinear, and the random linear combination of the
-        // evaluation claims.
-        let basefold_proof = self.prove_from_prebatched_inputs(
-            eval_point,
-            mle_batch,
-            batched_eval_claim,
-            codeword_batch,
-            prover_data,
-            challenger,
-        )?;
-        Ok(BatchedBasefoldProof { basefold_proof, batch_grinding_witness })
+    fn num_queries(&self) -> usize {
+        self.encoder.config().num_queries
     }
 
-    pub fn prove_untrusted_evaluations(
-        &self,
-        eval_point: Point<GC::EF>,
-        mle_rounds: Rounds<Message<Mle<GC::F>>>,
-        evaluation_claims: Rounds<Evaluations<GC::EF>>,
-        prover_data: Rounds<BasefoldProverData<GC::F, P::ProverData>>,
-        challenger: &mut GC::Challenger,
-    ) -> Result<BatchedBasefoldProof<GC>, BaseFoldConfigProverError<GC, P>> {
-        // Observe the evaluation claims.
-        for round in evaluation_claims.iter() {
-            // We assume that in the process of producing `commitments`, the prover is bound
-            // to the number of polynomials in each round. Thus, we can observe the evaluation
-            // claims without observing their length.
-            for mle_eval in round.iter() {
-                challenger.observe_constant_length_extension_slice(mle_eval);
-            }
-        }
+    fn num_encoding_variables(&self) -> u32 {
+        self.num_encoding_variables
+    }
 
-        self.prove_trusted_mle_evaluations(
-            eval_point,
-            mle_rounds,
-            evaluation_claims,
+    fn encoder(&self) -> &Self::Encoder {
+        &self.encoder
+    }
+
+    fn commit_mles_with_log_blowup(
+        &self,
+        mles: Message<Mle<GC::F>>,
+        log_blowup: usize,
+    ) -> Result<(GC::Digest, Self::ProverData), Self::ProverError> {
+        // Delegate to the basefold commit at the requested rate.
+        self.commit_mles_with_log_blowup(mles, log_blowup)
+    }
+
+    fn prove(
+        &self,
+        point: &Point<GC::EF>,
+        eval: GC::EF,
+        batched_polynomial: Mle<GC::EF>,
+        batched_codeword: <Self::Encoder as MleEncoder<GC::F>>::Codeword,
+        prover_data: Rounds<Self::ProverData>,
+        challenger: &mut GC::Challenger,
+    ) -> Result<Self::Proof, Self::ProverError> {
+        self.prove_from_prebatched_inputs(
+            point.clone(),
+            batched_polynomial,
+            eval,
+            batched_codeword,
             prover_data,
             challenger,
         )
@@ -329,6 +302,7 @@ impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>, P: ComputeTcsOpenings<GC, Cp
 #[cfg(test)]
 mod tests {
     use rand::thread_rng;
+    use slop_algebra::AbstractExtensionField;
     use slop_baby_bear::baby_bear_poseidon2::BabyBearDegree4Duplex;
     use slop_basefold::{BasefoldVerifier, FriConfig};
     use slop_challenger::CanObserve;
@@ -336,7 +310,7 @@ mod tests {
     use slop_merkle_tree::{
         ComputeTcsOpenings, Poseidon2BabyBear16Prover, Poseidon2KoalaBear16Prover,
     };
-    use slop_multilinear::MleEval;
+    use slop_multilinear::BatchPcsVerifier;
 
     use super::*;
 
@@ -359,59 +333,50 @@ mod tests {
         rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
     {
         let num_variables = 16;
-        let round_widths = [vec![16, 10, 14], vec![20, 78, 34], vec![10, 10]];
 
         let mut rng = thread_rng();
-        let round_mles = round_widths
-            .iter()
-            .map(|widths| {
-                widths
-                    .iter()
-                    .map(|&w| Mle::<GC::F>::rand(&mut rng, w, num_variables))
-                    .collect::<Message<_>>()
-            })
-            .collect::<Rounds<_>>();
+        let batched_mle = Mle::<GC::EF>::rand(&mut rng, 1, num_variables);
 
         let verifier =
-            BasefoldVerifier::<GC>::new(FriConfig::default_fri_config(), round_widths.len());
+            BasefoldVerifier::<GC>::new(FriConfig::default_fri_config(), 1, num_variables);
         let prover = BasefoldProver::<GC, P>::new(&verifier);
 
         let mut challenger = GC::default_challenger();
-        let mut commitments = vec![];
-        let mut prover_data = Rounds::new();
-        let mut eval_claims = Rounds::new();
+
+        let batched_mle_f = Mle::new(batched_mle.clone().into_guts().flatten_to_base());
+
+        let (commitment, data) = prover.commit_mles(batched_mle_f.into()).unwrap();
+        challenger.observe(commitment);
         let point = Point::<GC::EF>::rand(&mut rng, num_variables);
-        for mles in round_mles.iter() {
-            let (commitment, data) = prover.commit_mles(mles.clone()).unwrap();
-            challenger.observe(commitment);
-            commitments.push(commitment);
-            prover_data.push(data);
-            let evaluations =
-                mles.iter().map(|mle| mle.eval_at(&point)).collect::<Evaluations<_>>();
-            eval_claims.push(evaluations);
-        }
+        let evaluation = batched_mle.eval_at(&point)[0];
+
+        let codeword =
+            Clone::clone(data.encoded_messages.clone().into_iter().collect::<Vec<_>>()[0].as_ref());
 
         let proof = prover
-            .prove_trusted_mle_evaluations(
-                point.clone(),
-                round_mles,
-                eval_claims.clone(),
-                prover_data,
+            .prove(
+                &point,
+                evaluation,
+                batched_mle,
+                codeword,
+                Rounds { rounds: vec![data] },
                 &mut challenger,
             )
             .unwrap();
 
         let mut challenger = GC::default_challenger();
-        for commitment in commitments.iter() {
-            challenger.observe(*commitment);
-        }
+        challenger.observe(commitment);
 
-        let eval_claims = eval_claims
-            .into_iter()
-            .map(|round| round.into_iter().flat_map(|x| x.into_iter()).collect::<MleEval<_>>())
-            .collect::<Vec<_>>();
+        let commitments = vec![commitment];
+
+        let oracle_evaluator = |leaves: Rounds<&[GC::F]>, _index: usize| -> GC::EF {
+            std::iter::repeat(&GC::EF::one())
+                .zip(leaves.iter())
+                .map(|(&c, &v)| c * GC::EF::from_base_slice(v))
+                .sum()
+        };
         verifier
-            .verify_mle_evaluations(&commitments, point, &eval_claims, &proof, &mut challenger)
+            .verify(&commitments, &point, evaluation, oracle_evaluator, &proof, &mut challenger)
             .unwrap();
     }
 }

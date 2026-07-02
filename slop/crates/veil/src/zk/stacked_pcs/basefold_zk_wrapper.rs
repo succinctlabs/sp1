@@ -19,10 +19,9 @@ use crate::zk::inner::{MerkleProverData, ProverValue, ZkIopCtx, ZkMerkleizer, Zk
 use crate::zk::prover_ctx::{PcsProverConfig, ZkProverCtx};
 use rand::distributions::{Distribution, Standard};
 use rand::{CryptoRng, Rng};
-use slop_basefold::BasefoldProof;
-use slop_basefold_prover::BasefoldProverData;
+use slop_basefold::{BasefoldProof, BasefoldVerifier};
+use slop_basefold_prover::{BasefoldProver, BasefoldProverData};
 use slop_challenger::IopCtx;
-use slop_stacked::{StackedPcsProver, StackedPcsVerifier};
 use std::marker::PhantomData;
 
 /// Per-commitment prover data produced by the Basefold-backed ZK stacked PCS commit phase.
@@ -39,13 +38,13 @@ pub type ZkStackedBasefoldProof<GC: IopCtx> = ZkStackedPcsProof<GC, BasefoldProo
 /// The ZK stacked PCS verifier when the base PCS is Basefold: [`StackedPcsVerifier`] is the
 /// Basefold verifier (over the bare ctx) pinned to its fixed stacking height (= `num_encoding_variables`).
 #[allow(type_alias_bounds)]
-pub type ZkBasefoldVerifier<GC: ZkIopCtx> = ZkStackedVerifier<GC, StackedPcsVerifier<GC>>;
+pub type ZkBasefoldVerifier<GC: ZkIopCtx> = ZkStackedVerifier<GC, BasefoldVerifier<GC>>;
 
-// Opt the Basefold-backed stacked prover into the blanket `ZkPcsProver` impl. The base PCS is the
-// `StackedPcsProver` directly — the ZK commit/prove logic reaches it purely through
-// `BatchPcsProver` (the reduced-rate commit goes through `commit_mles_with_log_blowup`), so no
-// wrapper is needed (mirroring the verifier side, where `ZkBasefoldVerifier` is just a type alias).
-impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> Sealed for StackedPcsProver<MK, GC> {}
+// Opt the Basefold prover into the blanket `ZkPcsProver` impl. The base PCS is the `BasefoldProver`
+// directly — the ZK commit/prove logic reaches it purely through `BatchPcsProver` (the reduced-rate
+// commit goes through `commit_mles_with_log_blowup`), so no wrapper is needed (mirroring the
+// verifier side, where `ZkBasefoldVerifier` is just a type alias).
+impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> Sealed for BasefoldProver<GC, MK> {}
 
 /// Type alias for `ProverValue` when using the Basefold-backed ZK stacked PCS.
 ///
@@ -70,7 +69,7 @@ pub struct StackedPcsProverConfig<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> {
 
 impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> PcsProverConfig<GC> for StackedPcsProverConfig<GC, MK> {
     type Merkelizer = MK;
-    type PcsProver = StackedPcsProver<MK, GC>;
+    type PcsProver = BasefoldProver<GC, MK>;
 }
 
 /// Type alias for `ZkProverCtx` when using the Basefold-backed stacked PCS.
@@ -82,7 +81,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkProverCtx<GC, StackedPcsProverConfig<
     /// Initializes a prover context with stacked PCS support.
     pub fn initialize_with_pcs<RNG: CryptoRng + Rng>(
         mask_length: usize,
-        pcs_prover: StackedPcsProver<MK, GC>,
+        pcs_prover: BasefoldProver<GC, MK>,
         rng: &mut RNG,
     ) -> Result<Self, crate::zk::ZkProverCtxInitError<GC, StackedPcsProverConfig<GC, MK>>>
     where
@@ -94,7 +93,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkProverCtx<GC, StackedPcsProverConfig<
     /// Initializes a linear-only prover context with stacked PCS support.
     pub fn initialize_with_pcs_only_lin<RNG: CryptoRng + Rng>(
         mask_length: usize,
-        pcs_prover: StackedPcsProver<MK, GC>,
+        pcs_prover: BasefoldProver<GC, MK>,
         rng: &mut RNG,
     ) -> Result<Self, crate::zk::ZkProverCtxInitError<GC, StackedPcsProverConfig<GC, MK>>>
     where

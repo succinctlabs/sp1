@@ -45,13 +45,13 @@ pub enum ZkStackedVerifierError {
 /// the blowup), so the wrapper carries no state of its own; its [`ZkPcsVerifier`] impl below is
 /// the external API.
 #[derive(Clone, Debug)]
-pub struct ZkStackedVerifier<GC: ZkIopCtx, V: BatchPcsVerifier<GC, Commitment = GC::Digest>> {
+pub struct ZkStackedVerifier<GC: ZkIopCtx, V: BatchPcsVerifier<GC>> {
     /// The base PCS verifier that checks the batched evaluation proof.
     pub base_verifier: V,
     _marker: PhantomData<GC>,
 }
 
-impl<GC: ZkIopCtx, V: BatchPcsVerifier<GC, Commitment = GC::Digest>> ZkStackedVerifier<GC, V> {
+impl<GC: ZkIopCtx, V: BatchPcsVerifier<GC>> ZkStackedVerifier<GC, V> {
     /// Wraps a base PCS verifier into a ZK stacked PCS verifier.
     pub const fn new(base_verifier: V) -> Self {
         Self { base_verifier, _marker: PhantomData }
@@ -278,7 +278,7 @@ impl<GC: ZkIopCtx, C: ConstraintContextInnerExt<GC::EF>> ZkStackedPcsConstraintD
 impl<GC, V> ZkPcsVerifier<GC> for ZkStackedVerifier<GC, V>
 where
     GC: ZkIopCtx,
-    V: BatchPcsVerifier<GC, Commitment = GC::Digest>,
+    V: BatchPcsVerifier<GC>,
     <V as BatchPcsVerifier<GC>>::Proof: Clone,
 {
     type Proof = ZkStackedPcsProof<GC, <V as BatchPcsVerifier<GC>>::Proof>;

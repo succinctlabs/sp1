@@ -25,6 +25,7 @@ slop-tensor = { workspace = true }
 slop-challenger = { workspace = true }
 slop-koala-bear = { workspace = true }
 slop-jagged = { workspace = true }
+slop-stacked = { workspace = true }
 slop-symmetric = { workspace = true }
 slop-merkle-tree = { workspace = true }
 slop-dft = { workspace = true }
@@ -50,6 +51,7 @@ sp1-recursion-circuit = { workspace = true }
 sp1-gpu-prover = { workspace = true }
 sp1-recursion-compiler = { workspace = true }
 slop-stacked = { workspace = true }
+slop-basefold-prover = { workspace = true }
 sp1-primitives = { workspace = true }
 slop-futures = { workspace = true }
 

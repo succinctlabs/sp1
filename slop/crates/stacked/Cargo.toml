@@ -31,6 +31,8 @@ futures = { workspace = true }
 slop-basefold-prover = { workspace = true }
 slop-basefold = { workspace = true }
 slop-baby-bear = { workspace = true }
+slop-koala-bear = { workspace = true }
+
 slop-challenger = { workspace = true }
 slop-merkle-tree = { workspace = true }
 

@@ -26,7 +26,6 @@ use crate::zk::inner::{ZkIopCtx, ZkMerkleizer};
 use slop_algebra::TwoAdicField;
 use slop_basefold::{BasefoldVerifier, FriConfig};
 use slop_basefold_prover::BasefoldProver;
-use slop_stacked::{StackedPcsProver, StackedPcsVerifier};
 
 // The stacked-default MLE-decomposition helpers live in the `slop-stacked` crate (they are
 // PCS-agnostic eq-stacking math). Re-export the block-convention helpers here for the stacked-PCS
@@ -54,17 +53,17 @@ pub use slop_stacked::{stacked_oracle_eval, stacked_reduced_point};
 pub fn initialize_zk_prover_and_verifier<GC: ZkIopCtx, MK: ZkMerkleizer<GC>>(
     num_expected_commitments: usize,
     num_encoding_variables: u32,
-) -> (StackedPcsProver<MK, GC>, ZkBasefoldVerifier<GC>)
+) -> (BasefoldProver<GC, MK>, ZkBasefoldVerifier<GC>)
 where
     GC::F: TwoAdicField,
 {
     let fri_config = FriConfig::default_fri_config();
-    let basefold_verifier = BasefoldVerifier::<GC>::new(fri_config, num_expected_commitments);
+    // The Basefold verifier pins the encoding width (= stacking height); the prover inherits it.
+    let basefold_verifier =
+        BasefoldVerifier::<GC>::new(fri_config, num_expected_commitments, num_encoding_variables);
     let basefold_prover = BasefoldProver::new(&basefold_verifier);
-    // `batch_size` (the trailing `1`) only parameterizes the stacked interleaving commit, which the
-    // base-PCS (`BatchPcsProver`) path the ZK layer uses never touches; any value works here.
-    let zk_basefold_prover = StackedPcsProver::new(basefold_prover, num_encoding_variables, 1);
-    let zk_verifier =
-        ZkStackedVerifier::new(StackedPcsVerifier::new(basefold_verifier, num_encoding_variables));
-    (zk_basefold_prover, zk_verifier)
+    // The ZK layer drives the base PCS purely through `BatchPcsProver`, so the Basefold prover and
+    // verifier are used directly — no `slop-stacked` interleaving wrapper is involved.
+    let zk_verifier = ZkStackedVerifier::new(basefold_verifier);
+    (basefold_prover, zk_verifier)
 }

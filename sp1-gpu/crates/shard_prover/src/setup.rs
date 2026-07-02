@@ -5,7 +5,7 @@ use sp1_hypercube::ShardContextImpl;
 use tokio::sync::Mutex;
 
 use slop_challenger::IopCtx;
-use slop_multilinear::MultilinearPcsVerifier;
+use slop_multilinear::BatchPcsVerifier;
 use sp1_gpu_basefold::DeviceGrindingChallenger;
 use sp1_gpu_cudart::TaskScope;
 use sp1_gpu_jagged_tracegen::setup_tracegen_permit;
@@ -26,7 +26,7 @@ where
     GC::Challenger: slop_challenger::FieldChallenger<
         <GC::Challenger as slop_challenger::GrindingChallenger>::Witness,
     >,
-    SP1PcsProof<GC>: Into<<PC::C as MultilinearPcsVerifier<GC>>::Proof>,
+    SP1PcsProof<GC>: Into<<PC::C as BatchPcsVerifier<GC>>::Proof>,
     TaskScope: sp1_gpu_jagged_assist::BranchingProgramKernel<GC::F, GC::EF, PC::DeviceChallenger>,
 {
     /// Setup from a program with a specific initial global cumulative sum.

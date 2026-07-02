@@ -38,7 +38,7 @@ fn run_commit<R: Rng>(
 
     let basefold_prover = FriCudaProver::<TestGC, _, <TestGC as IopCtx>::F>::new(
         Poseidon2SP1Field16CudaProver::new(scope),
-        jagged_verifier.pcs_verifier.basefold_verifier.fri_config,
+        jagged_verifier.stacked_pcs_verifier.inner_verifier.inner.fri_config,
         LOG_STACKING_HEIGHT,
     );
 

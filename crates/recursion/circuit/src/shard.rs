@@ -511,8 +511,11 @@ mod tests {
         let vk_variable = vk.read(&mut builder);
         let shard_proof_variable = dummy_proof.read(&mut builder);
 
-        let verifier =
-            BasefoldVerifier::<GC>::new(FriConfig::default_fri_config(), NUM_SP1_COMMITMENTS);
+        let verifier = BasefoldVerifier::<GC>::new(
+            FriConfig::default_fri_config(),
+            NUM_SP1_COMMITMENTS,
+            log_stacking_height,
+        );
         let recursive_verifier = crate::basefold::RecursiveBasefoldVerifier::<C, GC> {
             fri_config: verifier.fri_config,
             tcs: RecursiveMerkleTreeTcs::<C, GC>(PhantomData),

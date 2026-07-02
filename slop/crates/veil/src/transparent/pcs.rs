@@ -54,7 +54,7 @@ where
     Inner: BatchPcsProver<GC>,
 {
     let (commitment, base_data) = prover.commit_mles(columns.clone())?;
-    Ok((commitment.into(), TransparentCommitData { columns, base_data }))
+    Ok((commitment, TransparentCommitData { columns, base_data }))
 }
 
 /// Derives the shared opening data. Returns `(reduced_point, union_coeffs, eq_selector)`.
@@ -156,7 +156,7 @@ pub fn verify<GC, Verifier>(
 ) -> Result<(), Verifier::VerifierError>
 where
     GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>,
-    Verifier: BatchPcsVerifier<GC, Commitment = GC::Digest>,
+    Verifier: BatchPcsVerifier<GC>,
 {
     let (reduced_point, union_coeffs, eq_selector) =
         opening_params::<GC>(point, log_stacking_height, commits.len(), challenger);

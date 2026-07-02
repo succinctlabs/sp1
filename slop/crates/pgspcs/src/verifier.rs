@@ -1,14 +1,15 @@
 use slop_algebra::TwoAdicField;
-use slop_basefold::{BaseFoldVerifierError, BasefoldVerifier, BatchedBasefoldProof};
+use slop_basefold::{BaseFoldVerifierError, BasefoldVerifier, BATCH_GRINDING_BITS};
 use slop_challenger::IopCtx;
 use slop_merkle_tree::MerkleTreeTcsError;
 use slop_multilinear::{Mle, Point};
+use slop_stacked::{EqBatchedEvalClaim, EqBatchedVerifier, EqBatchedVerifierError};
 use slop_sumcheck::{partially_verify_sumcheck_proof, SumcheckError};
 
-use crate::prover::Proof;
+use crate::prover::{Proof, SparsePCSBasefoldProof};
 
 pub struct SparsePCSVerifier<GC: IopCtx> {
-    pub multilinear_verifier: BasefoldVerifier<GC>,
+    pub multilinear_verifier: EqBatchedVerifier<GC, BasefoldVerifier<GC>>,
 }
 
 #[derive(Debug)]
@@ -24,7 +25,7 @@ where
     GC::F: TwoAdicField,
 {
     pub fn new(verifier: BasefoldVerifier<GC>) -> Self {
-        Self { multilinear_verifier: verifier }
+        Self { multilinear_verifier: EqBatchedVerifier::new(verifier, BATCH_GRINDING_BITS) }
     }
 
     pub fn verify_trusted_evaluations(
@@ -32,9 +33,10 @@ where
         commitment: GC::Digest,
         eval_point: &Point<GC::EF>,
         evaluation_claim: GC::EF,
-        proof: &Proof<GC::EF, BatchedBasefoldProof<GC>>,
+        proof: &Proof<GC::EF, SparsePCSBasefoldProof<GC>>,
         challenger: &mut GC::Challenger,
-    ) -> Result<(), VerifierError<BaseFoldVerifierError<MerkleTreeTcsError>>> {
+    ) -> Result<(), VerifierError<EqBatchedVerifierError<BaseFoldVerifierError<MerkleTreeTcsError>>>>
+    {
         // Verify the sumcheck proof
         partially_verify_sumcheck_proof(
             &proof.sparse_sumcheck_proof,
@@ -62,14 +64,12 @@ where
         // Parse the evaluation proof
         let new_eval_point = proof.sparse_sumcheck_proof.point_and_eval.0.clone();
 
+        let claim = EqBatchedEvalClaim {
+            point: new_eval_point,
+            evaluations: vec![proof.evaluation_claims.clone().into()],
+        };
         self.multilinear_verifier
-            .verify_untrusted_evaluations(
-                &[commitment],
-                new_eval_point,
-                &[proof.evaluation_claims.clone().into()],
-                &proof.pcs_proof,
-                challenger,
-            )
+            .verify_untrusted_evaluations(&[commitment], &claim, &proof.pcs_proof, challenger)
             .map_err(VerifierError::PCSError)
     }
 }

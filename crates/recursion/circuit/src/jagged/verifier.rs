@@ -474,9 +474,7 @@ mod tests {
     use slop_jagged::{JaggedPcsProof, JaggedPcsVerifier, JaggedProver};
     use slop_multilinear::{Evaluations, Mle, MleEval, PaddedMle, Point};
     use sp1_core_machine::utils::setup_logger;
-    use sp1_hypercube::{
-        inner_perm, prover::SP1InnerPcsProver, SP1InnerPcs, SP1PcsProof, SP1PcsProofInner,
-    };
+    use sp1_hypercube::{inner_perm, prover::SP1InnerPcsProver, SP1InnerPcs, SP1PcsProof};
     use sp1_primitives::{SP1DiffusionMatrix, SP1ExtensionField, SP1Field, SP1GlobalContext};
     use sp1_recursion_compiler::circuit::{AsmBuilder, AsmCompiler, AsmConfig, CircuitV2Builder};
     use sp1_recursion_executor::Executor;
@@ -500,7 +498,7 @@ mod tests {
     type F = SP1Field;
     type EF = SP1ExtensionField;
     type C = AsmConfig;
-    type Prover = JaggedProver<SP1GlobalContext, SP1PcsProofInner, SP1InnerPcsProver>;
+    type Prover = JaggedProver<SP1GlobalContext, SP1InnerPcsProver>;
 
     #[allow(clippy::type_complexity)]
     fn generate_jagged_proof(
@@ -662,7 +660,11 @@ mod tests {
             challenger_variable.observe_slice(&mut builder, *commitment_var);
         }
         builder.cycle_tracker_v2_exit();
-        let verifier = BasefoldVerifier::<SC>::new(FriConfig::default_fri_config(), num_rounds);
+        let verifier = BasefoldVerifier::<SC>::new(
+            FriConfig::default_fri_config(),
+            num_rounds,
+            log_stacking_height,
+        );
         let recursive_verifier = RecursiveBasefoldVerifier::<C, SC> {
             fri_config: verifier.fri_config,
             tcs: RecursiveMerkleTreeTcs::<C, SC>(PhantomData),

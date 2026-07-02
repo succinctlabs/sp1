@@ -4,7 +4,7 @@ use slop_basefold::FriConfig;
 use slop_challenger::IopCtx;
 
 use serde::{Deserialize, Serialize};
-use slop_multilinear::MultilinearPcsVerifier;
+use slop_multilinear::BatchPcsVerifier;
 use sp1_primitives::{SP1GlobalContext, SP1OuterGlobalContext};
 use thiserror::Error;
 
@@ -35,7 +35,7 @@ impl<GC: IopCtx, C> From<Vec<ShardProof<GC, C>>> for MachineProof<GC, C> {
 /// generic parameters in the `MachineVerifier` type and `AirProver` trait.
 pub trait ShardContext<GC: IopCtx>: 'static + Send + Sync {
     /// The multilinear PCS verifier.
-    type Config: MultilinearPcsVerifier<GC>;
+    type Config: BatchPcsVerifier<GC>;
     /// The AIR for which we'll be proving zerocheck.
     type Air: ZerocheckAir<GC::F, GC::EF>;
 }
@@ -43,7 +43,7 @@ pub trait ShardContext<GC: IopCtx>: 'static + Send + Sync {
 /// The canonical type implementing `ShardContext`.
 pub struct ShardContextImpl<GC: IopCtx, Verifier, A>
 where
-    Verifier: MultilinearPcsVerifier<GC>,
+    Verifier: BatchPcsVerifier<GC>,
     A: ZerocheckAir<GC::F, GC::EF>,
 {
     _marker: std::marker::PhantomData<(GC, Verifier, A)>,
@@ -62,7 +62,7 @@ pub type OuterSC<A> = SP1SC<SP1OuterGlobalContext, A>;
 
 impl<GC: IopCtx, Verifier, A> ShardContext<GC> for ShardContextImpl<GC, Verifier, A>
 where
-    Verifier: MultilinearPcsVerifier<GC>,
+    Verifier: BatchPcsVerifier<GC>,
     A: ZerocheckAir<GC::F, GC::EF>,
 {
     type Config = Verifier;
@@ -94,7 +94,7 @@ pub enum MachineVerifierError<EF, PcsError> {
 
 /// Derive the error type from the machine config.
 pub type MachineVerifierConfigError<GC, C> =
-    MachineVerifierError<<GC as IopCtx>::EF, <C as MultilinearPcsVerifier<GC>>::VerifierError>;
+    MachineVerifierError<<GC as IopCtx>::EF, <C as BatchPcsVerifier<GC>>::VerifierError>;
 
 /// A verifier for a machine proof.
 #[derive_where(Clone)]
@@ -195,6 +195,12 @@ where
     #[must_use]
     #[inline]
     pub fn fri_config(&self) -> &FriConfig<GC::F> {
-        &self.shard_verifier.jagged_pcs_verifier.pcs_verifier.basefold_verifier.fri_config
+        &self
+            .shard_verifier
+            .jagged_pcs_verifier
+            .stacked_pcs_verifier
+            .inner_verifier
+            .inner
+            .fri_config
     }
 }

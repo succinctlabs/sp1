@@ -1,60 +1,94 @@
 use derive_where::derive_where;
 use itertools::Itertools;
-use slop_algebra::TwoAdicField;
-use slop_basefold::{BaseFoldVerifierError, BasefoldProof, BasefoldVerifier, BatchedBasefoldProof};
-use slop_challenger::IopCtx;
+use slop_challenger::{FieldChallenger, GrindingChallenger, IopCtx};
 use slop_commit::Rounds;
-use slop_merkle_tree::MerkleTreeTcsError;
-use slop_multilinear::{BatchPcsVerifier, Mle, MleEval, MultilinearPcsVerifier, OracleEval, Point};
+use slop_multilinear::{BatchPcsVerifier, Mle, MleEval, Point};
 use thiserror::Error;
-#[derive(Clone, Debug)]
-pub struct StackedPcsVerifier<GC: IopCtx> {
-    pub basefold_verifier: BasefoldVerifier<GC>,
-    pub log_stacking_height: u32,
+
+use crate::{EqBatchedEvalClaim, EqBatchedProof, EqBatchedVerifier, EqBatchedVerifierError};
+#[derive(Clone)]
+pub struct StackedPcsVerifier<GC, InnerVerifier> {
+    pub inner_verifier: EqBatchedVerifier<GC, InnerVerifier>,
     _marker: std::marker::PhantomData<GC>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
 pub enum StackedVerifierError<PcsError> {
     #[error("PCS error: {0}")]
-    PcsError(PcsError),
+    PcsError(#[from] PcsError),
     #[error("Batch evaluations do not match the claimed evaluations")]
     StackingError,
     #[error("Proof has incorrect shape")]
     IncorrectShape,
 }
 
-#[derive_where(Debug, Clone, Serialize, Deserialize; MleEval<GC::EF>, BatchedBasefoldProof<GC>)]
-pub struct StackedBasefoldProof<GC: IopCtx> {
-    pub batched_basefold_proof: BatchedBasefoldProof<GC>,
+#[derive_where(Debug, Clone, Serialize, Deserialize; MleEval<GC::EF>, EqBatchedProof<InnerProof, <GC::Challenger as GrindingChallenger>::Witness>)]
+pub struct StackedProof<GC: IopCtx, InnerProof> {
+    pub inner_proof: EqBatchedProof<InnerProof, <GC::Challenger as GrindingChallenger>::Witness>,
     pub batch_evaluations: Rounds<MleEval<GC::EF>>,
 }
 
-impl<GC: IopCtx> StackedPcsVerifier<GC> {
+/// The public statement for a stacked-PCS opening.
+///
+/// Shared by the prover and the verifier. The commitments and the prover's witness data
+/// ([`StackedProverData`](crate::StackedProverData)) are passed to the prove/verify functions
+/// separately — they identify the committed data / witness, not the claim itself.
+#[derive_where(Debug, Clone; Point<GC::EF>, GC::EF)]
+pub struct StackedEvalClaim<GC: IopCtx> {
+    /// Per-round padded areas (each a multiple of the stacking height). The verifier derives these
+    /// independently from the committed shape and cross-checks them against the proof's per-round
+    /// evaluation lengths; the prover's opening logic does not read them.
+    pub round_areas: Vec<usize>,
+    /// The point at which the stacked multilinear is evaluated.
+    pub point: Point<GC::EF>,
+    /// The claimed evaluation of the stacked multilinear at `point`.
+    pub evaluation: GC::EF,
+}
+
+impl<GC: IopCtx, Verifier: BatchPcsVerifier<GC>> StackedPcsVerifier<GC, Verifier> {
     #[inline]
-    pub const fn new(basefold_verifier: BasefoldVerifier<GC>, log_stacking_height: u32) -> Self {
-        Self { basefold_verifier, log_stacking_height, _marker: std::marker::PhantomData }
+    pub const fn new(inner_verifier: EqBatchedVerifier<GC, Verifier>) -> Self {
+        Self { inner_verifier, _marker: std::marker::PhantomData }
+    }
+
+    #[inline]
+    pub const fn new_from_inner(inner: Verifier, pow_bits: usize) -> Self {
+        Self::new(EqBatchedVerifier::new(inner, pow_bits))
+    }
+
+    pub fn log_stacking_height(&self) -> u32 {
+        self.inner_verifier.inner.num_encoding_variables()
+    }
+
+    pub fn verify_untrusted_evaluation(
+        &self,
+        commitments: &[GC::Digest],
+        claim: &StackedEvalClaim<GC>,
+        proof: &StackedProof<GC, Verifier::Proof>,
+        challenger: &mut GC::Challenger,
+    ) -> Result<(), StackedVerifierError<EqBatchedVerifierError<Verifier::VerifierError>>>
+where {
+        challenger.observe_ext_element(claim.evaluation);
+        self.verify_trusted_evaluation(commitments, claim, proof, challenger)
     }
 
     pub fn verify_trusted_evaluation(
         &self,
         commitments: &[GC::Digest],
-        round_areas: &[usize],
-        point: &Point<GC::EF>,
-        proof: &StackedBasefoldProof<GC>,
-        evaluation_claim: GC::EF,
+        claim: &StackedEvalClaim<GC>,
+        proof: &StackedProof<GC, Verifier::Proof>,
         challenger: &mut GC::Challenger,
-    ) -> Result<(), StackedVerifierError<BaseFoldVerifierError<MerkleTreeTcsError>>>
-    where
-        GC::F: TwoAdicField,
-    {
-        if point.dimension() < self.log_stacking_height as usize {
+    ) -> Result<(), StackedVerifierError<EqBatchedVerifierError<Verifier::VerifierError>>>
+where {
+        let StackedEvalClaim { round_areas, point, evaluation } = claim;
+
+        if point.dimension() < self.log_stacking_height() as usize {
             return Err(StackedVerifierError::IncorrectShape);
         }
 
         // Split the point into the interleaved and batched parts.
         let (batch_point, stack_point) =
-            point.split_at(point.dimension() - self.log_stacking_height as usize);
+            point.split_at(point.dimension() - self.log_stacking_height() as usize);
 
         if proof.batch_evaluations.len() != round_areas.len()
             || commitments.len() != round_areas.len()
@@ -65,8 +99,8 @@ impl<GC: IopCtx> StackedPcsVerifier<GC> {
         for (round_area, proof_evaluation_len) in
             round_areas.iter().zip_eq(proof.batch_evaluations.iter())
         {
-            if !round_area.is_multiple_of(1 << self.log_stacking_height)
-                || round_area >> self.log_stacking_height as usize
+            if !round_area.is_multiple_of(1 << self.log_stacking_height())
+                || round_area >> self.log_stacking_height() as usize
                     != proof_evaluation_len.num_polynomials()
             {
                 return Err(StackedVerifierError::IncorrectShape);
@@ -79,104 +113,23 @@ impl<GC: IopCtx> StackedPcsVerifier<GC> {
 
         // Verify that the climed evaluations matched the interpolated evaluations.
         let expected_evaluation = batch_evaluations.blocking_eval_at(&batch_point)[0];
-        if evaluation_claim != expected_evaluation {
+        if *evaluation != expected_evaluation {
             return Err(StackedVerifierError::StackingError);
         }
 
         // Verify the PCS proof with respect to the claimed evaluations.
         // It is assumed that the multilinear batch PCS verifier checks that the number of
-        // commitments is as expected.
-        self.basefold_verifier
-            .verify_untrusted_evaluations(
-                commitments,
-                stack_point,
-                &proof.batch_evaluations,
-                &proof.batched_basefold_proof,
-                challenger,
-            )
-            .map_err(StackedVerifierError::PcsError)
-    }
-}
-
-/// A [`StackedPcsVerifier`] is a [`BatchPcsVerifier`]: a Basefold verifier pinned to a fixed
-/// message size (`num_encoding_variables = log_stacking_height`). The opening protocol itself is
-/// plain prebatched Basefold; the stacking height fixes how long the MLEs behind the commitments
-/// are allowed to be, i.e. the dimension of the reduced point the committed oracles open at.
-///
-/// This is a temporary connector until stacked is refactored based on the new basefold API.
-impl<GC: IopCtx> BatchPcsVerifier<GC> for StackedPcsVerifier<GC>
-where
-    GC::F: TwoAdicField,
-{
-    type Proof = BasefoldProof<GC>;
-    type Commitment = GC::Digest;
-    type VerifierError = BaseFoldVerifierError<MerkleTreeTcsError>;
-
-    fn num_queries(&self) -> usize {
-        self.basefold_verifier.fri_config.num_queries
-    }
-
-    fn num_encoding_variables(&self) -> u32 {
-        self.log_stacking_height
-    }
-
-    fn log_blowup(&self) -> usize {
-        self.basefold_verifier.fri_config.log_blowup
-    }
-
-    fn verify(
-        &self,
-        commits: &[Self::Commitment],
-        reduced_point: &Point<GC::EF>,
-        reduced_eval: GC::EF,
-        oracle_evaluator: impl OracleEval<GC::F, GC::EF>,
-        proof: &Self::Proof,
-        challenger: &mut GC::Challenger,
-    ) -> Result<(), Self::VerifierError> {
-        self.basefold_verifier.verify_from_prebatched_inputs(
-            commits,
-            reduced_point.clone(),
-            reduced_eval,
-            proof,
-            oracle_evaluator,
-            challenger,
-        )
-    }
-}
-
-impl<GC: IopCtx> MultilinearPcsVerifier<GC> for StackedPcsVerifier<GC>
-where
-    GC::F: TwoAdicField,
-{
-    type VerifierError = StackedVerifierError<BaseFoldVerifierError<MerkleTreeTcsError>>;
-
-    type Proof = StackedBasefoldProof<GC>;
-
-    fn num_expected_commitments(&self) -> usize {
-        self.basefold_verifier.num_expected_commitments
-    }
-    fn verify_trusted_evaluation(
-        &self,
-        commitments: &[<GC as IopCtx>::Digest],
-        round_polynomial_sizes: &[usize],
-        point: Point<<GC as IopCtx>::EF>,
-        evaluation_claim: <GC as IopCtx>::EF,
-        proof: &Self::Proof,
-        challenger: &mut <GC as IopCtx>::Challenger,
-    ) -> Result<(), Self::VerifierError> {
-        self.verify_trusted_evaluation(
+        // commitments is as expected. The proof already carries one flattened `MleEval` per round.
+        let batched_claim = EqBatchedEvalClaim {
+            point: stack_point,
+            evaluations: proof.batch_evaluations.iter().cloned().collect(),
+        };
+        self.inner_verifier.verify_untrusted_evaluations(
             commitments,
-            round_polynomial_sizes,
-            &point,
-            proof,
-            evaluation_claim,
+            &batched_claim,
+            &proof.inner_proof,
             challenger,
-        )
-    }
-
-    /// The jagged verifier will assume that the underlying PCS will pad commitments to a multiple
-    /// of `1<<log.stacking_height(verifier)`.
-    fn log_stacking_height(verifier: &Self) -> u32 {
-        verifier.log_stacking_height
+        )?;
+        Ok(())
     }
 }

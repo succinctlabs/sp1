@@ -424,7 +424,12 @@ where
     let max_log_row_count = shard_verifier.max_log_row_count();
     let machine = shard_verifier.machine().clone();
     let pcs_verifier = RecursiveBasefoldVerifier {
-        fri_config: shard_verifier.jagged_pcs_verifier.pcs_verifier.basefold_verifier.fri_config,
+        fri_config: shard_verifier
+            .jagged_pcs_verifier
+            .stacked_pcs_verifier
+            .inner_verifier
+            .inner
+            .fri_config,
         tcs: RecursiveMerkleTreeTcs::<C, GC>(PhantomData),
     };
     let recursive_verifier = RecursiveStackedPcsVerifier::new(pcs_verifier, log_stacking_height);

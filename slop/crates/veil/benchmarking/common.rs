@@ -7,7 +7,7 @@ use bincode::serialized_size;
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use slop_algebra::AbstractField;
-use slop_basefold::{BasefoldVerifier, FriConfig};
+use slop_basefold::{BasefoldVerifier, FriConfig, BATCH_GRINDING_BITS};
 use slop_basefold_prover::BasefoldProver;
 use slop_challenger::{CanObserve, IopCtx};
 use slop_commit::{Message, Rounds};
@@ -15,8 +15,11 @@ use slop_jagged::{HadamardProduct, LongMle};
 use slop_koala_bear::KoalaBearDegree4Duplex;
 use slop_matrix::dense::RowMajorMatrix;
 use slop_merkle_tree::Poseidon2KoalaBear16Prover;
-use slop_multilinear::{Mle, MultilinearPcsProver, Point};
-use slop_stacked::{stack_multilinear, StackedPcsProver, StackedPcsVerifier};
+use slop_multilinear::{Mle, Point};
+use slop_stacked::{
+    stack_multilinear, EqBatchedProver, EqBatchedVerifier, StackedEvalClaim, StackedPcsProver,
+    StackedPcsVerifier,
+};
 use slop_sumcheck::{partially_verify_sumcheck_proof, reduce_sumcheck_to_evaluation};
 use slop_veil::compiler::{ReadingCtx, SendingCtx};
 use slop_veil::protocols::sumcheck::{SumcheckInputClaim, SumcheckParam};
@@ -90,14 +93,18 @@ fn run_standard_single(
     log_num_polynomials: u32,
     num_variables: u32,
 ) -> (Duration, Duration) {
-    let basefold_verifier = BasefoldVerifier::<GC>::new(FriConfig::default_fri_config(), 1);
+    let basefold_verifier =
+        BasefoldVerifier::<GC>::new(FriConfig::default_fri_config(), 1, num_encoding_variables);
 
     let (commitment, sumcheck_proof, pcs_proof, prover_time) = {
         let prover_start = Instant::now();
 
         let basefold_prover = BasefoldProver::<GC, MK>::new(&basefold_verifier);
         let batch_size = 1usize << log_num_polynomials;
-        let stacked_prover = StackedPcsProver::new(basefold_prover, num_encoding_variables, batch_size);
+        let stacked_prover = StackedPcsProver::new(
+            EqBatchedProver::new(basefold_prover, BATCH_GRINDING_BITS),
+            batch_size,
+        );
 
         let mle_message = Message::from(vec![original_mle.clone()]);
         let (commitment, prover_data, _) = stacked_prover.commit_multilinears(mle_message).unwrap();
@@ -114,13 +121,14 @@ fn run_standard_single(
         );
 
         let (eval_point, eval_claim) = sumcheck_proof.point_and_eval.clone();
+        let prover_data = Rounds { rounds: vec![prover_data] };
+        let claim = StackedEvalClaim {
+            round_areas: stacked_prover.round_areas(&prover_data),
+            point: eval_point,
+            evaluation: eval_claim,
+        };
         let pcs_proof = stacked_prover
-            .prove_trusted_evaluation(
-                eval_point,
-                eval_claim,
-                Rounds { rounds: vec![prover_data] },
-                &mut prover_challenger,
-            )
+            .prove_trusted_evaluation(&claim, prover_data, &mut prover_challenger)
             .unwrap();
 
         (commitment, sumcheck_proof, pcs_proof, prover_start.elapsed())
@@ -129,7 +137,8 @@ fn run_standard_single(
     let verifier_time = {
         let verifier_start = Instant::now();
 
-        let stacked_verifier = StackedPcsVerifier::new(basefold_verifier, num_encoding_variables);
+        let stacked_verifier =
+            StackedPcsVerifier::new(EqBatchedVerifier::new(basefold_verifier, BATCH_GRINDING_BITS));
         let mut verifier_challenger = GC::default_challenger();
         verifier_challenger.observe(commitment);
 
@@ -142,16 +151,15 @@ fn run_standard_single(
         .unwrap();
 
         let (eval_point, eval_claim) = sumcheck_proof.point_and_eval.clone();
-        let round_area = (1usize << num_variables).next_multiple_of(1usize << num_encoding_variables);
+        let round_area =
+            (1usize << num_variables).next_multiple_of(1usize << num_encoding_variables);
+        let claim = StackedEvalClaim {
+            round_areas: vec![round_area],
+            point: eval_point,
+            evaluation: eval_claim,
+        };
         stacked_verifier
-            .verify_trusted_evaluation(
-                &[commitment],
-                &[round_area],
-                &eval_point,
-                &pcs_proof,
-                eval_claim,
-                &mut verifier_challenger,
-            )
+            .verify_trusted_evaluation(&[commitment], &claim, &pcs_proof, &mut verifier_challenger)
             .unwrap();
 
         verifier_start.elapsed()
@@ -181,9 +189,11 @@ fn run_zk_single(
         });
 
         let mut ctx: StackedPcsZkProverCtx<GC, MK> =
-            ZkProverCtx::initialize_with_pcs_only_lin(masks_length, pcs_prover, rng).expect("zk init failed");
+            ZkProverCtx::initialize_with_pcs_only_lin(masks_length, pcs_prover, rng)
+                .expect("zk init failed");
 
-        ctx.commit_mle(stack_multilinear(original_mle.clone(), num_encoding_variables), rng).unwrap();
+        ctx.commit_mle(stack_multilinear(original_mle.clone(), num_encoding_variables), rng)
+            .unwrap();
 
         let in_claim = SumcheckInputClaim::from_value(claim);
         param.prove(&in_claim, mle_ef.clone(), &mut ctx);
@@ -238,21 +248,23 @@ fn run_standard_hadamard(
     log_num_polynomials: u32,
     num_variables: u32,
 ) -> (Duration, Duration, u64) {
-    let basefold_verifier = BasefoldVerifier::<GC>::new(FriConfig::default_fri_config(), 2);
+    let basefold_verifier =
+        BasefoldVerifier::<GC>::new(FriConfig::default_fri_config(), 2, num_encoding_variables);
 
     let (commitments, sumcheck_proof, pcs_proof, prover_time) = {
         let prover_start = Instant::now();
 
         let basefold_prover = BasefoldProver::<GC, MK>::new(&basefold_verifier);
         let batch_size = 1usize << log_num_polynomials;
-        let stacked_prover = StackedPcsProver::new(basefold_prover, num_encoding_variables, batch_size);
+        let stacked_prover = StackedPcsProver::new(
+            EqBatchedProver::new(basefold_prover, BATCH_GRINDING_BITS),
+            batch_size,
+        );
 
-        let (commitment_1, prover_data_1, _) = stacked_prover
-            .commit_multilinears(Message::from(vec![mle_1.clone()]))
-            .unwrap();
-        let (commitment_2, prover_data_2, _) = stacked_prover
-            .commit_multilinears(Message::from(vec![mle_2.clone()]))
-            .unwrap();
+        let (commitment_1, prover_data_1, _) =
+            stacked_prover.commit_multilinears(Message::from(vec![mle_1.clone()])).unwrap();
+        let (commitment_2, prover_data_2, _) =
+            stacked_prover.commit_multilinears(Message::from(vec![mle_2.clone()])).unwrap();
 
         let mut challenger = GC::default_challenger();
         challenger.observe(commitment_1);
@@ -276,14 +288,14 @@ fn run_standard_hadamard(
             [batch_evals_1, batch_evals_2].into_iter().flatten().flatten().collect();
         let eval_claim = batch_evals_mle.blocking_eval_at(&batch_point)[0];
 
-        let pcs_proof = stacked_prover
-            .prove_trusted_evaluation(
-                eval_point,
-                eval_claim,
-                Rounds { rounds: vec![prover_data_1, prover_data_2] },
-                &mut challenger,
-            )
-            .unwrap();
+        let prover_data = Rounds { rounds: vec![prover_data_1, prover_data_2] };
+        let claim = StackedEvalClaim {
+            round_areas: stacked_prover.round_areas(&prover_data),
+            point: eval_point,
+            evaluation: eval_claim,
+        };
+        let pcs_proof =
+            stacked_prover.prove_trusted_evaluation(&claim, prover_data, &mut challenger).unwrap();
 
         ([commitment_1, commitment_2], sumcheck_proof, pcs_proof, prover_start.elapsed())
     };
@@ -296,7 +308,8 @@ fn run_standard_hadamard(
     let verifier_time = {
         let verifier_start = Instant::now();
 
-        let stacked_verifier = StackedPcsVerifier::new(basefold_verifier, num_encoding_variables);
+        let stacked_verifier =
+            StackedPcsVerifier::new(EqBatchedVerifier::new(basefold_verifier, BATCH_GRINDING_BITS));
         let mut challenger = GC::default_challenger();
         challenger.observe(commitments[0]);
         challenger.observe(commitments[1]);
@@ -320,15 +333,13 @@ fn run_standard_hadamard(
             pcs_proof.batch_evaluations.iter().flatten().cloned().collect();
         let eval_claim = batch_evals_mle.blocking_eval_at(&batch_point)[0];
 
+        let claim = StackedEvalClaim {
+            round_areas: vec![round_area, round_area],
+            point: eval_point,
+            evaluation: eval_claim,
+        };
         stacked_verifier
-            .verify_trusted_evaluation(
-                &commitments,
-                &[round_area, round_area],
-                &eval_point,
-                &pcs_proof,
-                eval_claim,
-                &mut challenger,
-            )
+            .verify_trusted_evaluation(&commitments, &claim, &pcs_proof, &mut challenger)
             .unwrap();
 
         verifier_start.elapsed()
@@ -360,7 +371,8 @@ fn run_zk_hadamard(
         });
 
         let mut ctx: StackedPcsZkProverCtx<GC, MK> =
-            ZkProverCtx::initialize_with_pcs(masks_length, pcs_prover, rng).expect("zk init failed");
+            ZkProverCtx::initialize_with_pcs(masks_length, pcs_prover, rng)
+                .expect("zk init failed");
 
         ctx.commit_mle(stack_multilinear(mle_1.clone(), num_encoding_variables), rng).unwrap();
         ctx.commit_mle(stack_multilinear(mle_2.clone(), num_encoding_variables), rng).unwrap();

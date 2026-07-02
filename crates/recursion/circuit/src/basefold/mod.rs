@@ -436,13 +436,14 @@ mod tests {
     use crate::{challenger::DuplexChallengerVariable, witness::Witnessable};
 
     use super::*;
-    use slop_basefold::BasefoldVerifier;
+    use slop_basefold::{BasefoldVerifier, BATCH_GRINDING_BITS};
     use slop_basefold_prover::BasefoldProver;
     use slop_challenger::CanObserve;
 
     use slop_commit::Rounds;
 
     use slop_multilinear::{Evaluations, Mle};
+    use slop_stacked::{EqBatchedEvalClaim, EqBatchedProver};
     use sp1_hypercube::inner_perm;
     use sp1_primitives::{SP1Field, SP1GlobalContext};
     use sp1_recursion_compiler::circuit::{AsmBuilder, AsmCompiler};
@@ -472,14 +473,17 @@ mod tests {
             })
             .collect::<Rounds<_>>();
 
-        let verifier =
-            BasefoldVerifier::<_>::new(FriConfig::default_fri_config(), round_widths.len());
+        let verifier = BasefoldVerifier::<_>::new(
+            FriConfig::default_fri_config(),
+            round_widths.len(),
+            num_variables,
+        );
         let recursive_verifier = RecursiveBasefoldVerifier::<C, SC> {
             fri_config: verifier.fri_config,
             tcs: RecursiveMerkleTreeTcs::<C, SC>(PhantomData),
         };
 
-        let prover = Prover::new(&verifier);
+        let prover = EqBatchedProver::new(Prover::new(&verifier), BATCH_GRINDING_BITS);
 
         let mut challenger = SC::default_challenger();
         let mut commitments = vec![];
@@ -496,14 +500,14 @@ mod tests {
             eval_claims.push(evaluations);
         }
 
+        // One flattened `MleEval` per committed round.
+        let evaluations = eval_claims
+            .iter()
+            .map(|round| round.iter().flat_map(|me| me.iter().copied()).collect::<MleEval<_>>())
+            .collect::<Vec<_>>();
+        let claim = EqBatchedEvalClaim { point: point.clone(), evaluations };
         let proof = prover
-            .prove_trusted_mle_evaluations(
-                point.clone(),
-                round_mles,
-                eval_claims.clone(),
-                prover_data,
-                &mut challenger,
-            )
+            .prove_trusted_mle_evaluations(&claim, round_mles, prover_data, &mut challenger)
             .unwrap();
 
         let mut builder = AsmBuilder::default();
@@ -573,13 +577,13 @@ mod tests {
             })
             .collect::<Rounds<_>>();
 
-        let verifier = BasefoldVerifier::<SC>::new(fri_config, round_widths.len());
+        let verifier = BasefoldVerifier::<SC>::new(fri_config, round_widths.len(), num_variables);
         let recursive_verifier = RecursiveBasefoldVerifier::<C, SC> {
             fri_config: verifier.fri_config,
             tcs: RecursiveMerkleTreeTcs::<C, SC>(PhantomData),
         };
 
-        let prover = Prover::new(&verifier);
+        let prover = EqBatchedProver::new(Prover::new(&verifier), BATCH_GRINDING_BITS);
 
         let mut challenger = SC::default_challenger();
         let mut commitments = vec![];
@@ -596,14 +600,14 @@ mod tests {
             eval_claims.push(evaluations);
         }
 
+        // One flattened `MleEval` per committed round.
+        let evaluations = eval_claims
+            .iter()
+            .map(|round| round.iter().flat_map(|me| me.iter().copied()).collect::<MleEval<_>>())
+            .collect::<Vec<_>>();
+        let claim = EqBatchedEvalClaim { point: point.clone(), evaluations };
         let proof = prover
-            .prove_trusted_mle_evaluations(
-                point.clone(),
-                round_mles,
-                eval_claims.clone(),
-                prover_data,
-                &mut challenger,
-            )
+            .prove_trusted_mle_evaluations(&claim, round_mles, prover_data, &mut challenger)
             .unwrap();
 
         // Make a new point that is different from the original point.

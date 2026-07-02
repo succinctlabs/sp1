@@ -1,8 +1,8 @@
 use slop_algebra::extension::BinomialExtensionField;
+use slop_basefold_prover::BasefoldProver;
 use slop_challenger::IopCtx;
 use slop_jagged::{DefaultJaggedProver, JaggedProver};
-use slop_multilinear::MultilinearPcsVerifier;
-use slop_stacked::StackedPcsProver;
+use slop_multilinear::BatchPcsVerifier;
 use sp1_primitives::{SP1Field, SP1GlobalContext};
 
 use super::{DefaultTraceGenerator, ShardProver, SimpleProver, ZerocheckAir};
@@ -24,7 +24,7 @@ pub type CpuSimpleProver<GC, Verifier, PcsComponents, A> =
 impl<GC, Verifier, A, PcsComponents> CpuShardProver<GC, Verifier, PcsComponents, A>
 where
     GC: IopCtx,
-    Verifier: MultilinearPcsVerifier<GC>,
+    Verifier: BatchPcsVerifier<GC>,
     PcsComponents: DefaultJaggedProver<GC, Verifier>,
     A: ZerocheckAir<GC::F, GC::EF>,
 {
@@ -51,7 +51,7 @@ pub fn simple_prover<A>(
 ) -> CpuSimpleProver<
     SP1GlobalContext,
     SP1Pcs<SP1GlobalContext>,
-    StackedPcsProver<SP1MerkleTreeProver, SP1GlobalContext>,
+    BasefoldProver<SP1GlobalContext, SP1MerkleTreeProver>,
     A,
 >
 where

@@ -1,21 +1,25 @@
 use crate::{
     JaggedEvalSumcheckConfig, JaggedLittlePolynomialVerifierParams, JaggedSumcheckEvalProof,
 };
+use derive_where::derive_where;
 use itertools::{izip, Itertools};
-use serde::{Deserialize, Serialize};
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_challenger::{FieldChallenger, IopCtx};
 use slop_commit::Rounds;
-use slop_multilinear::{Mle, MleEval, MultilinearPcsVerifier, Point};
+use slop_multilinear::{BatchPcsVerifier, Mle, MleEval, Point};
+use slop_stacked::{
+    EqBatchedVerifierError, StackedEvalClaim, StackedPcsVerifier, StackedProof,
+    StackedVerifierError,
+};
 use slop_sumcheck::{partially_verify_sumcheck_proof, PartialSumcheckProof, SumcheckError};
 use slop_symmetric::{CryptographicHasher, PseudoCompressionFunction};
 use slop_utils::log2_ceil_usize;
 use std::{fmt::Debug, iter::once};
 use thiserror::Error;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive_where(Clone, Serialize, Deserialize; StackedProof<GC, Proof>)]
 pub struct JaggedPcsProof<GC: IopCtx, Proof> {
-    pub pcs_proof: Proof,
+    pub pcs_proof: StackedProof<GC, Proof>,
     pub sumcheck_proof: PartialSumcheckProof<GC::EF>,
     pub jagged_eval_proof: JaggedSumcheckEvalProof<GC::EF>,
     /// Booleanity-batched sumcheck reducing the 64 (curr + next) two-stage
@@ -32,16 +36,20 @@ pub struct JaggedPcsProof<GC: IopCtx, Proof> {
     pub log_m: usize,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct JaggedPcsVerifier<GC, C> {
-    pub pcs_verifier: C,
+    pub stacked_pcs_verifier: StackedPcsVerifier<GC, C>,
     pub max_log_row_count: usize,
     _marker: std::marker::PhantomData<GC>,
 }
 
 impl<GC, C> JaggedPcsVerifier<GC, C> {
-    pub fn new(pcs_verifier: C, max_log_row_count: usize) -> Self {
-        Self { pcs_verifier, max_log_row_count, _marker: std::marker::PhantomData }
+    pub fn new(pcs_verifier: StackedPcsVerifier<GC, C>, max_log_row_count: usize) -> Self {
+        Self {
+            stacked_pcs_verifier: pcs_verifier,
+            max_log_row_count,
+            _marker: std::marker::PhantomData,
+        }
     }
 }
 
@@ -54,7 +62,7 @@ pub enum JaggedPcsVerifierError<EF, PcsError> {
     #[error("jagged evaluation proof verification failed")]
     JaggedEvalProofVerificationFailed,
     #[error("dense pcs verification failed: {0}")]
-    DensePcsVerificationFailed(#[from] PcsError),
+    DensePcsVerificationFailed(#[from] StackedVerifierError<EqBatchedVerifierError<PcsError>>),
     #[error("booleanity check failed")]
     BooleanityCheckFailed,
     #[error("montonicity check failed")]
@@ -108,9 +116,18 @@ pub fn unzip_and_prefix_sums(
     PrefixSumsMaxLogRowCount { row_counts, column_counts, usize_prefix_sums, log_m: log_trace }
 }
 
-impl<GC: IopCtx, Verifier: MultilinearPcsVerifier<GC>> JaggedPcsVerifier<GC, Verifier> {
+type JaggedVerifyResult<GC, Verifier> = Result<
+    (),
+    JaggedPcsVerifierError<<GC as IopCtx>::EF, <Verifier as BatchPcsVerifier<GC>>::VerifierError>,
+>;
+
+impl<GC: IopCtx, Verifier: BatchPcsVerifier<GC>> JaggedPcsVerifier<GC, Verifier> {
     pub fn challenger(&self) -> GC::Challenger {
         GC::default_challenger()
+    }
+
+    pub fn num_expected_commitments(&self) -> usize {
+        self.stacked_pcs_verifier.inner_verifier.inner.num_expected_commitments()
     }
 
     pub fn verify_trusted_evaluations(
@@ -120,7 +137,7 @@ impl<GC: IopCtx, Verifier: MultilinearPcsVerifier<GC>> JaggedPcsVerifier<GC, Ver
         evaluation_claims: &[MleEval<GC::EF>],
         proof: &JaggedPcsProof<GC, Verifier::Proof>,
         challenger: &mut GC::Challenger,
-    ) -> Result<(), JaggedPcsVerifierError<GC::EF, Verifier::VerifierError>> {
+    ) -> JaggedVerifyResult<GC, Verifier> {
         let JaggedPcsProof {
             pcs_proof,
             sumcheck_proof,
@@ -166,11 +183,11 @@ impl<GC: IopCtx, Verifier: MultilinearPcsVerifier<GC>> JaggedPcsVerifier<GC, Ver
         // Collect the claims for the different polynomials.
         let mut column_claims = evaluation_claims.iter().flatten().copied().collect::<Vec<_>>();
 
-        if commitments.len() != self.pcs_verifier.num_expected_commitments()
-            || evaluation_claims.len() != self.pcs_verifier.num_expected_commitments()
-            || row_counts.len() != self.pcs_verifier.num_expected_commitments()
-            || column_counts.len() != self.pcs_verifier.num_expected_commitments()
-            || original_commitments.len() != self.pcs_verifier.num_expected_commitments()
+        if commitments.len() != self.num_expected_commitments()
+            || evaluation_claims.len() != self.num_expected_commitments()
+            || row_counts.len() != self.num_expected_commitments()
+            || column_counts.len() != self.num_expected_commitments()
+            || original_commitments.len() != self.num_expected_commitments()
         {
             return Err(JaggedPcsVerifierError::IncorrectShape);
         }
@@ -252,7 +269,7 @@ impl<GC: IopCtx, Verifier: MultilinearPcsVerifier<GC>> JaggedPcsVerifier<GC, Ver
             .iter()
             .map(|area| {
                 let next_multiple = area.next_multiple_of(
-                    1 << Verifier::log_stacking_height(&self.pcs_verifier) as usize,
+                    1 << self.stacked_pcs_verifier.log_stacking_height() as usize,
                 );
                 // No underflow because `next_multiple>=area`.
                 let added_vals = next_multiple - area;
@@ -449,13 +466,15 @@ impl<GC: IopCtx, Verifier: MultilinearPcsVerifier<GC>> JaggedPcsVerifier<GC, Ver
         }
 
         // Verify the evaluation proof using the (dense) stacked PCS verifier.
-        let evaluation_point = sumcheck_proof.point_and_eval.0.clone();
-        self.pcs_verifier
+        let claim = StackedEvalClaim {
+            round_areas: total_areas,
+            point: sumcheck_proof.point_and_eval.0.clone(),
+            evaluation: *expected_eval,
+        };
+        self.stacked_pcs_verifier
             .verify_untrusted_evaluation(
                 proof.merkle_tree_commitments.as_slice(),
-                &total_areas,
-                evaluation_point,
-                *expected_eval,
+                &claim,
                 pcs_proof,
                 challenger,
             )
