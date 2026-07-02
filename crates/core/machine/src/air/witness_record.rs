@@ -434,6 +434,26 @@ pub struct WitOpC {
     pub imm0: u64,
 }
 
+/// Slot-resolved counterpart of [`WitOpC`]: the flat op form the *register-
+/// allocated* kernel consumes. Every wire reference (`a`/`b`, and `imm1`/`imm0`
+/// when they carry a wire) is pre-remapped from an SSA wire id to a reusable slot
+/// via [`WitProgram::allocate_slots`], and `out` is the destination slot of the
+/// produced wire (`u32::MAX` for lookup ops, which produce none). This lets the
+/// kernel do `nat[op.out] = f(nat[op.a], nat[op.b])` into a bounded
+/// `max_slots`-entry per-thread array (Mul: 531 wires -> ~100 slots) instead of one
+/// cell per value op. Literal fields (`imm0` = const/offset/bits, `imm1` = width)
+/// are carried through unchanged — same tag semantics as [`WitProgram::to_c`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(C)]
+pub struct WitOpCSlot {
+    pub tag: u32,
+    pub out: u32,
+    pub a: u32,
+    pub b: u32,
+    pub imm1: u32,
+    pub imm0: u64,
+}
+
 impl WitProgram {
     /// Lower the op-DAG to the flat device layout.
     /// Total live wires the interpreter needs per row: the inputs plus every
@@ -585,6 +605,64 @@ impl WitProgram {
             })
             .collect()
     }
+
+    /// Lower to the slot-resolved [`WitOpCSlot`] form: identical tag semantics to
+    /// [`to_c`](Self::to_c), but every wire reference is remapped through `slot` (from
+    /// [`allocate_slots`](Self::allocate_slots)) and each value op carries its
+    /// destination `out` slot. This is the exact layout the register-allocated kernel
+    /// interprets; the lowering is validated by [`interpret_c_slots_columns`] being
+    /// bit-identical to the SSA [`interpret_c_columns`].
+    pub fn to_c_slots(&self, slot: &[u32]) -> Vec<WitOpCSlot> {
+        let s = |w: WireId| slot[w.0 as usize];
+        let mut wc = self.num_inputs as usize;
+        self.ops
+            .iter()
+            .map(|op| {
+                // Destination slot for value ops (lookups produce no wire).
+                let out = if op.produces_wire() {
+                    let o = slot[wc];
+                    wc += 1;
+                    o
+                } else {
+                    u32::MAX
+                };
+                // Remap by semantic field (not position) so wire vs. literal is never
+                // confused — mirrors `to_c`, wrapping each wire field in `s(..)`.
+                let (tag, a, b, imm1, imm0) = match *op {
+                    WitOp::ConstNat(v) => (0, 0, 0, 0, v),
+                    WitOp::WrappingAdd(a, b) => (1, s(a), s(b), 0, 0),
+                    WitOp::WrappingSub(a, b) => (8, s(a), s(b), 0, 0),
+                    WitOp::U8RangeCheck(a, b) => (9, s(a), s(b), 0, 0),
+                    WitOp::Eq(a, b) => (11, s(a), s(b), 0, 0),
+                    WitOp::Shl(a, b) => (20, s(a), s(b), 0, 0),
+                    WitOp::Shr(a, b) => (21, s(a), s(b), 0, 0),
+                    WitOp::Mul(a, b) => (23, s(a), s(b), 0, 0),
+                    WitOp::BitRangeCheckVar { src, bits } => (22, s(src), s(bits), 0, 0),
+                    WitOp::Select { cond, a, b } => (12, s(cond), s(a), s(b), 0),
+                    WitOp::Bits { src, offset, width } => (2, s(src), 0, width, offset as u64),
+                    WitOp::NatToField(a) => (3, s(a), 0, 0, 0),
+                    WitOp::FieldAdd(a, b) => (4, s(a), s(b), 0, 0),
+                    WitOp::FieldSub(a, b) => (19, s(a), s(b), 0, 0),
+                    WitOp::FieldInverse(a) => (5, s(a), 0, 0, 0),
+                    WitOp::FieldSelect { cond, a, b } => (18, s(cond), s(a), s(b), 0),
+                    WitOp::U16RangeCheck(a) => (6, s(a), 0, 0, 0),
+                    WitOp::BitRangeCheck { src, bits } => (7, s(src), 0, 0, bits as u64),
+                    WitOp::U16RangeCheckGuarded { guard, src } => (13, s(src), s(guard), 0, 0),
+                    WitOp::BitRangeCheckGuarded { guard, src, bits } => {
+                        (14, s(src), s(guard), 0, bits as u64)
+                    }
+                    WitOp::U8RangeCheckGuarded { guard, a, b } => (15, s(a), s(b), s(guard), 0),
+                    // Byte-table lookups keep only (opcode, b, c) on device — the
+                    // result `a` is dropped (same as `to_c`); opcode/guard are wires.
+                    WitOp::ByteLookup { opcode, a: _, b, c } => (16, s(b), s(c), s(opcode), 0),
+                    WitOp::ByteLookupGuarded { guard, opcode, a: _, b, c } => {
+                        (17, s(b), s(c), s(opcode), u64::from(s(guard)))
+                    }
+                };
+                WitOpCSlot { tag, out, a, b, imm1, imm0 }
+            })
+            .collect()
+    }
 }
 
 /// Columns-only interpreter over the flat [`WitOpC`] layout — the exact reference
@@ -644,6 +722,63 @@ pub fn interpret_c_columns<F: Field>(
     col_wires
         .iter()
         .map(|&w| match wires[w as usize] {
+            Val::Field(f) => f,
+            Val::Nat(n) => F::from_canonical_u64(n),
+        })
+        .collect()
+}
+
+/// Slot-resolved counterpart of [`interpret_c_columns`]: interprets the flat
+/// [`WitOpCSlot`] form exactly as the register-allocated kernel does —
+/// `vals[op.out] = f(vals[op.a], vals[op.b])` into a bounded `max_slots`-entry array,
+/// reading operands from their slots. MUST return columns identical to the SSA
+/// [`interpret_c_columns`]; that equivalence (tested over real gadget events) is what
+/// pins the [`to_c_slots`](WitProgram::to_c_slots) lowering before it is ported to CUDA.
+///
+/// `input_slots` is `slot[0..num_inputs]` and `col_slots[c] = slot[col_wires[c]]`.
+pub fn interpret_c_slots_columns<F: Field>(
+    ops: &[WitOpCSlot],
+    num_inputs: u32,
+    inputs: &[u64],
+    input_slots: &[u32],
+    col_slots: &[u32],
+    max_slots: u32,
+) -> Vec<F> {
+    assert_eq!(inputs.len() as u32, num_inputs);
+    assert_eq!(input_slots.len() as u32, num_inputs);
+    let mut vals: Vec<Val<F>> = vec![Val::Nat(0); max_slots as usize];
+    for i in 0..num_inputs as usize {
+        vals[input_slots[i] as usize] = Val::Nat(inputs[i]);
+    }
+    for op in ops {
+        let (a, b, out) = (op.a as usize, op.b as usize, op.out as usize);
+        match op.tag {
+            0 => vals[out] = Val::Nat(op.imm0),
+            1 => vals[out] = Val::Nat(vals[a].nat().wrapping_add(vals[b].nat())),
+            8 => vals[out] = Val::Nat(vals[a].nat().wrapping_sub(vals[b].nat())),
+            2 => {
+                let x = vals[a].nat();
+                let mask = if op.imm1 >= 64 { u64::MAX } else { (1u64 << op.imm1) - 1 };
+                vals[out] = Val::Nat((x >> op.imm0) & mask);
+            }
+            11 => vals[out] = Val::Nat(u64::from(vals[a].nat() == vals[b].nat())),
+            20 => vals[out] = Val::Nat(vals[a].nat() << vals[b].nat()),
+            21 => vals[out] = Val::Nat(vals[a].nat() >> vals[b].nat()),
+            23 => vals[out] = Val::Nat(vals[a].nat().wrapping_mul(vals[b].nat())),
+            12 => vals[out] = if vals[a].nat() != 0 { vals[b] } else { vals[op.imm1 as usize] },
+            3 => vals[out] = Val::Field(F::from_canonical_u64(vals[a].nat())),
+            4 => vals[out] = Val::Field(vals[a].field() + vals[b].field()),
+            19 => vals[out] = Val::Field(vals[a].field() - vals[b].field()),
+            5 => vals[out] = Val::Field(vals[a].field().inverse()),
+            18 => vals[out] = if vals[a].nat() != 0 { vals[b] } else { vals[op.imm1 as usize] },
+            // lookups (incl. guarded + byte-table + var-width): no wire, skipped for columns
+            6 | 7 | 9 | 13 | 14 | 15 | 16 | 17 | 22 => {}
+            t => panic!("unknown WitOpCSlot tag {t}"),
+        }
+    }
+    col_slots
+        .iter()
+        .map(|&sidx| match vals[sidx as usize] {
             Val::Field(f) => f,
             Val::Nat(n) => F::from_canonical_u64(n),
         })

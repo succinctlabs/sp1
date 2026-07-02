@@ -249,8 +249,8 @@ mod tests {
     #[test]
     fn mul_regalloc_shrinks_and_matches() {
         use sp1_core_machine::air::{
-            columns_as_wires, interpret_c_columns, interpret_slots_columns,
-            RecordingWitnessBuilder, WireId,
+            columns_as_wires, interpret_c_columns, interpret_c_slots_columns,
+            interpret_slots_columns, RecordingWitnessBuilder, WireId,
         };
         use sp1_core_machine::alu::mul::MulCols;
 
@@ -304,13 +304,24 @@ mod tests {
             .collect::<Vec<_>>();
         let inputs = super::pack_mul_inputs(&events);
         let ops_c = program.to_c();
+        // Slot-resolved flat form (the exact layout the register-allocated kernel
+        // ports) + its remapped inputs/columns.
+        let ops_slots = program.to_c_slots(&slot);
+        let input_slots = &slot[..super::NUM_MUL_INPUTS];
+        let col_slots: Vec<u32> = col_wires.iter().map(|&w| slot[w as usize]).collect();
         let ni = super::NUM_MUL_INPUTS;
         for row in 0..events.len() {
             let row_in = &inputs[row * ni..(row + 1) * ni];
             let ssa: Vec<F> = interpret_c_columns(&ops_c, ni as u32, row_in, &col_wires);
             let alloc: Vec<F> =
                 interpret_slots_columns(&program, row_in, &col_wires, &slot, max_slots);
+            // The flat slot form (WitOpCSlot, out/a/b pre-resolved) must also match
+            // the SSA reference — this is what de-risks the CUDA `nat[op.out]` edit.
+            let flat: Vec<F> = interpret_c_slots_columns(
+                &ops_slots, ni as u32, row_in, input_slots, &col_slots, max_slots,
+            );
             assert_eq!(ssa, alloc, "reg-alloc column mismatch at row {row}");
+            assert_eq!(ssa, flat, "slot-flat (WitOpCSlot) column mismatch at row {row}");
         }
         println!(
             "Mul reg-alloc OK: num_wires={} -> max_slots={max_slots} ({:.1}x)",
