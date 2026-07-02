@@ -400,7 +400,9 @@ fn device_chip_enabled(name: &str) -> bool {
     });
     match filter {
         None => name == "Global", // default: baseline behavior (only Global on device)
-        Some(set) => set.contains(name),
+        // `AR_DEVICE_CHIPS=all` enables every chip with a device impl — the canonical
+        // parity-A/B config, immune to the env list drifting from the ported set.
+        Some(set) => set.contains("all") || set.contains(name),
     }
 }
 
