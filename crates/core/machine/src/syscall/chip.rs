@@ -1,4 +1,5 @@
-use crate::{air::WordAirBuilder, utils::next_multiple_of_32, TrustMode};
+use crate::utils::pad_rows_core;
+use crate::{air::WordAirBuilder, TrustMode};
 use core::fmt;
 use itertools::Itertools;
 use slop_air::{Air, BaseAir};
@@ -177,8 +178,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for SyscallChip<M> {
                 .collect::<Vec<_>>(),
         };
         let nb_rows = events.len();
-        let size_log2 = input.fixed_log2_rows::<F, _>(self);
-        let padded_nb_rows = next_multiple_of_32(nb_rows, size_log2);
+        let padded_nb_rows = pad_rows_core(nb_rows);
         Some(padded_nb_rows)
     }
 
