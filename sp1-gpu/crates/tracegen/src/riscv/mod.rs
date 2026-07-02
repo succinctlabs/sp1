@@ -167,6 +167,118 @@ pub(crate) async fn accumulate_lookups(
     Ok(())
 }
 
+/// Slot-indexed column tracegen for WIDE gadgets (Mul/DivRem, ultimately precompiles).
+/// Register-allocates the op-DAG so the per-thread wire array is bounded by max-live
+/// slots (Mul: 531 wires -> 100 slots) rather than one cell per op, then launches
+/// `witgen_interp_slots_kernel`. Narrow chips keep the SSA `witgen_interp_kernel` path.
+/// The `WITGEN_MAX_WIRES` assert now bounds SLOTS, not raw wires, so wide gadgets fit.
+pub(crate) async fn generate_columns_slots_into(
+    program: &WitProgram,
+    col_wires: &[u32],
+    inputs: &[u64],
+    n_events: usize,
+    height: usize,
+    mut trace: Tensor<F, TaskScope>,
+    scope: &TaskScope,
+) -> Result<DeviceMle<F>, CopyError> {
+    let n_cols = col_wires.len();
+    let (slot, max_slots) = program.allocate_slots(col_wires);
+    assert!(
+        max_slots as usize <= WITGEN_MAX_WIRES,
+        "reg-alloc: {max_slots} live slots > kernel capacity {WITGEN_MAX_WIRES}"
+    );
+    let ops_c = program.to_c_slots(&slot);
+    let ni = program.num_inputs as usize;
+    let input_slots: Vec<u32> = slot[..ni].to_vec();
+    let col_slots: Vec<u32> = col_wires.iter().map(|&w| slot[w as usize]).collect();
+
+    let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone()).unwrap();
+    ops_dev.extend_from_host_slice(&ops_c)?;
+    let mut col_dev = Buffer::try_with_capacity_in(col_slots.len(), scope.clone()).unwrap();
+    col_dev.extend_from_host_slice(&col_slots)?;
+    let mut inslot_dev =
+        Buffer::try_with_capacity_in(input_slots.len().max(1), scope.clone()).unwrap();
+    inslot_dev.extend_from_host_slice(&input_slots)?;
+    let mut in_dev = Buffer::try_with_capacity_in(inputs.len().max(1), scope.clone()).unwrap();
+    in_dev.extend_from_host_slice(inputs)?;
+
+    if n_events > 0 {
+        unsafe {
+            const BLOCK: usize = 64;
+            let grid = n_events.div_ceil(BLOCK);
+            let args = args!(
+                trace.as_mut_ptr(),
+                height,
+                ops_dev.as_ptr(),
+                ops_c.len(),
+                col_dev.as_ptr(),
+                n_cols,
+                program.num_inputs,
+                inslot_dev.as_ptr(),
+                in_dev.as_ptr(),
+                n_events
+            );
+            scope
+                .launch_kernel(TaskScope::witgen_interp_slots_kernel(), grid, BLOCK, &args, 0)
+                .unwrap();
+        }
+    }
+
+    Ok(DeviceMle::from(trace))
+}
+
+/// Slot-indexed dual of [`accumulate_lookups`] for WIDE gadgets: same shard-histogram
+/// accumulation via `witgen_lookup_slots_kernel`, register-allocated so wide gadgets
+/// fit. Uses the SAME `allocate_slots(col_wires)` map as the column launch so the two
+/// kernels interpret an identical slot-resolved op-DAG.
+pub(crate) async fn accumulate_lookups_slots(
+    program: &WitProgram,
+    col_wires: &[u32],
+    inputs: &[u64],
+    n_events: usize,
+    range_dev: &mut DeviceBuffer<u32>,
+    byte_dev: &mut DeviceBuffer<u32>,
+    scope: &TaskScope,
+) -> Result<(), CopyError> {
+    if n_events == 0 {
+        return Ok(());
+    }
+    let (slot, max_slots) = program.allocate_slots(col_wires);
+    assert!(
+        max_slots as usize <= WITGEN_MAX_WIRES,
+        "reg-alloc: {max_slots} live slots > kernel capacity {WITGEN_MAX_WIRES}"
+    );
+    let ops_c = program.to_c_slots(&slot);
+    let ni = program.num_inputs as usize;
+    let input_slots: Vec<u32> = slot[..ni].to_vec();
+
+    let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone()).unwrap();
+    ops_dev.extend_from_host_slice(&ops_c)?;
+    let mut inslot_dev =
+        Buffer::try_with_capacity_in(input_slots.len().max(1), scope.clone()).unwrap();
+    inslot_dev.extend_from_host_slice(&input_slots)?;
+    let mut in_dev = Buffer::try_with_capacity_in(inputs.len(), scope.clone()).unwrap();
+    in_dev.extend_from_host_slice(inputs)?;
+    unsafe {
+        const BLOCK: usize = 64;
+        let grid = n_events.div_ceil(BLOCK);
+        let args = args!(
+            ops_dev.as_ptr(),
+            ops_c.len(),
+            program.num_inputs,
+            inslot_dev.as_ptr(),
+            in_dev.as_ptr(),
+            n_events,
+            range_dev.as_mut_ptr(),
+            byte_dev.as_mut_ptr()
+        );
+        scope
+            .launch_kernel(TaskScope::witgen_lookup_slots_kernel(), grid, BLOCK, &args, 0)
+            .unwrap();
+    }
+    Ok(())
+}
+
 /// Name of the device-capable chip variant (`None` for chips without a device
 /// tracegen impl, and for `Mul`/`DivRem` which are gated to host — too wide for the
 /// 256-wire kernel). Used by the `AR_DEVICE_CHIPS` runtime gate.

@@ -5,7 +5,6 @@
 
 use rayon::prelude::*;
 use slop_alloc::mem::CopyError;
-use slop_alloc::Buffer;
 use slop_tensor::Tensor;
 use sp1_core_executor::{events::AluEvent, RTypeRecord};
 use sp1_core_machine::{
@@ -13,7 +12,7 @@ use sp1_core_machine::{
     alu::mul::{MulChip, MulCols, NUM_MUL_COLS_SUPERVISOR},
     SupervisorMode,
 };
-use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKernel};
+use sp1_gpu_cudart::{DeviceBuffer, DeviceMle, TaskScope};
 use sp1_hypercube::air::MachineAir;
 
 use crate::{CudaTracegenAir, F};
@@ -58,13 +57,16 @@ fn record_mul_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
         w(11), w(12), w(13), w(14), w(15), w(16), w(17),
     );
     let program = rec.finish();
+    let col_wires: Vec<u32> = columns_as_wires(&cols_w).iter().map(|w| w.0).collect();
+    // Register allocation bounds the per-thread wire array by max-live slots, not raw
+    // wires, so the wide Mul gadget (531 wires) fits the kernel (100 slots) via the
+    // slot-indexed witgen path (generate_columns_slots_into / accumulate_lookups_slots).
+    let (_, max_slots) = program.allocate_slots(&col_wires);
     assert!(
-        program.num_wires() <= super::WITGEN_MAX_WIRES,
-        "Mul gadget needs {} wires > kernel capacity {}",
-        program.num_wires(),
+        max_slots as usize <= super::WITGEN_MAX_WIRES,
+        "Mul gadget needs {max_slots} slots > kernel capacity {}",
         super::WITGEN_MAX_WIRES
     );
-    let col_wires: Vec<u32> = columns_as_wires(&cols_w).iter().map(|w| w.0).collect();
     (program, col_wires)
 }
 
@@ -80,7 +82,6 @@ impl CudaTracegenAir<F> for MulChip<SupervisorMode> {
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
         let (program, col_wires) = record_mul_program();
-        let ops_c = program.to_c();
         let n_cols = col_wires.len();
         debug_assert_eq!(n_cols, NUM_MUL_COLS_SUPERVISOR);
 
@@ -88,41 +89,15 @@ impl CudaTracegenAir<F> for MulChip<SupervisorMode> {
             .expect("num_rows(...) should be Some(_)");
         let events = &input.mul_events;
         let n_events = if height == 0 { 0 } else { events.len() };
-
         let inputs = pack_mul_inputs(&events[..n_events]);
 
-        let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone()).unwrap();
-        ops_dev.extend_from_host_slice(&ops_c)?;
-        let mut col_dev = Buffer::try_with_capacity_in(col_wires.len(), scope.clone()).unwrap();
-        col_dev.extend_from_host_slice(&col_wires)?;
-        let mut in_dev = Buffer::try_with_capacity_in(inputs.len().max(1), scope.clone()).unwrap();
-        in_dev.extend_from_host_slice(&inputs)?;
-
-        // Padding rows are all-zero (is_mul..is_mulw = 0 → padding row).
-        let mut trace = Tensor::<F, TaskScope>::zeros_in([n_cols, height], scope.clone());
-
-        if n_events > 0 {
-            unsafe {
-                const BLOCK: usize = 64;
-                let grid = n_events.div_ceil(BLOCK);
-                let args = args!(
-                    trace.as_mut_ptr(),
-                    height,
-                    ops_dev.as_ptr(),
-                    ops_c.len(),
-                    col_dev.as_ptr(),
-                    n_cols,
-                    program.num_inputs,
-                    in_dev.as_ptr(),
-                    n_events
-                );
-                scope
-                    .launch_kernel(TaskScope::witgen_interp_kernel(), grid, BLOCK, &args, 0)
-                    .unwrap();
-            }
-        }
-
-        Ok(DeviceMle::from(trace))
+        // Wide gadget: register-allocated slot kernel (531 wires -> 100 slots). Padding
+        // rows are all-zero (is_mul..is_mulw = 0 → padding row).
+        let trace = Tensor::<F, TaskScope>::zeros_in([n_cols, height], scope.clone());
+        super::generate_columns_slots_into(
+            &program, &col_wires, &inputs, n_events, height, trace, scope,
+        )
+        .await
     }
 
     fn supports_device_dependencies(&self) -> bool {
@@ -144,9 +119,12 @@ impl CudaTracegenAir<F> for MulChip<SupervisorMode> {
             return Ok(());
         }
 
-        let (program, _col_wires) = record_mul_program();
+        let (program, col_wires) = record_mul_program();
         let inputs = pack_mul_inputs(&events[..n_events]);
-        super::accumulate_lookups(&program, &inputs, n_events, range_dev, byte_dev, scope).await
+        super::accumulate_lookups_slots(
+            &program, &col_wires, &inputs, n_events, range_dev, byte_dev, scope,
+        )
+        .await
     }
 }
 
@@ -178,7 +156,6 @@ mod tests {
     /// MULHSU/MULW) with random 64-bit operands — exercises the byte convolution,
     /// signed sign-extension, and the MULW msb path.
     #[tokio::test]
-    #[ignore = "gated off device (too wide → OOM); witgen validated at the higher wire cap"]
     async fn test_mul_generate_trace_device() {
         sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
             let mut rng = StdRng::seed_from_u64(0x6017);
