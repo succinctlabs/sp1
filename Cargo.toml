@@ -216,6 +216,20 @@ slop-utils = { version = "6.3.1", path = "./slop/crates/utils" }
 slop-veil = { version = "6.3.1", path = "./slop/crates/veil" }
 slop-whir = { version = "6.3.1", path = "./slop/crates/whir" }
 
+# powdr
+powdr-autoprecompiles = { version = "0.1.4", default-features = false }
+powdr-number = { version = "0.1.4", default-features = false }
+powdr-expression = { version = "0.1.4", default-features = false }
+powdr-constraint-solver = { version = "0.1.4", default-features = false }
+powdr-riscv-elf = { version = "0.1.4", default-features = false }
+
+# For local development.
+# powdr-autoprecompiles = { path = "../powdr/autoprecompiles/" }
+# powdr-number = { path = "../powdr/number/" }
+# powdr-expression = { path = "../powdr/expression/" }
+# powdr-constraint-solver = { path = "../powdr/constraint-solver/" }
+# powdr-riscv-elf = { path = "../powdr/riscv-elf/" }
+
 # For testing.
 tokio-test = "0.4.4"
 rstest = "0.26.0"
