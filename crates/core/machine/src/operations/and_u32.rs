@@ -21,6 +21,39 @@ pub struct AndU32Operation<T> {
     pub value: [T; 4],
 }
 
+// Witgen in an unconstrained `impl` (column type is the builder's `Field`).
+impl<T: Copy> AndU32Operation<T> {
+    /// Backend-agnostic witgen dual of `populate_and_u32`. Returns `b & c`.
+    pub fn witgen_and_u32<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut AndU32Operation<WB::Field>,
+        b: WB::Nat,
+        c: WB::Nat,
+    ) -> WB::Nat {
+        use sp1_core_executor::ByteOpcode;
+        let expected = wb.and(b, c);
+        super::U32toU8Operation::<WB::Field>::witgen_u32_to_u8_unsafe(
+            wb,
+            &mut cols.b_low_bytes,
+            b,
+        );
+        super::U32toU8Operation::<WB::Field>::witgen_u32_to_u8_unsafe(
+            wb,
+            &mut cols.c_low_bytes,
+            c,
+        );
+        let opcode = wb.const_nat(ByteOpcode::AND as u64);
+        for i in 0..4u32 {
+            let b_byte = wb.bits(b, 8 * i, 8);
+            let c_byte = wb.bits(c, 8 * i, 8);
+            let a_byte = wb.bits(expected, 8 * i, 8);
+            cols.value[i as usize] = wb.nat_to_field(a_byte);
+            wb.add_byte_lookup(opcode, a_byte, b_byte, c_byte);
+        }
+        expected
+    }
+}
+
 impl<F: Field> AndU32Operation<F> {
     pub fn populate_and_u32(
         &mut self,

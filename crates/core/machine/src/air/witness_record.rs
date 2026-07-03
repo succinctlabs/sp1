@@ -38,6 +38,10 @@ pub enum WitOp {
     Shl(WireId, WireId),
     Shr(WireId, WireId),
     Mul(WireId, WireId),
+    /// Bitwise XOR (tag 24) — SHA precompile gadgets.
+    Xor(WireId, WireId),
+    /// Bitwise AND (tag 25) — SHA precompile gadgets.
+    And(WireId, WireId),
     Select { cond: WireId, a: WireId, b: WireId },
     NatToField(WireId),
     FieldAdd(WireId, WireId),
@@ -84,7 +88,8 @@ impl WitOp {
         match *self {
             ConstNat(_) => {}
             WrappingAdd(a, b) | WrappingSub(a, b) | Eq(a, b) | Shl(a, b) | Shr(a, b)
-            | Mul(a, b) | FieldAdd(a, b) | FieldSub(a, b) | U8RangeCheck(a, b) => {
+            | Mul(a, b) | Xor(a, b) | And(a, b) | FieldAdd(a, b) | FieldSub(a, b)
+            | U8RangeCheck(a, b) => {
                 f(a.0);
                 f(b.0);
             }
@@ -196,6 +201,12 @@ impl WitnessBuilder for RecordingWitnessBuilder {
     }
     fn mul(&mut self, a: WireId, b: WireId) -> WireId {
         self.value(WitOp::Mul(a, b))
+    }
+    fn xor(&mut self, a: WireId, b: WireId) -> WireId {
+        self.value(WitOp::Xor(a, b))
+    }
+    fn and(&mut self, a: WireId, b: WireId) -> WireId {
+        self.value(WitOp::And(a, b))
     }
     fn shr(&mut self, a: WireId, shift: WireId) -> WireId {
         self.value(WitOp::Shr(a, shift))
@@ -327,6 +338,12 @@ pub fn interpret<F: Field, R: ByteRecord>(
             }
             WitOp::Mul(a, b) => {
                 wires.push(Val::Nat(wires[a.0 as usize].nat().wrapping_mul(wires[b.0 as usize].nat())))
+            }
+            WitOp::Xor(a, b) => {
+                wires.push(Val::Nat(wires[a.0 as usize].nat() ^ wires[b.0 as usize].nat()))
+            }
+            WitOp::And(a, b) => {
+                wires.push(Val::Nat(wires[a.0 as usize].nat() & wires[b.0 as usize].nat()))
             }
             WitOp::Select { cond, a, b } => {
                 let c = wires[cond.0 as usize].nat();
@@ -569,6 +586,8 @@ impl WitProgram {
                 WitOp::Shl(a, s) => WitOpC { tag: 20, a: a.0, b: s.0, imm1: 0, imm0: 0 },
                 WitOp::Shr(a, s) => WitOpC { tag: 21, a: a.0, b: s.0, imm1: 0, imm0: 0 },
                 WitOp::Mul(a, b) => WitOpC { tag: 23, a: a.0, b: b.0, imm1: 0, imm0: 0 },
+                WitOp::Xor(a, b) => WitOpC { tag: 24, a: a.0, b: b.0, imm1: 0, imm0: 0 },
+                WitOp::And(a, b) => WitOpC { tag: 25, a: a.0, b: b.0, imm1: 0, imm0: 0 },
                 WitOp::BitRangeCheckVar { src, bits } => {
                     WitOpC { tag: 22, a: src.0, b: bits.0, imm1: 0, imm0: 0 }
                 }
@@ -643,6 +662,8 @@ impl WitProgram {
                     WitOp::Shl(a, b) => (20, s(a), s(b), 0, 0),
                     WitOp::Shr(a, b) => (21, s(a), s(b), 0, 0),
                     WitOp::Mul(a, b) => (23, s(a), s(b), 0, 0),
+                    WitOp::Xor(a, b) => (24, s(a), s(b), 0, 0),
+                    WitOp::And(a, b) => (25, s(a), s(b), 0, 0),
                     WitOp::BitRangeCheckVar { src, bits } => (22, s(src), s(bits), 0, 0),
                     WitOp::Select { cond, a, b } => (12, s(cond), s(a), s(b), 0),
                     WitOp::Bits { src, offset, width } => (2, s(src), 0, width, offset as u64),
@@ -778,6 +799,8 @@ pub fn interpret_c_columns<F: Field>(
             23 => wires.push(Val::Nat(
                 wires[op.a as usize].nat().wrapping_mul(wires[op.b as usize].nat()),
             )),
+            24 => wires.push(Val::Nat(wires[op.a as usize].nat() ^ wires[op.b as usize].nat())),
+            25 => wires.push(Val::Nat(wires[op.a as usize].nat() & wires[op.b as usize].nat())),
             12 => {
                 let c = wires[op.a as usize].nat();
                 wires.push(if c != 0 {
@@ -845,6 +868,8 @@ pub fn interpret_c_slots_columns<F: Field>(
             20 => vals[out] = Val::Nat(vals[a].nat() << vals[b].nat()),
             21 => vals[out] = Val::Nat(vals[a].nat() >> vals[b].nat()),
             23 => vals[out] = Val::Nat(vals[a].nat().wrapping_mul(vals[b].nat())),
+            24 => vals[out] = Val::Nat(vals[a].nat() ^ vals[b].nat()),
+            25 => vals[out] = Val::Nat(vals[a].nat() & vals[b].nat()),
             12 => vals[out] = if vals[a].nat() != 0 { vals[b] } else { vals[op.imm1 as usize] },
             3 => vals[out] = Val::Field(F::from_canonical_u64(vals[a].nat())),
             4 => vals[out] = Val::Field(vals[a].field() + vals[b].field()),
@@ -972,6 +997,8 @@ pub fn interpret_slots_columns<F: Field>(
             WitOp::Shl(a, b) => Val::Nat(r!(a).nat() << r!(b).nat()),
             WitOp::Shr(a, b) => Val::Nat(r!(a).nat() >> r!(b).nat()),
             WitOp::Mul(a, b) => Val::Nat(r!(a).nat().wrapping_mul(r!(b).nat())),
+            WitOp::Xor(a, b) => Val::Nat(r!(a).nat() ^ r!(b).nat()),
+            WitOp::And(a, b) => Val::Nat(r!(a).nat() & r!(b).nat()),
             WitOp::Select { cond, a, b } => {
                 if r!(cond).nat() != 0 {
                     r!(a)
@@ -1060,6 +1087,8 @@ pub fn interpret_c_lookups(
                 20 => wires.push(wires[op.a as usize] << wires[op.b as usize]),
                 21 => wires.push(wires[op.a as usize] >> wires[op.b as usize]),
                 23 => wires.push(wires[op.a as usize].wrapping_mul(wires[op.b as usize])),
+                24 => wires.push(wires[op.a as usize] ^ wires[op.b as usize]),
+                25 => wires.push(wires[op.a as usize] & wires[op.b as usize]),
                 12 => {
                     let c = wires[op.a as usize];
                     wires.push(if c != 0 { wires[op.b as usize] } else { wires[op.imm1 as usize] });

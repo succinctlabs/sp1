@@ -18,6 +18,58 @@ pub struct FixedRotateRightOperation<T> {
     pub higher_limb: [T; 2],
 }
 
+// Witgen in an unconstrained `impl` (column type is the builder's `Field`).
+impl<T: Copy> FixedRotateRightOperation<T> {
+    /// See [`FixedRotateRightOperation::witgen_generic`] — hoisted here so the
+    /// column type only needs `Copy` (the builder computes the field values).
+    pub fn witgen<WB: crate::air::WitnessBuilder<Field = T>>(
+        wb: &mut WB,
+        cols: &mut FixedRotateRightOperation<T>,
+        input: WB::Nat,
+        rotation: usize,
+    ) -> WB::Nat {
+        Self::witgen_impl(wb, cols, input, rotation)
+    }
+
+    /// Backend-agnostic witgen dual of `populate`. `rotation` is a Rust-level
+    /// constant (each call site rotates by a fixed amount), so the recorded op-DAG
+    /// bakes in the limb/bit split. Returns the rotated u32 as a nat wire.
+    fn witgen_impl<WB: crate::air::WitnessBuilder<Field = T>>(
+        wb: &mut WB,
+        cols: &mut FixedRotateRightOperation<T>,
+        input: WB::Nat,
+        rotation: usize,
+    ) -> WB::Nat {
+        let nb_limbs_to_rotate = rotation / 16;
+        let nb_bits_to_rotate = rotation % 16;
+        assert!(nb_bits_to_rotate > 0, "rotation must not be a multiple of 16");
+        // expected = input.rotate_right(rotation) over u32.
+        let r = (rotation % 32) as u32;
+        let low = wb.bits(input.clone(), r, 32 - r);
+        let high = wb.bits(input.clone(), 0, r);
+        let shift = wb.const_nat((32 - r) as u64);
+        let high_shifted = wb.shl(high, shift);
+        let expected = wb.wrapping_add(low, high_shifted);
+        let e0 = wb.bits(expected.clone(), 0, 16);
+        let e1 = wb.bits(expected.clone(), 16, 16);
+        cols.value = [wb.nat_to_field(e0), wb.nat_to_field(e1)];
+        // Limb rotate, then per-limb bit split (mirrors `populate`).
+        let l0 = wb.bits(input.clone(), 0, 16);
+        let l1 = wb.bits(input, 16, 16);
+        let rotated = if nb_limbs_to_rotate % 2 == 0 { [l0, l1] } else { [l1, l0] };
+        for i in [1usize, 0] {
+            let limb = rotated[i].clone();
+            let lower = wb.bits(limb.clone(), 0, nb_bits_to_rotate as u32);
+            let higher = wb.bits(limb, nb_bits_to_rotate as u32, (16 - nb_bits_to_rotate) as u32);
+            cols.higher_limb[i] = wb.nat_to_field(higher.clone());
+            wb.add_bit_range_check(lower, nb_bits_to_rotate as u8);
+            wb.add_bit_range_check(higher, (16 - nb_bits_to_rotate) as u8);
+        }
+        expected
+    }
+
+}
+
 impl<F: Field> FixedRotateRightOperation<F> {
     pub const fn nb_limbs_to_rotate(rotation: usize) -> usize {
         rotation / 16

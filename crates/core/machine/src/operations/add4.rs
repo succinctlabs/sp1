@@ -15,6 +15,51 @@ pub struct Add4Operation<T> {
     pub value: [T; 2],
 }
 
+// Witgen in an unconstrained `impl` (column type is the builder's `Field`).
+impl<T: Copy> Add4Operation<T> {
+    /// Backend-agnostic witgen dual of `populate`: `value = (a+b+c+d) mod 2^32` in
+    /// two u16 limbs, with the limb range checks and the two carry byte checks.
+    /// Returns the u32 sum as a nat wire.
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut Add4Operation<WB::Field>,
+        a: WB::Nat,
+        b: WB::Nat,
+        c: WB::Nat,
+        d: WB::Nat,
+    ) -> WB::Nat {
+        let ab = wb.wrapping_add(a, b);
+        let abc = wb.wrapping_add(ab, c);
+        let sum = wb.wrapping_add(abc, d);
+        let expected = wb.bits(sum, 0, 32);
+        let e0 = wb.bits(expected, 0, 16);
+        let e1 = wb.bits(expected, 16, 16);
+        cols.value = [wb.nat_to_field(e0), wb.nat_to_field(e1)];
+        wb.add_u16_range_check(e0);
+        wb.add_u16_range_check(e1);
+        // carry0 = low-limb column sum >> 16; carry1 = (next column sum + carry0) >> 16.
+        let a0 = wb.bits(a, 0, 16);
+        let b0 = wb.bits(b, 0, 16);
+        let c0 = wb.bits(c, 0, 16);
+        let d0 = wb.bits(d, 0, 16);
+        let s0a = wb.wrapping_add(a0, b0);
+        let s0b = wb.wrapping_add(s0a, c0);
+        let s0 = wb.wrapping_add(s0b, d0);
+        let carry0 = wb.bits(s0, 16, 16);
+        let a1 = wb.bits(a, 16, 16);
+        let b1 = wb.bits(b, 16, 16);
+        let c1 = wb.bits(c, 16, 16);
+        let d1 = wb.bits(d, 16, 16);
+        let s1a = wb.wrapping_add(a1, b1);
+        let s1b = wb.wrapping_add(s1a, c1);
+        let s1c = wb.wrapping_add(s1b, d1);
+        let s1 = wb.wrapping_add(s1c, carry0);
+        let carry1 = wb.bits(s1, 16, 16);
+        wb.add_u8_range_check(carry0, carry1);
+        expected
+    }
+}
+
 impl<F: Field> Add4Operation<F> {
     #[allow(clippy::too_many_arguments)]
     pub fn populate(

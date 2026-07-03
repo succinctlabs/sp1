@@ -81,6 +81,12 @@ pub trait WitnessBuilder {
     /// chip's convolution) so the product fits a `u64` without overflow.
     fn mul(&mut self, a: Self::Nat, b: Self::Nat) -> Self::Nat;
 
+    /// Bitwise XOR (needed by the SHA precompiles' xor/not u32 gadgets).
+    fn xor(&mut self, a: Self::Nat, b: Self::Nat) -> Self::Nat;
+
+    /// Bitwise AND (needed by the SHA precompiles' and u32 gadget).
+    fn and(&mut self, a: Self::Nat, b: Self::Nat) -> Self::Nat;
+
     /// Integer select: `cond` (0 or 1) ? `a` : `b`.
     fn select(&mut self, cond: Self::Nat, a: Self::Nat, b: Self::Nat) -> Self::Nat;
 
@@ -202,6 +208,16 @@ impl<F: Field, R: ByteRecord> WitnessBuilder for HostWitnessBuilder<'_, F, R> {
     #[inline]
     fn mul(&mut self, a: u64, b: u64) -> u64 {
         a.wrapping_mul(b)
+    }
+
+    #[inline]
+    fn xor(&mut self, a: u64, b: u64) -> u64 {
+        a ^ b
+    }
+
+    #[inline]
+    fn and(&mut self, a: u64, b: u64) -> u64 {
+        a & b
     }
 
     #[inline]

@@ -20,6 +20,7 @@ mod memory_local;
 mod mul;
 mod sll;
 mod sr;
+mod sha_extend;
 mod state_bump;
 mod syscall;
 mod store_byte;
@@ -518,6 +519,7 @@ fn device_chip_name(air: &RiscvAir<F>) -> Option<&'static str> {
         RiscvAir::MemoryGlobalFinal(_) => "MemoryGlobalFinal",
         RiscvAir::SyscallCore(_) => "SyscallCore",
         RiscvAir::SyscallPrecompile(_) => "SyscallPrecompile",
+        RiscvAir::Sha256Extend(_) => "ShaExtend",
         _ => return None,
     })
 }
@@ -605,6 +607,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::SyscallPrecompile(chip) => {
                 chip.generate_trace_device(input, output, scope).await
             }
+            Self::Sha256Extend(chip) => chip.generate_trace_device(input, output, scope).await,
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => unimplemented!(),
         }
@@ -675,6 +678,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Branch(chip) => dispatch!(chip),
             Self::StateBump(chip) => dispatch!(chip),
             Self::MemoryBump(chip) => dispatch!(chip),
+            Self::Sha256Extend(chip) => dispatch!(chip),
             _ => unimplemented!(),
         }
     }
@@ -751,6 +755,14 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::MemoryBump(_) => {
                 pk!(input.bump_memory_events, memory_bump::pack_memory_bump_inputs)
             }
+            // ShaExtend: 48 input rows per event (collect_events handles traps).
+            Self::Sha256Extend(_) => {
+                if height == 0 {
+                    Vec::new()
+                } else {
+                    sha_extend::pack_for_record(input)
+                }
+            }
             _ => Vec::new(),
         }
     }
@@ -795,6 +807,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Branch(chip) => dispatch!(chip),
             Self::StateBump(chip) => dispatch!(chip),
             Self::MemoryBump(chip) => dispatch!(chip),
+            Self::Sha256Extend(chip) => dispatch!(chip),
             _ => unimplemented!(),
         }
     }
