@@ -80,6 +80,16 @@ pub(crate) async fn generate_trace_and_lookups(
         .await
 }
 
+/// Whether the fused witgen path uses the register-allocated SLOT kernels (default)
+/// or the legacy SSA ones (`AR_WITGEN_SLOTS=0` kill-switch). Slot form is wall-neutral
+/// vs SSA (iter-072: fibonacci 12.51 vs 12.49s) but is the single consolidated form:
+/// bounded footprint (wide gadgets fit) and the prerequisite for the shared-memory
+/// tiers, so kernel work only targets one family.
+pub(crate) fn witgen_slots_enabled() -> bool {
+    static SLOTS: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *SLOTS.get_or_init(|| std::env::var("AR_WITGEN_SLOTS").map(|v| v != "0").unwrap_or(true))
+}
+
 /// Like [`generate_trace_and_lookups`] but writes into a caller-provided `trace` that
 /// is already initialized — for chips whose padding rows are NOT all-zero (e.g.
 /// ShiftLeft/ShiftRight broadcast a non-zero column template across padding rows before
@@ -95,6 +105,13 @@ pub(crate) async fn generate_trace_and_lookups_into(
     hist: LookupHist,
     scope: &TaskScope,
 ) -> Result<DeviceMle<F>, CopyError> {
+    // Default path: the register-allocated slot form (see `witgen_slots_enabled`).
+    if witgen_slots_enabled() {
+        return generate_trace_and_lookups_slots_into(
+            program, col_wires, inputs, n_events, height, trace, hist, scope,
+        )
+        .await;
+    }
     let n_cols = col_wires.len();
     let ops_c = program.to_c();
     let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone()).unwrap();
@@ -242,6 +259,30 @@ pub(crate) async fn generate_trace_and_lookups_slots(
     hist: LookupHist,
     scope: &TaskScope,
 ) -> Result<DeviceMle<F>, CopyError> {
+    // Zeroed trace; only event rows are written (padding rows stay 0 — is_real=0).
+    let trace = Tensor::<F, TaskScope>::zeros_in([n_cols, height], scope.clone());
+    generate_trace_and_lookups_slots_into(
+        program, col_wires, inputs, n_events, height, trace, hist, scope,
+    )
+    .await
+}
+
+/// Like [`generate_trace_and_lookups_slots`] but writes into a caller-provided,
+/// already-initialized `trace` — for chips whose padding rows are NOT all-zero
+/// (ShiftLeft/ShiftRight broadcast a template across padding before the kernel
+/// overwrites event rows). The slot dual of [`generate_trace_and_lookups_into`].
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn generate_trace_and_lookups_slots_into(
+    program: &WitProgram,
+    col_wires: &[u32],
+    inputs: &[u64],
+    n_events: usize,
+    height: usize,
+    trace: Tensor<F, TaskScope>,
+    hist: LookupHist,
+    scope: &TaskScope,
+) -> Result<DeviceMle<F>, CopyError> {
+    let n_cols = col_wires.len();
     let (slot, max_slots) = program.allocate_slots(col_wires);
     assert!(
         max_slots as usize <= WITGEN_MAX_WIRES,
@@ -262,8 +303,7 @@ pub(crate) async fn generate_trace_and_lookups_slots(
     let mut in_dev = Buffer::try_with_capacity_in(inputs.len().max(1), scope.clone()).unwrap();
     in_dev.extend_from_host_slice(inputs)?;
 
-    // Zeroed trace; only event rows are written (padding rows stay 0 — is_real=0).
-    let mut trace = Tensor::<F, TaskScope>::zeros_in([n_cols, height], scope.clone());
+    let mut trace = trace;
     if n_events > 0 {
         unsafe {
             const BLOCK: usize = 64;
