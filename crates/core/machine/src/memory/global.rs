@@ -251,7 +251,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
     }
 }
 
-#[derive(AlignedBorrow, Clone, Copy, StructReflection)]
+#[derive(AlignedBorrow, Default, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct MemoryInitCols<T: Copy> {
     /// The top bits of the timestamp of the memory access.
@@ -298,7 +298,111 @@ pub struct MemoryInitCols<T: Copy> {
     pub is_index_zero: IsZeroOperation<T>,
 }
 
-pub(crate) const NUM_MEMORY_INIT_COLS: usize = size_of::<MemoryInitCols<u8>>();
+pub const NUM_MEMORY_INIT_COLS: usize = size_of::<MemoryInitCols<u8>>();
+
+// Witgen in an unconstrained `impl` (column type is the builder's `Field`).
+impl<T: Copy> MemoryInitCols<T> {
+    /// Backend-agnostic witgen for one `MemoryGlobalInit`/`MemoryGlobalFinalize`
+    /// row. The chip's host tracegen has a sort + sequential-neighbor pass; the
+    /// DEVICE port moves that to PACKING: events are sorted host-side and each row
+    /// receives its own `prev_addr` (previous sorted event's address, or the shard
+    /// public value for row 0) and `index` as inputs, making rows independent.
+    ///
+    /// `is_comp = (prev_addr != 0 || index != 0)` and `prev_valid` are recomputed
+    /// in-DAG. On non-comparison rows the `lt_cols` gadget runs on zero-masked
+    /// inputs (which yields the all-zero default columns the host writes) with its
+    /// lookups guarded on `is_comp`.
+    ///
+    /// NOTE: `generate_dependencies` ALSO emits `GlobalInteractionEvent`s and bumps
+    /// `public_values.global_*_count` — NOT modeled here; the device dependency
+    /// path must stay off for this chip (host `generate_dependencies` still runs).
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut MemoryInitCols<WB::Field>,
+        addr: WB::Nat,
+        value: WB::Nat,
+        timestamp: WB::Nat,
+        prev_addr: WB::Nat,
+        index: WB::Nat,
+    ) {
+        let zero = wb.const_nat(0);
+        let one = wb.const_nat(1);
+
+        let clk_high = wb.bits(timestamp.clone(), 24, 32);
+        cols.clk_high = wb.nat_to_field(clk_high);
+        let clk_low = wb.bits(timestamp, 0, 24);
+        cols.clk_low = wb.nat_to_field(clk_low);
+        cols.index = wb.nat_to_field(index.clone());
+
+        // Address limbs (+ dependency u16 checks on limbs 0..3 of both addresses).
+        let pa0 = wb.bits(prev_addr.clone(), 0, 16);
+        let pa1 = wb.bits(prev_addr.clone(), 16, 16);
+        let pa2 = wb.bits(prev_addr.clone(), 32, 16);
+        for (i, limb) in [pa0.clone(), pa1.clone(), pa2.clone()].into_iter().enumerate() {
+            wb.add_u16_range_check(limb.clone());
+            cols.prev_addr[i] = wb.nat_to_field(limb);
+        }
+        for i in 0..3 {
+            let limb = wb.bits(addr.clone(), 16 * i as u32, 16);
+            wb.add_u16_range_check(limb.clone());
+            cols.addr[i] = wb.nat_to_field(limb);
+        }
+
+        // Value limbs + the 8-bit split of the third limb (+ dependency checks).
+        for i in 0..4 {
+            let limb = wb.bits(value.clone(), 16 * i as u32, 16);
+            wb.add_u16_range_check(limb.clone());
+            cols.value.0[i] = wb.nat_to_field(limb);
+        }
+        let vb0 = wb.bits(value.clone(), 32, 8);
+        let vb1 = wb.bits(value, 40, 8);
+        wb.add_u8_range_check(vb0.clone(), vb1.clone());
+        cols.value_lower = wb.nat_to_field(vb0);
+        cols.value_upper = wb.nat_to_field(vb1);
+        cols.is_real = wb.nat_to_field(one.clone());
+
+        // is_comp = (prev_addr != 0 || index != 0); prev_valid = (prev_addr != 0)
+        // || (index == 0)  [host: 0 only when prev_addr == 0 && index != 0].
+        let pa_zero = wb.eq(prev_addr.clone(), zero.clone());
+        let idx_zero = wb.eq(index.clone(), zero.clone());
+        let both_zero = wb.select(pa_zero.clone(), idx_zero.clone(), zero.clone());
+        let is_comp = wb.eq(both_zero, zero.clone());
+        cols.is_comp = wb.nat_to_field(is_comp.clone());
+        let prev_valid = wb.select(pa_zero, idx_zero, one);
+        cols.prev_valid = wb.nat_to_field(prev_valid);
+
+        // IsZero witnesses: prev_addr limb sum (< 3·2^16, no overflow) and index.
+        let pa01 = wb.wrapping_add(pa0, pa1);
+        let pa_sum = wb.wrapping_add(pa01, pa2);
+        crate::operations::IsZeroOperation::<WB::Field>::witgen(
+            wb,
+            &mut cols.is_prev_addr_zero,
+            pa_sum,
+        );
+        crate::operations::IsZeroOperation::<WB::Field>::witgen(
+            wb,
+            &mut cols.is_index_zero,
+            index,
+        );
+
+        // lt_cols: `1 = (prev_addr < addr)` on comparison rows; the all-zero default
+        // otherwise — zero-masked inputs reproduce the default exactly (flags,
+        // comparison limbs, not_eq_inv and bit all become 0) — with the gadget's
+        // lookups guarded on `is_comp`.
+        let pa_m = wb.select(is_comp.clone(), prev_addr, zero.clone());
+        let addr_m = wb.select(is_comp.clone(), addr, zero);
+        let a_m = is_comp.clone();
+        wb.push_guard(is_comp);
+        crate::operations::LtOperationUnsigned::<WB::Field>::witgen(
+            wb,
+            &mut cols.lt_cols,
+            a_m,
+            pa_m,
+            addr_m,
+        );
+        wb.pop_guard();
+    }
+}
 
 impl<AB> Air<AB> for MemoryGlobalChip
 where

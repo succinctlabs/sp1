@@ -15,6 +15,7 @@ mod load_word;
 mod load_x0;
 mod lt;
 mod memory_bump;
+mod memory_global;
 mod memory_local;
 mod mul;
 mod sll;
@@ -513,6 +514,8 @@ fn device_chip_name(air: &RiscvAir<F>) -> Option<&'static str> {
         RiscvAir::StateBump(_) => "StateBump",
         RiscvAir::MemoryBump(_) => "MemoryBump",
         RiscvAir::MemoryLocal(_) => "MemoryLocal",
+        RiscvAir::MemoryGlobalInit(_) => "MemoryGlobalInit",
+        RiscvAir::MemoryGlobalFinal(_) => "MemoryGlobalFinal",
         RiscvAir::SyscallCore(_) => "SyscallCore",
         RiscvAir::SyscallPrecompile(_) => "SyscallPrecompile",
         _ => return None,
@@ -595,6 +598,9 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::StateBump(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::MemoryBump(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::MemoryLocal(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::MemoryGlobalInit(chip) | Self::MemoryGlobalFinal(chip) => {
+                chip.generate_trace_device(input, output, scope).await
+            }
             Self::SyscallCore(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::SyscallPrecompile(chip) => {
                 chip.generate_trace_device(input, output, scope).await
@@ -616,7 +622,15 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
         // dense-histogram readback cost in the e2e bench.
         device_deps_enabled()
             && device_chip_name(self).is_some_and(|n| {
-                !matches!(n, "Global" | "MemoryLocal" | "SyscallCore" | "SyscallPrecompile")
+                !matches!(
+                    n,
+                    "Global"
+                        | "MemoryLocal"
+                        | "SyscallCore"
+                        | "SyscallPrecompile"
+                        | "MemoryGlobalInit"
+                        | "MemoryGlobalFinal"
+                )
                     && device_chip_enabled(n)
             })
     }
