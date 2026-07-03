@@ -899,7 +899,168 @@ __global__ void witgen_fused_slots_kernel(
     }
 }
 
+// STREAMING (store-through) fused kernel with SHARED-MEMORY wires, for chips whose
+// streaming footprint fits WIRE_CAP (iter-073 census: 15/20 chips <= 24 transient
+// slots once columns are written at production instead of pinned for a readout).
+//
+// vs witgen_fused_slots_kernel: (1) wires live in __shared__ ([slot][thread] layout,
+// bank-conflict-free) instead of DRAM-backed local arrays — the local-memory traffic
+// WAS the witgen cost (iter-072); (2) ops carry `col`: a single-column wire is stored
+// to the trace at production (no readout loop, no col_slots); (3) `is_field[]` is
+// gone — the store type is static per tag; (4) input-columns stored at load;
+// (5) multi-column wires via the (slot,col) epilogue (census: always empty, kept for
+// correctness). Lookup arms are identical to witgen_fused_slots_kernel.
+#define WITGEN_SMEM_CAP 24
+#define WITGEN_SMEM_BLOCK 64
+
+template <class T>
+__global__ void __launch_bounds__(WITGEN_SMEM_BLOCK) witgen_fused_streaming_smem_kernel(
+    T* trace,
+    uintptr_t trace_height,
+    const sp1_gpu_sys::WitOpCSlot* ops,
+    uintptr_t n_ops,
+    uint32_t num_inputs,
+    const uint32_t* input_slots,       // input i lives in slot input_slots[i]
+    const uint32_t* input_col_idx,     // input-columns: (input index, col) pairs
+    const uint32_t* input_col_col,
+    uint32_t n_input_cols,
+    const uint32_t* epi_slot,          // epilogue: (slot, col) pairs
+    const uint32_t* epi_col,
+    uint32_t n_epi,
+    const uint64_t* inputs,            // row-major [n_rows][num_inputs]
+    uintptr_t n_rows,
+    uint32_t* range_hist,
+    uint32_t* byte_hist) {
+    __shared__ uint64_t nat_s[WITGEN_SMEM_CAP * WITGEN_SMEM_BLOCK];
+    __shared__ T fld_s[WITGEN_SMEM_CAP * WITGEN_SMEM_BLOCK];
+    const uint32_t tid = threadIdx.x;
+    // [slot][thread]: consecutive threads -> consecutive banks.
+#define NATS(s) nat_s[(s) * WITGEN_SMEM_BLOCK + tid]
+#define FLDS(s) fld_s[(s) * WITGEN_SMEM_BLOCK + tid]
+
+    int row = blockIdx.x * blockDim.x + threadIdx.x;
+    for (; row < n_rows; row += blockDim.x * gridDim.x) {
+        for (uint32_t i = 0; i < num_inputs; ++i) {
+            NATS(input_slots[i]) = inputs[row * num_inputs + i];
+        }
+        for (uint32_t i = 0; i < n_input_cols; ++i) {
+            trace[row + (uintptr_t)input_col_col[i] * trace_height] =
+                T::from_canonical_u32((uint32_t)inputs[row * num_inputs + input_col_idx[i]]);
+        }
+
+        for (uintptr_t k = 0; k < n_ops; ++k) {
+            const sp1_gpu_sys::WitOpCSlot op = ops[k];
+            bool is_fld = false;
+            switch (op.tag) {
+            case 0: NATS(op.out) = op.imm0; break;
+            case 1: NATS(op.out) = NATS(op.a) + NATS(op.b); break;
+            case 8: NATS(op.out) = NATS(op.a) - NATS(op.b); break;
+            case 2: {
+                uint64_t mask = (op.imm1 >= 64) ? ~0ULL : ((1ULL << op.imm1) - 1);
+                NATS(op.out) = (NATS(op.a) >> op.imm0) & mask;
+                break;
+            }
+            case 11: NATS(op.out) = (NATS(op.a) == NATS(op.b)) ? 1 : 0; break;
+            case 12: NATS(op.out) = NATS(op.a) ? NATS(op.b) : NATS(op.imm1); break;
+            case 20: NATS(op.out) = NATS(op.a) << NATS(op.b); break;
+            case 21: NATS(op.out) = NATS(op.a) >> NATS(op.b); break;
+            case 23: NATS(op.out) = NATS(op.a) * NATS(op.b); break;
+            case 3:
+                FLDS(op.out) = T::from_canonical_u32((uint32_t)NATS(op.a));
+                is_fld = true;
+                break;
+            case 4: FLDS(op.out) = FLDS(op.a) + FLDS(op.b); is_fld = true; break;
+            case 19: FLDS(op.out) = FLDS(op.a) - FLDS(op.b); is_fld = true; break;
+            case 5: FLDS(op.out) = FLDS(op.a).reciprocal(); is_fld = true; break;
+            case 18:
+                FLDS(op.out) = NATS(op.a) ? FLDS(op.b) : FLDS(op.imm1);
+                is_fld = true;
+                break;
+            // --- lookup ops: no wire, accumulate histogram; never a column ---
+            case 6: {
+                uint32_t v = (uint32_t)(uint16_t)NATS(op.a);
+                atomicAdd(&range_hist[v + (1u << 16)], 1u);
+                continue;
+            }
+            case 7: {
+                uint32_t v = (uint32_t)(uint16_t)NATS(op.a);
+                atomicAdd(&range_hist[v + (1u << (uint32_t)op.imm0)], 1u);
+                continue;
+            }
+            case 22: {
+                uint32_t v = (uint32_t)(uint16_t)NATS(op.a);
+                uint32_t bits = (uint32_t)NATS(op.b);
+                atomicAdd(&range_hist[v + (1u << bits)], 1u);
+                continue;
+            }
+            case 9: {
+                uint32_t b = (uint32_t)(uint8_t)NATS(op.a);
+                uint32_t c = (uint32_t)(uint8_t)NATS(op.b);
+                atomicAdd(&byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS
+                                     + WITGEN_BYTE_U8RANGE_COL], 1u);
+                continue;
+            }
+            case 13: {
+                if (NATS(op.b)) {
+                    uint32_t v = (uint32_t)(uint16_t)NATS(op.a);
+                    atomicAdd(&range_hist[v + (1u << 16)], 1u);
+                }
+                continue;
+            }
+            case 14: {
+                if (NATS(op.b)) {
+                    uint32_t v = (uint32_t)(uint16_t)NATS(op.a);
+                    atomicAdd(&range_hist[v + (1u << (uint32_t)op.imm0)], 1u);
+                }
+                continue;
+            }
+            case 15: {
+                if (NATS(op.imm1)) {
+                    uint32_t b = (uint32_t)(uint8_t)NATS(op.a);
+                    uint32_t c = (uint32_t)(uint8_t)NATS(op.b);
+                    atomicAdd(&byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS
+                                         + WITGEN_BYTE_U8RANGE_COL], 1u);
+                }
+                continue;
+            }
+            case 16: {
+                uint32_t b = (uint32_t)(uint8_t)NATS(op.a);
+                uint32_t c = (uint32_t)(uint8_t)NATS(op.b);
+                uint32_t opc = (uint32_t)NATS(op.imm1);
+                atomicAdd(&byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
+                continue;
+            }
+            case 17: {
+                if (NATS((uint32_t)op.imm0)) {
+                    uint32_t b = (uint32_t)(uint8_t)NATS(op.a);
+                    uint32_t c = (uint32_t)(uint8_t)NATS(op.b);
+                    uint32_t opc = (uint32_t)NATS(op.imm1);
+                    atomicAdd(&byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
+                }
+                continue;
+            }
+            }
+            // Store-through: single-column wires go straight to the trace.
+            if (op.col != 0xFFFFFFFFu) {
+                trace[row + (uintptr_t)op.col * trace_height] =
+                    is_fld ? FLDS(op.out) : T::from_canonical_u32((uint32_t)NATS(op.out));
+            }
+        }
+
+        // Multi-column wires (census: rare/none) — written after the op loop.
+        for (uint32_t i = 0; i < n_epi; ++i) {
+            trace[row + (uintptr_t)epi_col[i] * trace_height] =
+                T::from_canonical_u32((uint32_t)NATS(epi_slot[i]));
+        }
+    }
+#undef NATS
+#undef FLDS
+}
+
 namespace sp1_gpu_sys {
+extern KernelPtr witgen_fused_streaming_smem_koala_bear_kernel() {
+    return (KernelPtr)::witgen_fused_streaming_smem_kernel<kb31_t>;
+}
 extern KernelPtr witgen_fused_slots_koala_bear_kernel() {
     return (KernelPtr)::witgen_fused_slots_kernel<kb31_t>;
 }

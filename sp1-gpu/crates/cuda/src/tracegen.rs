@@ -220,6 +220,8 @@ pub unsafe trait WitgenInterpKernel<F> {
     fn witgen_lookup_slots_kernel() -> KernelPtr;
     /// Slot-indexed FUSED kernel (columns + lookups, one pass) for wide device-dep gadgets.
     fn witgen_fused_slots_kernel() -> KernelPtr;
+    /// Streaming store-through fused kernel, shared-memory wires (streaming_max <= 24).
+    fn witgen_fused_streaming_smem_kernel() -> KernelPtr;
     /// Convert a row-major u32 lookup histogram into the column-major field trace of the
     /// Byte/Range table chip (the trace IS the histogram). See `hist_to_trace_kernel`.
     fn hist_to_trace_kernel() -> KernelPtr;
@@ -245,6 +247,9 @@ unsafe impl WitgenInterpKernel<SP1Field> for TaskScope {
     }
     fn witgen_fused_slots_kernel() -> KernelPtr {
         unsafe { sp1_gpu_sys::tracegen::witgen_fused_slots_koala_bear_kernel() }
+    }
+    fn witgen_fused_streaming_smem_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::witgen_fused_streaming_smem_koala_bear_kernel() }
     }
     fn hist_to_trace_kernel() -> KernelPtr {
         unsafe { sp1_gpu_sys::tracegen::hist_to_trace_koala_bear_kernel() }

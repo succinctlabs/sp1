@@ -204,9 +204,12 @@ pub(crate) async fn generate_columns_slots_into(
         max_slots as usize <= WITGEN_MAX_WIRES,
         "reg-alloc: {max_slots} live slots > kernel capacity {WITGEN_MAX_WIRES}"
     );
+    let (_, streaming_max, epi) = program.allocate_slots_streaming(col_wires);
     tracing::debug!(
         target: "witgen_slots",
         max_slots,
+        streaming_max,
+        epilogue = epi.len(),
         n_cols = col_wires.len(),
         "witgen slot footprint"
     );
@@ -289,19 +292,84 @@ pub(crate) async fn generate_trace_and_lookups_slots_into(
     scope: &TaskScope,
 ) -> Result<DeviceMle<F>, CopyError> {
     let n_cols = col_wires.len();
+    // STREAMING (store-through) shared-memory path: columns written at production,
+    // wires resident on-chip. Covers chips whose transient footprint fits the smem
+    // cap (iter-073 census: 15/20 <= 24); the multi-column epilogue is nat-only in
+    // the kernel, so any field-typed epilogue chip falls back to the pinned path.
+    const SMEM_CAP: u32 = 24;
+    let (s_slot, s_max, epi) = program.allocate_slots_streaming(col_wires);
+    tracing::debug!(
+        target: "witgen_slots",
+        streaming_max = s_max,
+        epilogue = epi.len(),
+        n_cols,
+        "witgen slot footprint"
+    );
+    let ni = program.num_inputs as usize;
+    let mut trace = trace;
+    if s_max <= SMEM_CAP && epi.is_empty() {
+        let (ops_c, input_cols) = program.to_c_slots_streaming(&s_slot, col_wires);
+        let input_slots: Vec<u32> = s_slot[..ni].to_vec();
+        let ic_idx: Vec<u32> = input_cols.iter().map(|&(i, _)| i).collect();
+        let ic_col: Vec<u32> = input_cols.iter().map(|&(_, c)| c).collect();
+
+        let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone()).unwrap();
+        ops_dev.extend_from_host_slice(&ops_c)?;
+        let mut inslot_dev =
+            Buffer::try_with_capacity_in(input_slots.len().max(1), scope.clone()).unwrap();
+        inslot_dev.extend_from_host_slice(&input_slots)?;
+        let mut ic_idx_dev =
+            Buffer::try_with_capacity_in(ic_idx.len().max(1), scope.clone()).unwrap();
+        ic_idx_dev.extend_from_host_slice(&ic_idx)?;
+        let mut ic_col_dev =
+            Buffer::try_with_capacity_in(ic_col.len().max(1), scope.clone()).unwrap();
+        ic_col_dev.extend_from_host_slice(&ic_col)?;
+        let mut in_dev = Buffer::try_with_capacity_in(inputs.len().max(1), scope.clone()).unwrap();
+        in_dev.extend_from_host_slice(inputs)?;
+
+        if n_events > 0 {
+            unsafe {
+                const BLOCK: usize = 64; // must match WITGEN_SMEM_BLOCK in the kernel
+                let grid = n_events.div_ceil(BLOCK);
+                let args = args!(
+                    trace.as_mut_ptr(),
+                    height,
+                    ops_dev.as_ptr(),
+                    ops_c.len(),
+                    program.num_inputs,
+                    inslot_dev.as_ptr(),
+                    ic_idx_dev.as_ptr(),
+                    ic_col_dev.as_ptr(),
+                    ic_idx.len() as u32,
+                    std::ptr::null::<u32>(), // epilogue (empty by gate above)
+                    std::ptr::null::<u32>(),
+                    0u32,
+                    in_dev.as_ptr(),
+                    n_events,
+                    hist.range,
+                    hist.byte
+                );
+                scope
+                    .launch_kernel(
+                        TaskScope::witgen_fused_streaming_smem_kernel(),
+                        grid,
+                        BLOCK,
+                        &args,
+                        0,
+                    )
+                    .unwrap();
+            }
+        }
+        return Ok(DeviceMle::from(trace));
+    }
+
+    // Pinned fallback: columns held live and read out at the end (local-memory wires).
     let (slot, max_slots) = program.allocate_slots(col_wires);
     assert!(
         max_slots as usize <= WITGEN_MAX_WIRES,
         "reg-alloc: {max_slots} live slots > kernel capacity {WITGEN_MAX_WIRES}"
     );
-    tracing::debug!(
-        target: "witgen_slots",
-        max_slots,
-        n_cols = col_wires.len(),
-        "witgen slot footprint"
-    );
     let ops_c = program.to_c_slots(&slot);
-    let ni = program.num_inputs as usize;
     let input_slots: Vec<u32> = slot[..ni].to_vec();
     let col_slots: Vec<u32> = col_wires.iter().map(|&w| slot[w as usize]).collect();
 
@@ -315,7 +383,6 @@ pub(crate) async fn generate_trace_and_lookups_slots_into(
     let mut in_dev = Buffer::try_with_capacity_in(inputs.len().max(1), scope.clone()).unwrap();
     in_dev.extend_from_host_slice(inputs)?;
 
-    let mut trace = trace;
     if n_events > 0 {
         unsafe {
             const BLOCK: usize = 64;
@@ -363,9 +430,12 @@ pub(crate) async fn accumulate_lookups_slots(
         max_slots as usize <= WITGEN_MAX_WIRES,
         "reg-alloc: {max_slots} live slots > kernel capacity {WITGEN_MAX_WIRES}"
     );
+    let (_, streaming_max, epi) = program.allocate_slots_streaming(col_wires);
     tracing::debug!(
         target: "witgen_slots",
         max_slots,
+        streaming_max,
+        epilogue = epi.len(),
         n_cols = col_wires.len(),
         "witgen slot footprint"
     );
