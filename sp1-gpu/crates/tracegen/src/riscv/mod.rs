@@ -14,9 +14,13 @@ mod load_half;
 mod load_word;
 mod load_x0;
 mod lt;
+mod memory_bump;
+mod memory_local;
 mod mul;
 mod sll;
 mod sr;
+mod state_bump;
+mod syscall;
 mod store_byte;
 mod store_double;
 mod store_half;
@@ -503,6 +507,14 @@ fn device_chip_name(air: &RiscvAir<F>) -> Option<&'static str> {
         // Off by default (needs AR_DEVICE_CHIPS=...,Mul); device==CPU trace validated
         // by `test_mul_generate_trace_device`.
         RiscvAir::Mul(_) => "Mul",
+        // iter-071 CPU-side ports — CPU-model validated (columns + lookups); GPU
+        // device==CPU trace tests not yet run (GPU busy). Do not enable in
+        // AR_DEVICE_CHIPS until the tokio tests pass on device.
+        RiscvAir::StateBump(_) => "StateBump",
+        RiscvAir::MemoryBump(_) => "MemoryBump",
+        RiscvAir::MemoryLocal(_) => "MemoryLocal",
+        RiscvAir::SyscallCore(_) => "SyscallCore",
+        RiscvAir::SyscallPrecompile(_) => "SyscallPrecompile",
         _ => return None,
     })
 }
@@ -580,18 +592,33 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Jal(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::Jalr(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::Branch(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::StateBump(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::MemoryBump(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::MemoryLocal(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::SyscallCore(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::SyscallPrecompile(chip) => {
+                chip.generate_trace_device(input, output, scope).await
+            }
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => unimplemented!(),
         }
     }
 
     fn supports_device_dependencies(&self) -> bool {
-        // Same gate as main tracegen, but `Global` has no device dependency path.
+        // Same gate as main tracegen, but `Global` has no device dependency path,
+        // and MemoryLocal/SyscallCore/SyscallPrecompile MUST keep dependencies on
+        // host: their `generate_dependencies` emits `GlobalInteractionEvent`s
+        // (septic-curve global table inputs), which the device byte-lookup
+        // histogram cannot produce — device deps for them would silently DROP the
+        // global interactions and break the proof.
         // `AR_DEVICE_DEPS=0` disables the device byte-lookup path globally (host
         // generates dependencies) to isolate the device main-trace cost from the
         // dense-histogram readback cost in the e2e bench.
         device_deps_enabled()
-            && device_chip_name(self).is_some_and(|n| n != "Global" && device_chip_enabled(n))
+            && device_chip_name(self).is_some_and(|n| {
+                !matches!(n, "Global" | "MemoryLocal" | "SyscallCore" | "SyscallPrecompile")
+                    && device_chip_enabled(n)
+            })
     }
 
     async fn generate_device_dependencies(
@@ -632,6 +659,8 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Jal(chip) => dispatch!(chip),
             Self::Jalr(chip) => dispatch!(chip),
             Self::Branch(chip) => dispatch!(chip),
+            Self::StateBump(chip) => dispatch!(chip),
+            Self::MemoryBump(chip) => dispatch!(chip),
             _ => unimplemented!(),
         }
     }
@@ -701,6 +730,13 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             // Wide gadget on device (iter-066/067): without this arm the fused path gets
             // empty inputs → no Mul trace → failed verification.
             Self::Mul(_) => pk!(input.mul_events, mul::pack_mul_inputs),
+            // iter-071 ports with device dependencies (fused path).
+            Self::StateBump(_) => {
+                pk!(input.bump_state_events, state_bump::pack_state_bump_inputs)
+            }
+            Self::MemoryBump(_) => {
+                pk!(input.bump_memory_events, memory_bump::pack_memory_bump_inputs)
+            }
             _ => Vec::new(),
         }
     }
@@ -743,6 +779,8 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Jal(chip) => dispatch!(chip),
             Self::Jalr(chip) => dispatch!(chip),
             Self::Branch(chip) => dispatch!(chip),
+            Self::StateBump(chip) => dispatch!(chip),
+            Self::MemoryBump(chip) => dispatch!(chip),
             _ => unimplemented!(),
         }
     }

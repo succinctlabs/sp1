@@ -57,7 +57,7 @@ impl<M: TrustMode> SyscallChip<M> {
 }
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Clone, Copy, StructReflection)]
+#[derive(AlignedBorrow, Default, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct SyscallCols<T: Copy, M: TrustMode> {
     /// The high bits of the clk of the syscall.
@@ -79,6 +79,56 @@ pub struct SyscallCols<T: Copy, M: TrustMode> {
 
     /// The trap code of the syscall.
     pub trap_code: M::TrapCodeCols<T>,
+}
+
+// Witgen in an unconstrained `impl` (column type is the builder's `Field`).
+impl<T: Copy, M: TrustMode> SyscallCols<T, M> {
+    /// Backend-agnostic witgen for the syscall table (SUPERVISOR mode): clk split
+    /// (24 low / 32 high), syscall id, and the arg1/arg2 u16 limbs, plus the
+    /// dependency lookups — a u8 check on the RAW event syscall id + trap code and
+    /// a u16 check on arg1's low limb — guarded by `should_send`, because
+    /// Precompile-kind shards put non-sending events in the trace but skip them in
+    /// `generate_dependencies`. NOTE: the user-mode `trap_code` column and the extra
+    /// `arg1[1]` u16 check are NOT emitted here (user mode is not device-ported).
+    ///
+    /// `syscall_id` is the COLUMN value (`syscall_code.syscall_id()`);
+    /// `raw_syscall_id` is the DEPENDENCY value (`event.syscall_id`) — the two are
+    /// distinct event fields and must be packed separately for bit-fidelity.
+    #[allow(clippy::too_many_arguments)]
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut SyscallCols<WB::Field, M>,
+        clk: WB::Nat,
+        syscall_id: WB::Nat,
+        raw_syscall_id: WB::Nat,
+        arg1: WB::Nat,
+        arg2: WB::Nat,
+        trap_code: WB::Nat,
+        should_send: WB::Nat,
+    ) {
+        debug_assert!(M::IS_TRUSTED, "witgen ports the supervisor-mode syscall table only");
+        let one = wb.const_nat(1);
+        let clk_high = wb.bits(clk, 24, 32);
+        cols.clk_high = wb.nat_to_field(clk_high);
+        let clk_low = wb.bits(clk, 0, 24);
+        cols.clk_low = wb.nat_to_field(clk_low);
+        cols.syscall_id = wb.nat_to_field(syscall_id);
+        let a1_limbs: [_; 3] = core::array::from_fn(|i| wb.bits(arg1, 16 * i as u32, 16));
+        for (col, limb) in cols.arg1.iter_mut().zip(a1_limbs) {
+            *col = wb.nat_to_field(limb);
+        }
+        for i in 0..3 {
+            let limb = wb.bits(arg2, 16 * i as u32, 16);
+            cols.arg2[i] = wb.nat_to_field(limb);
+        }
+        cols.is_real = wb.nat_to_field(one);
+
+        // Dependency lookups: emitted only for sending events.
+        wb.push_guard(should_send);
+        wb.add_u8_range_check(raw_syscall_id, trap_code);
+        wb.add_u16_range_check(a1_limbs[0]);
+        wb.pop_guard();
+    }
 }
 
 impl<F: PrimeField32, M: TrustMode> MachineAir<F> for SyscallChip<M> {

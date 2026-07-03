@@ -22,9 +22,9 @@ use sp1_hypercube::{
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
 pub const NUM_LOCAL_MEMORY_ENTRIES_PER_ROW: usize = 1;
-pub(crate) const NUM_MEMORY_LOCAL_INIT_COLS: usize = size_of::<MemoryLocalCols<u8>>();
+pub const NUM_MEMORY_LOCAL_INIT_COLS: usize = size_of::<MemoryLocalCols<u8>>();
 
-#[derive(AlignedBorrow, Clone, Copy, StructReflection)]
+#[derive(AlignedBorrow, Default, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct SingleMemoryLocal<T: Copy> {
     /// The address of the memory access.
@@ -68,6 +68,67 @@ pub struct SingleMemoryLocal<T: Copy> {
 #[repr(C)]
 pub struct MemoryLocalCols<T: Copy> {
     memory_local_entries: [SingleMemoryLocal<T>; NUM_LOCAL_MEMORY_ENTRIES_PER_ROW],
+}
+
+// Witgen in an unconstrained `impl` (column type is the builder's `Field`).
+impl<T: Copy> SingleMemoryLocal<T> {
+    /// Backend-agnostic witgen for one `MemoryLocal` entry: address u16 limbs,
+    /// initial/final clk splits (24 low / high), initial/final value u16 limbs plus
+    /// the 8-bit split of the third limb, and the dependency byte lookups (a u8
+    /// check on each value's byte 4/5 pair + u16 checks on each value's four limbs).
+    /// NOTE: `generate_dependencies` ALSO emits two `GlobalInteractionEvent`s per
+    /// event — those are NOT byte lookups and are NOT modeled here; the device
+    /// dependency path must stay off for this chip (host still runs
+    /// `generate_dependencies` for the global events).
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut SingleMemoryLocal<WB::Field>,
+        addr: WB::Nat,
+        initial_clk: WB::Nat,
+        initial_value: WB::Nat,
+        final_clk: WB::Nat,
+        final_value: WB::Nat,
+    ) {
+        for i in 0..3 {
+            let limb = wb.bits(addr.clone(), 16 * i as u32, 16);
+            cols.addr[i] = wb.nat_to_field(limb);
+        }
+        let i_hi = wb.bits(initial_clk.clone(), 24, 32);
+        cols.initial_clk_high = wb.nat_to_field(i_hi);
+        let f_hi = wb.bits(final_clk.clone(), 24, 32);
+        cols.final_clk_high = wb.nat_to_field(f_hi);
+        let i_lo = wb.bits(initial_clk, 0, 24);
+        cols.initial_clk_low = wb.nat_to_field(i_lo);
+        let f_lo = wb.bits(final_clk, 0, 24);
+        cols.final_clk_low = wb.nat_to_field(f_lo);
+
+        // Initial value: 4 u16 limbs + 8-bit split of the third limb (+ lookups).
+        for i in 0..4 {
+            let limb = wb.bits(initial_value.clone(), 16 * i as u32, 16);
+            wb.add_u16_range_check(limb.clone());
+            cols.initial_value.0[i] = wb.nat_to_field(limb);
+        }
+        let ib0 = wb.bits(initial_value.clone(), 32, 8);
+        let ib1 = wb.bits(initial_value, 40, 8);
+        wb.add_u8_range_check(ib0.clone(), ib1.clone());
+        cols.initial_value_lower = wb.nat_to_field(ib0);
+        cols.initial_value_upper = wb.nat_to_field(ib1);
+
+        // Final value: same shape.
+        for i in 0..4 {
+            let limb = wb.bits(final_value.clone(), 16 * i as u32, 16);
+            wb.add_u16_range_check(limb.clone());
+            cols.final_value.0[i] = wb.nat_to_field(limb);
+        }
+        let fb0 = wb.bits(final_value.clone(), 32, 8);
+        let fb1 = wb.bits(final_value, 40, 8);
+        wb.add_u8_range_check(fb0.clone(), fb1.clone());
+        cols.final_value_lower = wb.nat_to_field(fb0);
+        cols.final_value_upper = wb.nat_to_field(fb1);
+
+        let one = wb.const_nat(1);
+        cols.is_real = wb.nat_to_field(one);
+    }
 }
 
 pub struct MemoryLocalChip {}
