@@ -451,6 +451,12 @@ pub struct WitOpCSlot {
     pub a: u32,
     pub b: u32,
     pub imm1: u32,
+    /// Store-through column: if != `u32::MAX`, the kernel writes this op's value
+    /// straight to trace column `col` at production (streaming lowering), so the
+    /// wire need not stay live for a readout pass. `u32::MAX` in the pinned
+    /// lowering ([`WitProgram::to_c_slots`]), where columns are read out at the end.
+    /// (Fills what was struct padding — layout stays 32 bytes.)
+    pub col: u32,
     pub imm0: u64,
 }
 
@@ -659,9 +665,83 @@ impl WitProgram {
                         (17, s(b), s(c), s(opcode), u64::from(s(guard)))
                     }
                 };
-                WitOpCSlot { tag, out, a, b, imm1, imm0 }
+                WitOpCSlot { tag, out, a, b, imm1, col: u32::MAX, imm0 }
             })
             .collect()
+    }
+
+    /// STREAMING (store-through) slot allocation: like [`allocate_slots`] but column
+    /// wires are NOT pinned to the end — the kernel writes each single-column wire
+    /// straight to the trace at production ([`WitOpCSlot::col`]), so its slot frees
+    /// at its last *operand* use. Only wires feeding **multiple** columns (rare) are
+    /// pinned and written by a small epilogue.
+    ///
+    /// Returns `(slot, max_slots, epilogue)` where `epilogue` is `(wire, col)` pairs
+    /// the kernel must write after the op loop. This collapses `max_slots` from
+    /// ~chip-width (columns pinned; iter-073a census: 31–100) to the true transient
+    /// working set, enabling shared-memory wire storage and unblocking wide chips
+    /// (DivRem 272→transients; Keccak's 2640-column floor).
+    pub fn allocate_slots_streaming(
+        &self,
+        col_wires: &[u32],
+    ) -> (Vec<u32>, u32, Vec<(u32, u32)>) {
+        // Count columns per wire; multi-column wires get pinned + epilogue entries.
+        let mut ncols_of = vec![0u32; self.num_wires()];
+        for &w in col_wires {
+            ncols_of[w as usize] += 1;
+        }
+        let pinned: Vec<u32> = (0..self.num_wires() as u32)
+            .filter(|&w| ncols_of[w as usize] >= 2)
+            .collect();
+        let (slot, max_slots) = self.allocate_slots(&pinned);
+        let epilogue: Vec<(u32, u32)> = col_wires
+            .iter()
+            .enumerate()
+            .filter(|&(_, &w)| ncols_of[w as usize] >= 2)
+            .map(|(c, &w)| (w, c as u32))
+            .collect();
+        (slot, max_slots, epilogue)
+    }
+
+    /// Lower to the streaming (store-through) [`WitOpCSlot`] form: identical to
+    /// [`to_c_slots`](Self::to_c_slots) except each op that produces a
+    /// **single-column** wire carries that column in `col` (the kernel stores it at
+    /// production). Multi-column wires keep `col = MAX` and are written by the
+    /// epilogue from [`allocate_slots_streaming`]; input wires that are columns are
+    /// returned separately as `(input_index, col)` for the kernel's load loop.
+    pub fn to_c_slots_streaming(
+        &self,
+        slot: &[u32],
+        col_wires: &[u32],
+    ) -> (Vec<WitOpCSlot>, Vec<(u32, u32)>) {
+        // wire -> its column, only for wires feeding exactly ONE column.
+        let mut col_of = vec![u32::MAX; self.num_wires()];
+        let mut ncols_of = vec![0u32; self.num_wires()];
+        for (c, &w) in col_wires.iter().enumerate() {
+            ncols_of[w as usize] += 1;
+            col_of[w as usize] = c as u32;
+        }
+        for w in 0..col_of.len() {
+            if ncols_of[w] >= 2 {
+                col_of[w] = u32::MAX; // multi-column: epilogue handles it
+            }
+        }
+        let ni = self.num_inputs as usize;
+        let input_cols: Vec<(u32, u32)> = col_wires
+            .iter()
+            .enumerate()
+            .filter(|&(_, &w)| (w as usize) < ni && ncols_of[w as usize] == 1)
+            .map(|(c, &w)| (w, c as u32))
+            .collect();
+        let mut ops = self.to_c_slots(slot);
+        let mut wc = ni;
+        for (k, op) in self.ops.iter().enumerate() {
+            if op.produces_wire() {
+                ops[k].col = col_of[wc];
+                wc += 1;
+            }
+        }
+        (ops, input_cols)
     }
 }
 
@@ -783,6 +863,72 @@ pub fn interpret_c_slots_columns<F: Field>(
             Val::Nat(n) => F::from_canonical_u64(n),
         })
         .collect()
+}
+
+/// STREAMING (store-through) counterpart of [`interpret_c_slots_columns`] — the CPU
+/// model of the shared-memory kernel. Columns are written at PRODUCTION (`op.col`),
+/// input-columns at load, multi-column wires by the epilogue; there is no readout
+/// pass and no `is_field` tracking (store type is static per op). MUST produce
+/// columns identical to the SSA [`interpret_c_columns`].
+#[allow(clippy::too_many_arguments)]
+pub fn interpret_c_slots_streaming_columns<F: Field>(
+    ops: &[WitOpCSlot],
+    num_inputs: u32,
+    inputs: &[u64],
+    input_slots: &[u32],
+    input_cols: &[(u32, u32)],
+    epilogue_slots: &[(u32, u32)],
+    n_cols: usize,
+    max_slots: u32,
+) -> Vec<F> {
+    assert_eq!(inputs.len() as u32, num_inputs);
+    let mut out = vec![F::zero(); n_cols];
+    let mut vals: Vec<Val<F>> = vec![Val::Nat(0); max_slots as usize];
+    for i in 0..num_inputs as usize {
+        vals[input_slots[i] as usize] = Val::Nat(inputs[i]);
+    }
+    for &(i, c) in input_cols {
+        out[c as usize] = F::from_canonical_u64(inputs[i as usize]);
+    }
+    for op in ops {
+        let (a, b, o) = (op.a as usize, op.b as usize, op.out as usize);
+        match op.tag {
+            0 => vals[o] = Val::Nat(op.imm0),
+            1 => vals[o] = Val::Nat(vals[a].nat().wrapping_add(vals[b].nat())),
+            8 => vals[o] = Val::Nat(vals[a].nat().wrapping_sub(vals[b].nat())),
+            2 => {
+                let x = vals[a].nat();
+                let mask = if op.imm1 >= 64 { u64::MAX } else { (1u64 << op.imm1) - 1 };
+                vals[o] = Val::Nat((x >> op.imm0) & mask);
+            }
+            11 => vals[o] = Val::Nat(u64::from(vals[a].nat() == vals[b].nat())),
+            20 => vals[o] = Val::Nat(vals[a].nat() << vals[b].nat()),
+            21 => vals[o] = Val::Nat(vals[a].nat() >> vals[b].nat()),
+            23 => vals[o] = Val::Nat(vals[a].nat().wrapping_mul(vals[b].nat())),
+            12 => vals[o] = if vals[a].nat() != 0 { vals[b] } else { vals[op.imm1 as usize] },
+            3 => vals[o] = Val::Field(F::from_canonical_u64(vals[a].nat())),
+            4 => vals[o] = Val::Field(vals[a].field() + vals[b].field()),
+            19 => vals[o] = Val::Field(vals[a].field() - vals[b].field()),
+            5 => vals[o] = Val::Field(vals[a].field().inverse()),
+            18 => vals[o] = if vals[a].nat() != 0 { vals[b] } else { vals[op.imm1 as usize] },
+            // lookups: no wire, no column
+            6 | 7 | 9 | 13 | 14 | 15 | 16 | 17 | 22 => continue,
+            t => panic!("unknown WitOpCSlot tag {t}"),
+        }
+        if op.col != u32::MAX {
+            out[op.col as usize] = match vals[o] {
+                Val::Field(f) => f,
+                Val::Nat(n) => F::from_canonical_u64(n),
+            };
+        }
+    }
+    for &(s, c) in epilogue_slots {
+        out[c as usize] = match vals[s as usize] {
+            Val::Field(f) => f,
+            Val::Nat(n) => F::from_canonical_u64(n),
+        };
+    }
+    out
 }
 
 /// Register-allocated counterpart of [`interpret_c_columns`]: runs the op-DAG using

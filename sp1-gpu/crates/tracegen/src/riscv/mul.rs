@@ -252,7 +252,8 @@ mod tests {
     fn mul_regalloc_shrinks_and_matches() {
         use sp1_core_machine::air::{
             columns_as_wires, interpret_c_columns, interpret_c_slots_columns,
-            interpret_slots_columns, RecordingWitnessBuilder, WireId,
+            interpret_c_slots_streaming_columns, interpret_slots_columns,
+            RecordingWitnessBuilder, WireId,
         };
         use sp1_core_machine::alu::mul::MulCols;
 
@@ -325,6 +326,31 @@ mod tests {
             assert_eq!(ssa, alloc, "reg-alloc column mismatch at row {row}");
             assert_eq!(ssa, flat, "slot-flat (WitOpCSlot) column mismatch at row {row}");
         }
+
+        // STREAMING (store-through) lowering: columns written at production, no
+        // readout pinning — the smem-kernel model. Must match SSA bit-for-bit,
+        // and the transient footprint should collapse far below the pinned one.
+        let (s_slot, s_max, epilogue) = program.allocate_slots_streaming(&col_wires);
+        let (s_ops, input_cols) = program.to_c_slots_streaming(&s_slot, &col_wires);
+        let s_input_slots: Vec<u32> = s_slot[..ni].to_vec();
+        let epi_slots: Vec<(u32, u32)> =
+            epilogue.iter().map(|&(w, c)| (s_slot[w as usize], c)).collect();
+        for row in 0..events.len() {
+            let row_in = &inputs[row * ni..(row + 1) * ni];
+            let ssa: Vec<F> = interpret_c_columns(&ops_c, ni as u32, row_in, &col_wires);
+            let streamed: Vec<F> = interpret_c_slots_streaming_columns(
+                &s_ops, ni as u32, row_in, &s_input_slots, &input_cols, &epi_slots,
+                col_wires.len(), s_max,
+            );
+            assert_eq!(ssa, streamed, "streaming column mismatch at row {row}");
+        }
+        assert!(s_max < max_slots, "streaming should shrink the footprint");
+        println!(
+            "Mul streaming: pinned max_slots={max_slots} -> streaming max_slots={s_max} \
+             (epilogue {} entries, input_cols {})",
+            epi_slots.len(),
+            input_cols.len()
+        );
         println!(
             "Mul reg-alloc OK: num_wires={} -> max_slots={max_slots} ({:.1}x)",
             program.num_wires(),
