@@ -291,6 +291,132 @@ mod tests {
 
     use crate::{CudaTracegenAir, F};
 
+    /// Synthesize a DivRem event stream covering all 8 opcodes plus the edge cases
+    /// (division by zero, overflow, word ops). Shared by the regalloc test and the
+    /// (GPU-gated) device trace test.
+    fn synth_divrem_events(n: usize, seed: u64) -> Vec<(AluEvent, RTypeRecord)> {
+        let mut rng = StdRng::seed_from_u64(seed);
+        let ops = [
+            Opcode::DIV,
+            Opcode::DIVU,
+            Opcode::REM,
+            Opcode::REMU,
+            Opcode::DIVW,
+            Opcode::REMW,
+            Opcode::DIVUW,
+            Opcode::REMUW,
+        ];
+        (0..n)
+            .map(|i| {
+                let opcode = ops[i % ops.len()];
+                let c = match i % 7 {
+                    0 => 0u64,
+                    1 => u64::MAX, // -1
+                    _ => rng.gen::<u64>(),
+                };
+                let b = match i % 11 {
+                    0 => i64::MIN as u64,
+                    1 => (i32::MIN as i64) as u64,
+                    _ => rng.gen::<u64>(),
+                };
+                let result = {
+                    let (q, r) = get_quotient_and_remainder(b, c, opcode);
+                    if matches!(opcode, Opcode::DIV | Opcode::DIVU | Opcode::DIVW | Opcode::DIVUW)
+                    {
+                        q
+                    } else {
+                        r
+                    }
+                };
+                let alu = AluEvent::new(
+                    (i as u64) * 8 + 8,
+                    (i as u64) * 4 + 4,
+                    opcode,
+                    result,
+                    b,
+                    c,
+                    false,
+                );
+                let record = RTypeRecord {
+                    op_a: rng.gen_range(1..32),
+                    a: read(&mut rng),
+                    op_b: rng.gen_range(1..32),
+                    b: read(&mut rng),
+                    op_c: rng.gen_range(1..32),
+                    c: read(&mut rng),
+                    is_untrusted: false,
+                };
+                (alu, record)
+            })
+            .collect()
+    }
+
+    /// Register allocation on the DivRem op-DAG (the widest core ALU gadget, 1393+
+    /// wires SSA): assert it (1) fits the 256-slot kernel cap after linear-scan slot
+    /// allocation, and (2) the slot-resolved flat form (`WitOpCSlot`) produces columns
+    /// bit-identical to the SSA interpreter over real packed events — the same CPU
+    /// model that validated Mul (531 -> 100 slots) before its kernel port.
+    #[test]
+    fn divrem_regalloc_shrinks_and_matches() {
+        use sp1_core_machine::air::{
+            columns_as_wires, interpret_c_columns, interpret_c_slots_columns,
+            interpret_slots_columns, RecordingWitnessBuilder, WireId,
+        };
+        use sp1_core_machine::alu::divrem::DivRemCols;
+
+        // Build the DivRem program inline (`record_divrem_program` asserts the SSA
+        // wire count <= 256, which DivRem exceeds — the whole point of reg-alloc).
+        let mut rec = RecordingWitnessBuilder::new(super::NUM_DIVREM_INPUTS as u32);
+        let mut cols_w = DivRemCols::<WireId, SupervisorMode>::default();
+        let w = |i: u32| RecordingWitnessBuilder::input(i);
+        DivRemCols::<WireId, SupervisorMode>::witgen(
+            &mut rec, &mut cols_w, w(0), w(1), w(2), w(3), w(4), w(5), w(6), w(7), w(8), w(9),
+            w(10), w(11), w(12), w(13), w(14), w(15), w(16), w(17), w(18), w(19), w(20), w(21),
+            w(22), w(23), w(24), w(25), w(26), w(27), w(28), w(29),
+        );
+        let program = rec.finish();
+        let col_wires: Vec<u32> = columns_as_wires(&cols_w).iter().map(|w| w.0).collect();
+
+        let (slot, max_slots) = program.allocate_slots(&col_wires);
+        println!(
+            "DivRem reg-alloc: num_wires={} -> max_slots={max_slots} ({:.1}x), n_cols={}",
+            program.num_wires(),
+            program.num_wires() as f64 / max_slots as f64,
+            col_wires.len()
+        );
+        // MEASURED (iter-071): num_wires=1393 -> max_slots=272, n_cols=246. 272 is 16
+        // over the current 256-slot kernel cap (`WITGEN_MAX_WIRES`) — DivRem needs the
+        // NEXT KERNEL TIER (512, or a bespoke 288 tier) before it can run on device.
+        // The column wires alone pin 246 slots (columns stay live to the end of the
+        // DAG), so no allocator can get below n_cols=246; only 26 transient slots of
+        // linear-scan pressure remain, i.e. a smarter allocator could AT BEST reach
+        // ~246-256 — marginal. The 512 tier is the robust fix.
+        assert!(
+            max_slots as usize <= 2 * super::super::WITGEN_MAX_WIRES,
+            "DivRem reg-alloc: max_slots={max_slots} exceeds even a 512 tier",
+        );
+
+        // Real events -> packed 30/row inputs; compare SSA vs slot interpreters per row.
+        let events = synth_divrem_events(128, 0xD11E);
+        let inputs = super::pack_divrem_inputs(&events);
+        let ops_c = program.to_c();
+        let ops_slots = program.to_c_slots(&slot);
+        let input_slots = &slot[..super::NUM_DIVREM_INPUTS];
+        let col_slots: Vec<u32> = col_wires.iter().map(|&w| slot[w as usize]).collect();
+        let ni = super::NUM_DIVREM_INPUTS;
+        for row in 0..events.len() {
+            let row_in = &inputs[row * ni..(row + 1) * ni];
+            let ssa: Vec<F> = interpret_c_columns(&ops_c, ni as u32, row_in, &col_wires);
+            let alloc: Vec<F> =
+                interpret_slots_columns(&program, row_in, &col_wires, &slot, max_slots);
+            let flat: Vec<F> = interpret_c_slots_columns(
+                &ops_slots, ni as u32, row_in, input_slots, &col_slots, max_slots,
+            );
+            assert_eq!(ssa, alloc, "reg-alloc column mismatch at row {row}");
+            assert_eq!(ssa, flat, "slot-flat (WitOpCSlot) column mismatch at row {row}");
+        }
+    }
+
     fn read(rng: &mut StdRng) -> MemoryRecordEnum {
         let prev_timestamp = rng.gen::<u32>() as u64;
         let timestamp = prev_timestamp + 1 + (rng.gen::<u32>() as u64);
