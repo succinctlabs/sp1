@@ -204,6 +204,12 @@ pub(crate) async fn generate_columns_slots_into(
         max_slots as usize <= WITGEN_MAX_WIRES,
         "reg-alloc: {max_slots} live slots > kernel capacity {WITGEN_MAX_WIRES}"
     );
+    tracing::debug!(
+        target: "witgen_slots",
+        max_slots,
+        n_cols = col_wires.len(),
+        "witgen slot footprint"
+    );
     let ops_c = program.to_c_slots(&slot);
     let ni = program.num_inputs as usize;
     let input_slots: Vec<u32> = slot[..ni].to_vec();
@@ -288,6 +294,12 @@ pub(crate) async fn generate_trace_and_lookups_slots_into(
         max_slots as usize <= WITGEN_MAX_WIRES,
         "reg-alloc: {max_slots} live slots > kernel capacity {WITGEN_MAX_WIRES}"
     );
+    tracing::debug!(
+        target: "witgen_slots",
+        max_slots,
+        n_cols = col_wires.len(),
+        "witgen slot footprint"
+    );
     let ops_c = program.to_c_slots(&slot);
     let ni = program.num_inputs as usize;
     let input_slots: Vec<u32> = slot[..ni].to_vec();
@@ -350,6 +362,12 @@ pub(crate) async fn accumulate_lookups_slots(
     assert!(
         max_slots as usize <= WITGEN_MAX_WIRES,
         "reg-alloc: {max_slots} live slots > kernel capacity {WITGEN_MAX_WIRES}"
+    );
+    tracing::debug!(
+        target: "witgen_slots",
+        max_slots,
+        n_cols = col_wires.len(),
+        "witgen slot footprint"
     );
     let ops_c = program.to_c_slots(&slot);
     let ni = program.num_inputs as usize;
