@@ -4,6 +4,7 @@ syntax = "proto3";
 package cluster;
 
 import "google/protobuf/empty.proto";
+import "worker.proto";
 
 service ClusterService {
   rpc ProofRequestCreate(ProofRequestCreateRequest) returns (google.protobuf.Empty) {}
@@ -12,7 +13,35 @@ service ClusterService {
   rpc ProofRequestGet(ProofRequestGetRequest) returns (ProofRequestGetResponse) {}
   rpc ProofRequestList(ProofRequestListRequest) returns (ProofRequestListResponse) {}
 
+  // Cluster component build manifest (component / version / git_sha / image_tag).
+  // The coordinator periodically writes its full manifest (its own build + one entry
+  // per connected worker) via SetClusterComponentInfo; the fulfiller reads the latest
+  // via GetClusterComponentInfo and forwards it to the SPN. This is the
+  // topology-agnostic replacement for the fulfiller connecting to the coordinator's
+  // WorkerService directly. Cluster-internal only; unrelated to the SPN
+  // ReportProverInfo wire types.
+  rpc SetClusterComponentInfo(SetClusterComponentInfoRequest) returns (google.protobuf.Empty) {}
+  rpc GetClusterComponentInfo(google.protobuf.Empty) returns (ClusterComponentManifest) {}
+
   rpc Healthcheck(google.protobuf.Empty) returns (google.protobuf.Empty);
+}
+
+// Full cluster component build manifest written by the coordinator: its own build
+// followed by one entry per connected worker. Reuses worker.ClusterComponentInfo
+// (component / version / git_sha / image_tag; no instance_id). A write replaces the
+// previous manifest (full snapshot).
+message SetClusterComponentInfoRequest {
+  repeated worker.ClusterComponentInfo components = 1;
+}
+
+// The latest manifest as held by the API, with the server-owned time it was last
+// written. Empty `components` with `updated_at = 0` means no coordinator has pushed a
+// manifest yet; a caller compares `updated_at` against a freshness window to reject a
+// stale manifest instead of forwarding a partial snapshot.
+message ClusterComponentManifest {
+  repeated worker.ClusterComponentInfo components = 1;
+  // Unix seconds when the API last stored a manifest (server-owned).
+  uint64 updated_at = 2;
 }
 
 message ProofRequestCreateRequest {
