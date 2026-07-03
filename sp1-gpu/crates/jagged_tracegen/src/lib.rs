@@ -929,12 +929,35 @@ async fn device_main_tracegen<A: CudaTracegenAir<Felt>>(
         tracing::trace_span!(parent: &outer_span, "copy host trace to device", chip = %name)
     )));
 
-    // Stream that, when polled, copies events to the device and generates traces.
+    // Fan each device chip's tracegen out to its OWN task scope (a real CUDA stream):
+    // different chips' uploads and fused kernels overlap on the GPU and their host-side
+    // driving parallelizes across the tokio runtime, instead of serializing on this
+    // scope's single stream (iter-070 measurement: the whole device-tracegen wall gap
+    // sat in this span, while the old host `synchronize()` below cost ~4ms).
+    //
+    // Concurrency is BOUNDED (semaphore, `AR_TRACEGEN_STREAMS`, default 4): unbounded
+    // fan-out OOMs the GPU — shards are sized to ~fill device memory (iter-055), and
+    // each in-flight chip carries transient allocations (input staging + the
+    // transpose's temporary buffer), so ~25 concurrent chips spike past the pool.
+    // A small K keeps the copy/compute-overlap win with a bounded memory spike.
+    //
+    // Ordering safety, without any host barrier: `TaskScope::spawn` records a fork
+    // event (child stream starts after the parent's already-enqueued work — so the
+    // histograms are zeroed before any fused kernel runs), and awaiting the handle
+    // JOINS the child to the parent (the parent stream `cudaStreamWaitEvent`s the
+    // child's end event). Everything enqueued on `backend` after the joins — the
+    // histogram scatter, `hist_to_trace`, commit — is therefore device-ordered after
+    // every fused kernel's atomicAdds.
+    let fanout: usize = std::env::var("AR_TRACEGEN_STREAMS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(8)
+        .max(1);
+    let chip_sem = Arc::new(tokio::sync::Semaphore::new(fanout));
     let device_traces = device_airs
         .into_iter()
         .map(|air| {
-            // We want to borrow the record and move the chip.
-            let record = record.as_ref();
+            let record = record.clone();
             let outer_span = outer_span.clone();
             // Take this chip's pre-packed inputs (packed in the permit-free host phase);
             // empty for non-dependency chips (e.g. Global), which don't use the fused path.
@@ -943,22 +966,40 @@ async fn device_main_tracegen<A: CudaTracegenAir<Felt>>(
             } else {
                 Vec::new()
             };
+            let name = air.name().to_string();
+            let backend = backend.clone();
+            let chip_sem = chip_sem.clone();
             async move {
-                // Device-dependency chips use the FUSED kernel (columns + lookups in one
-                // pass, accumulating into the shared histogram); others (e.g. Global) the
-                // plain one.
-                let trace = if air.supports_device_dependencies() {
-                    air.generate_trace_device_with_lookups(record, packed, hist, backend)
-                        .instrument(tracing::trace_span!(parent: &outer_span, "device chip fused tracegen", chip = %air.name()))
-                        .await
-                        .unwrap()
-                } else {
-                    air.generate_trace_device(record, &mut A::Record::default(), backend)
-                        .instrument(tracing::trace_span!(parent: &outer_span, "device chip tracegen", chip = %air.name()))
-                        .await
-                        .unwrap()
-                };
-                (air.name().to_string(), trace.into())
+                // Hold a permit across spawn→join so at most `fanout` chip scopes are
+                // in flight (bounds the transient device-memory spike).
+                let _permit = chip_sem.acquire_owned().await.expect("tracegen semaphore");
+                let handle = backend.spawn(move |child| async move {
+                    // Device-dependency chips use the FUSED kernel (columns + lookups in
+                    // one pass, accumulating into the shared histogram); others (e.g.
+                    // Global) the plain one.
+                    let trace: Mle<Felt, TaskScope> = if air.supports_device_dependencies() {
+                        air.generate_trace_device_with_lookups(record.as_ref(), packed, hist, &child)
+                            .instrument(tracing::trace_span!(parent: &outer_span, "device chip fused tracegen", chip = %air.name()))
+                            .await
+                            .unwrap()
+                            .into()
+                    } else {
+                        air.generate_trace_device(record.as_ref(), &mut A::Record::default(), &child)
+                            .instrument(tracing::trace_span!(parent: &outer_span, "device chip tracegen", chip = %air.name()))
+                            .await
+                            .unwrap()
+                            .into()
+                    };
+                    // Drain this chip's stream BEFORE the permit releases: without this,
+                    // permits only bound enqueue — streams race ahead and stream-ordered
+                    // allocations can't recycle other streams' freed transients, so the
+                    // pool's high-water approaches the SUM of all chips' transients
+                    // (observed: GPU OOM even at K=4). Post-sync, the frees are
+                    // committed and the next chip's allocations genuinely reuse them.
+                    child.synchronize().await.expect("drain chip tracegen stream");
+                    trace
+                });
+                (name, handle.await.expect("device chip tracegen task"))
             }
         })
         .collect::<FuturesUnordered<_>>();
@@ -974,23 +1015,25 @@ async fn device_main_tracegen<A: CudaTracegenAir<Felt>>(
         .instrument(tracing::debug_span!("wait for device traces"))
         .await;
 
-    // The device-dependency chips ran the fused kernel on their own task streams,
-    // accumulating their byte/range lookups into the shared histogram. Synchronize the
-    // scope (so every fused kernel's atomicAdds are visible — otherwise the work below
-    // races them → an incomplete histogram → GKR cumulative-sum mismatch), then build the
-    // deferred Byte/Range table traces ENTIRELY ON-DEVICE from the resident histogram:
-    // the table trace IS the multiplicity histogram (range/trace.rs, bytes/trace.rs), so
-    // (1) scatter the few HOST-chip lookups into the histogram (the device chips' are
-    // already there), then (2) convert each histogram region to a field trace on-device
-    // and transpose to the column-major MLE. No readback, no host `byte_lookups`
-    // reconstruction, no serial CPU `generate_trace` tail (iter-051's GPU-idle source).
+    // The device-dependency chips ran the fused kernel on their own child task streams,
+    // each JOINED to this scope above (the parent stream waits on every child's end
+    // event) — so every fused kernel's atomicAdds are device-ordered before the work
+    // below, with NO host synchronize. Build the deferred Byte/Range table traces
+    // ENTIRELY ON-DEVICE from the resident histogram: the table trace IS the
+    // multiplicity histogram (range/trace.rs, bytes/trace.rs), so (1) scatter the few
+    // HOST-chip lookups into the histogram (the device chips' are already there), then
+    // (2) convert each histogram region to a field trace on-device and transpose to the
+    // column-major MLE. No readback, no host `byte_lookups` reconstruction, no serial
+    // CPU `generate_trace` tail.
     if let Some((mut range_dev, mut byte_dev)) = histograms {
-        backend.synchronize().await.expect("synchronize device tracegen");
         if let Some(first) = byte_range_airs.first() {
+            let tail_span = tracing::debug_span!("deferred byte range tables");
+            let _tail = tail_span.enter();
             // (1) Fold the host chips' lookups into the device histograms. Host-map keys
             // are unique → distinct indices → the scatter kernel needs no atomics.
             let (range_idx, range_mult, byte_idx, byte_mult) =
-                first.host_lookup_scatter(record.as_ref());
+                tracing::debug_span!("host lookup scatter prep")
+                    .in_scope(|| first.host_lookup_scatter(record.as_ref()));
             scatter_into_histogram(&mut range_dev, &range_idx, &range_mult, backend);
             scatter_into_histogram(&mut byte_dev, &byte_idx, &byte_mult, backend);
 
