@@ -16,6 +16,27 @@ pub struct AddU32Operation<T> {
     pub value: [T; 2],
 }
 
+// Witgen in an unconstrained `impl` (column type is the builder's `Field`).
+impl<T: Copy> AddU32Operation<T> {
+    /// Backend-agnostic witgen dual of `populate`: `value = (a + b) mod 2^32` in
+    /// two u16 limbs + the limb range checks. Returns the u32 sum as a nat wire.
+    pub fn witgen<WB: crate::air::WitnessBuilder<Field = T>>(
+        wb: &mut WB,
+        cols: &mut AddU32Operation<T>,
+        a: WB::Nat,
+        b: WB::Nat,
+    ) -> WB::Nat {
+        let sum = wb.wrapping_add(a, b);
+        let expected = wb.bits(sum, 0, 32);
+        let e0 = wb.bits(expected, 0, 16);
+        let e1 = wb.bits(expected, 16, 16);
+        cols.value = [wb.nat_to_field(e0), wb.nat_to_field(e1)];
+        wb.add_u16_range_check(e0);
+        wb.add_u16_range_check(e1);
+        expected
+    }
+}
+
 impl<F: Field> AddU32Operation<F> {
     pub fn populate(&mut self, record: &mut impl ByteRecord, a_u32: u32, b_u32: u32) -> u32 {
         let expected = a_u32.wrapping_add(b_u32);

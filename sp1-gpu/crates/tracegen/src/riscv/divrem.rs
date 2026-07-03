@@ -254,7 +254,13 @@ impl CudaTracegenAir<F> for DivRemChip<SupervisorMode> {
     }
 
     fn supports_device_dependencies(&self) -> bool {
-        true
+        // DivRem is gated off device entirely (272 slots > the 256-slot kernel cap;
+        // see `divrem_regalloc_shrinks_and_matches`) and has NO fused
+        // `generate_trace_device_with_lookups` override — advertising device deps
+        // would send the prover into the trait-default `unimplemented!()` (the
+        // iter-067 trap) if the chip were ever enabled. Flip back on (with a fused
+        // override) once the 512 kernel tier exists.
+        false
     }
 
     async fn generate_device_dependencies(

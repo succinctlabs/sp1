@@ -20,6 +20,7 @@ mod memory_local;
 mod mul;
 mod sll;
 mod sr;
+mod sha_compress;
 mod sha_extend;
 mod state_bump;
 mod syscall;
@@ -274,8 +275,9 @@ pub(crate) async fn generate_trace_and_lookups_slots(
     hist: LookupHist,
     scope: &TaskScope,
 ) -> Result<DeviceMle<F>, CopyError> {
+    let _ = n_cols;
     // Zeroed trace; only event rows are written (padding rows stay 0 — is_real=0).
-    let trace = Tensor::<F, TaskScope>::zeros_in([n_cols, height], scope.clone());
+    let trace = Tensor::<F, TaskScope>::zeros_in([col_wires.len(), height], scope.clone());
     generate_trace_and_lookups_slots_into(
         program, col_wires, inputs, n_events, height, trace, hist, scope,
     )
@@ -284,8 +286,8 @@ pub(crate) async fn generate_trace_and_lookups_slots(
 
 /// Like [`generate_trace_and_lookups_slots`] but writes into a caller-provided,
 /// already-initialized `trace` — for chips whose padding rows are NOT all-zero
-/// (ShiftLeft/ShiftRight broadcast a template across padding before the kernel
-/// overwrites event rows). The slot dual of [`generate_trace_and_lookups_into`].
+/// (ShiftLeft/ShiftRight broadcast a template across padding; ShaCompress's cyclic
+/// octet/index/k pattern). The slot dual of [`generate_trace_and_lookups_into`].
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn generate_trace_and_lookups_slots_into(
     program: &WitProgram,
@@ -293,7 +295,7 @@ pub(crate) async fn generate_trace_and_lookups_slots_into(
     inputs: &[u64],
     n_events: usize,
     height: usize,
-    trace: Tensor<F, TaskScope>,
+    mut trace: Tensor<F, TaskScope>,
     hist: LookupHist,
     scope: &TaskScope,
 ) -> Result<DeviceMle<F>, CopyError> {
@@ -312,7 +314,6 @@ pub(crate) async fn generate_trace_and_lookups_slots_into(
         "witgen slot footprint"
     );
     let ni = program.num_inputs as usize;
-    let mut trace = trace;
     if s_max <= SMEM_CAP && epi.is_empty() {
         let (ops_c, input_cols) = program.to_c_slots_streaming(&s_slot, col_wires);
         let input_slots: Vec<u32> = s_slot[..ni].to_vec();
@@ -520,6 +521,7 @@ fn device_chip_name(air: &RiscvAir<F>) -> Option<&'static str> {
         RiscvAir::SyscallCore(_) => "SyscallCore",
         RiscvAir::SyscallPrecompile(_) => "SyscallPrecompile",
         RiscvAir::Sha256Extend(_) => "ShaExtend",
+        RiscvAir::Sha256Compress(_) => "ShaCompress",
         _ => return None,
     })
 }
@@ -608,6 +610,9 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
                 chip.generate_trace_device(input, output, scope).await
             }
             Self::Sha256Extend(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::Sha256Compress(chip) => {
+                chip.generate_trace_device(input, output, scope).await
+            }
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => unimplemented!(),
         }
@@ -679,6 +684,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::StateBump(chip) => dispatch!(chip),
             Self::MemoryBump(chip) => dispatch!(chip),
             Self::Sha256Extend(chip) => dispatch!(chip),
+            Self::Sha256Compress(chip) => dispatch!(chip),
             _ => unimplemented!(),
         }
     }
@@ -761,6 +767,14 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
                     Vec::new()
                 } else {
                     sha_extend::pack_for_record(input)
+                }
+            }
+            // ShaCompress: 80 input rows per event (pack replays the compression).
+            Self::Sha256Compress(_) => {
+                if height == 0 {
+                    Vec::new()
+                } else {
+                    sha_compress::pack_for_record(input)
                 }
             }
             _ => Vec::new(),
