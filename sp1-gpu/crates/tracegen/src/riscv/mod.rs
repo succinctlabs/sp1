@@ -8,6 +8,7 @@ mod divrem;
 mod global;
 mod jal;
 mod jalr;
+mod keccak;
 mod load_byte;
 mod load_double;
 mod load_half;

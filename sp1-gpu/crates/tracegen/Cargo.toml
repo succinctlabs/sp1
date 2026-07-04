@@ -15,6 +15,7 @@ slop-air = { workspace = true }
 slop-algebra = { workspace = true }
 slop-alloc = { workspace = true }
 slop-koala-bear = { workspace = true }
+slop-keccak-air = { workspace = true }
 slop-futures = { workspace = true }
 slop-multilinear = { workspace = true }
 slop-symmetric = { workspace = true }
@@ -35,6 +36,7 @@ tracing = { workspace = true }
 [dev-dependencies]
 rand = { workspace = true }
 sp1-core-executor = { workspace = true }
+tiny-keccak = { workspace = true, features = ["keccak"] }
 criterion = "0.5"
 
 [[bench]]
