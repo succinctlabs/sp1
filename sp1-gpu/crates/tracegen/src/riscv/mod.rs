@@ -23,7 +23,9 @@ mod mul;
 mod sll;
 mod sr;
 mod sha_compress;
+mod sha_compress_control;
 mod sha_extend;
+mod sha_extend_control;
 mod state_bump;
 mod syscall;
 mod syscall_instrs;
@@ -541,6 +543,11 @@ fn device_chip_name(air: &RiscvAir<F>) -> Option<&'static str> {
         RiscvAir::KeccakPControl(_) => "KeccakPermuteControl",
         RiscvAir::Sha256Extend(_) => "ShaExtend",
         RiscvAir::Sha256Compress(_) => "ShaCompress",
+        // SHA controllers (iter-076): SyscallAddr + AddrAdd (+ compress state
+        // half-words). Narrow chips; byte-lookup-only deps → fused path.
+        // CPU-model validated; GPU device==CPU tests not yet run.
+        RiscvAir::Sha256ExtendControl(_) => "ShaExtendControl",
+        RiscvAir::Sha256CompressControl(_) => "ShaCompressControl",
         _ => return None,
     })
 }
@@ -633,6 +640,12 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Sha256Compress(chip) => {
                 chip.generate_trace_device(input, output, scope).await
             }
+            Self::Sha256ExtendControl(chip) => {
+                chip.generate_trace_device(input, output, scope).await
+            }
+            Self::Sha256CompressControl(chip) => {
+                chip.generate_trace_device(input, output, scope).await
+            }
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => unimplemented!(),
         }
@@ -708,6 +721,8 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::KeccakPControl(chip) => dispatch!(chip),
             Self::Sha256Extend(chip) => dispatch!(chip),
             Self::Sha256Compress(chip) => dispatch!(chip),
+            Self::Sha256ExtendControl(chip) => dispatch!(chip),
+            Self::Sha256CompressControl(chip) => dispatch!(chip),
             _ => unimplemented!(),
         }
     }
@@ -822,6 +837,21 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
                     sha_compress::pack_for_record(input)
                 }
             }
+            // SHA controllers: one row per event.
+            Self::Sha256ExtendControl(_) => {
+                if height == 0 {
+                    Vec::new()
+                } else {
+                    sha_extend_control::pack_sha_extend_control_inputs(input)
+                }
+            }
+            Self::Sha256CompressControl(_) => {
+                if height == 0 {
+                    Vec::new()
+                } else {
+                    sha_compress_control::pack_sha_compress_control_inputs(input)
+                }
+            }
             _ => Vec::new(),
         }
     }
@@ -874,6 +904,8 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             // chip whose fused dispatch falls into `_` hits `unimplemented!()` at prove
             // time. Sha256Compress was missing until iter-076.
             Self::Sha256Compress(chip) => dispatch!(chip),
+            Self::Sha256ExtendControl(chip) => dispatch!(chip),
+            Self::Sha256CompressControl(chip) => dispatch!(chip),
             _ => unimplemented!(),
         }
     }

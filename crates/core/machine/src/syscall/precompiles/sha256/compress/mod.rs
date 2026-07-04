@@ -1,6 +1,10 @@
 mod air;
 pub mod columns;
 mod controller;
+pub use controller::{
+    num_sha_compress_control_cols_supervisor, num_sha_compress_control_cols_user,
+    ShaCompressControlCols,
+};
 mod trace;
 
 pub use columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS};
