@@ -15,6 +15,7 @@ mod tracegen;
 
 pub use error::CudaError;
 pub use event::CudaEvent;
+pub use stream::StreamRef;
 pub use stream::{CudaStream, StreamCallbackFuture};
 
 pub use buffer::*;
