@@ -9,6 +9,7 @@ mod global;
 mod jal;
 mod jalr;
 mod keccak;
+mod keccak_control;
 mod load_byte;
 mod load_double;
 mod load_half;
@@ -533,6 +534,11 @@ fn device_chip_name(air: &RiscvAir<F>) -> Option<&'static str> {
         // path. CPU-model validated; GPU device==CPU test not yet run.
         RiscvAir::SyscallInstrs(_) => "SyscallInstrs",
         RiscvAir::KeccakP(_) => "KeccakPermute",
+        // Keccak's controller (iter-076): SyscallAddr + 25 AddrAdd + 50 memory
+        // accesses. Byte-lookup-only deps → fused path; FUSED-ONLY (streaming
+        // lowering; 634-col pinned floor can't fit). CPU-model validated; GPU
+        // device==CPU test not yet run.
+        RiscvAir::KeccakPControl(_) => "KeccakPermuteControl",
         RiscvAir::Sha256Extend(_) => "ShaExtend",
         RiscvAir::Sha256Compress(_) => "ShaCompress",
         _ => return None,
@@ -699,6 +705,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::MemoryBump(chip) => dispatch!(chip),
             Self::SyscallInstrs(chip) => dispatch!(chip),
             Self::KeccakP(chip) => dispatch!(chip),
+            Self::KeccakPControl(chip) => dispatch!(chip),
             Self::Sha256Extend(chip) => dispatch!(chip),
             Self::Sha256Compress(chip) => dispatch!(chip),
             _ => unimplemented!(),
@@ -791,6 +798,14 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
                     keccak::pack_keccak_inputs(&keccak::collect_events(input), height)
                 }
             }
+            // KeccakPermuteControl: one row per event, packed straight from the record.
+            Self::KeccakPControl(_) => {
+                if height == 0 {
+                    Vec::new()
+                } else {
+                    keccak_control::pack_keccak_control_inputs(input)
+                }
+            }
             // ShaExtend: 48 input rows per event (collect_events handles traps).
             Self::Sha256Extend(_) => {
                 if height == 0 {
@@ -853,6 +868,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::MemoryBump(chip) => dispatch!(chip),
             Self::SyscallInstrs(chip) => dispatch!(chip),
             Self::KeccakP(chip) => dispatch!(chip),
+            Self::KeccakPControl(chip) => dispatch!(chip),
             Self::Sha256Extend(chip) => dispatch!(chip),
             // Missing arms here are the iter-067 trap: a `supports_device_dependencies`
             // chip whose fused dispatch falls into `_` hits `unimplemented!()` at prove

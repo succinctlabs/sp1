@@ -43,6 +43,48 @@ impl<F: PrimeField32> SyscallAddrOperation<F> {
     }
 }
 
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T> SyscallAddrOperation<T> {
+    /// Backend-agnostic witgen dual of [`Self::populate`] (`len` is the syscall's
+    /// compile-time buffer length): the 3 u16 address limbs, the inverse showing the
+    /// top two limbs aren't both zero, the IsZero on `limb1 + limb2 == 2 * 0xFFFF`,
+    /// and the 13-bit range check on `(addr[0] + is_max * len) / 8`.
+    ///
+    /// NOTE: like the host `populate`, this inverts `limb1 + limb2` unconditionally
+    /// — callers must only run it on real rows (where `addr >= 2^16`).
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut SyscallAddrOperation<WB::Field>,
+        addr: WB::Nat,
+        len: u64,
+    ) {
+        let limb0 = wb.bits(addr, 0, 16);
+        let limb1 = wb.bits(addr, 16, 16);
+        let limb2 = wb.bits(addr, 32, 16);
+        cols.addr = [wb.nat_to_field(limb0), wb.nat_to_field(limb1), wb.nat_to_field(limb2)];
+        // limb1 + limb2 <= 2 * 0xFFFF, no wrap; non-zero on valid addresses.
+        let sum = wb.wrapping_add(limb1, limb2);
+        let sum_f = wb.nat_to_field(sum);
+        cols.top_two_limb_min = wb.field_inverse(sum_f);
+        let max2 = wb.const_nat(2 * (u16::MAX as u64));
+        let is_max = IsZeroOperation::<WB::Field>::witgen_nat_diff(
+            wb,
+            &mut cols.top_two_limb_max,
+            sum,
+            max2,
+        );
+        // Range check `(limb0 + is_max * len) / 8 < 2^13` (mirror of the host's u16
+        // arithmetic: limb0 + len < 2^17, and `shr 3` is the host's integer `/ 8`).
+        let len_n = wb.const_nat(len);
+        let zero = wb.const_nat(0);
+        let add = wb.select(is_max, len_n, zero);
+        let v = wb.wrapping_add(limb0, add);
+        let three = wb.const_nat(3);
+        let v_div8 = wb.shr(v, three);
+        wb.add_bit_range_check(v_div8, 13);
+    }
+}
+
 impl<F: Field> SyscallAddrOperation<F> {
     /// The memory address is constrained to be aligned, `>= 2^16` and less than `2^48 - len`.
     /// The `cols.addr` is assumed to be composed of valid 3 u16 limbs.

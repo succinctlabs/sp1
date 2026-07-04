@@ -1,7 +1,7 @@
 mod air;
 pub mod columns;
 pub mod constants;
-mod controller;
+pub mod controller;
 mod trace;
 
 pub const STATE_SIZE: usize = 25;
