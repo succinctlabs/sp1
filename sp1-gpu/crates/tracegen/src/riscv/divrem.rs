@@ -575,7 +575,6 @@ mod tests {
     /// gadgets, overflow detection, the dual `c*quotient` products,
     /// division-by-zero, and the non-zero padding template.
     #[tokio::test]
-    #[ignore = "requires GPU; CPU model validated by the tests above (run when a device is free)"]
     async fn test_divrem_generate_trace_device_fused() {
         sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
             let divrem_events = synth_divrem_events(1600, 0xD11E);

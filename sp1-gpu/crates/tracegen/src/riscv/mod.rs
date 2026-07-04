@@ -605,9 +605,10 @@ fn device_chip_name(air: &RiscvAir<F>) -> Option<&'static str> {
         // Widest ALU gadget, un-gated by the STREAMING lowering (pinned 272 slots >
         // the 256 cap; streaming 68 transients, empty epilogue). Fused-only —
         // production routes through `generate_trace_device_with_lookups`. CPU-model
-        // validated (columns vs host + lookups vs generate_dependencies); GPU
-        // device==CPU trace test (`test_divrem_generate_trace_device_fused`) not yet
-        // run. Do not enable in AR_DEVICE_CHIPS until it passes on device.
+        // validated (columns vs host + lookups vs generate_dependencies) and GPU
+        // device==CPU trace validated (`test_divrem_generate_trace_device_fused`,
+        // passing on the 4090). Off by default like the rest; e2e crossverify with
+        // DivRem in AR_DEVICE_CHIPS before enabling it in any default config.
         RiscvAir::DivRem(_) => "DivRem",
         // iter-071 CPU-side ports — CPU-model validated (columns + lookups); GPU
         // device==CPU trace tests not yet run (GPU busy). Do not enable in
