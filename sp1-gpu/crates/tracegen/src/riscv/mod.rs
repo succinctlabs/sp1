@@ -25,6 +25,7 @@ mod sha_compress;
 mod sha_extend;
 mod state_bump;
 mod syscall;
+mod syscall_instrs;
 mod store_byte;
 mod store_double;
 mod store_half;
@@ -527,6 +528,10 @@ fn device_chip_name(air: &RiscvAir<F>) -> Option<&'static str> {
         RiscvAir::MemoryGlobalFinal(_) => "MemoryGlobalFinal",
         RiscvAir::SyscallCore(_) => "SyscallCore",
         RiscvAir::SyscallPrecompile(_) => "SyscallPrecompile",
+        // ECALL instruction chip (iter-076): RTypeReader + 5×IsZero + COMMIT bitmap
+        // / digest + HALT/CDP field range checks. Byte-lookup-only deps → fused
+        // path. CPU-model validated; GPU device==CPU test not yet run.
+        RiscvAir::SyscallInstrs(_) => "SyscallInstrs",
         RiscvAir::KeccakP(_) => "KeccakPermute",
         RiscvAir::Sha256Extend(_) => "ShaExtend",
         RiscvAir::Sha256Compress(_) => "ShaCompress",
@@ -617,6 +622,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::SyscallPrecompile(chip) => {
                 chip.generate_trace_device(input, output, scope).await
             }
+            Self::SyscallInstrs(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::Sha256Extend(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::Sha256Compress(chip) => {
                 chip.generate_trace_device(input, output, scope).await
@@ -691,6 +697,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Branch(chip) => dispatch!(chip),
             Self::StateBump(chip) => dispatch!(chip),
             Self::MemoryBump(chip) => dispatch!(chip),
+            Self::SyscallInstrs(chip) => dispatch!(chip),
             Self::KeccakP(chip) => dispatch!(chip),
             Self::Sha256Extend(chip) => dispatch!(chip),
             Self::Sha256Compress(chip) => dispatch!(chip),
@@ -765,6 +772,10 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Mul(_) => pk!(input.mul_events, mul::pack_mul_inputs),
             // Fused-only streaming chip (see `device_chip_name`).
             Self::DivRem(_) => pk!(input.divrem_events, divrem::pack_divrem_inputs),
+            // ECALL instruction chip (iter-076).
+            Self::SyscallInstrs(_) => {
+                pk!(input.syscall_events, syscall_instrs::pack_syscall_instr_inputs)
+            }
             // iter-071 ports with device dependencies (fused path).
             Self::StateBump(_) => {
                 pk!(input.bump_state_events, state_bump::pack_state_bump_inputs)
@@ -840,6 +851,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Branch(chip) => dispatch!(chip),
             Self::StateBump(chip) => dispatch!(chip),
             Self::MemoryBump(chip) => dispatch!(chip),
+            Self::SyscallInstrs(chip) => dispatch!(chip),
             Self::KeccakP(chip) => dispatch!(chip),
             Self::Sha256Extend(chip) => dispatch!(chip),
             // Missing arms here are the iter-067 trap: a `supports_device_dependencies`
