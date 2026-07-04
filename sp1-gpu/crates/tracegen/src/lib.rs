@@ -410,11 +410,15 @@ pub trait CudaTracegenAir<F: Field>: MachineAir<F> {
 
     /// Whether this AIR generates its dependencies (byte lookups) on the device. When
     /// true, the host `generate_dependencies` SKIPS this chip (see
-    /// `AirProver::host_dependency_skip_chips`) and the prover instead calls
-    /// [`CudaTracegenAir::generate_device_dependencies`], accumulating the chip's byte
-    /// lookups into the SHARED shard histograms, then reconstructs the `byte_lookups`
-    /// map ONCE via [`CudaTracegenAir::add_lookups_from_histograms`] (so the Byte/Range
-    /// chips' host tracegen is unchanged).
+    /// `AirProver::host_dependency_skip_chips`) and the prover instead produces the
+    /// chip's byte lookups on-device, FUSED into the main-trace kernel
+    /// ([`CudaTracegenAir::generate_trace_device_with_lookups`], accumulating into the
+    /// SHARED shard histograms); the deferred Byte/Range table traces are then built
+    /// directly from those histograms (see `jagged_tracegen::device_main_tracegen`).
+    ///
+    /// MUST be false for chips whose `generate_dependencies` emits
+    /// `GlobalInteractionEvent`s (MemoryLocal/Syscall*/MemoryGlobal*) — the device
+    /// histogram path would silently drop them.
     fn supports_device_dependencies(&self) -> bool {
         false
     }
@@ -426,6 +430,13 @@ pub trait CudaTracegenAir<F: Field>: MachineAir<F> {
     /// reconstructing once equals the union of the per-chip maps — but with a single
     /// alloc/zero, a single D2H readback, and a single host reconstruct per shard
     /// instead of one set per chip (heed iter-004). Default: no-op.
+    ///
+    /// STATUS: NOT called by the prover — the fused
+    /// [`generate_trace_device_with_lookups`](Self::generate_trace_device_with_lookups)
+    /// produces columns + lookups in one pass (iter-050) and replaced the separate
+    /// dependency pre-pass. Retained (with the per-chip impls and the standalone
+    /// lookup kernels) as the validation path: the fused-kernel unit tests use it as
+    /// the reference histogram, and it isolates lookup bugs from column bugs.
     #[allow(unused_variables)]
     fn generate_device_dependencies(
         &self,
@@ -438,8 +449,14 @@ pub trait CudaTracegenAir<F: Field>: MachineAir<F> {
     }
 
     /// Reconstruct the `byte_lookups` map from the shared histograms (already read back
-    /// to host) and merge it into `output`. Called ONCE per shard, after every device
-    /// chip has accumulated into the shared histograms. Default: no-op.
+    /// to host) and merge it into `output`. Default: no-op.
+    ///
+    /// STATUS: NO callers — the histogram-readback integration it served was replaced
+    /// by building the Byte/Range table traces on-device from the resident histograms
+    /// ([`host_lookup_scatter`](Self::host_lookup_scatter) + `hist_to_trace_kernel`,
+    /// iter-052/053), so nothing reconstructs a host map anymore. Deletion candidate
+    /// (together with [`record_with_byte_lookups`](Self::record_with_byte_lookups))
+    /// at upstreaming time.
     #[allow(unused_variables)]
     fn add_lookups_from_histograms(
         &self,
@@ -483,7 +500,13 @@ pub trait CudaTracegenAir<F: Field>: MachineAir<F> {
     /// Build a record carrying the full `byte_lookups` map (the host chips' lookups in
     /// `base` unioned with the device chips' lookups reconstructed from the shared
     /// histograms) for the deferred Byte/Range table chips to generate their traces
-    /// from. Called ONCE after device tracegen completes. Default: empty record.
+    /// from. Default: empty record.
+    ///
+    /// STATUS: NO callers — superseded by the fully on-device Byte/Range table build
+    /// (scatter the host chips' lookups into the resident histograms, then
+    /// `hist_to_trace_kernel`; iter-052/053). Deletion candidate (together with
+    /// [`add_lookups_from_histograms`](Self::add_lookups_from_histograms)) at
+    /// upstreaming time.
     #[allow(unused_variables)]
     fn record_with_byte_lookups(
         &self,

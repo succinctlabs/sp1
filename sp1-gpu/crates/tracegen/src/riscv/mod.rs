@@ -227,6 +227,12 @@ pub(crate) async fn generate_trace_and_lookups_into(
 /// the op-DAG and packing inputs; the upload + launch are identical. The histograms are
 /// allocated once per shard by the prover (see [`crate::new_byte_histograms`]) and read
 /// back / reconstructed once, not per chip.
+///
+/// CALLERS: the per-chip `generate_device_dependencies` impls (a path the prover no
+/// longer takes — see the trait doc) and the fused-kernel unit tests, which use this
+/// standalone lookup pass as the reference histogram (e.g.
+/// `add::tests::test_add_fused_kernel`). Keep in sync with the lookup arms of the
+/// fused kernels it validates.
 pub(crate) async fn accumulate_lookups(
     program: &WitProgram,
     inputs: &[u64],
@@ -265,6 +271,10 @@ pub(crate) async fn accumulate_lookups(
 /// slots (Mul: 531 wires -> 100 slots) rather than one cell per op, then launches
 /// `witgen_interp_slots_kernel`. Narrow chips keep the SSA `witgen_interp_kernel` path.
 /// The `WITGEN_MAX_WIRES` assert now bounds SLOTS, not raw wires, so wide gadgets fit.
+///
+/// CALLERS: the wide chips' non-fused `generate_trace_device` impls (Mul, SHA family,
+/// SyscallInstrs) — which the prover reaches only when the fused path is off
+/// (`AR_DEVICE_DEPS=0`); otherwise exercised by the per-chip device tests.
 pub(crate) async fn generate_columns_slots_into(
     program: &WitProgram,
     col_wires: &[u32],
@@ -499,6 +509,10 @@ pub(crate) async fn generate_trace_and_lookups_slots_into(
 /// accumulation via `witgen_lookup_slots_kernel`, register-allocated so wide gadgets
 /// fit. Uses the SAME `allocate_slots(col_wires)` map as the column launch so the two
 /// kernels interpret an identical slot-resolved op-DAG.
+///
+/// CALLERS: only the wide chips' `generate_device_dependencies` impls — a path the
+/// prover no longer takes (see the trait doc); retained as the standalone lookup
+/// reference for the fused kernels.
 pub(crate) async fn accumulate_lookups_slots(
     program: &WitProgram,
     col_wires: &[u32],
@@ -666,6 +680,12 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
         device_chip_name(self).is_some_and(device_chip_enabled)
     }
 
+    /// Non-fused (columns-only) dispatch. The prover reaches this only for device
+    /// chips WITHOUT device dependencies (Global; MemoryLocal/MemoryGlobal*/Syscall*,
+    /// whose deps must stay on host) and for every device chip when
+    /// `AR_DEVICE_DEPS=0`; fused chips normally route through
+    /// `generate_trace_device_with_lookups` instead. Fused-ONLY chips (DivRem,
+    /// Keccak*) deliberately `unimplemented!()` their arm's target.
     async fn generate_trace_device(
         &self,
         input: &Self::Record,
@@ -750,6 +770,9 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             })
     }
 
+    /// Standalone lookup-pass dispatch — no production caller (the prover uses the
+    /// fused path; see the trait doc). Kept as the reference path for validating the
+    /// fused kernels' lookup arms.
     async fn generate_device_dependencies(
         &self,
         input: &Self::Record,
@@ -806,6 +829,8 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
     /// histograms are opcode-indexed, so this single call yields the union of what the
     /// per-chip reconstructs used to produce. Mirrors the host `generate_dependencies`
     /// output that the Byte/Range chips consume.
+    ///
+    /// STATUS: no callers — see the trait doc (superseded by the on-device table build).
     fn add_lookups_from_histograms(
         &self,
         range_hist: &[u32],
@@ -987,9 +1012,9 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
     /// Build a (minimal) record carrying the FULL `byte_lookups` map — the host chips'
     /// lookups already in `base` (from the host `generate_dependencies`) unioned with the
     /// device chips' lookups reconstructed from the shared histograms — so the deferred
-    /// Byte/Range table chips can generate their traces from it. Replaces the old
-    /// `merge_device_dependencies` pre-pass: the device lookups now come from the fused
-    /// main-trace kernels, so this runs once after device tracegen completes.
+    /// Byte/Range table chips can generate their traces from it.
+    ///
+    /// STATUS: no callers — see the trait doc (superseded by the on-device table build).
     fn record_with_byte_lookups(
         &self,
         base: &Self::Record,
