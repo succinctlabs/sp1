@@ -986,23 +986,32 @@ async fn device_main_tracegen<A: CudaTracegenAir<Felt>>(
                         air.generate_trace_device_with_lookups(record.as_ref(), packed, hist, &child)
                             .instrument(tracing::trace_span!(parent: &outer_span, "device chip fused tracegen", chip = %air.name()))
                             .await
-                            .unwrap()
+                            .unwrap_or_else(|e| {
+                                panic!("fused device tracegen failed for chip {}: {e:?}", air.name())
+                            })
                             .into()
                     } else {
                         air.generate_trace_device(record.as_ref(), &mut A::Record::default(), &child)
                             .instrument(tracing::trace_span!(parent: &outer_span, "device chip tracegen", chip = %air.name()))
                             .await
-                            .unwrap()
+                            .unwrap_or_else(|e| {
+                                panic!("device tracegen failed for chip {}: {e:?}", air.name())
+                            })
                             .into()
                     };
                     // Drain before the permit releases (allocator reclaim requires it;
                     // pure event-window OOMs and cudaEventSynchronize busy-spins —
                     // iter-078 measured both). The drain gaps are hidden by running a
                     // wide window so other chips' streams overlay each drain boundary.
-                    child.synchronize().await.expect("drain chip tracegen stream");
+                    child.synchronize().await.unwrap_or_else(|e| {
+                        panic!("drain tracegen stream for chip {}: {e:?}", air.name())
+                    });
                     trace
                 });
-                (name, handle.await.expect("device chip tracegen task"))
+                let trace = handle
+                    .await
+                    .unwrap_or_else(|e| panic!("device tracegen task for chip {name}: {e:?}"));
+                (name, trace)
             }
         })
         .collect::<FuturesUnordered<_>>();
