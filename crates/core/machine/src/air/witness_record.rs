@@ -930,6 +930,8 @@ pub fn interpret_c_slots_streaming_columns<F: Field>(
             20 => vals[o] = Val::Nat(vals[a].nat() << vals[b].nat()),
             21 => vals[o] = Val::Nat(vals[a].nat() >> vals[b].nat()),
             23 => vals[o] = Val::Nat(vals[a].nat().wrapping_mul(vals[b].nat())),
+            24 => vals[o] = Val::Nat(vals[a].nat() ^ vals[b].nat()),
+            25 => vals[o] = Val::Nat(vals[a].nat() & vals[b].nat()),
             12 => vals[o] = if vals[a].nat() != 0 { vals[b] } else { vals[op.imm1 as usize] },
             3 => vals[o] = Val::Field(F::from_canonical_u64(vals[a].nat())),
             4 => vals[o] = Val::Field(vals[a].field() + vals[b].field()),
