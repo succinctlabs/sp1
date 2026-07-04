@@ -479,8 +479,7 @@ pub(crate) async fn accumulate_lookups_slots(
 }
 
 /// Name of the device-capable chip variant (`None` for chips without a device
-/// tracegen impl, and for `DivRem` which is still host-gated — too wide for the
-/// 256-slot kernel; `Mul` now fits via reg-alloc). Used by the `AR_DEVICE_CHIPS` gate.
+/// tracegen impl). Used by the `AR_DEVICE_CHIPS` gate.
 fn device_chip_name(air: &RiscvAir<F>) -> Option<&'static str> {
     Some(match air {
         RiscvAir::Global(_) => "Global",
@@ -511,6 +510,13 @@ fn device_chip_name(air: &RiscvAir<F>) -> Option<&'static str> {
         // Off by default (needs AR_DEVICE_CHIPS=...,Mul); device==CPU trace validated
         // by `test_mul_generate_trace_device`.
         RiscvAir::Mul(_) => "Mul",
+        // Widest ALU gadget, un-gated by the STREAMING lowering (pinned 272 slots >
+        // the 256 cap; streaming 68 transients, empty epilogue). Fused-only —
+        // production routes through `generate_trace_device_with_lookups`. CPU-model
+        // validated (columns vs host + lookups vs generate_dependencies); GPU
+        // device==CPU trace test (`test_divrem_generate_trace_device_fused`) not yet
+        // run. Do not enable in AR_DEVICE_CHIPS until it passes on device.
+        RiscvAir::DivRem(_) => "DivRem",
         // iter-071 CPU-side ports — CPU-model validated (columns + lookups); GPU
         // device==CPU trace tests not yet run (GPU busy). Do not enable in
         // AR_DEVICE_CHIPS until the tokio tests pass on device.
@@ -757,6 +763,8 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             // Wide gadget on device (iter-066/067): without this arm the fused path gets
             // empty inputs → no Mul trace → failed verification.
             Self::Mul(_) => pk!(input.mul_events, mul::pack_mul_inputs),
+            // Fused-only streaming chip (see `device_chip_name`).
+            Self::DivRem(_) => pk!(input.divrem_events, divrem::pack_divrem_inputs),
             // iter-071 ports with device dependencies (fused path).
             Self::StateBump(_) => {
                 pk!(input.bump_state_events, state_bump::pack_state_bump_inputs)
@@ -834,6 +842,10 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::MemoryBump(chip) => dispatch!(chip),
             Self::KeccakP(chip) => dispatch!(chip),
             Self::Sha256Extend(chip) => dispatch!(chip),
+            // Missing arms here are the iter-067 trap: a `supports_device_dependencies`
+            // chip whose fused dispatch falls into `_` hits `unimplemented!()` at prove
+            // time. Sha256Compress was missing until iter-076.
+            Self::Sha256Compress(chip) => dispatch!(chip),
             _ => unimplemented!(),
         }
     }

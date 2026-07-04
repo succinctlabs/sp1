@@ -4,6 +4,15 @@
 //! upper 64 bits of `c*quotient`) are computed host-side in the packing function
 //! and passed as inputs, so the op-DAG needs no divide op. Padding rows use a
 //! non-zero template ("0 / 1").
+//!
+//! DivRem is FUSED-ONLY on device: the pinned slot lowering needs 272 slots
+//! (246 column wires stay live to the end of the DAG) — over the 256-slot kernel
+//! cap — but the STREAMING (store-through) lowering collapses it to 68 transient
+//! slots with an empty epilogue, which fits the streaming fused kernel tier
+//! (68 > the 24-slot smem cap, so it takes the local-wire streaming variant).
+//! Production always routes through `generate_trace_device_with_lookups` because
+//! `supports_device_dependencies` is true (dependencies are byte/range lookups
+//! only — the default `generate_dependencies`, no `GlobalInteractionEvent`s).
 
 use core::borrow::BorrowMut;
 
@@ -21,7 +30,7 @@ use sp1_core_machine::{
     alu::divrem::{DivRemChip, DivRemCols, NUM_DIVREM_COLS_SUPERVISOR},
     SupervisorMode,
 };
-use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKernel};
+use sp1_gpu_cudart::{DeviceBuffer, DeviceMle, TaskScope};
 use sp1_hypercube::{air::MachineAir, Word};
 
 use crate::{CudaTracegenAir, F};
@@ -156,13 +165,19 @@ fn record_divrem_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
         w(24), w(25), w(26), w(27), w(28), w(29),
     );
     let program = rec.finish();
-    assert!(
-        program.num_wires() <= super::WITGEN_MAX_WIRES,
-        "DivRem gadget needs {} wires > kernel capacity {}",
-        program.num_wires(),
-        super::WITGEN_MAX_WIRES
-    );
     let col_wires: Vec<u32> = columns_as_wires(&cols_w).iter().map(|w| w.0).collect();
+    // DivRem exceeds the pinned cap (272 slots > 256) — it runs on device only via
+    // the STREAMING lowering (68 transient slots, empty epilogue). Assert that the
+    // streaming gate in `generate_trace_and_lookups_slots_into` will actually take
+    // the streaming tier (a non-empty epilogue or an over-cap footprint would fall
+    // back to the pinned kernel, whose 256-slot assert DivRem fails).
+    let (_, s_max, epi) = program.allocate_slots_streaming(&col_wires);
+    assert!(
+        (s_max as usize) <= super::WITGEN_MAX_WIRES && epi.is_empty(),
+        "DivRem streaming lowering needs {s_max} slots (epilogue {}) — does not fit \
+         the streaming kernel tier",
+        epi.len()
+    );
     (program, col_wires)
 }
 
@@ -182,85 +197,76 @@ fn padding_template(n_cols: usize) -> Vec<F> {
     tmpl
 }
 
+/// Upload a trace initialized with the padding template broadcast to every row
+/// (the streaming kernel overwrites all columns of the event rows; padding rows
+/// keep the template).
+fn template_trace(
+    n_cols: usize,
+    height: usize,
+    scope: &TaskScope,
+) -> Result<Tensor<F, TaskScope>, CopyError> {
+    let tmpl = padding_template(n_cols);
+    let mut init = vec![F::zero(); n_cols * height];
+    for col in 0..n_cols {
+        if tmpl[col] != F::zero() {
+            for r in 0..height {
+                init[col * height + r] = tmpl[col];
+            }
+        }
+    }
+    let mut buf = Buffer::try_with_capacity_in(init.len().max(1), scope.clone()).unwrap();
+    buf.extend_from_host_slice(&init)?;
+    Ok(Tensor::<F, TaskScope>::from(buf).reshape([n_cols, height]))
+}
+
 impl CudaTracegenAir<F> for DivRemChip<SupervisorMode> {
     fn supports_device_main_tracegen(&self) -> bool {
         true
     }
 
+    /// Non-fused path unsupported: DivRem's pinned lowering needs 272 slots (> the
+    /// 256-slot kernel cap) — it ONLY fits via the streaming fused path. Production
+    /// always routes here through `generate_trace_device_with_lookups` because
+    /// `supports_device_dependencies` is true.
     async fn generate_trace_device(
         &self,
-        input: &Self::Record,
+        _input: &Self::Record,
         _output: &mut Self::Record,
+        _scope: &TaskScope,
+    ) -> Result<DeviceMle<F>, CopyError> {
+        unimplemented!("DivRem device tracegen is fused-only (streaming lowering)")
+    }
+
+    /// Fused device path — the one the PROVER calls (the iter-067 lesson: without
+    /// this override the enum dispatch hits the trait-default `unimplemented!()`).
+    /// Pre-initializes the non-zero "0 / 1" padding template before the streaming
+    /// fused kernel (68 transient slots, local-wire tier) overwrites the event rows
+    /// and accumulates the chip's byte/range lookups into the shard histograms.
+    async fn generate_trace_device_with_lookups(
+        &self,
+        input: &Self::Record,
+        inputs: Vec<u64>,
+        hist: crate::LookupHist,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
         let (program, col_wires) = record_divrem_program();
-        let ops_c = program.to_c();
         let n_cols = col_wires.len();
         debug_assert_eq!(n_cols, NUM_DIVREM_COLS_SUPERVISOR);
-
         let height = <Self as MachineAir<F>>::num_rows(self, input)
             .expect("num_rows(...) should be Some(_)");
-        let events = &input.divrem_events;
-        let n_events = if height == 0 { 0 } else { events.len() };
+        let n_events = if height == 0 { 0 } else { inputs.len() / program.num_inputs as usize };
 
-        let inputs = pack_divrem_inputs(&events[..n_events]);
-
-        let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone()).unwrap();
-        ops_dev.extend_from_host_slice(&ops_c)?;
-        let mut col_dev = Buffer::try_with_capacity_in(col_wires.len(), scope.clone()).unwrap();
-        col_dev.extend_from_host_slice(&col_wires)?;
-        let mut in_dev = Buffer::try_with_capacity_in(inputs.len().max(1), scope.clone()).unwrap();
-        in_dev.extend_from_host_slice(&inputs)?;
-
-        // Initialize every row with the non-zero padding template; the kernel
-        // overwrites all columns of the event rows.
-        let mut trace = {
-            let tmpl = padding_template(n_cols);
-            let mut init = vec![F::zero(); n_cols * height];
-            for col in 0..n_cols {
-                if tmpl[col] != F::zero() {
-                    for r in 0..height {
-                        init[col * height + r] = tmpl[col];
-                    }
-                }
-            }
-            let mut buf = Buffer::try_with_capacity_in(init.len().max(1), scope.clone()).unwrap();
-            buf.extend_from_host_slice(&init)?;
-            Tensor::<F, TaskScope>::from(buf).reshape([n_cols, height])
-        };
-
-        if n_events > 0 {
-            unsafe {
-                const BLOCK: usize = 64;
-                let grid = n_events.div_ceil(BLOCK);
-                let args = args!(
-                    trace.as_mut_ptr(),
-                    height,
-                    ops_dev.as_ptr(),
-                    ops_c.len(),
-                    col_dev.as_ptr(),
-                    n_cols,
-                    program.num_inputs,
-                    in_dev.as_ptr(),
-                    n_events
-                );
-                scope
-                    .launch_kernel(TaskScope::witgen_interp_kernel(), grid, BLOCK, &args, 0)
-                    .unwrap();
-            }
-        }
-
-        Ok(DeviceMle::from(trace))
+        let trace = template_trace(n_cols, height, scope)?;
+        super::generate_trace_and_lookups_slots_into(
+            &program, &col_wires, &inputs, n_events, height, trace, hist, scope,
+        )
+        .await
     }
 
     fn supports_device_dependencies(&self) -> bool {
-        // DivRem is gated off device entirely (272 slots > the 256-slot kernel cap;
-        // see `divrem_regalloc_shrinks_and_matches`) and has NO fused
-        // `generate_trace_device_with_lookups` override — advertising device deps
-        // would send the prover into the trait-default `unimplemented!()` (the
-        // iter-067 trap) if the chip were ever enabled. Flip back on (with a fused
-        // override) once the 512 kernel tier exists.
-        false
+        // Byte/range lookups only (default `generate_dependencies`, no
+        // `GlobalInteractionEvent`s), produced by the fused streaming kernel.
+        true
     }
 
     async fn generate_device_dependencies(
@@ -280,7 +286,12 @@ impl CudaTracegenAir<F> for DivRemChip<SupervisorMode> {
 
         let (program, _col_wires) = record_divrem_program();
         let inputs = pack_divrem_inputs(&events[..n_events]);
-        super::accumulate_lookups(&program, &inputs, n_events, range_dev, byte_dev, scope).await
+        // Lookup-only pass: no columns are read out, so allocate slots WITHOUT
+        // pinning the column wires (pinned-with-columns is 272 slots > the cap;
+        // transient-only allocation fits comfortably). The lookup kernel executes
+        // the same op order, so the emitted lookups are identical.
+        super::accumulate_lookups_slots(&program, &[], &inputs, n_events, range_dev, byte_dev, scope)
+            .await
     }
 }
 
@@ -366,7 +377,8 @@ mod tests {
     fn divrem_regalloc_shrinks_and_matches() {
         use sp1_core_machine::air::{
             columns_as_wires, interpret_c_columns, interpret_c_slots_columns,
-            interpret_slots_columns, RecordingWitnessBuilder, WireId,
+            interpret_c_slots_streaming_columns, interpret_slots_columns,
+            RecordingWitnessBuilder, WireId,
         };
         use sp1_core_machine::alu::divrem::DivRemCols;
 
@@ -421,6 +433,41 @@ mod tests {
             assert_eq!(ssa, alloc, "reg-alloc column mismatch at row {row}");
             assert_eq!(ssa, flat, "slot-flat (WitOpCSlot) column mismatch at row {row}");
         }
+
+        // STREAMING (store-through) lowering: columns written at production, wires
+        // transient — the lowering that un-gates DivRem (pinned 272 > the 256-slot
+        // cap; streaming drops the 246-column pinning entirely). Must match SSA
+        // bit-for-bit and fit the kernel cap with an empty epilogue (the mod.rs
+        // streaming gate requires both).
+        let (s_slot, s_max, epilogue) = program.allocate_slots_streaming(&col_wires);
+        let (s_ops, input_cols) = program.to_c_slots_streaming(&s_slot, &col_wires);
+        let s_input_slots: Vec<u32> = s_slot[..ni].to_vec();
+        let epi_slots: Vec<(u32, u32)> =
+            epilogue.iter().map(|&(w, c)| (s_slot[w as usize], c)).collect();
+        println!(
+            "DivRem streaming: pinned max_slots={max_slots} -> streaming max_slots={s_max} \
+             (epilogue {} entries, input_cols {})",
+            epi_slots.len(),
+            input_cols.len()
+        );
+        assert!(
+            (s_max as usize) <= super::super::WITGEN_MAX_WIRES,
+            "DivRem streaming: max_slots={s_max} exceeds the kernel cap"
+        );
+        assert!(
+            epi_slots.is_empty(),
+            "DivRem streaming: non-empty epilogue would fall back to the pinned kernel \
+             (which DivRem does not fit)"
+        );
+        for row in 0..events.len() {
+            let row_in = &inputs[row * ni..(row + 1) * ni];
+            let ssa: Vec<F> = interpret_c_columns(&ops_c, ni as u32, row_in, &col_wires);
+            let streamed: Vec<F> = interpret_c_slots_streaming_columns(
+                &s_ops, ni as u32, row_in, &s_input_slots, &input_cols, &epi_slots,
+                col_wires.len(), s_max,
+            );
+            assert_eq!(ssa, streamed, "streaming column mismatch at row {row}");
+        }
     }
 
     fn read(rng: &mut StdRng) -> MemoryRecordEnum {
@@ -434,76 +481,104 @@ mod tests {
         })
     }
 
-    /// Device-vs-CPU trace equality for `DivRem` over all 8 opcodes with random
-    /// 64-bit operands — exercises signed/unsigned, word ops, sign extension, the
-    /// abs negation gadgets, overflow detection, the dual `c*quotient` products,
+    /// Columns from the recorded op-DAG must equal the HOST trace bit-for-bit on
+    /// every event row (SSA interpreter), and the padding template must equal the
+    /// host's padded rows — the CPU model of what the streaming kernel writes.
+    #[test]
+    fn divrem_columns_match_host() {
+        use sp1_core_machine::air::interpret_c_columns;
+        use sp1_core_machine::alu::divrem::NUM_DIVREM_COLS_SUPERVISOR;
+
+        let events = synth_divrem_events(100, 0xD11F);
+        let shard =
+            ExecutionRecord { divrem_events: events.clone(), ..Default::default() };
+        let chip = DivRemChip::<SupervisorMode>::default();
+        let trace =
+            MachineAir::<F>::generate_trace(&chip, &shard, &mut ExecutionRecord::default());
+        let width = NUM_DIVREM_COLS_SUPERVISOR;
+        let height = trace.values.len() / width;
+
+        let (program, col_wires) = super::record_divrem_program();
+        assert_eq!(col_wires.len(), width);
+        let ops_c = program.to_c();
+        let ni = super::NUM_DIVREM_INPUTS;
+        let inputs = super::pack_divrem_inputs(&events);
+        let values = &trace.values;
+        for row in 0..events.len() {
+            let row_in = &inputs[row * ni..(row + 1) * ni];
+            let cols: Vec<F> = interpret_c_columns(&ops_c, ni as u32, row_in, &col_wires);
+            assert_eq!(
+                &values[row * width..(row + 1) * width],
+                &cols[..],
+                "column mismatch at row {row}"
+            );
+        }
+        // Padding rows must equal the device-side template init.
+        let tmpl = super::padding_template(width);
+        for row in events.len()..height {
+            assert_eq!(
+                &values[row * width..(row + 1) * width],
+                &tmpl[..],
+                "padding template mismatch at row {row}"
+            );
+        }
+    }
+
+    /// Byte/range-lookup histogram vs `generate_dependencies` (the iter-041 trap:
+    /// columns-only tests miss lookup bugs): the MSB byte lookups, the LT gadget,
+    /// the u16 range checks on quotient/remainder/c*quotient/carries, and the
+    /// guarded remainder-check multiplicity must all match.
+    #[test]
+    fn divrem_lookups_match_generate_dependencies() {
+        use sp1_core_executor::ByteOpcode;
+        use sp1_core_machine::air::{interpret_c_lookups, BYTE_HIST_ROWS, RANGE_HIST_ROWS};
+        use sp1_core_machine::bytes::columns::NUM_BYTE_MULT_COLS;
+
+        let events = synth_divrem_events(200, 0xD120);
+        let shard =
+            ExecutionRecord { divrem_events: events.clone(), ..Default::default() };
+        let chip = DivRemChip::<SupervisorMode>::default();
+
+        let mut dep_out = ExecutionRecord::default();
+        MachineAir::<F>::generate_dependencies(&chip, &shard, &mut dep_out);
+        let mut ref_range = vec![0u32; RANGE_HIST_ROWS];
+        let mut ref_byte = vec![0u32; BYTE_HIST_ROWS * NUM_BYTE_MULT_COLS];
+        for (lookup, mult) in dep_out.byte_lookups.iter() {
+            if lookup.opcode == ByteOpcode::Range {
+                ref_range[(lookup.a as usize) + (1 << lookup.b)] = *mult as u32;
+            } else {
+                let r = ((lookup.b as usize) << 8) + lookup.c as usize;
+                ref_byte[r * NUM_BYTE_MULT_COLS + lookup.opcode as usize] = *mult as u32;
+            }
+        }
+
+        let (program, _col_wires) = super::record_divrem_program();
+        let ops_c = program.to_c();
+        let inputs = super::pack_divrem_inputs(&events);
+        let mut range_hist = vec![0u32; RANGE_HIST_ROWS];
+        let mut byte_hist = vec![0u32; BYTE_HIST_ROWS * NUM_BYTE_MULT_COLS];
+        interpret_c_lookups(
+            &ops_c,
+            program.num_inputs,
+            &inputs,
+            events.len(),
+            &mut range_hist,
+            &mut byte_hist,
+        );
+        assert_eq!(range_hist, ref_range, "range histogram mismatch");
+        assert_eq!(byte_hist, ref_byte, "byte histogram mismatch");
+    }
+
+    /// Device-vs-CPU trace equality for `DivRem` via the FUSED streaming path (the
+    /// one production calls) over all 8 opcodes with random 64-bit operands —
+    /// exercises signed/unsigned, word ops, sign extension, the abs negation
+    /// gadgets, overflow detection, the dual `c*quotient` products,
     /// division-by-zero, and the non-zero padding template.
     #[tokio::test]
-    #[ignore = "gated off device (too wide → OOM); witgen validated at the higher wire cap"]
-    async fn test_divrem_generate_trace_device() {
+    #[ignore = "requires GPU; CPU model validated by the tests above (run when a device is free)"]
+    async fn test_divrem_generate_trace_device_fused() {
         sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
-            let mut rng = StdRng::seed_from_u64(0xD11E);
-            let ops = [
-                Opcode::DIV,
-                Opcode::DIVU,
-                Opcode::REM,
-                Opcode::REMU,
-                Opcode::DIVW,
-                Opcode::REMW,
-                Opcode::DIVUW,
-                Opcode::REMUW,
-            ];
-            let divrem_events = (0..1600)
-                .map(|i| {
-                    let opcode = ops[i % ops.len()];
-                    // Mix in division-by-zero and overflow edge cases.
-                    let c = match i % 7 {
-                        0 => 0u64,
-                        1 => u64::MAX, // -1
-                        _ => rng.gen::<u64>(),
-                    };
-                    let b = match i % 11 {
-                        0 => i64::MIN as u64,
-                        1 => (i32::MIN as i64) as u64,
-                        _ => rng.gen::<u64>(),
-                    };
-                    let (a, _) = get_quotient_and_remainder(b, c, opcode);
-                    // `a` is the result the executor would record; the chip only
-                    // reads it for the result word, so use the quotient/remainder.
-                    let result = {
-                        let (q, r) = get_quotient_and_remainder(b, c, opcode);
-                        if matches!(
-                            opcode,
-                            Opcode::DIV | Opcode::DIVU | Opcode::DIVW | Opcode::DIVUW
-                        ) {
-                            q
-                        } else {
-                            r
-                        }
-                    };
-                    let _ = a;
-                    let alu = AluEvent::new(
-                        (i as u64) * 8 + 8,
-                        (i as u64) * 4 + 4,
-                        opcode,
-                        result,
-                        b,
-                        c,
-                        false,
-                    );
-                    let record = RTypeRecord {
-                        op_a: rng.gen_range(1..32),
-                        a: read(&mut rng),
-                        op_b: rng.gen_range(1..32),
-                        b: read(&mut rng),
-                        op_c: rng.gen_range(1..32),
-                        c: read(&mut rng),
-                        is_untrusted: false,
-                    };
-                    (alu, record)
-                })
-                .collect::<Vec<_>>();
-
+            let divrem_events = synth_divrem_events(1600, 0xD11E);
             let [shard, gpu_shard] = core::array::from_fn(|_| ExecutionRecord {
                 divrem_events: divrem_events.clone(),
                 ..Default::default()
@@ -513,8 +588,14 @@ mod tests {
 
             let trace =
                 Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
+            let (mut range_dev, mut byte_dev) = crate::new_byte_histograms(&scope);
+            let hist = crate::LookupHist {
+                range: range_dev.as_mut_ptr(),
+                byte: byte_dev.as_mut_ptr(),
+            };
+            let inputs = super::pack_divrem_inputs(&divrem_events);
             let gpu_trace = chip
-                .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
+                .generate_trace_device_with_lookups(&gpu_shard, inputs, hist, &scope)
                 .await
                 .expect("device tracegen should succeed")
                 .to_host()
