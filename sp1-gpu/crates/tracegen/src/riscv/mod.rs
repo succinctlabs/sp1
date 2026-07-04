@@ -315,7 +315,7 @@ pub(crate) async fn generate_trace_and_lookups_slots_into(
         "witgen slot footprint"
     );
     let ni = program.num_inputs as usize;
-    if s_max <= SMEM_CAP && epi.is_empty() {
+    if (s_max as usize) <= WITGEN_MAX_WIRES && epi.is_empty() {
         let (ops_c, input_cols) = program.to_c_slots_streaming(&s_slot, col_wires);
         let input_slots: Vec<u32> = s_slot[..ni].to_vec();
         let ic_idx: Vec<u32> = input_cols.iter().map(|&(i, _)| i).collect();
@@ -357,15 +357,15 @@ pub(crate) async fn generate_trace_and_lookups_slots_into(
                     hist.range,
                     hist.byte
                 );
-                scope
-                    .launch_kernel(
-                        TaskScope::witgen_fused_streaming_smem_kernel(),
-                        grid,
-                        BLOCK,
-                        &args,
-                        0,
-                    )
-                    .unwrap();
+                // Tier by footprint: on-chip shared wires when they fit the smem
+                // cap, otherwise the local-wire streaming variant (Keccak 69,
+                // Mul 49, SHA 135–211 — all stream; nothing re-pins columns).
+                let kernel = if s_max <= SMEM_CAP {
+                    TaskScope::witgen_fused_streaming_smem_kernel()
+                } else {
+                    TaskScope::witgen_fused_streaming_kernel()
+                };
+                scope.launch_kernel(kernel, grid, BLOCK, &args, 0).unwrap();
             }
         }
         return Ok(DeviceMle::from(trace));
@@ -521,6 +521,7 @@ fn device_chip_name(air: &RiscvAir<F>) -> Option<&'static str> {
         RiscvAir::MemoryGlobalFinal(_) => "MemoryGlobalFinal",
         RiscvAir::SyscallCore(_) => "SyscallCore",
         RiscvAir::SyscallPrecompile(_) => "SyscallPrecompile",
+        RiscvAir::KeccakP(_) => "KeccakPermute",
         RiscvAir::Sha256Extend(_) => "ShaExtend",
         RiscvAir::Sha256Compress(_) => "ShaCompress",
         _ => return None,
@@ -684,6 +685,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Branch(chip) => dispatch!(chip),
             Self::StateBump(chip) => dispatch!(chip),
             Self::MemoryBump(chip) => dispatch!(chip),
+            Self::KeccakP(chip) => dispatch!(chip),
             Self::Sha256Extend(chip) => dispatch!(chip),
             Self::Sha256Compress(chip) => dispatch!(chip),
             _ => unimplemented!(),
@@ -762,6 +764,14 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::MemoryBump(_) => {
                 pk!(input.bump_memory_events, memory_bump::pack_memory_bump_inputs)
             }
+            // Keccak: pack the FULL padded height (padding rows = cyclic dummy pattern).
+            Self::KeccakP(_) => {
+                if height == 0 {
+                    Vec::new()
+                } else {
+                    keccak::pack_keccak_inputs(&keccak::collect_events(input), height)
+                }
+            }
             // ShaExtend: 48 input rows per event (collect_events handles traps).
             Self::Sha256Extend(_) => {
                 if height == 0 {
@@ -822,6 +832,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Branch(chip) => dispatch!(chip),
             Self::StateBump(chip) => dispatch!(chip),
             Self::MemoryBump(chip) => dispatch!(chip),
+            Self::KeccakP(chip) => dispatch!(chip),
             Self::Sha256Extend(chip) => dispatch!(chip),
             _ => unimplemented!(),
         }

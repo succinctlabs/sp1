@@ -28,6 +28,7 @@ extern "C" {
     pub fn witgen_fused_slots_koala_bear_kernel() -> KernelPtr;
     // Streaming store-through fused kernel with shared-memory wires (cap 24).
     pub fn witgen_fused_streaming_smem_koala_bear_kernel() -> KernelPtr;
+    pub fn witgen_fused_streaming_koala_bear_kernel() -> KernelPtr;
     pub fn hist_to_trace_koala_bear_kernel() -> KernelPtr;
     pub fn hist_trace_scatter_koala_bear_kernel() -> KernelPtr;
 }

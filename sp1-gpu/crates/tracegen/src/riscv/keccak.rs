@@ -334,6 +334,74 @@ pub(crate) fn collect_events(
         .collect()
 }
 
+
+use slop_alloc::mem::CopyError;
+use slop_tensor::Tensor;
+use sp1_core_machine::syscall::precompiles::keccak256::KeccakPermuteChip;
+use sp1_gpu_cudart::{DeviceBuffer, DeviceMle, TaskScope};
+use sp1_hypercube::air::MachineAir;
+
+use crate::{CudaTracegenAir, F};
+
+impl CudaTracegenAir<F> for KeccakPermuteChip {
+    fn supports_device_main_tracegen(&self) -> bool {
+        true
+    }
+
+    /// Non-fused path unsupported: Keccak's pinned lowering needs 2641 slots (the
+    /// column floor) — it ONLY fits via the streaming fused path. Production always
+    /// routes here through `generate_trace_device_with_lookups` because
+    /// `supports_device_dependencies` is true.
+    async fn generate_trace_device(
+        &self,
+        _input: &Self::Record,
+        _output: &mut Self::Record,
+        _scope: &TaskScope,
+    ) -> Result<DeviceMle<F>, CopyError> {
+        unimplemented!("KeccakPermute device tracegen is fused-only (streaming lowering)")
+    }
+
+    async fn generate_trace_device_with_lookups(
+        &self,
+        input: &Self::Record,
+        inputs: Vec<u64>,
+        hist: crate::LookupHist,
+        scope: &TaskScope,
+    ) -> Result<DeviceMle<F>, CopyError> {
+        let (program, col_wires) = record_keccak_program();
+        let n_cols = col_wires.len();
+        let height = <Self as MachineAir<F>>::num_rows(self, input)
+            .expect("num_rows(...) should be Some(_)");
+        // The pack covers the FULL padded height (trapped + padding rows carry the
+        // host's cyclic dummy pattern), so every row is a kernel row.
+        let n_rows = if height == 0 { 0 } else { inputs.len() / program.num_inputs as usize };
+        debug_assert!(n_rows == 0 || n_rows == height);
+        let trace = Tensor::<F, TaskScope>::zeros_in([n_cols, height], scope.clone());
+        super::generate_trace_and_lookups_slots_into(
+            &program, &col_wires, &inputs, n_rows, height, trace, hist, scope,
+        )
+        .await
+    }
+
+    /// Keccak's `generate_dependencies` emits ZERO byte lookups (its interactions
+    /// live in the KeccakPermuteControlChip), so the device dependency path is
+    /// trivially empty — declaring support routes the chip through the fused path
+    /// and correctly skips the host dependency pass.
+    fn supports_device_dependencies(&self) -> bool {
+        true
+    }
+
+    async fn generate_device_dependencies(
+        &self,
+        _input: &Self::Record,
+        _range_dev: &mut DeviceBuffer<u32>,
+        _byte_dev: &mut DeviceBuffer<u32>,
+        _scope: &TaskScope,
+    ) -> Result<(), CopyError> {
+        Ok(()) // no byte/range lookups
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use rand::{rngs::StdRng, Rng, SeedableRng};
