@@ -25,7 +25,7 @@ use sp1_gpu_cudart::sys::kernels::{
     count_and_add_kernel, fill_buffer, generate_col_index, generate_start_indices,
     sum_to_trace_kernel,
 };
-use sp1_gpu_cudart::{args, CudaEvent, DeviceBuffer, DeviceTensor, PinnedBuffer, StreamRef, TaskScope, WitgenInterpKernel};
+use sp1_gpu_cudart::{args, DeviceBuffer, DeviceTensor, PinnedBuffer, TaskScope, WitgenInterpKernel};
 use sp1_gpu_tracegen::{new_byte_histograms, CudaTracegenAir, LookupHist};
 use sp1_hypercube::prover::{ProverPermit, ProverSemaphore};
 

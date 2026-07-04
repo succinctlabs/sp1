@@ -11,7 +11,6 @@
 
 use rayon::prelude::*;
 use slop_alloc::mem::CopyError;
-use slop_alloc::Buffer;
 use slop_tensor::Tensor;
 use sp1_core_executor::{
     events::{PrecompileEvent, ShaExtendEvent},
@@ -21,7 +20,7 @@ use sp1_core_machine::{
     air::{columns_as_wires, RecordingWitnessBuilder, WireId, WitnessBuilder},
     syscall::precompiles::sha256::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS},
 };
-use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKernel};
+use sp1_gpu_cudart::{DeviceBuffer, DeviceMle, TaskScope};
 use sp1_hypercube::air::MachineAir;
 
 use crate::{CudaTracegenAir, F};

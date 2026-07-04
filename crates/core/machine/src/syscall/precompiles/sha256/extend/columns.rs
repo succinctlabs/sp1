@@ -122,7 +122,7 @@ impl<T: Copy> ShaExtendCols<T> {
         }
         // Pointer offsets: (i - {15,2,16,7,0}) * 8 with i = j + 16.
         let three = wb.const_nat(3);
-        let mut ptr = |wb: &mut WB, cols_ptr: &mut AddrAddOperation<WB::Field>, delta: u64| {
+        let ptr = |wb: &mut WB, cols_ptr: &mut AddrAddOperation<WB::Field>, delta: u64| {
             let d = wb.const_nat(delta);
             let idx = wb.wrapping_add(j, d);
             let off = wb.shl(idx, three);

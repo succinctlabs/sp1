@@ -75,7 +75,7 @@ pub(crate) fn pack_sha_compress_inputs(
                 }
                 return;
             }
-            let mut pack_row = |slot: &mut [u64],
+            let pack_row = |slot: &mut [u64],
                                 index: u64,
                                 k: u32,
                                 mem_prev_value: u64,

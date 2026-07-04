@@ -40,7 +40,7 @@ impl<T: Copy> Add5Operation<T> {
         wb.add_u16_range_check(e0);
         wb.add_u16_range_check(e1);
         // Carries over the u16 limb columns (see `populate`).
-        let mut col_sum = |wb: &mut WB, off: u32, carry_in: Option<WB::Nat>| {
+        let col_sum = |wb: &mut WB, off: u32, carry_in: Option<WB::Nat>| {
             let a_l = wb.bits(a, off, 16);
             let b_l = wb.bits(b, off, 16);
             let c_l = wb.bits(c, off, 16);

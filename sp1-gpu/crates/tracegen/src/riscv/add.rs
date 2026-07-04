@@ -328,7 +328,7 @@ mod tests {
             let b_ref_h: Vec<u32> = b_ref.to_host().unwrap();
 
             // Fused kernel: columns + histogram in a single op-DAG pass.
-            let (mut r_f, mut b_f) = crate::new_byte_histograms(&scope);
+            let (r_f, b_f) = crate::new_byte_histograms(&scope);
             let hist = crate::LookupHist {
                 range: r_f.as_ptr() as *mut u32,
                 byte: b_f.as_ptr() as *mut u32,

@@ -220,7 +220,7 @@ impl<T: Copy> ShaCompressCols<T> {
         let off_comp = wb.shl(idx_c, three);
         let idx_f = wb.wrapping_sub(index, seventy_two);
         let off_fin = wb.shl(idx_f, three);
-        let mut addr_gadget = |wb: &mut WB,
+        let addr_gadget = |wb: &mut WB,
                                gcols: &mut AddrAddOperation<T>,
                                phase: WB::Nat,
                                ptr: WB::Nat,
@@ -240,7 +240,7 @@ impl<T: Copy> ShaCompressCols<T> {
         }
 
         // Working variables (packed per row for every phase).
-        let mut half = |wb: &mut WB, v: WB::Nat| -> [T; 2] {
+        let half = |wb: &mut WB, v: WB::Nat| -> [T; 2] {
             let l0 = wb.bits(v, 0, 16);
             let l1 = wb.bits(v, 16, 16);
             [wb.nat_to_field(l0), wb.nat_to_field(l1)]
