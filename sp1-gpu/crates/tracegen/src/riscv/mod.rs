@@ -102,6 +102,14 @@ pub(crate) const WITGEN_SMEM_CAP: u32 = 24;
 /// would alias or overflow them (it is also the kernel's `__launch_bounds__`).
 pub(crate) const WITGEN_SMEM_BLOCK: usize = 64;
 
+// The lookup kernels hard-code the byte-table shape as `WITGEN_NUM_BYTE_MULT_COLS`
+// (= 6) and `WITGEN_BYTE_U8RANGE_COL` (= 3) in `witgen_interp.cu`; fail the build
+// here if the Rust-side constants they mirror ever drift.
+const _: () = {
+    assert!(sp1_core_machine::bytes::columns::NUM_BYTE_MULT_COLS == 6);
+    assert!(sp1_core_executor::ByteOpcode::U8Range as usize == 3);
+};
+
 use slop_alloc::mem::CopyError;
 use slop_alloc::Buffer;
 use slop_tensor::Tensor;
