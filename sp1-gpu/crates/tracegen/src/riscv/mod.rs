@@ -1,3 +1,44 @@
+//! Device tracegen for the RISC-V chips via the witgen IR (see
+//! `autoresearch/design/WITGEN-IR.md` and the module doc of
+//! `crates/core/machine/src/air/witness_record.rs` for the IR itself).
+//!
+//! Each chip submodule contributes the CPU side of a port: record the chip's
+//! `witgen` op-DAG once, pack its events into flat per-row `u64` inputs, and
+//! implement [`CudaTracegenAir`]. The generic upload-and-launch work is factored
+//! into the launcher family in THIS file:
+//!
+//! - **Production path** (chips with `supports_device_dependencies`, i.e. all
+//!   byte-lookup-only chips): the prover calls
+//!   `generate_trace_device_with_lookups`, which lands in
+//!   [`generate_trace_and_lookups`] / [`generate_trace_and_lookups_slots`] (or
+//!   the `_into` variants for non-zero padding templates). By default these
+//!   route to [`generate_trace_and_lookups_slots_into`], which tiers the fused
+//!   kernel by the STREAMING footprint:
+//!     1. `streaming_max <= WITGEN_SMEM_CAP` (24) → shared-memory streaming
+//!        kernel;
+//!     2. `streaming_max <= WITGEN_MAX_WIRES` (256) → local-memory streaming
+//!        kernel;
+//!     3. otherwise (or a non-empty multi-column epilogue) → pinned
+//!        register-allocated fallback (`witgen_fused_slots_kernel`).
+//!   `AR_WITGEN_SLOTS=0` is the validated kill-switch back to the SSA fused
+//!   kernel.
+//! - **Non-fused column path**: the prover calls the per-chip
+//!   `generate_trace_device` only for device chips whose dependencies must stay
+//!   on host (MemoryLocal / MemoryGlobal* / Syscall* — they emit
+//!   `GlobalInteractionEvent`s) and for every fused chip when
+//!   `AR_DEVICE_DEPS=0`. Narrow chips launch the SSA `witgen_interp_kernel`
+//!   directly; wide ones use [`generate_columns_slots_into`].
+//! - **Standalone lookup path** ([`accumulate_lookups`] /
+//!   [`accumulate_lookups_slots`], via the per-chip
+//!   `generate_device_dependencies`): superseded in production by the fused
+//!   kernels; retained as the reference/validation path (see the docs on those
+//!   functions).
+//!
+//! Porting a chip requires FOUR dispatch arms here (`device_chip_name`,
+//! `pack_device_lookup_inputs`, `generate_trace_device_with_lookups`,
+//! `generate_device_dependencies`) — a missing arm is a prove-time
+//! `unimplemented!()` or an empty trace (the iter-067 trap).
+
 mod add;
 mod addi;
 mod alu_x0;
@@ -37,11 +78,29 @@ mod sub;
 mod subw;
 mod utype;
 
-/// Per-thread wire-array capacity in the witgen interpreter kernel
-/// (`WITGEN_MAX_WIRES` in `witgen_interp.cu`). A recorded gadget whose
-/// [`num_wires`](sp1_core_machine::air::WitProgram::num_wires) exceeds this would
-/// overflow the kernel's per-thread arrays, so device tracegen asserts against it.
+/// Per-thread wire-array capacity in the witgen interpreter kernels. MUST MATCH
+/// `WITGEN_MAX_WIRES` in `sp1-gpu/crates/sys/lib/tracegen/witgen_interp.cu` — the
+/// kernels' per-thread arrays are statically sized by it. A recorded gadget whose
+/// [`num_wires`](sp1_core_machine::air::WitProgram::num_wires) (SSA path) or
+/// `max_slots` (slot paths) exceeds this would overflow them, so every launcher
+/// asserts against it. 256 is a local-memory/occupancy trade-off, not a hard
+/// device limit (raising it linearly raises per-thread local-memory traffic —
+/// the dominant witgen cost, iter-072).
 pub(crate) const WITGEN_MAX_WIRES: usize = 256;
+
+/// Streaming shared-memory tier cap: chips whose streaming footprint
+/// (`allocate_slots_streaming` max) fits this many slots keep their wires in
+/// `__shared__` memory. MUST MATCH `WITGEN_SMEM_CAP` in `witgen_interp.cu` (the
+/// kernel's `__shared__` arrays are statically sized by CAP x BLOCK). Tuned on the
+/// RTX 4090 (iter-073): 24 slots x 64 threads x (8B nat + 4B fld) = 18 KiB/block,
+/// covering most narrow chips' transient working sets.
+pub(crate) const WITGEN_SMEM_CAP: u32 = 24;
+
+/// Thread-block size of the streaming shared-memory kernel. MUST MATCH
+/// `WITGEN_SMEM_BLOCK` in `witgen_interp.cu` — the kernel indexes its shared
+/// arrays as `[slot][thread-in-block]`, so launching with a different block size
+/// would alias or overflow them (it is also the kernel's `__launch_bounds__`).
+pub(crate) const WITGEN_SMEM_BLOCK: usize = 64;
 
 use slop_alloc::mem::CopyError;
 use slop_alloc::Buffer;
@@ -76,6 +135,11 @@ unsafe impl Sync for LookupHist {}
 /// kernel) and the per-chip `generate_trace_device` (column kernel) — running the
 /// witgen ONCE instead of twice over the same inputs, so there is no separate device
 /// dependency pre-pass and no duplicate input upload.
+///
+/// PRODUCTION ENTRY POINT for most fused chips' `generate_trace_device_with_lookups`
+/// (zero padding rows). By default it routes to the slot/streaming form (see
+/// [`generate_trace_and_lookups_slots_into`] for the kernel tier ladder); the SSA
+/// fused kernel below runs only under the `AR_WITGEN_SLOTS=0` kill-switch.
 pub(crate) async fn generate_trace_and_lookups(
     program: &WitProgram,
     col_wires: &[u32],
@@ -293,6 +357,16 @@ pub(crate) async fn generate_trace_and_lookups_slots(
 /// already-initialized `trace` — for chips whose padding rows are NOT all-zero
 /// (ShiftLeft/ShiftRight broadcast a template across padding; ShaCompress's cyclic
 /// octet/index/k pattern). The slot dual of [`generate_trace_and_lookups_into`].
+///
+/// This is where every fused launch ultimately lands (production default), and it
+/// picks the kernel by the STREAMING footprint:
+/// 1. `streaming_max <= WITGEN_SMEM_CAP` and empty epilogue →
+///    `witgen_fused_streaming_smem_kernel` (wires in `__shared__`);
+/// 2. `streaming_max <= WITGEN_MAX_WIRES` and empty epilogue →
+///    `witgen_fused_streaming_kernel` (local wires, store-through);
+/// 3. otherwise (footprint over cap, or a multi-column epilogue — the kernel
+///    epilogue is nat-only) → pinned register-allocated fallback
+///    (`witgen_fused_slots_kernel`, columns read out at the end).
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn generate_trace_and_lookups_slots_into(
     program: &WitProgram,
@@ -309,7 +383,6 @@ pub(crate) async fn generate_trace_and_lookups_slots_into(
     // wires resident on-chip. Covers chips whose transient footprint fits the smem
     // cap (iter-073 census: 15/20 <= 24); the multi-column epilogue is nat-only in
     // the kernel, so any field-typed epilogue chip falls back to the pinned path.
-    const SMEM_CAP: u32 = 24;
     let (s_slot, s_max, epi) = program.allocate_slots_streaming(col_wires);
     tracing::debug!(
         target: "witgen_slots",
@@ -341,7 +414,8 @@ pub(crate) async fn generate_trace_and_lookups_slots_into(
 
         if n_events > 0 {
             unsafe {
-                const BLOCK: usize = 64; // must match WITGEN_SMEM_BLOCK in the kernel
+                // The smem kernel REQUIRES this exact block size (see the const doc).
+                const BLOCK: usize = WITGEN_SMEM_BLOCK;
                 let grid = n_events.div_ceil(BLOCK);
                 let args = args!(
                     trace.as_mut_ptr(),
@@ -364,7 +438,7 @@ pub(crate) async fn generate_trace_and_lookups_slots_into(
                 // Tier by footprint: on-chip shared wires when they fit the smem
                 // cap, otherwise the local-wire streaming variant (Keccak 69,
                 // Mul 49, SHA 135–211 — all stream; nothing re-pins columns).
-                let kernel = if s_max <= SMEM_CAP {
+                let kernel = if s_max <= WITGEN_SMEM_CAP {
                     TaskScope::witgen_fused_streaming_smem_kernel()
                 } else {
                     TaskScope::witgen_fused_streaming_kernel()

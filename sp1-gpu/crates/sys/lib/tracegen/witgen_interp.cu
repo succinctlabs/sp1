@@ -1,19 +1,60 @@
-// Generic witness-generation interpreter kernel.
+// Generic witness-generation interpreter kernels — the device backend of the
+// witgen IR (see autoresearch/design/WITGEN-IR.md).
 //
-// Unlike the per-chip tracegen kernels (e.g. recursion/alu_base.cu), this single
-// kernel interprets a recorded op-DAG (the witgen IR, `sp1_gpu_sys::WitOpC[]`) one
-// thread per row, producing a gadget's trace columns. It is the device port of the
-// CPU `interpret_c_columns` reference (crates/core/machine/src/air/witness_record.rs).
+// Unlike the per-chip tracegen kernels (e.g. recursion/alu_base.cu), each kernel
+// here interprets a recorded op-DAG (`sp1_gpu_sys::WitOpC[]` / `WitOpCSlot[]`),
+// one thread per event row. The op-tag census — 16 value ops + 9 lookup ops over
+// tags 0..=25, tag 10 unassigned — and the per-tag field-overloading rules are
+// documented on `WitOpC` in crates/core/machine/src/air/witness_record.rs. Every
+// kernel switch below must cover exactly those tags (adding an IR op = one `case`
+// per kernel switch, 7 sites), and each kernel is a port of a CPU reference
+// interpreter in that file, validated bit-identical before the CUDA port.
 //
-// Columns only: lookup ops (tags 6/7) emit no wire and are skipped — byte/range
-// lookups come from `generate_dependencies`, not the main trace.
+// Kernel families (launchers: sp1-gpu/crates/tracegen/src/riscv/mod.rs):
+//
+// 1. SSA family (`WitOpC`; per-thread `nat[wc++]`, one cell per value op, cap
+//    WITGEN_MAX_WIRES):
+//      witgen_interp_kernel  — columns only   (port of `interpret_c_columns`)
+//      witgen_lookup_kernel  — histograms only (port of `interpret_c_lookups`)
+//      witgen_fused_kernel   — columns + histograms in one pass
+//    Production uses witgen_interp_kernel for device chips whose dependencies
+//    must stay on host (MemoryLocal/MemoryGlobal*/Syscall*); the SSA fused form
+//    runs only under the AR_WITGEN_SLOTS=0 kill-switch.
+//
+// 2. Slot family (`WitOpCSlot`; register-allocated `nat[op.out]`, column wires
+//    pinned live for an end readout; port of `interpret_c_slots_columns`):
+//      witgen_interp_slots_kernel / witgen_lookup_slots_kernel /
+//      witgen_fused_slots_kernel
+//    witgen_fused_slots_kernel is the production FALLBACK tier when the
+//    streaming lowering cannot run (footprint > WITGEN_MAX_WIRES, or a non-empty
+//    multi-column epilogue).
+//
+// 3. Streaming family (store-through: `op.col != MAX` writes the wire to the
+//    trace at production, freeing its slot; port of
+//    `interpret_c_slots_streaming_columns`) — the PRODUCTION DEFAULT, tiered by
+//    the streaming footprint `streaming_max`:
+//      streaming_max <= WITGEN_SMEM_CAP  -> witgen_fused_streaming_smem_kernel
+//                                           (__shared__ wires)
+//      streaming_max <= WITGEN_MAX_WIRES -> witgen_fused_streaming_kernel
+//                                           (local wires)
+//      otherwise                         -> pinned fallback (family 2).
+//
+// 4. Byte/Range table materialization: hist_to_trace_kernel +
+//    hist_trace_scatter_kernel build the deferred lookup-table traces directly
+//    from the shard histograms (the table trace IS the histogram).
+//
+// Lookup ops atomicAdd into two shard-level dense histograms (Range: 1<<17 rows;
+// Byte: (1<<16) x WITGEN_NUM_BYTE_MULT_COLS), allocated and zeroed ONCE per shard
+// by the prover (`new_byte_histograms`) — never per chunk (the iter-004 lesson).
 
 #include "sp1-gpu-cbindgen.hpp"
 
 #include "fields/kb31_t.cuh"
 
-// Max wires (inputs + value ops) per gadget. Small gadgets use < 16; the host side
-// asserts the recorded program fits.
+// Per-thread wire-array capacity: max wires (inputs + value ops) on the SSA path,
+// max live slots on the slot/streaming paths. MUST MATCH `WITGEN_MAX_WIRES` in
+// sp1-gpu/crates/tracegen/src/riscv/mod.rs — the host asserts every lowered
+// program fits before launching.
 #define WITGEN_MAX_WIRES 256
 
 template <class T>
@@ -150,20 +191,23 @@ __global__ void witgen_interp_kernel(
 //
 // The lookup-emitting dual of the column kernel: it interprets the SAME op-DAG one
 // thread per row but, instead of writing columns, accumulates the lookup ops
-// (tags 6/7/9) into two shard-level dense multiplicity tables via `atomicAdd`. The
-// table index conventions match the consumer chips exactly (see range/trace.rs and
+// (tags 6/7/9, guarded 13/14/15, byte-table 16/17, var-width 22) into two
+// shard-level dense multiplicity tables via `atomicAdd`. The table index
+// conventions match the consumer chips exactly (see range/trace.rs and
 // bytes/trace.rs); the CPU reference is `interpret_c_lookups` in
 // crates/core/machine/src/air/witness_record.rs.
 //
-// Integer-only: lookups read only Nat wires, so field-producing ops (tags 3/4/5)
-// write a placeholder to keep wire ids aligned with the column interpreter.
+// Integer-only: lookups read only Nat wires, so field-producing ops (tags
+// 3/4/5/18/19) write a placeholder to keep wire ids aligned with the column
+// interpreter.
 //
 // Multiplicities are u32 counts (native atomicAdd). One shard-level histogram pair,
 // allocated/zeroed once by the host (heed iter-004: NO per-chunk dense arrays).
 // Global atomics for now (correctness); per-block privatization is a perf follow-up.
 
-// Byte-table multiplicity columns (== sp1_core_machine bytes::NUM_BYTE_OPS) and the
-// U8Range opcode index (== sp1_core_executor::ByteOpcode::U8Range as usize).
+// Byte-table multiplicity columns (MUST MATCH `NUM_BYTE_MULT_COLS` in
+// crates/core/machine/src/bytes/columns.rs) and the U8Range opcode index (MUST
+// MATCH `sp1_core_executor::ByteOpcode::U8Range as usize`).
 #define WITGEN_NUM_BYTE_MULT_COLS 6
 #define WITGEN_BYTE_U8RANGE_COL 3
 
@@ -954,6 +998,15 @@ __global__ void witgen_fused_slots_kernel(
 // gone — the store type is static per tag; (4) input-columns stored at load;
 // (5) multi-column wires via the (slot,col) epilogue (census: always empty, kept for
 // correctness). Lookup arms are identical to witgen_fused_slots_kernel.
+//
+// Sizing (tuned on RTX 4090 / Ada, iter-073): CAP 24 x BLOCK 64 threads x
+// (8B nat + 4B kb31_t fld) = 18 KiB shared memory per block — comfortably within
+// the 48 KiB default per-block limit while covering 15/20 of the then-ported
+// chips' streaming footprints. Both values MUST MATCH the Rust launcher
+// (`WITGEN_SMEM_CAP` / `WITGEN_SMEM_BLOCK` in
+// sp1-gpu/crates/tracegen/src/riscv/mod.rs): the kernel's __shared__ arrays are
+// statically sized by CAP x BLOCK, so a larger host block would alias rows and a
+// larger host cap would overflow the arrays.
 #define WITGEN_SMEM_CAP 24
 #define WITGEN_SMEM_BLOCK 64
 

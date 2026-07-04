@@ -1,15 +1,47 @@
-//! Recording backend for the trace-gen DSL: a [`WitnessBuilder`] that, instead of
-//! computing, records each op into a flat op-DAG (the witgen IR). The IR is then
-//! run by [`interpret`] — a tiny stack/array interpreter — which is the CPU model
-//! of the future GPU interpreter kernel (one thread per row).
+//! The witgen IR: recording backend, device lowerings, and the CPU reference
+//! interpreters the GPU kernels are ports of.
 //!
-//! `RecordingWitnessBuilder::record(...)` walks a gadget's `witgen` *once* (the
-//! shape is row-independent), producing a [`WitProgram`]; [`interpret`] then runs
-//! that program per row with the row's concrete inputs. A unit test asserts that
-//! interpreting the recorded program reproduces [`HostWitnessBuilder`] exactly —
-//! validating the record-then-interpret model that the CUDA backend will port.
+//! Chip witness logic is written once against the [`WitnessBuilder`] trait; this
+//! module provides everything downstream of the recording backend:
 //!
-//! See `autoresearch/design/TRACEGEN-DSL.md` (Phase 2).
+//! 1. **Record** — [`RecordingWitnessBuilder`] walks a gadget's `witgen` *once*
+//!    (the gadget shape is row-independent) and produces a [`WitProgram`]: a flat
+//!    op-DAG over SSA [`WireId`]s. [`interpret`] replays it per row and is
+//!    validated against the direct-computing `HostWitnessBuilder`.
+//!
+//! 2. **Lower** — three generations of flat device layouts, all sharing one tag
+//!    vocabulary (census on [`WitOpC`]):
+//!    - **SSA** [`WitProgram::to_c`] → [`WitOpC`]: the kernel appends one wire
+//!      cell per value op (`nat[wc++]`), so the per-thread array is one cell per
+//!      op. The original form and the reference the others are validated
+//!      against; production reaches it only via the `AR_WITGEN_SLOTS=0`
+//!      kill-switch (plus the narrow non-fused column/lookup kernels).
+//!    - **Register-allocated ("pinned")** [`WitProgram::allocate_slots`] +
+//!      [`WitProgram::to_c_slots`] → [`WitOpCSlot`]: liveness-based slot reuse
+//!      bounds the array by max-live wires (Mul: 531 wires → 100 slots). Column
+//!      wires stay pinned live for the final readout pass, so `max_slots` ≳ chip
+//!      width. Production fallback when the streaming form cannot run (footprint
+//!      over cap, or a field-typed multi-column epilogue).
+//!    - **Streaming ("store-through")** [`WitProgram::allocate_slots_streaming`]
+//!      + [`WitProgram::to_c_slots_streaming`]: a single-column wire is written
+//!      to the trace at production ([`WitOpCSlot::col`]) and its slot freed, so
+//!      the footprint is the true transient working set (Keccak: 2641 → 69).
+//!      The production default; the launcher tiers on the footprint (see
+//!      `sp1-gpu/crates/tracegen/src/riscv/mod.rs`).
+//!
+//! 3. **Interpret (CPU = executable spec)** — every GPU kernel is a port of a
+//!    CPU interpreter here, and every lowering is validated bit-identical to the
+//!    SSA reference *before* any CUDA is written: [`interpret`] (op-DAG),
+//!    [`interpret_c_columns`] (SSA flat), [`interpret_slots_columns`] /
+//!    [`interpret_c_slots_columns`] (register-allocated),
+//!    [`interpret_c_slots_streaming_columns`] (streaming), and
+//!    [`interpret_c_lookups`] (byte/range histograms — the lookup-emitting dual
+//!    of the column forms).
+//!
+//! The GPU ports live in `sp1-gpu/crates/sys/lib/tracegen/witgen_interp.cu`; the
+//! launchers in `sp1-gpu/crates/tracegen/src/riscv/mod.rs`. See
+//! `autoresearch/design/WITGEN-IR.md` for the spec and the chip-porting recipe,
+//! and `autoresearch/design/TRACEGEN-DSL.md` for the original design.
 
 use hashbrown::HashMap;
 use slop_algebra::Field;
@@ -425,22 +457,55 @@ pub fn interpret<F: Field, R: ByteRecord>(
 }
 
 /// Flat, `#[repr(C)]` form of one [`WitOp`], suitable for upload to the device and
-/// interpretation by the GPU kernel (which reads this exact layout). The fields are
-/// overloaded per `tag`:
+/// interpretation by the GPU kernels (which read this exact layout). The fields are
+/// overloaded per `tag`; `a`/`b` are always wire ids when used, while `imm0`/`imm1`
+/// carry a WIRE id for some tags and a LITERAL for others — lower by semantic
+/// field, never positionally (the iter-065 lesson).
 ///
-/// | tag | op            | a       | b   | imm0          | imm1   |
-/// |-----|---------------|---------|-----|---------------|--------|
-/// | 0   | ConstNat      | -       | -   | value         | -      |
-/// | 1   | WrappingAdd   | lhs     | rhs | -             | -      |
-/// | 2   | Bits          | src     | -   | offset        | width  |
-/// | 3   | NatToField    | src     | -   | -             | -      |
-/// | 4   | FieldAdd      | lhs     | rhs | -             | -      |
-/// | 5   | FieldInverse  | src     | -   | -             | -      |
-/// | 6   | U16RangeCheck | src     | -   | -             | -      |
-/// | 7   | BitRangeCheck | src     | -   | bits          | -      |
+/// Value ops (each produces one wire, in program order):
 ///
-/// Tags 6/7 are lookups: they emit no wire and are skipped by the columns-only
-/// interpreter (lookups are produced by `generate_dependencies`, not the trace).
+/// | tag | op           | a    | b     | imm1        | imm0         |
+/// |-----|--------------|------|-------|-------------|--------------|
+/// | 0   | ConstNat     | -    | -     | -           | value (lit)  |
+/// | 1   | WrappingAdd  | lhs  | rhs   | -           | -            |
+/// | 2   | Bits         | src  | -     | width (lit) | offset (lit) |
+/// | 3   | NatToField   | src  | -     | -           | -            |
+/// | 4   | FieldAdd     | lhs  | rhs   | -           | -            |
+/// | 5   | FieldInverse | src  | -     | -           | -            |
+/// | 8   | WrappingSub  | lhs  | rhs   | -           | -            |
+/// | 11  | Eq           | lhs  | rhs   | -           | -            |
+/// | 12  | Select       | cond | then  | else (WIRE) | -            |
+/// | 18  | FieldSelect  | cond | then  | else (WIRE) | -            |
+/// | 19  | FieldSub     | lhs  | rhs   | -           | -            |
+/// | 20  | Shl          | src  | shift | -           | -            |
+/// | 21  | Shr          | src  | shift | -           | -            |
+/// | 23  | Mul          | lhs  | rhs   | -           | -            |
+/// | 24  | Xor          | lhs  | rhs   | -           | -            |
+/// | 25  | And          | lhs  | rhs   | -           | -            |
+///
+/// Lookup ops (emit no wire; skipped by the columns-only interpreters and
+/// accumulated into the Range/Byte histograms by the lookup/fused kernels — see
+/// [`interpret_c_lookups`] for the index conventions). Byte-table lookups drop the
+/// result `a` on device; it is reconstructed deterministically from
+/// `(opcode, b, c)` on readback (see [`byte_lookups_from_histograms`]):
+///
+/// | tag | op                   | a   | b     | imm1          | imm0         |
+/// |-----|----------------------|-----|-------|---------------|--------------|
+/// | 6   | U16RangeCheck        | src | -     | -             | -            |
+/// | 7   | BitRangeCheck        | src | -     | -             | bits (lit)   |
+/// | 9   | U8RangeCheck         | a   | b     | -             | -            |
+/// | 13  | U16RangeCheckGuarded | src | guard | -             | -            |
+/// | 14  | BitRangeCheckGuarded | src | guard | -             | bits (lit)   |
+/// | 15  | U8RangeCheckGuarded  | a   | b     | guard (WIRE)  | -            |
+/// | 16  | ByteLookup           | b   | c     | opcode (WIRE) | -            |
+/// | 17  | ByteLookupGuarded    | b   | c     | opcode (WIRE) | guard (WIRE) |
+/// | 22  | BitRangeCheckVar     | src | bits  | -             | -            |
+///
+/// Tag 10 is unassigned (never allocated; existing tags must stay stable — the
+/// compiled kernels switch on these exact values). Adding an op means: one arm in
+/// [`to_c`](WitProgram::to_c) and [`to_c_slots`](WitProgram::to_c_slots), one case
+/// in each CPU interpreter in this file, and one `case` per kernel switch in
+/// `witgen_interp.cu` (7 sites).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(C)]
 pub struct WitOpC {
@@ -478,10 +543,10 @@ pub struct WitOpCSlot {
 }
 
 impl WitProgram {
-    /// Lower the op-DAG to the flat device layout.
-    /// Total live wires the interpreter needs per row: the inputs plus every
+    /// Total live wires the SSA interpreter needs per row: the inputs plus every
     /// value-producing op (lookup ops emit no wire). The GPU kernel's per-thread
-    /// wire arrays must be at least this large.
+    /// wire arrays must be at least this large on the SSA path; the slot lowerings
+    /// bound it by `max_slots` instead.
     pub fn num_wires(&self) -> usize {
         self.num_inputs as usize
             + self
@@ -513,6 +578,10 @@ impl WitProgram {
     /// Returns `(wire -> slot, max_slots)`. This is what lets wide gadgets (Mul,
     /// DivRem, precompiles) fit a bounded kernel array (Mul: 531 wires -> ~100
     /// slots), mirroring the register allocation zerocheck already does.
+    ///
+    /// Generation 2 ("pinned") of the three lowerings (module doc): production's
+    /// fallback tier when the streaming form cannot run; also used directly by the
+    /// non-fused slot kernels. Pair with [`to_c_slots`](Self::to_c_slots).
     pub fn allocate_slots(&self, col_wires: &[u32]) -> (Vec<u32>, u32) {
         let ni = self.num_inputs as usize;
         let total = self.num_wires();
@@ -574,6 +643,12 @@ impl WitProgram {
         (slot, next)
     }
 
+    /// SSA lowering: flatten the op-DAG to the [`WitOpC`] device layout (see the
+    /// tag census there). Wire references stay raw SSA ids — the kernel appends
+    /// one cell per value op. This is generation 1 of the three lowerings (module
+    /// doc): the validation reference for the slot forms, the layout of the
+    /// non-fused narrow kernels, and the fused path's `AR_WITGEN_SLOTS=0`
+    /// kill-switch form.
     pub fn to_c(&self) -> Vec<WitOpC> {
         self.ops
             .iter()
@@ -702,6 +777,9 @@ impl WitProgram {
     /// ~chip-width (columns pinned; iter-073a census: 31–100) to the true transient
     /// working set, enabling shared-memory wire storage and unblocking wide chips
     /// (DivRem 272→transients; Keccak's 2640-column floor).
+    ///
+    /// Generation 3 ("streaming") of the three lowerings (module doc): the
+    /// production default. Pair with [`to_c_slots_streaming`](Self::to_c_slots_streaming).
     pub fn allocate_slots_streaming(
         &self,
         col_wires: &[u32],
