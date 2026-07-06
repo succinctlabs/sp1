@@ -207,6 +207,10 @@ unsafe impl TracegenRecursionSBoxKernel<SP1Field> for TaskScope {
 /// Generic witgen op-DAG interpreter kernel (see `lib/tracegen/witgen_interp.cu`).
 /// `witgen_interp_kernel` produces a gadget's columns; `witgen_lookup_kernel`
 /// accumulates its byte/range lookups into two device multiplicity histograms.
+///
+/// # Safety
+/// Implementors must return kernel pointers whose signatures exactly match the
+/// launch-site `args!` layouts in `sp1-gpu-tracegen` (mismatches are UB).
 pub unsafe trait WitgenInterpKernel<F> {
     fn witgen_interp_kernel() -> KernelPtr;
     fn witgen_lookup_kernel() -> KernelPtr;

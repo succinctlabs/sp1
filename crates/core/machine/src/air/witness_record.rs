@@ -23,11 +23,11 @@
 //!      width. Production fallback when the streaming form cannot run (footprint
 //!      over cap, or a field-typed multi-column epilogue).
 //!    - **Streaming ("store-through")** [`WitProgram::allocate_slots_streaming`]
-//!      + [`WitProgram::to_c_slots_streaming`]: a single-column wire is written
-//!      to the trace at production ([`WitOpCSlot::col`]) and its slot freed, so
-//!      the footprint is the true transient working set (Keccak: 2641 → 69).
-//!      The production default; the launcher tiers on the footprint (see
-//!      `sp1-gpu/crates/tracegen/src/riscv/mod.rs`).
+//!      `+` [`WitProgram::to_c_slots_streaming`]: a single-column wire is
+//!      written to the trace at production ([`WitOpCSlot::col`]) and its slot
+//!      freed, so the footprint is the true transient working set (Keccak:
+//!      2641 → 69). The production default; the launcher tiers on the
+//!      footprint (see `sp1-gpu/crates/tracegen/src/riscv/mod.rs`).
 //!
 //! 3. **Interpret (CPU = executable spec)** — every GPU kernel is a port of a
 //!    CPU interpreter here, and every lowering is validated bit-identical to the
