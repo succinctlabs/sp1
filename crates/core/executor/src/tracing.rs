@@ -775,12 +775,14 @@ impl<'a, M: ExecutionMode> TracingVM<'a, M> {
         let shard_reads: Arc<[sp1_jit::MemValue]> =
             if has_apcs { trace.mem_reads().collect() } else { Arc::from([]) };
 
-        // Bump-resilient APC (register half): under APC capture, let register (rr/rw) accesses that
-        // cross a 2^24 timestamp epoch stay APCs instead of aborting to software — the crossing is
-        // routed to the shared `MemoryBump` chip via `pending_register_bumps` (collected below even
-        // in skipped ranges). State/pc bumps and `register_refresh` still abort.
+        // Bump-resilient APC: under APC capture, let register (rr/rw) and RAM (mr/mw) accesses that
+        // cross a 2^24 timestamp epoch stay APCs instead of aborting to software. Register
+        // crossings are routed to the shared `MemoryBump` chip via `pending_register_bumps`; RAM
+        // crossings are represented natively by `compare_low` (no bump needed). State/pc bumps and
+        // `register_refresh` still abort.
         let mut core = CoreVM::new(trace, program, opts, proof_nonce);
         core.apc_register_bump_tolerant = has_apcs;
+        core.apc_ram_bump_tolerant = has_apcs;
 
         Self {
             core,

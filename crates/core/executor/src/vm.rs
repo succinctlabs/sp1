@@ -85,6 +85,11 @@ pub struct CoreVM<'a, M: ExecutionMode, S> {
     /// [`TracingVM`] collects even inside skipped ranges. Set only under APC capture; state/pc
     /// bumps and `register_refresh` still abort.
     pub(crate) apc_register_bump_tolerant: bool,
+    /// Bump-resilient APC (RAM half): when true, a RAM (mr/mw) access that crosses a 2^24
+    /// timestamp epoch does NOT abort the in-progress APC candidate. Unlike registers, RAM needs
+    /// no bump routing — the crossing is represented natively by its `compare_low` witness
+    /// (comparing high limbs when epochs differ). Set only under APC capture.
+    pub(crate) apc_ram_bump_tolerant: bool,
     /// Phantom data for the execution mode.
     _mode: PhantomData<M>,
 }
@@ -224,6 +229,7 @@ impl<'a, M: ExecutionMode, S> CoreVM<'a, M, S> {
             apc_candidates,
             track_apc_candidates,
             apc_register_bump_tolerant: false,
+            apc_ram_bump_tolerant: false,
             _mode: PhantomData,
         }
     }
@@ -729,7 +735,9 @@ impl<S> CoreVM<'_, SupervisorMode, S> {
         };
 
         let timestamp = self.timestamp(MemoryAccessPosition::Memory);
-        Self::abort_if_epoch_changed(&mut self.apc_candidates, record.clk, timestamp);
+        if !self.apc_ram_bump_tolerant {
+            Self::abort_if_epoch_changed(&mut self.apc_candidates, record.clk, timestamp);
+        }
 
         MemoryReadRecord {
             value: record.value,
@@ -743,11 +751,13 @@ impl<S> CoreVM<'_, SupervisorMode, S> {
     #[inline(always)]
     fn mw(&mut self, read_record: MemoryReadRecord, value: u64) -> MemoryWriteRecord {
         let timestamp = self.timestamp(MemoryAccessPosition::Memory);
-        Self::abort_if_epoch_changed(
-            &mut self.apc_candidates,
-            read_record.prev_timestamp,
-            timestamp,
-        );
+        if !self.apc_ram_bump_tolerant {
+            Self::abort_if_epoch_changed(
+                &mut self.apc_candidates,
+                read_record.prev_timestamp,
+                timestamp,
+            );
+        }
 
         MemoryWriteRecord {
             prev_timestamp: read_record.prev_timestamp,
