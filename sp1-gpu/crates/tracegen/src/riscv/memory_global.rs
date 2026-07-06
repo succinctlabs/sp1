@@ -177,7 +177,7 @@ mod tests {
 
         let (program, col_wires) = super::record_memory_global_program();
         let (_, max_slots) = program.allocate_slots(&col_wires);
-        println!(
+        eprintln!(
             "MemoryGlobal: num_wires={} max_slots={max_slots} n_cols={}",
             program.num_wires(),
             col_wires.len()

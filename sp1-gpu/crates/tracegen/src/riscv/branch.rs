@@ -219,7 +219,7 @@ mod tests {
     #[tokio::test]
     async fn test_branch_generate_trace_device() {
         sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
-            let mut rng = StdRng::seed_from_u64(0xB7a);
+            let mut rng = StdRng::seed_from_u64(0xB7A);
             let ops =
                 [Opcode::BEQ, Opcode::BNE, Opcode::BLT, Opcode::BGE, Opcode::BLTU, Opcode::BGEU];
             let branch_events = (0..1800)

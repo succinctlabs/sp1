@@ -323,7 +323,7 @@ mod tests {
         let (program, col_wires) = super::record_keccak_control_program();
         assert_eq!(col_wires.len(), width);
         let (s_slot, s_max, epi) = program.allocate_slots_streaming(&col_wires);
-        println!(
+        eprintln!(
             "KeccakPermuteControl: num_wires={} n_cols={} streaming_max_slots={s_max} \
              epilogue={}",
             program.num_wires(),

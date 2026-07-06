@@ -1,7 +1,7 @@
 //! Device main-trace + dependency generation for the SUPERVISOR-mode
 //! `ShaCompressControl` chip — the controller that receives the SHA_COMPRESS
 //! syscall: clk split + `SyscallAddrOperation`s on `w_ptr` (512) and `h_ptr` (64)
-//! + the two slice-end `AddrAddOperation`s + the 8 initial/final SHA state
+//! plus the two slice-end `AddrAddOperation`s and the 8 initial/final SHA state
 //! half-words. One row per SHA_COMPRESS event; padding rows are all-zero.
 //! NARROW chip (~53 cols) — plain fused path.
 //!

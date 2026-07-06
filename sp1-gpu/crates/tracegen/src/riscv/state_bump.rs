@@ -162,7 +162,7 @@ mod tests {
         let mut rng = StdRng::seed_from_u64(seed);
         (0..n)
             .map(|i| {
-                let clk = (rng.gen::<u64>() & 0xFFFF_FFFF_FF) * 8 + 1;
+                let clk = (rng.gen::<u64>() & 0x00FF_FFFF_FFFF) * 8 + 1;
                 let increment = if i % 5 == 0 {
                     // Force a 24-bit carry, keeping increment ≡ 0 (mod 8) so
                     // next_clk stays ≡ 1 (mod 8) (the executor invariant).

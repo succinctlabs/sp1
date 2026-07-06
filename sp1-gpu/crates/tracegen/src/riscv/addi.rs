@@ -207,7 +207,7 @@ mod tests {
     #[tokio::test]
     async fn test_addi_generate_trace_device() {
         sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
-            let mut rng = StdRng::seed_from_u64(0xAdd1);
+            let mut rng = StdRng::seed_from_u64(0xADD1);
             let addi_events = (0..1000)
                 .map(|i| {
                     let b = rng.gen::<u64>();

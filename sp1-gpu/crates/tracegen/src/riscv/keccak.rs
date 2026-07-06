@@ -148,6 +148,7 @@ fn rotl(
 /// Record the per-row Keccak op-DAG (the IR mirror of p3's
 /// `generate_trace_row_for_round` + the SP1 mem columns), returning the program and
 /// the column-wire map for `KeccakMemCols`.
+#[allow(clippy::needless_range_loop)] // x/y index multiple lane arrays; iterators obscure the theta/rho/pi structure
 pub(crate) fn record_keccak_program() -> (WitProgram, Vec<u32>) {
     let mut rec = RecordingWitnessBuilder::new(NUM_KECCAK_INPUTS as u32);
     let mut cache: HashMap<u64, WireId> = HashMap::new();
@@ -482,7 +483,7 @@ mod tests {
         // Decision numbers for the kernel strategy.
         let (slot, max_slots) = program.allocate_slots(&col_wires);
         let (s_slot, s_max, epi) = program.allocate_slots_streaming(&col_wires);
-        println!(
+        eprintln!(
             "Keccak: ops/row={} num_wires={} n_cols={} pinned_max_slots={max_slots} \
              streaming_max_slots={s_max} epilogue={}",
             program.ops.len(),

@@ -20,6 +20,7 @@
 //!        kernel;
 //!     3. otherwise (or a non-empty multi-column epilogue) → pinned
 //!        register-allocated fallback (`witgen_fused_slots_kernel`).
+//!
 //!   `AR_WITGEN_SLOTS=0` is the validated kill-switch back to the SSA fused
 //!   kernel.
 //! - **Non-fused column path**: the prover calls the per-chip
@@ -148,6 +149,7 @@ unsafe impl Sync for LookupHist {}
 /// (zero padding rows). By default it routes to the slot/streaming form (see
 /// [`generate_trace_and_lookups_slots_into`] for the kernel tier ladder); the SSA
 /// fused kernel below runs only under the `AR_WITGEN_SLOTS=0` kill-switch.
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn generate_trace_and_lookups(
     program: &WitProgram,
     col_wires: &[u32],
@@ -181,6 +183,7 @@ pub(crate) fn witgen_slots_enabled() -> bool {
 /// ShiftLeft/ShiftRight broadcast a non-zero column template across padding rows before
 /// the kernel overwrites the event rows). Uploads the op-DAG + column map + inputs and
 /// launches the fused column+lookup kernel into `trace`.
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn generate_trace_and_lookups_into(
     program: &WitProgram,
     col_wires: &[u32],
@@ -294,6 +297,7 @@ pub(crate) async fn accumulate_lookups(
 /// CALLERS: the wide chips' non-fused `generate_trace_device` impls (Mul, SHA family,
 /// SyscallInstrs) — which the prover reaches only when the fused path is off
 /// (`AR_DEVICE_DEPS=0`); otherwise exercised by the per-chip device tests.
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn generate_columns_slots_into(
     program: &WitProgram,
     col_wires: &[u32],
@@ -366,6 +370,7 @@ pub(crate) async fn generate_columns_slots_into(
 /// writes the columns AND accumulates the byte/range lookups into the shared shard
 /// histograms via `witgen_fused_slots_kernel`. This is the path the prover actually
 /// calls for chips with `supports_device_dependencies` (see `generate_trace_device_with_lookups`).
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn generate_trace_and_lookups_slots(
     program: &WitProgram,
     col_wires: &[u32],
@@ -542,6 +547,7 @@ pub(crate) async fn generate_trace_and_lookups_slots_into(
 /// CALLERS: only the wide chips' `generate_device_dependencies` impls — a path the
 /// prover no longer takes (see the trait doc); retained as the standalone lookup
 /// reference for the fused kernels.
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn accumulate_lookups_slots(
     program: &WitProgram,
     col_wires: &[u32],

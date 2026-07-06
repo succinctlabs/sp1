@@ -451,7 +451,7 @@ mod tests {
         let col_wires: Vec<u32> = columns_as_wires(&cols_w).iter().map(|w| w.0).collect();
 
         let (slot, max_slots) = program.allocate_slots(&col_wires);
-        println!(
+        eprintln!(
             "DivRem reg-alloc: num_wires={} -> max_slots={max_slots} ({:.1}x), n_cols={}",
             program.num_wires(),
             program.num_wires() as f64 / max_slots as f64,
@@ -504,7 +504,7 @@ mod tests {
         let s_input_slots: Vec<u32> = s_slot[..ni].to_vec();
         let epi_slots: Vec<(u32, u32)> =
             epilogue.iter().map(|&(w, c)| (s_slot[w as usize], c)).collect();
-        println!(
+        eprintln!(
             "DivRem streaming: pinned max_slots={max_slots} -> streaming max_slots={s_max} \
              (epilogue {} entries, input_cols {})",
             epi_slots.len(),
