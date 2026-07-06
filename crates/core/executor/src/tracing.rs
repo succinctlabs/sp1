@@ -81,6 +81,15 @@ pub struct TracingVM<'a, M: ExecutionMode> {
     ///
     /// The per-cycle gate is active iff the current PC's `apc_id` matches `current_skip`.
     current_skip: Option<CurrentSkip>,
+    /// Bump-resilient APC (register half): mirror of [`CoreVM::apc_register_bump_tolerant`]. When
+    /// true, register epoch-crossing bumps for the in-progress skipped block are collected into
+    /// `pending_register_bumps` rather than aborting the candidate.
+    register_bump_tolerant: bool,
+    /// Register epoch-crossing bumps collected during the in-progress skip block. Committed to
+    /// `record.bump_memory_events` (→ shared `MemoryBump` chip) iff the block SUCCEEDS as an APC;
+    /// discarded on abort (the flush replay re-emits them as software), so a block that crosses an
+    /// epoch *and* aborts for another reason never double-counts the bump.
+    pending_register_bumps: Vec<(MemoryRecordEnum, u64, bool)>,
     /// Phantom data for the execution mode.
     _mode: PhantomData<M>,
 }
@@ -766,8 +775,15 @@ impl<'a, M: ExecutionMode> TracingVM<'a, M> {
         let shard_reads: Arc<[sp1_jit::MemValue]> =
             if has_apcs { trace.mem_reads().collect() } else { Arc::from([]) };
 
+        // Bump-resilient APC (register half): under APC capture, let register (rr/rw) accesses that
+        // cross a 2^24 timestamp epoch stay APCs instead of aborting to software — the crossing is
+        // routed to the shared `MemoryBump` chip via `pending_register_bumps` (collected below even
+        // in skipped ranges). State/pc bumps and `register_refresh` still abort.
+        let mut core = CoreVM::new(trace, program, opts, proof_nonce);
+        core.apc_register_bump_tolerant = has_apcs;
+
         Self {
-            core: CoreVM::new(trace, program, opts, proof_nonce),
+            core,
             record,
             local_memory_access: LocalMemoryAccess::default(),
             local_page_prot_access: LocalPageProtAccess::default(),
@@ -780,6 +796,8 @@ impl<'a, M: ExecutionMode> TracingVM<'a, M> {
             capture_invocations: has_apcs,
             apc_id_by_pc_idx: Arc::new(apc_id_by_pc_idx),
             current_skip: None,
+            register_bump_tolerant: has_apcs,
+            pending_register_bumps: Vec::new(),
             _mode: PhantomData,
         }
     }
@@ -810,6 +828,8 @@ impl<'a, M: ExecutionMode> TracingVM<'a, M> {
             capture_invocations: false,
             apc_id_by_pc_idx: Arc::new(Vec::new()),
             current_skip: None,
+            register_bump_tolerant: false,
+            pending_register_bumps: Vec::new(),
             _mode: PhantomData,
         }
     }
@@ -903,6 +923,13 @@ impl<'a, M: ExecutionMode> TracingVM<'a, M> {
             if let Some(cs) = self.current_skip {
                 if calls.iter().any(|c| c.apc_id == cs.apc_id) {
                     self.current_skip = None;
+                    // Bump-resilient APC: the skip block completed as an APC — commit its collected
+                    // register epoch-crossing bumps to the shared `MemoryBump` chip (the APC's
+                    // re-anchored register read, `prev_low=0`, needs the balancing shadow read).
+                    if !self.pending_register_bumps.is_empty() {
+                        let mut pending = std::mem::take(&mut self.pending_register_bumps);
+                        self.record.bump_memory_events.append(&mut pending);
+                    }
                 }
             }
         }
@@ -947,6 +974,9 @@ impl<'a, M: ExecutionMode> TracingVM<'a, M> {
     where
         for<'b> TracingVM<'b, M>: StepInstruction,
     {
+        // Bump-resilient APC: this skip block aborted — discard its collected register bumps; the
+        // flush replay below re-emits them as part of the software block (avoids double-counting).
+        self.pending_register_bumps.clear();
         if cs.count == 0 {
             return;
         }
@@ -1441,6 +1471,15 @@ impl<M: ExecutionMode> TracingVM<'_, M> {
         self.record.pc_start.get_or_insert(self.core.pc());
         self.record.next_pc = next_pc;
         if self.record.skip_writes {
+            // Bump-resilient APC (register half): inside a skipped APC range that is a tracked
+            // in-progress candidate, collect any register epoch-crossing bumps into the pending
+            // buffer (committed on APC success, discarded on flush). Gated on `current_skip` so a
+            // mid-block segmentation resume (skipped, but with no tracked candidate to
+            // resolve/commit it) never leaks bumps. State/pc bumps and RAM are NOT collected here —
+            // those still abort the candidate.
+            if self.register_bump_tolerant && self.current_skip.is_some() {
+                Self::collect_register_bumps(&mut self.pending_register_bumps, instruction, record);
+            }
             return;
         }
         self.record.exit_code = exit_code;
@@ -1488,6 +1527,31 @@ impl<M: ExecutionMode> TracingVM<'_, M> {
                     encoded_instruction,
                     multiplicity: 1,
                 });
+        }
+    }
+
+    /// Bump-resilient APC helper: collect a register-refresh bump event for each operand (a/b/c)
+    /// whose access crosses a 2^24 timestamp epoch. Same predicate as the direct emission in
+    /// [`Self::emit_events`], but appends into `out` (the pending buffer) instead of the record.
+    fn collect_register_bumps(
+        out: &mut Vec<(MemoryRecordEnum, u64, bool)>,
+        instruction: &Instruction,
+        record: &MemoryAccessRecord,
+    ) {
+        if let Some(x) = record.a {
+            if x.current_record().timestamp >> 24 != x.previous_record().timestamp >> 24 {
+                out.push((x, instruction.op_a as u64, false));
+            }
+        }
+        if let Some(x) = record.b {
+            if x.current_record().timestamp >> 24 != x.previous_record().timestamp >> 24 {
+                out.push((x, instruction.op_b, false));
+            }
+        }
+        if let Some(x) = record.c {
+            if x.current_record().timestamp >> 24 != x.previous_record().timestamp >> 24 {
+                out.push((x, instruction.op_c, false));
+            }
         }
     }
 

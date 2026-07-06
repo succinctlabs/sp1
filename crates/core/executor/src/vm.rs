@@ -78,6 +78,13 @@ pub struct CoreVM<'a, M: ExecutionMode, S> {
     /// per-construction clone of `apc_by_index` and the per-cycle candidate work — the dominant
     /// cost of block re-execution (hundreds of thousands of calls per run).
     track_apc_candidates: bool,
+    /// Bump-resilient APC (register half): when true, a register (rr/rw) access that crosses a
+    /// 2^24 timestamp epoch does NOT abort the in-progress APC candidate. The block stays an APC
+    /// (its re-anchored register access with `prev_low=0` is produced by re-execution) and the
+    /// shared `MemoryBump` chip balances the crossing on the memory bus, fed a bump event that
+    /// [`TracingVM`] collects even inside skipped ranges. Set only under APC capture; state/pc
+    /// bumps and `register_refresh` still abort.
+    pub(crate) apc_register_bump_tolerant: bool,
     /// Phantom data for the execution mode.
     _mode: PhantomData<M>,
 }
@@ -216,6 +223,7 @@ impl<'a, M: ExecutionMode, S> CoreVM<'a, M, S> {
             decoded_instruction_cache: HashMap::new(),
             apc_candidates,
             track_apc_candidates,
+            apc_register_bump_tolerant: false,
             _mode: PhantomData,
         }
     }
@@ -1006,11 +1014,13 @@ impl<M: ExecutionMode, S> CoreVM<'_, M, S> {
         let new_record =
             MemoryRecord { timestamp: self.timestamp(position), value: prev_record.value };
 
-        Self::abort_if_epoch_changed(
-            &mut self.apc_candidates,
-            prev_record.timestamp,
-            new_record.timestamp,
-        );
+        if !self.apc_register_bump_tolerant {
+            Self::abort_if_epoch_changed(
+                &mut self.apc_candidates,
+                prev_record.timestamp,
+                new_record.timestamp,
+            );
+        }
 
         self.registers[register as usize] = new_record;
 
@@ -1083,11 +1093,13 @@ impl<M: ExecutionMode, S> CoreVM<'_, M, S> {
         let prev_record = self.registers[register as usize];
         let new_record = MemoryRecord { timestamp: self.timestamp(MemoryAccessPosition::A), value };
 
-        Self::abort_if_epoch_changed(
-            &mut self.apc_candidates,
-            prev_record.timestamp,
-            new_record.timestamp,
-        );
+        if !self.apc_register_bump_tolerant {
+            Self::abort_if_epoch_changed(
+                &mut self.apc_candidates,
+                prev_record.timestamp,
+                new_record.timestamp,
+            );
+        }
 
         self.registers[register as usize] = new_record;
 
