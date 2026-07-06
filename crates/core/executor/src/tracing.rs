@@ -5,12 +5,13 @@ use std::{
 };
 
 use hashbrown::HashMap;
+use powdr_autoprecompiles::execution::ApcCall;
 use sp1_hypercube::air::{PublicValues, PROOF_NONCE_NUM_WORDS};
 use sp1_jit::MinimalTrace;
 use sp1_primitives::consts::PAGE_SIZE;
 
 use crate::{
-    autoprecompiles::ExecutionRecordSnapshotWithPc,
+    autoprecompiles::ExecutionRecordSnapshot,
     events::{
         AluEvent, BranchEvent, InstructionDecodeEvent, InstructionFetchEvent, IntoMemoryRecord,
         JumpEvent, MemInstrEvent, MemoryAccessPosition, MemoryLocalEvent, MemoryReadRecord,
@@ -36,7 +37,7 @@ use crate::{
 /// The type parameter `M` determines whether page protection checks are enabled.
 pub struct TracingVM<'a, M: ExecutionMode> {
     /// The core VM.
-    pub core: CoreVM<'a, M, ExecutionRecordSnapshotWithPc>,
+    pub core: CoreVM<'a, M, ExecutionRecordSnapshot>,
     /// The local memory access for the CPU.
     pub local_memory_access: LocalMemoryAccess,
     /// The local page prot access for the CPU.
@@ -49,8 +50,82 @@ pub struct TracingVM<'a, M: ExecutionMode> {
     pub decoded_instruction_events: HashMap<u32, InstructionDecodeEvent>,
     /// The execution record were populating.
     pub record: &'a mut ExecutionRecord,
+    /// The shard's full memory-read oracle, retained so per-APC blocks can be sliced out for their
+    /// [`ApcInvocation`] (or replayed on abort). Captured once at construction. Empty when there
+    /// are no APCs (skip gate inert) or on a replay VM.
+    shard_reads: Arc<[sp1_jit::MemValue]>,
+    /// Pre-state captured at each APC-start fetch, keyed by `(apc_id, entry cpu_event_count)`.
+    /// `cpu_event_count` is monotonic, so the key uniquely identifies the entry; a successful
+    /// `ApcCall` later looks itself up by `(apc_id, from.cpu_event_count)`.
+    apc_pre_states: HashMap<(usize, u32), CoreEntryState>,
+    /// Static map, indexed by `pc_idx`, of the APC id whose range contains that PC (`None` outside
+    /// any range). `is_some()` is the "inside an APC range" test; the id attributes skipped
+    /// instructions to their block. Empty on a replay VM.
+    apc_id_by_pc_idx: Arc<Vec<Option<usize>>>,
+    /// The APC invocation whose instructions are currently being skipped in this shard (`None`
+    /// when not inside a skipped block). At most one invocation is in progress at a time: APC
+    /// blocks execute contiguously, so a new APC start means the previous invocation resolved.
+    /// Tracked per-invocation (by `(apc_id, key_clk)`) so loops are correct. Resolution:
+    ///  - success → cleared on its `ApcCall` (the APC chip regenerates its rows via re-execution);
+    ///  - range-exit (execution left the APC's static range without a call — abort / branch-out /
+    ///    bump / optimistic-constraint failure) → flushed as software the moment the PC leaves;
+    ///  - loop re-entry (a fresh APC start before the range-exit fired) → flushed before its
+    ///    pre-state is clobbered;
+    ///  - segmentation → still in progress at shard end, flushed in `flush_aborted_blocks`.
+    ///
+    /// The per-cycle gate is active iff the current PC's `apc_id` matches `current_skip`.
+    current_skip: Option<CurrentSkip>,
+    /// Register epoch-crossing bumps collected during the in-progress skip block. Committed to
+    /// `record.bump_memory_events` (→ shared `MemoryBump` chip) iff the block SUCCEEDS as an APC;
+    /// discarded on abort (the flush replay re-emits them as software), so a block that crosses an
+    /// epoch *and* aborts for another reason never double-counts the bump.
+    pending_register_bumps: Vec<(MemoryRecordEnum, u64, bool)>,
     /// Phantom data for the execution mode.
     _mode: PhantomData<M>,
+}
+
+/// Step exactly one instruction. Implemented for each concrete [`ExecutionMode`] so the
+/// mode-generic record-in-chip replay path ([`TracingVM::replay_block_into`]) can drive the
+/// mode's own `execute_instruction` (which differs between Supervisor and User modes).
+pub trait StepInstruction {
+    /// Step exactly one instruction (mode-specific `execute_instruction`).
+    fn step_instruction(&mut self) -> Result<CycleResult, ExecutionError>;
+}
+
+impl StepInstruction for TracingVM<'_, SupervisorMode> {
+    fn step_instruction(&mut self) -> Result<CycleResult, ExecutionError> {
+        self.execute_instruction()
+    }
+}
+
+impl StepInstruction for TracingVM<'_, UserMode> {
+    fn step_instruction(&mut self) -> Result<CycleResult, ExecutionError> {
+        self.execute_instruction()
+    }
+}
+
+/// An APC invocation currently being skipped ([`TracingVM::current_skip`]).
+#[derive(Clone, Copy)]
+struct CurrentSkip {
+    /// The APC id of the block being skipped.
+    apc_id: usize,
+    /// `cpu_event_count` at the block's entry — the per-invocation key into `apc_pre_states`.
+    key_clk: u32,
+    /// Number of this invocation's instructions skipped so far in this shard.
+    count: usize,
+}
+
+/// Pre-state captured at an APC block's entry, used to build its [`ApcInvocation`] (for a
+/// successful candidate) or to re-execute the block as software (for an aborted candidate).
+#[derive(Clone)]
+struct CoreEntryState {
+    registers: [MemoryRecord; 32],
+    pc: u64,
+    clk: u64,
+    global_clk: u64,
+    /// Read-oracle position at block entry, so the block's read slice can be sliced from
+    /// `shard_reads` for re-execution on abort.
+    mem_reads_remaining: usize,
 }
 
 impl TracingVM<'_, SupervisorMode> {
@@ -83,11 +158,16 @@ impl TracingVM<'_, SupervisorMode> {
     /// Execute the next instruction at the current PC.
     pub fn execute_instruction(&mut self) -> Result<CycleResult, ExecutionError> {
         let pc = self.core.pc();
+
+        // Record-in-chip: resolve prior aborts, capture entry pre-state, begin skip invocation.
+        let apc_id = self.begin_cycle();
+
         // The snapshot callback is invoked lazily inside `fetch` only when an APC candidate
         // is being inserted; cloning the record snapshot here is acceptable in that path.
-        let instruction = self
-            .core
-            .fetch(|| ExecutionRecordSnapshotWithPc { record: self.record.snapshot(), pc });
+        let instruction = self.core.fetch(|| self.record.snapshot());
+
+        // Record-in-chip: suppress per-opcode emission while an APC block is in progress.
+        self.set_skip_gate(apc_id);
 
         let mr_record = None;
 
@@ -150,11 +230,13 @@ impl TracingVM<'_, SupervisorMode> {
 
         self.core.check_bump(&instruction);
 
-        let next_pc = self.core.next_pc();
-        let (res, calls) = self.core.advance(|| ExecutionRecordSnapshotWithPc {
-            record: self.record.snapshot(),
-            pc: next_pc,
-        });
+        // Record-in-chip: post-block read-oracle cursor for the `to` snapshot.
+        if self.capturing() {
+            self.record.mem_reads_remaining = self.core.mem_reads.len();
+        }
+
+        let (res, calls) = self.core.advance(|| self.record.snapshot());
+        self.end_cycle_capture(&calls);
         self.record.apply_calls(&calls);
 
         Ok(res)
@@ -305,10 +387,16 @@ impl TracingVM<'_, UserMode> {
 
     /// Execute the next instruction at the current PC.
     fn execute_instruction(&mut self) -> Result<CycleResult, ExecutionError> {
-        let pc_now = self.core.pc();
-        let FetchResult { instruction, mr_record, pc, error } = self.core.fetch(|| {
-            ExecutionRecordSnapshotWithPc { record: self.record.snapshot(), pc: pc_now }
-        })?;
+        // Record-in-chip: resolve prior aborts, capture entry pre-state, begin skip invocation.
+        // (Untrusted / trap-fetch instructions are never inside an APC range, so the gate stays
+        // inert on the trap path below — `apc_id` is `None` there.)
+        let apc_id = self.begin_cycle();
+
+        let FetchResult { instruction, mr_record, pc, error } =
+            self.core.fetch(|| self.record.snapshot())?;
+
+        // Record-in-chip: suppress per-opcode emission while an APC block is in progress.
+        self.set_skip_gate(apc_id);
 
         if let Some(error) = error {
             let trap_result = self.handle_error(error)?;
@@ -326,11 +414,11 @@ impl TracingVM<'_, UserMode> {
 
             self.emit_trap_exec_event(trap_result, page_prot_record);
             self.emit_trap_events(self.core.clk(), self.core.next_pc());
-            let next_pc = self.core.next_pc();
-            let (res, calls) = self.core.advance(|| ExecutionRecordSnapshotWithPc {
-                record: self.record.snapshot(),
-                pc: next_pc,
-            });
+            if self.capturing() {
+                self.record.mem_reads_remaining = self.core.mem_reads.len();
+            }
+            let (res, calls) = self.core.advance(|| self.record.snapshot());
+            self.end_cycle_capture(&calls);
             self.record.apply_calls(&calls);
             return Ok(res);
         }
@@ -399,11 +487,13 @@ impl TracingVM<'_, UserMode> {
             }
         }
 
-        let next_pc = self.core.next_pc();
-        let (res, calls) = self.core.advance(|| ExecutionRecordSnapshotWithPc {
-            record: self.record.snapshot(),
-            pc: next_pc,
-        });
+        // Record-in-chip: post-block read-oracle cursor for the `to` snapshot.
+        if self.capturing() {
+            self.record.mem_reads_remaining = self.core.mem_reads.len();
+        }
+
+        let (res, calls) = self.core.advance(|| self.record.snapshot());
+        self.end_cycle_capture(&calls);
         self.record.apply_calls(&calls);
         Ok(res)
     }
@@ -574,7 +664,15 @@ impl TracingVM<'_, UserMode> {
 }
 
 impl<M: ExecutionMode> TracingVM<'_, M> {
-    fn postprocess(&mut self) {
+    fn postprocess(&mut self)
+    where
+        for<'b> TracingVM<'b, M>: StepInstruction,
+    {
+        // Produce software records for any APC blocks whose candidate aborted under the skip gate
+        // (must run before the `contains_cpu` check below, since it can be the only source of CPU
+        // events in an all-APC shard).
+        self.flush_aborted_blocks();
+
         if self.record.last_timestamp == 0 {
             self.record.last_timestamp = self.core.clk();
         }
@@ -641,16 +739,363 @@ impl<'a, M: ExecutionMode> TracingVM<'a, M> {
     ) -> Self {
         record.initial_timestamp = trace.clk_start();
 
+        // Record-in-chip is the default (no env gate): whenever the program has any APCs, skip
+        // per-opcode emission inside their blocks and capture each invocation instead. The APC
+        // chip regenerates its trace by re-executing the captured invocations.
+        let has_apcs = !program.apcs.apc_by_index.is_empty();
+
+        // Build the static APC pc map, indexed by `pc_idx = (pc - pc_base) / 4`, holding the APC
+        // id whose static cycle range contains that PC (`None` outside any range). APCs are basic
+        // blocks, so a single contiguous fill per APC is correct. Left empty when there are no APCs
+        // (and on the replay VM): a non-empty map is exactly the "this VM skips + captures" signal
+        // (see [`Self::capturing`]), and it avoids allocating a program-length all-`None` vec.
+        let mut apc_id_by_pc_idx =
+            if has_apcs { vec![None; program.instructions.len()] } else { Vec::new() };
+        if has_apcs {
+            for (apc_id, apc) in program.apcs.apc_by_index.iter().enumerate() {
+                let start = apc.start_pc_idx();
+                let end = (start + apc.num_cycles()).min(apc_id_by_pc_idx.len());
+                if start < apc_id_by_pc_idx.len() {
+                    for slot in &mut apc_id_by_pc_idx[start..end] {
+                        *slot = Some(apc_id);
+                    }
+                }
+            }
+        }
+
+        // Retain the shard's full read oracle (independent cursor — does not disturb CoreVM's) so
+        // per-APC blocks can be sliced out for capture / replayed on abort.
+        let shard_reads: Arc<[sp1_jit::MemValue]> =
+            if has_apcs { trace.mem_reads().collect() } else { Arc::from([]) };
+
+        // Bump-resilient APC: under APC capture, let register (rr/rw) and RAM (mr/mw) accesses that
+        // cross a 2^24 timestamp epoch stay APCs instead of aborting to software. Register
+        // crossings are routed to the shared `MemoryBump` chip via `pending_register_bumps`; RAM
+        // crossings are represented natively by `compare_low` (no bump needed). State/pc bumps and
+        // `register_refresh` still abort.
+        let mut core = CoreVM::new(trace, program, opts, proof_nonce);
+        core.apc_register_bump_tolerant = has_apcs;
+        core.apc_ram_bump_tolerant = has_apcs;
+
         Self {
-            core: CoreVM::new(trace, program, opts, proof_nonce),
+            core,
             record,
             local_memory_access: LocalMemoryAccess::default(),
             local_page_prot_access: LocalPageProtAccess::default(),
             precompile_local_memory_access: None,
             precompile_local_page_prot_access: None,
             decoded_instruction_events: HashMap::new(),
+            shard_reads,
+            apc_pre_states: HashMap::new(),
+            apc_id_by_pc_idx: Arc::new(apc_id_by_pc_idx),
+            current_skip: None,
+            pending_register_bumps: Vec::new(),
             _mode: PhantomData,
         }
+    }
+
+    /// Lightweight constructor for record-in-chip block replay ([`Self::reexecute_apc_block_into`]).
+    /// Uses an untracked [`CoreVM`] (no candidate work), an empty APC pc-map (every lookup →
+    /// `None`, so the gate stays inert), and no read-oracle copy. Capture is off. Candidate
+    /// detection never fires during replay, so this is correct and cheap.
+    fn new_replay<T: MinimalTrace>(
+        trace: &'a T,
+        program: Arc<Program>,
+        opts: SP1CoreOpts,
+        proof_nonce: [u32; PROOF_NONCE_NUM_WORDS],
+        record: &'a mut ExecutionRecord,
+    ) -> Self {
+        record.initial_timestamp = trace.clk_start();
+        Self {
+            core: CoreVM::new_untracked(trace, program, opts, proof_nonce),
+            record,
+            local_memory_access: LocalMemoryAccess::default(),
+            local_page_prot_access: LocalPageProtAccess::default(),
+            precompile_local_memory_access: None,
+            precompile_local_page_prot_access: None,
+            decoded_instruction_events: HashMap::new(),
+            shard_reads: Arc::from([]),
+            apc_pre_states: HashMap::new(),
+            apc_id_by_pc_idx: Arc::new(Vec::new()),
+            current_skip: None,
+            pending_register_bumps: Vec::new(),
+            _mode: PhantomData,
+        }
+    }
+
+    /// Whether this VM is doing record-in-chip APC capture: skipping per-opcode emission inside
+    /// APC blocks and capturing each as an [`ApcInvocation`]. True iff the program has APCs and this
+    /// is not a replay VM — exactly when the APC pc-map is non-empty (it is left empty for both no-
+    /// APC programs and the replay VM). Skip and capture must agree, so deriving both from the same
+    /// map makes the invalid "skip without capture" state unrepresentable.
+    #[inline]
+    fn capturing(&self) -> bool {
+        !self.apc_id_by_pc_idx.is_empty()
+    }
+
+    /// Record-in-chip: run at the start of a cycle, BEFORE `fetch`. Computes the APC id whose
+    /// static range contains the current PC, resolves any in-progress skip invocation that just
+    /// left its range (flushing its skipped prefix as software), captures the entry pre-state for
+    /// any APC starting at this PC, and begins this block's skip invocation. Returns the current
+    /// `apc_id` (`None` outside any APC range) for the caller to pass to [`Self::set_skip_gate`].
+    fn begin_cycle(&mut self) -> Option<usize>
+    where
+        for<'b> TracingVM<'b, M>: StepInstruction,
+    {
+        let pc_idx = self.core.pc().wrapping_sub(self.core.program.pc_base) as usize / 4;
+        let apc_id = self.apc_id_by_pc_idx.get(pc_idx).copied().flatten();
+
+        if self.capturing() {
+            // Resolve the in-progress skip invocation if execution has just left its APC's static
+            // range without a successful `ApcCall` — i.e. the candidate aborted (bump /
+            // optimistic-constraint failure) or branched out. Its skipped prefix must be emitted
+            // as software. Doing this here, per-invocation, is what makes loops correct: a later
+            // invocation of the same `apc_id` can no longer discard this aborted one's flush.
+            if let Some(cs) = self.current_skip {
+                if apc_id != Some(cs.apc_id) {
+                    self.current_skip = None;
+                    self.flush_invocation(cs);
+                }
+            }
+
+            self.record.mem_reads_remaining = self.core.mem_reads.len();
+            // Single map lookup on the per-cycle hot path: `None` for the vast majority of cycles.
+            if let Some(apc_ids) =
+                self.core.program.apcs.apc_indices_by_start_idx.get(&pc_idx).cloned()
+            {
+                // A still-unresolved invocation at a fresh APC start means its candidate aborted
+                // and execution looped straight back into an APC range without ever leaving it, so
+                // the range-exit flush above never fired. Flush it now, *before* its captured
+                // pre-state is overwritten below: while skipping, `cpu_event_count` (the pre-state
+                // key) does not advance, so this start would otherwise clobber the entry.
+                if let Some(prev) = self.current_skip.take() {
+                    self.flush_invocation(prev);
+                }
+                let entry = CoreEntryState {
+                    registers: *self.core.registers(),
+                    pc: self.core.pc(),
+                    clk: self.core.clk(),
+                    global_clk: self.core.global_clk(),
+                    mem_reads_remaining: self.record.mem_reads_remaining,
+                };
+                let key_clk = self.record.cpu_event_count;
+                for &id in &apc_ids {
+                    self.apc_pre_states.insert((id, key_clk), entry.clone());
+                }
+                // `apc_id` (static-range membership at this start) is the APC starting here and is
+                // one of `apc_ids`; track its invocation so only it is skipped / flushed.
+                if let (true, Some(id)) = (self.capturing(), apc_id) {
+                    self.current_skip = Some(CurrentSkip { apc_id: id, key_clk, count: 0 });
+                }
+            }
+        }
+
+        apc_id
+    }
+
+    /// Record-in-chip: set the per-cycle skip gate, run BEFORE the opcode dispatch. Suppresses
+    /// per-opcode event emission while an APC block's invocation is in progress in this shard.
+    /// `insert_record` (local memory / page prot) is kept running regardless, so the local-memory
+    /// and page-prot buses stay complete.
+    fn set_skip_gate(&mut self, apc_id: Option<usize>) {
+        let gate_active =
+            self.capturing() && self.current_skip.is_some_and(|cs| apc_id == Some(cs.apc_id));
+        self.record.skip_writes = gate_active;
+        if gate_active {
+            self.current_skip.as_mut().unwrap().count += 1;
+        }
+    }
+
+    /// Record-in-chip: run AFTER `advance`. Updates the read-oracle cursor, captures an
+    /// [`ApcInvocation`] for each successful call, and discards the in-progress skip invocation if
+    /// it succeeded (the APC chip regenerates its rows).
+    fn end_cycle_capture(&mut self, calls: &[ApcCall<ExecutionRecordSnapshot>]) {
+        if !self.capturing() {
+            return;
+        }
+        if !calls.is_empty() {
+            self.capture_invocations(calls);
+            // If the in-progress skip invocation just succeeded (its `apc_id` is among the
+            // extracted calls), discard its skip accounting: the APC chip regenerates its rows via
+            // re-execution, so no software rollback is needed. (`capture_invocations` already
+            // removed its `apc_pre_states` entry.)
+            if let Some(cs) = self.current_skip {
+                if calls.iter().any(|c| c.apc_id == cs.apc_id) {
+                    self.current_skip = None;
+                    // Bump-resilient APC: the skip block completed as an APC — commit its collected
+                    // register epoch-crossing bumps to the shared `MemoryBump` chip (the APC's
+                    // re-anchored register read, `prev_low=0`, needs the balancing shadow read).
+                    if !self.pending_register_bumps.is_empty() {
+                        let mut pending = std::mem::take(&mut self.pending_register_bumps);
+                        self.record.bump_memory_events.append(&mut pending);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Build an [`ApcInvocation`] for each successful APC call by pairing the call's entry
+    /// pre-state (looked up by `(apc_id, from.cpu_event_count)`) with the block's read-oracle slice
+    /// (derived from the from/to `mem_reads_remaining`), and store it on the record.
+    fn capture_invocations(&mut self, calls: &[ApcCall<ExecutionRecordSnapshot>]) {
+        let total = self.shard_reads.len();
+        for call in calls {
+            let key = (call.apc_id, call.from.cpu_event_count);
+            let Some(entry) = self.apc_pre_states.remove(&key) else {
+                debug_assert!(false, "missing captured pre-state for apc {}", call.apc_id);
+                continue;
+            };
+            let entry_offset = total - call.from.mem_reads_remaining;
+            let exit_offset = total - call.to.mem_reads_remaining;
+            let num_instructions = self.core.program.apcs.apc_by_index[call.apc_id].num_cycles();
+            // Zero-copy: share the shard read-oracle `Arc` (refcount bump) and store only this
+            // block's `[entry_offset, exit_offset)` range, instead of copying the slice.
+            self.record.apc_invocations.push(crate::autoprecompiles::ApcInvocation {
+                apc_id: call.apc_id,
+                pre_registers: entry.registers,
+                pc_start: entry.pc,
+                clk_start: entry.clk,
+                global_clk_start: entry.global_clk,
+                reads: self.shard_reads.clone(),
+                read_offset: entry_offset,
+                read_len: exit_offset - entry_offset,
+                num_instructions,
+            });
+        }
+    }
+
+    /// Re-execute the skipped prefix of one aborted/segmented APC invocation as software — the
+    /// "rollback" half of the skip optimization. Replays exactly `cs.count` instructions (the
+    /// number skipped in this shard) from the captured entry pre-state and appends the events to
+    /// the main record. Memory-local accesses are already in the main map (the gate keeps
+    /// `insert_record` running), so the replay covers only per-opcode / bump rows.
+    fn flush_invocation(&mut self, cs: CurrentSkip)
+    where
+        for<'b> TracingVM<'b, M>: StepInstruction,
+    {
+        // Bump-resilient APC: this skip block aborted — discard its collected register bumps; the
+        // flush replay below re-emits them as part of the software block (avoids double-counting).
+        self.pending_register_bumps.clear();
+        if cs.count == 0 {
+            return;
+        }
+        let Some(entry) = self.apc_pre_states.remove(&(cs.apc_id, cs.key_clk)) else {
+            debug_assert!(false, "no captured pre-state for aborted apc {}", cs.apc_id);
+            return;
+        };
+        let program = self.core.program.clone();
+        let opts = self.core.opts.clone();
+        let nonce = self.core.proof_nonce;
+        let entry_offset = self.shard_reads.len() - entry.mem_reads_remaining;
+        // Zero-copy: share the shard read-oracle `Arc` and expose only THIS block's reads
+        // `[entry_offset, current cursor)`. Replay steps exactly `cs.count` instructions.
+        let read_end = self.shard_reads.len() - self.core.mem_reads.len();
+        let trace = sp1_jit::ReplayTrace::new(
+            self.shard_reads.clone(),
+            entry_offset,
+            read_end - entry_offset,
+            entry.registers.map(|r| r.value),
+            entry.pc,
+            entry.clk,
+            // Generous clk_end so nothing trace-ends mid-block; the loop bounds execution.
+            entry.clk + (cs.count as u64 + 16) * 8,
+        );
+        Self::replay_block_into(
+            &trace,
+            &entry.registers,
+            entry.global_clk,
+            cs.count,
+            program,
+            opts,
+            nonce,
+            self.record,
+        )
+        .expect("flush_invocation: replay_block_into failed");
+    }
+
+    /// Flush the skip invocation still in progress at shard end (a segmentation abort — its block
+    /// straddles the shard boundary). Its in-shard prefix is emitted as software; the continuation
+    /// is handled by the next shard. (Successful, range-exit-aborted, and loop-aborted invocations
+    /// were already resolved during execution.)
+    fn flush_aborted_blocks(&mut self)
+    where
+        for<'b> TracingVM<'b, M>: StepInstruction,
+    {
+        if let Some(cs) = self.current_skip.take() {
+            self.flush_invocation(cs);
+        }
+    }
+
+    /// Re-execute a single APC block from its minimal [`ApcInvocation`] record, appending the
+    /// block's per-opcode events directly into `target`. This is the record-in-chip tracegen
+    /// primitive: instead of carving the block's events out of a full software trace, we
+    /// regenerate them by replaying the block from the captured pre-state. `target`'s
+    /// `initial_timestamp` is preserved.
+    pub fn reexecute_apc_block_into(
+        invocation: &crate::autoprecompiles::ApcInvocation,
+        program: Arc<Program>,
+        opts: SP1CoreOpts,
+        proof_nonce: [u32; PROOF_NONCE_NUM_WORDS],
+        target: &mut ExecutionRecord,
+    ) -> Result<(), ExecutionError>
+    where
+        for<'b> TracingVM<'b, M>: StepInstruction,
+    {
+        // Zero-copy: replay from the invocation's shared read-oracle `Arc` + range, exactly like
+        // the skip-flush path. Building an owned `TraceChunk` here would clone the reads a second
+        // time (the first copy was already removed from capture).
+        let trace = sp1_jit::ReplayTrace::new(
+            invocation.reads.clone(),
+            invocation.read_offset,
+            invocation.read_len,
+            invocation.pre_registers.map(|r| r.value),
+            invocation.pc_start,
+            invocation.clk_start,
+            invocation.clk_start + (invocation.num_instructions as u64 + 16) * 8,
+        );
+        Self::replay_block_into(
+            &trace,
+            &invocation.pre_registers,
+            invocation.global_clk_start,
+            invocation.num_instructions,
+            program,
+            opts,
+            proof_nonce,
+            target,
+        )
+    }
+
+    /// Replay `num_instructions` from any minimal trace directly into `target`. Shared by
+    /// [`Self::reexecute_apc_block_into`] and the skip-flush path — both build a zero-copy
+    /// [`sp1_jit::ReplayTrace`] sharing the shard read-oracle `Arc`. The replay VM forces the
+    /// skip gate inert and capture off, so candidate detection during replay is harmless.
+    /// `target.initial_timestamp` is preserved.
+    #[allow(clippy::too_many_arguments)]
+    fn replay_block_into<T: MinimalTrace>(
+        trace: &T,
+        pre_registers: &[MemoryRecord; 32],
+        global_clk_start: u64,
+        num_instructions: usize,
+        program: Arc<Program>,
+        opts: SP1CoreOpts,
+        proof_nonce: [u32; PROOF_NONCE_NUM_WORDS],
+        target: &mut ExecutionRecord,
+    ) -> Result<(), ExecutionError>
+    where
+        for<'b> TracingVM<'b, M>: StepInstruction,
+    {
+        let saved_initial = target.initial_timestamp;
+        {
+            let mut vm = TracingVM::<M>::new_replay(trace, program, opts, proof_nonce, target);
+            // Restore register prev-access timestamps (the trace carries values only).
+            *vm.core.registers_mut() = *pre_registers;
+            vm.core.set_global_clk(global_clk_start);
+            for _ in 0..num_instructions {
+                vm.step_instruction()?;
+            }
+        }
+        target.initial_timestamp = saved_initial;
+        Ok(())
     }
 
     /// Get the public values from the record.
@@ -933,7 +1378,7 @@ impl<'a, M: ExecutionMode> TracingVM<'a, M> {
 
         // Actually execute the ecall.
         let EcallResult { a: _, a_record, b, b_record, c, c_record, error, sig_return_pc_record } =
-            CoreVM::<'a, M, ExecutionRecordSnapshotWithPc>::execute_ecall(
+            CoreVM::<'a, M, ExecutionRecordSnapshot>::execute_ecall(
                 &mut PrecompileMemory::new(self),
                 instruction,
                 code,
@@ -1017,8 +1462,25 @@ impl<M: ExecutionMode> TracingVM<'_, M> {
         record: &MemoryAccessRecord,
         exit_code: u32,
     ) {
+        // `pc_start`/`next_pc` are shard-level state-continuity values committed to the public
+        // values (State bus). They must be maintained even inside APC ranges where per-cycle
+        // events are skipped: otherwise, when the shard's first cycle falls in a skipped APC block,
+        // `pc_start` (set via `get_or_insert`) would latch the first non-skipped pc instead of the
+        // true shard start, producing a State-bus cumulative-sum mismatch at the initial boundary.
         self.record.pc_start.get_or_insert(self.core.pc());
         self.record.next_pc = next_pc;
+        if self.record.skip_writes {
+            // Bump-resilient APC (register half): inside a skipped APC range that is a tracked
+            // in-progress candidate, collect any register epoch-crossing bumps into the pending
+            // buffer (committed on APC success, discarded on flush). Gated on `current_skip` so a
+            // mid-block segmentation resume (skipped, but with no tracked candidate to
+            // resolve/commit it) never leaks bumps. State/pc bumps and RAM are NOT collected here —
+            // those still abort the candidate.
+            if self.capturing() && self.current_skip.is_some() {
+                Self::collect_register_bumps(&mut self.pending_register_bumps, instruction, record);
+            }
+            return;
+        }
         self.record.exit_code = exit_code;
         self.record.cpu_event_count += 1;
 
@@ -1064,6 +1526,31 @@ impl<M: ExecutionMode> TracingVM<'_, M> {
                     encoded_instruction,
                     multiplicity: 1,
                 });
+        }
+    }
+
+    /// Bump-resilient APC helper: collect a register-refresh bump event for each operand (a/b/c)
+    /// whose access crosses a 2^24 timestamp epoch. Same predicate as the direct emission in
+    /// [`Self::emit_events`], but appends into `out` (the pending buffer) instead of the record.
+    fn collect_register_bumps(
+        out: &mut Vec<(MemoryRecordEnum, u64, bool)>,
+        instruction: &Instruction,
+        record: &MemoryAccessRecord,
+    ) {
+        if let Some(x) = record.a {
+            if x.current_record().timestamp >> 24 != x.previous_record().timestamp >> 24 {
+                out.push((x, instruction.op_a as u64, false));
+            }
+        }
+        if let Some(x) = record.b {
+            if x.current_record().timestamp >> 24 != x.previous_record().timestamp >> 24 {
+                out.push((x, instruction.op_b, false));
+            }
+        }
+        if let Some(x) = record.c {
+            if x.current_record().timestamp >> 24 != x.previous_record().timestamp >> 24 {
+                out.push((x, instruction.op_c, false));
+            }
         }
     }
 
@@ -1135,6 +1622,9 @@ impl<M: ExecutionMode> TracingVM<'_, M> {
         record: &MemoryAccessRecord,
         op_a_0: bool,
     ) {
+        if self.record.skip_writes {
+            return;
+        }
         let opcode = instruction.opcode;
         let event = MemInstrEvent {
             clk: self.core.clk(),
@@ -1192,6 +1682,9 @@ impl<M: ExecutionMode> TracingVM<'_, M> {
         record: &MemoryAccessRecord,
         op_a_0: bool,
     ) {
+        if self.record.skip_writes {
+            return;
+        }
         let opcode = instruction.opcode;
         let event = AluEvent { clk: self.core.clk(), pc: self.core.pc(), opcode, a, b, c, op_a_0 };
 
@@ -1270,6 +1763,9 @@ impl<M: ExecutionMode> TracingVM<'_, M> {
         op_a_0: bool,
         next_pc: u64,
     ) {
+        if self.record.skip_writes {
+            return;
+        }
         let event = JumpEvent {
             clk: self.core.clk(),
             pc: self.core.pc(),
@@ -1297,6 +1793,9 @@ impl<M: ExecutionMode> TracingVM<'_, M> {
         op_a_0: bool,
         next_pc: u64,
     ) {
+        if self.record.skip_writes {
+            return;
+        }
         let event = JumpEvent {
             clk: self.core.clk(),
             pc: self.core.pc(),
@@ -1324,6 +1823,9 @@ impl<M: ExecutionMode> TracingVM<'_, M> {
         op_a_0: bool,
         next_pc: u64,
     ) {
+        if self.record.skip_writes {
+            return;
+        }
         let event = BranchEvent {
             clk: self.core.clk(),
             pc: self.core.pc(),
@@ -1349,6 +1851,9 @@ impl<M: ExecutionMode> TracingVM<'_, M> {
         record: &MemoryAccessRecord,
         op_a_0: bool,
     ) {
+        if self.record.skip_writes {
+            return;
+        }
         let event = UTypeEvent {
             clk: self.core.clk(),
             pc: self.core.pc(),
@@ -1378,6 +1883,9 @@ impl<M: ExecutionMode> TracingVM<'_, M> {
         trap_result: Option<TrapResult>,
         trap_error: Option<TrapError>,
     ) {
+        if self.record.skip_writes {
+            return;
+        }
         let syscall_event = self.syscall_event(
             clk,
             syscall_code,
@@ -1397,7 +1905,7 @@ impl<M: ExecutionMode> TracingVM<'_, M> {
 
 impl<'a, M: ExecutionMode> SyscallRuntime<'a, M> for TracingVM<'a, M> {
     const TRACING: bool = true;
-    type Snapshot = ExecutionRecordSnapshotWithPc;
+    type Snapshot = ExecutionRecordSnapshot;
 
     fn core(&self) -> &CoreVM<'a, M, Self::Snapshot> {
         &self.core
@@ -1602,7 +2110,7 @@ impl<'a, 'b, M: ExecutionMode> PrecompileMemory<'a, 'b, M> {
 
 impl<'a, M: ExecutionMode> SyscallRuntime<'a, M> for PrecompileMemory<'a, '_, M> {
     const TRACING: bool = true;
-    type Snapshot = ExecutionRecordSnapshotWithPc;
+    type Snapshot = ExecutionRecordSnapshot;
 
     fn core(&self) -> &CoreVM<'a, M, Self::Snapshot> {
         self.inner.core()
@@ -2003,7 +2511,7 @@ mod tests {
             assert_eq!(registers[Register::X31 as usize].value, 42);
             assert_eq!(registers[Register::X26 as usize].value, 42);
             // Check that the APCs were executed iff there were any
-            assert_eq!(!record.apc_events.is_empty(), should_execute_apcs);
+            assert_eq!(!record.apc_invocations.is_empty(), should_execute_apcs);
         }
     }
 
@@ -2035,7 +2543,7 @@ mod tests {
 
         assert_eq!(registers[Register::X30 as usize].value, 2);
         assert_eq!(registers[Register::X31 as usize].value, 2);
-        assert_eq!(record.apc_events.len(), 2);
+        assert_eq!(record.apc_invocations.len(), 2);
     }
 
     #[test]
@@ -2097,7 +2605,7 @@ mod tests {
             assert_eq!(registers[Register::X31 as usize].value, 42);
             assert_eq!(registers[Register::X26 as usize].value, 42);
             // Check that the APCs were executed iff there were any
-            assert!(record.apc_events.is_empty());
+            assert!(record.apc_invocations.is_empty());
         }
     }
 
@@ -2138,9 +2646,9 @@ mod tests {
             assert_eq!(registers[Register::X31 as usize].value, 42);
             assert_eq!(registers[Register::X26 as usize].value, 42);
             // Check that only the first apc was executed (priority is based on insertion order)
-            assert_eq!(record.apc_events.len(), 1);
-            assert_eq!(record.apc_events.get_events(0).unwrap().count, 1);
-            assert!(record.apc_events.get_events(1).is_none());
+            assert_eq!(record.apc_invocations.len(), 1);
+            assert_eq!(record.apc_event_count(0), 1);
+            assert!(!record.has_apc_events(1));
         }
     }
 
@@ -2194,10 +2702,10 @@ mod tests {
         assert_eq!(registers[Register::X31 as usize].value, 42);
         assert_eq!(registers[Register::X26 as usize].value, 42);
         // Check that AB was not executed but A and B were
-        assert_eq!(record.apc_events.len(), 2);
-        assert!(record.apc_events.get_events(0).is_none());
-        assert_eq!(record.apc_events.get_events(1).unwrap().count, 1);
-        assert_eq!(record.apc_events.get_events(2).unwrap().count, 1);
+        assert_eq!(record.apc_invocations.len(), 2);
+        assert!(!record.has_apc_events(0));
+        assert_eq!(record.apc_event_count(1), 1);
+        assert_eq!(record.apc_event_count(2), 1);
     }
 
     #[test]
@@ -2252,10 +2760,10 @@ mod tests {
         assert_eq!(registers[Register::X31 as usize].value, 42);
         assert_eq!(registers[Register::X26 as usize].value, 42);
         // Check that AB executed and A/B were cancelled.
-        assert_eq!(record.apc_events.len(), 1);
-        assert_eq!(record.apc_events.get_events(0).unwrap().count, 1);
-        assert!(record.apc_events.get_events(1).is_none());
-        assert!(record.apc_events.get_events(2).is_none());
+        assert_eq!(record.apc_invocations.len(), 1);
+        assert_eq!(record.apc_event_count(0), 1);
+        assert!(!record.has_apc_events(1));
+        assert!(!record.has_apc_events(2));
     }
 
     #[test]
@@ -2310,7 +2818,7 @@ mod tests {
             run_tracing_vm(Arc::new(program), SP1CoreOpts::default(), 100_000);
         assert!(status.is_done(), "TracingVM did not complete");
         assert!(
-            record.apc_events.is_empty(),
+            record.apc_invocations.is_empty(),
             "Expected APC to be rejected when a state bump occurs"
         );
     }
@@ -2387,7 +2895,7 @@ mod tests {
         // The APC covering indices 5-7 should be rejected because index 5 reads x11
         // whose prev_timestamp is in epoch 0 while the current clk is in epoch 1.
         assert!(
-            record.apc_events.is_empty(),
+            record.apc_invocations.is_empty(),
             "Expected APC to be rejected due to memory bump (stale register access across epoch)"
         );
     }

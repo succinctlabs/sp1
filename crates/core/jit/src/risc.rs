@@ -491,6 +491,65 @@ impl MinimalTrace for TraceChunk {
     }
 }
 
+/// Zero-copy replay trace: a sub-range `[offset, offset + len)` of a shared read oracle
+/// (`Arc<[MemValue]>`), used by the APC skip-flush path to replay an aborted block without copying
+/// its read slice out of the shard oracle.
+#[derive(Clone)]
+pub struct ReplayTrace {
+    reads: Arc<[MemValue]>,
+    offset: usize,
+    len: usize,
+    start_registers: [u64; 32],
+    pc_start: u64,
+    clk_start: u64,
+    clk_end: u64,
+}
+
+impl ReplayTrace {
+    /// `reads[offset..offset + len]` are the block's reads (`offset + len <= reads.len()`).
+    #[must_use]
+    pub fn new(
+        reads: Arc<[MemValue]>,
+        offset: usize,
+        len: usize,
+        start_registers: [u64; 32],
+        pc_start: u64,
+        clk_start: u64,
+        clk_end: u64,
+    ) -> Self {
+        debug_assert!(offset + len <= reads.len(), "ReplayTrace range out of bounds");
+        Self { reads, offset, len, start_registers, pc_start, clk_start, clk_end }
+    }
+}
+
+impl MinimalTrace for ReplayTrace {
+    fn start_registers(&self) -> [u64; 32] {
+        self.start_registers
+    }
+
+    fn pc_start(&self) -> u64 {
+        self.pc_start
+    }
+
+    fn clk_start(&self) -> u64 {
+        self.clk_start
+    }
+
+    fn clk_end(&self) -> u64 {
+        self.clk_end
+    }
+
+    fn num_mem_reads(&self) -> u64 {
+        self.len as u64
+    }
+
+    fn mem_reads(&self) -> MemReads<'_> {
+        // SAFETY: all bit patterns are valid for `MemValue`; `offset + len <= reads.len()` (checked
+        // in `new`), so the `len` elements from `offset` are in-bounds and valid.
+        unsafe { MemReads::new(self.reads[self.offset..].as_ptr(), self.len) }
+    }
+}
+
 mod ser {
     use super::*;
     use serde::{Deserializer, Serializer};

@@ -121,6 +121,18 @@ impl Apc {
     pub fn cost(&self) -> ApcCost {
         self.cost
     }
+
+    /// The `pc_idx` at which this APC's static range starts.
+    #[must_use]
+    pub fn start_pc_idx(&self) -> usize {
+        self.start_pc_idx
+    }
+
+    /// The number of cycles (original instructions) in this APC's block.
+    #[must_use]
+    pub fn num_cycles(&self) -> usize {
+        self.cycle_count
+    }
 }
 
 impl<S: ExecutionState<RegisterAddress = u8, Value = u64>> powdr_autoprecompiles::execution::Apc<S>

@@ -442,6 +442,30 @@ mod tests {
         test_e2e(FIBONACCI_ELF, SP1Stdin::default(), 10, SP1ProofMode::Compressed).await.unwrap();
     }
 
+    /// End-to-end record-in-chip validation on the real RSP program (block 21740137, 12 APCs —
+    /// the pinned config), using the checked-in ELF/input under sp1-gpu/crates/perf/programs/rsp/.
+    /// Run with `SP1_PROVER=mock` to validate trace-gen + constraint satisfaction (incl. bus
+    /// cumulative sums) cheaply, or `SP1_PROVER=cuda` for the full proof. Heavy, so ignored.
+    #[tokio::test]
+    #[cfg(feature = "apc")]
+    #[ignore = "heavy RSP core prove; validates record-in-chip end-to-end on the real program"]
+    async fn test_apc_core_rsp() {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let elf: Elf = std::fs::read(format!(
+            "{manifest_dir}/../../sp1-gpu/crates/perf/programs/rsp/elf/rsp-client"
+        ))
+        .expect("read rsp-client elf")
+        .into();
+        let stdin_bytes = std::fs::read(format!(
+            "{manifest_dir}/../../sp1-gpu/crates/perf/programs/rsp/input/21740137.bin"
+        ))
+        .expect("read rsp input");
+        let mut stdin = SP1Stdin::new();
+        stdin.write_vec(stdin_bytes);
+
+        test_e2e(elf, stdin, 12, SP1ProofMode::Core).await.unwrap();
+    }
+
     #[tokio::test]
     #[cfg(feature = "apc")]
     async fn test_apc_groth16_fibonacci() {
