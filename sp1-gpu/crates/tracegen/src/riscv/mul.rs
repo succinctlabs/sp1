@@ -392,13 +392,13 @@ mod tests {
             assert_eq!(ssa, streamed, "streaming column mismatch at row {row}");
         }
         assert!(s_max < max_slots, "streaming should shrink the footprint");
-        println!(
+        eprintln!(
             "Mul streaming: pinned max_slots={max_slots} -> streaming max_slots={s_max} \
              (epilogue {} entries, input_cols {})",
             epi_slots.len(),
             input_cols.len()
         );
-        println!(
+        eprintln!(
             "Mul reg-alloc OK: num_wires={} -> max_slots={max_slots} ({:.1}x)",
             program.num_wires(),
             program.num_wires() as f64 / max_slots as f64

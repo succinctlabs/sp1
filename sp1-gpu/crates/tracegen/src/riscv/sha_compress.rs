@@ -470,13 +470,13 @@ mod tests {
     #[test]
     fn sha_compress_columns_match_host() {
         let shard = synth_shard(3, 0x5C03);
-        let chip = ShaCompressChip::default();
+        let chip = ShaCompressChip;
         let trace = MachineAir::<F>::generate_trace(&chip, &shard, &mut ExecutionRecord::default());
         let width = NUM_SHA_COMPRESS_COLS;
 
         let (program, col_wires) = super::record_sha_compress_program();
         let (slot, max_slots) = program.allocate_slots(&col_wires);
-        println!(
+        eprintln!(
             "ShaCompress: num_wires={} max_slots={max_slots} n_cols={}",
             program.num_wires(),
             col_wires.len()
@@ -529,7 +529,7 @@ mod tests {
     #[test]
     fn sha_compress_lookups_match_generate_dependencies() {
         let shard = synth_shard(3, 0x5C04);
-        let chip = ShaCompressChip::default();
+        let chip = ShaCompressChip;
 
         let mut dep_out = ExecutionRecord::default();
         MachineAir::<F>::generate_dependencies(&chip, &shard, &mut dep_out);

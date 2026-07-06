@@ -155,7 +155,7 @@ mod tests {
 
         let (program, col_wires) = super::record_memory_local_program();
         let (_, max_slots) = program.allocate_slots(&col_wires);
-        println!(
+        eprintln!(
             "MemoryLocal: num_wires={} max_slots={max_slots} n_cols={}",
             program.num_wires(),
             col_wires.len()

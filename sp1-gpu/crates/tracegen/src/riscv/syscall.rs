@@ -231,7 +231,7 @@ mod tests {
         let (program, col_wires) = super::record_syscall_program();
         let (slot, max_slots) = program.allocate_slots(&col_wires);
         let _ = slot;
-        println!(
+        eprintln!(
             "Syscall: num_wires={} max_slots={max_slots} n_cols={}",
             program.num_wires(),
             col_wires.len()

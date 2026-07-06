@@ -222,7 +222,7 @@ mod tests {
         assert_eq!(col_wires.len(), width);
         let (slot, max_slots) = program.allocate_slots(&col_wires);
         let (_, s_max, epi) = program.allocate_slots_streaming(&col_wires);
-        println!(
+        eprintln!(
             "ShaExtendControl: num_wires={} n_cols={} pinned_max_slots={max_slots} \
              streaming_max_slots={s_max} epilogue={}",
             program.num_wires(),
