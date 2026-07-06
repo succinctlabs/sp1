@@ -328,46 +328,46 @@ impl<T: Copy> MemoryInitCols<T> {
         let zero = wb.const_nat(0);
         let one = wb.const_nat(1);
 
-        let clk_high = wb.bits(timestamp.clone(), 24, 32);
+        let clk_high = wb.bits(timestamp, 24, 32);
         cols.clk_high = wb.nat_to_field(clk_high);
         let clk_low = wb.bits(timestamp, 0, 24);
         cols.clk_low = wb.nat_to_field(clk_low);
-        cols.index = wb.nat_to_field(index.clone());
+        cols.index = wb.nat_to_field(index);
 
         // Address limbs (+ dependency u16 checks on limbs 0..3 of both addresses).
-        let pa0 = wb.bits(prev_addr.clone(), 0, 16);
-        let pa1 = wb.bits(prev_addr.clone(), 16, 16);
-        let pa2 = wb.bits(prev_addr.clone(), 32, 16);
-        for (i, limb) in [pa0.clone(), pa1.clone(), pa2.clone()].into_iter().enumerate() {
-            wb.add_u16_range_check(limb.clone());
+        let pa0 = wb.bits(prev_addr, 0, 16);
+        let pa1 = wb.bits(prev_addr, 16, 16);
+        let pa2 = wb.bits(prev_addr, 32, 16);
+        for (i, limb) in [pa0, pa1, pa2].into_iter().enumerate() {
+            wb.add_u16_range_check(limb);
             cols.prev_addr[i] = wb.nat_to_field(limb);
         }
         for i in 0..3 {
-            let limb = wb.bits(addr.clone(), 16 * i as u32, 16);
-            wb.add_u16_range_check(limb.clone());
+            let limb = wb.bits(addr, 16 * i as u32, 16);
+            wb.add_u16_range_check(limb);
             cols.addr[i] = wb.nat_to_field(limb);
         }
 
         // Value limbs + the 8-bit split of the third limb (+ dependency checks).
         for i in 0..4 {
-            let limb = wb.bits(value.clone(), 16 * i as u32, 16);
-            wb.add_u16_range_check(limb.clone());
+            let limb = wb.bits(value, 16 * i as u32, 16);
+            wb.add_u16_range_check(limb);
             cols.value.0[i] = wb.nat_to_field(limb);
         }
-        let vb0 = wb.bits(value.clone(), 32, 8);
+        let vb0 = wb.bits(value, 32, 8);
         let vb1 = wb.bits(value, 40, 8);
-        wb.add_u8_range_check(vb0.clone(), vb1.clone());
+        wb.add_u8_range_check(vb0, vb1);
         cols.value_lower = wb.nat_to_field(vb0);
         cols.value_upper = wb.nat_to_field(vb1);
-        cols.is_real = wb.nat_to_field(one.clone());
+        cols.is_real = wb.nat_to_field(one);
 
         // is_comp = (prev_addr != 0 || index != 0); prev_valid = (prev_addr != 0)
         // || (index == 0)  [host: 0 only when prev_addr == 0 && index != 0].
-        let pa_zero = wb.eq(prev_addr.clone(), zero.clone());
-        let idx_zero = wb.eq(index.clone(), zero.clone());
-        let both_zero = wb.select(pa_zero.clone(), idx_zero.clone(), zero.clone());
-        let is_comp = wb.eq(both_zero, zero.clone());
-        cols.is_comp = wb.nat_to_field(is_comp.clone());
+        let pa_zero = wb.eq(prev_addr, zero);
+        let idx_zero = wb.eq(index, zero);
+        let both_zero = wb.select(pa_zero, idx_zero, zero);
+        let is_comp = wb.eq(both_zero, zero);
+        cols.is_comp = wb.nat_to_field(is_comp);
         let prev_valid = wb.select(pa_zero, idx_zero, one);
         cols.prev_valid = wb.nat_to_field(prev_valid);
 
@@ -379,19 +379,15 @@ impl<T: Copy> MemoryInitCols<T> {
             &mut cols.is_prev_addr_zero,
             pa_sum,
         );
-        crate::operations::IsZeroOperation::<WB::Field>::witgen(
-            wb,
-            &mut cols.is_index_zero,
-            index,
-        );
+        crate::operations::IsZeroOperation::<WB::Field>::witgen(wb, &mut cols.is_index_zero, index);
 
         // lt_cols: `1 = (prev_addr < addr)` on comparison rows; the all-zero default
         // otherwise — zero-masked inputs reproduce the default exactly (flags,
         // comparison limbs, not_eq_inv and bit all become 0) — with the gadget's
         // lookups guarded on `is_comp`.
-        let pa_m = wb.select(is_comp.clone(), prev_addr, zero.clone());
-        let addr_m = wb.select(is_comp.clone(), addr, zero);
-        let a_m = is_comp.clone();
+        let pa_m = wb.select(is_comp, prev_addr, zero);
+        let addr_m = wb.select(is_comp, addr, zero);
+        let a_m = is_comp;
         wb.push_guard(is_comp);
         crate::operations::LtOperationUnsigned::<WB::Field>::witgen(
             wb,

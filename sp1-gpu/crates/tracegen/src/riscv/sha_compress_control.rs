@@ -20,8 +20,7 @@ use sp1_core_machine::{
     air::{columns_as_wires, RecordingWitnessBuilder, WireId, WitProgram, WitnessBuilder},
     operations::{AddrAddOperation, SyscallAddrOperation},
     syscall::precompiles::sha256::{
-        num_sha_compress_control_cols_supervisor, ShaCompressControlChip,
-        ShaCompressControlCols,
+        num_sha_compress_control_cols_supervisor, ShaCompressControlChip, ShaCompressControlCols,
     },
     SupervisorMode,
 };
@@ -130,8 +129,7 @@ impl CudaTracegenAir<F> for ShaCompressControlChip<SupervisorMode> {
         let height = <Self as MachineAir<F>>::num_rows(self, input)
             .expect("num_rows(...) should be Some(_)");
         let inputs = pack_sha_compress_control_inputs(input);
-        let n_events =
-            if height == 0 { 0 } else { inputs.len() / NUM_SHA_COMPRESS_CONTROL_INPUTS };
+        let n_events = if height == 0 { 0 } else { inputs.len() / NUM_SHA_COMPRESS_CONTROL_INPUTS };
         let trace = Tensor::<F, TaskScope>::zeros_in([n_cols, height], scope.clone());
         super::generate_columns_slots_into(
             &program, &col_wires, &inputs, n_events, height, trace, scope,
@@ -173,8 +171,7 @@ impl CudaTracegenAir<F> for ShaCompressControlChip<SupervisorMode> {
         let height = <Self as MachineAir<F>>::num_rows(self, input)
             .expect("num_rows(...) should be Some(_)");
         let inputs = pack_sha_compress_control_inputs(input);
-        let n_events =
-            if height == 0 { 0 } else { inputs.len() / NUM_SHA_COMPRESS_CONTROL_INPUTS };
+        let n_events = if height == 0 { 0 } else { inputs.len() / NUM_SHA_COMPRESS_CONTROL_INPUTS };
         if n_events == 0 {
             return Ok(());
         }
@@ -214,23 +211,21 @@ mod tests {
             let w_ptr = ((rng.gen::<u64>() & 0x7F_FFFF_FFFF) | 0x1_0000) & !7;
             let h_ptr = ((rng.gen::<u64>() & 0x7F_FFFF_FFFF) | 0x1_0000) & !7;
             let h: [u32; 8] = core::array::from_fn(|_| rng.gen::<u32>());
-            let h_read_records: [MemoryReadRecord; 8] = core::array::from_fn(|i| {
-                MemoryReadRecord {
+            let h_read_records: [MemoryReadRecord; 8] =
+                core::array::from_fn(|i| MemoryReadRecord {
                     value: h[i] as u64,
                     timestamp: clk,
                     prev_timestamp: clk - 1,
                     prev_page_prot_record: None,
-                }
-            });
-            let h_write_records: [MemoryWriteRecord; 8] = core::array::from_fn(|i| {
-                MemoryWriteRecord {
+                });
+            let h_write_records: [MemoryWriteRecord; 8] =
+                core::array::from_fn(|i| MemoryWriteRecord {
                     value: rng.gen::<u32>() as u64,
                     timestamp: clk + 2,
                     prev_value: h[i] as u64,
                     prev_timestamp: clk,
                     prev_page_prot_record: None,
-                }
-            });
+                });
             let event = ShaCompressEvent {
                 clk,
                 w_ptr,
@@ -274,8 +269,7 @@ mod tests {
     fn sha_compress_control_columns_match_host() {
         let shard = synth_shard(45, 0x5CC01);
         let chip = ShaCompressControlChip::<SupervisorMode>::new();
-        let trace =
-            MachineAir::<F>::generate_trace(&chip, &shard, &mut ExecutionRecord::default());
+        let trace = MachineAir::<F>::generate_trace(&chip, &shard, &mut ExecutionRecord::default());
         let width = num_sha_compress_control_cols_supervisor();
 
         let (program, col_wires) = super::record_sha_compress_control_program();
@@ -306,7 +300,12 @@ mod tests {
                 "column mismatch at row {row}"
             );
             let flat: Vec<F> = interpret_c_slots_columns(
-                &ops_slots, ni as u32, row_in, input_slots, &col_slots, max_slots,
+                &ops_slots,
+                ni as u32,
+                row_in,
+                input_slots,
+                &col_slots,
+                max_slots,
             );
             assert_eq!(cols, flat, "pinned-slot column mismatch at row {row}");
         }

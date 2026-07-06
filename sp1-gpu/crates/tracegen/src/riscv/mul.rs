@@ -53,8 +53,26 @@ fn record_mul_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
     let mut cols_w = MulCols::<WireId, SupervisorMode>::default();
     let w = |i: u32| RecordingWitnessBuilder::input(i);
     MulCols::<WireId, SupervisorMode>::witgen(
-        &mut rec, &mut cols_w, w(0), w(1), w(2), w(3), w(4), w(5), w(6), w(7), w(8), w(9), w(10),
-        w(11), w(12), w(13), w(14), w(15), w(16), w(17),
+        &mut rec,
+        &mut cols_w,
+        w(0),
+        w(1),
+        w(2),
+        w(3),
+        w(4),
+        w(5),
+        w(6),
+        w(7),
+        w(8),
+        w(9),
+        w(10),
+        w(11),
+        w(12),
+        w(13),
+        w(14),
+        w(15),
+        w(16),
+        w(17),
     );
     let program = rec.finish();
     let col_wires: Vec<u32> = columns_as_wires(&cols_w).iter().map(|w| w.0).collect();
@@ -117,8 +135,7 @@ impl CudaTracegenAir<F> for MulChip<SupervisorMode> {
         debug_assert_eq!(n_cols, NUM_MUL_COLS_SUPERVISOR);
         let height = <Self as MachineAir<F>>::num_rows(self, input)
             .expect("num_rows(...) should be Some(_)");
-        let n_events =
-            if height == 0 { 0 } else { inputs.len() / program.num_inputs as usize };
+        let n_events = if height == 0 { 0 } else { inputs.len() / program.num_inputs as usize };
         super::generate_trace_and_lookups_slots(
             &program, &col_wires, n_cols, &inputs, n_events, height, hist, scope,
         )
@@ -252,8 +269,8 @@ mod tests {
     fn mul_regalloc_shrinks_and_matches() {
         use sp1_core_machine::air::{
             columns_as_wires, interpret_c_columns, interpret_c_slots_columns,
-            interpret_c_slots_streaming_columns, interpret_slots_columns,
-            RecordingWitnessBuilder, WireId,
+            interpret_c_slots_streaming_columns, interpret_slots_columns, RecordingWitnessBuilder,
+            WireId,
         };
         use sp1_core_machine::alu::mul::MulCols;
 
@@ -262,8 +279,26 @@ mod tests {
         let mut cols_w = MulCols::<WireId, SupervisorMode>::default();
         let w = |i: u32| RecordingWitnessBuilder::input(i);
         MulCols::<WireId, SupervisorMode>::witgen(
-            &mut rec, &mut cols_w, w(0), w(1), w(2), w(3), w(4), w(5), w(6), w(7), w(8), w(9),
-            w(10), w(11), w(12), w(13), w(14), w(15), w(16), w(17),
+            &mut rec,
+            &mut cols_w,
+            w(0),
+            w(1),
+            w(2),
+            w(3),
+            w(4),
+            w(5),
+            w(6),
+            w(7),
+            w(8),
+            w(9),
+            w(10),
+            w(11),
+            w(12),
+            w(13),
+            w(14),
+            w(15),
+            w(16),
+            w(17),
         );
         let program = rec.finish();
         let col_wires: Vec<u32> = columns_as_wires(&cols_w).iter().map(|w| w.0).collect();
@@ -292,7 +327,8 @@ mod tests {
                     Opcode::MULHSU => ((bi * (cu as i128)) >> 64) as u64,
                     _ => ((b as i32).wrapping_mul(c as i32) as i64) as u64,
                 };
-                let alu = AluEvent::new((i as u64) * 8 + 8, (i as u64) * 4 + 4, opcode, a, b, c, false);
+                let alu =
+                    AluEvent::new((i as u64) * 8 + 8, (i as u64) * 4 + 4, opcode, a, b, c, false);
                 let record = RTypeRecord {
                     op_a: rng.gen_range(1..32),
                     a: read(&mut rng),
@@ -321,7 +357,12 @@ mod tests {
             // The flat slot form (WitOpCSlot, out/a/b pre-resolved) must also match
             // the SSA reference — this is what de-risks the CUDA `nat[op.out]` edit.
             let flat: Vec<F> = interpret_c_slots_columns(
-                &ops_slots, ni as u32, row_in, input_slots, &col_slots, max_slots,
+                &ops_slots,
+                ni as u32,
+                row_in,
+                input_slots,
+                &col_slots,
+                max_slots,
             );
             assert_eq!(ssa, alloc, "reg-alloc column mismatch at row {row}");
             assert_eq!(ssa, flat, "slot-flat (WitOpCSlot) column mismatch at row {row}");
@@ -339,8 +380,14 @@ mod tests {
             let row_in = &inputs[row * ni..(row + 1) * ni];
             let ssa: Vec<F> = interpret_c_columns(&ops_c, ni as u32, row_in, &col_wires);
             let streamed: Vec<F> = interpret_c_slots_streaming_columns(
-                &s_ops, ni as u32, row_in, &s_input_slots, &input_cols, &epi_slots,
-                col_wires.len(), s_max,
+                &s_ops,
+                ni as u32,
+                row_in,
+                &s_input_slots,
+                &input_cols,
+                &epi_slots,
+                col_wires.len(),
+                s_max,
             );
             assert_eq!(ssa, streamed, "streaming column mismatch at row {row}");
         }

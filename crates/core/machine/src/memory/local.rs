@@ -90,12 +90,12 @@ impl<T: Copy> SingleMemoryLocal<T> {
         final_value: WB::Nat,
     ) {
         for i in 0..3 {
-            let limb = wb.bits(addr.clone(), 16 * i as u32, 16);
+            let limb = wb.bits(addr, 16 * i as u32, 16);
             cols.addr[i] = wb.nat_to_field(limb);
         }
-        let i_hi = wb.bits(initial_clk.clone(), 24, 32);
+        let i_hi = wb.bits(initial_clk, 24, 32);
         cols.initial_clk_high = wb.nat_to_field(i_hi);
-        let f_hi = wb.bits(final_clk.clone(), 24, 32);
+        let f_hi = wb.bits(final_clk, 24, 32);
         cols.final_clk_high = wb.nat_to_field(f_hi);
         let i_lo = wb.bits(initial_clk, 0, 24);
         cols.initial_clk_low = wb.nat_to_field(i_lo);
@@ -104,25 +104,25 @@ impl<T: Copy> SingleMemoryLocal<T> {
 
         // Initial value: 4 u16 limbs + 8-bit split of the third limb (+ lookups).
         for i in 0..4 {
-            let limb = wb.bits(initial_value.clone(), 16 * i as u32, 16);
-            wb.add_u16_range_check(limb.clone());
+            let limb = wb.bits(initial_value, 16 * i as u32, 16);
+            wb.add_u16_range_check(limb);
             cols.initial_value.0[i] = wb.nat_to_field(limb);
         }
-        let ib0 = wb.bits(initial_value.clone(), 32, 8);
+        let ib0 = wb.bits(initial_value, 32, 8);
         let ib1 = wb.bits(initial_value, 40, 8);
-        wb.add_u8_range_check(ib0.clone(), ib1.clone());
+        wb.add_u8_range_check(ib0, ib1);
         cols.initial_value_lower = wb.nat_to_field(ib0);
         cols.initial_value_upper = wb.nat_to_field(ib1);
 
         // Final value: same shape.
         for i in 0..4 {
-            let limb = wb.bits(final_value.clone(), 16 * i as u32, 16);
-            wb.add_u16_range_check(limb.clone());
+            let limb = wb.bits(final_value, 16 * i as u32, 16);
+            wb.add_u16_range_check(limb);
             cols.final_value.0[i] = wb.nat_to_field(limb);
         }
-        let fb0 = wb.bits(final_value.clone(), 32, 8);
+        let fb0 = wb.bits(final_value, 32, 8);
         let fb1 = wb.bits(final_value, 40, 8);
-        wb.add_u8_range_check(fb0.clone(), fb1.clone());
+        wb.add_u8_range_check(fb0, fb1);
         cols.final_value_lower = wb.nat_to_field(fb0);
         cols.final_value_upper = wb.nat_to_field(fb1);
 

@@ -58,8 +58,24 @@ fn record_add_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
     let mut cols_w = AddCols::<WireId, SupervisorMode>::default();
     let wire = |i: u32| RecordingWitnessBuilder::input(i);
     AddCols::<WireId, SupervisorMode>::witgen(
-        &mut rec, &mut cols_w, wire(0), wire(1), wire(2), wire(3), wire(4), wire(5), wire(6),
-        wire(7), wire(8), wire(9), wire(10), wire(11), wire(12), wire(13), wire(14), wire(15),
+        &mut rec,
+        &mut cols_w,
+        wire(0),
+        wire(1),
+        wire(2),
+        wire(3),
+        wire(4),
+        wire(5),
+        wire(6),
+        wire(7),
+        wire(8),
+        wire(9),
+        wire(10),
+        wire(11),
+        wire(12),
+        wire(13),
+        wire(14),
+        wire(15),
     );
     let program = rec.finish();
     assert!(
@@ -305,9 +321,8 @@ mod tests {
             let chip = AddChip::<SupervisorMode>::default();
 
             // CPU reference columns.
-            let cpu_trace = Tensor::<F>::from(
-                chip.generate_trace(&gpu_shard, &mut ExecutionRecord::default()),
-            );
+            let cpu_trace =
+                Tensor::<F>::from(chip.generate_trace(&gpu_shard, &mut ExecutionRecord::default()));
 
             // Build the op-DAG + packed inputs once (shared by both device paths).
             let (program, col_wires) = super::record_add_program();

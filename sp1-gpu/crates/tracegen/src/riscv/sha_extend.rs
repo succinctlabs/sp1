@@ -29,9 +29,7 @@ use crate::{CudaTracegenAir, F};
 const NUM_SHA_EXTEND_INPUTS: usize = 19;
 
 /// Pack 48 input rows per event. `events` yields `(trap_error, &ShaExtendEvent)`.
-pub(crate) fn pack_sha_extend_inputs(
-    events: &[(Option<TrapError>, &ShaExtendEvent)],
-) -> Vec<u64> {
+pub(crate) fn pack_sha_extend_inputs(events: &[(Option<TrapError>, &ShaExtendEvent)]) -> Vec<u64> {
     let row_size = NUM_SHA_EXTEND_INPUTS;
     let mut inputs: Vec<u64> = vec![0u64; events.len() * 48 * row_size];
     inputs.par_chunks_mut(48 * row_size).zip(events.par_iter()).for_each(
@@ -80,11 +78,8 @@ fn collect_events(input: &ExecutionRecord) -> Vec<(Option<TrapError>, &ShaExtend
         .get_precompile_events(SyscallCode::SHA_EXTEND)
         .iter()
         .map(|(syscall_event, event)| {
-            let event = if let PrecompileEvent::ShaExtend(event) = event {
-                event
-            } else {
-                unreachable!()
-            };
+            let event =
+                if let PrecompileEvent::ShaExtend(event) = event { event } else { unreachable!() };
             (syscall_event.trap_error, event)
         })
         .collect()
@@ -98,8 +93,27 @@ pub(crate) fn record_sha_extend_program() -> (sp1_core_machine::air::WitProgram,
     // Trapped events are packed as all-zero rows: guard every lookup on is_real...
     rec.push_guard(is_real);
     ShaExtendCols::<WireId>::witgen(
-        &mut rec, &mut cols_w, w(0), w(1), w(2), w(3), w(4), w(5), w(6), w(7), w(8), w(9), w(10),
-        w(11), w(12), w(13), w(14), w(15), w(16), w(17), is_real,
+        &mut rec,
+        &mut cols_w,
+        w(0),
+        w(1),
+        w(2),
+        w(3),
+        w(4),
+        w(5),
+        w(6),
+        w(7),
+        w(8),
+        w(9),
+        w(10),
+        w(11),
+        w(12),
+        w(13),
+        w(14),
+        w(15),
+        w(16),
+        w(17),
+        is_real,
     );
     rec.pop_guard();
     // ...and mask every column wire so is_real = 0 rows are ALL-zero (the host
@@ -312,7 +326,12 @@ mod tests {
                 "column mismatch at row {row}"
             );
             let flat: Vec<F> = interpret_c_slots_columns(
-                &ops_slots, ni as u32, row_in, input_slots, &col_slots, max_slots,
+                &ops_slots,
+                ni as u32,
+                row_in,
+                input_slots,
+                &col_slots,
+                max_slots,
             );
             assert_eq!(cols, flat, "slot-flat column mismatch at row {row}");
         }

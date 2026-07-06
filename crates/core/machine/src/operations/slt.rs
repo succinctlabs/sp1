@@ -251,7 +251,13 @@ impl<T> LtOperationUnsigned<T> {
         cols.not_eq_inv = wb.field_select(all_eq, zero_f, inv);
         // The u16 compare over the low result limb and the comparison limbs.
         let a_u16 = wb.bits(a, 0, 16);
-        U16CompareOperation::<WB::Field>::witgen(wb, &mut cols.u16_compare_operation, a_u16, cb, cc);
+        U16CompareOperation::<WB::Field>::witgen(
+            wb,
+            &mut cols.u16_compare_operation,
+            a_u16,
+            cb,
+            cc,
+        );
     }
 }
 

@@ -9,9 +9,7 @@ use slop_tensor::Tensor;
 use sp1_core_executor::{events::MemInstrEvent, ITypeRecord};
 use sp1_core_machine::{
     air::{columns_as_wires, RecordingWitnessBuilder, WireId},
-    memory::instructions::load::load_x0::{
-        LoadX0Chip, LoadX0Columns, NUM_LOAD_X0_COLS_SUPERVISOR,
-    },
+    memory::instructions::load::load_x0::{LoadX0Chip, LoadX0Columns, NUM_LOAD_X0_COLS_SUPERVISOR},
     SupervisorMode,
 };
 use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKernel};
@@ -56,8 +54,25 @@ fn record_lx0_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
     let mut cols_w = LoadX0Columns::<WireId, SupervisorMode>::default();
     let w = |i: u32| RecordingWitnessBuilder::input(i);
     LoadX0Columns::<WireId, SupervisorMode>::witgen(
-        &mut rec, &mut cols_w, w(0), w(1), w(2), w(3), w(4), w(5), w(6), w(7), w(8), w(9), w(10),
-        w(11), w(12), w(13), w(14), w(15), w(16),
+        &mut rec,
+        &mut cols_w,
+        w(0),
+        w(1),
+        w(2),
+        w(3),
+        w(4),
+        w(5),
+        w(6),
+        w(7),
+        w(8),
+        w(9),
+        w(10),
+        w(11),
+        w(12),
+        w(13),
+        w(14),
+        w(15),
+        w(16),
     );
     let program = rec.finish();
     assert!(
@@ -203,7 +218,15 @@ mod tests {
     async fn test_load_x0_generate_trace_device() {
         sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
             let mut rng = StdRng::seed_from_u64(0x1_0F0);
-            let ops = [Opcode::LB, Opcode::LBU, Opcode::LH, Opcode::LHU, Opcode::LW, Opcode::LWU, Opcode::LD];
+            let ops = [
+                Opcode::LB,
+                Opcode::LBU,
+                Opcode::LH,
+                Opcode::LHU,
+                Opcode::LW,
+                Opcode::LWU,
+                Opcode::LD,
+            ];
             let memory_load_x0_events = (0..1200)
                 .map(|i| {
                     let b = rng.gen::<u32>() as u64;

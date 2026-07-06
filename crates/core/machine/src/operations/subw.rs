@@ -140,7 +140,8 @@ mod tests {
             let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
             cols.populate(&mut blu, a, b);
 
-            let value = (std::num::Wrapping(a as i32) - std::num::Wrapping(b as i32)).0 as i64 as u64;
+            let value =
+                (std::num::Wrapping(a as i32) - std::num::Wrapping(b as i32)).0 as i64 as u64;
             let limbs = u64_to_u16_limbs(value);
             assert_eq!(cols.value[0], F::from_canonical_u16(limbs[0]), "value0 ({a:#x},{b:#x})");
             assert_eq!(cols.value[1], F::from_canonical_u16(limbs[1]), "value1 ({a:#x},{b:#x})");

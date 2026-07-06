@@ -19,7 +19,7 @@ impl<T: Copy> U32toU8Operation<T> {
         cols: &mut U32toU8Operation<WB::Field>,
         a: WB::Nat,
     ) {
-        let b0 = wb.bits(a.clone(), 0, 8);
+        let b0 = wb.bits(a, 0, 8);
         let b1 = wb.bits(a, 16, 8);
         cols.low_bytes = [wb.nat_to_field(b0), wb.nat_to_field(b1)];
     }

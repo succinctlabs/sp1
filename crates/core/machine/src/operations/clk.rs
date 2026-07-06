@@ -47,16 +47,16 @@ impl<T: Copy> ClkOperation<T> {
         increment: WB::Nat,
     ) {
         let zero = wb.const_nat(0);
-        let next_clk = wb.wrapping_add(clk.clone(), increment);
-        let n0 = wb.bits(next_clk.clone(), 0, 16);
-        cols.next_clk_0_16 = wb.nat_to_field(n0.clone());
-        let n16 = wb.bits(next_clk.clone(), 16, 8);
-        cols.next_clk_16_24 = wb.nat_to_field(n16.clone());
+        let next_clk = wb.wrapping_add(clk, increment);
+        let n0 = wb.bits(next_clk, 0, 16);
+        cols.next_clk_0_16 = wb.nat_to_field(n0);
+        let n16 = wb.bits(next_clk, 16, 8);
+        cols.next_clk_16_24 = wb.nat_to_field(n16);
         // is_overflow = (next_clk >> 24) != (clk >> 24).
         let next_hi = wb.bits(next_clk, 24, 40);
         let cur_hi = wb.bits(clk, 24, 40);
         let hi_eq = wb.eq(next_hi, cur_hi);
-        let is_overflow = wb.eq(hi_eq, zero.clone());
+        let is_overflow = wb.eq(hi_eq, zero);
         cols.is_overflow = wb.nat_to_field(is_overflow);
 
         wb.add_bit_range_check(n0, 16);

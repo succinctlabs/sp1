@@ -3,10 +3,10 @@ use crate::{
     air::{HostWitnessBuilder, SP1Operation, SP1OperationBuilder, WitnessBuilder},
     operations::{U16toU8OperationUnsafe, U16toU8OperationUnsafeInput},
 };
-use sp1_core_executor::ByteOpcode;
 use serde::{Deserialize, Serialize};
 use slop_air::AirBuilder;
 use slop_algebra::{AbstractField, Field};
+use sp1_core_executor::ByteOpcode;
 use sp1_core_executor::{events::ByteRecord, Opcode};
 use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationBuilder};
 use sp1_hypercube::{air::SP1AirBuilder, Word};
@@ -51,7 +51,14 @@ impl<T> BitwiseU16Operation<T> {
     ) {
         U16toU8Operation::<WB::Field>::witgen_unsafe(wb, &mut cols.b_low_bytes, b);
         U16toU8Operation::<WB::Field>::witgen_unsafe(wb, &mut cols.c_low_bytes, c);
-        BitwiseOperation::<WB::Field>::witgen(wb, &mut cols.bitwise_operation, a, b, c, byte_opcode);
+        BitwiseOperation::<WB::Field>::witgen(
+            wb,
+            &mut cols.bitwise_operation,
+            a,
+            b,
+            c,
+            byte_opcode,
+        );
     }
 }
 

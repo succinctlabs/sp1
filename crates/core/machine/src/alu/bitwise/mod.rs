@@ -101,7 +101,14 @@ impl<T, M: TrustMode> BitwiseCols<T, M> {
         c_prev_ts: WB::Nat,
         c_cur_ts: WB::Nat,
     ) {
-        BitwiseU16Operation::<WB::Field>::witgen(wb, &mut cols.bitwise_operation, a, b, c, byte_opcode);
+        BitwiseU16Operation::<WB::Field>::witgen(
+            wb,
+            &mut cols.bitwise_operation,
+            a,
+            b,
+            c,
+            byte_opcode,
+        );
         // Selectors from the byte opcode (AND=0, OR=1, XOR=2).
         let zero = wb.const_nat(0);
         let one = wb.const_nat(1);

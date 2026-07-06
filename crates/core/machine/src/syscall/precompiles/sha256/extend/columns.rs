@@ -166,48 +166,28 @@ impl<T: Copy> ShaExtendCols<T> {
 
         // s0 = (w15 >>> 7) ^ (w15 >>> 18) ^ (w15 >> 3).
         let w15 = wb.bits(w15_value, 0, 32);
-        let rr7 = FixedRotateRightOperation::<WB::Field>::witgen(
-            wb,
-            &mut cols.w_i_minus_15_rr_7,
-            w15,
-            7,
-        );
+        let rr7 =
+            FixedRotateRightOperation::<WB::Field>::witgen(wb, &mut cols.w_i_minus_15_rr_7, w15, 7);
         let rr18 = FixedRotateRightOperation::<WB::Field>::witgen(
             wb,
             &mut cols.w_i_minus_15_rr_18,
             w15,
             18,
         );
-        let rs3 = FixedShiftRightOperation::<WB::Field>::witgen(
-            wb,
-            &mut cols.w_i_minus_15_rs_3,
-            w15,
-            3,
-        );
+        let rs3 =
+            FixedShiftRightOperation::<WB::Field>::witgen(wb, &mut cols.w_i_minus_15_rs_3, w15, 3);
         let s0_int =
             XorU32Operation::<WB::Field>::witgen_xor_u32(wb, &mut cols.s0_intermediate, rr7, rr18);
         let s0 = XorU32Operation::<WB::Field>::witgen_xor_u32(wb, &mut cols.s0, s0_int, rs3);
 
         // s1 = (w2 >>> 17) ^ (w2 >>> 19) ^ (w2 >> 10).
         let w2 = wb.bits(w2_value, 0, 32);
-        let rr17 = FixedRotateRightOperation::<WB::Field>::witgen(
-            wb,
-            &mut cols.w_i_minus_2_rr_17,
-            w2,
-            17,
-        );
-        let rr19 = FixedRotateRightOperation::<WB::Field>::witgen(
-            wb,
-            &mut cols.w_i_minus_2_rr_19,
-            w2,
-            19,
-        );
-        let rs10 = FixedShiftRightOperation::<WB::Field>::witgen(
-            wb,
-            &mut cols.w_i_minus_2_rs_10,
-            w2,
-            10,
-        );
+        let rr17 =
+            FixedRotateRightOperation::<WB::Field>::witgen(wb, &mut cols.w_i_minus_2_rr_17, w2, 17);
+        let rr19 =
+            FixedRotateRightOperation::<WB::Field>::witgen(wb, &mut cols.w_i_minus_2_rr_19, w2, 19);
+        let rs10 =
+            FixedShiftRightOperation::<WB::Field>::witgen(wb, &mut cols.w_i_minus_2_rs_10, w2, 10);
         let s1_int =
             XorU32Operation::<WB::Field>::witgen_xor_u32(wb, &mut cols.s1_intermediate, rr17, rr19);
         let s1 = XorU32Operation::<WB::Field>::witgen_xor_u32(wb, &mut cols.s1, s1_int, rs10);

@@ -50,8 +50,21 @@ fn record_addi_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
     let mut cols_w = AddiCols::<WireId, SupervisorMode>::default();
     let w = |i: u32| RecordingWitnessBuilder::input(i);
     AddiCols::<WireId, SupervisorMode>::witgen(
-        &mut rec, &mut cols_w, w(0), w(1), w(2), w(3), w(4), w(5), w(6), w(7), w(8), w(9), w(10),
-        w(11), w(12),
+        &mut rec,
+        &mut cols_w,
+        w(0),
+        w(1),
+        w(2),
+        w(3),
+        w(4),
+        w(5),
+        w(6),
+        w(7),
+        w(8),
+        w(9),
+        w(10),
+        w(11),
+        w(12),
     );
     let program = rec.finish();
     assert!(

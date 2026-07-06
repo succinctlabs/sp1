@@ -23,29 +23,31 @@ const NUM_STORE_DOUBLE_INPUTS: usize = 16;
 
 pub(crate) fn pack_store_double_inputs(events: &[(MemInstrEvent, ITypeRecord)]) -> Vec<u64> {
     let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_STORE_DOUBLE_INPUTS];
-    inputs.par_chunks_mut(NUM_STORE_DOUBLE_INPUTS).zip(events.par_iter()).for_each(|(slot, (ev, r))| {
-        let a = r.a;
-        let b = r.b;
-        let m = ev.mem_access;
-        slot.copy_from_slice(&[
-            ev.clk,
-            ev.pc,
-            r.op_a as u64,
-            a.previous_record().value,
-            a.previous_record().timestamp,
-            a.current_record().timestamp,
-            r.op_b,
-            b.previous_record().value,
-            b.previous_record().timestamp,
-            b.current_record().timestamp,
-            r.op_c,
-            ev.b,
-            ev.c,
-            m.previous_record().value,
-            m.previous_record().timestamp,
-            m.current_record().timestamp,
-        ]);
-    });
+    inputs.par_chunks_mut(NUM_STORE_DOUBLE_INPUTS).zip(events.par_iter()).for_each(
+        |(slot, (ev, r))| {
+            let a = r.a;
+            let b = r.b;
+            let m = ev.mem_access;
+            slot.copy_from_slice(&[
+                ev.clk,
+                ev.pc,
+                r.op_a as u64,
+                a.previous_record().value,
+                a.previous_record().timestamp,
+                a.current_record().timestamp,
+                r.op_b,
+                b.previous_record().value,
+                b.previous_record().timestamp,
+                b.current_record().timestamp,
+                r.op_c,
+                ev.b,
+                ev.c,
+                m.previous_record().value,
+                m.previous_record().timestamp,
+                m.current_record().timestamp,
+            ]);
+        },
+    );
     inputs
 }
 
@@ -54,8 +56,24 @@ fn record_store_double_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>
     let mut cols_w = StoreDoubleColumns::<WireId, SupervisorMode>::default();
     let w = |i: u32| RecordingWitnessBuilder::input(i);
     StoreDoubleColumns::<WireId, SupervisorMode>::witgen(
-        &mut rec, &mut cols_w, w(0), w(1), w(2), w(3), w(4), w(5), w(6), w(7), w(8), w(9), w(10),
-        w(11), w(12), w(13), w(14), w(15),
+        &mut rec,
+        &mut cols_w,
+        w(0),
+        w(1),
+        w(2),
+        w(3),
+        w(4),
+        w(5),
+        w(6),
+        w(7),
+        w(8),
+        w(9),
+        w(10),
+        w(11),
+        w(12),
+        w(13),
+        w(14),
+        w(15),
     );
     let program = rec.finish();
     assert!(

@@ -55,8 +55,24 @@ fn record_subw_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
     let mut cols_w = SubwCols::<WireId, SupervisorMode>::default();
     let wire = |i: u32| RecordingWitnessBuilder::input(i);
     SubwCols::<WireId, SupervisorMode>::witgen(
-        &mut rec, &mut cols_w, wire(0), wire(1), wire(2), wire(3), wire(4), wire(5), wire(6),
-        wire(7), wire(8), wire(9), wire(10), wire(11), wire(12), wire(13), wire(14), wire(15),
+        &mut rec,
+        &mut cols_w,
+        wire(0),
+        wire(1),
+        wire(2),
+        wire(3),
+        wire(4),
+        wire(5),
+        wire(6),
+        wire(7),
+        wire(8),
+        wire(9),
+        wire(10),
+        wire(11),
+        wire(12),
+        wire(13),
+        wire(14),
+        wire(15),
     );
     let program = rec.finish();
     assert!(

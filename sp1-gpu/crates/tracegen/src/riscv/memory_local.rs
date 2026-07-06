@@ -24,17 +24,15 @@ const NUM_MEMORY_LOCAL_INPUTS: usize = 5;
 
 pub(crate) fn pack_memory_local_inputs(events: &[&MemoryLocalEvent]) -> Vec<u64> {
     let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_MEMORY_LOCAL_INPUTS];
-    inputs.par_chunks_mut(NUM_MEMORY_LOCAL_INPUTS).zip(events.par_iter()).for_each(
-        |(slot, e)| {
-            slot.copy_from_slice(&[
-                e.addr,
-                e.initial_mem_access.timestamp,
-                e.initial_mem_access.value,
-                e.final_mem_access.timestamp,
-                e.final_mem_access.value,
-            ]);
-        },
-    );
+    inputs.par_chunks_mut(NUM_MEMORY_LOCAL_INPUTS).zip(events.par_iter()).for_each(|(slot, e)| {
+        slot.copy_from_slice(&[
+            e.addr,
+            e.initial_mem_access.timestamp,
+            e.initial_mem_access.value,
+            e.final_mem_access.timestamp,
+            e.final_mem_access.value,
+        ]);
+    });
     inputs
 }
 

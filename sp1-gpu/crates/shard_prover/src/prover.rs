@@ -162,7 +162,6 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
     fn machine(&self) -> &Machine<GC::F, PC::Air> {
         &self.machine
     }
-
 }
 
 impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>

@@ -156,8 +156,12 @@ impl<T, M: TrustMode> SyscallInstrColumns<T, M> {
         IsZeroOperation::<WB::Field>::witgen_nat_diff(wb, &mut cols.is_hint_len, sid, hint_code);
         IsZeroOperation::<WB::Field>::witgen_nat_diff(wb, &mut cols.is_halt_check, sid, halt_code);
         let commit_code = wb.const_nat(SyscallCode::COMMIT.syscall_id() as u64);
-        let is_commit =
-            IsZeroOperation::<WB::Field>::witgen_nat_diff(wb, &mut cols.is_commit, sid, commit_code);
+        let is_commit = IsZeroOperation::<WB::Field>::witgen_nat_diff(
+            wb,
+            &mut cols.is_commit,
+            sid,
+            commit_code,
+        );
         let cdp_code = wb.const_nat(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id() as u64);
         let is_cdp = IsZeroOperation::<WB::Field>::witgen_nat_diff(
             wb,
@@ -198,12 +202,7 @@ impl<T, M: TrustMode> SyscallInstrColumns<T, M> {
             arg1,
             is_halt,
         );
-        SP1FieldWordRangeChecker::<WB::Field>::witgen(
-            wb,
-            &mut cols.op_c_range_check,
-            arg2,
-            is_cdp,
-        );
+        SP1FieldWordRangeChecker::<WB::Field>::witgen(wb, &mut cols.op_c_range_check, arg2, is_cdp);
 
         CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
         RTypeReader::<WB::Field>::witgen(

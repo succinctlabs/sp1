@@ -33,11 +33,8 @@ pub(crate) fn pack_sha_extend_control_inputs(input: &ExecutionRecord) -> Vec<u64
     let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_SHA_EXTEND_CONTROL_INPUTS];
     inputs.par_chunks_mut(NUM_SHA_EXTEND_CONTROL_INPUTS).zip(events.par_iter()).for_each(
         |(slot, (_, event))| {
-            let event = if let PrecompileEvent::ShaExtend(event) = event {
-                event
-            } else {
-                unreachable!()
-            };
+            let event =
+                if let PrecompileEvent::ShaExtend(event) = event { event } else { unreachable!() };
             slot[0] = event.clk;
             slot[1] = event.w_ptr;
         },
@@ -97,8 +94,7 @@ impl CudaTracegenAir<F> for ShaExtendControlChip<SupervisorMode> {
         let height = <Self as MachineAir<F>>::num_rows(self, input)
             .expect("num_rows(...) should be Some(_)");
         let inputs = pack_sha_extend_control_inputs(input);
-        let n_events =
-            if height == 0 { 0 } else { inputs.len() / NUM_SHA_EXTEND_CONTROL_INPUTS };
+        let n_events = if height == 0 { 0 } else { inputs.len() / NUM_SHA_EXTEND_CONTROL_INPUTS };
         let trace = Tensor::<F, TaskScope>::zeros_in([n_cols, height], scope.clone());
         super::generate_columns_slots_into(
             &program, &col_wires, &inputs, n_events, height, trace, scope,
@@ -140,8 +136,7 @@ impl CudaTracegenAir<F> for ShaExtendControlChip<SupervisorMode> {
         let height = <Self as MachineAir<F>>::num_rows(self, input)
             .expect("num_rows(...) should be Some(_)");
         let inputs = pack_sha_extend_control_inputs(input);
-        let n_events =
-            if height == 0 { 0 } else { inputs.len() / NUM_SHA_EXTEND_CONTROL_INPUTS };
+        let n_events = if height == 0 { 0 } else { inputs.len() / NUM_SHA_EXTEND_CONTROL_INPUTS };
         if n_events == 0 {
             return Ok(());
         }
@@ -220,8 +215,7 @@ mod tests {
     fn sha_extend_control_columns_match_host() {
         let shard = synth_shard(45, 0x5EC01);
         let chip = ShaExtendControlChip::<SupervisorMode>::new();
-        let trace =
-            MachineAir::<F>::generate_trace(&chip, &shard, &mut ExecutionRecord::default());
+        let trace = MachineAir::<F>::generate_trace(&chip, &shard, &mut ExecutionRecord::default());
         let width = num_sha_extend_control_cols_supervisor();
 
         let (program, col_wires) = super::record_sha_extend_control_program();
@@ -252,7 +246,12 @@ mod tests {
                 "column mismatch at row {row}"
             );
             let flat: Vec<F> = interpret_c_slots_columns(
-                &ops_slots, ni as u32, row_in, input_slots, &col_slots, max_slots,
+                &ops_slots,
+                ni as u32,
+                row_in,
+                input_slots,
+                &col_slots,
+                max_slots,
             );
             assert_eq!(cols, flat, "pinned-slot column mismatch at row {row}");
         }

@@ -221,10 +221,10 @@ impl<T: Copy> ShaCompressCols<T> {
         let idx_f = wb.wrapping_sub(index, seventy_two);
         let off_fin = wb.shl(idx_f, three);
         let addr_gadget = |wb: &mut WB,
-                               gcols: &mut AddrAddOperation<T>,
-                               phase: WB::Nat,
-                               ptr: WB::Nat,
-                               off: WB::Nat| {
+                           gcols: &mut AddrAddOperation<T>,
+                           phase: WB::Nat,
+                           ptr: WB::Nat,
+                           off: WB::Nat| {
             let p = wb.select(phase, ptr, zero);
             let o = wb.select(phase, off, zero);
             wb.push_guard(phase);

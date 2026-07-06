@@ -21,8 +21,9 @@ use sp1_core_executor::{
 };
 use sp1_core_machine::{
     air::{columns_as_wires, RecordingWitnessBuilder, WireId, WitnessBuilder},
-    syscall::precompiles::sha256::{ShaCompressChip, ShaCompressCols, NUM_SHA_COMPRESS_COLS,
-        SHA_COMPRESS_K},
+    syscall::precompiles::sha256::{
+        ShaCompressChip, ShaCompressCols, NUM_SHA_COMPRESS_COLS, SHA_COMPRESS_K,
+    },
 };
 use sp1_gpu_cudart::{DeviceBuffer, DeviceMle, TaskScope};
 use sp1_hypercube::air::MachineAir;
@@ -37,21 +38,11 @@ fn round(h_array: &mut [u32; 8], w_j: u32, k_j: u32) {
     let [a, b, c, d, e, f, g, h] = *h_array;
     let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
     let ch = (e & f) ^ ((!e) & g);
-    let temp1 =
-        h.wrapping_add(s1).wrapping_add(ch).wrapping_add(w_j).wrapping_add(k_j);
+    let temp1 = h.wrapping_add(s1).wrapping_add(ch).wrapping_add(w_j).wrapping_add(k_j);
     let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
     let maj = (a & b) ^ (a & c) ^ (b & c);
     let temp2 = s0.wrapping_add(maj);
-    *h_array = [
-        temp1.wrapping_add(temp2),
-        a,
-        b,
-        c,
-        d.wrapping_add(temp1),
-        e,
-        f,
-        g,
-    ];
+    *h_array = [temp1.wrapping_add(temp2), a, b, c, d.wrapping_add(temp1), e, f, g];
 }
 
 /// Pack 80 input rows per event, replaying the compression host-side.
@@ -76,16 +67,16 @@ pub(crate) fn pack_sha_compress_inputs(
                 return;
             }
             let pack_row = |slot: &mut [u64],
-                                index: u64,
-                                k: u32,
-                                mem_prev_value: u64,
-                                mem_prev_ts: u64,
-                                mem_ts: u64,
-                                mem_value: u32,
-                                hs: &[u32; 8],
-                                w_j: u32,
-                                og: u32,
-                                fin: u32| {
+                            index: u64,
+                            k: u32,
+                            mem_prev_value: u64,
+                            mem_prev_ts: u64,
+                            mem_ts: u64,
+                            mem_value: u32,
+                            hs: &[u32; 8],
+                            w_j: u32,
+                            og: u32,
+                            fin: u32| {
                 slot.copy_from_slice(&[
                     event.clk,
                     event.w_ptr,
@@ -111,8 +102,7 @@ pub(crate) fn pack_sha_compress_inputs(
                 ]);
             };
             // Init: a..h are the 8 h-words being read.
-            let init_h: [u32; 8] =
-                core::array::from_fn(|i| event.h_read_records[i].value as u32);
+            let init_h: [u32; 8] = core::array::from_fn(|i| event.h_read_records[i].value as u32);
             for j in 0..8usize {
                 let r = &event.h_read_records[j];
                 pack_row(
@@ -197,8 +187,29 @@ pub(crate) fn record_sha_compress_program() -> (sp1_core_machine::air::WitProgra
     let is_real = w(20);
     rec.push_guard(is_real);
     ShaCompressCols::<WireId>::witgen(
-        &mut rec, &mut cols_w, w(0), w(1), w(2), w(3), w(4), w(5), w(6), w(7), w(8), w(9), w(10),
-        w(11), w(12), w(13), w(14), w(15), w(16), w(17), w(18), w(19), is_real,
+        &mut rec,
+        &mut cols_w,
+        w(0),
+        w(1),
+        w(2),
+        w(3),
+        w(4),
+        w(5),
+        w(6),
+        w(7),
+        w(8),
+        w(9),
+        w(10),
+        w(11),
+        w(12),
+        w(13),
+        w(14),
+        w(15),
+        w(16),
+        w(17),
+        w(18),
+        w(19),
+        is_real,
     );
     rec.pop_guard();
     // Mask every column by is_real EXCEPT octet/octet_num/index/k, which trapped
@@ -222,13 +233,7 @@ pub(crate) fn record_sha_compress_program() -> (sp1_core_machine::air::WitProgra
         .to_vec()
         .into_iter()
         .enumerate()
-        .map(|(i, cw)| {
-            if exempt[i] {
-                cw.0
-            } else {
-                rec.field_select(is_real, cw, zero_f).0
-            }
-        })
+        .map(|(i, cw)| if exempt[i] { cw.0 } else { rec.field_select(is_real, cw, zero_f).0 })
         .collect();
     let program = rec.finish();
     (program, col_wires)
@@ -246,10 +251,7 @@ fn padding_row(row: usize, cols: &mut ShaCompressCols<F>) {
     cols.index = F::from_canonical_u32(cycle as u32);
     if octet_num != 0 && octet_num != 9 {
         let k = SHA_COMPRESS_K[(octet_num - 1) * 8 + octet];
-        cols.k = [
-            F::from_canonical_u32(k & 0xFFFF),
-            F::from_canonical_u32(k >> 16),
-        ];
+        cols.k = [F::from_canonical_u32(k & 0xFFFF), F::from_canonical_u32(k >> 16)];
     }
 }
 
@@ -418,15 +420,14 @@ mod tests {
             for j in 0..64 {
                 super::round(&mut h_array, w[j], SHA_COMPRESS_K[j]);
             }
-            let h_write_records: [MemoryWriteRecord; 8] = core::array::from_fn(|j| {
-                MemoryWriteRecord {
+            let h_write_records: [MemoryWriteRecord; 8] =
+                core::array::from_fn(|j| MemoryWriteRecord {
                     prev_timestamp: clk - 1,
                     prev_page_prot_record: None,
                     prev_value: h_read_records[j].value,
                     timestamp: clk + 100 + j as u64,
                     value: h[j].wrapping_add(h_array[j]) as u64,
-                }
-            });
+                });
             let event = ShaCompressEvent {
                 clk,
                 w_ptr,
@@ -498,7 +499,12 @@ mod tests {
                 row % 80
             );
             let flat: Vec<F> = interpret_c_slots_columns(
-                &ops_slots, ni as u32, row_in, input_slots, &col_slots, max_slots,
+                &ops_slots,
+                ni as u32,
+                row_in,
+                input_slots,
+                &col_slots,
+                max_slots,
             );
             assert_eq!(cols, flat, "slot-flat column mismatch at row {row}");
         }

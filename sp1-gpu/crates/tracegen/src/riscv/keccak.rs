@@ -284,35 +284,32 @@ pub(crate) fn pack_keccak_inputs(
 ) -> Vec<u64> {
     let dummy_states = keccak_round_states(&[0u64; 25]);
     let mut inputs = vec![0u64; n_rows * NUM_KECCAK_INPUTS];
-    inputs
-        .par_chunks_mut(NUM_ROUNDS * NUM_KECCAK_INPUTS)
-        .enumerate()
-        .for_each(|(e, chunk)| {
-            let real = events.get(e).filter(|(trap, _)| trap.is_none()).map(|(_, ev)| ev);
-            let states = real.map(|ev| keccak_round_states(&ev.pre_state));
-            for (i, row) in chunk.chunks_mut(NUM_KECCAK_INPUTS).enumerate() {
-                match (real, &states) {
-                    (Some(ev), Some(states)) => {
-                        row[..25].copy_from_slice(&ev.pre_state);
-                        row[25..50].copy_from_slice(&states[i]);
-                        row[IN_ROUND as usize] = i as u64;
-                        row[IN_INDEX as usize] = i as u64;
-                        row[IN_RC as usize] = RC[i];
-                        row[IN_CLK as usize] = ev.clk;
-                        row[IN_ADDR as usize] = ev.state_addr;
-                        row[IN_IS_REAL as usize] = 1;
-                    }
-                    _ => {
-                        // Dummy row: zero preimage, zero-state round inputs, and
-                        // zero clk/addr/index/is_real — only round + rc are live.
-                        row[..25].fill(0);
-                        row[25..50].copy_from_slice(&dummy_states[i]);
-                        row[IN_ROUND as usize] = i as u64;
-                        row[IN_RC as usize] = RC[i];
-                    }
+    inputs.par_chunks_mut(NUM_ROUNDS * NUM_KECCAK_INPUTS).enumerate().for_each(|(e, chunk)| {
+        let real = events.get(e).filter(|(trap, _)| trap.is_none()).map(|(_, ev)| ev);
+        let states = real.map(|ev| keccak_round_states(&ev.pre_state));
+        for (i, row) in chunk.chunks_mut(NUM_KECCAK_INPUTS).enumerate() {
+            match (real, &states) {
+                (Some(ev), Some(states)) => {
+                    row[..25].copy_from_slice(&ev.pre_state);
+                    row[25..50].copy_from_slice(&states[i]);
+                    row[IN_ROUND as usize] = i as u64;
+                    row[IN_INDEX as usize] = i as u64;
+                    row[IN_RC as usize] = RC[i];
+                    row[IN_CLK as usize] = ev.clk;
+                    row[IN_ADDR as usize] = ev.state_addr;
+                    row[IN_IS_REAL as usize] = 1;
+                }
+                _ => {
+                    // Dummy row: zero preimage, zero-state round inputs, and
+                    // zero clk/addr/index/is_real — only round + rc are live.
+                    row[..25].fill(0);
+                    row[25..50].copy_from_slice(&dummy_states[i]);
+                    row[IN_ROUND as usize] = i as u64;
+                    row[IN_RC as usize] = RC[i];
                 }
             }
-        });
+        }
+    });
     inputs
 }
 
@@ -333,7 +330,6 @@ pub(crate) fn collect_events(
         })
         .collect()
 }
-
 
 use slop_alloc::mem::CopyError;
 use slop_tensor::Tensor;
@@ -410,8 +406,7 @@ mod tests {
         ExecutionRecord, SyscallCode, TrapError,
     };
     use sp1_core_machine::air::{
-        interpret_c_columns, interpret_c_slots_columns, interpret_c_slots_streaming_columns,
-        WitOp,
+        interpret_c_columns, interpret_c_slots_columns, interpret_c_slots_streaming_columns, WitOp,
     };
     use sp1_core_machine::syscall::precompiles::keccak256::{
         columns::NUM_KECCAK_MEM_COLS, KeccakPermuteChip,
@@ -517,7 +512,12 @@ mod tests {
                 "column mismatch at row {row}"
             );
             let flat: Vec<F> = interpret_c_slots_columns(
-                &ops_slots, ni as u32, row_in, input_slots, &col_slots, max_slots,
+                &ops_slots,
+                ni as u32,
+                row_in,
+                input_slots,
+                &col_slots,
+                max_slots,
             );
             assert_eq!(cols, flat, "pinned-slot column mismatch at row {row}");
             let streamed: Vec<F> = interpret_c_slots_streaming_columns(

@@ -48,13 +48,15 @@ fn collect_events(input: &ExecutionRecord) -> Vec<&KeccakPermuteEvent> {
     input
         .get_precompile_events(SyscallCode::KECCAK_PERMUTE)
         .iter()
-        .map(|(_, event)| {
-            if let PrecompileEvent::KeccakPermute(event) = event {
-                event
-            } else {
-                unreachable!()
-            }
-        })
+        .map(
+            |(_, event)| {
+                if let PrecompileEvent::KeccakPermute(event) = event {
+                    event
+                } else {
+                    unreachable!()
+                }
+            },
+        )
         .collect()
 }
 
@@ -89,8 +91,7 @@ fn record_keccak_control_program() -> (WitProgram, Vec<u32>) {
     // newtype; SupervisorMode's SliceProtCols are empty); the zeroed pattern is a
     // valid WireId(0) placeholder and every field is assigned below (the
     // column-equality tests would catch a missed one).
-    let mut cols: KeccakPermuteControlCols<WireId, SupervisorMode> =
-        unsafe { core::mem::zeroed() };
+    let mut cols: KeccakPermuteControlCols<WireId, SupervisorMode> = unsafe { core::mem::zeroed() };
     let w = RecordingWitnessBuilder::input;
 
     let clk = w(IN_CLK);
@@ -205,16 +206,23 @@ impl CudaTracegenAir<F> for KeccakPermuteControlChip<SupervisorMode> {
         let height = <Self as MachineAir<F>>::num_rows(self, input)
             .expect("num_rows(...) should be Some(_)");
         let inputs = pack_keccak_control_inputs(input);
-        let n_events =
-            if height == 0 { 0 } else { inputs.len() / NUM_KECCAK_CONTROL_INPUTS };
+        let n_events = if height == 0 { 0 } else { inputs.len() / NUM_KECCAK_CONTROL_INPUTS };
         if n_events == 0 {
             return Ok(());
         }
         let (program, _col_wires) = record_keccak_control_program();
         // Lookup-only pass: allocate slots WITHOUT pinning the column wires (the
         // 634-column pinned footprint doesn't fit; transients-only does).
-        super::accumulate_lookups_slots(&program, &[], &inputs, n_events, range_dev, byte_dev, scope)
-            .await
+        super::accumulate_lookups_slots(
+            &program,
+            &[],
+            &inputs,
+            n_events,
+            range_dev,
+            byte_dev,
+            scope,
+        )
+        .await
     }
 }
 
@@ -309,8 +317,7 @@ mod tests {
     fn keccak_control_columns_match_host() {
         let shard = synth_shard(37, 0x4ECC01);
         let chip = KeccakPermuteControlChip::<SupervisorMode>::default();
-        let trace =
-            MachineAir::<F>::generate_trace(&chip, &shard, &mut ExecutionRecord::default());
+        let trace = MachineAir::<F>::generate_trace(&chip, &shard, &mut ExecutionRecord::default());
         let width = num_keccak_permute_control_cols_supervisor();
 
         let (program, col_wires) = super::record_keccak_control_program();
@@ -342,7 +349,13 @@ mod tests {
                 "column mismatch at row {row}"
             );
             let streamed: Vec<F> = interpret_c_slots_streaming_columns(
-                &ops_stream, ni as u32, row_in, s_input_slots, &input_cols, &epi_slots, width,
+                &ops_stream,
+                ni as u32,
+                row_in,
+                s_input_slots,
+                &input_cols,
+                &epi_slots,
+                width,
                 s_max,
             );
             assert_eq!(cols, streamed, "streaming column mismatch at row {row}");

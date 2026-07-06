@@ -37,16 +37,8 @@ impl<T: Copy> XorU32Operation<T> {
     ) -> WB::Nat {
         use sp1_core_executor::ByteOpcode;
         let expected = wb.xor(b, c);
-        super::U32toU8Operation::<WB::Field>::witgen_u32_to_u8_unsafe(
-            wb,
-            &mut cols.b_low_bytes,
-            b,
-        );
-        super::U32toU8Operation::<WB::Field>::witgen_u32_to_u8_unsafe(
-            wb,
-            &mut cols.c_low_bytes,
-            c,
-        );
+        super::U32toU8Operation::<WB::Field>::witgen_u32_to_u8_unsafe(wb, &mut cols.b_low_bytes, b);
+        super::U32toU8Operation::<WB::Field>::witgen_u32_to_u8_unsafe(wb, &mut cols.c_low_bytes, c);
         let opcode = wb.const_nat(ByteOpcode::XOR as u64);
         for i in 0..4u32 {
             let b_byte = wb.bits(b, 8 * i, 8);

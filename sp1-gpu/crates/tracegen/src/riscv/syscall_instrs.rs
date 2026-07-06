@@ -66,8 +66,27 @@ fn record_syscall_instr_program() -> (sp1_core_machine::air::WitProgram, Vec<u32
     let mut cols_w = SyscallInstrColumns::<WireId, SupervisorMode>::default();
     let w = |i: u32| RecordingWitnessBuilder::input(i);
     SyscallInstrColumns::<WireId, SupervisorMode>::witgen(
-        &mut rec, &mut cols_w, w(0), w(1), w(2), w(3), w(4), w(5), w(6), w(7), w(8), w(9), w(10),
-        w(11), w(12), w(13), w(14), w(15), w(16), w(17), w(18),
+        &mut rec,
+        &mut cols_w,
+        w(0),
+        w(1),
+        w(2),
+        w(3),
+        w(4),
+        w(5),
+        w(6),
+        w(7),
+        w(8),
+        w(9),
+        w(10),
+        w(11),
+        w(12),
+        w(13),
+        w(14),
+        w(15),
+        w(16),
+        w(17),
+        w(18),
     );
     let program = rec.finish();
     let col_wires: Vec<u32> = columns_as_wires(&cols_w).iter().map(|w| w.0).collect();
@@ -225,12 +244,9 @@ mod tests {
                 });
                 // COMMIT/COMMIT_DEFERRED_PROOFS read the digest word index from
                 // op_b (must be < 8) and the digest word from op_c.
-                let is_commit_kind = matches!(
-                    code,
-                    SyscallCode::COMMIT | SyscallCode::COMMIT_DEFERRED_PROOFS
-                );
-                let b_val =
-                    if is_commit_kind { (i as u64) % 8 } else { rng.gen::<u64>() };
+                let is_commit_kind =
+                    matches!(code, SyscallCode::COMMIT | SyscallCode::COMMIT_DEFERRED_PROOFS);
+                let b_val = if is_commit_kind { (i as u64) % 8 } else { rng.gen::<u64>() };
                 let c_val = rng.gen::<u32>() as u64;
                 let event = SyscallEvent {
                     pc: (i as u64) * 4 + 4,
@@ -268,8 +284,7 @@ mod tests {
         let events = synth_events(140, 0x5CA11);
         let shard = ExecutionRecord { syscall_events: events.clone(), ..Default::default() };
         let chip = SyscallInstrsChip::<SupervisorMode>::default();
-        let trace =
-            MachineAir::<F>::generate_trace(&chip, &shard, &mut ExecutionRecord::default());
+        let trace = MachineAir::<F>::generate_trace(&chip, &shard, &mut ExecutionRecord::default());
         let width = NUM_SYSCALL_INSTR_COLS_SUPERVISOR;
 
         let (program, col_wires) = super::record_syscall_instr_program();
@@ -304,11 +319,22 @@ mod tests {
                 "column mismatch at row {row}"
             );
             let flat: Vec<F> = interpret_c_slots_columns(
-                &ops_slots, ni as u32, row_in, input_slots, &col_slots, max_slots,
+                &ops_slots,
+                ni as u32,
+                row_in,
+                input_slots,
+                &col_slots,
+                max_slots,
             );
             assert_eq!(cols, flat, "pinned-slot column mismatch at row {row}");
             let streamed: Vec<F> = interpret_c_slots_streaming_columns(
-                &ops_stream, ni as u32, row_in, s_input_slots, &input_cols, &epi_slots, width,
+                &ops_stream,
+                ni as u32,
+                row_in,
+                s_input_slots,
+                &input_cols,
+                &epi_slots,
+                width,
                 s_max,
             );
             assert_eq!(cols, streamed, "streaming column mismatch at row {row}");

@@ -56,8 +56,24 @@ fn record_ld_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
     let mut cols_w = LoadDoubleColumns::<WireId, SupervisorMode>::default();
     let w = |i: u32| RecordingWitnessBuilder::input(i);
     LoadDoubleColumns::<WireId, SupervisorMode>::witgen(
-        &mut rec, &mut cols_w, w(0), w(1), w(2), w(3), w(4), w(5), w(6), w(7), w(8), w(9), w(10),
-        w(11), w(12), w(13), w(14), w(15),
+        &mut rec,
+        &mut cols_w,
+        w(0),
+        w(1),
+        w(2),
+        w(3),
+        w(4),
+        w(5),
+        w(6),
+        w(7),
+        w(8),
+        w(9),
+        w(10),
+        w(11),
+        w(12),
+        w(13),
+        w(14),
+        w(15),
     );
     let program = rec.finish();
     assert!(
@@ -178,9 +194,7 @@ impl CudaTracegenAir<F> for LoadDoubleChip<SupervisorMode> {
 mod tests {
     use rand::{rngs::StdRng, Rng, SeedableRng};
     use slop_tensor::Tensor;
-    use sp1_core_executor::events::{
-        MemInstrEvent, MemoryReadRecord, MemoryRecordEnum,
-    };
+    use sp1_core_executor::events::{MemInstrEvent, MemoryReadRecord, MemoryRecordEnum};
     use sp1_core_executor::{ExecutionRecord, ITypeRecord, Opcode};
     use sp1_core_machine::memory::instructions::load::load_double::LoadDoubleChip;
     use sp1_core_machine::SupervisorMode;

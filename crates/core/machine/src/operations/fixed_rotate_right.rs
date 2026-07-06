@@ -45,29 +45,28 @@ impl<T: Copy> FixedRotateRightOperation<T> {
         assert!(nb_bits_to_rotate > 0, "rotation must not be a multiple of 16");
         // expected = input.rotate_right(rotation) over u32.
         let r = (rotation % 32) as u32;
-        let low = wb.bits(input.clone(), r, 32 - r);
-        let high = wb.bits(input.clone(), 0, r);
+        let low = wb.bits(input, r, 32 - r);
+        let high = wb.bits(input, 0, r);
         let shift = wb.const_nat((32 - r) as u64);
         let high_shifted = wb.shl(high, shift);
         let expected = wb.wrapping_add(low, high_shifted);
-        let e0 = wb.bits(expected.clone(), 0, 16);
-        let e1 = wb.bits(expected.clone(), 16, 16);
+        let e0 = wb.bits(expected, 0, 16);
+        let e1 = wb.bits(expected, 16, 16);
         cols.value = [wb.nat_to_field(e0), wb.nat_to_field(e1)];
         // Limb rotate, then per-limb bit split (mirrors `populate`).
-        let l0 = wb.bits(input.clone(), 0, 16);
+        let l0 = wb.bits(input, 0, 16);
         let l1 = wb.bits(input, 16, 16);
-        let rotated = if nb_limbs_to_rotate % 2 == 0 { [l0, l1] } else { [l1, l0] };
+        let rotated = if nb_limbs_to_rotate.is_multiple_of(2) { [l0, l1] } else { [l1, l0] };
         for i in [1usize, 0] {
-            let limb = rotated[i].clone();
-            let lower = wb.bits(limb.clone(), 0, nb_bits_to_rotate as u32);
+            let limb = rotated[i];
+            let lower = wb.bits(limb, 0, nb_bits_to_rotate as u32);
             let higher = wb.bits(limb, nb_bits_to_rotate as u32, (16 - nb_bits_to_rotate) as u32);
-            cols.higher_limb[i] = wb.nat_to_field(higher.clone());
+            cols.higher_limb[i] = wb.nat_to_field(higher);
             wb.add_bit_range_check(lower, nb_bits_to_rotate as u8);
             wb.add_bit_range_check(higher, (16 - nb_bits_to_rotate) as u8);
         }
         expected
     }
-
 }
 
 impl<F: Field> FixedRotateRightOperation<F> {

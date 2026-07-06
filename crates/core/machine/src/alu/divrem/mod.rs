@@ -435,11 +435,8 @@ impl<T, M: TrustMode> DivRemCols<T, M> {
         let sh16 = wb.const_nat(16);
         let mut carry_prev = zero;
         for i in 0..LONG_WORD_SIZE {
-            let rem_i = if i < WORD_SIZE {
-                wb.bits(remainder_comp, (i as u32) * 16, 16)
-            } else {
-                rem_hi
-            };
+            let rem_i =
+                if i < WORD_SIZE { wb.bits(remainder_comp, (i as u32) * 16, 16) } else { rem_hi };
             let mut x = wb.wrapping_add(ctq[i], rem_i);
             if i > 0 {
                 x = wb.wrapping_add(x, carry_prev);

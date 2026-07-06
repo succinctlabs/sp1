@@ -2,8 +2,7 @@ mod air;
 mod columns;
 mod controller;
 pub use controller::{
-    num_sha_extend_control_cols_supervisor, num_sha_extend_control_cols_user,
-    ShaExtendControlCols,
+    num_sha_extend_control_cols_supervisor, num_sha_extend_control_cols_user, ShaExtendControlCols,
 };
 mod trace;
 pub use columns::*;

@@ -41,8 +41,8 @@
 
 mod add;
 mod addi;
-mod alu_x0;
 mod addw;
+mod alu_x0;
 mod bitwise;
 mod branch;
 mod divrem;
@@ -61,21 +61,21 @@ mod memory_bump;
 mod memory_global;
 mod memory_local;
 mod mul;
-mod sll;
-mod sr;
 mod sha_compress;
 mod sha_compress_control;
 mod sha_extend;
 mod sha_extend_control;
+mod sll;
+mod sr;
 mod state_bump;
-mod syscall;
-mod syscall_instrs;
 mod store_byte;
 mod store_double;
 mod store_half;
 mod store_word;
 mod sub;
 mod subw;
+mod syscall;
+mod syscall_instrs;
 mod utype;
 
 /// Per-thread wire-array capacity in the witgen interpreter kernels. MUST MATCH
@@ -160,8 +160,10 @@ pub(crate) async fn generate_trace_and_lookups(
 ) -> Result<DeviceMle<F>, CopyError> {
     // Zeroed trace; only event rows are written (padding rows stay 0 — is_real=0).
     let trace = Tensor::<F, TaskScope>::zeros_in([n_cols, height], scope.clone());
-    generate_trace_and_lookups_into(program, col_wires, inputs, n_events, height, trace, hist, scope)
-        .await
+    generate_trace_and_lookups_into(
+        program, col_wires, inputs, n_events, height, trace, hist, scope,
+    )
+    .await
 }
 
 /// Whether the fused witgen path uses the register-allocated SLOT kernels (default)
@@ -198,11 +200,14 @@ pub(crate) async fn generate_trace_and_lookups_into(
     }
     let n_cols = col_wires.len();
     let ops_c = program.to_c();
-    let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone()).expect("witgen: alloc device buffer for the op-DAG");
+    let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone())
+        .expect("witgen: alloc device buffer for the op-DAG");
     ops_dev.extend_from_host_slice(&ops_c)?;
-    let mut col_dev = Buffer::try_with_capacity_in(col_wires.len(), scope.clone()).expect("witgen: alloc device buffer for the column map");
+    let mut col_dev = Buffer::try_with_capacity_in(col_wires.len(), scope.clone())
+        .expect("witgen: alloc device buffer for the column map");
     col_dev.extend_from_host_slice(col_wires)?;
-    let mut in_dev = Buffer::try_with_capacity_in(inputs.len().max(1), scope.clone()).expect("witgen: alloc device buffer for the packed inputs");
+    let mut in_dev = Buffer::try_with_capacity_in(inputs.len().max(1), scope.clone())
+        .expect("witgen: alloc device buffer for the packed inputs");
     in_dev.extend_from_host_slice(inputs)?;
 
     if n_events > 0 {
@@ -255,9 +260,11 @@ pub(crate) async fn accumulate_lookups(
         return Ok(());
     }
     let ops_c = program.to_c();
-    let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone()).expect("witgen: alloc device buffer for the op-DAG");
+    let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone())
+        .expect("witgen: alloc device buffer for the op-DAG");
     ops_dev.extend_from_host_slice(&ops_c)?;
-    let mut in_dev = Buffer::try_with_capacity_in(inputs.len(), scope.clone()).expect("witgen: alloc device buffer for the packed inputs");
+    let mut in_dev = Buffer::try_with_capacity_in(inputs.len(), scope.clone())
+        .expect("witgen: alloc device buffer for the packed inputs");
     in_dev.extend_from_host_slice(inputs)?;
     unsafe {
         const BLOCK: usize = 64;
@@ -316,14 +323,17 @@ pub(crate) async fn generate_columns_slots_into(
     let input_slots: Vec<u32> = slot[..ni].to_vec();
     let col_slots: Vec<u32> = col_wires.iter().map(|&w| slot[w as usize]).collect();
 
-    let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone()).expect("witgen: alloc device buffer for the op-DAG");
+    let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone())
+        .expect("witgen: alloc device buffer for the op-DAG");
     ops_dev.extend_from_host_slice(&ops_c)?;
-    let mut col_dev = Buffer::try_with_capacity_in(col_slots.len(), scope.clone()).expect("witgen: alloc device buffer for the column map");
+    let mut col_dev = Buffer::try_with_capacity_in(col_slots.len(), scope.clone())
+        .expect("witgen: alloc device buffer for the column map");
     col_dev.extend_from_host_slice(&col_slots)?;
-    let mut inslot_dev =
-        Buffer::try_with_capacity_in(input_slots.len().max(1), scope.clone()).expect("witgen: alloc device buffer for the input-slot map");
+    let mut inslot_dev = Buffer::try_with_capacity_in(input_slots.len().max(1), scope.clone())
+        .expect("witgen: alloc device buffer for the input-slot map");
     inslot_dev.extend_from_host_slice(&input_slots)?;
-    let mut in_dev = Buffer::try_with_capacity_in(inputs.len().max(1), scope.clone()).expect("witgen: alloc device buffer for the packed inputs");
+    let mut in_dev = Buffer::try_with_capacity_in(inputs.len().max(1), scope.clone())
+        .expect("witgen: alloc device buffer for the packed inputs");
     in_dev.extend_from_host_slice(inputs)?;
 
     if n_events > 0 {
@@ -420,18 +430,20 @@ pub(crate) async fn generate_trace_and_lookups_slots_into(
         let ic_idx: Vec<u32> = input_cols.iter().map(|&(i, _)| i).collect();
         let ic_col: Vec<u32> = input_cols.iter().map(|&(_, c)| c).collect();
 
-        let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone()).expect("witgen: alloc device buffer for the op-DAG");
+        let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone())
+            .expect("witgen: alloc device buffer for the op-DAG");
         ops_dev.extend_from_host_slice(&ops_c)?;
-        let mut inslot_dev =
-            Buffer::try_with_capacity_in(input_slots.len().max(1), scope.clone()).expect("witgen: alloc device buffer for the input-slot map");
+        let mut inslot_dev = Buffer::try_with_capacity_in(input_slots.len().max(1), scope.clone())
+            .expect("witgen: alloc device buffer for the input-slot map");
         inslot_dev.extend_from_host_slice(&input_slots)?;
-        let mut ic_idx_dev =
-            Buffer::try_with_capacity_in(ic_idx.len().max(1), scope.clone()).expect("witgen: alloc device buffer for the input-column indices");
+        let mut ic_idx_dev = Buffer::try_with_capacity_in(ic_idx.len().max(1), scope.clone())
+            .expect("witgen: alloc device buffer for the input-column indices");
         ic_idx_dev.extend_from_host_slice(&ic_idx)?;
-        let mut ic_col_dev =
-            Buffer::try_with_capacity_in(ic_col.len().max(1), scope.clone()).expect("witgen: alloc device buffer for the input-column targets");
+        let mut ic_col_dev = Buffer::try_with_capacity_in(ic_col.len().max(1), scope.clone())
+            .expect("witgen: alloc device buffer for the input-column targets");
         ic_col_dev.extend_from_host_slice(&ic_col)?;
-        let mut in_dev = Buffer::try_with_capacity_in(inputs.len().max(1), scope.clone()).expect("witgen: alloc device buffer for the packed inputs");
+        let mut in_dev = Buffer::try_with_capacity_in(inputs.len().max(1), scope.clone())
+            .expect("witgen: alloc device buffer for the packed inputs");
         in_dev.extend_from_host_slice(inputs)?;
 
         if n_events > 0 {
@@ -483,14 +495,17 @@ pub(crate) async fn generate_trace_and_lookups_slots_into(
     let input_slots: Vec<u32> = slot[..ni].to_vec();
     let col_slots: Vec<u32> = col_wires.iter().map(|&w| slot[w as usize]).collect();
 
-    let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone()).expect("witgen: alloc device buffer for the op-DAG");
+    let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone())
+        .expect("witgen: alloc device buffer for the op-DAG");
     ops_dev.extend_from_host_slice(&ops_c)?;
-    let mut col_dev = Buffer::try_with_capacity_in(col_slots.len(), scope.clone()).expect("witgen: alloc device buffer for the column map");
+    let mut col_dev = Buffer::try_with_capacity_in(col_slots.len(), scope.clone())
+        .expect("witgen: alloc device buffer for the column map");
     col_dev.extend_from_host_slice(&col_slots)?;
-    let mut inslot_dev =
-        Buffer::try_with_capacity_in(input_slots.len().max(1), scope.clone()).expect("witgen: alloc device buffer for the input-slot map");
+    let mut inslot_dev = Buffer::try_with_capacity_in(input_slots.len().max(1), scope.clone())
+        .expect("witgen: alloc device buffer for the input-slot map");
     inslot_dev.extend_from_host_slice(&input_slots)?;
-    let mut in_dev = Buffer::try_with_capacity_in(inputs.len().max(1), scope.clone()).expect("witgen: alloc device buffer for the packed inputs");
+    let mut in_dev = Buffer::try_with_capacity_in(inputs.len().max(1), scope.clone())
+        .expect("witgen: alloc device buffer for the packed inputs");
     in_dev.extend_from_host_slice(inputs)?;
 
     if n_events > 0 {
@@ -557,12 +572,14 @@ pub(crate) async fn accumulate_lookups_slots(
     let ni = program.num_inputs as usize;
     let input_slots: Vec<u32> = slot[..ni].to_vec();
 
-    let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone()).expect("witgen: alloc device buffer for the op-DAG");
+    let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone())
+        .expect("witgen: alloc device buffer for the op-DAG");
     ops_dev.extend_from_host_slice(&ops_c)?;
-    let mut inslot_dev =
-        Buffer::try_with_capacity_in(input_slots.len().max(1), scope.clone()).expect("witgen: alloc device buffer for the input-slot map");
+    let mut inslot_dev = Buffer::try_with_capacity_in(input_slots.len().max(1), scope.clone())
+        .expect("witgen: alloc device buffer for the input-slot map");
     inslot_dev.extend_from_host_slice(&input_slots)?;
-    let mut in_dev = Buffer::try_with_capacity_in(inputs.len(), scope.clone()).expect("witgen: alloc device buffer for the packed inputs");
+    let mut in_dev = Buffer::try_with_capacity_in(inputs.len(), scope.clone())
+        .expect("witgen: alloc device buffer for the packed inputs");
     in_dev.extend_from_host_slice(inputs)?;
     unsafe {
         const BLOCK: usize = 64;
@@ -670,9 +687,9 @@ fn device_chip_enabled(name: &str) -> bool {
     use std::sync::OnceLock;
     static FILTER: OnceLock<Option<HashSet<String>>> = OnceLock::new();
     let filter = FILTER.get_or_init(|| {
-        std::env::var("AR_DEVICE_CHIPS").ok().map(|v| {
-            v.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()
-        })
+        std::env::var("AR_DEVICE_CHIPS")
+            .ok()
+            .map(|v| v.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect())
     });
     match filter {
         None => name == "Global", // default: baseline behavior (only Global on device)
@@ -741,14 +758,10 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
                 chip.generate_trace_device(input, output, scope).await
             }
             Self::SyscallCore(chip) => chip.generate_trace_device(input, output, scope).await,
-            Self::SyscallPrecompile(chip) => {
-                chip.generate_trace_device(input, output, scope).await
-            }
+            Self::SyscallPrecompile(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::SyscallInstrs(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::Sha256Extend(chip) => chip.generate_trace_device(input, output, scope).await,
-            Self::Sha256Compress(chip) => {
-                chip.generate_trace_device(input, output, scope).await
-            }
+            Self::Sha256Compress(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::Sha256ExtendControl(chip) => {
                 chip.generate_trace_device(input, output, scope).await
             }
@@ -780,8 +793,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
                         | "SyscallPrecompile"
                         | "MemoryGlobalInit"
                         | "MemoryGlobalFinal"
-                )
-                    && device_chip_enabled(n)
+                ) && device_chip_enabled(n)
             })
     }
 

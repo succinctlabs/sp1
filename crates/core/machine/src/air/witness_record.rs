@@ -65,7 +65,11 @@ pub enum WitOp {
     ConstNat(u64),
     WrappingAdd(WireId, WireId),
     WrappingSub(WireId, WireId),
-    Bits { src: WireId, offset: u32, width: u32 },
+    Bits {
+        src: WireId,
+        offset: u32,
+        width: u32,
+    },
     Eq(WireId, WireId),
     Shl(WireId, WireId),
     Shr(WireId, WireId),
@@ -74,26 +78,62 @@ pub enum WitOp {
     Xor(WireId, WireId),
     /// Bitwise AND (tag 25) — SHA precompile gadgets.
     And(WireId, WireId),
-    Select { cond: WireId, a: WireId, b: WireId },
+    Select {
+        cond: WireId,
+        a: WireId,
+        b: WireId,
+    },
     NatToField(WireId),
     FieldAdd(WireId, WireId),
     FieldSub(WireId, WireId),
     FieldInverse(WireId),
-    FieldSelect { cond: WireId, a: WireId, b: WireId },
+    FieldSelect {
+        cond: WireId,
+        a: WireId,
+        b: WireId,
+    },
     U16RangeCheck(WireId),
     U8RangeCheck(WireId, WireId),
-    BitRangeCheck { src: WireId, bits: u8 },
+    BitRangeCheck {
+        src: WireId,
+        bits: u8,
+    },
     /// Variable-width range check: `bits` is a wire (per-row width).
-    BitRangeCheckVar { src: WireId, bits: WireId },
+    BitRangeCheckVar {
+        src: WireId,
+        bits: WireId,
+    },
     /// Guarded lookups: emitted only on rows where `guard != 0` (per-row branches).
-    U16RangeCheckGuarded { guard: WireId, src: WireId },
-    U8RangeCheckGuarded { guard: WireId, a: WireId, b: WireId },
-    BitRangeCheckGuarded { guard: WireId, src: WireId, bits: u8 },
+    U16RangeCheckGuarded {
+        guard: WireId,
+        src: WireId,
+    },
+    U8RangeCheckGuarded {
+        guard: WireId,
+        a: WireId,
+        b: WireId,
+    },
+    BitRangeCheckGuarded {
+        guard: WireId,
+        src: WireId,
+        bits: u8,
+    },
     /// General byte-table lookup `{opcode, a, b, c}` (per-row opcode). `a` (result)
     /// is kept for host fidelity but dropped from the device form (the byte table
     /// indexes multiplicities by `(opcode, b, c)` only).
-    ByteLookup { opcode: WireId, a: WireId, b: WireId, c: WireId },
-    ByteLookupGuarded { guard: WireId, opcode: WireId, a: WireId, b: WireId, c: WireId },
+    ByteLookup {
+        opcode: WireId,
+        a: WireId,
+        b: WireId,
+        c: WireId,
+    },
+    ByteLookupGuarded {
+        guard: WireId,
+        opcode: WireId,
+        a: WireId,
+        b: WireId,
+        c: WireId,
+    },
 }
 
 impl WitOp {
@@ -119,8 +159,16 @@ impl WitOp {
         use WitOp::*;
         match *self {
             ConstNat(_) => {}
-            WrappingAdd(a, b) | WrappingSub(a, b) | Eq(a, b) | Shl(a, b) | Shr(a, b)
-            | Mul(a, b) | Xor(a, b) | And(a, b) | FieldAdd(a, b) | FieldSub(a, b)
+            WrappingAdd(a, b)
+            | WrappingSub(a, b)
+            | Eq(a, b)
+            | Shl(a, b)
+            | Shr(a, b)
+            | Mul(a, b)
+            | Xor(a, b)
+            | And(a, b)
+            | FieldAdd(a, b)
+            | FieldSub(a, b)
             | U8RangeCheck(a, b) => {
                 f(a.0);
                 f(b.0);
@@ -348,29 +396,25 @@ pub fn interpret<F: Field, R: ByteRecord>(
     for op in &program.ops {
         match *op {
             WitOp::ConstNat(v) => wires.push(Val::Nat(v)),
-            WitOp::WrappingAdd(a, b) => {
-                wires.push(Val::Nat(wires[a.0 as usize].nat().wrapping_add(wires[b.0 as usize].nat())))
-            }
-            WitOp::WrappingSub(a, b) => {
-                wires.push(Val::Nat(wires[a.0 as usize].nat().wrapping_sub(wires[b.0 as usize].nat())))
-            }
+            WitOp::WrappingAdd(a, b) => wires
+                .push(Val::Nat(wires[a.0 as usize].nat().wrapping_add(wires[b.0 as usize].nat()))),
+            WitOp::WrappingSub(a, b) => wires
+                .push(Val::Nat(wires[a.0 as usize].nat().wrapping_sub(wires[b.0 as usize].nat()))),
             WitOp::Bits { src, offset, width } => {
                 let x = wires[src.0 as usize].nat();
                 let mask = if width >= 64 { u64::MAX } else { (1u64 << width) - 1 };
                 wires.push(Val::Nat((x >> offset) & mask));
             }
-            WitOp::Eq(a, b) => wires.push(Val::Nat(u64::from(
-                wires[a.0 as usize].nat() == wires[b.0 as usize].nat(),
-            ))),
+            WitOp::Eq(a, b) => wires
+                .push(Val::Nat(u64::from(wires[a.0 as usize].nat() == wires[b.0 as usize].nat()))),
             WitOp::Shl(a, s) => {
                 wires.push(Val::Nat(wires[a.0 as usize].nat() << wires[s.0 as usize].nat()))
             }
             WitOp::Shr(a, s) => {
                 wires.push(Val::Nat(wires[a.0 as usize].nat() >> wires[s.0 as usize].nat()))
             }
-            WitOp::Mul(a, b) => {
-                wires.push(Val::Nat(wires[a.0 as usize].nat().wrapping_mul(wires[b.0 as usize].nat())))
-            }
+            WitOp::Mul(a, b) => wires
+                .push(Val::Nat(wires[a.0 as usize].nat().wrapping_mul(wires[b.0 as usize].nat()))),
             WitOp::Xor(a, b) => {
                 wires.push(Val::Nat(wires[a.0 as usize].nat() ^ wires[b.0 as usize].nat()))
             }
@@ -390,16 +434,16 @@ pub fn interpret<F: Field, R: ByteRecord>(
             WitOp::FieldSub(a, b) => {
                 wires.push(Val::Field(wires[a.0 as usize].field() - wires[b.0 as usize].field()))
             }
-            WitOp::FieldInverse(a) => {
-                wires.push(Val::Field(wires[a.0 as usize].field().inverse()))
-            }
+            WitOp::FieldInverse(a) => wires.push(Val::Field(wires[a.0 as usize].field().inverse())),
             WitOp::FieldSelect { cond, a, b } => {
                 let c = wires[cond.0 as usize].nat();
                 wires.push(if c != 0 { wires[a.0 as usize] } else { wires[b.0 as usize] });
             }
             WitOp::U16RangeCheck(a) => record.add_u16_range_check(wires[a.0 as usize].nat() as u16),
-            WitOp::U8RangeCheck(a, b) => record
-                .add_u8_range_check(wires[a.0 as usize].nat() as u8, wires[b.0 as usize].nat() as u8),
+            WitOp::U8RangeCheck(a, b) => record.add_u8_range_check(
+                wires[a.0 as usize].nat() as u8,
+                wires[b.0 as usize].nat() as u8,
+            ),
             WitOp::BitRangeCheck { src, bits } => {
                 record.add_bit_range_check(wires[src.0 as usize].nat() as u16, bits)
             }
@@ -425,12 +469,14 @@ pub fn interpret<F: Field, R: ByteRecord>(
                     record.add_bit_range_check(wires[src.0 as usize].nat() as u16, bits)
                 }
             }
-            WitOp::ByteLookup { opcode, a, b, c } => record.add_byte_lookup_event(ByteLookupEvent {
-                opcode: super::byte_opcode_from_u64(wires[opcode.0 as usize].nat()),
-                a: wires[a.0 as usize].nat() as u16,
-                b: wires[b.0 as usize].nat() as u8,
-                c: wires[c.0 as usize].nat() as u8,
-            }),
+            WitOp::ByteLookup { opcode, a, b, c } => {
+                record.add_byte_lookup_event(ByteLookupEvent {
+                    opcode: super::byte_opcode_from_u64(wires[opcode.0 as usize].nat()),
+                    a: wires[a.0 as usize].nat() as u16,
+                    b: wires[b.0 as usize].nat() as u8,
+                    c: wires[c.0 as usize].nat() as u8,
+                })
+            }
             WitOp::ByteLookupGuarded { guard, opcode, a, b, c } => {
                 if wires[guard.0 as usize].nat() != 0 {
                     record.add_byte_lookup_event(ByteLookupEvent {
@@ -780,18 +826,14 @@ impl WitProgram {
     ///
     /// Generation 3 ("streaming") of the three lowerings (module doc): the
     /// production default. Pair with [`to_c_slots_streaming`](Self::to_c_slots_streaming).
-    pub fn allocate_slots_streaming(
-        &self,
-        col_wires: &[u32],
-    ) -> (Vec<u32>, u32, Vec<(u32, u32)>) {
+    pub fn allocate_slots_streaming(&self, col_wires: &[u32]) -> (Vec<u32>, u32, Vec<(u32, u32)>) {
         // Count columns per wire; multi-column wires get pinned + epilogue entries.
         let mut ncols_of = vec![0u32; self.num_wires()];
         for &w in col_wires {
             ncols_of[w as usize] += 1;
         }
-        let pinned: Vec<u32> = (0..self.num_wires() as u32)
-            .filter(|&w| ncols_of[w as usize] >= 2)
-            .collect();
+        let pinned: Vec<u32> =
+            (0..self.num_wires() as u32).filter(|&w| ncols_of[w as usize] >= 2).collect();
         let (slot, max_slots) = self.allocate_slots(&pinned);
         let epilogue: Vec<(u32, u32)> = col_wires
             .iter()
@@ -881,15 +923,15 @@ pub fn interpret_c_columns<F: Field>(
             25 => wires.push(Val::Nat(wires[op.a as usize].nat() & wires[op.b as usize].nat())),
             12 => {
                 let c = wires[op.a as usize].nat();
-                wires.push(if c != 0 {
-                    wires[op.b as usize]
-                } else {
-                    wires[op.imm1 as usize]
-                });
+                wires.push(if c != 0 { wires[op.b as usize] } else { wires[op.imm1 as usize] });
             }
             3 => wires.push(Val::Field(F::from_canonical_u64(wires[op.a as usize].nat()))),
-            4 => wires.push(Val::Field(wires[op.a as usize].field() + wires[op.b as usize].field())),
-            19 => wires.push(Val::Field(wires[op.a as usize].field() - wires[op.b as usize].field())),
+            4 => {
+                wires.push(Val::Field(wires[op.a as usize].field() + wires[op.b as usize].field()))
+            }
+            19 => {
+                wires.push(Val::Field(wires[op.a as usize].field() - wires[op.b as usize].field()))
+            }
             5 => wires.push(Val::Field(wires[op.a as usize].field().inverse())),
             18 => {
                 let cond = wires[op.a as usize].nat();
@@ -1268,7 +1310,10 @@ pub fn byte_lookups_from_histograms(
         }
         let bits = 63 - (row as u64).leading_zeros(); // floor(log2(row))
         let a = (row - (1usize << bits)) as u16;
-        map.insert(ByteLookupEvent { opcode: ByteOpcode::Range, a, b: bits as u8, c: 0 }, mult as usize);
+        map.insert(
+            ByteLookupEvent { opcode: ByteOpcode::Range, a, b: bits as u8, c: 0 },
+            mult as usize,
+        );
     }
     // Byte table (NUM_BYTE_MULT_COLS columns): row = (b<<8)+c, column = opcode index.
     for (idx, &mult) in byte_hist.iter().enumerate() {
@@ -1424,8 +1469,15 @@ mod tests {
                 let b = rng.gen::<u32>() as u64;
                 let c = rng.gen::<u32>() as u64;
                 let a = b.wrapping_add(c);
-                let alu =
-                    AluEvent::new((i as u64) * 8 + 8, (i as u64) * 4 + 4, Opcode::ADD, a, b, c, false);
+                let alu = AluEvent::new(
+                    (i as u64) * 8 + 8,
+                    (i as u64) * 4 + 4,
+                    Opcode::ADD,
+                    a,
+                    b,
+                    c,
+                    false,
+                );
                 // op_a/op_b/op_c are register indices (< field order, since they are
                 // `nat_to_field`'d directly); the operand *values* live in the memory
                 // records and the AluEvent (b, c), decomposed into limbs downstream.

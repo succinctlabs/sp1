@@ -27,39 +27,41 @@ const NUM_BITWISE_INPUTS: usize = 19;
 /// (any value), so we pack zeros.
 pub(crate) fn pack_bitwise_inputs(events: &[(AluEvent, ALUTypeRecord)]) -> Vec<u64> {
     let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_BITWISE_INPUTS];
-    inputs.par_chunks_mut(NUM_BITWISE_INPUTS).zip(events.par_iter()).for_each(|(slot, (alu, r))| {
-        let a = r.a;
-        let b = r.b;
-        let (c_pv, c_pt, c_ct) = match r.c {
-            Some(c) => (
-                c.previous_record().value,
-                c.previous_record().timestamp,
-                c.current_record().timestamp,
-            ),
-            None => (0, 0, 0),
-        };
-        slot.copy_from_slice(&[
-            alu.clk,
-            alu.pc,
-            alu.a, // result operand
-            alu.b,
-            alu.c,
-            ByteOpcode::from(alu.opcode) as u64, // byte_opcode (AND=0/OR=1/XOR=2)
-            r.c.is_none() as u64,                // imm_c
-            r.op_a as u64,
-            r.op_b,
-            r.op_c,
-            a.previous_record().value,
-            a.previous_record().timestamp,
-            a.current_record().timestamp,
-            b.previous_record().value,
-            b.previous_record().timestamp,
-            b.current_record().timestamp,
-            c_pv,
-            c_pt,
-            c_ct,
-        ]);
-    });
+    inputs.par_chunks_mut(NUM_BITWISE_INPUTS).zip(events.par_iter()).for_each(
+        |(slot, (alu, r))| {
+            let a = r.a;
+            let b = r.b;
+            let (c_pv, c_pt, c_ct) = match r.c {
+                Some(c) => (
+                    c.previous_record().value,
+                    c.previous_record().timestamp,
+                    c.current_record().timestamp,
+                ),
+                None => (0, 0, 0),
+            };
+            slot.copy_from_slice(&[
+                alu.clk,
+                alu.pc,
+                alu.a, // result operand
+                alu.b,
+                alu.c,
+                ByteOpcode::from(alu.opcode) as u64, // byte_opcode (AND=0/OR=1/XOR=2)
+                r.c.is_none() as u64,                // imm_c
+                r.op_a as u64,
+                r.op_b,
+                r.op_c,
+                a.previous_record().value,
+                a.previous_record().timestamp,
+                a.current_record().timestamp,
+                b.previous_record().value,
+                b.previous_record().timestamp,
+                b.current_record().timestamp,
+                c_pv,
+                c_pt,
+                c_ct,
+            ]);
+        },
+    );
     inputs
 }
 
@@ -69,8 +71,27 @@ fn record_bitwise_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
     let mut cols_w = BitwiseCols::<WireId, SupervisorMode>::default();
     let w = |i: u32| RecordingWitnessBuilder::input(i);
     BitwiseCols::<WireId, SupervisorMode>::witgen(
-        &mut rec, &mut cols_w, w(0), w(1), w(2), w(3), w(4), w(5), w(6), w(7), w(8), w(9), w(10),
-        w(11), w(12), w(13), w(14), w(15), w(16), w(17), w(18),
+        &mut rec,
+        &mut cols_w,
+        w(0),
+        w(1),
+        w(2),
+        w(3),
+        w(4),
+        w(5),
+        w(6),
+        w(7),
+        w(8),
+        w(9),
+        w(10),
+        w(11),
+        w(12),
+        w(13),
+        w(14),
+        w(15),
+        w(16),
+        w(17),
+        w(18),
     );
     let program = rec.finish();
     assert!(

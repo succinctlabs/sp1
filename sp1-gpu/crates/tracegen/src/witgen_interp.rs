@@ -8,18 +8,18 @@ mod tests {
     use rand::{rngs::StdRng, Rng, SeedableRng};
     use slop_algebra::AbstractField;
     use slop_alloc::Buffer;
-    use sp1_core_machine::air::{columns_as_wires, RecordingWitnessBuilder, WireId};
     use sp1_core_machine::adapter::register::r_type::RTypeReader;
     use sp1_core_machine::adapter::state::CPUState;
-    use sp1_core_machine::alu::add_sub::add::AddCols;
-    use sp1_core_machine::SupervisorMode;
-    use sp1_core_machine::memory::{RegisterAccessCols, RegisterAccessTimestamp};
+    use sp1_core_machine::air::{columns_as_wires, RecordingWitnessBuilder, WireId};
     use sp1_core_machine::air::{
         interpret_c_columns as _interp, interpret_c_lookups, WitProgram, BYTE_HIST_ROWS,
         RANGE_HIST_ROWS,
     };
+    use sp1_core_machine::alu::add_sub::add::AddCols;
     use sp1_core_machine::bytes::columns::NUM_BYTE_MULT_COLS;
+    use sp1_core_machine::memory::{RegisterAccessCols, RegisterAccessTimestamp};
     use sp1_core_machine::operations::{AddOperation, AddrAddOperation, AddressOperation};
+    use sp1_core_machine::SupervisorMode;
     use sp1_gpu_cudart::{args, DeviceBuffer, TaskScope, WitgenInterpKernel};
 
     use crate::F;

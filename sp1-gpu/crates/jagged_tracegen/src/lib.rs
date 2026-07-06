@@ -25,7 +25,9 @@ use sp1_gpu_cudart::sys::kernels::{
     count_and_add_kernel, fill_buffer, generate_col_index, generate_start_indices,
     sum_to_trace_kernel,
 };
-use sp1_gpu_cudart::{args, DeviceBuffer, DeviceTensor, PinnedBuffer, TaskScope, WitgenInterpKernel};
+use sp1_gpu_cudart::{
+    args, DeviceBuffer, DeviceTensor, PinnedBuffer, TaskScope, WitgenInterpKernel,
+};
 use sp1_gpu_tracegen::{new_byte_histograms, CudaTracegenAir, LookupHist};
 use sp1_hypercube::prover::{ProverPermit, ProverSemaphore};
 
@@ -953,11 +955,8 @@ async fn device_main_tracegen<A: CudaTracegenAir<Felt>>(
     // a FAST driver-blocking event wait (cudaEventSynchronize in spawn_blocking,
     // ~us wake) instead of TaskScope::synchronize's host-fn callback (A7: 10-50ms
     // wake latency per chip per shard = 93% of the fibonacci-class gap as GPU idle).
-    let fanout: usize = std::env::var("AR_TRACEGEN_STREAMS")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(8)
-        .max(1);
+    let fanout: usize =
+        std::env::var("AR_TRACEGEN_STREAMS").ok().and_then(|v| v.parse().ok()).unwrap_or(8).max(1);
     let chip_sem = Arc::new(tokio::sync::Semaphore::new(fanout));
     let device_traces = device_airs
         .into_iter()

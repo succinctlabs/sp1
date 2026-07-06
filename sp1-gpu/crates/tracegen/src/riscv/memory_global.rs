@@ -62,10 +62,9 @@ fn sorted_events_and_prev(
     kind: MemoryChipType,
 ) -> (Vec<MemoryInitializeFinalizeEvent>, u64) {
     let (events, previous_addr) = match kind {
-        MemoryChipType::Initialize => (
-            input.global_memory_initialize_events.clone(),
-            input.public_values.previous_init_addr,
-        ),
+        MemoryChipType::Initialize => {
+            (input.global_memory_initialize_events.clone(), input.public_values.previous_init_addr)
+        }
         MemoryChipType::Finalize => (
             input.global_memory_finalize_events.clone(),
             input.public_values.previous_finalize_addr,
@@ -166,10 +165,7 @@ mod tests {
                 e
             })
             .collect();
-        ExecutionRecord {
-            global_memory_initialize_events: events,
-            ..Default::default()
-        }
+        ExecutionRecord { global_memory_initialize_events: events, ..Default::default() }
     }
 
     #[test]

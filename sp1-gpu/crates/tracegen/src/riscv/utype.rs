@@ -45,7 +45,18 @@ fn record_utype_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
     let mut cols_w = UTypeColumns::<WireId, SupervisorMode>::default();
     let w = |i: u32| RecordingWitnessBuilder::input(i);
     UTypeColumns::<WireId, SupervisorMode>::witgen(
-        &mut rec, &mut cols_w, w(0), w(1), w(2), w(3), w(4), w(5), w(6), w(7), w(8), w(9),
+        &mut rec,
+        &mut cols_w,
+        w(0),
+        w(1),
+        w(2),
+        w(3),
+        w(4),
+        w(5),
+        w(6),
+        w(7),
+        w(8),
+        w(9),
     );
     let program = rec.finish();
     assert!(

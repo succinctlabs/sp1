@@ -56,11 +56,8 @@ impl<T> IsZeroWordOperation<T> {
         let mut is_z = [zero; WORD_SIZE];
         for i in 0..WORD_SIZE {
             let limb = wb.bits(a, (i as u32) * 16, 16);
-            is_z[i] = super::IsZeroOperation::<WB::Field>::witgen(
-                wb,
-                &mut cols.is_zero_limb[i],
-                limb,
-            );
+            is_z[i] =
+                super::IsZeroOperation::<WB::Field>::witgen(wb, &mut cols.is_zero_limb[i], limb);
         }
         let fh = wb.select(is_z[0], is_z[1], zero);
         cols.is_zero_first_half = wb.nat_to_field(fh);

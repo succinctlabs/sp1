@@ -31,12 +31,9 @@ pub(crate) fn collect_syscall_events(
     kind: SyscallShardKind,
 ) -> Vec<SyscallEvent> {
     match kind {
-        SyscallShardKind::Core => input
-            .syscall_events
-            .iter()
-            .map(|(event, _)| *event)
-            .filter(|e| e.should_send)
-            .collect(),
+        SyscallShardKind::Core => {
+            input.syscall_events.iter().map(|(event, _)| *event).filter(|e| e.should_send).collect()
+        }
         SyscallShardKind::Precompile => {
             input.precompile_events.all_events().map(|(event, _)| *event).collect()
         }
@@ -69,7 +66,15 @@ pub(crate) fn record_syscall_program() -> (sp1_core_machine::air::WitProgram, Ve
     let mut cols_w = SyscallCols::<WireId, SupervisorMode>::default();
     let w = |i: u32| RecordingWitnessBuilder::input(i);
     SyscallCols::<WireId, SupervisorMode>::witgen(
-        &mut rec, &mut cols_w, w(0), w(1), w(2), w(3), w(4), w(5), w(6),
+        &mut rec,
+        &mut cols_w,
+        w(0),
+        w(1),
+        w(2),
+        w(3),
+        w(4),
+        w(5),
+        w(6),
     );
     let program = rec.finish();
     assert!(

@@ -27,11 +27,8 @@ pub(crate) fn pack_branch_inputs(events: &[(BranchEvent, ITypeRecord)]) -> Vec<u
         let a = r.a;
         let b = r.b;
         let use_signed = matches!(ev.opcode, Opcode::BLT | Opcode::BGE);
-        let a_lt_b = if use_signed {
-            ((ev.a as i64) < (ev.b as i64)) as u64
-        } else {
-            (ev.a < ev.b) as u64
-        };
+        let a_lt_b =
+            if use_signed { ((ev.a as i64) < (ev.b as i64)) as u64 } else { (ev.a < ev.b) as u64 };
         slot.copy_from_slice(&[
             ev.clk,
             ev.pc,
@@ -59,8 +56,24 @@ fn record_branch_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
     let mut cols_w = BranchColumns::<WireId, SupervisorMode>::default();
     let w = |i: u32| RecordingWitnessBuilder::input(i);
     BranchColumns::<WireId, SupervisorMode>::witgen(
-        &mut rec, &mut cols_w, w(0), w(1), w(2), w(3), w(4), w(5), w(6), w(7), w(8), w(9), w(10),
-        w(11), w(12), w(13), w(14), w(15),
+        &mut rec,
+        &mut cols_w,
+        w(0),
+        w(1),
+        w(2),
+        w(3),
+        w(4),
+        w(5),
+        w(6),
+        w(7),
+        w(8),
+        w(9),
+        w(10),
+        w(11),
+        w(12),
+        w(13),
+        w(14),
+        w(15),
     );
     let program = rec.finish();
     assert!(
@@ -207,14 +220,8 @@ mod tests {
     async fn test_branch_generate_trace_device() {
         sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
             let mut rng = StdRng::seed_from_u64(0xB7a);
-            let ops = [
-                Opcode::BEQ,
-                Opcode::BNE,
-                Opcode::BLT,
-                Opcode::BGE,
-                Opcode::BLTU,
-                Opcode::BGEU,
-            ];
+            let ops =
+                [Opcode::BEQ, Opcode::BNE, Opcode::BLT, Opcode::BGE, Opcode::BLTU, Opcode::BGEU];
             let branch_events = (0..1800)
                 .map(|i| {
                     let opcode = ops[i % ops.len()];

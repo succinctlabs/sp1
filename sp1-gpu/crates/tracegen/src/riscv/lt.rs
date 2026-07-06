@@ -42,7 +42,7 @@ pub(crate) fn pack_lt_inputs(events: &[(AluEvent, ALUTypeRecord)]) -> Vec<u64> {
             alu.a, // result (0/1)
             alu.b,
             alu.c,
-            alu.opcode as u64, // RISC-V opcode discriminant (SLT/SLTU)
+            alu.opcode as u64,    // RISC-V opcode discriminant (SLT/SLTU)
             r.c.is_none() as u64, // imm_c
             r.op_a as u64,
             r.op_b,
@@ -67,8 +67,27 @@ fn record_lt_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
     let mut cols_w = LtCols::<WireId, SupervisorMode>::default();
     let w = |i: u32| RecordingWitnessBuilder::input(i);
     LtCols::<WireId, SupervisorMode>::witgen(
-        &mut rec, &mut cols_w, w(0), w(1), w(2), w(3), w(4), w(5), w(6), w(7), w(8), w(9), w(10),
-        w(11), w(12), w(13), w(14), w(15), w(16), w(17), w(18),
+        &mut rec,
+        &mut cols_w,
+        w(0),
+        w(1),
+        w(2),
+        w(3),
+        w(4),
+        w(5),
+        w(6),
+        w(7),
+        w(8),
+        w(9),
+        w(10),
+        w(11),
+        w(12),
+        w(13),
+        w(14),
+        w(15),
+        w(16),
+        w(17),
+        w(18),
     );
     let program = rec.finish();
     assert!(
@@ -222,11 +241,7 @@ mod tests {
                     let b = rng.gen::<u64>();
                     // Every 5th row: equal operands (b == c) to hit the all-equal path.
                     let c = if i % 5 == 0 { b } else { rng.gen::<u64>() };
-                    let a = if signed {
-                        ((b as i64) < (c as i64)) as u64
-                    } else {
-                        (b < c) as u64
-                    };
+                    let a = if signed { ((b as i64) < (c as i64)) as u64 } else { (b < c) as u64 };
                     let alu = AluEvent::new(
                         (i as u64) * 8 + 8,
                         (i as u64) * 4 + 4,

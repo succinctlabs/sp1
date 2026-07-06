@@ -24,30 +24,32 @@ const NUM_LOAD_BYTE_INPUTS: usize = 17;
 
 pub(crate) fn pack_load_byte_inputs(events: &[(MemInstrEvent, ITypeRecord)]) -> Vec<u64> {
     let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_LOAD_BYTE_INPUTS];
-    inputs.par_chunks_mut(NUM_LOAD_BYTE_INPUTS).zip(events.par_iter()).for_each(|(slot, (ev, r))| {
-        let a = r.a;
-        let b = r.b;
-        let m = ev.mem_access;
-        slot.copy_from_slice(&[
-            ev.clk,
-            ev.pc,
-            r.op_a as u64,
-            a.previous_record().value,
-            a.previous_record().timestamp,
-            a.current_record().timestamp,
-            r.op_b,
-            b.previous_record().value,
-            b.previous_record().timestamp,
-            b.current_record().timestamp,
-            r.op_c,
-            ev.b,
-            ev.c,
-            m.previous_record().value,
-            m.previous_record().timestamp,
-            m.current_record().timestamp,
-            ev.opcode as u64,
-        ]);
-    });
+    inputs.par_chunks_mut(NUM_LOAD_BYTE_INPUTS).zip(events.par_iter()).for_each(
+        |(slot, (ev, r))| {
+            let a = r.a;
+            let b = r.b;
+            let m = ev.mem_access;
+            slot.copy_from_slice(&[
+                ev.clk,
+                ev.pc,
+                r.op_a as u64,
+                a.previous_record().value,
+                a.previous_record().timestamp,
+                a.current_record().timestamp,
+                r.op_b,
+                b.previous_record().value,
+                b.previous_record().timestamp,
+                b.current_record().timestamp,
+                r.op_c,
+                ev.b,
+                ev.c,
+                m.previous_record().value,
+                m.previous_record().timestamp,
+                m.current_record().timestamp,
+                ev.opcode as u64,
+            ]);
+        },
+    );
     inputs
 }
 
@@ -56,8 +58,25 @@ fn record_load_byte_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
     let mut cols_w = LoadByteColumns::<WireId, SupervisorMode>::default();
     let w = |i: u32| RecordingWitnessBuilder::input(i);
     LoadByteColumns::<WireId, SupervisorMode>::witgen(
-        &mut rec, &mut cols_w, w(0), w(1), w(2), w(3), w(4), w(5), w(6), w(7), w(8), w(9), w(10),
-        w(11), w(12), w(13), w(14), w(15), w(16),
+        &mut rec,
+        &mut cols_w,
+        w(0),
+        w(1),
+        w(2),
+        w(3),
+        w(4),
+        w(5),
+        w(6),
+        w(7),
+        w(8),
+        w(9),
+        w(10),
+        w(11),
+        w(12),
+        w(13),
+        w(14),
+        w(15),
+        w(16),
     );
     let program = rec.finish();
     assert!(

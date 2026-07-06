@@ -43,8 +43,7 @@ fn gen_events(n: usize, opcode: Opcode, rng: &mut StdRng) -> Vec<(AluEvent, RTyp
             let b = rng.gen::<u32>() as u64;
             let c = rng.gen::<u32>() as u64;
             let a = if opcode == Opcode::ADD { b.wrapping_add(c) } else { b.wrapping_sub(c) };
-            let alu =
-                AluEvent::new((i as u64) * 8 + 8, (i as u64) * 4 + 4, opcode, a, b, c, false);
+            let alu = AluEvent::new((i as u64) * 8 + 8, (i as u64) * 4 + 4, opcode, a, b, c, false);
             let record = RTypeRecord {
                 op_a: rng.gen_range(1..32),
                 a: read(rng),
@@ -90,8 +89,7 @@ macro_rules! bench_chip {
                     let events = events.clone();
                     $rt.block_on(async move {
                         sp1_gpu_cudart::spawn(move |scope: TaskScope| async move {
-                            let shard =
-                                ExecutionRecord { $field: events, ..Default::default() };
+                            let shard = ExecutionRecord { $field: events, ..Default::default() };
                             let chip = <$chip_ty>::default();
                             // Warmup (kernel JIT, allocations).
                             let _ = chip
