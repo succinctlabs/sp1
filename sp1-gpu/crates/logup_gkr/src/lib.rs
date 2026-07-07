@@ -329,8 +329,12 @@ where
         let name = chip.name();
         let main_trace_evaluations =
             main_by_name.get(name).cloned().unwrap_or_else(|| MleEval::from(Vec::new()));
-        let preprocessed_trace_evaluations = prep_by_name.get(name).cloned();
-        let global_trace_evaluations = global_by_name.as_ref().and_then(|m| m.get(name).cloned());
+        let preprocessed_trace_evaluations =
+            prep_by_name.get(name).cloned().unwrap_or_else(|| MleEval::from(Vec::new()));
+        let global_trace_evaluations = global_by_name
+            .as_ref()
+            .and_then(|m| m.get(name).cloned())
+            .unwrap_or_else(|| MleEval::from(Vec::new()));
         let openings = ChipEvaluation {
             main_trace_evaluations,
             preprocessed_trace_evaluations,
@@ -338,13 +342,10 @@ where
         };
 
         // Observe the openings, in the order `prep, global, main`.
-        if let Some(prep_eval) = openings.preprocessed_trace_evaluations.as_ref() {
-            challenger.observe_variable_length_extension_slice(prep_eval);
-        }
+        challenger
+            .observe_variable_length_extension_slice(&openings.preprocessed_trace_evaluations);
         if has_global_round {
-            challenger.observe_variable_length_extension_slice(
-                openings.global_trace_evaluations.as_deref().unwrap_or(&[]),
-            );
+            challenger.observe_variable_length_extension_slice(&openings.global_trace_evaluations);
         }
         challenger.observe_variable_length_extension_slice(&openings.main_trace_evaluations);
 

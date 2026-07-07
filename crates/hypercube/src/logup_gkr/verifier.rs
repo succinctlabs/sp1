@@ -320,21 +320,18 @@ impl<GC: IopCtx, SC: ShardContext<GC>> LogUpGkrVerifier<GC, SC> {
             shard_chips.iter().zip_eq(chip_openings.values()).zip_eq(degrees.values())
         {
             // Observe the opening
-            if let Some(prep_eval) = openings.preprocessed_trace_evaluations.as_ref() {
-                challenger.observe_variable_length_extension_slice(prep_eval);
-                if prep_eval.evaluations().sizes() != [chip.air.preprocessed_width()] {
-                    return Err(LogupGkrVerificationError::InvalidShape);
-                }
-            } else if chip.air.preprocessed_width() != 0 {
+            challenger
+                .observe_variable_length_extension_slice(&openings.preprocessed_trace_evaluations);
+            if openings.preprocessed_trace_evaluations.evaluations().sizes()
+                != [chip.air.preprocessed_width()]
+            {
                 return Err(LogupGkrVerificationError::InvalidShape);
             }
             if has_global_round {
-                challenger.observe_variable_length_extension_slice(
-                    openings.global_trace_evaluations.as_deref().unwrap_or(&[]),
-                );
+                challenger
+                    .observe_variable_length_extension_slice(&openings.global_trace_evaluations);
             }
-            if openings.global_trace_evaluations.as_ref().map_or(0, MleEval::num_polynomials)
-                != chip.air.global_width()
+            if openings.global_trace_evaluations.evaluations().sizes() != [chip.air.global_width()]
             {
                 return Err(LogupGkrVerificationError::InvalidShape);
             }
@@ -370,23 +367,23 @@ impl<GC: IopCtx, SC: ShardContext<GC>> LogUpGkrVerifier<GC, SC> {
                         .ok_or(LogupGkrVerificationError::GlobalScopeWithoutGlobalRound)?,
                 };
                 let (real_numerator, real_denominator) = interaction.eval(
-                    preprocessed_trace_evaluations.as_ref(),
-                    global_trace_evaluations.as_ref(),
+                    preprocessed_trace_evaluations,
+                    global_trace_evaluations,
                     main_trace_evaluations,
                     alpha,
                     betas,
                 );
                 let padding_trace_opening =
                     MleEval::from(vec![GC::EF::zero(); main_trace_evaluations.num_polynomials()]);
-                let padding_preprocessed_opening = preprocessed_trace_evaluations
-                    .as_ref()
-                    .map(|eval| MleEval::from(vec![GC::EF::zero(); eval.num_polynomials()]));
-                let padding_global_opening = global_trace_evaluations
-                    .as_ref()
-                    .map(|eval| MleEval::from(vec![GC::EF::zero(); eval.num_polynomials()]));
+                let padding_preprocessed_opening = MleEval::from(vec![
+                            GC::EF::zero();
+                            preprocessed_trace_evaluations.num_polynomials()
+                        ]);
+                let padding_global_opening =
+                    MleEval::from(vec![GC::EF::zero(); global_trace_evaluations.num_polynomials()]);
                 let (padding_numerator, padding_denominator) = interaction.eval(
-                    padding_preprocessed_opening.as_ref(),
-                    padding_global_opening.as_ref(),
+                    &padding_preprocessed_opening,
+                    &padding_global_opening,
                     &padding_trace_opening,
                     alpha,
                     betas,

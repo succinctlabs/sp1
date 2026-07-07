@@ -119,11 +119,11 @@ fn verify_deferred_proofs(
     if proofs.is_empty() {
         return Ok(());
     }
-    #[cfg(feature = "experimental")]
+    #[cfg(not(feature = "experimental"))]
     let verifier_vks = RecursionVks::new(None, DEFAULT_MAX_COMPOSE_ARITY, false).to_verifier_vks();
     // With vk-verification off the prover stamps the dummy vk-tree root, so the deferred-proof
     // verifier must use that same dummy root rather than the frozen real one.
-    #[cfg(not(feature = "experimental"))]
+    #[cfg(feature = "experimental")]
     let verifier_vks = if std::env::var("WITHOUT_VK_VERIFICATION")
         .map(|v| v == "1" || v == "true")
         .unwrap_or(false)

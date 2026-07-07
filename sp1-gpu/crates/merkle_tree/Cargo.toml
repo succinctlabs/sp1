@@ -45,6 +45,12 @@ sp1-recursion-circuit = { workspace = true }
 sp1-gpu-prover = { workspace = true }
 sp1-recursion-compiler = { workspace = true }
 slop-stacked = { workspace = true }
+criterion = "0.5"
+rand = { workspace = true }
+
+[[bench]]
+name = "batch_update"
+harness = false
 
 [lints]
 workspace = true

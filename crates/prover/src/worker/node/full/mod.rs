@@ -318,6 +318,8 @@ mod tests {
     use sp1_core_machine::{riscv::RiscvAir, utils::setup_logger};
 
     use crate::{components::SP1ProverComponents, CpuSP1ProverComponents};
+
+    #[cfg(feature = "experimental")]
     use sp1_hypercube::HashableKey;
 
     use crate::worker::{

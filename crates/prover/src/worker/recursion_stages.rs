@@ -1,7 +1,7 @@
 //! The wiring/crypto seam for two-stage recursion (compress mode).
 //!
 //! [`RecursionStages`] is the only surface the worker drives; the recursion circuit programs live
-//! behind it. `SP1RecursionProver` implements it in production; [`MockRecursionStages`] stands in
+//! behind it. `SP1RecursionProver` implements it in production; `MockRecursionStages` stands in
 //! for tests that exercise the plumbing without real crypto.
 
 use futures::future::BoxFuture;
@@ -54,66 +54,19 @@ pub trait RecursionStages: Send + Sync {
 }
 
 #[cfg(test)]
-use sp1_hypercube::create_dummy_recursion_proof;
-#[cfg(test)]
-use sp1_prover_types::ArtifactClient;
-
-/// Test double for [`RecursionStages`]: emits and uploads a dummy proof for each stage without any
-/// verification, so the node/controller plumbing can be driven end-to-end without real crypto.
-#[cfg(test)]
-pub struct MockRecursionStages<A> {
-    artifact_client: A,
-}
-
-#[cfg(test)]
-impl<A: ArtifactClient> MockRecursionStages<A> {
-    pub fn new(artifact_client: A) -> Self {
-        Self { artifact_client }
-    }
-}
-
-#[cfg(test)]
-impl<A: ArtifactClient> RecursionStages for MockRecursionStages<A> {
-    fn normalize<'a>(
-        &'a self,
-        common: &'a CommonProverInput,
-        _core_proof: ShardProof<SP1GlobalContext, SP1PcsProofInner>,
-        _chunk_ctx: &'a ChunkChallengeCtx,
-        out: Artifact,
-    ) -> BoxFuture<'a, Result<StageProof, TaskError>> {
-        Box::pin(async move {
-            let proof = create_dummy_recursion_proof(&common.vk);
-            self.artifact_client.upload(&out, proof.clone()).await?;
-            Ok(proof)
-        })
-    }
-
-    fn within_chunk_reduce<'a>(
-        &'a self,
-        children: Vec<StageProof>,
-        _is_chunk_complete: bool,
-        out: Artifact,
-    ) -> BoxFuture<'a, Result<StageProof, TaskError>> {
-        Box::pin(async move {
-            let first = children.into_iter().next().expect("reduce needs >= 1 child");
-            self.artifact_client.upload(&out, first.clone()).await?;
-            Ok(first)
-        })
-    }
-}
-
-#[cfg(test)]
 mod tests {
     use std::sync::Arc;
 
     use slop_algebra::AbstractField;
     use sp1_hypercube::{
-        air::POSEIDON_NUM_WORDS, MachineVerifyingKey, SP1VerifyingKey, UntrustedConfig, DIGEST_SIZE,
+        air::POSEIDON_NUM_WORDS, create_dummy_recursion_proof, MachineVerifyingKey,
+        SP1VerifyingKey, UntrustedConfig, DIGEST_SIZE,
     };
     use sp1_primitives::SP1Field;
     use sp1_prover_types::{network_base_types::ProofMode, ArtifactClient, InMemoryArtifactClient};
 
     use super::*;
+    use crate::worker::MockRecursionStages;
 
     fn dummy_vk() -> SP1VerifyingKey {
         SP1VerifyingKey {

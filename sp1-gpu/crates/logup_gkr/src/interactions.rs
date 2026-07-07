@@ -5,19 +5,19 @@ use sp1_gpu_cudart::{DeviceBuffer, TaskScope};
 use sp1_hypercube::{air::InteractionScope, Interaction};
 use std::ops::Mul;
 
-/// Trace section a [`PairColDevice`] reads from. Matches the 3-way select in the CUDA
-/// `PairCol::get` (`tracegen.cuh`): preprocessed, global, or main.
-pub mod pair_col_source {
-    pub const PREPROCESSED: u8 = 0;
-    pub const GLOBAL: u8 = 1;
-    pub const MAIN: u8 = 2;
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+pub enum PairColSource {
+    Preprocessed = 0,
+    Global = 1,
+    Main = 2,
 }
 
 #[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub struct PairColDevice<F> {
     column_idx: usize,
-    source: u8,
+    source: PairColSource,
     weight: F,
 }
 
@@ -45,9 +45,9 @@ pub struct InteractionsRaw<F> {
 impl<F: Field> From<PairCol> for PairColDevice<F> {
     fn from(value: PairCol) -> Self {
         let (column_idx, source) = match value {
-            PairCol::Preprocessed(column_idx) => (column_idx, pair_col_source::PREPROCESSED),
-            PairCol::Global(column_idx) => (column_idx, pair_col_source::GLOBAL),
-            PairCol::Main(column_idx) => (column_idx, pair_col_source::MAIN),
+            PairCol::Preprocessed(column_idx) => (column_idx, PairColSource::Preprocessed),
+            PairCol::Global(column_idx) => (column_idx, PairColSource::Global),
+            PairCol::Main(column_idx) => (column_idx, PairColSource::Main),
         };
         Self { column_idx, source, weight: F::one() }
     }

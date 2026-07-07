@@ -72,18 +72,14 @@ fn run_zerocheck<R: Rng>(
         let main_width = chip.width();
 
         let chip_eval = ChipEvaluation {
-            preprocessed_trace_evaluations: match preprocessed_width {
-                0 => None,
-                _ => Some(MleEval::new(Tensor::from(
-                    individual_column_evals
-                        [preprocessed_ptr..preprocessed_ptr + preprocessed_width]
-                        .to_vec(),
-                ))),
-            },
+            preprocessed_trace_evaluations: MleEval::new(Tensor::from(
+                individual_column_evals[preprocessed_ptr..preprocessed_ptr + preprocessed_width]
+                    .to_vec(),
+            )),
             main_trace_evaluations: MleEval::new(Tensor::from(
                 individual_column_evals[main_ptr..main_ptr + main_width].to_vec(),
             )),
-            global_trace_evaluations: None,
+            global_trace_evaluations: MleEval::from(Vec::new()),
         };
 
         chip_openings.insert(chip.air.name().to_string(), chip_eval);

@@ -22,6 +22,7 @@ slop-maybe-rayon = { workspace = true }
 slop-air = { workspace = true }
 slop-symmetric = { workspace = true }
 slop-merkle-tree = { workspace = true }
+slop-challenger = { workspace = true }
 # misc
 serde = { workspace = true, features = ["derive", "rc"] }
 serde_json = { workspace = true }

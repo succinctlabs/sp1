@@ -5,8 +5,8 @@ use std::time::{Duration, Instant};
 use sp1_gpu_cudart::{
     args,
     sys::merkle_tree::{
-        copy_digest8_merkle_tree_kernel, count_histogram_merkle_tree_kernel,
-        prev_compress_merkle_tree_kernel, prev_leader_flags_merkle_tree_kernel,
+        count_histogram_merkle_tree_kernel, prev_compress_dense_merkle_tree_kernel,
+        prev_leader_flags_merkle_tree_kernel, prev_scatter_leaders_merkle_tree_kernel,
         scan_reset_merkle_tree_kernel, scan_u32_merkle_tree_kernel,
     },
     DeviceBuffer, TaskScope,
@@ -49,7 +49,7 @@ impl GpuPrevTree {
         if h == self.height {
             self.leaf_idx.as_ptr()
         } else {
-            unsafe { self.pool_idx.as_ptr().add(self.offset[h]) }
+            self.pool_idx.elem_ptr(self.offset[h])
         }
     }
     /// Const pointer to the digest array at height `h`.
@@ -57,7 +57,7 @@ impl GpuPrevTree {
         if h == self.height {
             self.leaf_val.as_ptr()
         } else {
-            unsafe { self.pool_val.as_ptr().add(self.offset[h] * DIGEST_WIDTH) }
+            self.pool_val.elem_ptr(self.offset[h] * DIGEST_WIDTH)
         }
     }
 }
@@ -110,12 +110,14 @@ pub fn gpu_build_prev(
     let max_blocks = n.div_ceil(SCAN_SECTION).max(1);
     let mut flags = DeviceBuffer::<u32>::with_capacity_in(cap, scope.clone());
     let mut incl = DeviceBuffer::<u32>::with_capacity_in(cap, scope.clone());
+    let mut leader_pos = DeviceBuffer::<u32>::with_capacity_in(cap, scope.clone());
     let mut scan_values = DeviceBuffer::<u32>::with_capacity_in(max_blocks + 1, scope.clone());
     let mut block_counter = DeviceBuffer::<u32>::with_capacity_in(1, scope.clone());
     let mut block_flags = DeviceBuffer::<u32>::with_capacity_in(max_blocks + 1, scope.clone());
     unsafe {
         flags.set_len(cap);
         incl.set_len(cap);
+        leader_pos.set_len(cap);
         scan_values.set_len(max_blocks + 1);
         block_counter.set_len(1);
         block_flags.set_len(max_blocks + 1);
@@ -222,17 +224,29 @@ pub fn gpu_build_prev(
             let a = args!(incl_ptr, din, nsz, sv, bc, bf);
             unsafe { scope.launch_kernel(kern, num_blocks, SCAN_BLOCK, &a, 0).unwrap() };
         }
-        // 3. segmented compress into pool[offset[lvl]]
+        // 3a. compact leader child-indices into `leader_pos[0..count[lvl]]` (cheap scatter).
         {
-            let nn = n_ch as u32;
-            let default_child = unsafe { defaults_dev.as_ptr().add((lvl + 1) * DIGEST_WIDTH) };
             let flags_c = flags.as_ptr();
             let incl_c = incl.as_ptr();
+            let lp = leader_pos.as_mut_ptr();
+            let nn = n_ch as u32;
+            let grid = n_ch.div_ceil(BLOCK);
+            let kern = unsafe { prev_scatter_leaders_merkle_tree_kernel() };
+            let a = args!(flags_c, incl_c, nn, lp);
+            unsafe { scope.launch_kernel(kern, grid, BLOCK, &a, 0).unwrap() };
+        }
+        // 3b. dense compress: one thread per parent (no divergence over the compress).
+        {
+            let n_par = count[lvl];
+            let lp = leader_pos.as_ptr();
+            let n_par32 = n_par as u32;
+            let nn = n_ch as u32;
+            let default_child = unsafe { defaults_dev.as_ptr().add((lvl + 1) * DIGEST_WIDTH) };
             let pidx = unsafe { pool_idx_base.add(offset[lvl]) };
             let pval = unsafe { pool_val_base.add(offset[lvl] * DIGEST_WIDTH) };
-            let grid = n_ch.div_ceil(BLOCK);
-            let kern = unsafe { prev_compress_merkle_tree_kernel() };
-            let a = args!(cidx, cval, nn, incl_c, flags_c, default_child, pidx, pval);
+            let grid = n_par.div_ceil(BLOCK);
+            let kern = unsafe { prev_compress_dense_merkle_tree_kernel() };
+            let a = args!(lp, n_par32, cidx, cval, nn, default_child, pidx, pval);
             unsafe { scope.launch_kernel(kern, grid, BLOCK, &a, 0).unwrap() };
         }
     }
@@ -241,13 +255,9 @@ pub fn gpu_build_prev(
 
     // Root: the single level-0 node, or default[0] for an empty tree.
     let prev_root = if count[0] >= 1 {
+        let start = offset[0] * DIGEST_WIDTH;
         let mut root_dev = DeviceBuffer::<SP1Field>::with_capacity_in(DIGEST_WIDTH, scope.clone());
-        unsafe { root_dev.set_len(DIGEST_WIDTH) };
-        let src = unsafe { pool_val_base.add(offset[0] * DIGEST_WIDTH) } as *const SP1Field;
-        let dst = root_dev.as_mut_ptr();
-        let kern = unsafe { copy_digest8_merkle_tree_kernel() };
-        let a = args!(src, dst);
-        unsafe { scope.launch_kernel(kern, 1usize, DIGEST_WIDTH, &a, 0).unwrap() };
+        root_dev.extend_from_device_slice(&pool_val[start..start + DIGEST_WIDTH]).unwrap();
         let v = root_dev.to_host().unwrap();
         core::array::from_fn(|k| v[k])
     } else {
@@ -304,20 +314,16 @@ pub fn gpu_batch_update(
     let active = ancestor_levels(&update_idxs, h, true); // active[height] = update idxs
     let active_count: Vec<usize> = active.iter().map(|v| v.len()).collect();
 
-    // Active pool layout: levels height, height-1, ..., 0.
+    // Active pool layout: levels height, height-1, ..., 0; offsets are the running prefix sum.
     let mut act_offset = vec![0usize; h + 1];
-    let mut cursor = 0usize;
-    for lvl in (0..=h).rev() {
+    let total_act = (0..=h).rev().fold(0usize, |cursor, lvl| {
         act_offset[lvl] = cursor;
-        cursor += active_count[lvl];
-    }
-    let total_act = cursor;
+        cursor + active_count[lvl]
+    });
 
-    // Concatenated active indices in pool order, and emit row offsets.
-    let mut act_idx_host = Vec::with_capacity(total_act);
-    for lvl in (0..=h).rev() {
-        act_idx_host.extend(active[lvl].iter().map(|&i| i as u32));
-    }
+    // Concatenated active indices in pool order.
+    let act_idx_host: Vec<u32> =
+        (0..=h).rev().flat_map(|lvl| active[lvl].iter().map(|&i| i as u32)).collect();
     // prefix_internal[h] = number of active internal nodes in levels < h (levels 0..H-1).
     let mut prefix_internal = vec![0usize; h];
     let mut acc = 0usize;
@@ -369,9 +375,9 @@ pub fn gpu_batch_update(
     scope.synchronize_blocking().unwrap();
     let stage_c_h2d = t_c_h2d.elapsed();
 
-    let act_idx_base = act_idx_dev.as_ptr();
+    // `cur_pool` is read (child values) and written (parent values) at disjoint offsets in the
+    // same kernel launch, so it stays a raw pointer — references can't express that aliasing.
     let cur_base = cur_pool.as_mut_ptr();
-    let defaults_base = tree.defaults_dev.as_ptr();
 
     // --- Stage C compute: current values, bottom-up over active nodes. ---
     let t_cur = Instant::now();
@@ -380,15 +386,15 @@ pub fn gpu_batch_update(
         if n_a == 0 {
             continue;
         }
-        let node_idx = unsafe { act_idx_base.add(act_offset[lvl]) };
+        let node_idx = act_idx_dev.elem_ptr(act_offset[lvl]);
         let n_ac = active_count[lvl + 1] as u32;
-        let act_child_idx = unsafe { act_idx_base.add(act_offset[lvl + 1]) };
+        let act_child_idx = act_idx_dev.elem_ptr(act_offset[lvl + 1]);
         let act_child_val =
             unsafe { cur_base.add(act_offset[lvl + 1] * DIGEST_WIDTH) } as *const SP1Field;
         let prev_child_idx = tree.idx_ptr(lvl + 1);
         let n_pc = tree.count[lvl + 1] as u32;
         let prev_child_val = tree.val_ptr(lvl + 1);
-        let default_child = unsafe { defaults_base.add((lvl + 1) * DIGEST_WIDTH) };
+        let default_child = tree.defaults_dev.elem_ptr((lvl + 1) * DIGEST_WIDTH);
         let out_val = unsafe { cur_base.add(act_offset[lvl] * DIGEST_WIDTH) };
         let n_a32 = n_a as u32;
         let grid = n_a.div_ceil(BLOCK);
@@ -425,23 +431,23 @@ pub fn gpu_batch_update(
         if n_a == 0 {
             continue;
         }
-        let node_idx = unsafe { act_idx_base.add(act_offset[lvl]) };
+        let node_idx = act_idx_dev.elem_ptr(act_offset[lvl]);
         let n_a32 = n_a as u32;
         let lvl32 = lvl as u32;
         let prev_self_idx = tree.idx_ptr(lvl);
         let n_ps = tree.count[lvl] as u32;
         let prev_self_val = tree.val_ptr(lvl);
-        let default_self = unsafe { defaults_base.add(lvl * DIGEST_WIDTH) };
+        let default_self = tree.defaults_dev.elem_ptr(lvl * DIGEST_WIDTH);
         let cur_self_val =
             unsafe { cur_base.add(act_offset[lvl] * DIGEST_WIDTH) } as *const SP1Field;
-        let act_child_idx = unsafe { act_idx_base.add(act_offset[lvl + 1]) };
+        let act_child_idx = act_idx_dev.elem_ptr(act_offset[lvl + 1]);
         let n_ac = active_count[lvl + 1] as u32;
         let act_child_val =
             unsafe { cur_base.add(act_offset[lvl + 1] * DIGEST_WIDTH) } as *const SP1Field;
         let prev_child_idx = tree.idx_ptr(lvl + 1);
         let n_pc = tree.count[lvl + 1] as u32;
         let prev_child_val = tree.val_ptr(lvl + 1);
-        let default_child = unsafe { defaults_base.add((lvl + 1) * DIGEST_WIDTH) };
+        let default_child = tree.defaults_dev.elem_ptr((lvl + 1) * DIGEST_WIDTH);
         let row_base = (2 * prefix_internal[lvl]) as u32;
         let grid = n_a.div_ceil(BLOCK);
         let kern = unsafe { emit_rows_merkle_tree_kernel() };
@@ -510,26 +516,24 @@ pub fn gpu_batch_update(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::{rngs::StdRng, Rng as _, SeedableRng};
     use slop_algebra::AbstractField;
     use slop_merkle_tree::batch_update::{
         batch_update, cancellation_residual, cpu_prev_levels, validate_row_constraints,
     };
     use sp1_gpu_cudart::run_sync_in_place;
 
-    struct Rng(u64);
+    /// Seeded deterministic RNG so test cases stay reproducible across runs.
+    struct Rng(StdRng);
     impl Rng {
         fn new(seed: u64) -> Self {
-            Rng(seed)
+            Rng(StdRng::seed_from_u64(seed))
         }
         fn next_u64(&mut self) -> u64 {
-            self.0 = self.0.wrapping_add(0x9E3779B97F4A7C15);
-            let mut z = self.0;
-            z = (z ^ (z >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
-            z = (z ^ (z >> 27)).wrapping_mul(0x94D049BB133111EB);
-            z ^ (z >> 31)
+            self.0.gen()
         }
         fn below(&mut self, n: u64) -> u64 {
-            self.next_u64() % n
+            self.0.gen_range(0..n)
         }
     }
     const P: u32 = 0x7f00_0001;
@@ -721,105 +725,5 @@ mod tests {
         for seed in 0..4u64 {
             assert_full(seed ^ 0x3333, 29, 100_000, 5_000, seed % 2 == 0);
         }
-    }
-
-    #[test]
-    #[allow(clippy::print_stdout)]
-    fn bench_gpu_1m() {
-        run_sync_in_place(|scope| {
-            for clustered in [true, false] {
-                let mut rng = Rng::new(0xCAFE);
-                let dl = rand_digest(&mut rng);
-                let (_, lidx, lval, updates) =
-                    gen_case_full(&mut rng, 29, 1_000_000, 10_000, clustered, dl);
-                for _ in 0..2 {
-                    let _ = gpu_batch_update(&scope, dl, &lidx, &lval, &updates, 29);
-                }
-                let mut samples = Vec::new();
-                for _ in 0..5 {
-                    let (_, t) = gpu_batch_update(&scope, dl, &lidx, &lval, &updates, 29);
-                    samples.push(t);
-                }
-                let med = |f: &dyn Fn(&GpuTimings) -> Duration| {
-                    let mut v: Vec<Duration> = samples.iter().map(f).collect();
-                    v.sort();
-                    v[2]
-                };
-                let (proof, _) = gpu_batch_update(&scope, dl, &lidx, &lval, &updates, 29);
-                let n_rows = proof.n_rows;
-                let trace_mb = (n_rows * 3 * DIGEST_WIDTH * 4) as f64 / 1.0e6;
-                let mut asm = Vec::new();
-                for _ in 0..5 {
-                    let ta = Instant::now();
-                    let _ = proof.to_rows();
-                    asm.push(ta.elapsed());
-                }
-                asm.sort();
-                let assemble = asm[2];
-                let dist = if clustered { "clustered" } else { "scattered" };
-                println!("=== FULL, H=29, 1M leaves, 10k updates ({dist}) ===");
-                println!("  n_rows: {n_rows}  (trace digests ~{trace_mb:.1} MB)");
-                println!("  prev host_prep: {:?}", med(&|t| t.prev.host_prep));
-                println!("  prev H2D      : {:?}", med(&|t| t.prev.h2d));
-                println!("  prev count    : {:?}", med(&|t| t.prev.count_pass));
-                println!("  prev build    : {:?}", med(&|t| t.prev.compute));
-                println!("  active (host) : {:?}", med(&|t| t.active_host));
-                println!("  stage C H2D   : {:?}", med(&|t| t.stage_c_h2d));
-                println!("  cur build     : {:?}", med(&|t| t.cur_build));
-                println!("  emit          : {:?}", med(&|t| t.emit));
-                println!("  D2H           : {:?}", med(&|t| t.d2h));
-                let pipeline = med(&|t| {
-                    t.prev.host_prep
-                        + t.prev.h2d
-                        + t.prev.count_pass
-                        + t.prev.compute
-                        + t.active_host
-                        + t.stage_c_h2d
-                        + t.cur_build
-                        + t.emit
-                        + t.d2h
-                });
-                println!("  PIPELINE TOTAL: {pipeline:?}  (column output, no row repack)");
-                println!("  + assemble(par): {assemble:?}  -> {:?}", pipeline + assemble);
-            }
-        })
-        .unwrap();
-    }
-
-    #[test]
-    #[allow(clippy::print_stdout)]
-    fn bench_gpu_prev_build_1m() {
-        run_sync_in_place(|scope| {
-            for clustered in [true, false] {
-                let mut rng = Rng::new(0xBEEF);
-                let dl = rand_digest(&mut rng);
-                let (_, lidx, lval) = gen_leaves(&mut rng, 29, 1_000_000, clustered);
-                for _ in 0..2 {
-                    let _ = gpu_build_prev(&scope, dl, &lidx, &lval, 29);
-                }
-                let mut prep = Vec::new();
-                let mut h2d = Vec::new();
-                let mut cnt = Vec::new();
-                let mut comp = Vec::new();
-                for _ in 0..5 {
-                    let (_, _, t) = gpu_build_prev(&scope, dl, &lidx, &lval, 29);
-                    prep.push(t.host_prep);
-                    h2d.push(t.h2d);
-                    cnt.push(t.count_pass);
-                    comp.push(t.compute);
-                }
-                prep.sort();
-                h2d.sort();
-                cnt.sort();
-                comp.sort();
-                let dist = if clustered { "clustered" } else { "scattered" };
-                println!("=== prev build, H=29, 1M leaves ({dist}) ===");
-                println!("  host prep  (median): {:?}", prep[2]);
-                println!("  H2D        (median): {:?}", h2d[2]);
-                println!("  count pass (median): {:?}", cnt[2]);
-                println!("  build      (median): {:?}", comp[2]);
-            }
-        })
-        .unwrap();
     }
 }

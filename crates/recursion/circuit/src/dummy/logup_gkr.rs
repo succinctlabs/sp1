@@ -44,16 +44,9 @@ pub fn dummy_gkr_proof<F: Field, EF: ExtensionField<F>, A: MachineAir<F>>(
                     chip.air.name().to_string(),
                     ChipEvaluation {
                         main_trace_evaluations: vec![EF::zero(); chip.width()].into(),
-                        preprocessed_trace_evaluations: if chip.preprocessed_width() > 0 {
-                            Some(vec![EF::zero(); chip.preprocessed_width()].into())
-                        } else {
-                            None
-                        },
-                        global_trace_evaluations: if chip.global_width() > 0 {
-                            Some(vec![EF::zero(); chip.global_width()].into())
-                        } else {
-                            None
-                        },
+                        preprocessed_trace_evaluations: vec![EF::zero(); chip.preprocessed_width()]
+                            .into(),
+                        global_trace_evaluations: vec![EF::zero(); chip.global_width()].into(),
                     },
                 )
             })

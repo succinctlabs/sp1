@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-// Trace section a `PairCol` reads from; matches `pair_col_source` in
+// Trace section a `PairCol` reads from; matches `PairColSource` in
 // `crates/logup_gkr/src/interactions.rs`.
 #define PAIR_COL_SOURCE_PREPROCESSED 0
 #define PAIR_COL_SOURCE_GLOBAL 1

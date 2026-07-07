@@ -1,11 +1,5 @@
 use std::{marker::PhantomData, sync::Arc};
 
-use serde::{Deserialize, Serialize};
-use slop_merkle_tree::batch_update::{BatchMerkleProof, Digest};
-use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
-use sp1_jit::{MemReads, MemValue, MinimalTrace, TraceChunk};
-use sp1_primitives::consts::LOG_PAGE_SIZE;
-
 use crate::{
     events::{MemoryLocalEvent, MemoryReadRecord, MemoryRecord, MemoryWriteRecord, PageProtRecord},
     vm::{
@@ -20,6 +14,12 @@ use crate::{
     ExecutionError, ExecutionMode, Instruction, Opcode, Program, SP1CoreOpts, ShardingThreshold,
     SupervisorMode, SyscallCode, TrapError, UserMode,
 };
+use serde::{Deserialize, Serialize};
+use slop_merkle_tree::batch_update::{BatchMerkleProof, Digest, Tag};
+use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
+use sp1_jit::{MemReads, MemValue, MinimalTrace, TraceChunk};
+use sp1_primitives::consts::LOG_PAGE_SIZE;
+use std::mem::size_of;
 
 pub use sp1_jit::merkle::MERKLE_PAGE_WORDS;
 /// Bytes per merkle page.
@@ -126,7 +126,17 @@ pub struct MerkleProofRecord {
 
 impl deepsize2::DeepSizeOf for MerkleProofRecord {
     fn deep_size_of_children(&self, _context: &mut deepsize2::Context) -> usize {
-        0
+        let field_size = size_of::<Digest>() / 8;
+        self.payload.page_ids.capacity() * size_of::<u32>()
+            + self.payload.pages.capacity() * size_of::<PageState>()
+            + self.proof.tlr.capacity() * field_size
+            + self.proof.height.capacity() * size_of::<u32>()
+            + self.proof.idx.capacity() * size_of::<u32>()
+            + (self.proof.tag1.capacity() + self.proof.tag2.capacity() + self.proof.tag3.capacity())
+                * size_of::<Tag>()
+            + self.proof.mult.capacity() * size_of::<i8>()
+            + self.prev_leaves.capacity() * size_of::<Digest>()
+            + self.new_leaves.capacity() * size_of::<Digest>()
     }
 }
 

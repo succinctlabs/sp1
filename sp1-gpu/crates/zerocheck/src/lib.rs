@@ -973,20 +973,8 @@ pub mod tests {
                     .deref()
                     .iter()
                     .copied()
-                    .chain(
-                        chip_evaluation
-                            .preprocessed_trace_evaluations
-                            .as_ref()
-                            .iter()
-                            .flat_map(|&evals| evals.deref().iter().copied()),
-                    )
-                    .chain(
-                        chip_evaluation
-                            .global_trace_evaluations
-                            .as_ref()
-                            .iter()
-                            .flat_map(|&evals| evals.deref().iter().copied()),
-                    )
+                    .chain(chip_evaluation.preprocessed_trace_evaluations.deref().iter().copied())
+                    .chain(chip_evaluation.global_trace_evaluations.deref().iter().copied())
                     .zip(gkr_batch_open_challenge.powers().skip(1))
                     .map(|(opening, power)| opening * power)
                     .sum::<Ext>()
@@ -1477,18 +1465,15 @@ pub mod tests {
                 let preprocessed_width = chip.preprocessed_width();
                 let main_width = chip.width();
                 let chip_eval = ChipEvaluation {
-                    preprocessed_trace_evaluations: match preprocessed_width {
-                        0 => None,
-                        _ => Some(MleEval::new(Tensor::from(
-                            individual_column_evals
-                                [preprocessed_ptr..preprocessed_ptr + preprocessed_width]
-                                .to_vec(),
-                        ))),
-                    },
+                    preprocessed_trace_evaluations: MleEval::new(Tensor::from(
+                        individual_column_evals
+                            [preprocessed_ptr..preprocessed_ptr + preprocessed_width]
+                            .to_vec(),
+                    )),
                     main_trace_evaluations: MleEval::new(Tensor::from(
                         individual_column_evals[main_ptr..main_ptr + main_width].to_vec(),
                     )),
-                    global_trace_evaluations: None,
+                    global_trace_evaluations: MleEval::from(Vec::new()),
                 };
                 chip_openings.insert(
                     <ZerocheckTestChip as MachineAir<SP1Field>>::name(&chip.air).to_string(),
@@ -1656,18 +1641,15 @@ pub mod tests {
                 let preprocessed_width = chip.preprocessed_width();
                 let main_width = chip.width();
                 let chip_eval = ChipEvaluation {
-                    preprocessed_trace_evaluations: match preprocessed_width {
-                        0 => None,
-                        _ => Some(MleEval::new(Tensor::from(
-                            individual_column_evals
-                                [preprocessed_ptr..preprocessed_ptr + preprocessed_width]
-                                .to_vec(),
-                        ))),
-                    },
+                    preprocessed_trace_evaluations: MleEval::new(Tensor::from(
+                        individual_column_evals
+                            [preprocessed_ptr..preprocessed_ptr + preprocessed_width]
+                            .to_vec(),
+                    )),
                     main_trace_evaluations: MleEval::new(Tensor::from(
                         individual_column_evals[main_ptr..main_ptr + main_width].to_vec(),
                     )),
-                    global_trace_evaluations: None,
+                    global_trace_evaluations: MleEval::from(Vec::new()),
                 };
                 chip_openings.insert(
                     <ZerocheckTestChip as sp1_hypercube::air::MachineAir<SP1Field>>::name(
@@ -1983,20 +1965,15 @@ pub mod tests {
                 let gw = chip.global_width();
                 let mw = chip.width();
                 let chip_eval = ChipEvaluation {
-                    preprocessed_trace_evaluations: (pw > 0).then(|| {
-                        MleEval::new(Tensor::from(
-                            individual_column_evals[preprocessed_ptr..preprocessed_ptr + pw]
-                                .to_vec(),
-                        ))
-                    }),
+                    preprocessed_trace_evaluations: MleEval::new(Tensor::from(
+                        individual_column_evals[preprocessed_ptr..preprocessed_ptr + pw].to_vec(),
+                    )),
                     main_trace_evaluations: MleEval::new(Tensor::from(
                         individual_column_evals[main_ptr..main_ptr + mw].to_vec(),
                     )),
-                    global_trace_evaluations: (gw > 0).then(|| {
-                        MleEval::new(Tensor::from(
-                            individual_column_evals[global_ptr..global_ptr + gw].to_vec(),
-                        ))
-                    }),
+                    global_trace_evaluations: MleEval::new(Tensor::from(
+                        individual_column_evals[global_ptr..global_ptr + gw].to_vec(),
+                    )),
                 };
                 chip_openings.insert(
                     <GlobalZerocheckTestChip as MachineAir<SP1Field>>::name(&chip.air).to_string(),
@@ -2136,23 +2113,17 @@ pub mod tests {
                 let global_width = chip.global_width();
                 let main_width = chip.width();
                 let chip_eval = ChipEvaluation {
-                    preprocessed_trace_evaluations: match preprocessed_width {
-                        0 => None,
-                        _ => Some(MleEval::new(Tensor::from(
-                            individual_column_evals
-                                [preprocessed_ptr..preprocessed_ptr + preprocessed_width]
-                                .to_vec(),
-                        ))),
-                    },
+                    preprocessed_trace_evaluations: MleEval::new(Tensor::from(
+                        individual_column_evals
+                            [preprocessed_ptr..preprocessed_ptr + preprocessed_width]
+                            .to_vec(),
+                    )),
                     main_trace_evaluations: MleEval::new(Tensor::from(
                         individual_column_evals[main_ptr..main_ptr + main_width].to_vec(),
                     )),
-                    global_trace_evaluations: match global_width {
-                        0 => None,
-                        _ => Some(MleEval::new(Tensor::from(
-                            individual_column_evals[global_ptr..global_ptr + global_width].to_vec(),
-                        ))),
-                    },
+                    global_trace_evaluations: MleEval::new(Tensor::from(
+                        individual_column_evals[global_ptr..global_ptr + global_width].to_vec(),
+                    )),
                 };
                 chip_openings.insert(chip.air.name().to_string(), chip_eval);
                 preprocessed_ptr += preprocessed_width;

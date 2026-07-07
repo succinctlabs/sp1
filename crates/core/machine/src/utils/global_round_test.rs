@@ -6,6 +6,7 @@ use std::{borrow::BorrowMut, mem::MaybeUninit};
 use hashbrown::HashMap;
 use slop_air::{Air, BaseAir, GlobalBuilder, PairBuilder};
 use slop_algebra::{AbstractField, PrimeField32};
+use slop_challenger::IopCtx;
 use slop_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::Program;
 use sp1_hypercube::{
@@ -13,7 +14,7 @@ use sp1_hypercube::{
         AirInteraction, InteractionScope, MachineAir, PublicValues, SP1AirBuilder,
         POSEIDON_NUM_WORDS,
     },
-    InteractionKind, IopCtx, MachineRecord, PROOF_MAX_NUM_PVS,
+    InteractionKind, MachineRecord, PROOF_MAX_NUM_PVS,
 };
 
 use crate::utils::zeroed_f_vec;
@@ -44,7 +45,6 @@ pub struct GlobalTestRecord {
     pub global_commitments: Vec<[u32; 8]>,
 }
 
-#[cfg(test)]
 impl GlobalTestRecord {
     /// Record the chunk's ordered global-trace commitments (mirrors `ExecutionRecord`).
     fn set_global_commitments<GC: IopCtx>(&mut self, commitments: &[GC::Digest]) {
@@ -668,9 +668,9 @@ mod tests {
         let (vk, mut proof, verifier) = prove_test_record().await;
         let openings =
             proof.logup_gkr_proof.logup_evaluations.chip_openings.get_mut("MixedGlobal").unwrap();
-        let mut evals = openings.global_trace_evaluations.take().unwrap().to_vec();
+        let mut evals = openings.global_trace_evaluations.to_vec();
         evals[0] += EF::one();
-        openings.global_trace_evaluations = Some(MleEval::from(evals));
+        openings.global_trace_evaluations = MleEval::from(evals);
         assert!(
             verify(&vk, proof, &verifier).is_err(),
             "a corrupted GKR global trace evaluation must fail verification"

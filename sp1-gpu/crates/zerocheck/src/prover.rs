@@ -2129,18 +2129,8 @@ where
             .evaluations()
             .as_slice()
             .iter()
-            .chain(
-                prep_opening
-                    .as_ref()
-                    .map_or_else(Vec::new, |mle| mle.evaluations().as_slice().to_vec())
-                    .iter(),
-            )
-            .chain(
-                global_opening
-                    .as_ref()
-                    .map_or_else(Vec::new, |mle| mle.evaluations().as_slice().to_vec())
-                    .iter(),
-            )
+            .chain(prep_opening.evaluations().as_slice().iter())
+            .chain(global_opening.evaluations().as_slice().iter())
             .zip(gkr_powers.iter())
             .map(|(opening, power)| *opening * *power)
             .sum::<Ext>();

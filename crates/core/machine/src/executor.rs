@@ -33,12 +33,6 @@ pub fn trace_chunk<F: PrimeField32>(
     proof_nonce: [u32; PROOF_NONCE_NUM_WORDS],
     mut record: ExecutionRecord,
 ) -> Result<(bool, ExecutionRecord, [MemoryRecord; 32]), ExecutionError> {
-    if std::env::var("SP1_BENCH_BYPASS_TRACE").is_ok() {
-        let vm = TracingVMEnum::new(&chunk, program, opts, proof_nonce, &mut record);
-        let registers = *vm.registers();
-        drop(vm);
-        return Ok((false, record, registers));
-    }
     let mut vm = TracingVMEnum::new(&chunk, program, opts, proof_nonce, &mut record);
     let status = vm.execute()?;
     tracing::trace!("chunk ended at clk: {}", vm.clk());

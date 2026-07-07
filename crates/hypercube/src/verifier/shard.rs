@@ -409,20 +409,8 @@ where {
                     .deref()
                     .iter()
                     .copied()
-                    .chain(
-                        chip_evaluation
-                            .preprocessed_trace_evaluations
-                            .as_ref()
-                            .iter()
-                            .flat_map(|&evals| evals.deref().iter().copied()),
-                    )
-                    .chain(
-                        chip_evaluation
-                            .global_trace_evaluations
-                            .as_ref()
-                            .iter()
-                            .flat_map(|&evals| evals.deref().iter().copied()),
-                    )
+                    .chain(chip_evaluation.preprocessed_trace_evaluations.deref().iter().copied())
+                    .chain(chip_evaluation.global_trace_evaluations.deref().iter().copied())
                     .zip(gkr_batch_open_challenge.powers().skip(1))
                     .map(|(opening, power)| opening * power)
                     .sum::<GC::EF>()
@@ -649,21 +637,13 @@ where {
                 ));
             }
 
-            if gkr_opened_values
-                .preprocessed_trace_evaluations
-                .as_ref()
-                .map_or(0, MleEval::num_polynomials)
+            if gkr_opened_values.preprocessed_trace_evaluations.len()
                 != shard_chip.preprocessed_width()
             {
                 return Err(ShardVerifierError::InvalidShape);
             }
 
-            if gkr_opened_values
-                .global_trace_evaluations
-                .as_ref()
-                .map_or(0, MleEval::num_polynomials)
-                != shard_chip.global_width()
-            {
+            if gkr_opened_values.global_trace_evaluations.len() != shard_chip.global_width() {
                 return Err(ShardVerifierError::InvalidShape);
             }
 

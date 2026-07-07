@@ -60,7 +60,6 @@ path = "src/bin/prover.rs"
 bigint-rug = ["sp1-core-executor/bigint-rug"]
 native-gnark = ["sp1-sdk/native-gnark"]
 network = ["sp1-sdk/network"]
-bench-stub = ["sp1-prover/bench-stub"]
 mprotect = [
   "sp1-core-executor/mprotect",
   "sp1-core-machine/mprotect",

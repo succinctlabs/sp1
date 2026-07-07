@@ -66,11 +66,17 @@ impl SP1LightNode {
                 Arc::new(CpuShardProver::new(core_verifier.shard_verifier().clone()));
             let permits = ProverSemaphore::new(1);
 
-            #[cfg(feature = "experimental")]
-            let verifier_vks =
-                RecursionVks::new(None, DEFAULT_MAX_COMPOSE_ARITY, false).to_verifier_vks();
             #[cfg(not(feature = "experimental"))]
             let verifier_vks = VerifierRecursionVks::default();
+            #[cfg(feature = "experimental")]
+            let verifier_vks = if std::env::var("WITHOUT_VK_VERIFICATION")
+                .map(|v| v == "1" || v == "true")
+                .unwrap_or(false)
+            {
+                RecursionVks::new(None, DEFAULT_MAX_COMPOSE_ARITY, false).to_verifier_vks()
+            } else {
+                crate::verify::VerifierRecursionVks::default()
+            };
             let verifier = SP1Verifier::new_with_machine(verifier_vks, machine);
             // Create a new core node for the light node
             let core = SP1NodeCore::new(verifier, opts);
@@ -112,17 +118,16 @@ impl SP1LightNode {
 }
 
 #[cfg(test)]
+#[cfg(feature = "experimental")]
 mod tests {
+    use crate::worker::{cpu_worker_builder_with_machine, SP1LocalNodeBuilder};
     use sp1_core_machine::utils::setup_logger;
     use sp1_hypercube::HashableKey;
     use tracing::Instrument;
 
-    use crate::worker::{cpu_worker_builder_with_machine, SP1LocalNodeBuilder};
-
     use super::*;
 
     #[tokio::test]
-    #[cfg(feature = "experimental")]
     async fn test_light_node() {
         setup_logger();
 

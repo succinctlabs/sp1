@@ -112,7 +112,6 @@ debug = ["sp1-core-machine/debug"]
 bigint-rug = ["sp1-core-machine/bigint-rug"]
 experimental = []
 profiling = ["sp1-core-executor/profiling", "sp1-jit/profiling"]
-bench-stub = []
 mprotect = [
   "experimental",
   "sp1-core-executor/mprotect",

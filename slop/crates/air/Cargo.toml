@@ -10,6 +10,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+p3-air = { workspace = true }
 slop-algebra = { workspace = true }
 slop-matrix = { workspace = true }
 serde = { workspace = true }

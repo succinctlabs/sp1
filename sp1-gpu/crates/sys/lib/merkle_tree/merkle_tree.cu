@@ -224,26 +224,39 @@ __global__ void scanReset(
     }
 }
 
-// Segmented compress: each leader writes its parent (idx, σ) at its scanned rank.
-// `incl` is the inclusive scan of `flags`; the leader at j has rank `incl[j]-1`.
-// Children are adjacent: an even child is the left and its right sibling is the
-// next entry iff it shares the parent; an odd child is the right (left absent).
-__global__ void prevCompress(
+// Compact the leaders: `leader_pos[incl[j]-1] = j` for each leader (`flags[j] != 0`).
+// `incl` is the inclusive scan of `flags`, so a leader at `j` lands at its scanned rank.
+// This is a cheap single-word scatter; the expensive compress below is then dense.
+__global__ void prevScatterLeaders(
+    const uint32_t* __restrict__ flags,
+    const uint32_t* __restrict__ incl,
+    uint32_t n,
+    uint32_t* __restrict__ leader_pos) {
+    for (uint32_t j = blockIdx.x * blockDim.x + threadIdx.x; j < n;
+         j += blockDim.x * gridDim.x) {
+        if (flags[j] != 0) {
+            leader_pos[incl[j] - 1] = j;
+        }
+    }
+}
+
+// Dense compress: one thread per parent, `leader_pos[t]` being the child index `j` of the
+// t-th parent, so every thread runs the Poseidon2 compress (no control divergence over it).
+// Children are adjacent: an even child is the left and its right sibling is the next entry
+// iff it shares the parent; an odd child is the right (left absent).
+__global__ void prevCompressDense(
+    const uint32_t* __restrict__ leader_pos,
+    uint32_t num_leaders,
     const uint32_t* __restrict__ cidx,
     const kb31_t (*cval)[8],
     uint32_t n,
-    const uint32_t* __restrict__ incl,
-    const uint32_t* __restrict__ flags,
     const kb31_t* __restrict__ default_child,
     uint32_t* __restrict__ pidx,
     kb31_t (*pval)[8]) {
-    for (uint32_t j = blockIdx.x * blockDim.x + threadIdx.x; j < n;
-         j += blockDim.x * gridDim.x) {
-        if (flags[j] == 0) {
-            continue;
-        }
+    for (uint32_t t = blockIdx.x * blockDim.x + threadIdx.x; t < num_leaders;
+         t += blockDim.x * gridDim.x) {
+        uint32_t j = leader_pos[t];
         uint32_t ci = cidx[j];
-        uint32_t rank = incl[j] - 1;
         kb31_t left[8], right[8], res[8];
         if ((ci & 1u) == 0) {
             // Left child present; right sibling is the next entry iff same parent.
@@ -262,23 +275,12 @@ __global__ void prevCompress(
             }
         }
         poseidon2::KoalaBearHasher::compress(left, right, res);
-        pidx[rank] = ci >> 1;
+        pidx[t] = ci >> 1;
 #pragma unroll
         for (int k = 0; k < 8; k++) {
-            pval[rank][k] = res[k];
+            pval[t][k] = res[k];
         }
     }
-}
-
-// dst[0..8] = src[0..8]  (copy one digest out of a pool for a small readback).
-__global__ void copyDigest8(const kb31_t* __restrict__ src, kb31_t* __restrict__ dst) {
-    if (blockIdx.x == 0 && threadIdx.x < 8) {
-        dst[threadIdx.x] = src[threadIdx.x];
-    }
-}
-
-extern "C" void* copy_digest8_merkle_tree_kernel() {
-    return (void*)copyDigest8;
 }
 
 extern "C" void* prev_leader_flags_merkle_tree_kernel() {
@@ -290,8 +292,11 @@ extern "C" void* scan_reset_merkle_tree_kernel() {
 extern "C" void* scan_u32_merkle_tree_kernel() {
     return (void*)scan_large::Scan<uint32_t>;
 }
-extern "C" void* prev_compress_merkle_tree_kernel() {
-    return (void*)prevCompress;
+extern "C" void* prev_scatter_leaders_merkle_tree_kernel() {
+    return (void*)prevScatterLeaders;
+}
+extern "C" void* prev_compress_dense_merkle_tree_kernel() {
+    return (void*)prevCompressDense;
 }
 
 // ===========================================================================

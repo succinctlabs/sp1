@@ -264,13 +264,14 @@ where
         {
             // Observe the opening. On a global round the global openings are observed between the
             // preprocessed and main openings, matching the native verifier.
-            if let Some(prep_eval) = openings.preprocessed_trace_evaluations.as_ref() {
-                challenger.observe_variable_length_extension_slice(builder, prep_eval.deref());
-            }
+            challenger.observe_variable_length_extension_slice(
+                builder,
+                openings.preprocessed_trace_evaluations.deref(),
+            );
             if global_challenge.is_some() {
                 challenger.observe_variable_length_extension_slice(
                     builder,
-                    openings.global_trace_evaluations.as_deref().unwrap_or(&[]),
+                    openings.global_trace_evaluations.deref(),
                 );
             }
             challenger.observe_variable_length_extension_slice(
@@ -285,10 +286,8 @@ where
                 global_trace_evaluations,
             } = openings;
 
-            let global_opening = global_trace_evaluations.as_ref();
-            let padding_global_opening = global_trace_evaluations
-                .as_ref()
-                .map(|eval| MleEval::from(vec![SP1Field::zero(); eval.num_polynomials()]));
+            let padding_global_opening =
+                MleEval::from(vec![SP1Field::zero(); global_trace_evaluations.num_polynomials()]);
             for (interaction, is_send) in chip
                 .sends()
                 .iter()
@@ -307,20 +306,21 @@ where
                     ),
                 };
                 let (real_numerator, real_denominator) = interaction.eval(
-                    preprocessed_trace_evaluations.as_ref(),
-                    global_opening,
+                    preprocessed_trace_evaluations,
+                    global_trace_evaluations,
                     main_trace_evaluations,
                     alpha,
                     betas,
                 );
                 let padding_trace_opening =
                     MleEval::from(vec![SP1Field::zero(); main_trace_evaluations.num_polynomials()]);
-                let padding_preprocessed_opening = preprocessed_trace_evaluations
-                    .as_ref()
-                    .map(|eval| MleEval::from(vec![SP1Field::zero(); eval.num_polynomials()]));
+                let padding_preprocessed_opening = MleEval::from(vec![
+                    SP1Field::zero();
+                    preprocessed_trace_evaluations.num_polynomials()
+                ]);
                 let (padding_numerator, padding_denominator) = interaction.eval(
-                    padding_preprocessed_opening.as_ref(),
-                    padding_global_opening.as_ref(),
+                    &padding_preprocessed_opening,
+                    &padding_global_opening,
                     &padding_trace_opening,
                     alpha,
                     betas,
@@ -408,10 +408,8 @@ impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for ChipEvaluation<T> {
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let main_trace_evaluations = self.main_trace_evaluations.read(builder);
-        let preprocessed_trace_evaluations =
-            self.preprocessed_trace_evaluations.as_ref().map(|mle| mle.read(builder));
-        let global_trace_evaluations =
-            self.global_trace_evaluations.as_ref().map(|mle| mle.read(builder));
+        let preprocessed_trace_evaluations = self.preprocessed_trace_evaluations.read(builder);
+        let global_trace_evaluations = self.global_trace_evaluations.read(builder);
         Self::WitnessVariable {
             main_trace_evaluations,
             preprocessed_trace_evaluations,
@@ -421,12 +419,8 @@ impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for ChipEvaluation<T> {
 
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
         self.main_trace_evaluations.write(witness);
-        if let Some(mle) = self.preprocessed_trace_evaluations.as_ref() {
-            mle.write(witness);
-        }
-        if let Some(mle) = self.global_trace_evaluations.as_ref() {
-            mle.write(witness);
-        }
+        self.preprocessed_trace_evaluations.write(witness);
+        self.global_trace_evaluations.write(witness);
     }
 }
 

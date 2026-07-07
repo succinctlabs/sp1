@@ -72,9 +72,9 @@ pub struct ChipEvaluation<EF> {
     /// The evaluations of the main trace.
     pub main_trace_evaluations: MleEval<EF>,
     /// The evaluations of the preprocessed trace.
-    pub preprocessed_trace_evaluations: Option<MleEval<EF>>,
+    pub preprocessed_trace_evaluations: MleEval<EF>,
     /// The evaluations of the global trace.
-    pub global_trace_evaluations: Option<MleEval<EF>>,
+    pub global_trace_evaluations: MleEval<EF>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

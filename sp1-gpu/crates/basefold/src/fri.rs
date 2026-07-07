@@ -722,25 +722,18 @@ mod tests {
 
             let eval_point_host = Point::<Ext>::rand(&mut rng, LOG_STACKING_HEIGHT);
 
-            let evaluation_claims_1: Vec<_> = interleaved_message
-                .clone()
-                .into_iter()
-                .map(|mle| mle.eval_at(&eval_point_host))
-                .collect();
+            let evaluation_claims_1: Vec<_> =
+                interleaved_message.iter().map(|mle| mle.eval_at(&eval_point_host)).collect();
 
             let evaluation_claims_1 = Evaluations { round_evaluations: evaluation_claims_1 };
 
             let evaluation_claims_global: Vec<_> = interleaved_message_global
-                .clone()
-                .into_iter()
+                .iter()
                 .map(|mle| mle.eval_at(&eval_point_host))
                 .collect();
 
-            let evaluation_claims_2: Vec<_> = interleaved_message_2
-                .clone()
-                .into_iter()
-                .map(|mle| mle.eval_at(&eval_point_host))
-                .collect();
+            let evaluation_claims_2: Vec<_> =
+                interleaved_message_2.iter().map(|mle| mle.eval_at(&eval_point_host)).collect();
 
             let host_evaluation_claims_1: Vec<MleEval<Ext, CpuBackend>> = evaluation_claims_1
                 .round_evaluations

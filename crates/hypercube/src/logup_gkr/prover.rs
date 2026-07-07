@@ -248,23 +248,22 @@ impl<GC: IopCtx, SC: ShardContext<GC>> GkrProverImpl<GC, SC> {
             };
             let preprocessed_evaluation =
                 preprocessed_trace.as_ref().map(|t| t.eval_at_eq(&eval_point, &eval_point_eq));
-            let preprocessed_evaluation = preprocessed_evaluation.map(|e| e.to_host().unwrap());
-            let global_evaluation = global_trace
-                .as_ref()
-                .map(|t| t.eval_at_eq(&eval_point, &eval_point_eq).to_host().unwrap());
+            let preprocessed_evaluation =
+                preprocessed_evaluation.map_or(MleEval::from(Vec::new()), |e| e.to_host().unwrap());
+            let global_evaluation = global_trace.as_ref().map_or(MleEval::from(Vec::new()), |t| {
+                t.eval_at_eq(&eval_point, &eval_point_eq).to_host().unwrap()
+            });
             let openings = ChipEvaluation {
                 main_trace_evaluations: main_evaluation,
                 preprocessed_trace_evaluations: preprocessed_evaluation,
                 global_trace_evaluations: global_evaluation,
             };
             // Observe the openings.
-            if let Some(prep_eval) = openings.preprocessed_trace_evaluations.as_ref() {
-                challenger.observe_variable_length_extension_slice(prep_eval);
-            }
+            challenger
+                .observe_variable_length_extension_slice(&openings.preprocessed_trace_evaluations);
             if has_global_round {
-                challenger.observe_variable_length_extension_slice(
-                    openings.global_trace_evaluations.as_deref().unwrap_or(&[]),
-                );
+                challenger
+                    .observe_variable_length_extension_slice(&openings.global_trace_evaluations);
             }
             challenger.observe_variable_length_extension_slice(&openings.main_trace_evaluations);
 

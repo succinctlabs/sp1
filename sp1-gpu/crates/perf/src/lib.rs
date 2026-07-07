@@ -20,17 +20,6 @@ pub const TRAP_ELF: &[u8] =
     include_bytes!("../../prover_components/programs/trap/riscv64im-succinct-zkvm-elf");
 
 pub fn get_program_and_input(program: String, param: String) -> (Vec<u8>, SP1Stdin) {
-    // Load an arbitrary ELF from disk, e.g. a freshly-built example program:
-    //   --program file:/path/to/riscv64im-succinct-zkvm-elf
-    // The input is a single `u32` `n`, matching the `examples/fibonacci` program.
-    if let Some(path) = program.strip_prefix("file:") {
-        let elf = std::fs::read(path).expect("failed to read elf file");
-        let mut stdin = SP1Stdin::new();
-        let n = param.parse::<u32>().unwrap_or(1000);
-        stdin.write(&n);
-        return (elf, stdin);
-    }
-
     // If the program elf is local, load it.
     if let Some(program_path) = program.strip_prefix("local-") {
         if program_path == "fibonacci" {

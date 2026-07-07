@@ -1,9 +1,7 @@
 use crate::{air::SP1AirBuilder, InteractionKind};
 use hashbrown::HashMap;
 use slop_algebra::AbstractField;
-// Re-exported so downstream crates implementing `MachineRecord` can name the
-// `global_challenge_input` bound without taking a direct `slop-challenger` dependency.
-pub use slop_challenger::IopCtx;
+use slop_challenger::IopCtx;
 
 /// A record that can be proven by a machine.
 pub trait MachineRecord: Default + Sized + Send + Sync + Clone {

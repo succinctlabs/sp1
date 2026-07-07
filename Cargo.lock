@@ -6443,6 +6443,7 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 name = "slop-air"
 version = "6.3.1"
 dependencies = [
+ "p3-air",
  "serde",
  "slop-algebra 6.3.1",
  "slop-matrix",
@@ -7103,6 +7104,7 @@ dependencies = [
  "serde_json",
  "slop-air",
  "slop-algebra 6.3.1",
+ "slop-challenger 6.3.1",
  "slop-maybe-rayon",
  "slop-merkle-tree",
  "slop-symmetric 6.3.1",
@@ -7162,6 +7164,7 @@ version = "6.3.1"
 dependencies = [
  "bincode",
  "cfg-if",
+ "criterion",
  "enum-map",
  "futures",
  "generic-array 1.1.0",
@@ -7562,6 +7565,8 @@ dependencies = [
 name = "sp1-gpu-merkle-tree"
 version = "6.3.1"
 dependencies = [
+ "criterion",
+ "rand 0.8.6",
  "rayon",
  "serial_test",
  "slop-algebra 6.3.1",
@@ -7609,6 +7614,7 @@ dependencies = [
  "serde",
  "serde_json",
  "slop-algebra 6.3.1",
+ "slop-challenger 6.3.1",
  "slop-symmetric 6.3.1",
  "sp1-core-executor",
  "sp1-core-machine",

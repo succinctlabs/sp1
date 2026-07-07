@@ -568,8 +568,8 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
                 .skip(1)
                 .take(
                     main_opening.num_polynomials()
-                        + prep_opening.as_ref().map_or(0, MleEval::num_polynomials)
-                        + global_opening.as_ref().map_or(0, MleEval::num_polynomials),
+                        + prep_opening.num_polynomials()
+                        + global_opening.num_polynomials(),
                 )
                 .collect::<Vec<_>>();
             let gkr_powers = Arc::new(gkr_opening_batch_randomness_powers);
@@ -588,18 +588,8 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
                 .evaluations()
                 .as_slice()
                 .iter()
-                .chain(
-                    prep_opening
-                        .as_ref()
-                        .map_or_else(Vec::new, |mle| mle.evaluations().as_slice().to_vec())
-                        .iter(),
-                )
-                .chain(
-                    global_opening
-                        .as_ref()
-                        .map_or_else(Vec::new, |mle| mle.evaluations().as_slice().to_vec())
-                        .iter(),
-                )
+                .chain(prep_opening.evaluations().as_slice().to_vec().iter())
+                .chain(global_opening.evaluations().as_slice().to_vec().iter())
                 .zip(gkr_powers.iter())
                 .map(|(opening, power)| *opening * *power)
                 .sum::<GC::EF>();

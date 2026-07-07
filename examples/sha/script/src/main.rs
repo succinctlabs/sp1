@@ -6,13 +6,10 @@ const ELF: Elf = include_elf!("sha-program");
 #[tokio::main]
 async fn main() {
     // Generate proof.
+    // utils::setup_tracer();
     sp1_sdk::utils::setup_logger();
 
-    // Number of SHA-256 permutations; override via `cargo run ... -- <n>`.
-    let n: u32 = std::env::args().nth(1).and_then(|s| s.parse().ok()).unwrap_or(100);
-    let mut stdin = SP1Stdin::new();
-    stdin.write(&n);
-
+    let stdin = SP1Stdin::new();
     let client = ProverClient::from_env().await;
     let pk = client.setup(ELF).await.expect("setup failed");
     let proof = client.prove(&pk, stdin).core().await.expect("proving failed");

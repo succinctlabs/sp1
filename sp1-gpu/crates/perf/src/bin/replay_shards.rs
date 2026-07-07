@@ -5,6 +5,7 @@ use clap::Parser;
 use rand::{seq::SliceRandom, SeedableRng};
 use serde::Deserialize;
 use slop_algebra::AbstractField;
+use slop_challenger::IopCtx;
 use slop_symmetric::CryptographicHasher;
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_core_machine::riscv::RiscvAir;
@@ -12,7 +13,7 @@ use sp1_gpu_prover::{core_prover_and_verifier, recursion_prover_and_verifier};
 use sp1_hypercube::{
     inner_perm,
     prover::{shape_from_record, AirProver},
-    IopCtx, MachineVerifyingKey, SP1PcsProofInner, SP1VerifyingKey, DIGEST_SIZE,
+    MachineVerifyingKey, SP1PcsProofInner, SP1VerifyingKey, DIGEST_SIZE,
 };
 use sp1_primitives::{SP1ExtensionField, SP1Field, SP1GlobalContext};
 use sp1_prover::{

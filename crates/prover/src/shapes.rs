@@ -68,7 +68,7 @@ use crate::{
     CompressAir, CORE_MAX_LOG_ROW_COUNT,
 };
 
-pub const DEFAULT_ARITY: usize = 4;
+pub const DEFAULT_ARITY: usize = 2;
 
 /// The shape of the "normalize" program, which proves the correct execution for the verifier of a
 /// single core shard proof.
@@ -749,7 +749,7 @@ fn max_main_multiple_for_preprocessed_multiple(preprocessed_multiple: usize) -> 
 
 pub fn create_all_input_shapes(
     core_shape: &MachineShape<SP1Field, RiscvAir<SP1Field>>,
-    _max_arity: usize,
+    max_arity: usize,
 ) -> Vec<SP1RecursionProgramShape> {
     let (max_preprocessed_multiple, _, capacity) = normalize_program_parameter_space();
     let max_num_padding_cols =
@@ -780,7 +780,7 @@ pub fn create_all_input_shapes(
 
     // Add the compose shapes: within-chunk and across-chunk.
     for scope in [ComposeScope::WithinChunk, ComposeScope::AcrossChunk] {
-        for arity in [1, 2] {
+        for arity in 1..=max_arity {
             result.push(SP1RecursionProgramShape::Compose(scope, arity));
         }
     }

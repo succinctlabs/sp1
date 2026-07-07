@@ -136,7 +136,7 @@ pub(crate) const DEFAULT_SPLICING_BUFFER_SIZE: usize = 2;
 // Default values for the core prover config.
 pub(crate) const DEFAULT_NUM_SETUP_WORKERS: usize = 2;
 pub(crate) const DEFAULT_SETUP_BUFFER_SIZE: usize = 2;
-pub(crate) const DEFAULT_MAX_COMPOSE_ARITY: usize = 4;
+pub(crate) const DEFAULT_MAX_COMPOSE_ARITY: usize = 2;
 
 // Default values for the recursion prover config.
 pub(crate) const DEFAULT_NUM_PREPARE_REDUCE_WORKERS: usize = DEFAULT_NUM_RECURSION_EXECUTOR_WORKERS;

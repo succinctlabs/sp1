@@ -5,7 +5,7 @@ use slop_koala_bear::{KoalaBear, KoalaBearDegree4Duplex};
 use slop_symmetric::PseudoCompressionFunction;
 
 /// An 8-element KoalaBear Poseidon2 digest (a Merkle node value / leaf hash).
-pub type Digest = [KoalaBear; 8];
+pub type Digest = <KoalaBearDegree4Duplex as IopCtx>::Digest;
 
 /// The compression function for the merkle tree.
 pub type Compressor = <KoalaBearDegree4Duplex as IopCtx>::Compressor;
@@ -220,7 +220,7 @@ impl BatchProof {
 
 /// Expected number of rows in the batch proof, derived independently from the updated
 /// leaf indices alone — a cross-check on the emitted trace.
-pub fn expected_proof_len(update_idxs: &[u64], height: usize) -> usize {
+pub(crate) fn expected_proof_len(update_idxs: &[u64], height: usize) -> usize {
     use std::collections::HashSet;
     if update_idxs.is_empty() {
         // Just the root: one prev row + one current row.
@@ -580,24 +580,21 @@ pub fn validate_row_constraints(proof: &BatchProof, height: usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::{rngs::StdRng, Rng as _, SeedableRng};
     use slop_algebra::AbstractField;
     use std::collections::BTreeMap;
 
-    // --- Tiny deterministic PRNG (splitmix64), to avoid a `rand` dependency. ---
-    struct Rng(u64);
+    /// Seeded deterministic RNG so test cases stay reproducible across runs.
+    struct Rng(StdRng);
     impl Rng {
         fn new(seed: u64) -> Self {
-            Rng(seed)
+            Rng(StdRng::seed_from_u64(seed))
         }
         fn next_u64(&mut self) -> u64 {
-            self.0 = self.0.wrapping_add(0x9E3779B97F4A7C15);
-            let mut z = self.0;
-            z = (z ^ (z >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
-            z = (z ^ (z >> 27)).wrapping_mul(0x94D049BB133111EB);
-            z ^ (z >> 31)
+            self.0.gen()
         }
         fn below(&mut self, n: u64) -> u64 {
-            self.next_u64() % n
+            self.0.gen_range(0..n)
         }
     }
 

@@ -6,6 +6,7 @@ use deepsize2::DeepSizeOf;
 use hashbrown::HashMap;
 use slop_air::AirBuilder;
 use slop_algebra::{AbstractField, Field, PrimeField, PrimeField32};
+use slop_challenger::IopCtx;
 use slop_merkle_tree::batch_update::Tag;
 use sp1_hypercube::{
     air::{
@@ -14,7 +15,7 @@ use sp1_hypercube::{
     },
     septic_digest::SepticDigest,
     shape::Shape,
-    InteractionKind, IopCtx, MachineRecord,
+    InteractionKind, MachineRecord,
 };
 use std::{
     borrow::Borrow,

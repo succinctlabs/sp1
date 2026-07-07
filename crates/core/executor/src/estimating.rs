@@ -118,8 +118,12 @@ impl GasEstimatingVM<'_, SupervisorMode> {
 impl GasEstimatingVM<'_, SupervisorMode> {
     /// Execute a load instruction.
     pub fn execute_load(&mut self, instruction: &Instruction) -> Result<(), ExecutionError> {
-        let LoadResultSupervisor { addr, rd, mr_record, rr_record, rw_record, rs1, .. } =
+        let LoadResultSupervisor { addr, rd, rr_record, rw_record, .. } =
             self.core.execute_load(instruction)?;
+
+        self.gas_calculator.handle_mem_event(addr);
+        self.gas_calculator.handle_register_event(rr_record.prev_timestamp);
+        self.gas_calculator.handle_register_event(rw_record.prev_timestamp);
 
         self.gas_calculator.handle_instruction(
             instruction,
@@ -128,17 +132,17 @@ impl GasEstimatingVM<'_, SupervisorMode> {
             self.core.needs_state_bump(instruction),
         );
 
-        self.gas_calculator.handle_mem_event(addr, mr_record.prev_timestamp);
-        self.gas_calculator.handle_mem_event(rs1 as u64, rr_record.prev_timestamp);
-        self.gas_calculator.handle_mem_event(rd as u64, rw_record.prev_timestamp);
-
         Ok(())
     }
 
     /// Execute a store instruction.
     pub fn execute_store(&mut self, instruction: &Instruction) -> Result<(), ExecutionError> {
-        let StoreResultSupervisor { addr, mw_record, rs1_record, rs2_record, rs1, rs2, .. } =
+        let StoreResultSupervisor { addr, rs1_record, rs2_record, .. } =
             self.core.execute_store(instruction)?;
+
+        self.gas_calculator.handle_mem_event(addr);
+        self.gas_calculator.handle_register_event(rs1_record.prev_timestamp);
+        self.gas_calculator.handle_register_event(rs2_record.prev_timestamp);
 
         self.gas_calculator.handle_instruction(
             instruction,
@@ -146,10 +150,6 @@ impl GasEstimatingVM<'_, SupervisorMode> {
             false,
             self.core.needs_state_bump(instruction),
         );
-
-        self.gas_calculator.handle_mem_event(addr, mw_record.prev_timestamp);
-        self.gas_calculator.handle_mem_event(rs1 as u64, rs1_record.prev_timestamp);
-        self.gas_calculator.handle_mem_event(rs2 as u64, rs2_record.prev_timestamp);
 
         Ok(())
     }
@@ -195,7 +195,7 @@ impl GasEstimatingVM<'_, UserMode> {
 
         if let Some(mr_record) = mr_record {
             self.gas_calculator.handle_untrusted_instruction();
-            self.gas_calculator.handle_mem_event(pc & !0b111, mr_record.prev_timestamp);
+            self.gas_calculator.handle_mem_event(pc);
             self.gas_calculator.handle_page_prot_event(
                 pc >> LOG_PAGE_SIZE,
                 mr_record.prev_page_prot_record.unwrap().timestamp,
@@ -276,14 +276,14 @@ impl GasEstimatingVM<'_, UserMode> {
     ///
     /// It will also emit the memory instruction event and the events for the load instruction.
     pub fn execute_load(&mut self, instruction: &Instruction) -> Result<(), ExecutionError> {
-        let LoadResult { addr, rd, mr_record, error, rr_record, rw_record, rs1, .. } =
+        let LoadResult { addr, rd, mr_record, error, rr_record, rw_record, .. } =
             self.core.execute_load(instruction)?;
 
         if let Some(error) = error {
             self.handle_error(error)?;
             self.gas_calculator.handle_trap_mem_event();
         } else {
-            self.gas_calculator.handle_mem_event(addr, mr_record.prev_timestamp);
+            self.gas_calculator.handle_mem_event(addr);
         }
 
         if let Some(record) = mr_record.prev_page_prot_record {
@@ -291,8 +291,8 @@ impl GasEstimatingVM<'_, UserMode> {
             self.gas_calculator.handle_page_prot_check();
         }
 
-        self.gas_calculator.handle_mem_event(rs1 as u64, rr_record.prev_timestamp);
-        self.gas_calculator.handle_mem_event(rd as u64, rw_record.prev_timestamp);
+        self.gas_calculator.handle_register_event(rr_record.prev_timestamp);
+        self.gas_calculator.handle_register_event(rw_record.prev_timestamp);
 
         self.gas_calculator.handle_instruction(
             instruction,
@@ -311,14 +311,14 @@ impl GasEstimatingVM<'_, UserMode> {
     ///
     /// It will also emit the memory instruction event and the events for the store instruction.
     pub fn execute_store(&mut self, instruction: &Instruction) -> Result<(), ExecutionError> {
-        let StoreResult { addr, mw_record, error, rs1_record, rs2_record, rs1, rs2, .. } =
+        let StoreResult { addr, mw_record, error, rs1_record, rs2_record, .. } =
             self.core.execute_store(instruction)?;
 
         if let Some(error) = error {
             self.handle_error(error)?;
             self.gas_calculator.handle_trap_mem_event();
         } else {
-            self.gas_calculator.handle_mem_event(addr, mw_record.prev_timestamp);
+            self.gas_calculator.handle_mem_event(addr);
         }
 
         if let Some(record) = mw_record.prev_page_prot_record {
@@ -326,8 +326,8 @@ impl GasEstimatingVM<'_, UserMode> {
             self.gas_calculator.handle_page_prot_check();
         }
 
-        self.gas_calculator.handle_mem_event(rs1 as u64, rs1_record.prev_timestamp);
-        self.gas_calculator.handle_mem_event(rs2 as u64, rs2_record.prev_timestamp);
+        self.gas_calculator.handle_register_event(rs1_record.prev_timestamp);
+        self.gas_calculator.handle_register_event(rs2_record.prev_timestamp);
 
         self.gas_calculator.handle_instruction(
             instruction,
@@ -359,12 +359,11 @@ impl<'a, M: ExecutionMode> GasEstimatingVM<'a, M> {
 
     /// Handles recoverable errors such as traps.
     pub fn handle_error(&mut self, e: TrapError) -> Result<(), ExecutionError> {
-        let TrapResult { context, code_record, pc_record, handler_record } =
-            self.core.handle_error(e)?;
+        let TrapResult { context, .. } = self.core.handle_error(e)?;
 
-        self.gas_calculator.handle_mem_event(context, handler_record.prev_timestamp);
-        self.gas_calculator.handle_mem_event(context + 8, code_record.prev_timestamp);
-        self.gas_calculator.handle_mem_event(context + 16, pc_record.prev_timestamp);
+        self.gas_calculator.handle_mem_event(context);
+        self.gas_calculator.handle_mem_event(context + 8);
+        self.gas_calculator.handle_mem_event(context + 16);
 
         Ok(())
     }
@@ -372,16 +371,16 @@ impl<'a, M: ExecutionMode> GasEstimatingVM<'a, M> {
     /// Execute an ALU instruction and emit the events.
     #[inline]
     pub fn execute_alu(&mut self, instruction: &Instruction) {
-        let AluResult { rd, rw_record, rs1, rs2, .. } = self.core.execute_alu(instruction);
+        let AluResult { rw_record, rs1, rs2, .. } = self.core.execute_alu(instruction);
 
-        self.gas_calculator.handle_mem_event(rd as u64, rw_record.prev_timestamp);
+        self.gas_calculator.handle_register_event(rw_record.prev_timestamp);
 
-        if let MaybeImmediate::Register(register, record) = rs1 {
-            self.gas_calculator.handle_mem_event(register as u64, record.prev_timestamp);
+        if let MaybeImmediate::Register(_, record) = rs1 {
+            self.gas_calculator.handle_register_event(record.prev_timestamp);
         }
 
-        if let MaybeImmediate::Register(register, record) = rs2 {
-            self.gas_calculator.handle_mem_event(register as u64, record.prev_timestamp);
+        if let MaybeImmediate::Register(_, record) = rs2 {
+            self.gas_calculator.handle_register_event(record.prev_timestamp);
         }
 
         self.gas_calculator.handle_instruction(
@@ -395,12 +394,12 @@ impl<'a, M: ExecutionMode> GasEstimatingVM<'a, M> {
     /// Execute a jump instruction and emit the events.
     #[inline]
     pub fn execute_jump(&mut self, instruction: &Instruction) {
-        let JumpResult { rd, rd_record, rs1, .. } = self.core.execute_jump(instruction);
+        let JumpResult { rd_record, rs1, .. } = self.core.execute_jump(instruction);
 
-        self.gas_calculator.handle_mem_event(rd as u64, rd_record.prev_timestamp);
+        self.gas_calculator.handle_register_event(rd_record.prev_timestamp);
 
-        if let MaybeImmediate::Register(register, record) = rs1 {
-            self.gas_calculator.handle_mem_event(register as u64, record.prev_timestamp);
+        if let MaybeImmediate::Register(_, record) = rs1 {
+            self.gas_calculator.handle_register_event(record.prev_timestamp);
         }
 
         self.gas_calculator.handle_instruction(
@@ -414,11 +413,10 @@ impl<'a, M: ExecutionMode> GasEstimatingVM<'a, M> {
     /// Execute a branch instruction and emit the events.
     #[inline]
     pub fn execute_branch(&mut self, instruction: &Instruction) {
-        let BranchResult { rs1, a_record, rs2, b_record, .. } =
-            self.core.execute_branch(instruction);
+        let BranchResult { a_record, b_record, .. } = self.core.execute_branch(instruction);
 
-        self.gas_calculator.handle_mem_event(rs1 as u64, a_record.prev_timestamp);
-        self.gas_calculator.handle_mem_event(rs2 as u64, b_record.prev_timestamp);
+        self.gas_calculator.handle_register_event(a_record.prev_timestamp);
+        self.gas_calculator.handle_register_event(b_record.prev_timestamp);
 
         self.gas_calculator.handle_instruction(
             instruction,
@@ -431,9 +429,9 @@ impl<'a, M: ExecutionMode> GasEstimatingVM<'a, M> {
     /// Execute a U-type instruction and emit the events.
     #[inline]
     pub fn execute_utype(&mut self, instruction: &Instruction) {
-        let UTypeResult { rd, rw_record, .. } = self.core.execute_utype(instruction);
+        let UTypeResult { rw_record, .. } = self.core.execute_utype(instruction);
 
-        self.gas_calculator.handle_mem_event(rd as u64, rw_record.prev_timestamp);
+        self.gas_calculator.handle_register_event(rw_record.prev_timestamp);
 
         self.gas_calculator.handle_instruction(
             instruction,
@@ -458,8 +456,8 @@ impl<'a, M: ExecutionMode> GasEstimatingVM<'a, M> {
             self.handle_error(error)?;
         }
 
-        if let Some(record) = result.sig_return_pc_record {
-            self.gas_calculator.handle_mem_event(result.b, record.prev_timestamp);
+        if result.sig_return_pc_record.is_some() {
+            self.gas_calculator.handle_mem_event(result.b);
         }
 
         if code == SyscallCode::HALT {
@@ -494,13 +492,13 @@ impl<'a, M: ExecutionMode> SyscallRuntime<'a, M> for GasEstimatingVM<'a, M> {
 
     fn rr(&mut self, register: usize) -> MemoryReadRecord {
         let record = SyscallRuntime::rr(self.core_mut(), register);
-        self.gas_calculator.handle_mem_event(register as u64, record.prev_timestamp);
+        self.gas_calculator.handle_register_event(record.prev_timestamp);
         record
     }
 
     fn rw(&mut self, register: usize, value: u64) -> MemoryWriteRecord {
         let record = SyscallRuntime::rw(self.core_mut(), register, value);
-        self.gas_calculator.handle_mem_event(register as u64, record.prev_timestamp);
+        self.gas_calculator.handle_register_event(record.prev_timestamp);
         record
     }
 
@@ -529,20 +527,20 @@ impl<'a, M: ExecutionMode> SyscallRuntime<'a, M> for GasEstimatingVM<'a, M> {
 
     fn mr_without_prot(&mut self, addr: u64) -> MemoryReadRecord {
         let record = self.core_mut().mr_without_prot(addr);
-        self.gas_calculator.handle_mem_event(addr, record.prev_timestamp);
+        self.gas_calculator.handle_mem_event(addr);
         record
     }
 
     fn mw_without_prot(&mut self, addr: u64) -> MemoryWriteRecord {
         let record = self.core_mut().mw_without_prot(addr);
-        self.gas_calculator.handle_mem_event(addr, record.prev_timestamp);
+        self.gas_calculator.handle_mem_event(addr);
         record
     }
 
     fn mr_slice_without_prot(&mut self, addr: u64, len: usize) -> Vec<MemoryReadRecord> {
         let records = self.core_mut().mr_slice_without_prot(addr, len);
-        for (i, record) in records.iter().enumerate() {
-            self.gas_calculator.handle_mem_event(addr + i as u64 * 8, record.prev_timestamp);
+        for i in 0..records.len() {
+            self.gas_calculator.handle_mem_event(addr + i as u64 * 8);
         }
 
         records
@@ -550,8 +548,17 @@ impl<'a, M: ExecutionMode> SyscallRuntime<'a, M> for GasEstimatingVM<'a, M> {
 
     fn mw_slice_without_prot(&mut self, addr: u64, len: usize) -> Vec<MemoryWriteRecord> {
         let records = self.core_mut().mw_slice_without_prot(addr, len);
-        for (i, record) in records.iter().enumerate() {
-            self.gas_calculator.handle_mem_event(addr + i as u64 * 8, record.prev_timestamp);
+        for i in 0..records.len() {
+            self.gas_calculator.handle_mem_event(addr + i as u64 * 8);
+        }
+
+        records
+    }
+
+    fn mw_hint_slice(&mut self, addr: u64, len_words: usize) -> Vec<MemoryWriteRecord> {
+        let records = self.core_mut().mw_hint_slice(addr, len_words);
+        for i in 0..len_words {
+            self.gas_calculator.handle_mem_event(addr + i as u64 * 8);
         }
 
         records

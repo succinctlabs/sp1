@@ -187,23 +187,10 @@ pub trait BatchMerkleProver: 'static + Send + Sync {
         proof_nonce: [u32; PROOF_NONCE_NUM_WORDS],
         global_dependencies_opt: bool,
         permits: ProverSemaphore,
-    ) -> impl Future<Output = ExecutionRecord> + Send {
-        async move {
-            let _permit = permits.acquire().await;
-            let record = tokio::task::spawn_blocking(move || build_merkle_proof_record(input))
-                .await
-                .expect("merkle proof preparation panicked");
-            ExecutionRecord::from_merkle_proof_record(
-                program,
-                proof_nonce,
-                global_dependencies_opt,
-                record,
-            )
-        }
-    }
+    ) -> impl Future<Output = ExecutionRecord> + Send;
 }
 
-/// The CPU core prover uses the default `prepare_merkle_proof`.
+/// The CPU core prover computes the batch merkle proof on a blocking thread.
 impl BatchMerkleProver
     for CpuShardProver<
         SP1GlobalContext,
@@ -212,6 +199,25 @@ impl BatchMerkleProver
         RiscvAir<SP1Field>,
     >
 {
+    async fn prepare_merkle_proof(
+        &self,
+        input: MerkleProvingInput,
+        program: Arc<Program>,
+        proof_nonce: [u32; PROOF_NONCE_NUM_WORDS],
+        global_dependencies_opt: bool,
+        permits: ProverSemaphore,
+    ) -> ExecutionRecord {
+        let _permit = permits.acquire().await;
+        let record = tokio::task::spawn_blocking(move || build_merkle_proof_record(input))
+            .await
+            .expect("merkle proof preparation panicked");
+        ExecutionRecord::from_merkle_proof_record(
+            program,
+            proof_nonce,
+            global_dependencies_opt,
+            record,
+        )
+    }
 }
 
 /// Running merkle leaf state across a program's trace chunks.
@@ -384,36 +390,6 @@ mod tests {
                 "leaf for page {pid} mismatches recompute",
             );
         }
-    }
-
-    /// Perf microbench, ignored by default. Run with:
-    ///   cargo test --release -p sp1-core-machine --lib merkle_prover -- \
-    ///       --ignored --nocapture bench_ingest_chunk
-    #[test]
-    #[ignore]
-    #[allow(clippy::print_stdout)]
-    fn bench_ingest_chunk() {
-        let sizes = [1_000usize, 5_000, 7_000, 11_000, 22_000];
-        println!();
-        println!("{:>10}  {:>10}  {:>10}", "pages", "elapsed", "ns/page");
-        for &n in &sizes {
-            // Run a few warm-up iterations first so the rayon pool is hot.
-            for warm in 0..2 {
-                let mut state = LeafState::new();
-                let pages: Vec<DirtyPage> =
-                    (0..n).map(|i| dp(i as u32, make_page((warm * n + i) as u64))).collect();
-                let _ = state.ingest_chunk(&pages);
-            }
-
-            let mut state = LeafState::new();
-            let pages: Vec<DirtyPage> = (0..n).map(|i| dp(i as u32, make_page(i as u64))).collect();
-            let start = std::time::Instant::now();
-            let _ = state.ingest_chunk(&pages);
-            let elapsed = start.elapsed();
-            let ns_per_page = elapsed.as_nanos() as f64 / n as f64;
-            println!("{:>10}  {:>10.2?}  {:>10.0}", n, elapsed, ns_per_page);
-        }
-        println!();
     }
 
     #[test]

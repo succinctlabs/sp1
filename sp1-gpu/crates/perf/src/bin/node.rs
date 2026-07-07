@@ -79,7 +79,14 @@ async fn main() {
     let measurements = sp1_gpu_cudart::spawn(move |t| async move {
         let base_builder = cuda_worker_builder_with_machine(t.clone(), machine).await;
         #[cfg(feature = "experimental")]
-        let worker_builder = base_builder.without_vk_verification();
+        let worker_builder = if std::env::var("WITHOUT_VK_VERIFICATION")
+            .map(|v| v == "1" || v == "true")
+            .unwrap_or(false)
+        {
+            base_builder.without_vk_verification()
+        } else {
+            base_builder
+        };
         #[cfg(not(feature = "experimental"))]
         let worker_builder = base_builder;
         let client =
