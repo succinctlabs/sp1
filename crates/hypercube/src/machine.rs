@@ -99,14 +99,13 @@ where
         records: impl Iterator<Item = &'a mut A::Record>,
         chips_filter: Option<&[String]>,
     ) {
-        let (chips, globals_only_chips): (Vec<_>, Vec<_>) =
-            self.chips.iter().partition(|chip| {
-                if let Some(chips_filter) = chips_filter {
-                    chips_filter.contains(&chip.name().to_string())
-                } else {
-                    true
-                }
-            });
+        let (chips, globals_only_chips): (Vec<_>, Vec<_>) = self.chips.iter().partition(|chip| {
+            if let Some(chips_filter) = chips_filter {
+                chips_filter.contains(&chip.name().to_string())
+            } else {
+                true
+            }
+        });
 
         records.for_each(|record| {
             chips.iter().for_each(|chip| {

@@ -723,10 +723,9 @@ mod split_tests {
                     global_memory_initialize_events: events,
                     ..Default::default()
                 },
-                MemoryChipType::Finalize => ExecutionRecord {
-                    global_memory_finalize_events: events,
-                    ..Default::default()
-                },
+                MemoryChipType::Finalize => {
+                    ExecutionRecord { global_memory_finalize_events: events, ..Default::default() }
+                }
             };
             let chip = MemoryGlobalChip::new(kind);
 

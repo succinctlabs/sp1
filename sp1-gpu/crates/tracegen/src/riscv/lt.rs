@@ -13,7 +13,7 @@ use sp1_core_executor::{events::AluEvent, ALUTypeRecord};
 use sp1_core_machine::{
     adapter::register::alu_type::ALUTypeReaderWitgenInput,
     air::{columns_as_wires, record_witgen_inputs, WireId},
-    alu::lt::{LtChip, LtCols, NUM_LT_COLS_SUPERVISOR, LtWitgenInput, NUM_LT_WITGEN_INPUTS},
+    alu::lt::{LtChip, LtCols, LtWitgenInput, NUM_LT_COLS_SUPERVISOR, NUM_LT_WITGEN_INPUTS},
     SupervisorMode,
 };
 use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKernel};
@@ -25,16 +25,18 @@ use crate::{CudaTracegenAir, F};
 /// register read, so those fields pack as zeros (unused on the device).
 pub(crate) fn pack_lt_inputs(events: &[(AluEvent, ALUTypeRecord)]) -> Vec<u64> {
     let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_LT_WITGEN_INPUTS];
-    inputs.par_chunks_mut(NUM_LT_WITGEN_INPUTS).zip(events.par_iter()).for_each(|(chunk, (alu, r))| {
-        let slot: &mut LtWitgenInput<u64> = chunk.borrow_mut();
-        slot.clk = alu.clk;
-        slot.pc = alu.pc;
-        slot.a = alu.a; // result (0/1)
-        slot.b = alu.b;
-        slot.c = alu.c;
-        slot.opcode = alu.opcode as u64; // SLT/SLTU
-        slot.adapter = ALUTypeReaderWitgenInput::from_record(r);
-    });
+    inputs.par_chunks_mut(NUM_LT_WITGEN_INPUTS).zip(events.par_iter()).for_each(
+        |(chunk, (alu, r))| {
+            let slot: &mut LtWitgenInput<u64> = chunk.borrow_mut();
+            slot.clk = alu.clk;
+            slot.pc = alu.pc;
+            slot.a = alu.a; // result (0/1)
+            slot.b = alu.b;
+            slot.c = alu.c;
+            slot.opcode = alu.opcode as u64; // SLT/SLTU
+            slot.adapter = ALUTypeReaderWitgenInput::from_record(r);
+        },
+    );
     inputs
 }
 

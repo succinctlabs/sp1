@@ -574,8 +574,7 @@ mod split_tests {
     /// byte lookups into the tracegen kernel and keeps only the globals on host.
     #[test]
     fn global_dependencies_are_the_global_subset() {
-        let shard =
-            ExecutionRecord { syscall_events: synth_events(100), ..Default::default() };
+        let shard = ExecutionRecord { syscall_events: synth_events(100), ..Default::default() };
         let chip = SyscallChip::<SupervisorMode>::core();
 
         let mut full = ExecutionRecord::default();
