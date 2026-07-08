@@ -1,10 +1,14 @@
-//! Device main-trace generation for `MemoryGlobalInit` / `MemoryGlobalFinalize`
-//! (one `MemoryGlobalChip` type, two kinds). The chip's host tracegen is the ONLY
-//! core tracegen with a sort + sequential-neighbor pass; the device port moves that
-//! into PACKING (sort host-side, hand each row its `prev_addr` + `index`), making
-//! rows independent for the one-thread-per-row kernel. IMPORTANT:
-//! `generate_dependencies` also emits `GlobalInteractionEvent`s and bumps
-//! `public_values.global_*_count`, so the DEVICE DEPENDENCY PATH MUST STAY OFF.
+//! Device main-trace + byte-lookup generation for `MemoryGlobalInit` /
+//! `MemoryGlobalFinalize` (one `MemoryGlobalChip` type, two kinds). The chip's
+//! host tracegen is the ONLY core tracegen with a sort + sequential-neighbor
+//! pass; the device port moves that into PACKING (sort host-side, hand each row
+//! its `prev_addr` + `index`), making rows independent for the
+//! one-thread-per-row kernel. Host `generate_dependencies` ALSO emits
+//! `GlobalInteractionEvent`s and bumps `public_values.global_*_count` — those
+//! cannot be produced on device, so the prover keeps them on host via
+//! `generate_global_dependencies` while the byte lookups fuse into the
+//! main-trace kernel here (`memory_global_lookups_match_generate_dependencies`
+//! is the parity proof).
 
 use rayon::prelude::*;
 use slop_alloc::mem::CopyError;
@@ -15,7 +19,7 @@ use sp1_core_machine::{
     air::{columns_as_wires, RecordingWitnessBuilder, WireId},
     memory::{MemoryChipType, MemoryGlobalChip, MemoryInitCols, NUM_MEMORY_INIT_COLS},
 };
-use sp1_gpu_cudart::{args, DeviceMle, TaskScope, WitgenInterpKernel};
+use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKernel};
 use sp1_hypercube::air::MachineAir;
 
 use crate::{CudaTracegenAir, F};
@@ -57,7 +61,7 @@ pub(crate) fn record_memory_global_program() -> (sp1_core_machine::air::WitProgr
 }
 
 /// The chip's sorted event list + row-0 previous address for one shard.
-fn sorted_events_and_prev(
+pub(crate) fn sorted_events_and_prev(
     input: &sp1_core_executor::ExecutionRecord,
     kind: MemoryChipType,
 ) -> (Vec<MemoryInitializeFinalizeEvent>, u64) {
@@ -80,8 +84,49 @@ impl CudaTracegenAir<F> for MemoryGlobalChip {
         true
     }
 
-    // NO `supports_device_dependencies`: `generate_dependencies` emits
-    // `GlobalInteractionEvent`s + public-value count bumps; dependencies stay host.
+    // `supports_device_dependencies` (byte lookups fused on device) is decided at
+    // the `RiscvAir` level; the `GlobalInteractionEvent`s + public-value count
+    // bumps stay on host via `generate_global_dependencies`.
+
+    async fn generate_trace_device_with_lookups(
+        &self,
+        input: &Self::Record,
+        inputs: Vec<u64>,
+        hist: crate::LookupHist,
+        scope: &TaskScope,
+    ) -> Result<DeviceMle<F>, CopyError> {
+        // Fused: one op-DAG pass writes the columns AND accumulates this chip's
+        // byte/range lookups into the shared shard histograms.
+        let (program, col_wires) = record_memory_global_program();
+        let n_cols = col_wires.len();
+        debug_assert_eq!(n_cols, NUM_MEMORY_INIT_COLS);
+        let height = <Self as MachineAir<F>>::num_rows(self, input)
+            .expect("num_rows(...) should be Some(_)");
+        let n_events = if height == 0 { 0 } else { inputs.len() / program.num_inputs as usize };
+        super::generate_trace_and_lookups(
+            &program, &col_wires, n_cols, &inputs, n_events, height, hist, scope,
+        )
+        .await
+    }
+
+    async fn generate_device_dependencies(
+        &self,
+        input: &Self::Record,
+        range_dev: &mut DeviceBuffer<u32>,
+        byte_dev: &mut DeviceBuffer<u32>,
+        scope: &TaskScope,
+    ) -> Result<(), CopyError> {
+        let height = <Self as MachineAir<F>>::num_rows(self, input)
+            .expect("num_rows(...) should be Some(_)");
+        let (events, previous_addr) = sorted_events_and_prev(input, self.kind);
+        let n_events = if height == 0 { 0 } else { events.len() };
+        if n_events == 0 {
+            return Ok(());
+        }
+        let (program, _col_wires) = record_memory_global_program();
+        let inputs = pack_memory_global_inputs(&events[..n_events], previous_addr);
+        super::accumulate_lookups(&program, &inputs, n_events, range_dev, byte_dev, scope).await
+    }
 
     async fn generate_trace_device(
         &self,
@@ -235,4 +280,58 @@ mod tests {
         assert_eq!(range_hist, ref_range, "range histogram mismatch");
         assert_eq!(byte_hist, ref_byte, "byte histogram mismatch");
     }
+
+    /// The FUSED production entry point (`generate_trace_device_with_lookups`) must
+    /// produce columns identical to the CPU trace AND a histogram identical to the
+    /// standalone lookup pass (`generate_device_dependencies`) — the device leg of
+    /// the globals-on-host split (the host leg is covered by the core machine's
+    /// `global_dependencies_are_the_global_subset` test).
+    #[tokio::test]
+    async fn test_memory_global_fused_kernel() {
+        use crate::CudaTracegenAir;
+        use slop_tensor::Tensor;
+        use sp1_gpu_cudart::TaskScope;
+        sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
+            let shard = synth_shard(300, 0x91062);
+            let chip = MemoryGlobalChip::new(MemoryChipType::Initialize);
+            let cpu_trace = Tensor::<F>::from(MachineAir::<F>::generate_trace(
+                &chip,
+                &shard,
+                &mut ExecutionRecord::default(),
+            ));
+
+            // Reference histogram via the standalone lookup pass.
+            let (mut r_ref, mut b_ref) = crate::new_byte_histograms(&scope);
+            chip.generate_device_dependencies(&shard, &mut r_ref, &mut b_ref, &scope)
+                .await
+                .unwrap();
+            let r_ref_h: Vec<u32> = r_ref.to_host().unwrap();
+            let b_ref_h: Vec<u32> = b_ref.to_host().unwrap();
+
+            // Fused: the production entry point, inputs packed as the prover packs them.
+            let (events, previous_addr) = super::sorted_events_and_prev(&shard, chip.kind);
+            let packed = super::pack_memory_global_inputs(&events, previous_addr);
+            let (r_f, b_f) = crate::new_byte_histograms(&scope);
+            let hist = crate::LookupHist {
+                range: r_f.as_ptr() as *mut u32,
+                byte: b_f.as_ptr() as *mut u32,
+            };
+            let fused_trace = chip
+                .generate_trace_device_with_lookups(&shard, packed, hist, &scope)
+                .await
+                .expect("fused tracegen should succeed")
+                .to_host()
+                .expect("copy fused trace to host")
+                .into_guts();
+            let r_f_h: Vec<u32> = r_f.to_host().unwrap();
+            let b_f_h: Vec<u32> = b_f.to_host().unwrap();
+
+            crate::tests::test_traces_eq(&cpu_trace, &fused_trace, &events);
+            assert_eq!(r_f_h, r_ref_h, "fused range histogram must match the lookup pass");
+            assert_eq!(b_f_h, b_ref_h, "fused byte histogram must match the lookup pass");
+        })
+        .await
+        .unwrap();
+    }
+
 }

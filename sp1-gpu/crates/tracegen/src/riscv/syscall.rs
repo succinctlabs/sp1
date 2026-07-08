@@ -1,9 +1,13 @@
-//! Device main-trace generation for the `SyscallCore` / `SyscallPrecompile` tables
-//! (one `SyscallChip<SupervisorMode>` type, two shard kinds). Narrow chip (10 cols),
-//! zero padding. IMPORTANT: `generate_dependencies` for this chip also emits
-//! `GlobalInteractionEvent`s (not byte lookups), so the DEVICE DEPENDENCY PATH MUST
-//! STAY OFF — the host `generate_dependencies` still runs (globals + byte lookups)
-//! and only the main trace moves to device.
+//! Device main-trace + byte-lookup generation for the `SyscallCore` /
+//! `SyscallPrecompile` tables (one `SyscallChip<SupervisorMode>` type, two shard
+//! kinds). Narrow chip (10 cols), zero padding. Host `generate_dependencies` ALSO
+//! emits `GlobalInteractionEvent`s — those cannot be produced on device, so the
+//! prover keeps them on host via `generate_global_dependencies` while the byte
+//! lookups fuse into the main-trace kernel here (the witgen guards them on
+//! `should_send`; `syscall_lookups_match_generate_dependencies` is the parity
+//! proof).
+
+use core::borrow::BorrowMut;
 
 use rayon::prelude::*;
 use slop_alloc::mem::CopyError;
@@ -11,17 +15,17 @@ use slop_alloc::Buffer;
 use slop_tensor::Tensor;
 use sp1_core_executor::{events::SyscallEvent, ExecutionRecord, TrapError};
 use sp1_core_machine::{
-    air::{columns_as_wires, RecordingWitnessBuilder, WireId},
-    syscall::chip::{SyscallChip, SyscallCols, SyscallShardKind, NUM_SYSCALL_COLS_SUPERVISOR},
+    air::{columns_as_wires, record_witgen_inputs, WireId},
+    syscall::chip::{
+        SyscallChip, SyscallCols, SyscallShardKind, SyscallWitgenInput,
+        NUM_SYSCALL_COLS_SUPERVISOR, NUM_SYSCALL_WITGEN_INPUTS,
+    },
     SupervisorMode,
 };
-use sp1_gpu_cudart::{args, DeviceMle, TaskScope, WitgenInterpKernel};
+use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKernel};
 use sp1_hypercube::air::MachineAir;
 
 use crate::{CudaTracegenAir, F};
-
-/// Number of witgen inputs per syscall row (see [`SyscallCols::witgen`]).
-const NUM_SYSCALL_INPUTS: usize = 7;
 
 /// The shard's event list for one shard kind — mirrors the chip's own selection
 /// (`Core`: sending events only; `Precompile`: ALL precompile events, including
@@ -40,42 +44,32 @@ pub(crate) fn collect_syscall_events(
     }
 }
 
+/// Pack each event into one [`SyscallWitgenInput`] row.
 pub(crate) fn pack_syscall_inputs(events: &[SyscallEvent]) -> Vec<u64> {
-    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_SYSCALL_INPUTS];
-    inputs.par_chunks_mut(NUM_SYSCALL_INPUTS).zip(events.par_iter()).for_each(|(slot, e)| {
-        let trap_code = if let Some(TrapError::PagePermissionViolation(code)) = e.trap_error {
-            code as u8 as u64
-        } else {
-            0
-        };
-        slot.copy_from_slice(&[
-            e.clk,
-            e.syscall_code.syscall_id() as u64, // column value
-            e.syscall_id as u64,                // dependency (raw) value
-            e.arg1,
-            e.arg2,
-            trap_code,
-            e.should_send as u64,
-        ]);
-    });
+    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_SYSCALL_WITGEN_INPUTS];
+    inputs.par_chunks_mut(NUM_SYSCALL_WITGEN_INPUTS).zip(events.par_iter()).for_each(
+        |(chunk, e)| {
+            let slot: &mut SyscallWitgenInput<u64> = chunk.borrow_mut();
+            slot.clk = e.clk;
+            slot.syscall_id = e.syscall_code.syscall_id() as u64; // column value
+            slot.raw_syscall_id = e.syscall_id as u64; // dependency (raw) value
+            slot.arg1 = e.arg1;
+            slot.arg2 = e.arg2;
+            slot.trap_code = if let Some(TrapError::PagePermissionViolation(code)) = e.trap_error {
+                code as u8 as u64
+            } else {
+                0
+            };
+            slot.should_send = e.should_send as u64;
+        },
+    );
     inputs
 }
 
 pub(crate) fn record_syscall_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
-    let mut rec = RecordingWitnessBuilder::new(NUM_SYSCALL_INPUTS as u32);
+    let (mut rec, input) = record_witgen_inputs::<SyscallWitgenInput<WireId>>();
     let mut cols_w = SyscallCols::<WireId, SupervisorMode>::default();
-    let w = |i: u32| RecordingWitnessBuilder::input(i);
-    SyscallCols::<WireId, SupervisorMode>::witgen(
-        &mut rec,
-        &mut cols_w,
-        w(0),
-        w(1),
-        w(2),
-        w(3),
-        w(4),
-        w(5),
-        w(6),
-    );
+    SyscallCols::<WireId, SupervisorMode>::witgen(&mut rec, &mut cols_w, &input);
     let program = rec.finish();
     assert!(
         program.num_wires() <= super::WITGEN_MAX_WIRES,
@@ -92,9 +86,49 @@ impl CudaTracegenAir<F> for SyscallChip<SupervisorMode> {
         true
     }
 
-    // NO `supports_device_dependencies`: `generate_dependencies` emits
-    // `GlobalInteractionEvent`s that the device byte-lookup path cannot produce, so
-    // dependencies stay fully on host (default `false`).
+    // `supports_device_dependencies` (byte lookups fused on device) is decided at
+    // the `RiscvAir` level; the `GlobalInteractionEvent`s stay on host via
+    // `generate_global_dependencies`.
+
+    async fn generate_trace_device_with_lookups(
+        &self,
+        input: &Self::Record,
+        inputs: Vec<u64>,
+        hist: crate::LookupHist,
+        scope: &TaskScope,
+    ) -> Result<DeviceMle<F>, CopyError> {
+        // Fused: one op-DAG pass writes the columns AND accumulates this chip's
+        // byte/range lookups into the shared shard histograms.
+        let (program, col_wires) = record_syscall_program();
+        let n_cols = col_wires.len();
+        debug_assert_eq!(n_cols, NUM_SYSCALL_COLS_SUPERVISOR);
+        let height = <Self as MachineAir<F>>::num_rows(self, input)
+            .expect("num_rows(...) should be Some(_)");
+        let n_events = if height == 0 { 0 } else { inputs.len() / program.num_inputs as usize };
+        super::generate_trace_and_lookups(
+            &program, &col_wires, n_cols, &inputs, n_events, height, hist, scope,
+        )
+        .await
+    }
+
+    async fn generate_device_dependencies(
+        &self,
+        input: &Self::Record,
+        range_dev: &mut DeviceBuffer<u32>,
+        byte_dev: &mut DeviceBuffer<u32>,
+        scope: &TaskScope,
+    ) -> Result<(), CopyError> {
+        let height = <Self as MachineAir<F>>::num_rows(self, input)
+            .expect("num_rows(...) should be Some(_)");
+        let events = collect_syscall_events(input, self.shard_kind());
+        let n_events = if height == 0 { 0 } else { events.len() };
+        if n_events == 0 {
+            return Ok(());
+        }
+        let (program, _col_wires) = record_syscall_program();
+        let inputs = pack_syscall_inputs(&events[..n_events]);
+        super::accumulate_lookups(&program, &inputs, n_events, range_dev, byte_dev, scope).await
+    }
 
     async fn generate_trace_device(
         &self,
@@ -239,7 +273,7 @@ mod tests {
         let ops_c = program.to_c();
         let sent = super::collect_syscall_events(&shard, super::SyscallShardKind::Core);
         let inputs = super::pack_syscall_inputs(&sent);
-        let ni = super::NUM_SYSCALL_INPUTS;
+        let ni = sp1_core_machine::syscall::chip::NUM_SYSCALL_WITGEN_INPUTS;
         for row in 0..sent.len() {
             let row_in = &inputs[row * ni..(row + 1) * ni];
             let cols: Vec<F> = interpret_c_columns(&ops_c, ni as u32, row_in, &col_wires);
@@ -310,4 +344,60 @@ mod tests {
         assert!(r2.iter().all(|&x| x == 0), "guarded range lookups leaked");
         assert!(b2.iter().all(|&x| x == 0), "guarded byte lookups leaked");
     }
+
+    /// The FUSED production entry point (`generate_trace_device_with_lookups`) must
+    /// produce columns identical to the CPU trace AND a histogram identical to the
+    /// standalone lookup pass (`generate_device_dependencies`) — the device leg of
+    /// the globals-on-host split (the host leg is covered by the core machine's
+    /// `global_dependencies_are_the_global_subset` test). Core kind with mixed
+    /// `should_send` so the lookup guard is exercised.
+    #[tokio::test]
+    async fn test_syscall_fused_kernel() {
+        use crate::CudaTracegenAir;
+        use slop_tensor::Tensor;
+        use sp1_gpu_cudart::TaskScope;
+        sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
+            let events = synth_events(300, 0x5CA3);
+            let shard = ExecutionRecord { syscall_events: events, ..Default::default() };
+            let chip = SyscallChip::<SupervisorMode>::core();
+            let cpu_trace = Tensor::<F>::from(MachineAir::<F>::generate_trace(
+                &chip,
+                &shard,
+                &mut ExecutionRecord::default(),
+            ));
+
+            // Reference histogram via the standalone lookup pass.
+            let (mut r_ref, mut b_ref) = crate::new_byte_histograms(&scope);
+            chip.generate_device_dependencies(&shard, &mut r_ref, &mut b_ref, &scope)
+                .await
+                .unwrap();
+            let r_ref_h: Vec<u32> = r_ref.to_host().unwrap();
+            let b_ref_h: Vec<u32> = b_ref.to_host().unwrap();
+
+            // Fused: the production entry point, inputs packed as the prover packs them.
+            let sent = super::collect_syscall_events(&shard, super::SyscallShardKind::Core);
+            let packed = super::pack_syscall_inputs(&sent);
+            let (r_f, b_f) = crate::new_byte_histograms(&scope);
+            let hist = crate::LookupHist {
+                range: r_f.as_ptr() as *mut u32,
+                byte: b_f.as_ptr() as *mut u32,
+            };
+            let fused_trace = chip
+                .generate_trace_device_with_lookups(&shard, packed, hist, &scope)
+                .await
+                .expect("fused tracegen should succeed")
+                .to_host()
+                .expect("copy fused trace to host")
+                .into_guts();
+            let r_f_h: Vec<u32> = r_f.to_host().unwrap();
+            let b_f_h: Vec<u32> = b_f.to_host().unwrap();
+
+            crate::tests::test_traces_eq(&cpu_trace, &fused_trace, &sent);
+            assert_eq!(r_f_h, r_ref_h, "fused range histogram must match the lookup pass");
+            assert_eq!(b_f_h, b_ref_h, "fused byte histogram must match the lookup pass");
+        })
+        .await
+        .unwrap();
+    }
+
 }

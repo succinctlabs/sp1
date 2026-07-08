@@ -416,9 +416,11 @@ pub trait CudaTracegenAir<F: Field>: MachineAir<F> {
     /// SHARED shard histograms); the deferred Byte/Range table traces are then built
     /// directly from those histograms (see `jagged_tracegen::device_main_tracegen`).
     ///
-    /// MUST be false for chips whose `generate_dependencies` emits
-    /// `GlobalInteractionEvent`s (MemoryLocal/Syscall*/MemoryGlobal*) — the device
-    /// histogram path would silently drop them.
+    /// Chips whose `generate_dependencies` ALSO emits `GlobalInteractionEvent`s
+    /// (MemoryLocal/Syscall*/MemoryGlobal*) may still return true — the device
+    /// histogram carries only their byte lookups, and the prover keeps the globals
+    /// on host by running `MachineAir::generate_global_dependencies` for every
+    /// chip its host dependency pass skips (see `Machine::generate_dependencies`).
     fn supports_device_dependencies(&self) -> bool {
         false
     }

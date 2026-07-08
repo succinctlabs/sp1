@@ -229,6 +229,10 @@ where
         self.air.generate_dependencies(input, output);
     }
 
+    fn generate_global_dependencies(&self, input: &A::Record, output: &mut A::Record) {
+        self.air.generate_global_dependencies(input, output);
+    }
+
     fn included(&self, shard: &Self::Record) -> bool {
         self.air.included(shard)
     }

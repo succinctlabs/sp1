@@ -88,28 +88,35 @@ where
     }
 
     /// Generates the dependencies of the given records.
+    ///
+    /// Chips EXCLUDED by `chips_filter` still contribute their global-interaction
+    /// dependencies (via `generate_global_dependencies`): the filter exists so a
+    /// prover can move a chip's byte-lookup half to another backend (device
+    /// tracegen), but septic global events are always generated on host.
     #[allow(clippy::needless_for_each)]
     pub fn generate_dependencies<'a>(
         &self,
         records: impl Iterator<Item = &'a mut A::Record>,
         chips_filter: Option<&[String]>,
     ) {
-        let chips = self
-            .chips
-            .iter()
-            .filter(|chip| {
+        let (chips, globals_only_chips): (Vec<_>, Vec<_>) =
+            self.chips.iter().partition(|chip| {
                 if let Some(chips_filter) = chips_filter {
                     chips_filter.contains(&chip.name().to_string())
                 } else {
                     true
                 }
-            })
-            .collect::<Vec<_>>();
+            });
 
         records.for_each(|record| {
             chips.iter().for_each(|chip| {
                 let mut output = A::Record::default();
                 chip.generate_dependencies(record, &mut output);
+                record.append(&mut output);
+            });
+            globals_only_chips.iter().for_each(|chip| {
+                let mut output = A::Record::default();
+                chip.generate_global_dependencies(record, &mut output);
                 record.append(&mut output);
             });
         });

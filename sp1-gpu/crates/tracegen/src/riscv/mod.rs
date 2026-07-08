@@ -24,11 +24,13 @@
 //!   `AR_WITGEN_SLOTS=0` is the validated kill-switch back to the SSA fused
 //!   kernel.
 //! - **Non-fused column path**: the prover calls the per-chip
-//!   `generate_trace_device` only for device chips whose dependencies must stay
-//!   on host (MemoryLocal / MemoryGlobal* / Syscall* — they emit
-//!   `GlobalInteractionEvent`s) and for every fused chip when
-//!   `AR_DEVICE_DEPS=0`. Narrow chips launch the SSA `witgen_interp_kernel`
-//!   directly; wide ones use [`generate_columns_slots_into`].
+//!   `generate_trace_device` only for `Global` (no byte lookups) and for every
+//!   fused chip when `AR_DEVICE_DEPS=0`. Narrow chips launch the SSA
+//!   `witgen_interp_kernel` directly; wide ones use
+//!   [`generate_columns_slots_into`]. Chips that also emit
+//!   `GlobalInteractionEvent`s (MemoryLocal / MemoryGlobal* / Syscall*) fuse
+//!   their byte lookups like everyone else; the globals come from the host
+//!   `generate_global_dependencies` pass.
 //! - **Standalone lookup path** ([`accumulate_lookups`] /
 //!   [`accumulate_lookups_slots`], via the per-chip
 //!   `generate_device_dependencies`): superseded in production by the fused
@@ -780,27 +782,21 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
     }
 
     fn supports_device_dependencies(&self) -> bool {
-        // Same gate as main tracegen, but `Global` has no device dependency path,
-        // and MemoryLocal/SyscallCore/SyscallPrecompile MUST keep dependencies on
-        // host: their `generate_dependencies` emits `GlobalInteractionEvent`s
-        // (septic-curve global table inputs), which the device byte-lookup
-        // histogram cannot produce — device deps for them would silently DROP the
-        // global interactions and break the proof.
+        // Same gate as main tracegen, but `Global` has no device dependency path
+        // (it has no byte lookups; its trace IS built from the global events).
+        // MemoryLocal/Syscall*/MemoryGlobal* run the FUSED byte-lookup path like
+        // every other device chip; the `GlobalInteractionEvent`s their
+        // `generate_dependencies` also emits (septic-curve global table inputs,
+        // which no device path can produce) still come from the host — the prover
+        // skips these chips in the host dependency pass, and
+        // `Machine::generate_dependencies` runs their
+        // `generate_global_dependencies` (globals only, no byte lookups) instead.
         // `AR_DEVICE_DEPS=0` disables the device byte-lookup path globally (host
         // generates dependencies) to isolate the device main-trace cost from the
         // dense-histogram readback cost in the e2e bench.
         device_deps_enabled()
-            && device_chip_name(self).is_some_and(|n| {
-                !matches!(
-                    n,
-                    "Global"
-                        | "MemoryLocal"
-                        | "SyscallCore"
-                        | "SyscallPrecompile"
-                        | "MemoryGlobalInit"
-                        | "MemoryGlobalFinal"
-                ) && device_chip_enabled(n)
-            })
+            && device_chip_name(self)
+                .is_some_and(|n| !matches!(n, "Global") && device_chip_enabled(n))
     }
 
     /// Standalone lookup-pass dispatch — no production caller (the prover uses the
@@ -853,6 +849,9 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Sha256Compress(chip) => dispatch!(chip),
             Self::Sha256ExtendControl(chip) => dispatch!(chip),
             Self::Sha256CompressControl(chip) => dispatch!(chip),
+            Self::MemoryLocal(chip) => dispatch!(chip),
+            Self::MemoryGlobalInit(chip) | Self::MemoryGlobalFinal(chip) => dispatch!(chip),
+            Self::SyscallCore(chip) | Self::SyscallPrecompile(chip) => dispatch!(chip),
             _ => unimplemented!(),
         }
     }
@@ -936,6 +935,35 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             }
             Self::MemoryBump(_) => {
                 pk!(input.bump_memory_events, memory_bump::pack_memory_bump_inputs)
+            }
+            // Chips whose host `generate_dependencies` ALSO emits global interaction
+            // events: their byte lookups fuse here like any other device chip, while
+            // the globals still come from the host `generate_global_dependencies`
+            // pass (see `supports_device_dependencies`).
+            Self::MemoryLocal(_) => {
+                if height == 0 {
+                    Vec::new()
+                } else {
+                    let events: Vec<_> = input.get_local_mem_events().collect();
+                    memory_local::pack_memory_local_inputs(&events)
+                }
+            }
+            Self::MemoryGlobalInit(chip) | Self::MemoryGlobalFinal(chip) => {
+                if height == 0 {
+                    Vec::new()
+                } else {
+                    let (events, previous_addr) =
+                        memory_global::sorted_events_and_prev(input, chip.kind);
+                    memory_global::pack_memory_global_inputs(&events, previous_addr)
+                }
+            }
+            Self::SyscallCore(chip) | Self::SyscallPrecompile(chip) => {
+                if height == 0 {
+                    Vec::new()
+                } else {
+                    let events = syscall::collect_syscall_events(input, chip.shard_kind());
+                    syscall::pack_syscall_inputs(&events)
+                }
             }
             // Keccak: pack the FULL padded height (padding rows = cyclic dummy pattern).
             Self::KeccakP(_) => {
@@ -1038,6 +1066,11 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Sha256Compress(chip) => dispatch!(chip),
             Self::Sha256ExtendControl(chip) => dispatch!(chip),
             Self::Sha256CompressControl(chip) => dispatch!(chip),
+            // Globals-on-host chips: fused byte lookups here, global events from the
+            // host `generate_global_dependencies` pass.
+            Self::MemoryLocal(chip) => dispatch!(chip),
+            Self::MemoryGlobalInit(chip) | Self::MemoryGlobalFinal(chip) => dispatch!(chip),
+            Self::SyscallCore(chip) | Self::SyscallPrecompile(chip) => dispatch!(chip),
             _ => unimplemented!(),
         }
     }

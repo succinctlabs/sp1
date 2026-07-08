@@ -61,6 +61,20 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
         self.generate_trace(input, output);
     }
 
+    /// Generate only the GLOBAL-interaction half of this chip's dependencies: the
+    /// `GlobalInteractionEvent`s (and their public-value counters) that
+    /// [`Self::generate_dependencies`] would emit, WITHOUT the byte-lookup half.
+    ///
+    /// Used when a prover produces the chip's byte lookups elsewhere (e.g. fused into a
+    /// GPU tracegen kernel) but the septic global events must still be generated on
+    /// host — `Machine::generate_dependencies` calls this for chips excluded from its
+    /// filter. Chips overriding this MUST keep it exactly the global subset of
+    /// [`Self::generate_dependencies`]. Default: no-op (chips with no global
+    /// interactions).
+    fn generate_global_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
+        let _ = (input, output);
+    }
+
     /// Generate the trace into a slice of `MaybeUninit<F>`.
     fn generate_trace_into(
         &self,

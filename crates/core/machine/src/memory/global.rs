@@ -61,23 +61,13 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
     }
 
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
+        // Byte-lookup half: the sorted-neighbor address-comparison and value range
+        // checks. Kept separate from the global half so a prover that produces these
+        // lookups elsewhere (fused into the device tracegen kernel) can run
+        // `generate_global_dependencies` alone.
         let mut memory_events = match self.kind {
             MemoryChipType::Initialize => input.global_memory_initialize_events.clone(),
             MemoryChipType::Finalize => input.global_memory_finalize_events.clone(),
-        };
-
-        let is_receive = match self.kind {
-            MemoryChipType::Initialize => false,
-            MemoryChipType::Finalize => true,
-        };
-
-        match self.kind {
-            MemoryChipType::Initialize => {
-                output.public_values.global_init_count += memory_events.len() as u32;
-            }
-            MemoryChipType::Finalize => {
-                output.public_values.global_finalize_count += memory_events.len() as u32;
-            }
         };
 
         let previous_addr = match self.kind {
@@ -113,6 +103,33 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
             })
             .collect::<Vec<_>>();
         output.add_byte_lookup_events(blu_batches.into_iter().flatten().collect());
+
+        MachineAir::<F>::generate_global_dependencies(self, input, output);
+    }
+
+    fn generate_global_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
+        let mut memory_events = match self.kind {
+            MemoryChipType::Initialize => input.global_memory_initialize_events.clone(),
+            MemoryChipType::Finalize => input.global_memory_finalize_events.clone(),
+        };
+
+        let is_receive = match self.kind {
+            MemoryChipType::Initialize => false,
+            MemoryChipType::Finalize => true,
+        };
+
+        // The public-value event counters belong to the global half: they count the
+        // global interactions this chip contributes.
+        match self.kind {
+            MemoryChipType::Initialize => {
+                output.public_values.global_init_count += memory_events.len() as u32;
+            }
+            MemoryChipType::Finalize => {
+                output.public_values.global_finalize_count += memory_events.len() as u32;
+            }
+        };
+
+        memory_events.sort_by_key(|event| event.addr);
 
         let events = memory_events.into_iter().map(|event| {
             let interaction_clk_high = if is_receive { (event.timestamp >> 24) as u32 } else { 0 };
@@ -676,3 +693,60 @@ where
 //         );
 //     }
 // }
+
+#[cfg(test)]
+mod split_tests {
+    use sp1_core_executor::{events::MemoryInitializeFinalizeEvent, ExecutionRecord};
+    use sp1_hypercube::air::MachineAir;
+    use sp1_primitives::SP1Field;
+
+    use super::{MemoryChipType, MemoryGlobalChip};
+
+    /// `generate_global_dependencies` must be exactly the global subset of
+    /// `generate_dependencies`: same global events in the same (sorted) order, same
+    /// public-value counter bumps, and no byte lookups — the contract the device
+    /// prover relies on when it fuses this chip's byte lookups into the tracegen
+    /// kernel and keeps only the globals on host.
+    #[test]
+    fn global_dependencies_are_the_global_subset() {
+        for kind in [MemoryChipType::Initialize, MemoryChipType::Finalize] {
+            let events: Vec<MemoryInitializeFinalizeEvent> = (0..100u64)
+                .map(|i| MemoryInitializeFinalizeEvent {
+                    // Deliberately unsorted addresses so the sort matters.
+                    addr: (i * 37) % 100 * 8 + 0x2000,
+                    value: i.wrapping_mul(0x0123_4567_89AB_CDEF),
+                    timestamp: i + 1,
+                })
+                .collect();
+            let shard = match kind {
+                MemoryChipType::Initialize => ExecutionRecord {
+                    global_memory_initialize_events: events,
+                    ..Default::default()
+                },
+                MemoryChipType::Finalize => ExecutionRecord {
+                    global_memory_finalize_events: events,
+                    ..Default::default()
+                },
+            };
+            let chip = MemoryGlobalChip::new(kind);
+
+            let mut full = ExecutionRecord::default();
+            MachineAir::<SP1Field>::generate_dependencies(&chip, &shard, &mut full);
+            let mut globals_only = ExecutionRecord::default();
+            MachineAir::<SP1Field>::generate_global_dependencies(&chip, &shard, &mut globals_only);
+
+            assert_eq!(globals_only.global_interaction_events, full.global_interaction_events);
+            assert!(!full.global_interaction_events.is_empty());
+            assert_eq!(
+                globals_only.public_values.global_init_count,
+                full.public_values.global_init_count
+            );
+            assert_eq!(
+                globals_only.public_values.global_finalize_count,
+                full.public_values.global_finalize_count
+            );
+            assert!(globals_only.byte_lookups.is_empty());
+            assert!(!full.byte_lookups.is_empty());
+        }
+    }
+}

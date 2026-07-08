@@ -519,9 +519,13 @@ where
             )
         });
 
-        // Generate dependencies on the main record. Chips whose dependencies are
-        // generated on the device (`host_dependency_skip_chips`, empty for the CPU
-        // prover) are skipped here and re-added by the device prover during tracegen.
+        // Generate dependencies on the main record. Chips whose BYTE-LOOKUP
+        // dependencies are generated on the device (`host_dependency_skip_chips`,
+        // empty for the CPU prover) are excluded from the full host pass here —
+        // `Machine::generate_dependencies` still runs their
+        // `generate_global_dependencies` (global interaction events cannot be
+        // produced on device); the byte lookups are re-added by the device prover
+        // during tracegen.
         let span = tracing::debug_span!("generate dependencies");
         let machine_clone = self.machine().clone();
         let skip = <C::CoreProver as sp1_hypercube::prover::AirProver<

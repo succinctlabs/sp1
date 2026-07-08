@@ -11,7 +11,7 @@ use slop_maybe_rayon::prelude::{
     IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
 use sp1_core_executor::{
-    events::{ByteRecord, GlobalInteractionEvent},
+    events::{ByteRecord, GlobalInteractionEvent, MemoryLocalEvent},
     ExecutionRecord, Program,
 };
 use sp1_derive::AlignedBorrow;
@@ -154,6 +154,49 @@ fn nb_rows(count: usize) -> usize {
     }
 }
 
+/// The two global interactions of one local-memory event: the initial-access receive
+/// and the final-access send. Shared by `generate_dependencies` (which also emits the
+/// byte lookups) and `generate_global_dependencies` (which emits only these).
+fn local_mem_global_events(mem_event: &MemoryLocalEvent) -> [GlobalInteractionEvent; 2] {
+    let initial_value_byte0 = ((mem_event.initial_mem_access.value >> 32) & 0xFF) as u32;
+    let initial_value_byte1 = ((mem_event.initial_mem_access.value >> 40) & 0xFF) as u32;
+    let final_value_byte0 = ((mem_event.final_mem_access.value >> 32) & 0xFF) as u32;
+    let final_value_byte1 = ((mem_event.final_mem_access.value >> 40) & 0xFF) as u32;
+    [
+        GlobalInteractionEvent {
+            message: [
+                (mem_event.initial_mem_access.timestamp >> 24) as u32,
+                (mem_event.initial_mem_access.timestamp & 0xFFFFFF) as u32,
+                (mem_event.addr & 0xFFFF) as u32,
+                ((mem_event.addr >> 16) & 0xFFFF) as u32,
+                ((mem_event.addr >> 32) & 0xFFFF) as u32,
+                (mem_event.initial_mem_access.value & 0xFFFF) as u32
+                    + (1 << 16) * initial_value_byte0,
+                ((mem_event.initial_mem_access.value >> 16) & 0xFFFF) as u32
+                    + (1 << 16) * initial_value_byte1,
+                ((mem_event.initial_mem_access.value >> 48) & 0xFFFF) as u32,
+            ],
+            is_receive: true,
+            kind: InteractionKind::Memory as u8,
+        },
+        GlobalInteractionEvent {
+            message: [
+                (mem_event.final_mem_access.timestamp >> 24) as u32,
+                (mem_event.final_mem_access.timestamp & 0xFFFFFF) as u32,
+                (mem_event.addr & 0xFFFF) as u32,
+                ((mem_event.addr >> 16) & 0xFFFF) as u32,
+                ((mem_event.addr >> 32) & 0xFFFF) as u32,
+                (mem_event.final_mem_access.value & 0xFFFF) as u32 + (1 << 16) * final_value_byte0,
+                ((mem_event.final_mem_access.value >> 16) & 0xFFFF) as u32
+                    + (1 << 16) * final_value_byte1,
+                ((mem_event.final_mem_access.value >> 48) & 0xFFFF) as u32,
+            ],
+            is_receive: false,
+            kind: InteractionKind::Memory as u8,
+        },
+    ]
+}
+
 impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
     type Record = ExecutionRecord;
 
@@ -164,8 +207,9 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        let mut events = Vec::new();
-
+        // Byte-lookup half. Kept separate from the global half so a prover that
+        // produces these lookups elsewhere (fused into the device tracegen kernel)
+        // can run `generate_global_dependencies` alone.
         input.get_local_mem_events().for_each(|mem_event| {
             let mut blu = Vec::with_capacity(10); // 1 + 4 + 1 + 4
             let initial_value_byte0 = ((mem_event.initial_mem_access.value >> 32) & 0xFF) as u32;
@@ -173,47 +217,20 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
             blu.add_u8_range_check(initial_value_byte0 as u8, initial_value_byte1 as u8);
             blu.add_u16_range_checks_field::<F>(&Word::from(mem_event.initial_mem_access.value).0);
 
-            events.push(GlobalInteractionEvent {
-                message: [
-                    (mem_event.initial_mem_access.timestamp >> 24) as u32,
-                    (mem_event.initial_mem_access.timestamp & 0xFFFFFF) as u32,
-                    (mem_event.addr & 0xFFFF) as u32,
-                    ((mem_event.addr >> 16) & 0xFFFF) as u32,
-                    ((mem_event.addr >> 32) & 0xFFFF) as u32,
-                    (mem_event.initial_mem_access.value & 0xFFFF) as u32
-                        + (1 << 16) * initial_value_byte0,
-                    ((mem_event.initial_mem_access.value >> 16) & 0xFFFF) as u32
-                        + (1 << 16) * initial_value_byte1,
-                    ((mem_event.initial_mem_access.value >> 48) & 0xFFFF) as u32,
-                ],
-                is_receive: true,
-                kind: InteractionKind::Memory as u8,
-            });
-
             let final_value_byte0 = ((mem_event.final_mem_access.value >> 32) & 0xFF) as u32;
             let final_value_byte1 = ((mem_event.final_mem_access.value >> 40) & 0xFF) as u32;
             blu.add_u8_range_check(final_value_byte0 as u8, final_value_byte1 as u8);
             blu.add_u16_range_checks_field::<F>(&Word::from(mem_event.final_mem_access.value).0);
-            events.push(GlobalInteractionEvent {
-                message: [
-                    (mem_event.final_mem_access.timestamp >> 24) as u32,
-                    (mem_event.final_mem_access.timestamp & 0xFFFFFF) as u32,
-                    (mem_event.addr & 0xFFFF) as u32,
-                    ((mem_event.addr >> 16) & 0xFFFF) as u32,
-                    ((mem_event.addr >> 32) & 0xFFFF) as u32,
-                    (mem_event.final_mem_access.value & 0xFFFF) as u32
-                        + (1 << 16) * final_value_byte0,
-                    ((mem_event.final_mem_access.value >> 16) & 0xFFFF) as u32
-                        + (1 << 16) * final_value_byte1,
-                    ((mem_event.final_mem_access.value >> 48) & 0xFFFF) as u32,
-                ],
-                is_receive: false,
-                kind: InteractionKind::Memory as u8,
-            });
 
             output.add_byte_lookup_events(blu);
         });
 
+        MachineAir::<F>::generate_global_dependencies(self, input, output);
+    }
+
+    fn generate_global_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
+        let events: Vec<_> =
+            input.get_local_mem_events().flat_map(local_mem_global_events).collect();
         output.global_interaction_events.extend(events);
     }
 
@@ -621,3 +638,46 @@ where
 //         RowMajorMatrix::new(values, NUM_MEMORY_LOCAL_INIT_COLS)
 //     }
 // }
+
+#[cfg(test)]
+mod split_tests {
+    use sp1_core_executor::events::{MemoryLocalEvent, MemoryRecord};
+    use sp1_hypercube::air::MachineAir;
+    use sp1_primitives::SP1Field;
+
+    use super::MemoryLocalChip;
+    use sp1_core_executor::ExecutionRecord;
+
+    /// `generate_global_dependencies` must be exactly the global subset of
+    /// `generate_dependencies`: same global events in the same order, and no byte
+    /// lookups — the contract the device prover relies on when it fuses this chip's
+    /// byte lookups into the tracegen kernel and keeps only the globals on host.
+    #[test]
+    fn global_dependencies_are_the_global_subset() {
+        let events: Vec<MemoryLocalEvent> = (0..100u64)
+            .map(|i| MemoryLocalEvent {
+                addr: i * 8 + 0x1000,
+                initial_mem_access: MemoryRecord {
+                    timestamp: i * 3 + 1,
+                    value: i.wrapping_mul(0x1234_5678_9ABC_DEF1),
+                },
+                final_mem_access: MemoryRecord {
+                    timestamp: i * 3 + 100,
+                    value: i.wrapping_mul(0xFEDC_BA98_7654_3211),
+                },
+            })
+            .collect();
+        let shard = ExecutionRecord { cpu_local_memory_access: events, ..Default::default() };
+        let chip = MemoryLocalChip::new();
+
+        let mut full = ExecutionRecord::default();
+        MachineAir::<SP1Field>::generate_dependencies(&chip, &shard, &mut full);
+        let mut globals_only = ExecutionRecord::default();
+        MachineAir::<SP1Field>::generate_global_dependencies(&chip, &shard, &mut globals_only);
+
+        assert_eq!(globals_only.global_interaction_events, full.global_interaction_events);
+        assert!(!full.global_interaction_events.is_empty());
+        assert!(globals_only.byte_lookups.is_empty());
+        assert!(!full.byte_lookups.is_empty());
+    }
+}
