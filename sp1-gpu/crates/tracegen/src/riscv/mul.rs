@@ -3,13 +3,16 @@
 //! like `Add`, plus the `mul` (nat-multiply) kernel op for the byte convolution.
 //! The convolution makes this the widest gadget (see `WITGEN_MAX_WIRES`).
 
+use core::borrow::BorrowMut;
+
 use rayon::prelude::*;
 use slop_alloc::mem::CopyError;
 use slop_tensor::Tensor;
 use sp1_core_executor::{events::AluEvent, RTypeRecord};
 use sp1_core_machine::{
-    air::{columns_as_wires, RecordingWitnessBuilder, WireId},
-    alu::mul::{MulChip, MulCols, NUM_MUL_COLS_SUPERVISOR},
+    adapter::register::r_type::RTypeReaderWitgenInput,
+    air::{columns_as_wires, record_witgen_inputs, WireId},
+    alu::mul::{MulChip, MulCols, MulWitgenInput, NUM_MUL_COLS_SUPERVISOR, NUM_MUL_WITGEN_INPUTS},
     SupervisorMode,
 };
 use sp1_gpu_cudart::{DeviceBuffer, DeviceMle, TaskScope};
@@ -17,63 +20,28 @@ use sp1_hypercube::air::MachineAir;
 
 use crate::{CudaTracegenAir, F};
 
-/// Number of witgen inputs per `Mul` row (see [`MulCols::witgen`]).
-const NUM_MUL_INPUTS: usize = 18;
-
+/// Pack each event into one [`MulWitgenInput`] row.
 pub(crate) fn pack_mul_inputs(events: &[(AluEvent, RTypeRecord)]) -> Vec<u64> {
-    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_MUL_INPUTS];
-    inputs.par_chunks_mut(NUM_MUL_INPUTS).zip(events.par_iter()).for_each(|(slot, (alu, r))| {
-        let (a, b, c) = (r.a, r.b, r.c);
-        slot.copy_from_slice(&[
-            alu.clk,
-            alu.pc,
-            alu.a,
-            alu.b,
-            alu.c,
-            alu.opcode as u64,
-            r.op_a as u64,
-            r.op_b,
-            r.op_c,
-            a.previous_record().value,
-            a.previous_record().timestamp,
-            a.current_record().timestamp,
-            b.previous_record().value,
-            b.previous_record().timestamp,
-            b.current_record().timestamp,
-            c.previous_record().value,
-            c.previous_record().timestamp,
-            c.current_record().timestamp,
-        ]);
-    });
+    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_MUL_WITGEN_INPUTS];
+    inputs.par_chunks_mut(NUM_MUL_WITGEN_INPUTS).zip(events.par_iter()).for_each(
+        |(chunk, (alu, r))| {
+            let slot: &mut MulWitgenInput<u64> = chunk.borrow_mut();
+            slot.clk = alu.clk;
+            slot.pc = alu.pc;
+            slot.a = alu.a;
+            slot.b = alu.b;
+            slot.c = alu.c;
+            slot.opcode = alu.opcode as u64;
+            slot.adapter = RTypeReaderWitgenInput::from_record(r);
+        },
+    );
     inputs
 }
 
 fn record_mul_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
-    let mut rec = RecordingWitnessBuilder::new(NUM_MUL_INPUTS as u32);
+    let (mut rec, input) = record_witgen_inputs::<MulWitgenInput<WireId>>();
     let mut cols_w = MulCols::<WireId, SupervisorMode>::default();
-    let w = |i: u32| RecordingWitnessBuilder::input(i);
-    MulCols::<WireId, SupervisorMode>::witgen(
-        &mut rec,
-        &mut cols_w,
-        w(0),
-        w(1),
-        w(2),
-        w(3),
-        w(4),
-        w(5),
-        w(6),
-        w(7),
-        w(8),
-        w(9),
-        w(10),
-        w(11),
-        w(12),
-        w(13),
-        w(14),
-        w(15),
-        w(16),
-        w(17),
-    );
+    MulCols::<WireId, SupervisorMode>::witgen(&mut rec, &mut cols_w, &input);
     let program = rec.finish();
     let col_wires: Vec<u32> = columns_as_wires(&cols_w).iter().map(|w| w.0).collect();
     // Register allocation bounds the per-thread wire array by max-live slots, not raw
@@ -269,37 +237,15 @@ mod tests {
     fn mul_regalloc_shrinks_and_matches() {
         use sp1_core_machine::air::{
             columns_as_wires, interpret_c_columns, interpret_c_slots_columns,
-            interpret_c_slots_streaming_columns, interpret_slots_columns, RecordingWitnessBuilder,
+            interpret_c_slots_streaming_columns, interpret_slots_columns, record_witgen_inputs,
             WireId,
         };
-        use sp1_core_machine::alu::mul::MulCols;
+        use sp1_core_machine::alu::mul::{MulCols, MulWitgenInput, NUM_MUL_WITGEN_INPUTS};
 
         // Build the Mul program inline (`record_mul_program` asserts <=256; Mul is 531).
-        let mut rec = RecordingWitnessBuilder::new(super::NUM_MUL_INPUTS as u32);
+        let (mut rec, input) = record_witgen_inputs::<MulWitgenInput<WireId>>();
         let mut cols_w = MulCols::<WireId, SupervisorMode>::default();
-        let w = |i: u32| RecordingWitnessBuilder::input(i);
-        MulCols::<WireId, SupervisorMode>::witgen(
-            &mut rec,
-            &mut cols_w,
-            w(0),
-            w(1),
-            w(2),
-            w(3),
-            w(4),
-            w(5),
-            w(6),
-            w(7),
-            w(8),
-            w(9),
-            w(10),
-            w(11),
-            w(12),
-            w(13),
-            w(14),
-            w(15),
-            w(16),
-            w(17),
-        );
+        MulCols::<WireId, SupervisorMode>::witgen(&mut rec, &mut cols_w, &input);
         let program = rec.finish();
         let col_wires: Vec<u32> = columns_as_wires(&cols_w).iter().map(|w| w.0).collect();
 
@@ -346,9 +292,9 @@ mod tests {
         // Slot-resolved flat form (the exact layout the register-allocated kernel
         // ports) + its remapped inputs/columns.
         let ops_slots = program.to_c_slots(&slot);
-        let input_slots = &slot[..super::NUM_MUL_INPUTS];
+        let input_slots = &slot[..NUM_MUL_WITGEN_INPUTS];
         let col_slots: Vec<u32> = col_wires.iter().map(|&w| slot[w as usize]).collect();
-        let ni = super::NUM_MUL_INPUTS;
+        let ni = NUM_MUL_WITGEN_INPUTS;
         for row in 0..events.len() {
             let row_in = &inputs[row * ni..(row + 1) * ni];
             let ssa: Vec<F> = interpret_c_columns(&ops_c, ni as u32, row_in, &col_wires);

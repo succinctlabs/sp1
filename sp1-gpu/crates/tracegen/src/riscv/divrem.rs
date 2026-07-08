@@ -26,8 +26,12 @@ use sp1_core_executor::{
     is_signed_word_operation, is_unsigned_word_operation, RTypeRecord,
 };
 use sp1_core_machine::{
-    air::{columns_as_wires, RecordingWitnessBuilder, WireId},
-    alu::divrem::{DivRemChip, DivRemCols, NUM_DIVREM_COLS_SUPERVISOR},
+    adapter::register::r_type::RTypeReaderWitgenInput,
+    air::{columns_as_wires, record_witgen_inputs, WireId},
+    alu::divrem::{
+        DivRemChip, DivRemCols, DivRemWitgenInput, NUM_DIVREM_COLS_SUPERVISOR,
+        NUM_DIVREM_WITGEN_INPUTS,
+    },
     SupervisorMode,
 };
 use sp1_gpu_cudart::{DeviceBuffer, DeviceMle, TaskScope};
@@ -35,154 +39,111 @@ use sp1_hypercube::{air::MachineAir, Word};
 
 use crate::{CudaTracegenAir, F};
 
-/// Number of witgen inputs per `DivRem` row (see [`DivRemCols::witgen`]).
-const NUM_DIVREM_INPUTS: usize = 30;
-
+/// Pack each event into one [`DivRemWitgenInput`] row (the host-side division
+/// results are computed here — see the struct docs).
 pub(crate) fn pack_divrem_inputs(events: &[(AluEvent, RTypeRecord)]) -> Vec<u64> {
-    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_DIVREM_INPUTS];
-    inputs.par_chunks_mut(NUM_DIVREM_INPUTS).zip(events.par_iter()).for_each(|(slot, (alu, r))| {
-        let opcode = alu.opcode;
-        let (a, b, c) = (r.a, r.b, r.c);
+    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_DIVREM_WITGEN_INPUTS];
+    inputs.par_chunks_mut(NUM_DIVREM_WITGEN_INPUTS).zip(events.par_iter()).for_each(
+        |(chunk, (alu, r))| {
+            let opcode = alu.opcode;
 
-        // Computational b, c (sign/zero extended for word ops).
-        let b_comp = if is_signed_word_operation(opcode) {
-            alu.b as i32 as i64 as u64
-        } else if is_unsigned_word_operation(opcode) {
-            alu.b as u32 as u64
-        } else {
-            alu.b
-        };
-        let c_comp = if is_signed_word_operation(opcode) {
-            alu.c as i32 as i64 as u64
-        } else if is_unsigned_word_operation(opcode) {
-            alu.c as u32 as u64
-        } else {
-            alu.c
-        };
+            // Computational b, c (sign/zero extended for word ops).
+            let b_comp = if is_signed_word_operation(opcode) {
+                alu.b as i32 as i64 as u64
+            } else if is_unsigned_word_operation(opcode) {
+                alu.b as u32 as u64
+            } else {
+                alu.b
+            };
+            let c_comp = if is_signed_word_operation(opcode) {
+                alu.c as i32 as i64 as u64
+            } else if is_unsigned_word_operation(opcode) {
+                alu.c as u32 as u64
+            } else {
+                alu.c
+            };
 
-        let (quotient, remainder) = get_quotient_and_remainder(alu.b, alu.c, opcode);
-        let quotient_comp =
-            if is_unsigned_word_operation(opcode) { quotient as u32 as u64 } else { quotient };
-        let remainder_comp =
-            if is_unsigned_word_operation(opcode) { remainder as u32 as u64 } else { remainder };
+            let (quotient, remainder) = get_quotient_and_remainder(alu.b, alu.c, opcode);
+            let quotient_comp =
+                if is_unsigned_word_operation(opcode) { quotient as u32 as u64 } else { quotient };
+            let remainder_comp = if is_unsigned_word_operation(opcode) {
+                remainder as u32 as u64
+            } else {
+                remainder
+            };
 
-        // Sign flags + abs values (mirrors the chip's `event_to_row`).
-        let (b_neg, c_neg, rem_neg, is_overflow, abs_remainder, abs_c, max_abs_c_or_1);
-        if is_signed_64bit_operation(opcode) {
-            rem_neg = get_msb(remainder) as u64;
-            b_neg = get_msb(alu.b) as u64;
-            c_neg = get_msb(alu.c) as u64;
-            is_overflow = (alu.b as i64 == i64::MIN && alu.c as i64 == -1) as u64;
-            abs_remainder = (remainder as i64).unsigned_abs();
-            abs_c = (alu.c as i64).unsigned_abs();
-            max_abs_c_or_1 = u64::max(1, (alu.c as i64).unsigned_abs());
-        } else if is_signed_word_operation(opcode) {
-            rem_neg = get_msb((remainder as i32) as i64 as u64) as u64;
-            b_neg = get_msb((alu.b as i32) as i64 as u64) as u64;
-            c_neg = get_msb((alu.c as i32) as i64 as u64) as u64;
-            is_overflow = (alu.b as i32 == i32::MIN && alu.c as i32 == -1) as u64;
-            abs_remainder = (remainder as i64).unsigned_abs();
-            abs_c = (c_comp as i64).unsigned_abs();
-            max_abs_c_or_1 = u64::max(1, (c_comp as i64).unsigned_abs());
-        } else if is_unsigned_word_operation(opcode) {
-            b_neg = 0;
-            c_neg = 0;
-            rem_neg = 0;
-            is_overflow = 0;
-            abs_remainder = remainder_comp;
-            abs_c = alu.c as u32 as u64;
-            max_abs_c_or_1 = u32::max(1, alu.c as u32) as u64;
-        } else {
-            b_neg = 0;
-            c_neg = 0;
-            rem_neg = 0;
-            is_overflow = 0;
-            abs_remainder = remainder_comp;
-            abs_c = alu.c;
-            max_abs_c_or_1 = u64::max(1, alu.c);
-        }
+            // Sign flags + abs values (mirrors the chip's `event_to_row`).
+            let (b_neg, c_neg, rem_neg, is_overflow, abs_remainder, abs_c, max_abs_c_or_1);
+            if is_signed_64bit_operation(opcode) {
+                rem_neg = get_msb(remainder) as u64;
+                b_neg = get_msb(alu.b) as u64;
+                c_neg = get_msb(alu.c) as u64;
+                is_overflow = (alu.b as i64 == i64::MIN && alu.c as i64 == -1) as u64;
+                abs_remainder = (remainder as i64).unsigned_abs();
+                abs_c = (alu.c as i64).unsigned_abs();
+                max_abs_c_or_1 = u64::max(1, (alu.c as i64).unsigned_abs());
+            } else if is_signed_word_operation(opcode) {
+                rem_neg = get_msb((remainder as i32) as i64 as u64) as u64;
+                b_neg = get_msb((alu.b as i32) as i64 as u64) as u64;
+                c_neg = get_msb((alu.c as i32) as i64 as u64) as u64;
+                is_overflow = (alu.b as i32 == i32::MIN && alu.c as i32 == -1) as u64;
+                abs_remainder = (remainder as i64).unsigned_abs();
+                abs_c = (c_comp as i64).unsigned_abs();
+                max_abs_c_or_1 = u64::max(1, (c_comp as i64).unsigned_abs());
+            } else if is_unsigned_word_operation(opcode) {
+                b_neg = 0;
+                c_neg = 0;
+                rem_neg = 0;
+                is_overflow = 0;
+                abs_remainder = remainder_comp;
+                abs_c = alu.c as u32 as u64;
+                max_abs_c_or_1 = u32::max(1, alu.c as u32) as u64;
+            } else {
+                b_neg = 0;
+                c_neg = 0;
+                rem_neg = 0;
+                is_overflow = 0;
+                abs_remainder = remainder_comp;
+                abs_c = alu.c;
+                max_abs_c_or_1 = u64::max(1, alu.c);
+            }
 
-        // Upper 64 bits of the 128-bit c*quotient product (signed for signed ops).
-        let ctq_hi = if is_signed_64bit_operation(opcode) || is_signed_word_operation(opcode) {
-            (((quotient_comp as i64 as i128).wrapping_mul(c_comp as i64 as i128)) >> 64) as u64
-        } else {
-            ((quotient_comp as u128).wrapping_mul(c_comp as u128) >> 64) as u64
-        };
+            // Upper 64 bits of the 128-bit c*quotient product (signed for signed ops).
+            let ctq_hi = if is_signed_64bit_operation(opcode) || is_signed_word_operation(opcode) {
+                (((quotient_comp as i64 as i128).wrapping_mul(c_comp as i64 as i128)) >> 64) as u64
+            } else {
+                ((quotient_comp as u128).wrapping_mul(c_comp as u128) >> 64) as u64
+            };
 
-        slot.copy_from_slice(&[
-            alu.clk,
-            alu.pc,
-            r.op_a as u64,
-            r.op_b,
-            r.op_c,
-            a.previous_record().value,
-            a.previous_record().timestamp,
-            a.current_record().timestamp,
-            b.previous_record().value,
-            b.previous_record().timestamp,
-            b.current_record().timestamp,
-            c.previous_record().value,
-            c.previous_record().timestamp,
-            c.current_record().timestamp,
-            alu.a,
-            b_comp,
-            c_comp,
-            quotient,
-            remainder,
-            quotient_comp,
-            remainder_comp,
-            abs_remainder,
-            abs_c,
-            max_abs_c_or_1,
-            opcode as u64,
-            ctq_hi,
-            b_neg,
-            c_neg,
-            rem_neg,
-            is_overflow,
-        ]);
-    });
+            let slot: &mut DivRemWitgenInput<u64> = chunk.borrow_mut();
+            slot.clk = alu.clk;
+            slot.pc = alu.pc;
+            slot.adapter = RTypeReaderWitgenInput::from_record(r);
+            slot.a = alu.a;
+            slot.b_comp = b_comp;
+            slot.c_comp = c_comp;
+            slot.quotient = quotient;
+            slot.remainder = remainder;
+            slot.quotient_comp = quotient_comp;
+            slot.remainder_comp = remainder_comp;
+            slot.abs_remainder = abs_remainder;
+            slot.abs_c = abs_c;
+            slot.max_abs_c_or_1 = max_abs_c_or_1;
+            slot.opcode = opcode as u64;
+            slot.ctq_hi = ctq_hi;
+            slot.b_neg = b_neg;
+            slot.c_neg = c_neg;
+            slot.rem_neg = rem_neg;
+            slot.is_overflow = is_overflow;
+        },
+    );
     inputs
 }
 
 fn record_divrem_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
-    let mut rec = RecordingWitnessBuilder::new(NUM_DIVREM_INPUTS as u32);
+    let (mut rec, input) = record_witgen_inputs::<DivRemWitgenInput<WireId>>();
     let mut cols_w = DivRemCols::<WireId, SupervisorMode>::default();
-    let w = |i: u32| RecordingWitnessBuilder::input(i);
-    DivRemCols::<WireId, SupervisorMode>::witgen(
-        &mut rec,
-        &mut cols_w,
-        w(0),
-        w(1),
-        w(2),
-        w(3),
-        w(4),
-        w(5),
-        w(6),
-        w(7),
-        w(8),
-        w(9),
-        w(10),
-        w(11),
-        w(12),
-        w(13),
-        w(14),
-        w(15),
-        w(16),
-        w(17),
-        w(18),
-        w(19),
-        w(20),
-        w(21),
-        w(22),
-        w(23),
-        w(24),
-        w(25),
-        w(26),
-        w(27),
-        w(28),
-        w(29),
-    );
+    DivRemCols::<WireId, SupervisorMode>::witgen(&mut rec, &mut cols_w, &input);
     let program = rec.finish();
     let col_wires: Vec<u32> = columns_as_wires(&cols_w).iter().map(|w| w.0).collect();
     // DivRem exceeds the pinned cap (272 slots > 256) — it runs on device only via
@@ -403,50 +364,18 @@ mod tests {
     fn divrem_regalloc_shrinks_and_matches() {
         use sp1_core_machine::air::{
             columns_as_wires, interpret_c_columns, interpret_c_slots_columns,
-            interpret_c_slots_streaming_columns, interpret_slots_columns, RecordingWitnessBuilder,
+            interpret_c_slots_streaming_columns, interpret_slots_columns, record_witgen_inputs,
             WireId,
         };
-        use sp1_core_machine::alu::divrem::DivRemCols;
+        use sp1_core_machine::alu::divrem::{
+            DivRemCols, DivRemWitgenInput, NUM_DIVREM_WITGEN_INPUTS,
+        };
 
         // Build the DivRem program inline (`record_divrem_program` asserts the SSA
         // wire count <= 256, which DivRem exceeds — the whole point of reg-alloc).
-        let mut rec = RecordingWitnessBuilder::new(super::NUM_DIVREM_INPUTS as u32);
+        let (mut rec, input) = record_witgen_inputs::<DivRemWitgenInput<WireId>>();
         let mut cols_w = DivRemCols::<WireId, SupervisorMode>::default();
-        let w = |i: u32| RecordingWitnessBuilder::input(i);
-        DivRemCols::<WireId, SupervisorMode>::witgen(
-            &mut rec,
-            &mut cols_w,
-            w(0),
-            w(1),
-            w(2),
-            w(3),
-            w(4),
-            w(5),
-            w(6),
-            w(7),
-            w(8),
-            w(9),
-            w(10),
-            w(11),
-            w(12),
-            w(13),
-            w(14),
-            w(15),
-            w(16),
-            w(17),
-            w(18),
-            w(19),
-            w(20),
-            w(21),
-            w(22),
-            w(23),
-            w(24),
-            w(25),
-            w(26),
-            w(27),
-            w(28),
-            w(29),
-        );
+        DivRemCols::<WireId, SupervisorMode>::witgen(&mut rec, &mut cols_w, &input);
         let program = rec.finish();
         let col_wires: Vec<u32> = columns_as_wires(&cols_w).iter().map(|w| w.0).collect();
 
@@ -474,9 +403,9 @@ mod tests {
         let inputs = super::pack_divrem_inputs(&events);
         let ops_c = program.to_c();
         let ops_slots = program.to_c_slots(&slot);
-        let input_slots = &slot[..super::NUM_DIVREM_INPUTS];
+        let input_slots = &slot[..NUM_DIVREM_WITGEN_INPUTS];
         let col_slots: Vec<u32> = col_wires.iter().map(|&w| slot[w as usize]).collect();
-        let ni = super::NUM_DIVREM_INPUTS;
+        let ni = NUM_DIVREM_WITGEN_INPUTS;
         for row in 0..events.len() {
             let row_in = &inputs[row * ni..(row + 1) * ni];
             let ssa: Vec<F> = interpret_c_columns(&ops_c, ni as u32, row_in, &col_wires);
@@ -565,7 +494,7 @@ mod tests {
         let (program, col_wires) = super::record_divrem_program();
         assert_eq!(col_wires.len(), width);
         let ops_c = program.to_c();
-        let ni = super::NUM_DIVREM_INPUTS;
+        let ni = sp1_core_machine::alu::divrem::NUM_DIVREM_WITGEN_INPUTS;
         let inputs = super::pack_divrem_inputs(&events);
         let values = &trace.values;
         for row in 0..events.len() {

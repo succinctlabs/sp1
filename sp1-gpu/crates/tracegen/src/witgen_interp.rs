@@ -8,14 +8,16 @@ mod tests {
     use rand::{rngs::StdRng, Rng, SeedableRng};
     use slop_algebra::AbstractField;
     use slop_alloc::Buffer;
-    use sp1_core_machine::adapter::register::r_type::RTypeReader;
+    use sp1_core_machine::adapter::register::r_type::{RTypeReader, RTypeReaderWitgenInput};
     use sp1_core_machine::adapter::state::CPUState;
-    use sp1_core_machine::air::{columns_as_wires, RecordingWitnessBuilder, WireId};
+    use sp1_core_machine::air::{
+        columns_as_wires, record_witgen_inputs, RecordingWitnessBuilder, WireId,
+    };
     use sp1_core_machine::air::{
         interpret_c_columns as _interp, interpret_c_lookups, WitProgram, BYTE_HIST_ROWS,
         RANGE_HIST_ROWS,
     };
-    use sp1_core_machine::alu::add_sub::add::AddCols;
+    use sp1_core_machine::alu::add_sub::add::{AddCols, AddWitgenInput};
     use sp1_core_machine::bytes::columns::NUM_BYTE_MULT_COLS;
     use sp1_core_machine::memory::{RegisterAccessCols, RegisterAccessTimestamp};
     use sp1_core_machine::operations::{AddOperation, AddrAddOperation, AddressOperation};
@@ -211,24 +213,9 @@ mod tests {
     #[tokio::test]
     async fn witgen_interp_rtype_reader_columns() {
         sp1_gpu_cudart::spawn(move |scope: TaskScope| async move {
-            let mut rec = RecordingWitnessBuilder::new(12);
+            let (mut rec, input) = record_witgen_inputs::<RTypeReaderWitgenInput<WireId>>();
             let mut cols_w = RTypeReader::<WireId>::default();
-            RTypeReader::<WireId>::witgen(
-                &mut rec,
-                &mut cols_w,
-                RecordingWitnessBuilder::input(0),
-                RecordingWitnessBuilder::input(1),
-                RecordingWitnessBuilder::input(2),
-                RecordingWitnessBuilder::input(3),
-                RecordingWitnessBuilder::input(4),
-                RecordingWitnessBuilder::input(5),
-                RecordingWitnessBuilder::input(6),
-                RecordingWitnessBuilder::input(7),
-                RecordingWitnessBuilder::input(8),
-                RecordingWitnessBuilder::input(9),
-                RecordingWitnessBuilder::input(10),
-                RecordingWitnessBuilder::input(11),
-            );
+            RTypeReader::<WireId>::witgen(&mut rec, &mut cols_w, &input);
             let col_wires: Vec<u32> = columns_as_wires(&cols_w).iter().map(|w| w.0).collect();
             check_gadget(scope, rec.finish(), col_wires).await;
         })
@@ -243,28 +230,9 @@ mod tests {
     #[tokio::test]
     async fn witgen_interp_add_chip_columns() {
         sp1_gpu_cudart::spawn(move |scope: TaskScope| async move {
-            let mut rec = RecordingWitnessBuilder::new(16);
+            let (mut rec, input) = record_witgen_inputs::<AddWitgenInput<WireId>>();
             let mut cols_w = AddCols::<WireId, SupervisorMode>::default();
-            AddCols::<WireId, SupervisorMode>::witgen(
-                &mut rec,
-                &mut cols_w,
-                RecordingWitnessBuilder::input(0),
-                RecordingWitnessBuilder::input(1),
-                RecordingWitnessBuilder::input(2),
-                RecordingWitnessBuilder::input(3),
-                RecordingWitnessBuilder::input(4),
-                RecordingWitnessBuilder::input(5),
-                RecordingWitnessBuilder::input(6),
-                RecordingWitnessBuilder::input(7),
-                RecordingWitnessBuilder::input(8),
-                RecordingWitnessBuilder::input(9),
-                RecordingWitnessBuilder::input(10),
-                RecordingWitnessBuilder::input(11),
-                RecordingWitnessBuilder::input(12),
-                RecordingWitnessBuilder::input(13),
-                RecordingWitnessBuilder::input(14),
-                RecordingWitnessBuilder::input(15),
-            );
+            AddCols::<WireId, SupervisorMode>::witgen(&mut rec, &mut cols_w, &input);
             let col_wires: Vec<u32> = columns_as_wires(&cols_w).iter().map(|w| w.0).collect();
             check_gadget(scope, rec.finish(), col_wires).await;
         })
@@ -280,30 +248,10 @@ mod tests {
     #[tokio::test]
     async fn witgen_lookup_add_chip_matches_cpu() {
         sp1_gpu_cudart::spawn(move |scope: TaskScope| async move {
-            // Record the Add chip's op-DAG once (16 inputs).
-            let mut rec = RecordingWitnessBuilder::new(16);
+            // Record the Add chip's op-DAG once.
+            let (mut rec, input) = record_witgen_inputs::<AddWitgenInput<WireId>>();
             let mut cols_w = AddCols::<WireId, SupervisorMode>::default();
-            let wire = |i: u32| RecordingWitnessBuilder::input(i);
-            AddCols::<WireId, SupervisorMode>::witgen(
-                &mut rec,
-                &mut cols_w,
-                wire(0),
-                wire(1),
-                wire(2),
-                wire(3),
-                wire(4),
-                wire(5),
-                wire(6),
-                wire(7),
-                wire(8),
-                wire(9),
-                wire(10),
-                wire(11),
-                wire(12),
-                wire(13),
-                wire(14),
-                wire(15),
-            );
+            AddCols::<WireId, SupervisorMode>::witgen(&mut rec, &mut cols_w, &input);
             let program = rec.finish();
             let ops_c = program.to_c();
             let num_inputs = program.num_inputs as usize;

@@ -4,7 +4,10 @@ use std::mem::size_of;
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
-    adapter::{register::r_type::RTypeReader, state::CPUState},
+    adapter::{
+        register::r_type::{RTypeReader, RTypeReaderWitgenInput},
+        state::CPUState,
+    },
     operations::{IsZeroOperation, SP1FieldWordRangeChecker, U16toU8Operation},
     SupervisorMode, TrustMode, UserMode,
 };
@@ -70,6 +73,26 @@ pub struct SyscallInstrColumns<T, M: TrustMode> {
     pub user_mode_cols: M::SyscallInstrCols<T>,
 }
 
+/// Witgen inputs for the `SyscallInstrs` chip: one `#[repr(C)]` row per event (see
+/// `record_witgen_inputs` — field order IS the packed input layout). The current
+/// register values (`a_value`/`b_value`/`c_value`) and syscall args are plain
+/// per-row inputs alongside the nested adapter.
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct SyscallInstrsWitgenInput<T> {
+    pub clk: T,
+    pub pc: T,
+    pub adapter: RTypeReaderWitgenInput<T>,
+    pub a_value: T,
+    pub b_value: T,
+    pub c_value: T,
+    pub arg1: T,
+    pub arg2: T,
+}
+
+/// Number of witgen inputs per `SyscallInstrs` row.
+pub const NUM_SYSCALL_INSTR_WITGEN_INPUTS: usize = size_of::<SyscallInstrsWitgenInput<u8>>();
+
 // Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
 impl<T, M: TrustMode> SyscallInstrColumns<T, M> {
     /// Backend-agnostic witgen for the SUPERVISOR-mode `SyscallInstrs` chip: the
@@ -80,31 +103,16 @@ impl<T, M: TrustMode> SyscallInstrColumns<T, M> {
     /// The syscall id is the low byte of op_a's previous value; all five
     /// `SyscallCode` discriminators compare against constants < 256, so nat
     /// equality on the byte matches the host's field-element comparison.
-    #[allow(clippy::too_many_arguments)]
     pub fn witgen<WB: crate::air::WitnessBuilder>(
         wb: &mut WB,
         cols: &mut SyscallInstrColumns<WB::Field, M>,
-        clk: WB::Nat,
-        pc: WB::Nat,
-        op_a: WB::Nat,
-        a_prev_value: WB::Nat,
-        a_prev_ts: WB::Nat,
-        a_cur_ts: WB::Nat,
-        a_value: WB::Nat,
-        op_b: WB::Nat,
-        b_prev_value: WB::Nat,
-        b_prev_ts: WB::Nat,
-        b_cur_ts: WB::Nat,
-        b_value: WB::Nat,
-        op_c: WB::Nat,
-        c_prev_value: WB::Nat,
-        c_prev_ts: WB::Nat,
-        c_cur_ts: WB::Nat,
-        c_value: WB::Nat,
-        arg1: WB::Nat,
-        arg2: WB::Nat,
+        input: &SyscallInstrsWitgenInput<WB::Nat>,
     ) {
         use sp1_core_executor::{SyscallCode, HALT_PC};
+
+        let SyscallInstrsWitgenInput { clk, pc, adapter, a_value, b_value, c_value, arg1, arg2 } =
+            *input;
+        let a_prev_value = adapter.a.prev_value;
 
         let zero = wb.const_nat(0);
         let one = wb.const_nat(1);
@@ -205,21 +213,6 @@ impl<T, M: TrustMode> SyscallInstrColumns<T, M> {
         SP1FieldWordRangeChecker::<WB::Field>::witgen(wb, &mut cols.op_c_range_check, arg2, is_cdp);
 
         CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
-        RTypeReader::<WB::Field>::witgen(
-            wb,
-            &mut cols.adapter,
-            op_a,
-            a_prev_value,
-            a_prev_ts,
-            a_cur_ts,
-            op_b,
-            b_prev_value,
-            b_prev_ts,
-            b_cur_ts,
-            op_c,
-            c_prev_value,
-            c_prev_ts,
-            c_cur_ts,
-        );
+        RTypeReader::<WB::Field>::witgen(wb, &mut cols.adapter, &adapter);
     }
 }

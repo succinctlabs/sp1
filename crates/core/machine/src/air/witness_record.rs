@@ -1455,14 +1455,14 @@ mod tests {
     /// before the GPU kernel ports it.
     #[test]
     fn add_lookups_match_generate_dependencies() {
-        use crate::alu::add_sub::add::{AddChip, AddCols};
+        use crate::adapter::register::r_type::RTypeReaderWitgenInput;
+        use crate::alu::add_sub::add::{AddChip, AddCols, AddWitgenInput, NUM_ADD_WITGEN_INPUTS};
         use crate::SupervisorMode;
+        use core::borrow::BorrowMut;
         use rand::{rngs::StdRng, Rng, SeedableRng};
         use sp1_core_executor::events::{AluEvent, MemoryReadRecord, MemoryRecordEnum};
         use sp1_core_executor::{ExecutionRecord, Opcode, RTypeRecord};
         use sp1_hypercube::air::MachineAir;
-
-        const NUM_ADD_INPUTS: usize = 16;
 
         // A register read whose previous timestamp precedes the current one.
         fn read(rng: &mut StdRng) -> MemoryRecordEnum {
@@ -1529,56 +1529,23 @@ mod tests {
             }
         }
 
-        // Record the Add op-DAG once, pack each event's 16 inputs (mirrors the device
+        // Record the Add op-DAG once, pack each event's inputs (mirrors the device
         // tracegen path), then accumulate lookups via the model.
-        let mut rec = RecordingWitnessBuilder::new(NUM_ADD_INPUTS as u32);
+        let (mut rec, input) = record_witgen_inputs::<AddWitgenInput<WireId>>();
         let mut cols_w = AddCols::<WireId, SupervisorMode>::default();
-        let wire = |i: u32| RecordingWitnessBuilder::input(i);
-        AddCols::<WireId, SupervisorMode>::witgen(
-            &mut rec,
-            &mut cols_w,
-            wire(0),
-            wire(1),
-            wire(2),
-            wire(3),
-            wire(4),
-            wire(5),
-            wire(6),
-            wire(7),
-            wire(8),
-            wire(9),
-            wire(10),
-            wire(11),
-            wire(12),
-            wire(13),
-            wire(14),
-            wire(15),
-        );
+        AddCols::<WireId, SupervisorMode>::witgen(&mut rec, &mut cols_w, &input);
         let program = rec.finish();
         let ops_c = program.to_c();
 
         let n_events = add_events.len();
-        let mut inputs = vec![0u64; n_events * NUM_ADD_INPUTS];
-        for (slot, (alu, r)) in inputs.chunks_mut(NUM_ADD_INPUTS).zip(add_events.iter()) {
-            let (a, b, c) = (r.a, r.b, r.c);
-            slot.copy_from_slice(&[
-                alu.clk,
-                alu.pc,
-                alu.b,
-                alu.c,
-                r.op_a as u64,
-                r.op_b,
-                r.op_c,
-                a.previous_record().value,
-                a.previous_record().timestamp,
-                a.current_record().timestamp,
-                b.previous_record().value,
-                b.previous_record().timestamp,
-                b.current_record().timestamp,
-                c.previous_record().value,
-                c.previous_record().timestamp,
-                c.current_record().timestamp,
-            ]);
+        let mut inputs = vec![0u64; n_events * NUM_ADD_WITGEN_INPUTS];
+        for (chunk, (alu, r)) in inputs.chunks_mut(NUM_ADD_WITGEN_INPUTS).zip(add_events.iter()) {
+            let slot: &mut AddWitgenInput<u64> = chunk.borrow_mut();
+            slot.clk = alu.clk;
+            slot.pc = alu.pc;
+            slot.b = alu.b;
+            slot.c = alu.c;
+            slot.adapter = RTypeReaderWitgenInput::from_record(r);
         }
 
         let mut range_hist = vec![0u32; RANGE_HIST_ROWS];

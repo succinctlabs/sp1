@@ -9,14 +9,20 @@
 //! SyscallCore/SyscallPrecompile TABLES it emits no `GlobalInteractionEvent`s),
 //! so the fused device path is available like the ALU chips.
 
+use core::borrow::BorrowMut;
+
 use rayon::prelude::*;
 use slop_alloc::mem::CopyError;
 use slop_tensor::Tensor;
 use sp1_core_executor::{events::SyscallEvent, RTypeRecord};
 use sp1_core_machine::{
-    air::{columns_as_wires, RecordingWitnessBuilder, WireId},
+    adapter::register::r_type::RTypeReaderWitgenInput,
+    air::{columns_as_wires, record_witgen_inputs, WireId},
     syscall::instructions::{
-        columns::{SyscallInstrColumns, NUM_SYSCALL_INSTR_COLS_SUPERVISOR},
+        columns::{
+            SyscallInstrColumns, SyscallInstrsWitgenInput, NUM_SYSCALL_INSTR_COLS_SUPERVISOR,
+            NUM_SYSCALL_INSTR_WITGEN_INPUTS,
+        },
         SyscallInstrsChip,
     },
     SupervisorMode,
@@ -26,68 +32,29 @@ use sp1_hypercube::air::MachineAir;
 
 use crate::{CudaTracegenAir, F};
 
-/// Number of witgen inputs per `SyscallInstrs` row (see
-/// [`SyscallInstrColumns::witgen`]).
-const NUM_SYSCALL_INSTR_INPUTS: usize = 19;
-
+/// Pack each event into one [`SyscallInstrsWitgenInput`] row.
 pub(crate) fn pack_syscall_instr_inputs(events: &[(SyscallEvent, RTypeRecord)]) -> Vec<u64> {
-    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_SYSCALL_INSTR_INPUTS];
-    inputs.par_chunks_mut(NUM_SYSCALL_INSTR_INPUTS).zip(events.par_iter()).for_each(
-        |(slot, (e, r))| {
-            let (a, b, c) = (r.a, r.b, r.c);
-            slot.copy_from_slice(&[
-                e.clk,
-                e.pc,
-                r.op_a as u64,
-                a.previous_record().value,
-                a.previous_record().timestamp,
-                a.current_record().timestamp,
-                a.current_record().value,
-                r.op_b,
-                b.previous_record().value,
-                b.previous_record().timestamp,
-                b.current_record().timestamp,
-                b.current_record().value,
-                r.op_c,
-                c.previous_record().value,
-                c.previous_record().timestamp,
-                c.current_record().timestamp,
-                c.current_record().value,
-                e.arg1,
-                e.arg2,
-            ]);
+    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_SYSCALL_INSTR_WITGEN_INPUTS];
+    inputs.par_chunks_mut(NUM_SYSCALL_INSTR_WITGEN_INPUTS).zip(events.par_iter()).for_each(
+        |(chunk, (e, r))| {
+            let slot: &mut SyscallInstrsWitgenInput<u64> = chunk.borrow_mut();
+            slot.clk = e.clk;
+            slot.pc = e.pc;
+            slot.adapter = RTypeReaderWitgenInput::from_record(r);
+            slot.a_value = r.a.current_record().value;
+            slot.b_value = r.b.current_record().value;
+            slot.c_value = r.c.current_record().value;
+            slot.arg1 = e.arg1;
+            slot.arg2 = e.arg2;
         },
     );
     inputs
 }
 
 fn record_syscall_instr_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
-    let mut rec = RecordingWitnessBuilder::new(NUM_SYSCALL_INSTR_INPUTS as u32);
+    let (mut rec, input) = record_witgen_inputs::<SyscallInstrsWitgenInput<WireId>>();
     let mut cols_w = SyscallInstrColumns::<WireId, SupervisorMode>::default();
-    let w = |i: u32| RecordingWitnessBuilder::input(i);
-    SyscallInstrColumns::<WireId, SupervisorMode>::witgen(
-        &mut rec,
-        &mut cols_w,
-        w(0),
-        w(1),
-        w(2),
-        w(3),
-        w(4),
-        w(5),
-        w(6),
-        w(7),
-        w(8),
-        w(9),
-        w(10),
-        w(11),
-        w(12),
-        w(13),
-        w(14),
-        w(15),
-        w(16),
-        w(17),
-        w(18),
-    );
+    SyscallInstrColumns::<WireId, SupervisorMode>::witgen(&mut rec, &mut cols_w, &input);
     let program = rec.finish();
     let col_wires: Vec<u32> = columns_as_wires(&cols_w).iter().map(|w| w.0).collect();
     // 277 SSA wires exceed the SSA kernel's cap, but register allocation bounds the
@@ -299,7 +266,7 @@ mod tests {
             epi.len(),
         );
 
-        let ni = super::NUM_SYSCALL_INSTR_INPUTS;
+        let ni = super::NUM_SYSCALL_INSTR_WITGEN_INPUTS;
         let ops_c = program.to_c();
         let ops_slots = program.to_c_slots(&slot);
         let input_slots = &slot[..ni];

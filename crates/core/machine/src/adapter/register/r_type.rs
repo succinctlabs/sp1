@@ -12,7 +12,7 @@ use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     air::{MemoryAirBuilder, ProgramAirBuilder, SP1Operation, WordAirBuilder},
-    memory::RegisterAccessCols,
+    memory::{MemoryAccessWitgenInput, RegisterAccessCols},
     program::instruction::InstructionCols,
 };
 
@@ -40,81 +40,80 @@ pub struct RTypeReader<T> {
     pub op_c_memory: RegisterAccessCols<T>,
 }
 
+/// Witgen inputs of [`RTypeReader::witgen`], for nesting inside chip-level
+/// witgen-input structs (see `record_witgen_inputs`). Field order IS the packed
+/// input layout.
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct RTypeReaderWitgenInput<T> {
+    pub op_a: T,
+    pub a: MemoryAccessWitgenInput<T>,
+    pub op_b: T,
+    pub b: MemoryAccessWitgenInput<T>,
+    pub op_c: T,
+    pub c: MemoryAccessWitgenInput<T>,
+}
+
+impl RTypeReaderWitgenInput<u64> {
+    /// Pack an executor [`RTypeRecord`] into witgen-input form (all three operands
+    /// are register accesses).
+    pub fn from_record(record: &RTypeRecord) -> Self {
+        Self {
+            op_a: record.op_a as u64,
+            a: MemoryAccessWitgenInput::from_record(record.a),
+            op_b: record.op_b,
+            b: MemoryAccessWitgenInput::from_record(record.b),
+            op_c: record.op_c,
+            c: MemoryAccessWitgenInput::from_record(record.c),
+        }
+    }
+}
+
 // Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
 impl<T> RTypeReader<T> {
     /// Backend-agnostic witgen: the three register indices (`op_a`/`op_b`/`op_c`),
     /// the `op_a == 0` flag, and the three register reads (each composing
     /// [`RegisterAccessCols::witgen`]). Inputs are grouped per operand: the index
-    /// then the read's `(prev_value, prev_timestamp, current_timestamp)`.
-    #[allow(clippy::too_many_arguments)]
+    /// then the read's `(prev_value, prev_ts, cur_ts)`.
     pub fn witgen<WB: crate::air::WitnessBuilder>(
         wb: &mut WB,
         cols: &mut RTypeReader<WB::Field>,
-        op_a: WB::Nat,
-        a_prev_value: WB::Nat,
-        a_prev_ts: WB::Nat,
-        a_cur_ts: WB::Nat,
-        op_b: WB::Nat,
-        b_prev_value: WB::Nat,
-        b_prev_ts: WB::Nat,
-        b_cur_ts: WB::Nat,
-        op_c: WB::Nat,
-        c_prev_value: WB::Nat,
-        c_prev_ts: WB::Nat,
-        c_cur_ts: WB::Nat,
+        input: &RTypeReaderWitgenInput<WB::Nat>,
     ) {
-        cols.op_a = wb.nat_to_field(op_a);
+        cols.op_a = wb.nat_to_field(input.op_a);
         RegisterAccessCols::<WB::Field>::witgen(
             wb,
             &mut cols.op_a_memory,
-            a_prev_value,
-            a_prev_ts,
-            a_cur_ts,
+            input.a.prev_value,
+            input.a.prev_ts,
+            input.a.cur_ts,
         );
         let zero = wb.const_nat(0);
-        let a_is_zero = wb.eq(op_a, zero);
+        let a_is_zero = wb.eq(input.op_a, zero);
         cols.op_a_0 = wb.nat_to_field(a_is_zero);
-        cols.op_b = wb.nat_to_field(op_b);
+        cols.op_b = wb.nat_to_field(input.op_b);
         RegisterAccessCols::<WB::Field>::witgen(
             wb,
             &mut cols.op_b_memory,
-            b_prev_value,
-            b_prev_ts,
-            b_cur_ts,
+            input.b.prev_value,
+            input.b.prev_ts,
+            input.b.cur_ts,
         );
-        cols.op_c = wb.nat_to_field(op_c);
+        cols.op_c = wb.nat_to_field(input.op_c);
         RegisterAccessCols::<WB::Field>::witgen(
             wb,
             &mut cols.op_c_memory,
-            c_prev_value,
-            c_prev_ts,
-            c_cur_ts,
+            input.c.prev_value,
+            input.c.prev_ts,
+            input.c.cur_ts,
         );
     }
 }
 
 impl<F: PrimeField32> RTypeReader<F> {
     pub fn populate(&mut self, blu_events: &mut impl ByteRecord, record: RTypeRecord) {
-        let a = record.a;
-        let b = record.b;
-        let c = record.c;
         let mut wb = crate::air::HostWitnessBuilder::<F, _>::new(blu_events);
-        Self::witgen(
-            &mut wb,
-            self,
-            record.op_a as u64,
-            a.previous_record().value,
-            a.previous_record().timestamp,
-            a.current_record().timestamp,
-            record.op_b,
-            b.previous_record().value,
-            b.previous_record().timestamp,
-            b.current_record().timestamp,
-            record.op_c,
-            c.previous_record().value,
-            c.previous_record().timestamp,
-            c.current_record().timestamp,
-        );
+        Self::witgen(&mut wb, self, &RTypeReaderWitgenInput::from_record(&record));
     }
 }
 

@@ -3,14 +3,19 @@
 //! for the approach (record the op-DAG once, pack per-event inputs, run the generic
 //! witgen interpreter one thread per row).
 
+use core::borrow::BorrowMut;
+
 use rayon::prelude::*;
 use slop_alloc::mem::CopyError;
 use slop_alloc::Buffer;
 use slop_tensor::Tensor;
 use sp1_core_executor::{events::AluEvent, RTypeRecord};
 use sp1_core_machine::{
-    air::{columns_as_wires, RecordingWitnessBuilder, WireId},
-    alu::add_sub::sub::{SubChip, SubCols, NUM_SUB_COLS_SUPERVISOR},
+    adapter::register::r_type::RTypeReaderWitgenInput,
+    air::{columns_as_wires, record_witgen_inputs, WireId},
+    alu::add_sub::sub::{
+        SubChip, SubCols, SubWitgenInput, NUM_SUB_COLS_SUPERVISOR, NUM_SUB_WITGEN_INPUTS,
+    },
     SupervisorMode,
 };
 use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKernel};
@@ -18,63 +23,29 @@ use sp1_hypercube::air::MachineAir;
 
 use crate::{CudaTracegenAir, F};
 
-/// Number of witgen inputs per `Sub` row (see [`SubCols::witgen`]).
-const NUM_SUB_INPUTS: usize = 16;
-
-/// Pack each event's witgen inputs (the 16 fields the CPU `populate` reads, in
-/// `SubCols::witgen` order). Shared by device main-tracegen and dependency-gen.
+/// Pack each event into one [`SubWitgenInput`] row. Shared by device main-tracegen
+/// and dependency-gen.
 pub(crate) fn pack_sub_inputs(events: &[(AluEvent, RTypeRecord)]) -> Vec<u64> {
-    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_SUB_INPUTS];
-    inputs.par_chunks_mut(NUM_SUB_INPUTS).zip(events.par_iter()).for_each(|(slot, (alu, r))| {
-        let (a, b, c) = (r.a, r.b, r.c);
-        slot.copy_from_slice(&[
-            alu.clk,
-            alu.pc,
-            alu.b,
-            alu.c,
-            r.op_a as u64,
-            r.op_b,
-            r.op_c,
-            a.previous_record().value,
-            a.previous_record().timestamp,
-            a.current_record().timestamp,
-            b.previous_record().value,
-            b.previous_record().timestamp,
-            b.current_record().timestamp,
-            c.previous_record().value,
-            c.previous_record().timestamp,
-            c.current_record().timestamp,
-        ]);
-    });
+    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_SUB_WITGEN_INPUTS];
+    inputs.par_chunks_mut(NUM_SUB_WITGEN_INPUTS).zip(events.par_iter()).for_each(
+        |(chunk, (alu, r))| {
+            let slot: &mut SubWitgenInput<u64> = chunk.borrow_mut();
+            slot.clk = alu.clk;
+            slot.pc = alu.pc;
+            slot.b = alu.b;
+            slot.c = alu.c;
+            slot.adapter = RTypeReaderWitgenInput::from_record(r);
+        },
+    );
     inputs
 }
 
 /// Record the `Sub` chip's witgen op-DAG (row-independent) + the column→wire map,
 /// asserting it fits the kernel's per-thread wire capacity.
 fn record_sub_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
-    let mut rec = RecordingWitnessBuilder::new(NUM_SUB_INPUTS as u32);
+    let (mut rec, input) = record_witgen_inputs::<SubWitgenInput<WireId>>();
     let mut cols_w = SubCols::<WireId, SupervisorMode>::default();
-    let wire = |i: u32| RecordingWitnessBuilder::input(i);
-    SubCols::<WireId, SupervisorMode>::witgen(
-        &mut rec,
-        &mut cols_w,
-        wire(0),
-        wire(1),
-        wire(2),
-        wire(3),
-        wire(4),
-        wire(5),
-        wire(6),
-        wire(7),
-        wire(8),
-        wire(9),
-        wire(10),
-        wire(11),
-        wire(12),
-        wire(13),
-        wire(14),
-        wire(15),
-    );
+    SubCols::<WireId, SupervisorMode>::witgen(&mut rec, &mut cols_w, &input);
     let program = rec.finish();
     assert!(
         program.num_wires() <= super::WITGEN_MAX_WIRES,

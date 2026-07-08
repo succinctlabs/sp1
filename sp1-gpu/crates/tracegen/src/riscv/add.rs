@@ -4,14 +4,19 @@
 //! the column-only port of the CPU `generate_trace_into`. Byte lookups still come
 //! from the CPU `generate_dependencies` (device lookups are a later step).
 
+use core::borrow::BorrowMut;
+
 use rayon::prelude::*;
 use slop_alloc::mem::CopyError;
 use slop_alloc::Buffer;
 use slop_tensor::Tensor;
 use sp1_core_executor::{events::AluEvent, RTypeRecord};
 use sp1_core_machine::{
-    air::{columns_as_wires, RecordingWitnessBuilder, WireId},
-    alu::add_sub::add::{AddChip, AddCols, NUM_ADD_COLS_SUPERVISOR},
+    adapter::register::r_type::RTypeReaderWitgenInput,
+    air::{columns_as_wires, record_witgen_inputs, WireId},
+    alu::add_sub::add::{
+        AddChip, AddCols, AddWitgenInput, NUM_ADD_COLS_SUPERVISOR, NUM_ADD_WITGEN_INPUTS,
+    },
     SupervisorMode,
 };
 use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKernel};
@@ -19,64 +24,30 @@ use sp1_hypercube::air::MachineAir;
 
 use crate::{CudaTracegenAir, F};
 
-/// Number of witgen inputs per `Add` row (see [`AddCols::witgen`]).
-const NUM_ADD_INPUTS: usize = 16;
-
-/// Pack each event's witgen inputs (the 16 fields the CPU `populate` path reads, in
-/// `AddCols::witgen` order). Parallel: the serial pack dominated wall-time at large
-/// sizes (iter-014). Shared by device main-tracegen and device dependency-gen.
+/// Pack each event into one [`AddWitgenInput`] row. Parallel: the serial pack
+/// dominated wall-time at large sizes (iter-014). Shared by device main-tracegen
+/// and device dependency-gen.
 pub(crate) fn pack_add_inputs(events: &[(AluEvent, RTypeRecord)]) -> Vec<u64> {
-    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_ADD_INPUTS];
-    inputs.par_chunks_mut(NUM_ADD_INPUTS).zip(events.par_iter()).for_each(|(slot, (alu, r))| {
-        let (a, b, c) = (r.a, r.b, r.c);
-        slot.copy_from_slice(&[
-            alu.clk,
-            alu.pc,
-            alu.b,
-            alu.c,
-            r.op_a as u64,
-            r.op_b,
-            r.op_c,
-            a.previous_record().value,
-            a.previous_record().timestamp,
-            a.current_record().timestamp,
-            b.previous_record().value,
-            b.previous_record().timestamp,
-            b.current_record().timestamp,
-            c.previous_record().value,
-            c.previous_record().timestamp,
-            c.current_record().timestamp,
-        ]);
-    });
+    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_ADD_WITGEN_INPUTS];
+    inputs.par_chunks_mut(NUM_ADD_WITGEN_INPUTS).zip(events.par_iter()).for_each(
+        |(chunk, (alu, r))| {
+            let slot: &mut AddWitgenInput<u64> = chunk.borrow_mut();
+            slot.clk = alu.clk;
+            slot.pc = alu.pc;
+            slot.b = alu.b;
+            slot.c = alu.c;
+            slot.adapter = RTypeReaderWitgenInput::from_record(r);
+        },
+    );
     inputs
 }
 
 /// Record the `Add` chip's witgen op-DAG (row-independent) and assert it fits the
 /// kernel's per-thread wire capacity. Shared by main-tracegen and dependency-gen.
 fn record_add_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
-    let mut rec = RecordingWitnessBuilder::new(NUM_ADD_INPUTS as u32);
+    let (mut rec, input) = record_witgen_inputs::<AddWitgenInput<WireId>>();
     let mut cols_w = AddCols::<WireId, SupervisorMode>::default();
-    let wire = |i: u32| RecordingWitnessBuilder::input(i);
-    AddCols::<WireId, SupervisorMode>::witgen(
-        &mut rec,
-        &mut cols_w,
-        wire(0),
-        wire(1),
-        wire(2),
-        wire(3),
-        wire(4),
-        wire(5),
-        wire(6),
-        wire(7),
-        wire(8),
-        wire(9),
-        wire(10),
-        wire(11),
-        wire(12),
-        wire(13),
-        wire(14),
-        wire(15),
-    );
+    AddCols::<WireId, SupervisorMode>::witgen(&mut rec, &mut cols_w, &input);
     let program = rec.finish();
     assert!(
         program.num_wires() <= super::WITGEN_MAX_WIRES,

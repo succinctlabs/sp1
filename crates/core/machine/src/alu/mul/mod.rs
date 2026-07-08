@@ -19,7 +19,7 @@ use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
-        register::r_type::{RTypeReader, RTypeReaderInput},
+        register::r_type::{RTypeReader, RTypeReaderInput, RTypeReaderWitgenInput},
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
@@ -75,34 +75,34 @@ pub struct MulCols<T, M: TrustMode> {
     pub adapter_cols: M::AdapterCols<T>,
 }
 
+/// Witgen inputs for the `Mul` chip: one `#[repr(C)]` row per event (see
+/// `record_witgen_inputs` — field order IS the packed input layout).
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct MulWitgenInput<T> {
+    pub clk: T,
+    pub pc: T,
+    pub a: T,
+    pub b: T,
+    pub c: T,
+    pub opcode: T,
+    pub adapter: RTypeReaderWitgenInput<T>,
+}
+
+/// Number of witgen inputs per `Mul` row.
+pub const NUM_MUL_WITGEN_INPUTS: usize = size_of::<MulWitgenInput<u8>>();
+
 // Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
 impl<T, M: TrustMode> MulCols<T, M> {
     /// Backend-agnostic witgen for the `Mul` chip (MUL/MULH/MULHU/MULHSU/MULW):
     /// per-row opcode flags, the result word `a`, the `MulOperation` convolution,
     /// the `CPUState`, and the register-register `RTypeReader` adapter.
-    #[allow(clippy::too_many_arguments)]
     pub fn witgen<WB: crate::air::WitnessBuilder>(
         wb: &mut WB,
         cols: &mut MulCols<WB::Field, M>,
-        clk: WB::Nat,
-        pc: WB::Nat,
-        a: WB::Nat,
-        b: WB::Nat,
-        c: WB::Nat,
-        opcode: WB::Nat,
-        op_a: WB::Nat,
-        op_b: WB::Nat,
-        op_c: WB::Nat,
-        a_prev_value: WB::Nat,
-        a_prev_ts: WB::Nat,
-        a_cur_ts: WB::Nat,
-        b_prev_value: WB::Nat,
-        b_prev_ts: WB::Nat,
-        b_cur_ts: WB::Nat,
-        c_prev_value: WB::Nat,
-        c_prev_ts: WB::Nat,
-        c_cur_ts: WB::Nat,
+        input: &MulWitgenInput<WB::Nat>,
     ) {
+        let MulWitgenInput { clk, pc, a, b, c, opcode, adapter } = *input;
         let mul = wb.const_nat(Opcode::MUL as u64);
         let mulh = wb.const_nat(Opcode::MULH as u64);
         let mulhu = wb.const_nat(Opcode::MULHU as u64);
@@ -135,22 +135,7 @@ impl<T, M: TrustMode> MulCols<T, M> {
             is_mulw,
         );
         CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
-        RTypeReader::<WB::Field>::witgen(
-            wb,
-            &mut cols.adapter,
-            op_a,
-            a_prev_value,
-            a_prev_ts,
-            a_cur_ts,
-            op_b,
-            b_prev_value,
-            b_prev_ts,
-            b_cur_ts,
-            op_c,
-            c_prev_value,
-            c_prev_ts,
-            c_cur_ts,
-        );
+        RTypeReader::<WB::Field>::witgen(wb, &mut cols.adapter, &adapter);
     }
 }
 

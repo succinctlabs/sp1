@@ -20,7 +20,7 @@ use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
-        register::r_type::{RTypeReader, RTypeReaderInput},
+        register::r_type::{RTypeReader, RTypeReaderInput, RTypeReaderWitgenInput},
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation, WordAirBuilder},
@@ -202,6 +202,38 @@ pub struct DivRemCols<T, M: TrustMode> {
     pub adapter_cols: M::AdapterCols<T>,
 }
 
+/// Witgen inputs for the `DivRem` chip: one `#[repr(C)]` row per event (see
+/// `record_witgen_inputs` — field order IS the packed input layout). Beyond the
+/// state + adapter, the host-derived division results (quotient/remainder,
+/// computational/abs forms, sign flags, and the upper 64 bits of `c*quotient`)
+/// are plain per-row inputs computed in the packing function.
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct DivRemWitgenInput<T> {
+    pub clk: T,
+    pub pc: T,
+    pub adapter: RTypeReaderWitgenInput<T>,
+    pub a: T,
+    pub b_comp: T,
+    pub c_comp: T,
+    pub quotient: T,
+    pub remainder: T,
+    pub quotient_comp: T,
+    pub remainder_comp: T,
+    pub abs_remainder: T,
+    pub abs_c: T,
+    pub max_abs_c_or_1: T,
+    pub opcode: T,
+    pub ctq_hi: T,
+    pub b_neg: T,
+    pub c_neg: T,
+    pub rem_neg: T,
+    pub is_overflow: T,
+}
+
+/// Number of witgen inputs per `DivRem` row.
+pub const NUM_DIVREM_WITGEN_INPUTS: usize = size_of::<DivRemWitgenInput<u8>>();
+
 // Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
 impl<T, M: TrustMode> DivRemCols<T, M> {
     /// Backend-agnostic witgen for the `DivRem` chip (DIV/DIVU/REM/REMU + W
@@ -212,41 +244,32 @@ impl<T, M: TrustMode> DivRemCols<T, M> {
     /// conditionally-populated sub-gadgets (the two abs `AddOperation`s, the upper
     /// `MulOperation`, `quot_msb`, and `remainder_lt`) are input-masked to 0 and
     /// lookup-guarded so masked rows reproduce the zero-initialized columns exactly.
-    #[allow(clippy::too_many_arguments)]
     pub fn witgen<WB: crate::air::WitnessBuilder>(
         wb: &mut WB,
         cols: &mut DivRemCols<WB::Field, M>,
-        clk: WB::Nat,
-        pc: WB::Nat,
-        op_a: WB::Nat,
-        op_b: WB::Nat,
-        op_c: WB::Nat,
-        a_prev_value: WB::Nat,
-        a_prev_ts: WB::Nat,
-        a_cur_ts: WB::Nat,
-        b_prev_value: WB::Nat,
-        b_prev_ts: WB::Nat,
-        b_cur_ts: WB::Nat,
-        c_prev_value: WB::Nat,
-        c_prev_ts: WB::Nat,
-        c_cur_ts: WB::Nat,
-        a: WB::Nat,
-        b_comp: WB::Nat,
-        c_comp: WB::Nat,
-        quotient: WB::Nat,
-        remainder: WB::Nat,
-        quotient_comp: WB::Nat,
-        remainder_comp: WB::Nat,
-        abs_remainder: WB::Nat,
-        abs_c: WB::Nat,
-        max_abs_c_or_1: WB::Nat,
-        opcode: WB::Nat,
-        ctq_hi: WB::Nat,
-        b_neg: WB::Nat,
-        c_neg: WB::Nat,
-        rem_neg: WB::Nat,
-        is_overflow: WB::Nat,
+        input: &DivRemWitgenInput<WB::Nat>,
     ) {
+        let DivRemWitgenInput {
+            clk,
+            pc,
+            adapter,
+            a,
+            b_comp,
+            c_comp,
+            quotient,
+            remainder,
+            quotient_comp,
+            remainder_comp,
+            abs_remainder,
+            abs_c,
+            max_abs_c_or_1,
+            opcode,
+            ctq_hi,
+            b_neg,
+            c_neg,
+            rem_neg,
+            is_overflow,
+        } = *input;
         use crate::operations::{
             AddOperation, IsEqualWordOperation, IsZeroWordOperation, LtOperationUnsigned,
             MulOperation, U16MSBOperation,
@@ -471,22 +494,7 @@ impl<T, M: TrustMode> DivRemCols<T, M> {
 
         // --- state + register adapter ---
         CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
-        RTypeReader::<WB::Field>::witgen(
-            wb,
-            &mut cols.adapter,
-            op_a,
-            a_prev_value,
-            a_prev_ts,
-            a_cur_ts,
-            op_b,
-            b_prev_value,
-            b_prev_ts,
-            b_cur_ts,
-            op_c,
-            c_prev_value,
-            c_prev_ts,
-            c_cur_ts,
-        );
+        RTypeReader::<WB::Field>::witgen(wb, &mut cols.adapter, &adapter);
     }
 }
 
