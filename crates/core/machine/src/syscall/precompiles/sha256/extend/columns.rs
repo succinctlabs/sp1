@@ -3,7 +3,7 @@ use std::mem::size_of;
 use sp1_derive::AlignedBorrow;
 
 use crate::{
-    memory::MemoryAccessCols,
+    memory::{MemoryAccessCols, MemoryAccessWitgenInput},
     operations::{
         Add4Operation, AddrAddOperation, ClkOperation, FixedRotateRightOperation,
         FixedShiftRightOperation, XorU32Operation,
@@ -63,6 +63,31 @@ pub struct ShaExtendCols<T> {
     pub is_real: T,
 }
 
+/// Witgen inputs for ONE `ShaExtend` row (one `j ∈ 0..48` step of one SHA_EXTEND
+/// syscall): one `#[repr(C)]` row per (event, step). The GPU packs 48 of these per
+/// event and the op-DAG recorder casts a wire slice to the same struct (see
+/// `record_witgen_inputs`), so field order IS the kernel input layout. For the four
+/// READ records `prev_value` holds the read VALUE (a read's previous value IS its
+/// value).
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ShaExtendWitgenInput<T> {
+    /// The BUMPED clock (`event.clk + 1`).
+    pub clk: T,
+    pub w_ptr: T,
+    /// The step index `j ∈ 0..48`.
+    pub j: T,
+    pub w_i_minus_15: MemoryAccessWitgenInput<T>,
+    pub w_i_minus_2: MemoryAccessWitgenInput<T>,
+    pub w_i_minus_16: MemoryAccessWitgenInput<T>,
+    pub w_i_minus_7: MemoryAccessWitgenInput<T>,
+    pub w_i: MemoryAccessWitgenInput<T>,
+    pub is_real: T,
+}
+
+/// Number of witgen inputs per `ShaExtend` row.
+pub const NUM_SHA_EXTEND_WITGEN_INPUTS: usize = size_of::<ShaExtendWitgenInput<u8>>();
+
 // Witgen in an unconstrained `impl` (column type is the builder's `Field`).
 impl<T: Copy> ShaExtendCols<T> {
     /// Backend-agnostic witgen for ONE ShaExtend row (one `j ∈ 0..48` step of one
@@ -75,30 +100,31 @@ impl<T: Copy> ShaExtendCols<T> {
     /// Trapped events produce all-zero rows on host: the record fn wraps this in a
     /// `push_guard(is_real)` (suppresses lookups) and masks every column wire with
     /// `field_select(is_real, col, 0)` — see `record_sha_extend_program`.
-    #[allow(clippy::too_many_arguments)]
     pub fn witgen<WB: crate::air::WitnessBuilder>(
         wb: &mut WB,
         cols: &mut ShaExtendCols<WB::Field>,
-        clk: WB::Nat,
-        w_ptr: WB::Nat,
-        j: WB::Nat,
-        w15_value: WB::Nat,
-        w15_prev_ts: WB::Nat,
-        w15_ts: WB::Nat,
-        w2_value: WB::Nat,
-        w2_prev_ts: WB::Nat,
-        w2_ts: WB::Nat,
-        w16_value: WB::Nat,
-        w16_prev_ts: WB::Nat,
-        w16_ts: WB::Nat,
-        w7_value: WB::Nat,
-        w7_prev_ts: WB::Nat,
-        w7_ts: WB::Nat,
-        wi_prev_value: WB::Nat,
-        wi_prev_ts: WB::Nat,
-        wi_ts: WB::Nat,
-        is_real: WB::Nat,
+        input: &ShaExtendWitgenInput<WB::Nat>,
     ) {
+        let ShaExtendWitgenInput {
+            clk,
+            w_ptr,
+            j,
+            w_i_minus_15:
+                MemoryAccessWitgenInput { prev_value: w15_value, prev_ts: w15_prev_ts, cur_ts: w15_ts },
+            w_i_minus_2:
+                MemoryAccessWitgenInput { prev_value: w2_value, prev_ts: w2_prev_ts, cur_ts: w2_ts },
+            w_i_minus_16:
+                MemoryAccessWitgenInput { prev_value: w16_value, prev_ts: w16_prev_ts, cur_ts: w16_ts },
+            w_i_minus_7:
+                MemoryAccessWitgenInput { prev_value: w7_value, prev_ts: w7_prev_ts, cur_ts: w7_ts },
+            w_i:
+                MemoryAccessWitgenInput {
+                    prev_value: wi_prev_value,
+                    prev_ts: wi_prev_ts,
+                    cur_ts: wi_ts,
+                },
+            is_real,
+        } = *input;
         use crate::operations::{
             Add4Operation, AddrAddOperation, ClkOperation, FixedRotateRightOperation,
             FixedShiftRightOperation, XorU32Operation,

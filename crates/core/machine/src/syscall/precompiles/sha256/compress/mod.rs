@@ -3,11 +3,13 @@ pub mod columns;
 mod controller;
 pub use controller::{
     num_sha_compress_control_cols_supervisor, num_sha_compress_control_cols_user,
-    ShaCompressControlCols,
+    ShaCompressControlCols, ShaCompressControlWitgenInput, NUM_SHA_COMPRESS_CONTROL_WITGEN_INPUTS,
 };
 mod trace;
 
-pub use columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS};
+pub use columns::{
+    ShaCompressCols, ShaCompressWitgenInput, NUM_SHA_COMPRESS_COLS, NUM_SHA_COMPRESS_WITGEN_INPUTS,
+};
 
 pub const SHA_COMPRESS_K: [u32; 64] = [
     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,

@@ -33,6 +33,23 @@ pub struct StateBumpCols<T: Copy> {
     pub is_real: T,
 }
 
+/// Witgen inputs for the `StateBump` chip: one `#[repr(C)]` row per event. The GPU
+/// packs each event into one `StateBumpWitgenInput<u64>` and the op-DAG recorder
+/// casts a wire slice to the same struct (see `record_witgen_inputs`), so field
+/// order IS the kernel input layout.
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct StateBumpWitgenInput<T> {
+    pub clk: T,
+    pub increment: T,
+    /// Whether the received pc is the un-carried `prev_pc + PC_INC` form (0/1).
+    pub bump2: T,
+    pub pc: T,
+}
+
+/// Number of witgen inputs per `StateBump` row.
+pub const NUM_STATE_BUMP_WITGEN_INPUTS: usize = size_of::<StateBumpWitgenInput<u8>>();
+
 // Witgen in an unconstrained `impl` (column type is the builder's `Field`).
 impl<T: Copy> StateBumpCols<T> {
     /// Backend-agnostic witgen for the `StateBump` chip: next_clk = clk + increment
@@ -43,11 +60,9 @@ impl<T: Copy> StateBumpCols<T> {
     pub fn witgen<WB: crate::air::WitnessBuilder>(
         wb: &mut WB,
         cols: &mut StateBumpCols<WB::Field>,
-        clk: WB::Nat,
-        increment: WB::Nat,
-        bump2: WB::Nat,
-        pc: WB::Nat,
+        input: &StateBumpWitgenInput<WB::Nat>,
     ) {
+        let StateBumpWitgenInput { clk, increment, bump2, pc } = *input;
         let one = wb.const_nat(1);
         let zero = wb.const_nat(0);
 

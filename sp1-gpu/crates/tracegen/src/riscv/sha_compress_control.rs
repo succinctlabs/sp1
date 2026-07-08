@@ -12,15 +12,18 @@
 //! Dependencies are byte/range lookups only, so the fused device path is
 //! available.
 
+use core::borrow::BorrowMut;
+
 use rayon::prelude::*;
 use slop_alloc::mem::CopyError;
 use slop_tensor::Tensor;
 use sp1_core_executor::{events::PrecompileEvent, ExecutionRecord, SyscallCode};
 use sp1_core_machine::{
-    air::{columns_as_wires, RecordingWitnessBuilder, WireId, WitProgram, WitnessBuilder},
+    air::{columns_as_wires, record_witgen_inputs, WireId, WitProgram, WitnessBuilder},
     operations::{AddrAddOperation, SyscallAddrOperation},
     syscall::precompiles::sha256::{
         num_sha_compress_control_cols_supervisor, ShaCompressControlChip, ShaCompressControlCols,
+        ShaCompressControlWitgenInput, NUM_SHA_COMPRESS_CONTROL_WITGEN_INPUTS,
     },
     SupervisorMode,
 };
@@ -29,48 +32,37 @@ use sp1_hypercube::air::MachineAir;
 
 use crate::{CudaTracegenAir, F};
 
-/// Number of witgen inputs per `ShaCompressControl` row: clk + w_ptr + h_ptr +
-/// 8 x h[i] + 8 x h_write_records[i].value.
-const NUM_SHA_COMPRESS_CONTROL_INPUTS: usize = 3 + 8 + 8;
-
-const IN_CLK: u32 = 0;
-const IN_W_PTR: u32 = 1;
-const IN_H_PTR: u32 = 2;
-const IN_H: u32 = 3; // ..11
-const IN_VALUE: u32 = 11; // ..19
-
+/// Pack each SHA_COMPRESS event into one [`ShaCompressControlWitgenInput`] row.
 pub(crate) fn pack_sha_compress_control_inputs(input: &ExecutionRecord) -> Vec<u64> {
     let events = input.get_precompile_events(SyscallCode::SHA_COMPRESS);
-    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_SHA_COMPRESS_CONTROL_INPUTS];
-    inputs.par_chunks_mut(NUM_SHA_COMPRESS_CONTROL_INPUTS).zip(events.par_iter()).for_each(
-        |(slot, (_, event))| {
+    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_SHA_COMPRESS_CONTROL_WITGEN_INPUTS];
+    inputs.par_chunks_mut(NUM_SHA_COMPRESS_CONTROL_WITGEN_INPUTS).zip(events.par_iter()).for_each(
+        |(chunk, (_, event))| {
             let event = if let PrecompileEvent::ShaCompress(event) = event {
                 event
             } else {
                 unreachable!()
             };
-            slot[IN_CLK as usize] = event.clk;
-            slot[IN_W_PTR as usize] = event.w_ptr;
-            slot[IN_H_PTR as usize] = event.h_ptr;
-            for i in 0..8 {
-                slot[IN_H as usize + i] = event.h[i] as u64;
-                slot[IN_VALUE as usize + i] = event.h_write_records[i].value;
-            }
+            let slot: &mut ShaCompressControlWitgenInput<u64> = chunk.borrow_mut();
+            slot.clk = event.clk;
+            slot.w_ptr = event.w_ptr;
+            slot.h_ptr = event.h_ptr;
+            slot.h = event.h.map(|h| h as u64);
+            slot.value = core::array::from_fn(|i| event.h_write_records[i].value);
         },
     );
     inputs
 }
 
 fn record_sha_compress_control_program() -> (WitProgram, Vec<u32>) {
-    let mut rec = RecordingWitnessBuilder::new(NUM_SHA_COMPRESS_CONTROL_INPUTS as u32);
+    let (mut rec, input) = record_witgen_inputs::<ShaCompressControlWitgenInput<WireId>>();
     // SAFETY: #[repr(C)] over Copy WireId; SupervisorMode's SliceProtCols are
     // empty; every field is assigned below (column tests would catch a miss).
     let mut cols: ShaCompressControlCols<WireId, SupervisorMode> = unsafe { core::mem::zeroed() };
-    let w = RecordingWitnessBuilder::input;
 
-    let clk = w(IN_CLK);
-    let w_ptr = w(IN_W_PTR);
-    let h_ptr = w(IN_H_PTR);
+    let clk = input.clk;
+    let w_ptr = input.w_ptr;
+    let h_ptr = input.h_ptr;
     let clk_high = rec.bits(clk, 24, 32);
     cols.clk_high = rec.nat_to_field(clk_high);
     let clk_low = rec.bits(clk, 0, 24);
@@ -86,8 +78,8 @@ fn record_sha_compress_control_program() -> (WitProgram, Vec<u32>) {
     cols.is_real = rec.nat_to_field(one);
 
     for i in 0..8 {
-        let h = w(IN_H + i as u32);
-        let value = w(IN_VALUE + i as u32);
+        let h = input.h[i];
+        let value = input.value[i];
         // initial_state[i] = u32_to_half_word(h[i]).
         let h_lo = rec.bits(h, 0, 16);
         let h_hi = rec.bits(h, 16, 16);
@@ -129,7 +121,8 @@ impl CudaTracegenAir<F> for ShaCompressControlChip<SupervisorMode> {
         let height = <Self as MachineAir<F>>::num_rows(self, input)
             .expect("num_rows(...) should be Some(_)");
         let inputs = pack_sha_compress_control_inputs(input);
-        let n_events = if height == 0 { 0 } else { inputs.len() / NUM_SHA_COMPRESS_CONTROL_INPUTS };
+        let n_events =
+            if height == 0 { 0 } else { inputs.len() / NUM_SHA_COMPRESS_CONTROL_WITGEN_INPUTS };
         let trace = Tensor::<F, TaskScope>::zeros_in([n_cols, height], scope.clone());
         super::generate_columns_slots_into(
             &program, &col_wires, &inputs, n_events, height, trace, scope,
@@ -171,7 +164,8 @@ impl CudaTracegenAir<F> for ShaCompressControlChip<SupervisorMode> {
         let height = <Self as MachineAir<F>>::num_rows(self, input)
             .expect("num_rows(...) should be Some(_)");
         let inputs = pack_sha_compress_control_inputs(input);
-        let n_events = if height == 0 { 0 } else { inputs.len() / NUM_SHA_COMPRESS_CONTROL_INPUTS };
+        let n_events =
+            if height == 0 { 0 } else { inputs.len() / NUM_SHA_COMPRESS_CONTROL_WITGEN_INPUTS };
         if n_events == 0 {
             return Ok(());
         }
@@ -284,7 +278,8 @@ mod tests {
             epi.len(),
         );
 
-        let ni = super::NUM_SHA_COMPRESS_CONTROL_INPUTS;
+        let ni =
+            sp1_core_machine::syscall::precompiles::sha256::NUM_SHA_COMPRESS_CONTROL_WITGEN_INPUTS;
         let ops_c = program.to_c();
         let ops_slots = program.to_c_slots(&slot);
         let input_slots = &slot[..ni];
@@ -333,7 +328,8 @@ mod tests {
         let (program, _col_wires) = super::record_sha_compress_control_program();
         let ops_c = program.to_c();
         let inputs = super::pack_sha_compress_control_inputs(&shard);
-        let n_events = inputs.len() / super::NUM_SHA_COMPRESS_CONTROL_INPUTS;
+        let n_events = inputs.len()
+            / sp1_core_machine::syscall::precompiles::sha256::NUM_SHA_COMPRESS_CONTROL_WITGEN_INPUTS;
         let mut range_hist = vec![0u32; RANGE_HIST_ROWS];
         let mut byte_hist = vec![0u32; BYTE_HIST_ROWS * NUM_BYTE_MULT_COLS];
         interpret_c_lookups(

@@ -40,6 +40,28 @@ const OFFSET_LAST_ELEM_W: u64 = 63;
 // H has 8 elements of 4 bytes. h_ptr + 7 * 8 gives the last address of H
 const OFFSET_LAST_ELEM_H: u64 = 7;
 
+/// Witgen inputs for the `ShaCompressControl` chip: one `#[repr(C)]` row per
+/// SHA_COMPRESS event. The chip's witgen op-DAG is recorded inline on the GPU side
+/// (see `record_sha_compress_control_program` in sp1-gpu tracegen); the GPU packs
+/// each event into one `ShaCompressControlWitgenInput<u64>` and the recorder casts
+/// a wire slice to the same struct (see `record_witgen_inputs`), so field order IS
+/// the kernel input layout.
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ShaCompressControlWitgenInput<T> {
+    pub clk: T,
+    pub w_ptr: T,
+    pub h_ptr: T,
+    /// The initial SHA state words `event.h[i]` (u32 each).
+    pub h: [T; 8],
+    /// The written-back final words `event.h_write_records[i].value`.
+    pub value: [T; 8],
+}
+
+/// Number of witgen inputs per `ShaCompressControl` row.
+pub const NUM_SHA_COMPRESS_CONTROL_WITGEN_INPUTS: usize =
+    std::mem::size_of::<ShaCompressControlWitgenInput<u8>>();
+
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ShaCompressControlCols<T, M: TrustMode> {

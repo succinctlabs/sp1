@@ -11,6 +11,8 @@
 //! trace is INITIALIZED host-side with the padding pattern before the kernel
 //! overwrites the event rows (like DivRem's non-zero padding template, but cyclic).
 
+use core::borrow::BorrowMut;
+
 use rayon::prelude::*;
 use slop_alloc::mem::CopyError;
 use slop_alloc::Buffer;
@@ -20,18 +22,17 @@ use sp1_core_executor::{
     ExecutionRecord, SyscallCode, TrapError,
 };
 use sp1_core_machine::{
-    air::{columns_as_wires, RecordingWitnessBuilder, WireId, WitnessBuilder},
+    air::{columns_as_wires, record_witgen_inputs, WireId, WitnessBuilder},
+    memory::MemoryAccessWitgenInput,
     syscall::precompiles::sha256::{
-        ShaCompressChip, ShaCompressCols, NUM_SHA_COMPRESS_COLS, SHA_COMPRESS_K,
+        ShaCompressChip, ShaCompressCols, ShaCompressWitgenInput, NUM_SHA_COMPRESS_COLS,
+        NUM_SHA_COMPRESS_WITGEN_INPUTS, SHA_COMPRESS_K,
     },
 };
 use sp1_gpu_cudart::{DeviceBuffer, DeviceMle, TaskScope};
 use sp1_hypercube::air::MachineAir;
 
 use crate::{CudaTracegenAir, F};
-
-/// Number of witgen inputs per ShaCompress ROW (see [`ShaCompressCols::witgen`]).
-const NUM_SHA_COMPRESS_INPUTS: usize = 21;
 
 /// One SHA-256 compression round (the host `event_to_rows` state update).
 fn round(h_array: &mut [u32; 8], w_j: u32, k_j: u32) {
@@ -45,11 +46,12 @@ fn round(h_array: &mut [u32; 8], w_j: u32, k_j: u32) {
     *h_array = [temp1.wrapping_add(temp2), a, b, c, d.wrapping_add(temp1), e, f, g];
 }
 
-/// Pack 80 input rows per event, replaying the compression host-side.
+/// Pack 80 [`ShaCompressWitgenInput`] rows per event, replaying the compression
+/// host-side.
 pub(crate) fn pack_sha_compress_inputs(
     events: &[(Option<TrapError>, &ShaCompressEvent)],
 ) -> Vec<u64> {
-    let rs = NUM_SHA_COMPRESS_INPUTS;
+    let rs = NUM_SHA_COMPRESS_WITGEN_INPUTS;
     let mut inputs: Vec<u64> = vec![0u64; events.len() * 80 * rs];
     inputs.par_chunks_mut(80 * rs).zip(events.par_iter()).for_each(
         |(chunk, (trap_error, event))| {
@@ -57,16 +59,17 @@ pub(crate) fn pack_sha_compress_inputs(
                 // Trapped rows keep only index (+ K on compression indices); the
                 // witgen's exempt columns reproduce the host's octet/index/k
                 // pattern while is_real = 0 masks everything else.
-                for (i, slot) in chunk.chunks_mut(rs).enumerate() {
-                    slot[3] = i as u64; // index
+                for (i, row) in chunk.chunks_mut(rs).enumerate() {
+                    let slot: &mut ShaCompressWitgenInput<u64> = row.borrow_mut();
+                    slot.index = i as u64;
                     let octet_num = i / 8;
                     if octet_num != 0 && octet_num != 9 {
-                        slot[4] = SHA_COMPRESS_K[(octet_num - 1) * 8 + i % 8] as u64;
+                        slot.k = SHA_COMPRESS_K[(octet_num - 1) * 8 + i % 8] as u64;
                     }
                 }
                 return;
             }
-            let pack_row = |slot: &mut [u64],
+            let pack_row = |row: &mut [u64],
                             index: u64,
                             k: u32,
                             mem_prev_value: u64,
@@ -77,29 +80,23 @@ pub(crate) fn pack_sha_compress_inputs(
                             w_j: u32,
                             og: u32,
                             fin: u32| {
-                slot.copy_from_slice(&[
-                    event.clk,
-                    event.w_ptr,
-                    event.h_ptr,
-                    index,
-                    k as u64,
-                    mem_prev_value,
-                    mem_prev_ts,
-                    mem_ts,
-                    mem_value as u64,
-                    hs[0] as u64,
-                    hs[1] as u64,
-                    hs[2] as u64,
-                    hs[3] as u64,
-                    hs[4] as u64,
-                    hs[5] as u64,
-                    hs[6] as u64,
-                    hs[7] as u64,
-                    w_j as u64,
-                    og as u64,
-                    fin as u64,
-                    1, // is_real
-                ]);
+                let slot: &mut ShaCompressWitgenInput<u64> = row.borrow_mut();
+                slot.clk = event.clk;
+                slot.w_ptr = event.w_ptr;
+                slot.h_ptr = event.h_ptr;
+                slot.index = index;
+                slot.k = k as u64;
+                slot.mem = MemoryAccessWitgenInput {
+                    prev_value: mem_prev_value,
+                    prev_ts: mem_prev_ts,
+                    cur_ts: mem_ts,
+                };
+                slot.mem_value = mem_value as u64;
+                slot.state = hs.map(|h| h as u64);
+                slot.w_j = w_j as u64;
+                slot.og_h_j = og as u64;
+                slot.final_h_j = fin as u64;
+                slot.is_real = 1;
             };
             // Init: a..h are the 8 h-words being read.
             let init_h: [u32; 8] = core::array::from_fn(|i| event.h_read_records[i].value as u32);
@@ -181,36 +178,11 @@ fn collect_events(input: &ExecutionRecord) -> Vec<(Option<TrapError>, &ShaCompre
 }
 
 pub(crate) fn record_sha_compress_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
-    let mut rec = RecordingWitnessBuilder::new(NUM_SHA_COMPRESS_INPUTS as u32);
+    let (mut rec, input) = record_witgen_inputs::<ShaCompressWitgenInput<WireId>>();
     let mut cols_w = ShaCompressCols::<WireId>::default();
-    let w = |i: u32| RecordingWitnessBuilder::input(i);
-    let is_real = w(20);
+    let is_real = input.is_real;
     rec.push_guard(is_real);
-    ShaCompressCols::<WireId>::witgen(
-        &mut rec,
-        &mut cols_w,
-        w(0),
-        w(1),
-        w(2),
-        w(3),
-        w(4),
-        w(5),
-        w(6),
-        w(7),
-        w(8),
-        w(9),
-        w(10),
-        w(11),
-        w(12),
-        w(13),
-        w(14),
-        w(15),
-        w(16),
-        w(17),
-        w(18),
-        w(19),
-        is_real,
-    );
+    ShaCompressCols::<WireId>::witgen(&mut rec, &mut cols_w, &input);
     rec.pop_guard();
     // Mask every column by is_real EXCEPT octet/octet_num/index/k, which trapped
     // rows keep (the host writes them even for trapped events).
@@ -483,7 +455,7 @@ mod tests {
         );
         let ops_c = program.to_c();
         let ops_slots = program.to_c_slots(&slot);
-        let ni = super::NUM_SHA_COMPRESS_INPUTS;
+        let ni = sp1_core_machine::syscall::precompiles::sha256::NUM_SHA_COMPRESS_WITGEN_INPUTS;
         let input_slots = &slot[..ni];
         let col_slots: Vec<u32> = col_wires.iter().map(|&w| slot[w as usize]).collect();
         let events = super::collect_events(&shard);

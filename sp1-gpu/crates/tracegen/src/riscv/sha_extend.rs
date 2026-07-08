@@ -9,28 +9,37 @@
 //! Dependencies are byte-lookups only (no global interaction events), so the fused
 //! device path is available like the ALU chips.
 
+use core::borrow::BorrowMut;
+
 use rayon::prelude::*;
 use slop_alloc::mem::CopyError;
 use slop_tensor::Tensor;
 use sp1_core_executor::{
-    events::{PrecompileEvent, ShaExtendEvent},
+    events::{MemoryReadRecord, PrecompileEvent, ShaExtendEvent},
     ExecutionRecord, SyscallCode, TrapError,
 };
 use sp1_core_machine::{
-    air::{columns_as_wires, RecordingWitnessBuilder, WireId, WitnessBuilder},
-    syscall::precompiles::sha256::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS},
+    air::{columns_as_wires, record_witgen_inputs, WireId, WitnessBuilder},
+    memory::MemoryAccessWitgenInput,
+    syscall::precompiles::sha256::{
+        ShaExtendChip, ShaExtendCols, ShaExtendWitgenInput, NUM_SHA_EXTEND_COLS,
+        NUM_SHA_EXTEND_WITGEN_INPUTS,
+    },
 };
 use sp1_gpu_cudart::{DeviceBuffer, DeviceMle, TaskScope};
 use sp1_hypercube::air::MachineAir;
 
 use crate::{CudaTracegenAir, F};
 
-/// Number of witgen inputs per ShaExtend ROW (one of the 48 steps of an event).
-const NUM_SHA_EXTEND_INPUTS: usize = 19;
+/// A read record as a witgen memory-access triple (a read's prev value IS its value).
+fn read_access(r: &MemoryReadRecord) -> MemoryAccessWitgenInput<u64> {
+    MemoryAccessWitgenInput { prev_value: r.value, prev_ts: r.prev_timestamp, cur_ts: r.timestamp }
+}
 
-/// Pack 48 input rows per event. `events` yields `(trap_error, &ShaExtendEvent)`.
+/// Pack 48 [`ShaExtendWitgenInput`] rows per event. `events` yields
+/// `(trap_error, &ShaExtendEvent)`.
 pub(crate) fn pack_sha_extend_inputs(events: &[(Option<TrapError>, &ShaExtendEvent)]) -> Vec<u64> {
-    let row_size = NUM_SHA_EXTEND_INPUTS;
+    let row_size = NUM_SHA_EXTEND_WITGEN_INPUTS;
     let mut inputs: Vec<u64> = vec![0u64; events.len() * 48 * row_size];
     inputs.par_chunks_mut(48 * row_size).zip(events.par_iter()).for_each(
         |(chunk, (trap_error, event))| {
@@ -38,29 +47,22 @@ pub(crate) fn pack_sha_extend_inputs(events: &[(Option<TrapError>, &ShaExtendEve
                 return; // all-zero rows (is_real = 0) — matches the host's zero rows
             }
             let bumped_clk = event.clk + 1;
-            for (j, slot) in chunk.chunks_mut(row_size).enumerate() {
+            for (j, row) in chunk.chunks_mut(row_size).enumerate() {
                 let mr = &event.memory_records[j];
-                slot.copy_from_slice(&[
-                    bumped_clk,
-                    event.w_ptr,
-                    j as u64,
-                    mr.w_i_minus_15_reads.value,
-                    mr.w_i_minus_15_reads.prev_timestamp,
-                    mr.w_i_minus_15_reads.timestamp,
-                    mr.w_i_minus_2_reads.value,
-                    mr.w_i_minus_2_reads.prev_timestamp,
-                    mr.w_i_minus_2_reads.timestamp,
-                    mr.w_i_minus_16_reads.value,
-                    mr.w_i_minus_16_reads.prev_timestamp,
-                    mr.w_i_minus_16_reads.timestamp,
-                    mr.w_i_minus_7_reads.value,
-                    mr.w_i_minus_7_reads.prev_timestamp,
-                    mr.w_i_minus_7_reads.timestamp,
-                    mr.w_i_write.prev_value,
-                    mr.w_i_write.prev_timestamp,
-                    mr.w_i_write.timestamp,
-                    1, // is_real
-                ]);
+                let slot: &mut ShaExtendWitgenInput<u64> = row.borrow_mut();
+                slot.clk = bumped_clk;
+                slot.w_ptr = event.w_ptr;
+                slot.j = j as u64;
+                slot.w_i_minus_15 = read_access(&mr.w_i_minus_15_reads);
+                slot.w_i_minus_2 = read_access(&mr.w_i_minus_2_reads);
+                slot.w_i_minus_16 = read_access(&mr.w_i_minus_16_reads);
+                slot.w_i_minus_7 = read_access(&mr.w_i_minus_7_reads);
+                slot.w_i = MemoryAccessWitgenInput {
+                    prev_value: mr.w_i_write.prev_value,
+                    prev_ts: mr.w_i_write.prev_timestamp,
+                    cur_ts: mr.w_i_write.timestamp,
+                };
+                slot.is_real = 1;
             }
         },
     );
@@ -86,35 +88,12 @@ fn collect_events(input: &ExecutionRecord) -> Vec<(Option<TrapError>, &ShaExtend
 }
 
 pub(crate) fn record_sha_extend_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
-    let mut rec = RecordingWitnessBuilder::new(NUM_SHA_EXTEND_INPUTS as u32);
+    let (mut rec, input) = record_witgen_inputs::<ShaExtendWitgenInput<WireId>>();
     let mut cols_w = ShaExtendCols::<WireId>::default();
-    let w = |i: u32| RecordingWitnessBuilder::input(i);
-    let is_real = w(18);
+    let is_real = input.is_real;
     // Trapped events are packed as all-zero rows: guard every lookup on is_real...
     rec.push_guard(is_real);
-    ShaExtendCols::<WireId>::witgen(
-        &mut rec,
-        &mut cols_w,
-        w(0),
-        w(1),
-        w(2),
-        w(3),
-        w(4),
-        w(5),
-        w(6),
-        w(7),
-        w(8),
-        w(9),
-        w(10),
-        w(11),
-        w(12),
-        w(13),
-        w(14),
-        w(15),
-        w(16),
-        w(17),
-        is_real,
-    );
+    ShaExtendCols::<WireId>::witgen(&mut rec, &mut cols_w, &input);
     rec.pop_guard();
     // ...and mask every column wire so is_real = 0 rows are ALL-zero (the host
     // leaves trapped events' rows zeroed). Generic over the column struct.
@@ -311,7 +290,7 @@ mod tests {
         );
         let ops_c = program.to_c();
         let ops_slots = program.to_c_slots(&slot);
-        let ni = super::NUM_SHA_EXTEND_INPUTS;
+        let ni = sp1_core_machine::syscall::precompiles::sha256::NUM_SHA_EXTEND_WITGEN_INPUTS;
         let input_slots = &slot[..ni];
         let col_slots: Vec<u32> = col_wires.iter().map(|&w| slot[w as usize]).collect();
         let events = super::collect_events(&shard);

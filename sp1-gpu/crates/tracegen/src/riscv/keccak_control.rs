@@ -12,6 +12,8 @@
 //! makes the pinned lowering impossible (columns floor 634 >> 256 slots), but the
 //! STREAMING lowering's transient footprint fits the streaming kernel tier.
 
+use core::borrow::BorrowMut;
+
 use rayon::prelude::*;
 use slop_alloc::mem::CopyError;
 use slop_tensor::Tensor;
@@ -20,11 +22,15 @@ use sp1_core_executor::{
     ExecutionRecord, SyscallCode,
 };
 use sp1_core_machine::{
-    air::{columns_as_wires, RecordingWitnessBuilder, WireId, WitProgram, WitnessBuilder},
-    memory::MemoryAccessCols,
+    air::{columns_as_wires, record_witgen_inputs, WireId, WitProgram, WitnessBuilder},
+    memory::{MemoryAccessCols, MemoryAccessWitgenInput},
     operations::{AddrAddOperation, SyscallAddrOperation},
     syscall::precompiles::keccak256::{
-        controller::KeccakPermuteControlCols, KeccakPermuteControlChip,
+        controller::{
+            KeccakControlWriteWitgenInput, KeccakPermuteControlCols,
+            KeccakPermuteControlWitgenInput, NUM_KECCAK_CONTROL_WITGEN_INPUTS,
+        },
+        KeccakPermuteControlChip,
     },
     SupervisorMode,
 };
@@ -32,15 +38,6 @@ use sp1_gpu_cudart::{DeviceBuffer, DeviceMle, TaskScope};
 use sp1_hypercube::air::MachineAir;
 
 use crate::{CudaTracegenAir, F};
-
-/// Number of witgen inputs per `KeccakPermuteControl` row: clk + state_addr +
-/// 25 reads x (value, prev_ts, ts) + 25 writes x (prev_value, prev_ts, ts, value).
-const NUM_KECCAK_CONTROL_INPUTS: usize = 2 + 25 * 3 + 25 * 4;
-
-const IN_CLK: u32 = 0;
-const IN_ADDR: u32 = 1;
-const IN_READS: u32 = 2; // ..77
-const IN_WRITES: u32 = 77; // ..177
 
 /// Collect this shard's KECCAK_PERMUTE events (the supervisor chip processes all
 /// of them; user-mode shards give this chip zero rows via `num_rows`).
@@ -60,25 +57,31 @@ fn collect_events(input: &ExecutionRecord) -> Vec<&KeccakPermuteEvent> {
         .collect()
 }
 
+/// Pack each KECCAK_PERMUTE event into one [`KeccakPermuteControlWitgenInput`] row.
 pub(crate) fn pack_keccak_control_inputs(input: &ExecutionRecord) -> Vec<u64> {
     let events = collect_events(input);
-    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_KECCAK_CONTROL_INPUTS];
-    inputs.par_chunks_mut(NUM_KECCAK_CONTROL_INPUTS).zip(events.par_iter()).for_each(
-        |(slot, event)| {
-            slot[IN_CLK as usize] = event.clk;
-            slot[IN_ADDR as usize] = event.state_addr;
+    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_KECCAK_CONTROL_WITGEN_INPUTS];
+    inputs.par_chunks_mut(NUM_KECCAK_CONTROL_WITGEN_INPUTS).zip(events.par_iter()).for_each(
+        |(chunk, event)| {
+            let slot: &mut KeccakPermuteControlWitgenInput<u64> = chunk.borrow_mut();
+            slot.clk = event.clk;
+            slot.state_addr = event.state_addr;
             for i in 0..25 {
                 let r = &event.state_read_records[i];
-                let base = IN_READS as usize + 3 * i;
-                slot[base] = r.value;
-                slot[base + 1] = r.prev_timestamp;
-                slot[base + 2] = r.timestamp;
+                slot.reads[i] = MemoryAccessWitgenInput {
+                    prev_value: r.value,
+                    prev_ts: r.prev_timestamp,
+                    cur_ts: r.timestamp,
+                };
                 let w = &event.state_write_records[i];
-                let base = IN_WRITES as usize + 4 * i;
-                slot[base] = w.prev_value;
-                slot[base + 1] = w.prev_timestamp;
-                slot[base + 2] = w.timestamp;
-                slot[base + 3] = w.value;
+                slot.writes[i] = KeccakControlWriteWitgenInput {
+                    access: MemoryAccessWitgenInput {
+                        prev_value: w.prev_value,
+                        prev_ts: w.prev_timestamp,
+                        cur_ts: w.timestamp,
+                    },
+                    value: w.value,
+                };
             }
         },
     );
@@ -86,16 +89,15 @@ pub(crate) fn pack_keccak_control_inputs(input: &ExecutionRecord) -> Vec<u64> {
 }
 
 fn record_keccak_control_program() -> (WitProgram, Vec<u32>) {
-    let mut rec = RecordingWitnessBuilder::new(NUM_KECCAK_CONTROL_INPUTS as u32);
+    let (mut rec, input) = record_witgen_inputs::<KeccakPermuteControlWitgenInput<WireId>>();
     // SAFETY: KeccakPermuteControlCols is #[repr(C)] over Copy WireId (a u32
     // newtype; SupervisorMode's SliceProtCols are empty); the zeroed pattern is a
     // valid WireId(0) placeholder and every field is assigned below (the
     // column-equality tests would catch a missed one).
     let mut cols: KeccakPermuteControlCols<WireId, SupervisorMode> = unsafe { core::mem::zeroed() };
-    let w = RecordingWitnessBuilder::input;
 
-    let clk = w(IN_CLK);
-    let addr = w(IN_ADDR);
+    let clk = input.clk;
+    let addr = input.state_addr;
     let clk_high = rec.bits(clk, 24, 32);
     cols.clk_high = rec.nat_to_field(clk_high);
     let clk_low = rec.bits(clk, 0, 24);
@@ -110,27 +112,26 @@ fn record_keccak_control_program() -> (WitProgram, Vec<u32>) {
         AddrAddOperation::<WireId>::witgen(&mut rec, &mut cols.addrs[i], addr, off);
     }
     for i in 0..25 {
-        let base = IN_READS + 3 * i as u32;
+        let r = &input.reads[i];
         MemoryAccessCols::<WireId>::witgen(
             &mut rec,
             &mut cols.initial_memory_access[i],
-            w(base),
-            w(base + 1),
-            w(base + 2),
+            r.prev_value,
+            r.prev_ts,
+            r.cur_ts,
         );
     }
     for i in 0..25 {
-        let base = IN_WRITES + 4 * i as u32;
+        let w = &input.writes[i];
         MemoryAccessCols::<WireId>::witgen(
             &mut rec,
             &mut cols.final_memory_access[i],
-            w(base),
-            w(base + 1),
-            w(base + 2),
+            w.access.prev_value,
+            w.access.prev_ts,
+            w.access.cur_ts,
         );
-        let value = w(base + 3);
         for limb in 0..4 {
-            let l = rec.bits(value, 16 * limb as u32, 16);
+            let l = rec.bits(w.value, 16 * limb as u32, 16);
             cols.final_value[i][limb] = rec.nat_to_field(l);
         }
     }
@@ -206,7 +207,8 @@ impl CudaTracegenAir<F> for KeccakPermuteControlChip<SupervisorMode> {
         let height = <Self as MachineAir<F>>::num_rows(self, input)
             .expect("num_rows(...) should be Some(_)");
         let inputs = pack_keccak_control_inputs(input);
-        let n_events = if height == 0 { 0 } else { inputs.len() / NUM_KECCAK_CONTROL_INPUTS };
+        let n_events =
+            if height == 0 { 0 } else { inputs.len() / NUM_KECCAK_CONTROL_WITGEN_INPUTS };
         if n_events == 0 {
             return Ok(());
         }
@@ -331,7 +333,7 @@ mod tests {
             epi.len(),
         );
 
-        let ni = super::NUM_KECCAK_CONTROL_INPUTS;
+        let ni = sp1_core_machine::syscall::precompiles::keccak256::controller::NUM_KECCAK_CONTROL_WITGEN_INPUTS;
         let ops_c = program.to_c();
         let (ops_stream, input_cols) = program.to_c_slots_streaming(&s_slot, &col_wires);
         let s_input_slots = &s_slot[..ni];
@@ -394,7 +396,7 @@ mod tests {
         let (program, _col_wires) = super::record_keccak_control_program();
         let ops_c = program.to_c();
         let inputs = super::pack_keccak_control_inputs(&shard);
-        let n_events = inputs.len() / super::NUM_KECCAK_CONTROL_INPUTS;
+        let n_events = inputs.len() / sp1_core_machine::syscall::precompiles::keccak256::controller::NUM_KECCAK_CONTROL_WITGEN_INPUTS;
         let mut range_hist = vec![0u32; RANGE_HIST_ROWS];
         let mut byte_hist = vec![0u32; BYTE_HIST_ROWS * NUM_BYTE_MULT_COLS];
         interpret_c_lookups(

@@ -30,6 +30,7 @@
 //! by the measurements in the tests below.
 #![allow(dead_code)]
 
+use core::borrow::BorrowMut;
 use std::collections::HashMap;
 
 use rayon::prelude::*;
@@ -39,23 +40,14 @@ use sp1_core_executor::{
     ExecutionRecord, SyscallCode, TrapError,
 };
 use sp1_core_machine::{
-    air::{columns_as_wires, RecordingWitnessBuilder, WireId, WitProgram, WitnessBuilder},
-    syscall::precompiles::keccak256::columns::KeccakMemCols,
+    air::{
+        columns_as_wires, record_witgen_inputs, RecordingWitnessBuilder, WireId, WitProgram,
+        WitnessBuilder,
+    },
+    syscall::precompiles::keccak256::columns::{
+        KeccakMemCols, KeccakWitgenInput, NUM_KECCAK_WITGEN_INPUTS,
+    },
 };
-
-/// Number of witgen inputs per Keccak ROW (one round of one permutation):
-/// 25 preimage lanes + 25 round-input lanes + round + index-col + rc + clk +
-/// state_addr + is_real.
-pub(crate) const NUM_KECCAK_INPUTS: usize = 56;
-
-const IN_PREIMAGE: u32 = 0; // ..25
-const IN_A: u32 = 25; // ..50
-const IN_ROUND: u32 = 50;
-const IN_INDEX: u32 = 51;
-const IN_RC: u32 = 52;
-const IN_CLK: u32 = 53;
-const IN_ADDR: u32 = 54;
-const IN_IS_REAL: u32 = 55;
 
 /// Keccak rho rotation offsets (p3_keccak_air `constants::R`, which is pub(crate)
 /// there): `R[a][b]` rotates lane `a_prime[b][a]` when forming `B(x=a? ...)` — used
@@ -150,16 +142,15 @@ fn rotl(
 /// the column-wire map for `KeccakMemCols`.
 #[allow(clippy::needless_range_loop)] // x/y index multiple lane arrays; iterators obscure the theta/rho/pi structure
 pub(crate) fn record_keccak_program() -> (WitProgram, Vec<u32>) {
-    let mut rec = RecordingWitnessBuilder::new(NUM_KECCAK_INPUTS as u32);
+    let (mut rec, input) = record_witgen_inputs::<KeccakWitgenInput<WireId>>();
     let mut cache: HashMap<u64, WireId> = HashMap::new();
-    let w = RecordingWitnessBuilder::input;
 
     // SAFETY: KeccakMemCols is #[repr(C)] over Copy WireId (a u32 newtype); the
     // zeroed pattern is a valid WireId(0) placeholder and every field is assigned
     // below (the column-equality tests would catch a missed one).
     let mut cols: KeccakMemCols<WireId> = unsafe { core::mem::zeroed() };
 
-    let round = w(IN_ROUND);
+    let round = input.round;
 
     // step_flags[r] = (round == r); export is constant 0 in the host tracegen.
     for r in 0..NUM_ROUNDS {
@@ -171,8 +162,8 @@ pub(crate) fn record_keccak_program() -> (WitProgram, Vec<u32>) {
     // preimage / a: 4 u16 limbs per lane.
     for y in 0..5 {
         for x in 0..5 {
-            let pre = w(IN_PREIMAGE + (y * 5 + x) as u32);
-            let a = w(IN_A + (y * 5 + x) as u32);
+            let pre = input.preimage[y * 5 + x];
+            let a = input.a[y * 5 + x];
             for limb in 0..4 {
                 cols.keccak.preimage[y][x][limb] = rec.bits(pre, 16 * limb as u32, 16);
                 cols.keccak.a[y][x][limb] = rec.bits(a, 16 * limb as u32, 16);
@@ -183,10 +174,9 @@ pub(crate) fn record_keccak_program() -> (WitProgram, Vec<u32>) {
     // C[x] = xor_y A[y][x]; columns are its 64 bits.
     let mut c_lane = [WireId(0); 5];
     for x in 0..5 {
-        let mut acc = w(IN_A + x as u32);
+        let mut acc = input.a[x];
         for y in 1..5 {
-            let a = w(IN_A + (y * 5 + x) as u32);
-            acc = rec.xor(acc, a);
+            acc = rec.xor(acc, input.a[y * 5 + x]);
         }
         c_lane[x] = acc;
         for z in 0..64 {
@@ -210,7 +200,7 @@ pub(crate) fn record_keccak_program() -> (WitProgram, Vec<u32>) {
     let mut ap_lane = [[WireId(0); 5]; 5];
     for y in 0..5 {
         for x in 0..5 {
-            let a = w(IN_A + (y * 5 + x) as u32);
+            let a = input.a[y * 5 + x];
             let t = rec.xor(a, c_lane[x]);
             let ap = rec.xor(t, cp_lane[x]);
             ap_lane[y][x] = ap;
@@ -253,22 +243,22 @@ pub(crate) fn record_keccak_program() -> (WitProgram, Vec<u32>) {
 
     // A'''[0][0] = A''[0][0] ^ RC[round]; RC is packed per-row (pure function of
     // the round index), so iota is one Xor + 4 limb extractions.
-    let appp = rec.xor(app_lane[0][0], w(IN_RC));
+    let appp = rec.xor(app_lane[0][0], input.rc);
     for limb in 0..4 {
         cols.keccak.a_prime_prime_prime_0_0_limbs[limb] = rec.bits(appp, 16 * limb as u32, 16);
     }
 
     // SP1 mem columns: clk split (host: `(clk >> 24) as u32` / `clk & 0xFFFFFF`),
     // 3x16-bit state_addr limbs, and the raw index / is_real inputs.
-    let clk = w(IN_CLK);
+    let clk = input.clk;
     cols.clk_high = rec.bits(clk, 24, 32);
     cols.clk_low = rec.bits(clk, 0, 24);
-    let addr = w(IN_ADDR);
+    let addr = input.state_addr;
     cols.state_addr[0] = rec.bits(addr, 0, 16);
     cols.state_addr[1] = rec.bits(addr, 16, 16);
     cols.state_addr[2] = rec.bits(addr, 32, 16);
-    cols.index = w(IN_INDEX);
-    cols.is_real = w(IN_IS_REAL);
+    cols.index = input.index;
+    cols.is_real = input.is_real;
 
     let col_wires: Vec<u32> = columns_as_wires(&cols).iter().map(|cw| cw.0).collect();
     (rec.finish(), col_wires)
@@ -284,33 +274,35 @@ pub(crate) fn pack_keccak_inputs(
     n_rows: usize,
 ) -> Vec<u64> {
     let dummy_states = keccak_round_states(&[0u64; 25]);
-    let mut inputs = vec![0u64; n_rows * NUM_KECCAK_INPUTS];
-    inputs.par_chunks_mut(NUM_ROUNDS * NUM_KECCAK_INPUTS).enumerate().for_each(|(e, chunk)| {
-        let real = events.get(e).filter(|(trap, _)| trap.is_none()).map(|(_, ev)| ev);
-        let states = real.map(|ev| keccak_round_states(&ev.pre_state));
-        for (i, row) in chunk.chunks_mut(NUM_KECCAK_INPUTS).enumerate() {
-            match (real, &states) {
-                (Some(ev), Some(states)) => {
-                    row[..25].copy_from_slice(&ev.pre_state);
-                    row[25..50].copy_from_slice(&states[i]);
-                    row[IN_ROUND as usize] = i as u64;
-                    row[IN_INDEX as usize] = i as u64;
-                    row[IN_RC as usize] = RC[i];
-                    row[IN_CLK as usize] = ev.clk;
-                    row[IN_ADDR as usize] = ev.state_addr;
-                    row[IN_IS_REAL as usize] = 1;
-                }
-                _ => {
-                    // Dummy row: zero preimage, zero-state round inputs, and
-                    // zero clk/addr/index/is_real — only round + rc are live.
-                    row[..25].fill(0);
-                    row[25..50].copy_from_slice(&dummy_states[i]);
-                    row[IN_ROUND as usize] = i as u64;
-                    row[IN_RC as usize] = RC[i];
+    let mut inputs = vec![0u64; n_rows * NUM_KECCAK_WITGEN_INPUTS];
+    inputs.par_chunks_mut(NUM_ROUNDS * NUM_KECCAK_WITGEN_INPUTS).enumerate().for_each(
+        |(e, chunk)| {
+            let real = events.get(e).filter(|(trap, _)| trap.is_none()).map(|(_, ev)| ev);
+            let states = real.map(|ev| keccak_round_states(&ev.pre_state));
+            for (i, row) in chunk.chunks_mut(NUM_KECCAK_WITGEN_INPUTS).enumerate() {
+                let slot: &mut KeccakWitgenInput<u64> = row.borrow_mut();
+                match (real, &states) {
+                    (Some(ev), Some(states)) => {
+                        slot.preimage = ev.pre_state;
+                        slot.a = states[i];
+                        slot.round = i as u64;
+                        slot.index = i as u64;
+                        slot.rc = RC[i];
+                        slot.clk = ev.clk;
+                        slot.state_addr = ev.state_addr;
+                        slot.is_real = 1;
+                    }
+                    _ => {
+                        // Dummy row: zero preimage, zero-state round inputs, and
+                        // zero clk/addr/index/is_real — only round + rc are live.
+                        slot.a = dummy_states[i];
+                        slot.round = i as u64;
+                        slot.rc = RC[i];
+                    }
                 }
             }
-        }
-    });
+        },
+    );
     inputs
 }
 
@@ -494,7 +486,8 @@ mod tests {
         // No lookup ops at all (deps are empty; see the dependencies test).
         assert!(program.ops.iter().all(WitOp::produces_wire), "unexpected lookup op");
 
-        let ni = super::NUM_KECCAK_INPUTS;
+        let ni =
+            sp1_core_machine::syscall::precompiles::keccak256::columns::NUM_KECCAK_WITGEN_INPUTS;
         let ops_c = program.to_c();
         let ops_slots = program.to_c_slots(&slot);
         let input_slots = &slot[..ni];

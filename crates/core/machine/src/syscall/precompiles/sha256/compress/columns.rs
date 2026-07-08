@@ -1,5 +1,5 @@
 use crate::{
-    memory::MemoryAccessCols,
+    memory::{MemoryAccessCols, MemoryAccessWitgenInput},
     operations::{
         Add5Operation, AddU32Operation, AddrAddOperation, AndU32Operation,
         FixedRotateRightOperation, NotU32Operation, XorU32Operation,
@@ -113,6 +113,40 @@ pub struct ShaCompressCols<T> {
     pub is_real: T,
 }
 
+/// Witgen inputs for ONE `ShaCompress` row (one of the 80 init/compress/finalize
+/// steps of one SHA_COMPRESS syscall): one `#[repr(C)]` row per (event, step). The
+/// GPU packs 80 of these per event (replaying the compression host-side so every
+/// row carries its own working variables) and the op-DAG recorder casts a wire
+/// slice to the same struct (see `record_witgen_inputs`), so field order IS the
+/// kernel input layout.
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ShaCompressWitgenInput<T> {
+    pub clk: T,
+    pub w_ptr: T,
+    pub h_ptr: T,
+    /// The row index `∈ 0..80` (phase = `index >> 3`).
+    pub index: T,
+    /// `K[index - 8]` on compression rows, 0 otherwise.
+    pub k: T,
+    /// The row's memory access (read on init/compress, write on finalize).
+    pub mem: MemoryAccessWitgenInput<T>,
+    /// The CURRENT value of the accessed word (`value` of the read/write record).
+    pub mem_value: T,
+    /// The SHA-256 working variables `a..h` for this row.
+    pub state: [T; 8],
+    /// `w[j]` on compression rows, 0 otherwise.
+    pub w_j: T,
+    /// `og_h[j]` on finalize rows, 0 otherwise.
+    pub og_h_j: T,
+    /// The final working variable `h_array[j]` on finalize rows, 0 otherwise.
+    pub final_h_j: T,
+    pub is_real: T,
+}
+
+/// Number of witgen inputs per `ShaCompress` row.
+pub const NUM_SHA_COMPRESS_WITGEN_INPUTS: usize = size_of::<ShaCompressWitgenInput<u8>>();
+
 // Witgen in an unconstrained `impl` (column type is the builder's `Field`).
 impl<T: Copy> ShaCompressCols<T> {
     /// Backend-agnostic witgen for ONE ShaCompress row. The chip is
@@ -129,32 +163,30 @@ impl<T: Copy> ShaCompressCols<T> {
     /// `octet_num`, `index` and `k` columns are computed UNGUARDED — trapped
     /// events' rows (and padding rows) keep them; the record fn masks every other
     /// column by `is_real` (see the exempt ranges in `record_sha_compress_program`).
-    #[allow(clippy::too_many_arguments)]
     pub fn witgen<WB: crate::air::WitnessBuilder<Field = T>>(
         wb: &mut WB,
         cols: &mut ShaCompressCols<T>,
-        clk: WB::Nat,
-        w_ptr: WB::Nat,
-        h_ptr: WB::Nat,
-        index: WB::Nat,
-        k_val: WB::Nat,
-        mem_prev_value: WB::Nat,
-        mem_prev_ts: WB::Nat,
-        mem_ts: WB::Nat,
-        mem_value: WB::Nat,
-        a: WB::Nat,
-        b: WB::Nat,
-        c: WB::Nat,
-        d: WB::Nat,
-        e: WB::Nat,
-        f: WB::Nat,
-        g: WB::Nat,
-        h: WB::Nat,
-        w_j: WB::Nat,
-        og_h_j: WB::Nat,
-        final_h_j: WB::Nat,
-        is_real: WB::Nat,
+        input: &ShaCompressWitgenInput<WB::Nat>,
     ) {
+        let ShaCompressWitgenInput {
+            clk,
+            w_ptr,
+            h_ptr,
+            index,
+            k: k_val,
+            mem:
+                MemoryAccessWitgenInput {
+                    prev_value: mem_prev_value,
+                    prev_ts: mem_prev_ts,
+                    cur_ts: mem_ts,
+                },
+            mem_value,
+            state: [a, b, c, d, e, f, g, h],
+            w_j,
+            og_h_j,
+            final_h_j,
+            is_real,
+        } = *input;
         use crate::memory::MemoryAccessCols;
         use crate::operations::{
             Add5Operation, AddU32Operation, AddrAddOperation, AndU32Operation,

@@ -5,7 +5,7 @@ use std::{
 
 use crate::{air::SP1CoreAirBuilder, utils::next_multiple_of_32};
 
-use super::MemoryAccessCols;
+use super::{MemoryAccessCols, MemoryAccessWitgenInput};
 use hashbrown::HashMap;
 use itertools::Itertools;
 use slop_air::{Air, BaseAir};
@@ -33,6 +33,23 @@ pub struct MemoryBumpCols<T: Copy> {
     pub is_real: T,
 }
 
+/// Witgen inputs for the `MemoryBump` chip: one `#[repr(C)]` row per event. The GPU
+/// packs each event into one `MemoryBumpWitgenInput<u64>` and the op-DAG recorder
+/// casts a wire slice to the same struct (see `record_witgen_inputs`), so field
+/// order IS the kernel input layout.
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct MemoryBumpWitgenInput<T> {
+    /// The bumped access record; `cur_ts` is the RAW timestamp (the witgen truncates
+    /// it to its top 40 bits on non-refresh rows).
+    pub access: MemoryAccessWitgenInput<T>,
+    pub is_refresh: T,
+    pub addr: T,
+}
+
+/// Number of witgen inputs per `MemoryBump` row.
+pub const NUM_MEMORY_BUMP_WITGEN_INPUTS: usize = size_of::<MemoryBumpWitgenInput<u8>>();
+
 // Witgen in an unconstrained `impl` (column type is the builder's `Field`).
 impl<T: Copy> MemoryBumpCols<T> {
     /// Backend-agnostic witgen for the `MemoryBump` chip: the bump timestamp is the
@@ -44,12 +61,11 @@ impl<T: Copy> MemoryBumpCols<T> {
     pub fn witgen<WB: crate::air::WitnessBuilder>(
         wb: &mut WB,
         cols: &mut MemoryBumpCols<WB::Field>,
-        prev_value: WB::Nat,
-        prev_timestamp: WB::Nat,
-        raw_timestamp: WB::Nat,
-        is_refresh: WB::Nat,
-        addr: WB::Nat,
+        input: &MemoryBumpWitgenInput<WB::Nat>,
     ) {
+        let MemoryBumpWitgenInput { access, is_refresh, addr } = *input;
+        let MemoryAccessWitgenInput { prev_value, prev_ts: prev_timestamp, cur_ts: raw_timestamp } =
+            access;
         let c24 = wb.const_nat(24);
         let ts_hi = wb.shr(raw_timestamp, c24);
         let ts_masked = wb.shl(ts_hi, c24);

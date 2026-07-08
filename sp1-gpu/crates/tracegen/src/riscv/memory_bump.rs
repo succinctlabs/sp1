@@ -2,45 +2,45 @@
 //! timestamp refresh rows). Narrow chip, zero padding, byte-lookup-only
 //! dependencies — full fused device path like the ALU chips.
 
+use core::borrow::BorrowMut;
+
 use rayon::prelude::*;
 use slop_alloc::mem::CopyError;
 use slop_alloc::Buffer;
 use slop_tensor::Tensor;
 use sp1_core_executor::events::MemoryRecordEnum;
 use sp1_core_machine::{
-    air::{columns_as_wires, RecordingWitnessBuilder, WireId},
-    memory::{MemoryBumpChip, MemoryBumpCols, NUM_MEMORY_BUMP_COLS},
+    air::{columns_as_wires, record_witgen_inputs, WireId},
+    memory::{
+        MemoryAccessWitgenInput, MemoryBumpChip, MemoryBumpCols, MemoryBumpWitgenInput,
+        NUM_MEMORY_BUMP_COLS, NUM_MEMORY_BUMP_WITGEN_INPUTS,
+    },
 };
 use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKernel};
 use sp1_hypercube::air::MachineAir;
 
 use crate::{CudaTracegenAir, F};
 
-/// Number of witgen inputs per `MemoryBump` row (see [`MemoryBumpCols::witgen`]).
-const NUM_MEMORY_BUMP_INPUTS: usize = 5;
-
-/// Pack each `(record, addr, is_refresh)` bump-memory event.
+/// Pack each `(record, addr, is_refresh)` bump-memory event into one
+/// [`MemoryBumpWitgenInput`] row (the access carries the RAW current timestamp —
+/// the witgen truncates it on non-refresh rows).
 pub(crate) fn pack_memory_bump_inputs(events: &[(MemoryRecordEnum, u64, bool)]) -> Vec<u64> {
-    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_MEMORY_BUMP_INPUTS];
-    inputs.par_chunks_mut(NUM_MEMORY_BUMP_INPUTS).zip(events.par_iter()).for_each(
-        |(slot, &(event, addr, is_refresh))| {
-            slot.copy_from_slice(&[
-                event.prev_value(),
-                event.previous_record().timestamp,
-                event.current_record().timestamp,
-                is_refresh as u64,
-                addr,
-            ]);
+    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_MEMORY_BUMP_WITGEN_INPUTS];
+    inputs.par_chunks_mut(NUM_MEMORY_BUMP_WITGEN_INPUTS).zip(events.par_iter()).for_each(
+        |(chunk, &(event, addr, is_refresh))| {
+            let slot: &mut MemoryBumpWitgenInput<u64> = chunk.borrow_mut();
+            slot.access = MemoryAccessWitgenInput::from_record(event);
+            slot.is_refresh = is_refresh as u64;
+            slot.addr = addr;
         },
     );
     inputs
 }
 
 pub(crate) fn record_memory_bump_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
-    let mut rec = RecordingWitnessBuilder::new(NUM_MEMORY_BUMP_INPUTS as u32);
+    let (mut rec, input) = record_witgen_inputs::<MemoryBumpWitgenInput<WireId>>();
     let mut cols_w = MemoryBumpCols::<WireId>::default();
-    let w = |i: u32| RecordingWitnessBuilder::input(i);
-    MemoryBumpCols::<WireId>::witgen(&mut rec, &mut cols_w, w(0), w(1), w(2), w(3), w(4));
+    MemoryBumpCols::<WireId>::witgen(&mut rec, &mut cols_w, &input);
     let program = rec.finish();
     assert!(
         program.num_wires() <= super::WITGEN_MAX_WIRES,
@@ -201,7 +201,7 @@ mod tests {
         );
         let ops_c = program.to_c();
         let inputs = super::pack_memory_bump_inputs(&events);
-        let ni = super::NUM_MEMORY_BUMP_INPUTS;
+        let ni = sp1_core_machine::memory::NUM_MEMORY_BUMP_WITGEN_INPUTS;
         for row in 0..events.len() {
             let row_in = &inputs[row * ni..(row + 1) * ni];
             let cols: Vec<F> = interpret_c_columns(&ops_c, ni as u32, row_in, &col_wires);

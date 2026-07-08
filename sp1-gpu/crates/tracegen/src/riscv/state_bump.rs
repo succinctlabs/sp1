@@ -2,38 +2,44 @@
 //! canonicalization rows). Narrow chip (16 cols), zero padding, byte-lookup-only
 //! dependencies — full fused device path like the ALU chips.
 
+use core::borrow::BorrowMut;
+
 use rayon::prelude::*;
 use slop_alloc::mem::CopyError;
 use slop_alloc::Buffer;
 use slop_tensor::Tensor;
 use sp1_core_machine::{
-    adapter::bump::{StateBumpChip, StateBumpCols, NUM_STATE_BUMP_COLS},
-    air::{columns_as_wires, RecordingWitnessBuilder, WireId},
+    adapter::bump::{
+        StateBumpChip, StateBumpCols, StateBumpWitgenInput, NUM_STATE_BUMP_COLS,
+        NUM_STATE_BUMP_WITGEN_INPUTS,
+    },
+    air::{columns_as_wires, record_witgen_inputs, WireId},
 };
 use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKernel};
 use sp1_hypercube::air::MachineAir;
 
 use crate::{CudaTracegenAir, F};
 
-/// Number of witgen inputs per `StateBump` row (see [`StateBumpCols::witgen`]).
-const NUM_STATE_BUMP_INPUTS: usize = 4;
-
-/// Pack each `(clk, increment, bump2, pc)` bump-state event.
+/// Pack each `(clk, increment, bump2, pc)` bump-state event into one
+/// [`StateBumpWitgenInput`] row.
 pub(crate) fn pack_state_bump_inputs(events: &[(u64, u64, bool, u64)]) -> Vec<u64> {
-    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_STATE_BUMP_INPUTS];
-    inputs.par_chunks_mut(NUM_STATE_BUMP_INPUTS).zip(events.par_iter()).for_each(
-        |(slot, &(clk, increment, bump2, pc))| {
-            slot.copy_from_slice(&[clk, increment, bump2 as u64, pc]);
+    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_STATE_BUMP_WITGEN_INPUTS];
+    inputs.par_chunks_mut(NUM_STATE_BUMP_WITGEN_INPUTS).zip(events.par_iter()).for_each(
+        |(chunk, &(clk, increment, bump2, pc))| {
+            let slot: &mut StateBumpWitgenInput<u64> = chunk.borrow_mut();
+            slot.clk = clk;
+            slot.increment = increment;
+            slot.bump2 = bump2 as u64;
+            slot.pc = pc;
         },
     );
     inputs
 }
 
 pub(crate) fn record_state_bump_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
-    let mut rec = RecordingWitnessBuilder::new(NUM_STATE_BUMP_INPUTS as u32);
+    let (mut rec, input) = record_witgen_inputs::<StateBumpWitgenInput<WireId>>();
     let mut cols_w = StateBumpCols::<WireId>::default();
-    let w = |i: u32| RecordingWitnessBuilder::input(i);
-    StateBumpCols::<WireId>::witgen(&mut rec, &mut cols_w, w(0), w(1), w(2), w(3));
+    StateBumpCols::<WireId>::witgen(&mut rec, &mut cols_w, &input);
     let program = rec.finish();
     assert!(
         program.num_wires() <= super::WITGEN_MAX_WIRES,
@@ -195,7 +201,7 @@ mod tests {
         );
         let ops_c = program.to_c();
         let inputs = super::pack_state_bump_inputs(&events);
-        let ni = super::NUM_STATE_BUMP_INPUTS;
+        let ni = sp1_core_machine::adapter::bump::NUM_STATE_BUMP_WITGEN_INPUTS;
         for row in 0..events.len() {
             let row_in = &inputs[row * ni..(row + 1) * ni];
             let cols: Vec<F> = interpret_c_columns(&ops_c, ni as u32, row_in, &col_wires);
