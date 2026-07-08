@@ -2,16 +2,21 @@
 //! (sb): limb selection from the OLD memory value, register-byte split, and the
 //! `increment` field delta. Needs the new value and the register value too.
 
+use core::borrow::BorrowMut;
+
 use rayon::prelude::*;
 use slop_alloc::mem::CopyError;
 use slop_alloc::Buffer;
 use slop_tensor::Tensor;
 use sp1_core_executor::{events::MemInstrEvent, ITypeRecord};
 use sp1_core_machine::{
-    air::{columns_as_wires, RecordingWitnessBuilder, WireId},
+    adapter::register::i_type::ITypeReaderWitgenInput,
+    air::{columns_as_wires, record_witgen_inputs, WireId},
     memory::instructions::store::store_byte::{
-        StoreByteChip, StoreByteColumns, NUM_STORE_BYTE_COLS_SUPERVISOR,
+        StoreByteChip, StoreByteColumns, StoreByteWitgenInput, NUM_STORE_BYTE_COLS_SUPERVISOR,
+        NUM_STORE_BYTE_WITGEN_INPUTS,
     },
+    memory::MemoryAccessWitgenInput,
     SupervisorMode,
 };
 use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKernel};
@@ -19,67 +24,29 @@ use sp1_hypercube::air::MachineAir;
 
 use crate::{CudaTracegenAir, F};
 
-/// Number of witgen inputs per `StoreByteChip` row (see [`StoreByteColumns::witgen`]).
-const NUM_STORE_BYTE_INPUTS: usize = 18;
-
+/// Pack each event into one [`StoreByteWitgenInput`] row.
 pub(crate) fn pack_store_byte_inputs(events: &[(MemInstrEvent, ITypeRecord)]) -> Vec<u64> {
-    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_STORE_BYTE_INPUTS];
-    inputs.par_chunks_mut(NUM_STORE_BYTE_INPUTS).zip(events.par_iter()).for_each(
-        |(slot, (ev, r))| {
-            let a = r.a;
-            let b = r.b;
-            let m = ev.mem_access;
-            slot.copy_from_slice(&[
-                ev.clk,
-                ev.pc,
-                r.op_a as u64,
-                a.previous_record().value,
-                a.previous_record().timestamp,
-                a.current_record().timestamp,
-                r.op_b,
-                b.previous_record().value,
-                b.previous_record().timestamp,
-                b.current_record().timestamp,
-                r.op_c,
-                ev.b,
-                ev.c,
-                m.previous_record().value,
-                m.previous_record().timestamp,
-                m.current_record().timestamp,
-                m.value(),
-                ev.a,
-            ]);
+    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_STORE_BYTE_WITGEN_INPUTS];
+    inputs.par_chunks_mut(NUM_STORE_BYTE_WITGEN_INPUTS).zip(events.par_iter()).for_each(
+        |(chunk, (ev, r))| {
+            let slot: &mut StoreByteWitgenInput<u64> = chunk.borrow_mut();
+            slot.clk = ev.clk;
+            slot.pc = ev.pc;
+            slot.adapter = ITypeReaderWitgenInput::from_record(r);
+            slot.b_val = ev.b;
+            slot.c_val = ev.c;
+            slot.mem = MemoryAccessWitgenInput::from_record(ev.mem_access);
+            slot.mem_value = ev.mem_access.value();
+            slot.reg_a = ev.a;
         },
     );
     inputs
 }
 
 fn record_store_byte_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
-    let mut rec = RecordingWitnessBuilder::new(NUM_STORE_BYTE_INPUTS as u32);
+    let (mut rec, input) = record_witgen_inputs::<StoreByteWitgenInput<WireId>>();
     let mut cols_w = StoreByteColumns::<WireId, SupervisorMode>::default();
-    let w = |i: u32| RecordingWitnessBuilder::input(i);
-    StoreByteColumns::<WireId, SupervisorMode>::witgen(
-        &mut rec,
-        &mut cols_w,
-        w(0),
-        w(1),
-        w(2),
-        w(3),
-        w(4),
-        w(5),
-        w(6),
-        w(7),
-        w(8),
-        w(9),
-        w(10),
-        w(11),
-        w(12),
-        w(13),
-        w(14),
-        w(15),
-        w(16),
-        w(17),
-    );
+    StoreByteColumns::<WireId, SupervisorMode>::witgen(&mut rec, &mut cols_w, &input);
     let program = rec.finish();
     assert!(
         program.num_wires() <= super::WITGEN_MAX_WIRES,

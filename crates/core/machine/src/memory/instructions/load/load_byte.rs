@@ -11,12 +11,12 @@ use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
-        register::i_type::{ITypeReader, ITypeReaderInput},
+        register::i_type::{ITypeReader, ITypeReaderInput, ITypeReaderWitgenInput},
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
     eval_untrusted_program,
-    memory::MemoryAccessCols,
+    memory::{MemoryAccessCols, MemoryAccessWitgenInput},
     operations::{AddressOperation, AddressOperationInput},
     utils::next_multiple_of_32,
     SupervisorMode, TrustMode, UserMode,
@@ -83,42 +83,46 @@ pub struct LoadByteColumns<T, M: TrustMode> {
     pub adapter_cols: M::AdapterCols<T>,
 }
 
+/// Witgen inputs for the `LoadByte` chip: one `#[repr(C)]` row per event (see
+/// `record_witgen_inputs` — field order IS the packed input layout). Beyond the
+/// state + adapter, the address operands (`b_val`, `c_val`), the memory access,
+/// and the opcode are per-chip inputs.
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct LoadByteWitgenInput<T> {
+    pub clk: T,
+    pub pc: T,
+    pub adapter: ITypeReaderWitgenInput<T>,
+    pub b_val: T,
+    pub c_val: T,
+    pub mem: MemoryAccessWitgenInput<T>,
+    pub opcode: T,
+}
+
+/// Number of witgen inputs per `LoadByte` row.
+pub const NUM_LOAD_BYTE_WITGEN_INPUTS: usize = size_of::<LoadByteWitgenInput<u8>>();
+
 // Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
 impl<T, M: TrustMode> LoadByteColumns<T, M> {
     /// Backend-agnostic witgen for the `LoadByte` chip (lb/lbu): selects one of the
     /// four u16 limbs (address bits 1–2), then one of its two bytes (address bit 0);
     /// signed `lb` takes the byte's msb (a plain column + an explicit MSB byte
     /// lookup). The selected limb's two bytes are always u8-range-checked.
-    #[allow(clippy::too_many_arguments)]
     pub fn witgen<WB: crate::air::WitnessBuilder>(
         wb: &mut WB,
         cols: &mut LoadByteColumns<WB::Field, M>,
-        clk: WB::Nat,
-        pc: WB::Nat,
-        op_a: WB::Nat,
-        a_prev_value: WB::Nat,
-        a_prev_ts: WB::Nat,
-        a_cur_ts: WB::Nat,
-        op_b: WB::Nat,
-        b_prev_value: WB::Nat,
-        b_prev_ts: WB::Nat,
-        b_cur_ts: WB::Nat,
-        op_c: WB::Nat,
-        b_val: WB::Nat,
-        c_val: WB::Nat,
-        mem_prev_value: WB::Nat,
-        mem_prev_ts: WB::Nat,
-        mem_cur_ts: WB::Nat,
-        opcode: WB::Nat,
+        input: &LoadByteWitgenInput<WB::Nat>,
     ) {
+        let LoadByteWitgenInput { clk, pc, adapter, b_val, c_val, mem, opcode } = *input;
+        let mem_prev_value = mem.prev_value;
         let zero = wb.const_nat(0);
         let zero_f = wb.nat_to_field(zero);
         MemoryAccessCols::<WB::Field>::witgen(
             wb,
             &mut cols.memory_access,
-            mem_prev_value,
-            mem_prev_ts,
-            mem_cur_ts,
+            mem.prev_value,
+            mem.prev_ts,
+            mem.cur_ts,
         );
         let memory_addr =
             AddressOperation::<WB::Field>::witgen(wb, &mut cols.address_operation, b_val, c_val);
@@ -165,19 +169,7 @@ impl<T, M: TrustMode> LoadByteColumns<T, M> {
         };
 
         CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
-        ITypeReader::<WB::Field>::witgen(
-            wb,
-            &mut cols.adapter,
-            op_a,
-            a_prev_value,
-            a_prev_ts,
-            a_cur_ts,
-            op_b,
-            b_prev_value,
-            b_prev_ts,
-            b_cur_ts,
-            op_c,
-        );
+        ITypeReader::<WB::Field>::witgen(wb, &mut cols.adapter, &adapter);
     }
 }
 

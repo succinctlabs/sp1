@@ -1,4 +1,7 @@
-use crate::adapter::{register::i_type::ITypeReader, state::CPUState};
+use crate::adapter::{
+    register::i_type::{ITypeReader, ITypeReaderWitgenInput},
+    state::CPUState,
+};
 use crate::{SupervisorMode, TrustMode, UserMode};
 use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
@@ -36,29 +39,34 @@ pub struct JalrColumns<T, M: TrustMode> {
     pub adapter_cols: M::AdapterCols<T>,
 }
 
+/// Witgen inputs for the `Jalr` chip: one `#[repr(C)]` row per event (see
+/// `record_witgen_inputs` — field order IS the packed input layout).
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct JalrWitgenInput<T> {
+    pub clk: T,
+    pub pc: T,
+    pub adapter: ITypeReaderWitgenInput<T>,
+    pub event_b: T,
+}
+
+/// Number of witgen inputs per `Jalr` row.
+pub const NUM_JALR_WITGEN_INPUTS: usize = size_of::<JalrWitgenInput<u8>>();
+
 // Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
 impl<T, M: TrustMode> JalrColumns<T, M> {
     /// Backend-agnostic witgen for the `Jalr` chip: `add_operation = b + imm` (the
     /// jump target, low bit cleared by the AIR), the `lsb` of `b + imm` + its
     /// `{Range, (b+imm)/4, 14}` check, `op_a_operation = pc + 4` (guarded+masked by
     /// op_a≠0), the `CPUState`, and the `ITypeReader`. `imm` is the op_c immediate.
-    #[allow(clippy::too_many_arguments)]
     pub fn witgen<WB: crate::air::WitnessBuilder>(
         wb: &mut WB,
         cols: &mut JalrColumns<WB::Field, M>,
-        clk: WB::Nat,
-        pc: WB::Nat,
-        op_a: WB::Nat,
-        a_prev_value: WB::Nat,
-        a_prev_ts: WB::Nat,
-        a_cur_ts: WB::Nat,
-        op_b: WB::Nat,
-        b_prev_value: WB::Nat,
-        b_prev_ts: WB::Nat,
-        b_cur_ts: WB::Nat,
-        op_c: WB::Nat,
-        event_b: WB::Nat,
+        input: &JalrWitgenInput<WB::Nat>,
     ) {
+        let JalrWitgenInput { clk, pc, adapter, event_b } = *input;
+        let op_a = adapter.op_a;
+        let op_c = adapter.op_c;
         let zero = wb.const_nat(0);
         let one = wb.const_nat(1);
         cols.is_real = wb.nat_to_field(one);
@@ -80,18 +88,6 @@ impl<T, M: TrustMode> JalrColumns<T, M> {
         wb.pop_guard();
 
         CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
-        ITypeReader::<WB::Field>::witgen(
-            wb,
-            &mut cols.adapter,
-            op_a,
-            a_prev_value,
-            a_prev_ts,
-            a_cur_ts,
-            op_b,
-            b_prev_value,
-            b_prev_ts,
-            b_cur_ts,
-            op_c,
-        );
+        ITypeReader::<WB::Field>::witgen(wb, &mut cols.adapter, &adapter);
     }
 }

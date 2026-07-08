@@ -2,14 +2,19 @@
 //! Two AddOperations (jump target `pc + b`, return address `pc + 4` guarded by
 //! op_a≠0) over the `JTypeReader` adapter.
 
+use core::borrow::BorrowMut;
+
 use rayon::prelude::*;
 use slop_alloc::mem::CopyError;
 use slop_alloc::Buffer;
 use slop_tensor::Tensor;
 use sp1_core_executor::{events::JumpEvent, JTypeRecord};
 use sp1_core_machine::{
-    air::{columns_as_wires, RecordingWitnessBuilder, WireId},
-    control_flow::{JalChip, JalColumns, NUM_JAL_COLS_SUPERVISOR},
+    adapter::register::j_type::JTypeReaderWitgenInput,
+    air::{columns_as_wires, record_witgen_inputs, WireId},
+    control_flow::{
+        JalChip, JalColumns, JalWitgenInput, NUM_JAL_COLS_SUPERVISOR, NUM_JAL_WITGEN_INPUTS,
+    },
     SupervisorMode,
 };
 use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKernel};
@@ -17,45 +22,25 @@ use sp1_hypercube::air::MachineAir;
 
 use crate::{CudaTracegenAir, F};
 
-/// Number of witgen inputs per `Jal` row (see [`JalColumns::witgen`]).
-const NUM_JAL_INPUTS: usize = 9;
-
+/// Pack each event into one [`JalWitgenInput`] row.
 pub(crate) fn pack_jal_inputs(events: &[(JumpEvent, JTypeRecord)]) -> Vec<u64> {
-    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_JAL_INPUTS];
-    inputs.par_chunks_mut(NUM_JAL_INPUTS).zip(events.par_iter()).for_each(|(slot, (ev, r))| {
-        let a = r.a;
-        slot.copy_from_slice(&[
-            ev.clk,
-            ev.pc,
-            r.op_a as u64,
-            a.previous_record().value,
-            a.previous_record().timestamp,
-            a.current_record().timestamp,
-            r.op_b,
-            r.op_c,
-            ev.b,
-        ]);
-    });
+    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_JAL_WITGEN_INPUTS];
+    inputs.par_chunks_mut(NUM_JAL_WITGEN_INPUTS).zip(events.par_iter()).for_each(
+        |(chunk, (ev, r))| {
+            let slot: &mut JalWitgenInput<u64> = chunk.borrow_mut();
+            slot.clk = ev.clk;
+            slot.pc = ev.pc;
+            slot.adapter = JTypeReaderWitgenInput::from_record(r);
+            slot.event_b = ev.b;
+        },
+    );
     inputs
 }
 
 fn record_jal_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
-    let mut rec = RecordingWitnessBuilder::new(NUM_JAL_INPUTS as u32);
+    let (mut rec, input) = record_witgen_inputs::<JalWitgenInput<WireId>>();
     let mut cols_w = JalColumns::<WireId, SupervisorMode>::default();
-    let w = |i: u32| RecordingWitnessBuilder::input(i);
-    JalColumns::<WireId, SupervisorMode>::witgen(
-        &mut rec,
-        &mut cols_w,
-        w(0),
-        w(1),
-        w(2),
-        w(3),
-        w(4),
-        w(5),
-        w(6),
-        w(7),
-        w(8),
-    );
+    JalColumns::<WireId, SupervisorMode>::witgen(&mut rec, &mut cols_w, &input);
     let program = rec.finish();
     assert!(
         program.num_wires() <= super::WITGEN_MAX_WIRES,

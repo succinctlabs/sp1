@@ -1,5 +1,8 @@
 use crate::{
-    adapter::{register::j_type::JTypeReader, state::CPUState},
+    adapter::{
+        register::j_type::{JTypeReader, JTypeReaderWitgenInput},
+        state::CPUState,
+    },
     operations::AddOperation,
     SupervisorMode, TrustMode, UserMode,
 };
@@ -34,25 +37,32 @@ pub struct JalColumns<T, M: TrustMode> {
     pub adapter_cols: M::AdapterCols<T>,
 }
 
+/// Witgen inputs for the `Jal` chip: one `#[repr(C)]` row per event (see
+/// `record_witgen_inputs` — field order IS the packed input layout).
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct JalWitgenInput<T> {
+    pub clk: T,
+    pub pc: T,
+    pub adapter: JTypeReaderWitgenInput<T>,
+    pub event_b: T,
+}
+
+/// Number of witgen inputs per `Jal` row.
+pub const NUM_JAL_WITGEN_INPUTS: usize = size_of::<JalWitgenInput<u8>>();
+
 // Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
 impl<T, M: TrustMode> JalColumns<T, M> {
     /// Backend-agnostic witgen for the `Jal` chip: `add_operation = pc + b` (the
     /// jump target) and `op_a_operation = pc + 4` (the return address, guarded+masked
     /// by op_a≠0 — a write to x0 zeroes it), plus the `CPUState` and `JTypeReader`.
-    #[allow(clippy::too_many_arguments)]
     pub fn witgen<WB: crate::air::WitnessBuilder>(
         wb: &mut WB,
         cols: &mut JalColumns<WB::Field, M>,
-        clk: WB::Nat,
-        pc: WB::Nat,
-        op_a: WB::Nat,
-        a_prev_value: WB::Nat,
-        a_prev_ts: WB::Nat,
-        a_cur_ts: WB::Nat,
-        op_b: WB::Nat,
-        op_c: WB::Nat,
-        event_b: WB::Nat,
+        input: &JalWitgenInput<WB::Nat>,
     ) {
+        let JalWitgenInput { clk, pc, adapter, event_b } = *input;
+        let op_a = adapter.op_a;
         let zero = wb.const_nat(0);
         let one = wb.const_nat(1);
         cols.is_real = wb.nat_to_field(one);
@@ -74,15 +84,6 @@ impl<T, M: TrustMode> JalColumns<T, M> {
         wb.pop_guard();
 
         CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
-        JTypeReader::<WB::Field>::witgen(
-            wb,
-            &mut cols.adapter,
-            op_a,
-            a_prev_value,
-            a_prev_ts,
-            a_cur_ts,
-            op_b,
-            op_c,
-        );
+        JTypeReader::<WB::Field>::witgen(wb, &mut cols.adapter, &adapter);
     }
 }

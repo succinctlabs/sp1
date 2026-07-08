@@ -1,16 +1,21 @@
 //! Device main-trace + dependency generation for the trusted `StoreDouble` chip
 //! (sd). Like `LoadDouble`: memory access + address operation + `ITypeReader`.
 
+use core::borrow::BorrowMut;
+
 use rayon::prelude::*;
 use slop_alloc::mem::CopyError;
 use slop_alloc::Buffer;
 use slop_tensor::Tensor;
 use sp1_core_executor::{events::MemInstrEvent, ITypeRecord};
 use sp1_core_machine::{
-    air::{columns_as_wires, RecordingWitnessBuilder, WireId},
+    adapter::register::i_type::ITypeReaderWitgenInput,
+    air::{columns_as_wires, record_witgen_inputs, WireId},
     memory::instructions::store::store_double::{
-        StoreDoubleChip, StoreDoubleColumns, NUM_STORE_DOUBLE_COLS_SUPERVISOR,
+        StoreDoubleChip, StoreDoubleColumns, StoreDoubleWitgenInput,
+        NUM_STORE_DOUBLE_COLS_SUPERVISOR, NUM_STORE_DOUBLE_WITGEN_INPUTS,
     },
+    memory::MemoryAccessWitgenInput,
     SupervisorMode,
 };
 use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKernel};
@@ -18,63 +23,27 @@ use sp1_hypercube::air::MachineAir;
 
 use crate::{CudaTracegenAir, F};
 
-/// Number of witgen inputs per `StoreDoubleChip` row (see [`StoreDoubleColumns::witgen`]).
-const NUM_STORE_DOUBLE_INPUTS: usize = 16;
-
+/// Pack each event into one [`StoreDoubleWitgenInput`] row.
 pub(crate) fn pack_store_double_inputs(events: &[(MemInstrEvent, ITypeRecord)]) -> Vec<u64> {
-    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_STORE_DOUBLE_INPUTS];
-    inputs.par_chunks_mut(NUM_STORE_DOUBLE_INPUTS).zip(events.par_iter()).for_each(
-        |(slot, (ev, r))| {
-            let a = r.a;
-            let b = r.b;
-            let m = ev.mem_access;
-            slot.copy_from_slice(&[
-                ev.clk,
-                ev.pc,
-                r.op_a as u64,
-                a.previous_record().value,
-                a.previous_record().timestamp,
-                a.current_record().timestamp,
-                r.op_b,
-                b.previous_record().value,
-                b.previous_record().timestamp,
-                b.current_record().timestamp,
-                r.op_c,
-                ev.b,
-                ev.c,
-                m.previous_record().value,
-                m.previous_record().timestamp,
-                m.current_record().timestamp,
-            ]);
+    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_STORE_DOUBLE_WITGEN_INPUTS];
+    inputs.par_chunks_mut(NUM_STORE_DOUBLE_WITGEN_INPUTS).zip(events.par_iter()).for_each(
+        |(chunk, (ev, r))| {
+            let slot: &mut StoreDoubleWitgenInput<u64> = chunk.borrow_mut();
+            slot.clk = ev.clk;
+            slot.pc = ev.pc;
+            slot.adapter = ITypeReaderWitgenInput::from_record(r);
+            slot.b_val = ev.b;
+            slot.c_val = ev.c;
+            slot.mem = MemoryAccessWitgenInput::from_record(ev.mem_access);
         },
     );
     inputs
 }
 
 fn record_store_double_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
-    let mut rec = RecordingWitnessBuilder::new(NUM_STORE_DOUBLE_INPUTS as u32);
+    let (mut rec, input) = record_witgen_inputs::<StoreDoubleWitgenInput<WireId>>();
     let mut cols_w = StoreDoubleColumns::<WireId, SupervisorMode>::default();
-    let w = |i: u32| RecordingWitnessBuilder::input(i);
-    StoreDoubleColumns::<WireId, SupervisorMode>::witgen(
-        &mut rec,
-        &mut cols_w,
-        w(0),
-        w(1),
-        w(2),
-        w(3),
-        w(4),
-        w(5),
-        w(6),
-        w(7),
-        w(8),
-        w(9),
-        w(10),
-        w(11),
-        w(12),
-        w(13),
-        w(14),
-        w(15),
-    );
+    StoreDoubleColumns::<WireId, SupervisorMode>::witgen(&mut rec, &mut cols_w, &input);
     let program = rec.finish();
     assert!(
         program.num_wires() <= super::WITGEN_MAX_WIRES,

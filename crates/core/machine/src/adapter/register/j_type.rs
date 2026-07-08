@@ -10,7 +10,7 @@ use sp1_hypercube::{air::SP1AirBuilder, Word};
 
 use crate::{
     air::{MemoryAirBuilder, ProgramAirBuilder, SP1Operation, WordAirBuilder},
-    memory::RegisterAccessCols,
+    memory::{MemoryAccessWitgenInput, RegisterAccessCols},
     program::instruction::InstructionCols,
 };
 
@@ -38,37 +38,56 @@ impl<F: PrimeField32> JTypeReader<F> {
     }
 }
 
+/// Witgen inputs of [`JTypeReader::witgen`], for nesting inside chip-level
+/// witgen-input structs (see `record_witgen_inputs`). Field order IS the packed
+/// input layout.
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct JTypeReaderWitgenInput<T> {
+    pub op_a: T,
+    pub a: MemoryAccessWitgenInput<T>,
+    pub op_b: T,
+    pub op_c: T,
+}
+
+impl JTypeReaderWitgenInput<u64> {
+    /// Pack an executor [`JTypeRecord`] into witgen-input form (`op_a` is a register
+    /// access; `op_b`/`op_c` are immediates).
+    pub fn from_record(record: &JTypeRecord) -> Self {
+        Self {
+            op_a: record.op_a as u64,
+            a: MemoryAccessWitgenInput::from_record(record.a),
+            op_b: record.op_b,
+            op_c: record.op_c,
+        }
+    }
+}
+
 impl<T> JTypeReader<T> {
     /// Backend-agnostic witgen dual of [`Self::populate`]: the single op_a register
     /// access (write target), the `op_a == 0` flag, and the two immediate words.
-    #[allow(clippy::too_many_arguments)]
     pub fn witgen<WB: crate::air::WitnessBuilder>(
         wb: &mut WB,
         cols: &mut JTypeReader<WB::Field>,
-        op_a: WB::Nat,
-        a_prev_value: WB::Nat,
-        a_prev_ts: WB::Nat,
-        a_cur_ts: WB::Nat,
-        op_b: WB::Nat,
-        op_c: WB::Nat,
+        input: &JTypeReaderWitgenInput<WB::Nat>,
     ) {
-        cols.op_a = wb.nat_to_field(op_a);
+        cols.op_a = wb.nat_to_field(input.op_a);
         crate::memory::RegisterAccessCols::<WB::Field>::witgen(
             wb,
             &mut cols.op_a_memory,
-            a_prev_value,
-            a_prev_ts,
-            a_cur_ts,
+            input.a.prev_value,
+            input.a.prev_ts,
+            input.a.cur_ts,
         );
         let zero = wb.const_nat(0);
-        let is_zero = wb.eq(op_a, zero);
+        let is_zero = wb.eq(input.op_a, zero);
         cols.op_a_0 = wb.nat_to_field(is_zero);
         for i in 0..sp1_primitives::consts::WORD_SIZE {
-            let l = wb.bits(op_b, (i as u32) * 16, 16);
+            let l = wb.bits(input.op_b, (i as u32) * 16, 16);
             cols.op_b_imm[i] = wb.nat_to_field(l);
         }
         for i in 0..sp1_primitives::consts::WORD_SIZE {
-            let l = wb.bits(op_c, (i as u32) * 16, 16);
+            let l = wb.bits(input.op_c, (i as u32) * 16, 16);
             cols.op_c_imm[i] = wb.nat_to_field(l);
         }
     }

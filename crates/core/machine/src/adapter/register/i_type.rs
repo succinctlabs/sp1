@@ -20,7 +20,7 @@ use crate::{
         HostWitnessBuilder, MemoryAirBuilder, ProgramAirBuilder, SP1Operation, WitnessBuilder,
         WordAirBuilder,
     },
-    memory::RegisterAccessCols,
+    memory::{MemoryAccessWitgenInput, RegisterAccessCols},
     program::instruction::InstructionCols,
 };
 
@@ -39,46 +39,64 @@ pub struct ITypeReader<T> {
     pub op_c_imm: Word<T>,
 }
 
+/// Witgen inputs of [`ITypeReader::witgen`], for nesting inside chip-level
+/// witgen-input structs (see `record_witgen_inputs`). Field order IS the packed
+/// input layout.
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ITypeReaderWitgenInput<T> {
+    pub op_a: T,
+    pub a: MemoryAccessWitgenInput<T>,
+    pub op_b: T,
+    pub b: MemoryAccessWitgenInput<T>,
+    pub op_c: T,
+}
+
+impl ITypeReaderWitgenInput<u64> {
+    /// Pack an executor [`ITypeRecord`] into witgen-input form (`op_a`/`op_b` are
+    /// register accesses; `op_c` is the immediate).
+    pub fn from_record(record: &ITypeRecord) -> Self {
+        Self {
+            op_a: record.op_a as u64,
+            a: MemoryAccessWitgenInput::from_record(record.a),
+            op_b: record.op_b,
+            b: MemoryAccessWitgenInput::from_record(record.b),
+            op_c: record.op_c,
+        }
+    }
+}
+
 // Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
 impl<T> ITypeReader<T> {
     /// Backend-agnostic witgen: two register reads (`op_a`, `op_b`) and the immediate
     /// `op_c` as a Word. `op_c` is always an immediate here — no register read, no
     /// conditional (cf. the mixed `ALUTypeReader`). Mirrors [`Self::populate`].
-    #[allow(clippy::too_many_arguments)]
     pub fn witgen<WB: WitnessBuilder>(
         wb: &mut WB,
         cols: &mut ITypeReader<WB::Field>,
-        op_a: WB::Nat,
-        a_prev_value: WB::Nat,
-        a_prev_ts: WB::Nat,
-        a_cur_ts: WB::Nat,
-        op_b: WB::Nat,
-        b_prev_value: WB::Nat,
-        b_prev_ts: WB::Nat,
-        b_cur_ts: WB::Nat,
-        op_c: WB::Nat,
+        input: &ITypeReaderWitgenInput<WB::Nat>,
     ) {
-        cols.op_a = wb.nat_to_field(op_a);
+        cols.op_a = wb.nat_to_field(input.op_a);
         RegisterAccessCols::<WB::Field>::witgen(
             wb,
             &mut cols.op_a_memory,
-            a_prev_value,
-            a_prev_ts,
-            a_cur_ts,
+            input.a.prev_value,
+            input.a.prev_ts,
+            input.a.cur_ts,
         );
         let zero = wb.const_nat(0);
-        let a_is_zero = wb.eq(op_a, zero);
+        let a_is_zero = wb.eq(input.op_a, zero);
         cols.op_a_0 = wb.nat_to_field(a_is_zero);
-        cols.op_b = wb.nat_to_field(op_b);
+        cols.op_b = wb.nat_to_field(input.op_b);
         RegisterAccessCols::<WB::Field>::witgen(
             wb,
             &mut cols.op_b_memory,
-            b_prev_value,
-            b_prev_ts,
-            b_cur_ts,
+            input.b.prev_value,
+            input.b.prev_ts,
+            input.b.cur_ts,
         );
         for i in 0..WORD_SIZE {
-            let limb = wb.bits(op_c, (i as u32) * 16, 16);
+            let limb = wb.bits(input.op_c, (i as u32) * 16, 16);
             cols.op_c_imm[i] = wb.nat_to_field(limb);
         }
     }
@@ -87,19 +105,7 @@ impl<T> ITypeReader<T> {
 impl<F: PrimeField32> ITypeReader<F> {
     pub fn populate(&mut self, blu_events: &mut impl ByteRecord, record: ITypeRecord) {
         let mut wb = HostWitnessBuilder::<F, _>::new(blu_events);
-        Self::witgen(
-            &mut wb,
-            self,
-            record.op_a as u64,
-            record.a.previous_record().value,
-            record.a.previous_record().timestamp,
-            record.a.current_record().timestamp,
-            record.op_b,
-            record.b.previous_record().value,
-            record.b.previous_record().timestamp,
-            record.b.current_record().timestamp,
-            record.op_c,
-        );
+        Self::witgen(&mut wb, self, &ITypeReaderWitgenInput::from_record(&record));
     }
 }
 

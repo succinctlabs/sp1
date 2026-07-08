@@ -2,16 +2,21 @@
 //! (lw/lwu). Like `LoadDouble` plus the 32-bit half selection (`offset_bit`) and
 //! sign extension (`msb`, signed `lw` only).
 
+use core::borrow::BorrowMut;
+
 use rayon::prelude::*;
 use slop_alloc::mem::CopyError;
 use slop_alloc::Buffer;
 use slop_tensor::Tensor;
 use sp1_core_executor::{events::MemInstrEvent, ITypeRecord};
 use sp1_core_machine::{
-    air::{columns_as_wires, RecordingWitnessBuilder, WireId},
+    adapter::register::i_type::ITypeReaderWitgenInput,
+    air::{columns_as_wires, record_witgen_inputs, WireId},
     memory::instructions::load::load_half::{
-        LoadHalfChip, LoadHalfColumns, NUM_LOAD_HALF_COLS_SUPERVISOR,
+        LoadHalfChip, LoadHalfColumns, LoadHalfWitgenInput, NUM_LOAD_HALF_COLS_SUPERVISOR,
+        NUM_LOAD_HALF_WITGEN_INPUTS,
     },
+    memory::MemoryAccessWitgenInput,
     SupervisorMode,
 };
 use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKernel};
@@ -19,65 +24,28 @@ use sp1_hypercube::air::MachineAir;
 
 use crate::{CudaTracegenAir, F};
 
-/// Number of witgen inputs per `LoadHalfChip` row (see [`LoadHalfColumns::witgen`]).
-const NUM_LOAD_HALF_INPUTS: usize = 17;
-
+/// Pack each event into one [`LoadHalfWitgenInput`] row.
 pub(crate) fn pack_load_half_inputs(events: &[(MemInstrEvent, ITypeRecord)]) -> Vec<u64> {
-    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_LOAD_HALF_INPUTS];
-    inputs.par_chunks_mut(NUM_LOAD_HALF_INPUTS).zip(events.par_iter()).for_each(
-        |(slot, (ev, r))| {
-            let a = r.a;
-            let b = r.b;
-            let m = ev.mem_access;
-            slot.copy_from_slice(&[
-                ev.clk,
-                ev.pc,
-                r.op_a as u64,
-                a.previous_record().value,
-                a.previous_record().timestamp,
-                a.current_record().timestamp,
-                r.op_b,
-                b.previous_record().value,
-                b.previous_record().timestamp,
-                b.current_record().timestamp,
-                r.op_c,
-                ev.b,
-                ev.c,
-                m.previous_record().value,
-                m.previous_record().timestamp,
-                m.current_record().timestamp,
-                ev.opcode as u64,
-            ]);
+    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_LOAD_HALF_WITGEN_INPUTS];
+    inputs.par_chunks_mut(NUM_LOAD_HALF_WITGEN_INPUTS).zip(events.par_iter()).for_each(
+        |(chunk, (ev, r))| {
+            let slot: &mut LoadHalfWitgenInput<u64> = chunk.borrow_mut();
+            slot.clk = ev.clk;
+            slot.pc = ev.pc;
+            slot.adapter = ITypeReaderWitgenInput::from_record(r);
+            slot.b_val = ev.b;
+            slot.c_val = ev.c;
+            slot.mem = MemoryAccessWitgenInput::from_record(ev.mem_access);
+            slot.opcode = ev.opcode as u64;
         },
     );
     inputs
 }
 
 fn record_load_half_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
-    let mut rec = RecordingWitnessBuilder::new(NUM_LOAD_HALF_INPUTS as u32);
+    let (mut rec, input) = record_witgen_inputs::<LoadHalfWitgenInput<WireId>>();
     let mut cols_w = LoadHalfColumns::<WireId, SupervisorMode>::default();
-    let w = |i: u32| RecordingWitnessBuilder::input(i);
-    LoadHalfColumns::<WireId, SupervisorMode>::witgen(
-        &mut rec,
-        &mut cols_w,
-        w(0),
-        w(1),
-        w(2),
-        w(3),
-        w(4),
-        w(5),
-        w(6),
-        w(7),
-        w(8),
-        w(9),
-        w(10),
-        w(11),
-        w(12),
-        w(13),
-        w(14),
-        w(15),
-        w(16),
-    );
+    LoadHalfColumns::<WireId, SupervisorMode>::witgen(&mut rec, &mut cols_w, &input);
     let program = rec.finish();
     assert!(
         program.num_wires() <= super::WITGEN_MAX_WIRES,

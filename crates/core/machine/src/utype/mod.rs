@@ -21,7 +21,7 @@ use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
-        register::j_type::{JTypeReader, JTypeReaderInput},
+        register::j_type::{JTypeReader, JTypeReaderInput, JTypeReaderWitgenInput},
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
@@ -39,27 +39,34 @@ pub struct UTypeChip<M: TrustMode> {
     pub _phantom: PhantomData<M>,
 }
 
+/// Witgen inputs for the `UType` chip: one `#[repr(C)]` row per event (see
+/// `record_witgen_inputs` — field order IS the packed input layout).
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct UTypeWitgenInput<T> {
+    pub clk: T,
+    pub pc: T,
+    pub opcode: T,
+    pub adapter: JTypeReaderWitgenInput<T>,
+    pub event_b: T,
+}
+
+/// Number of witgen inputs per `UType` row.
+pub const NUM_UTYPE_WITGEN_INPUTS: usize = size_of::<UTypeWitgenInput<u8>>();
+
 // Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
 impl<T, M: TrustMode> UTypeColumns<T, M> {
     /// Backend-agnostic witgen for the `UType` chip (AUIPC/LUI): the addend `a`
     /// (`pc` for AUIPC, `0` for LUI) as 3 u16 limbs, the `AddOperation` `a + b`
     /// (guarded+masked by op_a≠0, since a write to x0 zeroes the result), the
     /// `CPUState`, and the `JTypeReader` adapter.
-    #[allow(clippy::too_many_arguments)]
     pub fn witgen<WB: crate::air::WitnessBuilder>(
         wb: &mut WB,
         cols: &mut UTypeColumns<WB::Field, M>,
-        clk: WB::Nat,
-        pc: WB::Nat,
-        opcode: WB::Nat,
-        op_a: WB::Nat,
-        a_prev_value: WB::Nat,
-        a_prev_ts: WB::Nat,
-        a_cur_ts: WB::Nat,
-        op_b: WB::Nat,
-        op_c: WB::Nat,
-        event_b: WB::Nat,
+        input: &UTypeWitgenInput<WB::Nat>,
     ) {
+        let UTypeWitgenInput { clk, pc, opcode, adapter, event_b } = *input;
+        let op_a = adapter.op_a;
         let zero = wb.const_nat(0);
         let one = wb.const_nat(1);
         let o_auipc = wb.const_nat(Opcode::AUIPC as u64);
@@ -84,16 +91,7 @@ impl<T, M: TrustMode> UTypeColumns<T, M> {
         wb.pop_guard();
 
         CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
-        JTypeReader::<WB::Field>::witgen(
-            wb,
-            &mut cols.adapter,
-            op_a,
-            a_prev_value,
-            a_prev_ts,
-            a_cur_ts,
-            op_b,
-            op_c,
-        );
+        JTypeReader::<WB::Field>::witgen(wb, &mut cols.adapter, &adapter);
     }
 }
 

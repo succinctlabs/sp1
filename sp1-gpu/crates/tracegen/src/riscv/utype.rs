@@ -2,14 +2,20 @@
 //! (AUIPC/LUI). First system chip on the device path; uses the new single-write
 //! `JTypeReader` adapter + a guarded `AddOperation` (zeroed when writing to x0).
 
+use core::borrow::BorrowMut;
+
 use rayon::prelude::*;
 use slop_alloc::mem::CopyError;
 use slop_alloc::Buffer;
 use slop_tensor::Tensor;
 use sp1_core_executor::{events::UTypeEvent, JTypeRecord};
 use sp1_core_machine::{
-    air::{columns_as_wires, RecordingWitnessBuilder, WireId},
-    utype::{UTypeChip, UTypeColumns, NUM_UTYPE_COLS_SUPERVISOR},
+    adapter::register::j_type::JTypeReaderWitgenInput,
+    air::{columns_as_wires, record_witgen_inputs, WireId},
+    utype::{
+        UTypeChip, UTypeColumns, UTypeWitgenInput, NUM_UTYPE_COLS_SUPERVISOR,
+        NUM_UTYPE_WITGEN_INPUTS,
+    },
     SupervisorMode,
 };
 use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKernel};
@@ -17,47 +23,26 @@ use sp1_hypercube::air::MachineAir;
 
 use crate::{CudaTracegenAir, F};
 
-/// Number of witgen inputs per `UType` row (see [`UTypeColumns::witgen`]).
-const NUM_UTYPE_INPUTS: usize = 10;
-
+/// Pack each event into one [`UTypeWitgenInput`] row.
 pub(crate) fn pack_utype_inputs(events: &[(UTypeEvent, JTypeRecord)]) -> Vec<u64> {
-    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_UTYPE_INPUTS];
-    inputs.par_chunks_mut(NUM_UTYPE_INPUTS).zip(events.par_iter()).for_each(|(slot, (ev, r))| {
-        let a = r.a;
-        slot.copy_from_slice(&[
-            ev.clk,
-            ev.pc,
-            ev.opcode as u64,
-            r.op_a as u64,
-            a.previous_record().value,
-            a.previous_record().timestamp,
-            a.current_record().timestamp,
-            r.op_b,
-            r.op_c,
-            ev.b,
-        ]);
-    });
+    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_UTYPE_WITGEN_INPUTS];
+    inputs.par_chunks_mut(NUM_UTYPE_WITGEN_INPUTS).zip(events.par_iter()).for_each(
+        |(chunk, (ev, r))| {
+            let slot: &mut UTypeWitgenInput<u64> = chunk.borrow_mut();
+            slot.clk = ev.clk;
+            slot.pc = ev.pc;
+            slot.opcode = ev.opcode as u64;
+            slot.adapter = JTypeReaderWitgenInput::from_record(r);
+            slot.event_b = ev.b;
+        },
+    );
     inputs
 }
 
 fn record_utype_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
-    let mut rec = RecordingWitnessBuilder::new(NUM_UTYPE_INPUTS as u32);
+    let (mut rec, input) = record_witgen_inputs::<UTypeWitgenInput<WireId>>();
     let mut cols_w = UTypeColumns::<WireId, SupervisorMode>::default();
-    let w = |i: u32| RecordingWitnessBuilder::input(i);
-    UTypeColumns::<WireId, SupervisorMode>::witgen(
-        &mut rec,
-        &mut cols_w,
-        w(0),
-        w(1),
-        w(2),
-        w(3),
-        w(4),
-        w(5),
-        w(6),
-        w(7),
-        w(8),
-        w(9),
-    );
+    UTypeColumns::<WireId, SupervisorMode>::witgen(&mut rec, &mut cols_w, &input);
     let program = rec.finish();
     assert!(
         program.num_wires() <= super::WITGEN_MAX_WIRES,

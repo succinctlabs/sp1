@@ -3,7 +3,10 @@ use std::mem::size_of;
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
-    adapter::{register::i_type::ITypeReader, state::CPUState},
+    adapter::{
+        register::i_type::{ITypeReader, ITypeReaderWitgenInput},
+        state::CPUState,
+    },
     operations::LtOperationSigned,
     SupervisorMode, TrustMode, UserMode,
 };
@@ -49,34 +52,38 @@ pub struct BranchColumns<T, M: TrustMode> {
     pub adapter_cols: M::AdapterCols<T>,
 }
 
+/// Witgen inputs for the `Branch` chip: one `#[repr(C)]` row per event (see
+/// `record_witgen_inputs` — field order IS the packed input layout). The `a < b`
+/// result is host-computed (no lt op in the DSL) and passed as `a_lt_b`.
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct BranchWitgenInput<T> {
+    pub clk: T,
+    pub pc: T,
+    pub opcode: T,
+    pub event_a: T,
+    pub event_b: T,
+    pub next_pc: T,
+    pub a_lt_b: T,
+    pub adapter: ITypeReaderWitgenInput<T>,
+}
+
+/// Number of witgen inputs per `Branch` row.
+pub const NUM_BRANCH_WITGEN_INPUTS: usize = size_of::<BranchWitgenInput<u8>>();
+
 // Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
 impl<T, M: TrustMode> BranchColumns<T, M> {
     /// Backend-agnostic witgen for the `Branch` chip (BEQ/BNE/BLT/BGE/BLTU/BGEU):
     /// the per-opcode flags, the signed/unsigned comparison (`LtOperationSigned`),
-    /// the taken flag `is_branching`, and the `next_pc` limbs + range checks. The
-    /// `a < b` result is host-computed (no lt op in the DSL) and passed as `a_lt_b`.
-    #[allow(clippy::too_many_arguments)]
+    /// the taken flag `is_branching`, and the `next_pc` limbs + range checks.
     pub fn witgen<WB: crate::air::WitnessBuilder>(
         wb: &mut WB,
         cols: &mut BranchColumns<WB::Field, M>,
-        clk: WB::Nat,
-        pc: WB::Nat,
-        opcode: WB::Nat,
-        event_a: WB::Nat,
-        event_b: WB::Nat,
-        next_pc: WB::Nat,
-        a_lt_b: WB::Nat,
-        op_a: WB::Nat,
-        a_prev_value: WB::Nat,
-        a_prev_ts: WB::Nat,
-        a_cur_ts: WB::Nat,
-        op_b: WB::Nat,
-        b_prev_value: WB::Nat,
-        b_prev_ts: WB::Nat,
-        b_cur_ts: WB::Nat,
-        op_c: WB::Nat,
+        input: &BranchWitgenInput<WB::Nat>,
     ) {
         use sp1_core_executor::Opcode;
+        let BranchWitgenInput { clk, pc, opcode, event_a, event_b, next_pc, a_lt_b, adapter } =
+            *input;
         let zero = wb.const_nat(0);
         let one = wb.const_nat(1);
 
@@ -136,18 +143,6 @@ impl<T, M: TrustMode> BranchColumns<T, M> {
         wb.add_u16_range_check(l2);
 
         CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
-        ITypeReader::<WB::Field>::witgen(
-            wb,
-            &mut cols.adapter,
-            op_a,
-            a_prev_value,
-            a_prev_ts,
-            a_cur_ts,
-            op_b,
-            b_prev_value,
-            b_prev_ts,
-            b_cur_ts,
-            op_c,
-        );
+        ITypeReader::<WB::Field>::witgen(wb, &mut cols.adapter, &adapter);
     }
 }

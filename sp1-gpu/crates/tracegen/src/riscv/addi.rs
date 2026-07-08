@@ -2,14 +2,19 @@
 //! Uses the immediate-only `ITypeReader` adapter (two register reads + an immediate
 //! op_c) and the ported `AddOperation` — a clean port with no per-row branches.
 
+use core::borrow::BorrowMut;
+
 use rayon::prelude::*;
 use slop_alloc::mem::CopyError;
 use slop_alloc::Buffer;
 use slop_tensor::Tensor;
 use sp1_core_executor::{events::AluEvent, ITypeRecord};
 use sp1_core_machine::{
-    air::{columns_as_wires, RecordingWitnessBuilder, WireId},
-    alu::add_sub::addi::{AddiChip, AddiCols, NUM_ADDI_COLS_SUPERVISOR},
+    adapter::register::i_type::ITypeReaderWitgenInput,
+    air::{columns_as_wires, record_witgen_inputs, WireId},
+    alu::add_sub::addi::{
+        AddiChip, AddiCols, AddiWitgenInput, NUM_ADDI_COLS_SUPERVISOR, NUM_ADDI_WITGEN_INPUTS,
+    },
     SupervisorMode,
 };
 use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKernel};
@@ -17,55 +22,27 @@ use sp1_hypercube::air::MachineAir;
 
 use crate::{CudaTracegenAir, F};
 
-/// Number of witgen inputs per `Addi` row (see [`AddiCols::witgen`]). Only two
-/// register reads (op_a, op_b); op_c is an immediate.
-const NUM_ADDI_INPUTS: usize = 13;
-
+/// Pack each event into one [`AddiWitgenInput`] row. Only two register reads
+/// (op_a, op_b); op_c is an immediate.
 pub(crate) fn pack_addi_inputs(events: &[(AluEvent, ITypeRecord)]) -> Vec<u64> {
-    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_ADDI_INPUTS];
-    inputs.par_chunks_mut(NUM_ADDI_INPUTS).zip(events.par_iter()).for_each(|(slot, (alu, r))| {
-        let a = r.a;
-        let b = r.b;
-        slot.copy_from_slice(&[
-            alu.clk,
-            alu.pc,
-            alu.b,
-            alu.c,
-            r.op_a as u64,
-            r.op_b,
-            r.op_c,
-            a.previous_record().value,
-            a.previous_record().timestamp,
-            a.current_record().timestamp,
-            b.previous_record().value,
-            b.previous_record().timestamp,
-            b.current_record().timestamp,
-        ]);
-    });
+    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_ADDI_WITGEN_INPUTS];
+    inputs.par_chunks_mut(NUM_ADDI_WITGEN_INPUTS).zip(events.par_iter()).for_each(
+        |(chunk, (alu, r))| {
+            let slot: &mut AddiWitgenInput<u64> = chunk.borrow_mut();
+            slot.clk = alu.clk;
+            slot.pc = alu.pc;
+            slot.b = alu.b;
+            slot.c = alu.c;
+            slot.adapter = ITypeReaderWitgenInput::from_record(r);
+        },
+    );
     inputs
 }
 
 fn record_addi_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
-    let mut rec = RecordingWitnessBuilder::new(NUM_ADDI_INPUTS as u32);
+    let (mut rec, input) = record_witgen_inputs::<AddiWitgenInput<WireId>>();
     let mut cols_w = AddiCols::<WireId, SupervisorMode>::default();
-    let w = |i: u32| RecordingWitnessBuilder::input(i);
-    AddiCols::<WireId, SupervisorMode>::witgen(
-        &mut rec,
-        &mut cols_w,
-        w(0),
-        w(1),
-        w(2),
-        w(3),
-        w(4),
-        w(5),
-        w(6),
-        w(7),
-        w(8),
-        w(9),
-        w(10),
-        w(11),
-        w(12),
-    );
+    AddiCols::<WireId, SupervisorMode>::witgen(&mut rec, &mut cols_w, &input);
     let program = rec.finish();
     assert!(
         program.num_wires() <= super::WITGEN_MAX_WIRES,
