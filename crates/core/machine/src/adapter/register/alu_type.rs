@@ -13,7 +13,7 @@ use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     air::{MemoryAirBuilder, ProgramAirBuilder, SP1Operation, WitnessBuilder, WordAirBuilder},
-    memory::RegisterAccessCols,
+    memory::{MemoryAccessWitgenInput, RegisterAccessCols},
     program::instruction::InstructionCols,
 };
 
@@ -95,82 +95,101 @@ impl<F: PrimeField32> ALUTypeReader<F> {
     }
 }
 
+/// Witgen inputs of [`ALUTypeReader::witgen`], for nesting inside chip-level
+/// witgen-input structs (see `record_witgen_inputs`). Field order IS the packed
+/// input layout.
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ALUTypeReaderWitgenInput<T> {
+    pub imm_c: T,
+    pub op_a: T,
+    pub a: MemoryAccessWitgenInput<T>,
+    pub op_b: T,
+    pub b: MemoryAccessWitgenInput<T>,
+    pub op_c: T,
+    pub c: MemoryAccessWitgenInput<T>,
+}
+
+impl ALUTypeReaderWitgenInput<u64> {
+    /// Pack an executor [`ALUTypeRecord`] into witgen-input form. On immediate rows
+    /// (`c = None`) the `c` register fields are unused by the witgen (its lookups are
+    /// guarded off and its columns overridden), so they pack as zeros.
+    pub fn from_record(record: &ALUTypeRecord) -> Self {
+        Self {
+            imm_c: record.c.is_none() as u64,
+            op_a: record.op_a as u64,
+            a: MemoryAccessWitgenInput::from_record(record.a),
+            op_b: record.op_b,
+            b: MemoryAccessWitgenInput::from_record(record.b),
+            op_c: record.op_c,
+            c: record.c.map(MemoryAccessWitgenInput::from_record).unwrap_or_default(),
+        }
+    }
+}
+
 // Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
 impl<T> ALUTypeReader<T> {
     /// Backend-agnostic witgen handling BOTH the register and immediate `op_c` cases
-    /// per row, selected by `imm_c` (a 0/1 nat). `op_a`/`op_b` are always register
-    /// accesses. For `op_c`, the register read is always computed but its lookups are
-    /// guarded by `!imm_c` (immediate rows emit none), and its `op_c_memory` columns
-    /// are merged with the immediate columns (`prev_value = op_c`, timestamps = 0) via
-    /// `field_select`. Mirrors [`Self::populate`]; for register-only chips pass
-    /// `imm_c = 0`. The `*_c_*` register inputs are unused (any value) on immediate rows.
-    #[allow(clippy::too_many_arguments)]
+    /// per row, selected by `input.imm_c` (a 0/1 nat). `op_a`/`op_b` are always
+    /// register accesses. For `op_c`, the register read is always computed but its
+    /// lookups are guarded by `!imm_c` (immediate rows emit none), and its
+    /// `op_c_memory` columns are merged with the immediate columns (`prev_value =
+    /// op_c`, timestamps = 0) via `field_select`. Mirrors [`Self::populate`]; for
+    /// register-only chips pass `imm_c = 0`.
     pub fn witgen<WB: WitnessBuilder>(
         wb: &mut WB,
         cols: &mut ALUTypeReader<WB::Field>,
-        imm_c: WB::Nat,
-        op_a: WB::Nat,
-        a_prev_value: WB::Nat,
-        a_prev_ts: WB::Nat,
-        a_cur_ts: WB::Nat,
-        op_b: WB::Nat,
-        b_prev_value: WB::Nat,
-        b_prev_ts: WB::Nat,
-        b_cur_ts: WB::Nat,
-        op_c: WB::Nat,
-        c_prev_value: WB::Nat,
-        c_prev_ts: WB::Nat,
-        c_cur_ts: WB::Nat,
+        input: &ALUTypeReaderWitgenInput<WB::Nat>,
     ) {
-        cols.op_a = wb.nat_to_field(op_a);
+        cols.op_a = wb.nat_to_field(input.op_a);
         RegisterAccessCols::<WB::Field>::witgen(
             wb,
             &mut cols.op_a_memory,
-            a_prev_value,
-            a_prev_ts,
-            a_cur_ts,
+            input.a.prev_value,
+            input.a.prev_ts,
+            input.a.cur_ts,
         );
         let zero = wb.const_nat(0);
-        let a_is_zero = wb.eq(op_a, zero);
+        let a_is_zero = wb.eq(input.op_a, zero);
         cols.op_a_0 = wb.nat_to_field(a_is_zero);
-        cols.op_b = wb.nat_to_field(op_b);
+        cols.op_b = wb.nat_to_field(input.op_b);
         RegisterAccessCols::<WB::Field>::witgen(
             wb,
             &mut cols.op_b_memory,
-            b_prev_value,
-            b_prev_ts,
-            b_cur_ts,
+            input.b.prev_value,
+            input.b.prev_ts,
+            input.b.cur_ts,
         );
         // `op_c` is the instruction's op_c field as a Word (4 u16 limbs): the register
         // index when register, or the immediate value when immediate. No range checks.
         for i in 0..WORD_SIZE {
-            let limb = wb.bits(op_c, (i as u32) * 16, 16);
+            let limb = wb.bits(input.op_c, (i as u32) * 16, 16);
             cols.op_c[i] = wb.nat_to_field(limb);
         }
-        cols.imm_c = wb.nat_to_field(imm_c);
+        cols.imm_c = wb.nat_to_field(input.imm_c);
 
         // Register read for op_c — lookups guarded by !imm_c so immediate rows emit
         // none; the columns are then merged with the immediate branch by `imm_c`.
-        let not_imm_c = wb.eq(imm_c, zero);
+        let not_imm_c = wb.eq(input.imm_c, zero);
         wb.push_guard(not_imm_c);
         RegisterAccessCols::<WB::Field>::witgen(
             wb,
             &mut cols.op_c_memory,
-            c_prev_value,
-            c_prev_ts,
-            c_cur_ts,
+            input.c.prev_value,
+            input.c.prev_ts,
+            input.c.cur_ts,
         );
         wb.pop_guard();
         // Immediate branch columns: prev_value = op_c, timestamps = 0.
         let zero_f = wb.nat_to_field(zero);
         for i in 0..WORD_SIZE {
             cols.op_c_memory.prev_value[i] =
-                wb.field_select(imm_c, cols.op_c[i], cols.op_c_memory.prev_value[i]);
+                wb.field_select(input.imm_c, cols.op_c[i], cols.op_c_memory.prev_value[i]);
         }
         cols.op_c_memory.access_timestamp.prev_low =
-            wb.field_select(imm_c, zero_f, cols.op_c_memory.access_timestamp.prev_low);
+            wb.field_select(input.imm_c, zero_f, cols.op_c_memory.access_timestamp.prev_low);
         cols.op_c_memory.access_timestamp.diff_low_limb =
-            wb.field_select(imm_c, zero_f, cols.op_c_memory.access_timestamp.diff_low_limb);
+            wb.field_select(input.imm_c, zero_f, cols.op_c_memory.access_timestamp.diff_low_limb);
     }
 }
 

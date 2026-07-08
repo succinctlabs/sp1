@@ -26,7 +26,7 @@ use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
-        register::alu_type::{ALUTypeReader, ALUTypeReaderInput},
+        register::alu_type::{ALUTypeReader, ALUTypeReaderInput, ALUTypeReaderWitgenInput},
         state::CPUState,
     },
     operations::AddwOperation,
@@ -65,58 +65,39 @@ pub struct AddwCols<T, M: TrustMode> {
     pub adapter_cols: M::AdapterCols<T>,
 }
 
+/// Witgen inputs for the `Addw` chip: one `#[repr(C)]` row per event (see
+/// `record_witgen_inputs` — field order IS the packed input layout).
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct AddwWitgenInput<T> {
+    pub clk: T,
+    pub pc: T,
+    pub b: T,
+    pub c: T,
+    pub adapter: ALUTypeReaderWitgenInput<T>,
+}
+
+/// Number of witgen inputs per `Addw` row.
+pub const NUM_ADDW_WITGEN_INPUTS: usize = size_of::<AddwWitgenInput<u8>>();
+
 // Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
 impl<T, M: TrustMode> AddwCols<T, M> {
-    /// Backend-agnostic witgen for the register-register `Addw` columns: `is_real`,
-    /// the `AddwOperation` over `(b, c)`, the `CPUState`, and the `ALUTypeReader`
-    /// (register operand). Inputs mirror the `AluEvent`/`ALUTypeRecord` fields.
-    #[allow(clippy::too_many_arguments)]
+    /// Backend-agnostic witgen for the `Addw` columns: `is_real`, the
+    /// `AddwOperation` over `(b, c)`, the `CPUState`, and the `ALUTypeReader`.
+    /// ADDW handles both register (ADDW) and immediate (ADDIW) op_c; the
+    /// generalized ALUTypeReader guards the register read / field-selects the
+    /// op_c columns per row by `imm_c` (real workloads include immediate rows,
+    /// which the iter-020 register-only port wrongly asserted against).
     pub fn witgen<WB: crate::air::WitnessBuilder>(
         wb: &mut WB,
         cols: &mut AddwCols<WB::Field, M>,
-        clk: WB::Nat,
-        pc: WB::Nat,
-        b: WB::Nat,
-        c: WB::Nat,
-        op_a: WB::Nat,
-        op_b: WB::Nat,
-        op_c: WB::Nat,
-        a_prev_value: WB::Nat,
-        a_prev_ts: WB::Nat,
-        a_cur_ts: WB::Nat,
-        b_prev_value: WB::Nat,
-        b_prev_ts: WB::Nat,
-        b_cur_ts: WB::Nat,
-        c_prev_value: WB::Nat,
-        c_prev_ts: WB::Nat,
-        c_cur_ts: WB::Nat,
-        imm_c: WB::Nat,
+        input: &AddwWitgenInput<WB::Nat>,
     ) {
         let one = wb.const_nat(1);
         cols.is_real = wb.nat_to_field(one);
-        AddwOperation::<WB::Field>::witgen(wb, &mut cols.addw_operation, b, c);
-        CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
-        // ADDW handles both register (ADDW) and immediate (ADDIW) op_c; the
-        // generalized ALUTypeReader guards the register read / field-selects the
-        // op_c columns per row by `imm_c` (real workloads include immediate rows,
-        // which the iter-020 register-only port wrongly asserted against).
-        ALUTypeReader::<WB::Field>::witgen(
-            wb,
-            &mut cols.adapter,
-            imm_c,
-            op_a,
-            a_prev_value,
-            a_prev_ts,
-            a_cur_ts,
-            op_b,
-            b_prev_value,
-            b_prev_ts,
-            b_cur_ts,
-            op_c,
-            c_prev_value,
-            c_prev_ts,
-            c_cur_ts,
-        );
+        AddwOperation::<WB::Field>::witgen(wb, &mut cols.addw_operation, input.b, input.c);
+        CPUState::<WB::Field>::witgen(wb, &mut cols.state, input.clk, input.pc);
+        ALUTypeReader::<WB::Field>::witgen(wb, &mut cols.adapter, &input.adapter);
     }
 }
 

@@ -21,7 +21,7 @@ use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
-        register::alu_type::{ALUTypeReader, ALUTypeReaderInput},
+        register::alu_type::{ALUTypeReader, ALUTypeReaderInput, ALUTypeReaderWitgenInput},
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
@@ -98,36 +98,38 @@ pub struct ShiftLeftCols<T, M: TrustMode> {
     pub adapter_cols: M::AdapterCols<T>,
 }
 
+/// Witgen inputs for the `ShiftLeft` chip: one `#[repr(C)]` row per event (see
+/// `record_witgen_inputs` — field order IS the packed input layout).
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ShiftLeftWitgenInput<T> {
+    pub clk: T,
+    pub pc: T,
+    /// The result operand.
+    pub a: T,
+    pub b: T,
+    pub c: T,
+    /// The per-row RISC-V `Opcode` discriminant.
+    pub opcode: T,
+    pub adapter: ALUTypeReaderWitgenInput<T>,
+}
+
+/// Number of witgen inputs per `ShiftLeft` row.
+pub const NUM_SHIFT_LEFT_WITGEN_INPUTS: usize = size_of::<ShiftLeftWitgenInput<u8>>();
+
 // Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
 impl<T, M: TrustMode> ShiftLeftCols<T, M> {
     /// Backend-agnostic witgen for `ShiftLeft` (SLL/SLLW + immediate). The shift
     /// amount is per-row data: limb splits use the variable `shl`/`shr` and
     /// variable-width range checks; SLLW's msb gadget is guarded by `is_sllw`.
     /// `c` is the shift source (its low u16 is the amount); `a` is the result.
-    #[allow(clippy::too_many_arguments)]
     pub fn witgen<WB: crate::air::WitnessBuilder>(
         wb: &mut WB,
         cols: &mut ShiftLeftCols<WB::Field, M>,
-        clk: WB::Nat,
-        pc: WB::Nat,
-        a: WB::Nat,
-        b: WB::Nat,
-        c: WB::Nat,
-        opcode: WB::Nat,
-        imm_c: WB::Nat,
-        op_a: WB::Nat,
-        op_b: WB::Nat,
-        op_c: WB::Nat,
-        a_prev_value: WB::Nat,
-        a_prev_ts: WB::Nat,
-        a_cur_ts: WB::Nat,
-        b_prev_value: WB::Nat,
-        b_prev_ts: WB::Nat,
-        b_cur_ts: WB::Nat,
-        c_prev_value: WB::Nat,
-        c_prev_ts: WB::Nat,
-        c_cur_ts: WB::Nat,
+        input: &ShiftLeftWitgenInput<WB::Nat>,
     ) {
+        let ShiftLeftWitgenInput { clk, pc, a, b, c, opcode, adapter } = *input;
+        let imm_c = adapter.imm_c;
         let zero = wb.const_nat(0);
         let one = wb.const_nat(1);
         let zero_f = wb.nat_to_field(zero);
@@ -212,23 +214,7 @@ impl<T, M: TrustMode> ShiftLeftCols<T, M> {
         cols.sllw_msb.msb = wb.field_select(is_sllw, cols.sllw_msb.msb, zero_f);
 
         CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
-        ALUTypeReader::<WB::Field>::witgen(
-            wb,
-            &mut cols.adapter,
-            imm_c,
-            op_a,
-            a_prev_value,
-            a_prev_ts,
-            a_cur_ts,
-            op_b,
-            b_prev_value,
-            b_prev_ts,
-            b_cur_ts,
-            op_c,
-            c_prev_value,
-            c_prev_ts,
-            c_cur_ts,
-        );
+        ALUTypeReader::<WB::Field>::witgen(wb, &mut cols.adapter, &adapter);
     }
 }
 

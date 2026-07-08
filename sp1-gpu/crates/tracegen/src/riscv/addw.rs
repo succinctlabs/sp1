@@ -3,14 +3,17 @@
 //! a clean row-independent op-DAG. (Immediate-capable chips that vary `imm_c` per row
 //! are not portable through this path — see `ALUTypeReader::witgen`.)
 
+use core::borrow::BorrowMut;
+
 use rayon::prelude::*;
 use slop_alloc::mem::CopyError;
 use slop_alloc::Buffer;
 use slop_tensor::Tensor;
 use sp1_core_executor::{events::AluEvent, ALUTypeRecord};
 use sp1_core_machine::{
-    air::{columns_as_wires, RecordingWitnessBuilder, WireId},
-    alu::add_sub::addw::{AddwChip, AddwCols, NUM_ADDW_COLS_SUPERVISOR},
+    adapter::register::alu_type::ALUTypeReaderWitgenInput,
+    air::{columns_as_wires, record_witgen_inputs, WireId},
+    alu::add_sub::addw::{AddwChip, AddwCols, NUM_ADDW_COLS_SUPERVISOR, AddwWitgenInput, NUM_ADDW_WITGEN_INPUTS},
     SupervisorMode,
 };
 use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKernel};
@@ -18,74 +21,26 @@ use sp1_hypercube::air::MachineAir;
 
 use crate::{CudaTracegenAir, F};
 
-/// Number of witgen inputs per `Addw` row (see [`AddwCols::witgen`]).
-const NUM_ADDW_INPUTS: usize = 17;
-
-/// Pack each event's witgen inputs in `AddwCols::witgen` order. ADDW handles both
-/// register (ADDW) and immediate (ADDIW) op_c, so `record.c` may be `None`; the
-/// `imm_c` flag (input 16) drives the adapter's per-row branch.
+/// Pack each event into one [`AddwWitgenInput`] row. Immediate rows have no `c`
+/// register read, so those fields pack as zeros (unused on the device).
 pub(crate) fn pack_addw_inputs(events: &[(AluEvent, ALUTypeRecord)]) -> Vec<u64> {
-    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_ADDW_INPUTS];
-    inputs.par_chunks_mut(NUM_ADDW_INPUTS).zip(events.par_iter()).for_each(|(slot, (alu, r))| {
-        let a = r.a;
-        let b = r.b;
-        let (c_pv, c_pt, c_ct) = match r.c {
-            Some(c) => (
-                c.previous_record().value,
-                c.previous_record().timestamp,
-                c.current_record().timestamp,
-            ),
-            None => (0, 0, 0),
-        };
-        slot.copy_from_slice(&[
-            alu.clk,
-            alu.pc,
-            alu.b,
-            alu.c,
-            r.op_a as u64,
-            r.op_b,
-            r.op_c,
-            a.previous_record().value,
-            a.previous_record().timestamp,
-            a.current_record().timestamp,
-            b.previous_record().value,
-            b.previous_record().timestamp,
-            b.current_record().timestamp,
-            c_pv,
-            c_pt,
-            c_ct,
-            r.c.is_none() as u64,
-        ]);
+    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_ADDW_WITGEN_INPUTS];
+    inputs.par_chunks_mut(NUM_ADDW_WITGEN_INPUTS).zip(events.par_iter()).for_each(|(chunk, (alu, r))| {
+        let slot: &mut AddwWitgenInput<u64> = chunk.borrow_mut();
+        slot.clk = alu.clk;
+        slot.pc = alu.pc;
+        slot.b = alu.b;
+        slot.c = alu.c;
+        slot.adapter = ALUTypeReaderWitgenInput::from_record(r);
     });
     inputs
 }
 
 /// Record the `Addw` chip's witgen op-DAG (row-independent) + the column→wire map.
 fn record_addw_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
-    let mut rec = RecordingWitnessBuilder::new(NUM_ADDW_INPUTS as u32);
+    let (mut rec, input) = record_witgen_inputs::<AddwWitgenInput<WireId>>();
     let mut cols_w = AddwCols::<WireId, SupervisorMode>::default();
-    let wire = |i: u32| RecordingWitnessBuilder::input(i);
-    AddwCols::<WireId, SupervisorMode>::witgen(
-        &mut rec,
-        &mut cols_w,
-        wire(0),
-        wire(1),
-        wire(2),
-        wire(3),
-        wire(4),
-        wire(5),
-        wire(6),
-        wire(7),
-        wire(8),
-        wire(9),
-        wire(10),
-        wire(11),
-        wire(12),
-        wire(13),
-        wire(14),
-        wire(15),
-        wire(16),
-    );
+    AddwCols::<WireId, SupervisorMode>::witgen(&mut rec, &mut cols_w, &input);
     let program = rec.finish();
     assert!(
         program.num_wires() <= super::WITGEN_MAX_WIRES,

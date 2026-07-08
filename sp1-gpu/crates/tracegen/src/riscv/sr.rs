@@ -11,8 +11,9 @@ use slop_alloc::Buffer;
 use slop_tensor::Tensor;
 use sp1_core_executor::{events::AluEvent, ALUTypeRecord};
 use sp1_core_machine::{
-    air::{columns_as_wires, RecordingWitnessBuilder, WireId},
-    alu::sr::{ShiftRightChip, ShiftRightCols, NUM_SHIFT_RIGHT_COLS_SUPERVISOR},
+    adapter::register::alu_type::ALUTypeReaderWitgenInput,
+    air::{columns_as_wires, record_witgen_inputs, WireId},
+    alu::sr::{ShiftRightChip, ShiftRightCols, NUM_SHIFT_RIGHT_COLS_SUPERVISOR, ShiftRightWitgenInput, NUM_SHIFT_RIGHT_WITGEN_INPUTS},
     SupervisorMode,
 };
 use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKernel};
@@ -20,74 +21,28 @@ use sp1_hypercube::air::MachineAir;
 
 use crate::{CudaTracegenAir, F};
 
-/// Number of witgen inputs per `ShiftRight` row (see [`ShiftRightCols::witgen`]).
-const NUM_SR_INPUTS: usize = 19;
-
+/// Pack each event into one [`ShiftRightWitgenInput`] row. Immediate rows have no
+/// `c` register read, so those fields pack as zeros (unused on the device).
 pub(crate) fn pack_sr_inputs(events: &[(AluEvent, ALUTypeRecord)]) -> Vec<u64> {
-    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_SR_INPUTS];
-    inputs.par_chunks_mut(NUM_SR_INPUTS).zip(events.par_iter()).for_each(|(slot, (alu, r))| {
-        let a = r.a;
-        let b = r.b;
-        let (c_pv, c_pt, c_ct) = match r.c {
-            Some(c) => (
-                c.previous_record().value,
-                c.previous_record().timestamp,
-                c.current_record().timestamp,
-            ),
-            None => (0, 0, 0),
-        };
-        slot.copy_from_slice(&[
-            alu.clk,
-            alu.pc,
-            alu.a,
-            alu.b,
-            alu.c,
-            alu.opcode as u64,
-            r.c.is_none() as u64,
-            r.op_a as u64,
-            r.op_b,
-            r.op_c,
-            a.previous_record().value,
-            a.previous_record().timestamp,
-            a.current_record().timestamp,
-            b.previous_record().value,
-            b.previous_record().timestamp,
-            b.current_record().timestamp,
-            c_pv,
-            c_pt,
-            c_ct,
-        ]);
+    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_SHIFT_RIGHT_WITGEN_INPUTS];
+    inputs.par_chunks_mut(NUM_SHIFT_RIGHT_WITGEN_INPUTS).zip(events.par_iter()).for_each(|(chunk, (alu, r))| {
+        let slot: &mut ShiftRightWitgenInput<u64> = chunk.borrow_mut();
+        slot.clk = alu.clk;
+        slot.pc = alu.pc;
+        slot.a = alu.a;
+        slot.b = alu.b;
+        slot.c = alu.c;
+        slot.opcode = alu.opcode as u64;
+        slot.adapter = ALUTypeReaderWitgenInput::from_record(r);
     });
     inputs
 }
 
+/// Record the `ShiftRight` chip's witgen op-DAG (row-independent) + the column→wire map.
 fn record_sr_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
-    let mut rec = RecordingWitnessBuilder::new(NUM_SR_INPUTS as u32);
+    let (mut rec, input) = record_witgen_inputs::<ShiftRightWitgenInput<WireId>>();
     let mut cols_w = ShiftRightCols::<WireId, SupervisorMode>::default();
-    let w = |i: u32| RecordingWitnessBuilder::input(i);
-    ShiftRightCols::<WireId, SupervisorMode>::witgen(
-        &mut rec,
-        &mut cols_w,
-        w(0),
-        w(1),
-        w(2),
-        w(3),
-        w(4),
-        w(5),
-        w(6),
-        w(7),
-        w(8),
-        w(9),
-        w(10),
-        w(11),
-        w(12),
-        w(13),
-        w(14),
-        w(15),
-        w(16),
-        w(17),
-        w(18),
-    );
+    ShiftRightCols::<WireId, SupervisorMode>::witgen(&mut rec, &mut cols_w, &input);
     let program = rec.finish();
     assert!(
         program.num_wires() <= super::WITGEN_MAX_WIRES,

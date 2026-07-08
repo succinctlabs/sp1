@@ -1361,6 +1361,23 @@ pub fn columns_as_wires<C>(cols: &C) -> &[WireId] {
     unsafe { core::slice::from_raw_parts(cols as *const C as *const WireId, n) }
 }
 
+/// Start recording a gadget whose inputs are described by the `#[repr(C)]`
+/// (`AlignedBorrow`) witgen-input struct `I` instantiated at `T = WireId`: returns
+/// the builder (with `num_inputs` = the struct's field count) and the input view —
+/// wires `0..N` cast to `I`, so struct field order IS the packed input layout. The
+/// input-side dual of [`columns_as_wires`]: a backend packs each event into one
+/// `I<u64>` row and the recorder reads the same struct over wires, so the pack
+/// order, the kernel input layout, and the witgen signature cannot drift apart.
+pub fn record_witgen_inputs<I: Copy>() -> (RecordingWitnessBuilder, I)
+where
+    [WireId]: core::borrow::Borrow<I>,
+{
+    let n = core::mem::size_of::<I>() / core::mem::size_of::<WireId>();
+    let wires: Vec<WireId> = (0..n as u32).map(RecordingWitnessBuilder::input).collect();
+    let input: &I = core::borrow::Borrow::borrow(wires.as_slice());
+    (RecordingWitnessBuilder::new(n as u32), *input)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

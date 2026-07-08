@@ -3,14 +3,17 @@
 //! signed/unsigned (`is_slt`) — both handled by the conditional-execution toolkit
 //! (guard + field_select + select). Same template as `bitwise`.
 
+use core::borrow::BorrowMut;
+
 use rayon::prelude::*;
 use slop_alloc::mem::CopyError;
 use slop_alloc::Buffer;
 use slop_tensor::Tensor;
 use sp1_core_executor::{events::AluEvent, ALUTypeRecord};
 use sp1_core_machine::{
-    air::{columns_as_wires, RecordingWitnessBuilder, WireId},
-    alu::lt::{LtChip, LtCols, NUM_LT_COLS_SUPERVISOR},
+    adapter::register::alu_type::ALUTypeReaderWitgenInput,
+    air::{columns_as_wires, record_witgen_inputs, WireId},
+    alu::lt::{LtChip, LtCols, NUM_LT_COLS_SUPERVISOR, LtWitgenInput, NUM_LT_WITGEN_INPUTS},
     SupervisorMode,
 };
 use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKernel};
@@ -18,77 +21,28 @@ use sp1_hypercube::air::MachineAir;
 
 use crate::{CudaTracegenAir, F};
 
-/// Number of witgen inputs per `Lt` row (see [`LtCols::witgen`]).
-const NUM_LT_INPUTS: usize = 19;
-
-/// Pack each event's witgen inputs in `LtCols::witgen` order. Immediate rows have no
-/// `c` register read, so we pack zeros there (unused on the device).
+/// Pack each event into one [`LtWitgenInput`] row. Immediate rows have no `c`
+/// register read, so those fields pack as zeros (unused on the device).
 pub(crate) fn pack_lt_inputs(events: &[(AluEvent, ALUTypeRecord)]) -> Vec<u64> {
-    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_LT_INPUTS];
-    inputs.par_chunks_mut(NUM_LT_INPUTS).zip(events.par_iter()).for_each(|(slot, (alu, r))| {
-        let a = r.a;
-        let b = r.b;
-        let (c_pv, c_pt, c_ct) = match r.c {
-            Some(c) => (
-                c.previous_record().value,
-                c.previous_record().timestamp,
-                c.current_record().timestamp,
-            ),
-            None => (0, 0, 0),
-        };
-        slot.copy_from_slice(&[
-            alu.clk,
-            alu.pc,
-            alu.a, // result (0/1)
-            alu.b,
-            alu.c,
-            alu.opcode as u64,    // RISC-V opcode discriminant (SLT/SLTU)
-            r.c.is_none() as u64, // imm_c
-            r.op_a as u64,
-            r.op_b,
-            r.op_c,
-            a.previous_record().value,
-            a.previous_record().timestamp,
-            a.current_record().timestamp,
-            b.previous_record().value,
-            b.previous_record().timestamp,
-            b.current_record().timestamp,
-            c_pv,
-            c_pt,
-            c_ct,
-        ]);
+    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_LT_WITGEN_INPUTS];
+    inputs.par_chunks_mut(NUM_LT_WITGEN_INPUTS).zip(events.par_iter()).for_each(|(chunk, (alu, r))| {
+        let slot: &mut LtWitgenInput<u64> = chunk.borrow_mut();
+        slot.clk = alu.clk;
+        slot.pc = alu.pc;
+        slot.a = alu.a; // result (0/1)
+        slot.b = alu.b;
+        slot.c = alu.c;
+        slot.opcode = alu.opcode as u64; // SLT/SLTU
+        slot.adapter = ALUTypeReaderWitgenInput::from_record(r);
     });
     inputs
 }
 
 /// Record the `Lt` chip's witgen op-DAG (row-independent) + the column→wire map.
 fn record_lt_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
-    let mut rec = RecordingWitnessBuilder::new(NUM_LT_INPUTS as u32);
+    let (mut rec, input) = record_witgen_inputs::<LtWitgenInput<WireId>>();
     let mut cols_w = LtCols::<WireId, SupervisorMode>::default();
-    let w = |i: u32| RecordingWitnessBuilder::input(i);
-    LtCols::<WireId, SupervisorMode>::witgen(
-        &mut rec,
-        &mut cols_w,
-        w(0),
-        w(1),
-        w(2),
-        w(3),
-        w(4),
-        w(5),
-        w(6),
-        w(7),
-        w(8),
-        w(9),
-        w(10),
-        w(11),
-        w(12),
-        w(13),
-        w(14),
-        w(15),
-        w(16),
-        w(17),
-        w(18),
-    );
+    LtCols::<WireId, SupervisorMode>::witgen(&mut rec, &mut cols_w, &input);
     let program = rec.finish();
     assert!(
         program.num_wires() <= super::WITGEN_MAX_WIRES,

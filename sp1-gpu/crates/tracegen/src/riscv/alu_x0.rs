@@ -2,14 +2,17 @@
 //! instructions writing to `x0`, whose result is discarded). No operation gadget —
 //! just the opcode column + the `ALUTypeReader` adapter (per-row immediate).
 
+use core::borrow::BorrowMut;
+
 use rayon::prelude::*;
 use slop_alloc::mem::CopyError;
 use slop_alloc::Buffer;
 use slop_tensor::Tensor;
 use sp1_core_executor::{events::AluEvent, ALUTypeRecord};
 use sp1_core_machine::{
-    air::{columns_as_wires, RecordingWitnessBuilder, WireId},
-    alu::alu_x0::{AluX0Chip, AluX0Cols, NUM_ALU_X0_COLS_SUPERVISOR},
+    adapter::register::alu_type::ALUTypeReaderWitgenInput,
+    air::{columns_as_wires, record_witgen_inputs, WireId},
+    alu::alu_x0::{AluX0Chip, AluX0Cols, NUM_ALU_X0_COLS_SUPERVISOR, AluX0WitgenInput, NUM_ALU_X0_WITGEN_INPUTS},
     SupervisorMode,
 };
 use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKernel};
@@ -17,68 +20,25 @@ use sp1_hypercube::air::MachineAir;
 
 use crate::{CudaTracegenAir, F};
 
-/// Number of witgen inputs per `AluX0` row (see [`AluX0Cols::witgen`]).
-const NUM_ALU_X0_INPUTS: usize = 16;
-
+/// Pack each event into one [`AluX0WitgenInput`] row. Immediate rows have no `c`
+/// register read, so those fields pack as zeros (unused on the device).
 pub(crate) fn pack_alu_x0_inputs(events: &[(AluEvent, ALUTypeRecord)]) -> Vec<u64> {
-    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_ALU_X0_INPUTS];
-    inputs.par_chunks_mut(NUM_ALU_X0_INPUTS).zip(events.par_iter()).for_each(|(slot, (alu, r))| {
-        let a = r.a;
-        let b = r.b;
-        let (c_pv, c_pt, c_ct) = match r.c {
-            Some(c) => (
-                c.previous_record().value,
-                c.previous_record().timestamp,
-                c.current_record().timestamp,
-            ),
-            None => (0, 0, 0),
-        };
-        slot.copy_from_slice(&[
-            alu.clk,
-            alu.pc,
-            alu.opcode as u64,
-            r.c.is_none() as u64,
-            r.op_a as u64,
-            r.op_b,
-            r.op_c,
-            a.previous_record().value,
-            a.previous_record().timestamp,
-            a.current_record().timestamp,
-            b.previous_record().value,
-            b.previous_record().timestamp,
-            b.current_record().timestamp,
-            c_pv,
-            c_pt,
-            c_ct,
-        ]);
+    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_ALU_X0_WITGEN_INPUTS];
+    inputs.par_chunks_mut(NUM_ALU_X0_WITGEN_INPUTS).zip(events.par_iter()).for_each(|(chunk, (alu, r))| {
+        let slot: &mut AluX0WitgenInput<u64> = chunk.borrow_mut();
+        slot.clk = alu.clk;
+        slot.pc = alu.pc;
+        slot.opcode = alu.opcode as u64;
+        slot.adapter = ALUTypeReaderWitgenInput::from_record(r);
     });
     inputs
 }
 
+/// Record the `AluX0` chip's witgen op-DAG (row-independent) + the column→wire map.
 fn record_alu_x0_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
-    let mut rec = RecordingWitnessBuilder::new(NUM_ALU_X0_INPUTS as u32);
+    let (mut rec, input) = record_witgen_inputs::<AluX0WitgenInput<WireId>>();
     let mut cols_w = AluX0Cols::<WireId, SupervisorMode>::default();
-    let w = |i: u32| RecordingWitnessBuilder::input(i);
-    AluX0Cols::<WireId, SupervisorMode>::witgen(
-        &mut rec,
-        &mut cols_w,
-        w(0),
-        w(1),
-        w(2),
-        w(3),
-        w(4),
-        w(5),
-        w(6),
-        w(7),
-        w(8),
-        w(9),
-        w(10),
-        w(11),
-        w(12),
-        w(13),
-        w(14),
-        w(15),
-    );
+    AluX0Cols::<WireId, SupervisorMode>::witgen(&mut rec, &mut cols_w, &input);
     let program = rec.finish();
     assert!(
         program.num_wires() <= super::WITGEN_MAX_WIRES,

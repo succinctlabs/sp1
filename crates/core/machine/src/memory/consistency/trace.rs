@@ -1,11 +1,34 @@
 use slop_algebra::PrimeField32;
 use sp1_core_executor::events::{ByteRecord, MemoryRecordEnum, PageProtRecord};
+use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
 
 use super::{
     MemoryAccessCols, MemoryAccessColsU8, MemoryAccessTimestamp, PageProtAccessCols,
     RegisterAccessCols, RegisterAccessTimestamp,
 };
+
+/// Witgen inputs of one memory/register access ([`RegisterAccessCols::witgen`] and
+/// [`MemoryAccessCols::witgen`] operands), for nesting inside chip-level witgen-input
+/// structs (see `record_witgen_inputs`).
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct MemoryAccessWitgenInput<T> {
+    pub prev_value: T,
+    pub prev_ts: T,
+    pub cur_ts: T,
+}
+
+impl MemoryAccessWitgenInput<u64> {
+    /// Pack an executor memory-access record into witgen-input form.
+    pub fn from_record(record: MemoryRecordEnum) -> Self {
+        Self {
+            prev_value: record.previous_record().value,
+            prev_ts: record.previous_record().timestamp,
+            cur_ts: record.current_record().timestamp,
+        }
+    }
+}
 
 // Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
 impl<T> MemoryAccessCols<T> {

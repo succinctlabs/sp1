@@ -20,7 +20,7 @@ use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
-        register::alu_type::ALUTypeReader,
+        register::alu_type::{ALUTypeReader, ALUTypeReaderWitgenInput},
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
@@ -67,6 +67,20 @@ pub struct AluX0Cols<T, M: TrustMode> {
     pub selector_cols: M::AluX0SelectorCols<T>,
 }
 
+/// Witgen inputs for the `AluX0` chip: one `#[repr(C)]` row per event (see
+/// `record_witgen_inputs` — field order IS the packed input layout).
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct AluX0WitgenInput<T> {
+    pub clk: T,
+    pub pc: T,
+    pub opcode: T,
+    pub adapter: ALUTypeReaderWitgenInput<T>,
+}
+
+/// Number of witgen inputs per `AluX0` row.
+pub const NUM_ALU_X0_WITGEN_INPUTS: usize = size_of::<AluX0WitgenInput<u8>>();
+
 // Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
 impl<T, M: TrustMode> AluX0Cols<T, M> {
     /// Backend-agnostic witgen for the `AluX0` chip (ALU instructions writing to
@@ -74,48 +88,16 @@ impl<T, M: TrustMode> AluX0Cols<T, M> {
     /// `opcode` column, the `CPUState`, and the `ALUTypeReader` adapter (which
     /// handles the per-row immediate via `imm_c`). Mode-specific `selector_cols`
     /// are empty in Supervisor mode.
-    #[allow(clippy::too_many_arguments)]
     pub fn witgen<WB: crate::air::WitnessBuilder>(
         wb: &mut WB,
         cols: &mut AluX0Cols<WB::Field, M>,
-        clk: WB::Nat,
-        pc: WB::Nat,
-        opcode: WB::Nat,
-        imm_c: WB::Nat,
-        op_a: WB::Nat,
-        op_b: WB::Nat,
-        op_c: WB::Nat,
-        a_prev_value: WB::Nat,
-        a_prev_ts: WB::Nat,
-        a_cur_ts: WB::Nat,
-        b_prev_value: WB::Nat,
-        b_prev_ts: WB::Nat,
-        b_cur_ts: WB::Nat,
-        c_prev_value: WB::Nat,
-        c_prev_ts: WB::Nat,
-        c_cur_ts: WB::Nat,
+        input: &AluX0WitgenInput<WB::Nat>,
     ) {
         let one = wb.const_nat(1);
         cols.is_real = wb.nat_to_field(one);
-        cols.opcode = wb.nat_to_field(opcode);
-        CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
-        ALUTypeReader::<WB::Field>::witgen(
-            wb,
-            &mut cols.adapter,
-            imm_c,
-            op_a,
-            a_prev_value,
-            a_prev_ts,
-            a_cur_ts,
-            op_b,
-            b_prev_value,
-            b_prev_ts,
-            b_cur_ts,
-            op_c,
-            c_prev_value,
-            c_prev_ts,
-            c_cur_ts,
-        );
+        cols.opcode = wb.nat_to_field(input.opcode);
+        CPUState::<WB::Field>::witgen(wb, &mut cols.state, input.clk, input.pc);
+        ALUTypeReader::<WB::Field>::witgen(wb, &mut cols.adapter, &input.adapter);
     }
 }
 
