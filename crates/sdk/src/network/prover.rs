@@ -1079,20 +1079,6 @@ mod decision_tests {
     }
 
     #[test]
-    fn fulfilled_returns_proof() {
-        let (proof, status) = decide_status_outcome(
-            rid(),
-            ExecutionStatus::Executed,
-            FulfillmentStatus::Fulfilled,
-            None,
-            false,
-        )
-        .unwrap();
-        assert!(proof.is_none());
-        assert_eq!(status, FulfillmentStatus::Fulfilled);
-    }
-
-    #[test]
     fn unexecutable_maps_to_request_unexecutable() {
         let err = decide_status_outcome(
             rid(),

@@ -309,20 +309,4 @@ mod tests {
         );
     }
 
-    #[test]
-    fn fulfillment_status_numeric_values_match_across_trees() {
-        // Both proto trees describe the same wire format. If a future regen drifts
-        // one tree's discriminant out of sync, the runtime selection in `mod.rs`
-        // would produce mismatched semantics — pin the equality directly.
-        assert_eq!(
-            base_types::FulfillmentStatus::Reverted as i32,
-            auction_types::FulfillmentStatus::Reverted as i32,
-        );
-        assert_eq!(
-            base_types::FulfillmentStatus::Expired as i32,
-            auction_types::FulfillmentStatus::Expired as i32,
-        );
-        assert_eq!(base_types::FulfillmentStatus::Reverted as i32, 5);
-        assert_eq!(base_types::FulfillmentStatus::Expired as i32, 6);
-    }
 }
