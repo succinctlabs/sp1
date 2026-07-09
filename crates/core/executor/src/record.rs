@@ -813,7 +813,14 @@ impl ExecutionRecord {
         let cpu_local_memory_access =
             extract_vec!(cpu_local_memory_access, cpu_local_memory_access_len);
         let syscall = extract_vec!(syscall_events, syscall_events_len);
-        let bump_memory = extract_vec!(bump_memory_events, bump_memory_events_len);
+        // Do NOT carve `bump_memory_events` into the APC block records. The APC chip fills its
+        // columns only from the block's *instruction* chips (see `chip.rs`), so a `MemoryBump`
+        // dummy trace generated from a carved bump is discarded and the bump's bus interaction is
+        // lost. Leaving every bump in the main record lets the main `MemoryBump` chip emit it,
+        // matching the APC's re-anchored register receive (`RegisterAccessTimestamp` re-anchors
+        // `prev_low -> 0` on an epoch crossing). Each APC record therefore gets an empty bump vec.
+        let bump_memory: Vec<Vec<(MemoryRecordEnum, u64, bool)>> =
+            calls.iter().map(|_| Vec::new()).collect();
         let bump_state = extract_vec!(bump_state_events, bump_state_events_len);
         let global_interaction_event_count = extract_diff(
             &mut self.global_interaction_event_count,
