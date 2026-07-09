@@ -2401,5 +2401,13 @@ mod tests {
             !record.bump_memory_events.is_empty(),
             "Expected a register bump event emitted to the MemoryBump chip for the crossing"
         );
+        // ...and that bump must stay in the MAIN record: the APC chip fills its columns only from
+        // block-instruction chips, so a bump carved into the APC block record is silently dropped
+        // (the APC emits no MemoryBump interaction), which would leave the re-anchored register
+        // receive unmatched on the memory bus. Guard that no APC record carries a carved bump.
+        assert!(
+            record.apc_events.events.values().all(|e| e.record.bump_memory_events.is_empty()),
+            "APC block records must not carry carved bump events (they belong in the main record)"
+        );
     }
 }
