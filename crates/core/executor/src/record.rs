@@ -660,7 +660,6 @@ impl ExecutionRecord {
             syscall_events_len: self.syscall_events.len(),
             apc_events_len: self.apc_events.len(),
             global_interaction_event_count: self.global_interaction_event_count,
-            bump_memory_events_len: self.bump_memory_events.len(),
             bump_state_events_len: self.bump_state_events.len(),
             instruction_fetch_events_len: self.instruction_fetch_events.len(),
             instruction_decode_events_len: self.instruction_decode_events.len(),
