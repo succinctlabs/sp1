@@ -1,0 +1,22 @@
+[package]
+name = "hello-c-script"
+description = "Host-side script: builds the hello-c C-ABI guest, executes it under SP1 (with optional proving), and verifies the public output matches the input."
+version = { workspace = true }
+edition = { workspace = true }
+publish = false
+
+[[bin]]
+name = "hello-c-execute"
+path = "src/execute.rs"
+
+[[bin]]
+name = "hello-c-prove"
+path = "src/prove.rs"
+
+[dependencies]
+sp1-sdk = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[build-dependencies]
+zkevm-c-build = { path = "../../c-build" }

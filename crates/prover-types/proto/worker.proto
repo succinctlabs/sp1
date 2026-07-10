@@ -116,6 +116,12 @@ message OpenRequest {
     string worker_id = 1;
     WorkerType worker_type = 2;
     uint32 max_weight = 3;
+    // Self-reported build identity of this worker, included in the cluster component
+    // manifest the coordinator publishes (cluster.SetClusterComponentInfo). Additive
+    // fields; workers that do not report leave them empty.
+    string version = 4;
+    string git_sha = 5;
+    string image_tag = 6;
 }
 
 message ServerMessage {
@@ -283,6 +289,18 @@ message GetStatsResponse {
     uint32 gpu_queue = 13;
     uint32 active_subscribers = 14;
 }
+
+// Self-reported build identity of a single cluster component (the coordinator or a worker).
+// Keyed by build identity (component + version/git_sha/image_tag); per-instance identity is not
+// reported here (the coordinator tracks workers by OpenRequest.worker_id internally).
+message ClusterComponentInfo {
+    // The component kind: "coordinator", "gpu-node", or "cpu-node".
+    string component = 1;
+    string version = 2;
+    string git_sha = 3;
+    string image_tag = 4;
+}
+
 
 // Message channel RPCs
 

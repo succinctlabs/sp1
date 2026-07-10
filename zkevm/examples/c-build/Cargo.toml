@@ -1,0 +1,14 @@
+[package]
+name = "zkevm-c-build"
+description = "Shared `build.rs` helper for the C example scripts under `zkevm/examples/`. Builds libzkevm.a via sp1-build, compiles the program's `main.c` with clang, and links it with ld.lld against `zkvm.ld`."
+version = { workspace = true }
+edition = { workspace = true }
+publish = false
+
+[dependencies]
+sp1-build = { workspace = true }
+
+# (We used to also have `sp1-build` here for `build_program`, an
+# inline `find_lld()`, and the clang flag list. All of those are now
+# in `sp1-build` itself — see `find_lld`, `CLANG_FLAGS`, and
+# `build_program_staticlib`.)
