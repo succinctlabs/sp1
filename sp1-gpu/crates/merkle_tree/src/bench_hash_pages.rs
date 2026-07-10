@@ -175,7 +175,7 @@ fn bench_gpu_hash_pages() {
                     correct = false;
                     eprintln!(
                         "MISMATCH at page {i}: GPU={:?}, CPU={:?}",
-                        gpu_digest, &cpu_digests[i]
+                        gpu_digest, cpu_digests[i]
                     );
                     break;
                 }
