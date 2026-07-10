@@ -56,9 +56,6 @@ service WorkerService {
     // Get stats about the coordinator.
     rpc GetStats(google.protobuf.Empty) returns (GetStatsResponse);
 
-    // Get the self-reported build identity of the coordinator and every connected worker.
-    rpc GetClusterComponentInfo(GetClusterComponentInfoRequest) returns (GetClusterComponentInfoResponse);
-
     // Subscribe to a task's message stream.
     rpc SubscribeTaskMessages(SubscribeTaskMessagesRequest) returns (stream MessageStreamResponse);
 
@@ -119,8 +116,9 @@ message OpenRequest {
     string worker_id = 1;
     WorkerType worker_type = 2;
     uint32 max_weight = 3;
-    // Self-reported build identity of this worker, so the coordinator can expose it via
-    // GetClusterComponentInfo. Additive fields; workers that do not report leave them empty.
+    // Self-reported build identity of this worker, included in the cluster component
+    // manifest the coordinator publishes (cluster.SetClusterComponentInfo). Additive
+    // fields; workers that do not report leave them empty.
     string version = 4;
     string git_sha = 5;
     string image_tag = 6;
@@ -303,12 +301,6 @@ message ClusterComponentInfo {
     string image_tag = 4;
 }
 
-message GetClusterComponentInfoRequest {}
-
-message GetClusterComponentInfoResponse {
-    // The coordinator's own build followed by one entry per connected worker.
-    repeated ClusterComponentInfo components = 1;
-}
 
 // Message channel RPCs
 
