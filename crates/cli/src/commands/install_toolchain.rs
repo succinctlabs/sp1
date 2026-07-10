@@ -190,7 +190,7 @@ pub async fn download_file(
         .map_err(|e| e.to_string())?;
 
     let total_size =
-        res.content_length().ok_or(format!("Failed to get content length from '{}'", &url))?;
+        res.content_length().ok_or(format!("Failed to get content length from '{url}'"))?;
 
     let pb = ProgressBar::new(total_size);
     pb.set_style(ProgressStyle::default_bar()

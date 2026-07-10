@@ -19,7 +19,7 @@ impl CommandExecutor for Command {
             .stdout(Stdio::inherit())
             .stdin(Stdio::inherit())
             .output()
-            .with_context(|| format!("while executing `{:?}`", &self))
+            .with_context(|| format!("while executing `{self:?}`"))
             .map(|_| ())
     }
 }
