@@ -321,13 +321,11 @@ mod tests {
         println!("Time elapsed: {:?}", start.elapsed());
         let start = Instant::now();
         for i in 0..(D as usize) {
-            assert!(
-                SepticCurve::<SP1Field>::sum_checker_x(vec[i], vec[(i + 1) % D as usize], sum[i])
-                    == SepticExtension::<SP1Field>::zero()
+            assert_eq!(
+                SepticCurve::<SP1Field>::sum_checker_x(vec[i], vec[(i + 1) % D as usize], sum[i]), SepticExtension::<SP1Field>::zero()
             );
-            assert!(
-                SepticCurve::<SP1Field>::sum_checker_y(vec[i], vec[(i + 1) % D as usize], sum[i])
-                    == SepticExtension::<SP1Field>::zero()
+            assert_eq!(
+                SepticCurve::<SP1Field>::sum_checker_y(vec[i], vec[(i + 1) % D as usize], sum[i]), SepticExtension::<SP1Field>::zero()
             );
         }
         println!("Time elapsed: {:?}", start.elapsed());
