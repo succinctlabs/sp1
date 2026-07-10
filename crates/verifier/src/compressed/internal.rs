@@ -97,7 +97,7 @@ impl SP1CompressedVerifier {
 
         // Check the public values length.
         if proof.public_values.len() != PROOF_MAX_NUM_PVS {
-            return Err(MachineVerifierError::InvalidPublicValues("invalid public values length"))?;
+            Err(MachineVerifierError::InvalidPublicValues("invalid public values length"))?;
         }
 
         // Validate the public values.
@@ -117,7 +117,7 @@ impl SP1CompressedVerifier {
 
         // Verify that the vk merkle tree root in the public values matches the expected root.
         if public_values.vk_root != self.vk_merkle_root {
-            return Err(MachineVerifierError::InvalidPublicValues("vk merkle root mismatch"))?;
+            Err(MachineVerifierError::InvalidPublicValues("vk merkle root mismatch"))?;
         }
 
         // `is_complete` should be 1. This ensures that the proof is fully reduced.

@@ -1651,7 +1651,7 @@ impl<'a, M: ExecutionMode> SyscallRuntime<'a, M> for PrecompileMemory<'a, '_, M>
             local_page_prot_access.insert_record(page_idx, prev_page_prot_record, clk, prot);
         }
         assert!(self.inner.precompile_local_page_prot_access.is_some());
-        assert!(self.inner.precompile_local_page_prot_access.as_ref().unwrap().inner.len() == 1);
+        assert_eq!(self.inner.precompile_local_page_prot_access.as_ref().unwrap().inner.len(), 1);
 
         prev_page_prot_record
     }
