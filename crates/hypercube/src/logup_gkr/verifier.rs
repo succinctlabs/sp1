@@ -148,7 +148,8 @@ impl<GC: IopCtx, SC: ShardContext<GC>> LogUpGkrVerifier<GC, SC> {
             shard_chips.iter().map(|c| c.sends().len() + c.receives().len()).sum::<usize>();
         let number_of_interaction_variables = num_of_interactions.next_power_of_two().ilog2();
 
-        let expected_size = 1 << (number_of_interaction_variables + 1);
+        // The circuit output is the top `level-1` layer: always a single pair of fractions.
+        let expected_size = 2;
 
         if numerator.guts().dimensions.sizes() != [expected_size, 1]
             || denominator.guts().dimensions.sizes() != [expected_size, 1]
@@ -164,14 +165,13 @@ impl<GC: IopCtx, SC: ShardContext<GC>> LogUpGkrVerifier<GC, SC> {
             return Err(LogupGkrVerificationError::ZeroDenominator);
         }
 
-        // Verify that the cumulative sum matches the claimed one.
-        let output_cumulative_sum = numerator
-            .guts()
-            .as_slice()
-            .iter()
-            .zip_eq(denominator.guts().as_slice().iter())
-            .map(|(n, d)| *n / *d)
-            .sum::<GC::EF>();
+        // Combine the two output fractions into the final numerator/denominator and verify the
+        // cumulative sum with a single division (replacing the per-interaction division sum).
+        let num_slice = numerator.guts().as_slice();
+        let den_slice = denominator.guts().as_slice();
+        let output_numerator = num_slice[0] * den_slice[1] + num_slice[1] * den_slice[0];
+        let output_denominator = den_slice[0] * den_slice[1];
+        let output_cumulative_sum = output_numerator / output_denominator;
         if output_cumulative_sum != cumulative_sum {
             return Err(LogupGkrVerificationError::CumulativeSumMismatch(
                 output_cumulative_sum,
@@ -179,12 +179,12 @@ impl<GC: IopCtx, SC: ShardContext<GC>> LogUpGkrVerifier<GC, SC> {
             ));
         }
 
-        // Assert that the size of the first layer matches the expected one.
+        // The circuit output is the top `level-1` layer with exactly one variable.
         let initial_number_of_variables = numerator.num_variables();
-        if initial_number_of_variables != number_of_interaction_variables + 1 {
+        if initial_number_of_variables != 1 {
             return Err(LogupGkrVerificationError::InvalidFirstLayerDimension(
                 initial_number_of_variables,
-                number_of_interaction_variables + 1,
+                1,
             ));
         }
         // Sample the first evaluation point.
@@ -195,7 +195,10 @@ impl<GC: IopCtx, SC: ShardContext<GC>> LogUpGkrVerifier<GC, SC> {
         let mut denominator_eval = denominator.blocking_eval_at(&first_eval_point)[0];
         let mut eval_point = first_eval_point;
 
-        if round_proofs.len() + 1 != max_log_row_count {
+        // The GKR tree now runs `number_of_interaction_variables` interaction-combining rounds
+        // (reducing the output down to the per-interaction base) followed by `max_log_row_count -
+        // 1` row rounds.
+        if round_proofs.len() != number_of_interaction_variables as usize + max_log_row_count - 1 {
             return Err(LogupGkrVerificationError::InvalidShape);
         }
 
@@ -207,13 +210,9 @@ impl<GC: IopCtx, SC: ShardContext<GC>> LogUpGkrVerifier<GC, SC> {
             if round_proof.sumcheck_proof.claimed_sum != expected_claim {
                 return Err(LogupGkrVerificationError::InconsistentSumcheckClaim(i));
             }
-            // Verify the sumcheck proof.
-            partially_verify_sumcheck_proof(
-                &round_proof.sumcheck_proof,
-                challenger,
-                i + number_of_interaction_variables as usize + 1,
-                3,
-            )?;
+            // Verify the sumcheck proof. Round `i` reduces a layer of `i + 1` variables (the
+            // interaction rounds have `1..=k` variables, the row rounds continue from `k + 1`).
+            partially_verify_sumcheck_proof(&round_proof.sumcheck_proof, challenger, i + 1, 3)?;
             // Verify that the evaluation claim is consistent with the prover messages.
             let (point, final_eval) = round_proof.sumcheck_proof.point_and_eval.clone();
             let eq_eval = Mle::full_lagrange_eval(&point, &eval_point);

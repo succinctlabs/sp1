@@ -2,7 +2,8 @@ use slop_alloc::{Buffer, HasBackend};
 use sp1_gpu_cudart::{
     args,
     sys::kernels::{
-        logup_gkr_circuit_transition, logup_gkr_extract_output, logup_gkr_first_layer_transition,
+        logup_gkr_build_interaction_layer, logup_gkr_circuit_transition, logup_gkr_extract_output,
+        logup_gkr_first_layer_transition,
     },
     DeviceMle,
 };
@@ -132,6 +133,70 @@ pub fn gkr_transition<'a>(layer: &GkrCircuitLayer<'a>) -> GkrCircuitLayer<'a> {
 pub struct DeviceLogUpGkrOutput<Ext> {
     pub numerator: DeviceMle<Ext>,
     pub denominator: DeviceMle<Ext>,
+}
+
+/// The interaction-combining layers plus the level-1 output produced from a `2^(k+1)` base.
+pub struct DeviceInteractionLayers {
+    /// One dense `[4, 2^(k-j)]` interaction layer per combine step, in build order (finest
+    /// children first). `layers[j]` holds `n0 || n1 || d0 || d1` for the level with `2^(k-j)`
+    /// parent fractions; the round that consumes it has `k - j` sumcheck variables.
+    pub layers: Vec<Tensor<Ext, sp1_gpu_cudart::TaskScope>>,
+    /// The level-1 output: a single pair of fractions (each MLE has 2 entries / 1 variable).
+    pub output: DeviceLogUpGkrOutput<Ext>,
+}
+
+/// Tree-combines the interaction dimension of the `2^(num_interaction_variables + 1)` base all the
+/// way down to a single pair of fractions (the level-1 output), materializing an interaction layer
+/// for every combine step so the standalone interaction-combining GKR rounds can be proved on the
+/// device.
+pub fn build_interaction_layers(
+    base: DeviceLogUpGkrOutput<Ext>,
+    num_interaction_variables: u32,
+) -> DeviceInteractionLayers {
+    let DeviceLogUpGkrOutput { numerator, denominator } = base;
+    let mut cur_numerator = numerator;
+    let mut cur_denominator = denominator;
+    let mut len = 1usize << (num_interaction_variables + 1);
+
+    let mut layers = Vec::with_capacity(num_interaction_variables as usize);
+    for _ in 0..num_interaction_variables {
+        let half = len / 2;
+        let backend = cur_numerator.backend().clone();
+
+        let mut layer = Tensor::<Ext, _>::with_sizes_in([4, half], backend.clone());
+        let mut next_numerator = DeviceMle::uninit(1, half, &backend);
+        let mut next_denominator = DeviceMle::uninit(1, half, &backend);
+
+        const BLOCK_SIZE: usize = 256;
+        let grid_size = (half.div_ceil(BLOCK_SIZE), 1, 1);
+
+        unsafe {
+            layer.assume_init();
+            next_numerator.assume_init();
+            next_denominator.assume_init();
+            let args = args!(
+                cur_numerator.guts().as_ptr(),
+                cur_denominator.guts().as_ptr(),
+                layer.as_mut_ptr(),
+                next_numerator.guts_mut().as_mut_ptr(),
+                next_denominator.guts_mut().as_mut_ptr(),
+                half
+            );
+            backend
+                .launch_kernel(logup_gkr_build_interaction_layer(), grid_size, BLOCK_SIZE, &args, 0)
+                .unwrap();
+        }
+
+        layers.push(layer);
+        cur_numerator = next_numerator;
+        cur_denominator = next_denominator;
+        len = half;
+    }
+
+    DeviceInteractionLayers {
+        layers,
+        output: DeviceLogUpGkrOutput { numerator: cur_numerator, denominator: cur_denominator },
+    }
 }
 
 /// Takes as input the input layer p_0, p_1, q_0, q_1, after finishing the circuit section and

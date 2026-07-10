@@ -23,6 +23,7 @@ use sp1_gpu_cudart::{
         logup_gkr_fix_last_variable_last_circuit_layer as fix_last_row_last_circuit_layer_kernel,
         logup_gkr_sum_as_poly_circuit_layer as sum_as_poly_circuit_layer_kernel,
         logup_gkr_sum_as_poly_first_layer as sum_as_poly_first_layer_kernel,
+        logup_gkr_sum_as_poly_interactions_layer as sum_as_poly_interactions_layer_kernel,
     },
     DeviceBuffer, DeviceTensor, TaskScope,
 };
@@ -382,8 +383,40 @@ fn sum_as_poly_materialized_round(
             }
             output
         }
-        PolynomialLayer::InteractionsLayer(_guts) => {
-            unreachable!("first sum_as_poly should always be circuit layer")
+        PolynomialLayer::InteractionsLayer(guts) => {
+            // Standalone interaction-combining round: the layer is a dense `[4, height]` tensor
+            // (`n0 || n1 || d0 || d1`) and the whole sumcheck is over the interaction dimension.
+            let height = guts.sizes()[1];
+            let output_height = height.div_ceil(2);
+            let scope = guts.backend();
+
+            const BLOCK_SIZE: usize = 256;
+            const STRIDE: usize = 32;
+            let grid_dim = height.div_ceil(BLOCK_SIZE).div_ceil(STRIDE);
+            let mut output = Tensor::<Ext, TaskScope>::with_sizes_in([3, grid_dim], scope.clone());
+            let num_tiles = BLOCK_SIZE.checked_div(STRIDE).unwrap_or(1);
+            let shared_mem = num_tiles * std::mem::size_of::<Ext>();
+            unsafe {
+                output.assume_init();
+                let args = args!(
+                    output.as_mut_ptr(),
+                    guts.as_ptr(),
+                    poly.eq_interaction.guts().as_ptr(),
+                    poly.lambda,
+                    height,
+                    output_height
+                );
+                scope
+                    .launch_kernel(
+                        sum_as_poly_interactions_layer_kernel(),
+                        grid_dim,
+                        BLOCK_SIZE,
+                        &args,
+                        shared_mem,
+                    )
+                    .unwrap();
+            }
+            output
         }
     };
 

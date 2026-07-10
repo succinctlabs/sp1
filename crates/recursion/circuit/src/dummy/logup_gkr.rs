@@ -16,22 +16,24 @@ pub fn dummy_gkr_proof<F: Field, EF: ExtensionField<F>, A: MachineAir<F>>(
 ) -> LogupGkrProof<F, EF> {
     let total_num_interactions =
         shard_chips.iter().map(|chip| chip.num_interactions()).sum::<usize>();
-    let output_size = 1 << (log2_ceil_usize(total_num_interactions) + 1);
+    let number_of_interaction_variables = log2_ceil_usize(total_num_interactions);
+    // The circuit output is the top `level-1` layer: always a single pair of fractions.
+    let output_size = 2;
     let circuit_output = LogUpGkrOutput {
         numerator: vec![EF::zero(); output_size].into(),
         denominator: vec![EF::zero(); output_size].into(),
     };
 
-    let round_proofs = (0..log_max_row_height - 1)
+    // The GKR tree runs `number_of_interaction_variables` interaction-combining rounds followed by
+    // `log_max_row_height - 1` row rounds; round `i` (0-indexed) has `i + 1` sumcheck variables.
+    let num_rounds = number_of_interaction_variables + log_max_row_height - 1;
+    let round_proofs = (0..num_rounds)
         .map(|i| LogupGkrRoundProof {
             numerator_0: EF::zero(),
             numerator_1: EF::zero(),
             denominator_0: EF::zero(),
             denominator_1: EF::zero(),
-            sumcheck_proof: dummy_sumcheck_proof::<EF>(
-                i + log2_ceil_usize(total_num_interactions) + 1,
-                3,
-            ),
+            sumcheck_proof: dummy_sumcheck_proof::<EF>(i + 1, 3),
         })
         .collect();
 
