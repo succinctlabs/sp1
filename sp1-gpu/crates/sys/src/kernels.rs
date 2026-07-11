@@ -221,6 +221,7 @@ extern "C" {
     pub fn logup_gkr_circuit_transition() -> KernelPtr;
     pub fn logup_gkr_populate_last_circuit_layer() -> KernelPtr;
     pub fn logup_gkr_extract_output() -> KernelPtr;
+    pub fn logup_gkr_build_interaction_layer() -> KernelPtr;
 
     // Logup GKR kernels - Fused fix and sum kernels
     pub fn logup_gkr_fix_and_sum_circuit_layer() -> KernelPtr;

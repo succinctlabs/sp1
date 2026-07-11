@@ -10,9 +10,10 @@ use itertools::Itertools;
 use slop_algebra::AbstractField;
 use slop_alloc::HasBackend;
 use slop_challenger::{CanObserve, FieldChallenger, IopCtx, VariableLengthChallenger};
-use slop_multilinear::{MleEval, MultilinearPcsChallenger, Point};
+use slop_multilinear::{Mle, MleEval, MultilinearPcsChallenger, Point};
+use slop_tensor::Tensor;
 use sp1_gpu_basefold::{DeviceGrindingChallenger, GrindingPowCudaProver};
-use sp1_gpu_cudart::{DevicePoint, TaskScope};
+use sp1_gpu_cudart::{DeviceMle, DevicePoint, TaskScope};
 use tracing::instrument;
 
 use sp1_hypercube::{
@@ -20,7 +21,7 @@ use sp1_hypercube::{
     LogupGkrRoundProof, GKR_GRINDING_BITS,
 };
 
-use crate::execution::DeviceLogUpGkrOutput;
+use crate::execution::{build_interaction_layers, DeviceInteractionLayers, DeviceLogUpGkrOutput};
 use sp1_gpu_utils::traces::JaggedTraceMle;
 use sp1_gpu_utils::{Ext, Felt};
 use sp1_gpu_zerocheck::primitives::round_batch_evaluations;
@@ -102,6 +103,46 @@ fn prove_first_round<C: FieldChallenger<Felt>>(
     // Produce the sumcheck proof.
     let (sumcheck_proof, openings) =
         sumcheck::first_round_sumcheck(sumcheck_poly, challenger, claim);
+    let [numerator_0, numerator_1, denominator_0, denominator_1] = openings.try_into().unwrap();
+    LogupGkrRoundProof { numerator_0, numerator_1, denominator_0, denominator_1, sumcheck_proof }
+}
+
+/// Proves a single interaction-combining GKR round on the device.
+///
+/// After the row tree finishes, the interaction dimension is combined with its own standalone GKR
+/// rounds (reducing the `2^(k+1)` base down to the level-1 output). Each such round is a degree-3
+/// sumcheck over a fully-materialized power-of-two `[4, 2^(i+1)]` interaction layer with no row
+/// dimension, so it reuses the device `materialized_round_sumcheck` (whose `InteractionsLayer`
+/// path is exercised via `sum_as_poly`/`fix_and_sum`/`fix_last_variable`).
+fn prove_interaction_round<C: FieldChallenger<Felt>>(
+    layer: Tensor<Ext, TaskScope>,
+    eval_point: &Point<Ext>,
+    numerator_eval: Ext,
+    denominator_eval: Ext,
+    challenger: &mut C,
+) -> LogupGkrRoundProof<Ext> {
+    let lambda = challenger.sample_ext_element::<Ext>();
+    let claim = numerator_eval * lambda + denominator_eval;
+
+    let backend = layer.backend().clone();
+    let point = DevicePoint::from_host(eval_point, &backend).unwrap().into_inner();
+    let eq_interaction = DevicePoint::new(point).partial_lagrange();
+    // A 0-variable row eq (a single `1`). It is never read in the `InteractionsLayer` sumcheck
+    // path; only its `num_variables() == 0` matters, so the round has exactly `i + 1` variables.
+    let eq_row = DeviceMle::from_host(&Mle::from(vec![Ext::one()]), &backend).unwrap();
+
+    let sumcheck_poly = LogupRoundPolynomial {
+        layer: PolynomialLayer::InteractionsLayer(layer),
+        eq_row,
+        eq_interaction,
+        lambda,
+        eq_adjustment: Ext::one(),
+        padding_adjustment: Ext::one(),
+        point: eval_point.clone(),
+    };
+
+    let (sumcheck_proof, openings) =
+        sumcheck::materialized_round_sumcheck(sumcheck_poly, challenger, claim);
     let [numerator_0, numerator_1, denominator_0, denominator_1] = openings.try_into().unwrap();
     LogupGkrRoundProof { numerator_0, numerator_1, denominator_0, denominator_1, sumcheck_proof }
 }
@@ -208,8 +249,10 @@ where
         chips.iter().map(|chip| chip.sends().len() + chip.receives().len()).sum::<usize>();
     let num_interaction_variables = num_interactions.next_power_of_two().ilog2();
 
-    // Run the GKR circuit and get the output.
-    let (output, circuit) = generate_gkr_circuit(
+    // Run the GKR circuit and get the base output. The device circuit reduces the row dimension
+    // all the way down but leaves the interaction dimension un-combined: `base` is the
+    // level-`(k + 1)` layer of `2^(k + 1)` per-interaction fractions (`k = num_interaction_variables`).
+    let (base_output, circuit) = generate_gkr_circuit(
         chips,
         all_interactions,
         jagged_trace_data,
@@ -219,38 +262,76 @@ where
         backend,
     );
 
+    // Tree-combine the interaction dimension on the device, materializing one `[4, .]` interaction
+    // layer per combine step and yielding the level-1 output (a single pair of fractions). The `k`
+    // interaction-combining GKR rounds are then proved on the device; the (much larger) row rounds
+    // continue via `prove_gkr_circuit`, with the running GKR claim threaded continuously across the
+    // boundary.
+    let DeviceInteractionLayers { mut layers, output } =
+        build_interaction_layers(base_output, num_interaction_variables);
+    assert_eq!(layers.len(), num_interaction_variables as usize);
+
     let DeviceLogUpGkrOutput { numerator, denominator } = &output;
 
-    // Copy the output to host and observe the claims.
+    // Copy the size-2 output to host and observe the claims.
     let host_numerator = numerator.to_host().unwrap();
     let host_denominator = denominator.to_host().unwrap();
-    challenger
-        .observe_variable_length_extension_slice(host_numerator.guts().as_buffer().as_slice());
-    challenger
-        .observe_variable_length_extension_slice(host_denominator.guts().as_buffer().as_slice());
-
+    challenger.observe_variable_length_extension_slice(host_numerator.guts().as_slice());
+    challenger.observe_variable_length_extension_slice(host_denominator.guts().as_slice());
     let output_host = LogUpGkrOutput { numerator: host_numerator, denominator: host_denominator };
 
-    // TODO: instead calculate from number of interactions.
-    let initial_number_of_variables = numerator.num_variables();
-    assert_eq!(initial_number_of_variables, num_interaction_variables + 1);
+    // The circuit output is always the level-1 layer with exactly one variable.
+    let initial_number_of_variables = 1;
     let first_eval_point = challenger.sample_point::<Ext>(initial_number_of_variables);
 
-    // Follow the GKR protocol layer by layer.
-    let first_point =
-        DevicePoint::from_host(&first_eval_point, numerator.backend()).unwrap().into_inner();
-    let first_point_eq = DevicePoint::new(first_point).partial_lagrange();
-    let first_numerator_eval = numerator.eval_at_eq(&first_point_eq).to_host_vec().unwrap()[0];
-    let first_denominator_eval = denominator.eval_at_eq(&first_point_eq).to_host_vec().unwrap()[0];
+    // Compute the first claims from the (size-2) level-1 output.
+    let mut numerator_eval = output_host.numerator.eval_at(&first_eval_point)[0];
+    let mut denominator_eval = output_host.denominator.eval_at(&first_eval_point)[0];
+    let mut eval_point = first_eval_point;
 
-    let (eval_point, round_proofs) = prove_gkr_circuit(
-        first_numerator_eval,
-        first_denominator_eval,
-        first_eval_point,
+    // Prove the interaction-combining rounds on the device. Layers are proved back-to-front (the
+    // level-1 parent first), so reverse the finest-children-first build order.
+    layers.reverse();
+    let mut round_proofs =
+        Vec::with_capacity(num_interaction_variables as usize + num_row_variables as usize);
+    for layer in layers {
+        let round_proof = prove_interaction_round(
+            layer,
+            &eval_point,
+            numerator_eval,
+            denominator_eval,
+            challenger,
+        );
+
+        // Observe the prover message.
+        challenger.observe_ext_element::<Ext>(round_proof.numerator_0);
+        challenger.observe_ext_element::<Ext>(round_proof.numerator_1);
+        challenger.observe_ext_element::<Ext>(round_proof.denominator_0);
+        challenger.observe_ext_element::<Ext>(round_proof.denominator_1);
+
+        // Thread the running claim to the next round.
+        eval_point = round_proof.sumcheck_proof.point_and_eval.0.clone();
+        let last_coordinate = challenger.sample_ext_element::<Ext>();
+        numerator_eval = round_proof.numerator_0
+            + (round_proof.numerator_1 - round_proof.numerator_0) * last_coordinate;
+        denominator_eval = round_proof.denominator_0
+            + (round_proof.denominator_1 - round_proof.denominator_0) * last_coordinate;
+        eval_point.add_dimension_back(last_coordinate);
+
+        round_proofs.push(round_proof);
+    }
+
+    // After the `k` interaction rounds `eval_point` has `k + 1` coordinates — exactly the input the
+    // first (device) row round consumes. Prove the row rounds on the device and append them.
+    let (eval_point, row_round_proofs) = prove_gkr_circuit(
+        numerator_eval,
+        denominator_eval,
+        eval_point,
         circuit,
         challenger,
         recompute_first_layer,
     );
+    round_proofs.extend(row_round_proofs);
 
     // Get the evaluations for each chip at the evaluation point of the last round.
     // We accomplish this by doing jagged fix last variable on the evaluation point.

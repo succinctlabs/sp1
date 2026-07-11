@@ -106,14 +106,20 @@ where
         challenger.observe_variable_length_extension_slice(builder, numerator.guts().as_slice());
         challenger.observe_variable_length_extension_slice(builder, denominator.guts().as_slice());
 
-        // Verify that the cumulative sum matches the claimed one.
-        let output_cumulative_sum = numerator
-            .guts()
-            .as_slice()
-            .iter()
-            .zip_eq(denominator.guts().as_slice().iter())
-            .map(|(n, d)| *n / *d)
-            .sum::<SymbolicExt<SP1Field, SP1ExtensionField>>();
+        // The circuit output is the top `level-1` layer: always a single pair of fractions
+        // (a size-2 MLE for numerator and for denominator). The shape is fixed for the proof,
+        // so this is a host-side structural check.
+        assert_eq!(numerator.guts().dimensions.sizes(), [2, 1]);
+        assert_eq!(denominator.guts().dimensions.sizes(), [2, 1]);
+
+        // Combine the two output fractions into the final numerator/denominator and verify the
+        // cumulative sum with a single division (replacing the per-interaction division sum). The
+        // in-circuit division implicitly rejects a zero denominator (no inverse witness exists).
+        let num_slice = numerator.guts().as_slice();
+        let den_slice = denominator.guts().as_slice();
+        let output_numerator = num_slice[0] * den_slice[1] + num_slice[1] * den_slice[0];
+        let output_denominator = den_slice[0] * den_slice[1];
+        let output_cumulative_sum = output_numerator / output_denominator;
         // Assert that the cumulative sum matches the claimed one.
         builder.assert_ext_eq(output_cumulative_sum, cumulative_sum);
 
@@ -122,10 +128,16 @@ where
             shard_chips.iter().map(|c| c.sends().len() + c.receives().len()).sum::<usize>();
         let number_of_interaction_variables = num_of_interactions.next_power_of_two().ilog2();
 
-        // Assert that the size of the first layer matches the expected one.
-        let initial_number_of_variables = number_of_interaction_variables + 1;
-        // let initial_number_of_variables = numerator.num_variables();
-        // assert_eq!(initial_number_of_variables, number_of_interaction_variables + 1);
+        // The circuit output is the top `level-1` layer with exactly one variable.
+        let initial_number_of_variables = 1;
+
+        // The GKR tree now runs `number_of_interaction_variables` interaction-combining rounds
+        // (reducing the output down to the per-interaction base) followed by `max_log_row_count -
+        // 1` row rounds.
+        assert_eq!(
+            round_proofs.len(),
+            number_of_interaction_variables as usize + max_log_row_count - 1
+        );
 
         // Sample the first evaluation point.
         let first_eval_point = challenger.sample_point(builder, initial_number_of_variables);

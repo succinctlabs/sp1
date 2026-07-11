@@ -92,10 +92,6 @@ impl<GC: IopCtx, SC: ShardContext<GC>> GkrProverImpl<GC, SC> {
             .collect::<Point<_>>();
         let _pv_challenge = challenger.sample_ext_element::<GC::EF>();
 
-        let num_interactions =
-            chips.iter().map(|chip| chip.sends().len() + chip.receives().len()).sum::<usize>();
-        let num_interaction_variables = num_interactions.next_power_of_two().ilog2();
-
         #[cfg(sp1_debug_constraints)]
         {
             use crate::{
@@ -154,9 +150,10 @@ impl<GC: IopCtx, SC: ShardContext<GC>> GkrProverImpl<GC, SC> {
         let output_host =
             LogUpGkrOutput { numerator: host_numerator, denominator: host_denominator };
 
-        // TODO: instead calculate from number of interactions.
+        // The circuit output is the top `level-1` layer: a single pair of fractions (dimension 2,
+        // i.e. one variable).
         let initial_number_of_variables = numerator.num_variables();
-        assert_eq!(initial_number_of_variables, num_interaction_variables + 1);
+        assert_eq!(initial_number_of_variables, 1);
         let first_eval_point = challenger.sample_point::<GC::EF>(initial_number_of_variables);
 
         // Follow the GKR protocol layer by layer.

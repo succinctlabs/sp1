@@ -1149,6 +1149,7 @@ mod tests {
             let next_layer = match layers.last().unwrap() {
                 GkrCircuitLayer::Layer(layer) => trace_generator.layer_transition(layer),
                 GkrCircuitLayer::FirstLayer(layer) => trace_generator.layer_transition(layer),
+                GkrCircuitLayer::InteractionLayer(_) => unreachable!(),
             };
             layers.push(GkrCircuitLayer::Layer(next_layer));
         }
@@ -1249,5 +1250,138 @@ mod tests {
             denominator_eval = round_proof.denominator_0
                 + (round_proof.denominator_1 - round_proof.denominator_0) * last_coordinate;
         }
+    }
+
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn test_logup_gkr_interaction_rounds() {
+        type GC = sp1_primitives::SP1GlobalContext;
+        let get_challenger = move || GC::default_challenger();
+        let mut rng = thread_rng();
+
+        // `num_interaction_variables`.
+        let k = 3usize;
+        let base_len = 1usize << (k + 1);
+
+        // A random base of `2^(k+1)` fractions, as produced by the row tree (`extract_outputs`).
+        let base_numerator: Vec<EF> = (0..base_len).map(|_| rng.gen::<EF>()).collect();
+        let base_denominator: Vec<EF> = (0..base_len).map(|_| rng.gen::<EF>()).collect();
+
+        // Build the interaction-combining layers and the `level-1` output, mirroring
+        // `generate_gkr_circuit`.
+        let mut cur_numerator = base_numerator.clone();
+        let mut cur_denominator = base_denominator.clone();
+        let mut layers: Vec<GkrCircuitLayer<F, EF>> = Vec::new();
+        for _ in 0..k {
+            let half = cur_numerator.len() / 2;
+            let mut numerator_0 = Vec::with_capacity(half);
+            let mut numerator_1 = Vec::with_capacity(half);
+            let mut denominator_0 = Vec::with_capacity(half);
+            let mut denominator_1 = Vec::with_capacity(half);
+            let mut next_numerator = Vec::with_capacity(half);
+            let mut next_denominator = Vec::with_capacity(half);
+            for i in 0..half {
+                let (n0, n1) = (cur_numerator[2 * i], cur_numerator[2 * i + 1]);
+                let (d0, d1) = (cur_denominator[2 * i], cur_denominator[2 * i + 1]);
+                numerator_0.push(n0);
+                numerator_1.push(n1);
+                denominator_0.push(d0);
+                denominator_1.push(d1);
+                next_numerator.push(n0 * d1 + n1 * d0);
+                next_denominator.push(d0 * d1);
+            }
+            layers.push(GkrCircuitLayer::InteractionLayer(InteractionLayer {
+                numerator_0: Arc::new(Mle::from(numerator_0)),
+                numerator_1: Arc::new(Mle::from(numerator_1)),
+                denominator_0: Arc::new(Mle::from(denominator_0)),
+                denominator_1: Arc::new(Mle::from(denominator_1)),
+            }));
+            cur_numerator = next_numerator;
+            cur_denominator = next_denominator;
+        }
+
+        // The output is the `level-1` layer of dimension 2.
+        assert_eq!(cur_numerator.len(), 2);
+        let output_numerator = Mle::from(cur_numerator.clone());
+        let output_denominator = Mle::from(cur_denominator.clone());
+
+        // The combined root fraction must equal the sum of all base fractions.
+        let root_numerator =
+            cur_numerator[0] * cur_denominator[1] + cur_numerator[1] * cur_denominator[0];
+        let root_denominator = cur_denominator[0] * cur_denominator[1];
+        let expected_cumulative_sum =
+            base_numerator.iter().zip_eq(base_denominator.iter()).map(|(n, d)| *n / *d).sum::<EF>();
+        assert_eq!(root_numerator / root_denominator, expected_cumulative_sum);
+
+        // Layers are proved back-to-front (parent `level-1` first).
+        layers.reverse();
+
+        // Prove.
+        let first_eval_point = Point::<EF>::rand(&mut rng, 1);
+        let mut challenger = get_challenger();
+        let mut numerator_eval = output_numerator.eval_at(&first_eval_point)[0];
+        let mut denominator_eval = output_denominator.eval_at(&first_eval_point)[0];
+        let mut eval_point = first_eval_point.clone();
+        let mut round_proofs = Vec::new();
+        for layer in layers {
+            let round_proof = prove_gkr_round(
+                layer,
+                &eval_point,
+                numerator_eval,
+                denominator_eval,
+                &mut challenger,
+            );
+            challenger.observe_ext_element(round_proof.numerator_0);
+            challenger.observe_ext_element(round_proof.numerator_1);
+            challenger.observe_ext_element(round_proof.denominator_0);
+            challenger.observe_ext_element(round_proof.denominator_1);
+            eval_point = round_proof.sumcheck_proof.point_and_eval.0.clone();
+            let last_coordinate = challenger.sample_ext_element::<EF>();
+            numerator_eval = round_proof.numerator_0
+                + (round_proof.numerator_1 - round_proof.numerator_0) * last_coordinate;
+            denominator_eval = round_proof.denominator_0
+                + (round_proof.denominator_1 - round_proof.denominator_0) * last_coordinate;
+            eval_point.add_dimension_back(last_coordinate);
+            round_proofs.push(round_proof);
+        }
+
+        // Verify.
+        let mut challenger = get_challenger();
+        let mut numerator_eval = output_numerator.eval_at(&first_eval_point)[0];
+        let mut denominator_eval = output_denominator.eval_at(&first_eval_point)[0];
+        let mut eval_point = first_eval_point;
+        for (i, round_proof) in round_proofs.iter().enumerate() {
+            let lambda = challenger.sample_ext_element::<EF>();
+            let expected_claim = numerator_eval * lambda + denominator_eval;
+            assert_eq!(round_proof.sumcheck_proof.claimed_sum, expected_claim);
+            partially_verify_sumcheck_proof(&round_proof.sumcheck_proof, &mut challenger, i + 1, 3)
+                .unwrap();
+            let (point, final_eval) = round_proof.sumcheck_proof.point_and_eval.clone();
+            let eq_eval = Mle::full_lagrange_eval(&point, &eval_point);
+            let numerator_sumcheck_eval = round_proof.numerator_0 * round_proof.denominator_1
+                + round_proof.numerator_1 * round_proof.denominator_0;
+            let denominator_sumcheck_eval = round_proof.denominator_0 * round_proof.denominator_1;
+            let expected_final_eval =
+                eq_eval * (numerator_sumcheck_eval * lambda + denominator_sumcheck_eval);
+            assert_eq!(final_eval, expected_final_eval, "failed at round {i}");
+            challenger.observe_ext_element(round_proof.numerator_0);
+            challenger.observe_ext_element(round_proof.numerator_1);
+            challenger.observe_ext_element(round_proof.denominator_0);
+            challenger.observe_ext_element(round_proof.denominator_1);
+            eval_point = round_proof.sumcheck_proof.point_and_eval.0.clone();
+            let last_coordinate = challenger.sample_ext_element::<EF>();
+            eval_point.add_dimension_back(last_coordinate);
+            numerator_eval = round_proof.numerator_0
+                + (round_proof.numerator_1 - round_proof.numerator_0) * last_coordinate;
+            denominator_eval = round_proof.denominator_0
+                + (round_proof.denominator_1 - round_proof.denominator_0) * last_coordinate;
+        }
+
+        // After all interaction rounds the claim must equal the base evaluated at the final point
+        // (this is exactly where the row rounds take over in the full protocol).
+        let base_numerator_mle = Mle::from(base_numerator);
+        let base_denominator_mle = Mle::from(base_denominator);
+        assert_eq!(numerator_eval, base_numerator_mle.eval_at(&eval_point)[0]);
+        assert_eq!(denominator_eval, base_denominator_mle.eval_at(&eval_point)[0]);
     }
 }
