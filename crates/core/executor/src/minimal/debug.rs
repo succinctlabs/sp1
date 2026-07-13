@@ -474,7 +474,7 @@ pub fn dump_elf_syscall(
                 .collect();
             // When a new value is present, use it to replace current value
             for (addr, new_value) in new_values.range(aligned_start_address..aligned_end_address) {
-                assert!(addr % 8 == 0);
+                assert_eq!(addr % 8, 0);
                 let index = (addr - aligned_start_address) / 8;
                 values[index as usize] = *new_value;
             }

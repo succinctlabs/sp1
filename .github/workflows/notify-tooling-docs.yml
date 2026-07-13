@@ -1,0 +1,33 @@
+name: Notify tooling to refresh its knowledge base
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  notify-tooling:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mint docbot App token (scoped to tooling)
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.DOCBOT_APP_ID }}
+          private-key: ${{ secrets.DOCBOT_PRIVATE_KEY }}
+          owner: succinctlabs
+          repositories: tooling
+
+      - name: Dispatch to tooling
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          SRC_REPO: ${{ github.event.repository.name }}
+          PR_NUM: ${{ github.event.pull_request.number }}
+        run: |
+          gh api repos/succinctlabs/tooling/dispatches \
+            -f event_type=upstream-pr-merged \
+            -f "client_payload[url]=$PR_URL" \
+            -f "client_payload[repo]=$SRC_REPO" \
+            -F "client_payload[number]=$PR_NUM"
