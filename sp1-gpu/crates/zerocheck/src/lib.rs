@@ -991,7 +991,7 @@ pub mod tests {
             .unwrap();
 
         // Observe the openings
-        for (_, opening) in opened_values.chips.iter() {
+        for opening in opened_values.chips.values() {
             challenger.observe_variable_length_extension_slice(&opening.preprocessed.local);
             challenger.observe_variable_length_extension_slice(&opening.main.local);
         }

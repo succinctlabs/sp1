@@ -340,7 +340,7 @@ impl Elf {
                     })
                     .or_insert_with(|| word);
             } else {
-                assert!(addr % 8 == 4);
+                assert_eq!(addr % 8, 4);
                 image
                     .entry(addr - 4)
                     .and_modify(|value| {
