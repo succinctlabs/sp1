@@ -67,7 +67,6 @@ impl<T> MulOperation<T> {
     /// 16-byte product `b*c` (with per-row sign extension) via a byte-level
     /// convolution in nat-space, plus the MSB/range lookups. `b`, `c` are the u64
     /// operands; the mode flags are per-row 0/1 nats.
-    #[allow(clippy::too_many_arguments)]
     pub fn witgen<WB: crate::air::WitnessBuilder>(
         wb: &mut WB,
         cols: &mut MulOperation<WB::Field>,

@@ -172,6 +172,7 @@ impl CudaTracegenAir<F> for SyscallInstrsChip<SupervisorMode> {
 #[cfg(test)]
 mod tests {
     use rand::{rngs::StdRng, Rng, SeedableRng};
+    use slop_tensor::Tensor;
     use sp1_core_executor::events::{
         MemoryReadRecord, MemoryRecordEnum, MemoryWriteRecord, SyscallEvent,
     };
@@ -185,6 +186,7 @@ mod tests {
         columns::NUM_SYSCALL_INSTR_COLS_SUPERVISOR, SyscallInstrsChip,
     };
     use sp1_core_machine::SupervisorMode;
+    use sp1_gpu_cudart::TaskScope;
     use sp1_hypercube::air::MachineAir;
 
     use crate::F;
@@ -355,5 +357,66 @@ mod tests {
         );
         assert_eq!(range_hist, ref_range, "range histogram mismatch");
         assert_eq!(byte_hist, ref_byte, "byte histogram mismatch");
+    }
+
+    /// The FUSED slot kernel (the path the PROVER calls) must produce, in ONE
+    /// register-allocated pass, columns identical to the CPU trace AND a byte/range
+    /// histogram identical to the standalone slot-lookup kernel. Reuses
+    /// `synth_events` (HALT/COMMIT/COMMIT_DEFERRED_PROOFS/... coverage); 140 events
+    /// is not a power of two, so the zero padding rows are exercised too.
+    #[tokio::test]
+    async fn test_syscall_instrs_fused_kernel() {
+        sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
+            let events = synth_events(140, 0x5CA13);
+            let gpu_shard =
+                ExecutionRecord { syscall_events: events.clone(), ..Default::default() };
+            let chip = SyscallInstrsChip::<SupervisorMode>::default();
+
+            // CPU reference columns.
+            let cpu_trace =
+                Tensor::<F>::from(chip.generate_trace(&gpu_shard, &mut ExecutionRecord::default()));
+
+            // The chip's cached descriptor + packed inputs (shared by both device paths).
+            let wchip = super::syscall_instr_witgen_chip();
+            let height =
+                <SyscallInstrsChip<SupervisorMode> as MachineAir<F>>::num_rows(&chip, &gpu_shard)
+                    .unwrap();
+            let n_events = if height == 0 { 0 } else { events.len() };
+            let inputs = super::pack_syscall_instr_inputs(&events[..n_events]);
+            let batch = crate::riscv::WitgenBatch { inputs: &inputs, n_events, height };
+
+            // Reference histogram from the standalone slot-lookup kernel (the one
+            // `generate_device_dependencies` uses for this wide chip).
+            let (mut r_ref, mut b_ref) = crate::new_byte_histograms(&scope);
+            crate::riscv::accumulate_lookups_slots(
+                wchip, &inputs, n_events, &mut r_ref, &mut b_ref, &scope,
+            )
+            .await
+            .unwrap();
+            let r_ref_h: Vec<u32> = r_ref.to_host().unwrap();
+            let b_ref_h: Vec<u32> = b_ref.to_host().unwrap();
+
+            // Fused slot kernel: columns + histogram in a single op-DAG pass.
+            let (r_f, b_f) = crate::new_byte_histograms(&scope);
+            let hist = crate::LookupHist {
+                range: r_f.as_ptr() as *mut u32,
+                byte: b_f.as_ptr() as *mut u32,
+            };
+            let fused_trace =
+                crate::riscv::generate_trace_and_lookups_slots(wchip, batch, hist, &scope)
+                    .await
+                    .expect("fused tracegen should succeed")
+                    .to_host()
+                    .expect("copy fused trace to host")
+                    .into_guts();
+            let r_f_h: Vec<u32> = r_f.to_host().unwrap();
+            let b_f_h: Vec<u32> = b_f.to_host().unwrap();
+
+            crate::tests::test_traces_eq(&cpu_trace, &fused_trace, &events);
+            assert_eq!(r_f_h, r_ref_h, "fused range histogram must match the lookup kernel");
+            assert_eq!(b_f_h, b_ref_h, "fused byte histogram must match the lookup kernel");
+        })
+        .await
+        .unwrap();
     }
 }

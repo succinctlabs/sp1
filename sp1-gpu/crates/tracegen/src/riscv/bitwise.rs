@@ -83,9 +83,10 @@ impl CudaTracegenAir<F> for BitwiseChip<SupervisorMode> {
         _output: &mut Self::Record,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
-        let (program, col_wires) = record_bitwise_program();
-        let ops_c = program.to_c();
-        let n_cols = col_wires.len();
+        // The chip's cached descriptor: recorded + lowered once per process.
+        let chip = bitwise_witgen_chip();
+        let ops_c = chip.ssa();
+        let n_cols = chip.n_cols();
         debug_assert_eq!(n_cols, NUM_BITWISE_COLS_SUPERVISOR);
 
         let height = <Self as MachineAir<F>>::num_rows(self, input)
@@ -96,9 +97,10 @@ impl CudaTracegenAir<F> for BitwiseChip<SupervisorMode> {
         let inputs = pack_bitwise_inputs(&events[..n_events]);
 
         let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone()).unwrap();
-        ops_dev.extend_from_host_slice(&ops_c)?;
-        let mut col_dev = Buffer::try_with_capacity_in(col_wires.len(), scope.clone()).unwrap();
-        col_dev.extend_from_host_slice(&col_wires)?;
+        ops_dev.extend_from_host_slice(ops_c)?;
+        let mut col_dev =
+            Buffer::try_with_capacity_in(chip.col_wires.len(), scope.clone()).unwrap();
+        col_dev.extend_from_host_slice(&chip.col_wires)?;
         let mut in_dev = Buffer::try_with_capacity_in(inputs.len().max(1), scope.clone()).unwrap();
         in_dev.extend_from_host_slice(&inputs)?;
 
@@ -115,7 +117,7 @@ impl CudaTracegenAir<F> for BitwiseChip<SupervisorMode> {
                     ops_c.len(),
                     col_dev.as_ptr(),
                     n_cols,
-                    program.num_inputs,
+                    chip.program.num_inputs,
                     in_dev.as_ptr(),
                     n_events
                 );

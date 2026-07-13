@@ -129,6 +129,15 @@ unsafe impl Sync for LookupHist {}
 /// and re-lowering the same program on every shard: the program is
 /// shard-independent by construction (one symbolic execution covers every row).
 ///
+/// CACHE INVARIANT: a recorded program must be a pure function of the chip TYPE —
+/// it must not read runtime configuration (env vars, prover options, record
+/// contents, trust mode selected at runtime). The `OnceLock` silently pins
+/// whatever variant records FIRST, so a config-dependent `witgen` body would make
+/// every later shard reuse the first configuration's program. Today this holds
+/// because mode is a type parameter (`AddChip<SupervisorMode>` etc.) and the
+/// `witgen` bodies take no runtime inputs; the M-B macro/registry should enforce
+/// it structurally when it lands.
+///
 /// The streaming lowering (the production tier selector) is computed eagerly; the
 /// pinned and SSA forms lazily — fused-only wide chips (Keccak: 2641-slot pinned
 /// floor) never touch the pinned form, and the SSA form only runs under the
@@ -661,8 +670,8 @@ fn device_chip_name(air: &RiscvAir<F>) -> Option<&'static str> {
         // DivRem in AR_DEVICE_CHIPS before enabling it in any default config.
         RiscvAir::DivRem(_) => "DivRem",
         // iter-071 CPU-side ports — CPU-model validated (columns + lookups); GPU
-        // device==CPU trace tests not yet run. Do not enable in AR_DEVICE_CHIPS
-        // until the tokio tests pass on device.
+        // device==CPU trace validated (`test_state_bump_generate_trace_device`,
+        // `test_memory_bump_generate_trace_device`, passing on the 4090).
         RiscvAir::StateBump(_) => "StateBump",
         RiscvAir::MemoryBump(_) => "MemoryBump",
         // iter-071 ports with passing GPU device==CPU fused-kernel tests
@@ -675,19 +684,23 @@ fn device_chip_name(air: &RiscvAir<F>) -> Option<&'static str> {
         RiscvAir::SyscallPrecompile(_) => "SyscallPrecompile",
         // ECALL instruction chip (iter-076): RTypeReader + 5×IsZero + COMMIT bitmap
         // / digest + HALT/CDP field range checks. Byte-lookup-only deps → fused
-        // path. CPU-model validated; GPU device==CPU test not yet run.
+        // path. GPU device==CPU validated (`test_syscall_instrs_fused_kernel`).
         RiscvAir::SyscallInstrs(_) => "SyscallInstrs",
+        // GPU device==CPU validated (`test_keccak_generate_trace_device_fused`).
         RiscvAir::KeccakP(_) => "KeccakPermute",
         // Keccak's controller (iter-076): SyscallAddr + 25 AddrAdd + 50 memory
         // accesses. Byte-lookup-only deps → fused path; FUSED-ONLY (streaming
-        // lowering; 634-col pinned floor can't fit). CPU-model validated; GPU
-        // device==CPU test not yet run.
+        // lowering; 634-col pinned floor can't fit). GPU device==CPU validated
+        // (`test_keccak_control_generate_trace_device_fused`).
         RiscvAir::KeccakPControl(_) => "KeccakPermuteControl",
+        // GPU device==CPU validated (`test_sha_extend_fused_kernel`,
+        // `test_sha_compress_fused_kernel`).
         RiscvAir::Sha256Extend(_) => "ShaExtend",
         RiscvAir::Sha256Compress(_) => "ShaCompress",
         // SHA controllers (iter-076): SyscallAddr + AddrAdd (+ compress state
-        // half-words). Narrow chips; byte-lookup-only deps → fused path.
-        // CPU-model validated; GPU device==CPU tests not yet run.
+        // half-words). Narrow chips; byte-lookup-only deps → fused path. GPU
+        // device==CPU validated (`test_sha_extend_control_fused_kernel`,
+        // `test_sha_compress_control_fused_kernel`).
         RiscvAir::Sha256ExtendControl(_) => "ShaExtendControl",
         RiscvAir::Sha256CompressControl(_) => "ShaCompressControl",
         _ => return None,
@@ -711,11 +724,15 @@ fn device_chip_name(air: &RiscvAir<F>) -> Option<&'static str> {
 ///
 /// Net: faster on precompile-heavy workloads, noise on RSP-class, slower on the
 /// ALU-only fibonacci (residual is per-shard phase seams, not kernel time —
-/// analyzed in iter-078; separable follow-up). Kept **off by default** until the
-/// kernel-efficiency workstream (input-read coalescing, histogram atomics)
-/// lands and the fibonacci seam is closed — only `Global` (the pre-existing
-/// baseline device chip) runs on device, matching the baseline. Set
-/// `AR_DEVICE_CHIPS` to a comma-list (or `all`) to enable chips for study.
+/// analyzed in iter-078). Fibonacci is a diagnostic corner case (maximal ALU
+/// trace mass, zero precompiles), not the ship criterion: production workloads
+/// are RSP-class, and the flip-on bar is the benchmarking-suite total —
+/// device-on within +1% of device-off on the RSP suite, confirmed on the full
+/// bench suite, together with a host-RSS win and a weak-CPU win (the charter
+/// criteria; measured via the autoresearch harness in `sp1-testing-suite`).
+/// Until those numbers are in, kept **off by default** — only `Global` (the
+/// pre-existing baseline device chip) runs on device, matching the baseline.
+/// Set `AR_DEVICE_CHIPS` to a comma-list (or `all`) to enable chips for study.
 fn device_chip_enabled(name: &str) -> bool {
     use std::collections::HashSet;
     use std::sync::OnceLock;

@@ -72,9 +72,10 @@ impl CudaTracegenAir<F> for StateBumpChip {
         _output: &mut Self::Record,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
-        let (program, col_wires) = record_state_bump_program();
-        let ops_c = program.to_c();
-        let n_cols = col_wires.len();
+        // The chip's cached descriptor: recorded + lowered once per process.
+        let chip = state_bump_witgen_chip();
+        let ops_c = chip.ssa();
+        let n_cols = chip.n_cols();
         debug_assert_eq!(n_cols, NUM_STATE_BUMP_COLS);
 
         let height = <Self as MachineAir<F>>::num_rows(self, input)
@@ -84,9 +85,10 @@ impl CudaTracegenAir<F> for StateBumpChip {
         let inputs = pack_state_bump_inputs(&events[..n_events]);
 
         let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone()).unwrap();
-        ops_dev.extend_from_host_slice(&ops_c)?;
-        let mut col_dev = Buffer::try_with_capacity_in(col_wires.len(), scope.clone()).unwrap();
-        col_dev.extend_from_host_slice(&col_wires)?;
+        ops_dev.extend_from_host_slice(ops_c)?;
+        let mut col_dev =
+            Buffer::try_with_capacity_in(chip.col_wires.len(), scope.clone()).unwrap();
+        col_dev.extend_from_host_slice(&chip.col_wires)?;
         let mut in_dev = Buffer::try_with_capacity_in(inputs.len().max(1), scope.clone()).unwrap();
         in_dev.extend_from_host_slice(&inputs)?;
 
@@ -102,7 +104,7 @@ impl CudaTracegenAir<F> for StateBumpChip {
                     ops_c.len(),
                     col_dev.as_ptr(),
                     n_cols,
-                    program.num_inputs,
+                    chip.program.num_inputs,
                     in_dev.as_ptr(),
                     n_events
                 );
@@ -170,15 +172,17 @@ impl CudaTracegenAir<F> for StateBumpChip {
 #[cfg(test)]
 mod tests {
     use rand::{rngs::StdRng, Rng, SeedableRng};
+    use slop_tensor::Tensor;
     use sp1_core_executor::{ByteOpcode, ExecutionRecord};
     use sp1_core_machine::adapter::bump::{StateBumpChip, NUM_STATE_BUMP_COLS};
     use sp1_core_machine::air::{
         interpret_c_columns, interpret_c_lookups, BYTE_HIST_ROWS, RANGE_HIST_ROWS,
     };
     use sp1_core_machine::bytes::columns::NUM_BYTE_MULT_COLS;
+    use sp1_gpu_cudart::TaskScope;
     use sp1_hypercube::air::MachineAir;
 
-    use crate::F;
+    use crate::{CudaTracegenAir, F};
 
     /// clk values are `1 (mod 8)` (executor invariant relied on by the
     /// `(clk_0_16 - 1)/8` canonicity check); increments are multiples of 8; pc is a
@@ -231,6 +235,36 @@ mod tests {
                 "column mismatch at row {row}"
             );
         }
+    }
+
+    /// Device-vs-CPU trace equality on the REAL GPU kernel (the CPU-model tests
+    /// above only exercise the interpreters). 300 events is not a power of two, so
+    /// the zero padding rows are exercised too.
+    #[tokio::test]
+    async fn test_state_bump_generate_trace_device() {
+        sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
+            let events = synth_events(300, 0x57A80);
+            let [shard, gpu_shard] = core::array::from_fn(|_| ExecutionRecord {
+                bump_state_events: events.clone(),
+                ..Default::default()
+            });
+
+            let chip = StateBumpChip::new();
+
+            let cpu_trace =
+                Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
+            let device_trace = chip
+                .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
+                .await
+                .expect("device tracegen should succeed")
+                .to_host()
+                .expect("copy trace to host")
+                .into_guts();
+
+            crate::tests::test_traces_eq(&cpu_trace, &device_trace, &events);
+        })
+        .await
+        .unwrap();
     }
 
     #[test]

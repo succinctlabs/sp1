@@ -1,7 +1,7 @@
 # The Witness-Generation IR (witgen IR) — spec & porting guide
 
 Status: supervisor-mode common core + SHA + Keccak fully ported and
-crossverified. 25 ops over pinned tag values 0..=25 (10 unassigned) — the
+crossverified. 25 ops over pinned tag values 0..=25 (value 10 unassigned) — the
 `WitTag` enum in witness_record.rs, cbindgen-shared with the CUDA kernels. This
 doc is the durable contract: the IR is both the
 device-tracegen mechanism and the substrate for future *programmatic chip
@@ -51,8 +51,9 @@ impl<T> AddOperation<T> {
 - Semantics quirks that bite: imm0/imm1 hold a WIRE for some tags (Select else,
   guards, byte-lookup opcode) and a LITERAL for others (Bits width/offset,
   ConstNat) — lower by semantic field, never positionally (iter-065).
-  Byte-lookup `a` (result) is dropped on device and reconstructed
-  deterministically from (opcode,b,c) (iter-041).
+  Byte-lookup `a` (result) is dropped on device — the byte table indexes
+  multiplicities by `(opcode, b, c)` only, so `a` carries no information the
+  table needs; it is kept host-side for event fidelity (iter-041).
 
 ## 3. Three lowerings
 

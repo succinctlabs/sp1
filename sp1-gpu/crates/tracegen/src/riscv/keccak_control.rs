@@ -165,6 +165,9 @@ fn keccak_control_witgen_chip() -> &'static super::WitgenChip {
 /// pinned slot allocation does NOT pin the column wires (the 634-column pinned
 /// footprint doesn't fit; transients-only does). The lookup kernel executes the
 /// same op order, so the emitted lookups are identical.
+/// (The eagerly-computed streaming lowering is unused here beyond a debug log —
+/// acceptable: one-time, KB-scale, and keeping `WitgenChip::new` uniform beats a
+/// second lazy field.)
 fn keccak_control_lookup_chip() -> &'static super::WitgenChip {
     static CHIP: std::sync::OnceLock<super::WitgenChip> = std::sync::OnceLock::new();
     CHIP.get_or_init(|| {
@@ -423,5 +426,60 @@ mod tests {
         );
         assert_eq!(range_hist, ref_range, "range histogram mismatch");
         assert_eq!(byte_hist, ref_byte, "byte histogram mismatch");
+    }
+
+    /// Device-vs-CPU trace equality for `KeccakPermuteControl` via the FUSED
+    /// streaming path (`generate_trace_device_with_lookups` — the one production
+    /// calls; the non-fused `generate_trace_device` is `unimplemented!`), with the
+    /// fused byte/range histograms checked against the standalone lookup pass
+    /// (`generate_device_dependencies`, which runs the empty-column
+    /// `keccak_control_lookup_chip` descriptor). 37 events pad to 64 rows, so the
+    /// all-zero padding tail is exercised too.
+    #[tokio::test]
+    async fn test_keccak_control_generate_trace_device_fused() {
+        use crate::CudaTracegenAir;
+        use slop_tensor::Tensor;
+        use sp1_gpu_cudart::TaskScope;
+        sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
+            let shard = synth_shard(37, 0x4ECC03);
+            let chip = KeccakPermuteControlChip::<SupervisorMode>::default();
+            let cpu_trace = Tensor::<F>::from(MachineAir::<F>::generate_trace(
+                &chip,
+                &shard,
+                &mut ExecutionRecord::default(),
+            ));
+
+            // Reference histograms via the standalone lookup pass.
+            let (mut r_ref, mut b_ref) = crate::new_byte_histograms(&scope);
+            chip.generate_device_dependencies(&shard, &mut r_ref, &mut b_ref, &scope)
+                .await
+                .unwrap();
+            let r_ref_h: Vec<u32> = r_ref.to_host().unwrap();
+            let b_ref_h: Vec<u32> = b_ref.to_host().unwrap();
+
+            // Fused: pack EXACTLY as the prover's dispatch arm does — one input
+            // row per event, straight from the record (padding rows are all-zero
+            // and never packed).
+            let inputs = super::pack_keccak_control_inputs(&shard);
+            let (mut range_dev, mut byte_dev) = crate::new_byte_histograms(&scope);
+            let hist =
+                crate::LookupHist { range: range_dev.as_mut_ptr(), byte: byte_dev.as_mut_ptr() };
+            let fused_trace = chip
+                .generate_trace_device_with_lookups(&shard, inputs, hist, &scope)
+                .await
+                .expect("fused tracegen should succeed")
+                .to_host()
+                .expect("copy fused trace to host")
+                .into_guts();
+            let range_h: Vec<u32> = range_dev.to_host().unwrap();
+            let byte_h: Vec<u32> = byte_dev.to_host().unwrap();
+
+            let events = super::collect_events(&shard);
+            crate::tests::test_traces_eq(&cpu_trace, &fused_trace, &events);
+            assert_eq!(range_h, r_ref_h, "fused range histogram must match the lookup pass");
+            assert_eq!(byte_h, b_ref_h, "fused byte histogram must match the lookup pass");
+        })
+        .await
+        .unwrap();
     }
 }

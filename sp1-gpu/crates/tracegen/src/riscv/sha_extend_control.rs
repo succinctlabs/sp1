@@ -171,6 +171,7 @@ impl CudaTracegenAir<F> for ShaExtendControlChip<SupervisorMode> {
 #[cfg(test)]
 mod tests {
     use rand::{rngs::StdRng, Rng, SeedableRng};
+    use slop_tensor::Tensor;
     use sp1_core_executor::events::{PrecompileEvent, ShaExtendEvent, SyscallEvent};
     use sp1_core_executor::{ByteOpcode, ExecutionRecord, SyscallCode};
     use sp1_core_machine::air::{
@@ -182,9 +183,10 @@ mod tests {
         num_sha_extend_control_cols_supervisor, ShaExtendControlChip,
     };
     use sp1_core_machine::SupervisorMode;
+    use sp1_gpu_cudart::TaskScope;
     use sp1_hypercube::air::MachineAir;
 
-    use crate::F;
+    use crate::{CudaTracegenAir, F};
 
     fn synth_shard(n: usize, seed: u64) -> ExecutionRecord {
         let mut rng = StdRng::seed_from_u64(seed);
@@ -312,5 +314,70 @@ mod tests {
         );
         assert_eq!(range_hist, ref_range, "range histogram mismatch");
         assert_eq!(byte_hist, ref_byte, "byte histogram mismatch");
+    }
+
+    /// The FUSED slot kernel (the production path, `generate_trace_device_with_lookups`)
+    /// must produce, in ONE GPU pass, columns identical to the host trace over the full
+    /// padded height AND byte/range histograms identical to the standalone lookup
+    /// kernel (`accumulate_lookups_slots`, the `generate_device_dependencies` path).
+    #[tokio::test]
+    async fn test_sha_extend_control_fused_kernel() {
+        sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
+            // 45 events: one row each, non-power-of-two, so the padded height
+            // exercises the all-zero padding rows too.
+            let shard = synth_shard(45, 0x5EC03);
+            let chip = ShaExtendControlChip::<SupervisorMode>::new();
+
+            // CPU reference columns (full padded height).
+            let cpu_trace = Tensor::<F>::from(MachineAir::<F>::generate_trace(
+                &chip,
+                &shard,
+                &mut ExecutionRecord::default(),
+            ));
+
+            // The SAME pre-packed inputs the prover's dispatch hands the fused path
+            // (the `pack_device_lookup_inputs` arm for this chip).
+            let inputs = super::pack_sha_extend_control_inputs(&shard);
+            let n_events = inputs.len() / super::NUM_SHA_EXTEND_CONTROL_INPUTS;
+
+            // Reference histograms from the standalone slot lookup kernel.
+            let (mut r_ref, mut b_ref) = crate::new_byte_histograms(&scope);
+            crate::riscv::accumulate_lookups_slots(
+                super::sha_extend_control_witgen_chip(),
+                &inputs,
+                n_events,
+                &mut r_ref,
+                &mut b_ref,
+                &scope,
+            )
+            .await
+            .unwrap();
+            let r_ref_h: Vec<u32> = r_ref.to_host().unwrap();
+            let b_ref_h: Vec<u32> = b_ref.to_host().unwrap();
+
+            // Fused kernel: columns + histograms in a single op-DAG pass, via the
+            // trait method the prover actually calls.
+            let (r_f, b_f) = crate::new_byte_histograms(&scope);
+            let hist = crate::LookupHist {
+                range: r_f.as_ptr() as *mut u32,
+                byte: b_f.as_ptr() as *mut u32,
+            };
+            let fused_trace = chip
+                .generate_trace_device_with_lookups(&shard, inputs, hist, &scope)
+                .await
+                .expect("fused tracegen should succeed")
+                .to_host()
+                .expect("copy fused trace to host")
+                .into_guts();
+            let r_f_h: Vec<u32> = r_f.to_host().unwrap();
+            let b_f_h: Vec<u32> = b_f.to_host().unwrap();
+
+            let events = shard.get_precompile_events(SyscallCode::SHA_EXTEND);
+            crate::tests::test_traces_eq(&cpu_trace, &fused_trace, events);
+            assert_eq!(r_f_h, r_ref_h, "fused range histogram must match the lookup kernel");
+            assert_eq!(b_f_h, b_ref_h, "fused byte histogram must match the lookup kernel");
+        })
+        .await
+        .unwrap();
     }
 }

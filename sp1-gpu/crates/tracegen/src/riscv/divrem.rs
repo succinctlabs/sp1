@@ -175,6 +175,9 @@ fn divrem_witgen_chip() -> &'static super::WitgenChip {
 /// pinned slot allocation does NOT pin the column wires (pinned-with-columns is
 /// 272 slots > the cap; transient-only allocation fits comfortably). The lookup
 /// kernel executes the same op order, so the emitted lookups are identical.
+/// (The eagerly-computed streaming lowering is unused here beyond a debug log —
+/// acceptable: one-time, KB-scale, and keeping `WitgenChip::new` uniform beats a
+/// second lazy field.)
 fn divrem_lookup_chip() -> &'static super::WitgenChip {
     static CHIP: std::sync::OnceLock<super::WitgenChip> = std::sync::OnceLock::new();
     CHIP.get_or_init(|| {

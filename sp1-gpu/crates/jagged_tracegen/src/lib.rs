@@ -796,6 +796,14 @@ where
                     (air.name().to_string(), air.pack_device_lookup_inputs(record.as_ref()))
                 })
                 .collect();
+            // Host-memory Phase-0 instrumentation (host-memory-workstream.md): the
+            // packed-kernel-input transient (H5's "needs measurement") per shard.
+            tracing::debug!(
+                target: "host_memory",
+                packed_bytes = device_packed.values().map(|v| v.len() * 8).sum::<usize>(),
+                packed_chips = device_packed.len(),
+                "device_packed transient total"
+            );
 
             let mut total_size = start_idx;
             let mut jobs = Vec::new();
@@ -803,6 +811,15 @@ where
                 jobs.push((air.clone(), total_size));
                 total_size += air.num_rows(&record).unwrap() * air.width();
             }
+            // Host-memory Phase-0 instrumentation: the pinned buffer's written prefix
+            // this shard (high-water mark) — the empirical H1 sizing bound. With
+            // device chips enabled this shrinks to the non-ported chips' trace bytes.
+            tracing::debug!(
+                target: "host_memory",
+                pinned_hwm_elems = total_size,
+                pinned_hwm_bytes = total_size * core::mem::size_of::<Felt>(),
+                "pinned buffer high-water mark"
+            );
 
             // Get the smallest cluster containing our tracegen chip set.
             let shard_chips = shape.smallest_cluster(&chip_set).unwrap().clone();

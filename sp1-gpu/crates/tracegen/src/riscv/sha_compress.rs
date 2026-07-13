@@ -370,6 +370,7 @@ impl CudaTracegenAir<F> for ShaCompressChip {
 #[cfg(test)]
 mod tests {
     use rand::{rngs::StdRng, Rng, SeedableRng};
+    use slop_tensor::Tensor;
     use sp1_core_executor::events::{
         MemoryReadRecord, MemoryWriteRecord, PrecompileEvent, ShaCompressEvent, SyscallEvent,
     };
@@ -382,9 +383,10 @@ mod tests {
     use sp1_core_machine::syscall::precompiles::sha256::{
         ShaCompressChip, NUM_SHA_COMPRESS_COLS, SHA_COMPRESS_K,
     };
+    use sp1_gpu_cudart::TaskScope;
     use sp1_hypercube::air::MachineAir;
 
-    use crate::F;
+    use crate::{CudaTracegenAir, F};
 
     fn read(rng: &mut StdRng, clk: u64) -> MemoryReadRecord {
         MemoryReadRecord {
@@ -554,5 +556,73 @@ mod tests {
         );
         assert_eq!(range_hist, ref_range, "range histogram mismatch");
         assert_eq!(byte_hist, ref_byte, "byte histogram mismatch");
+    }
+
+    /// The FUSED slot kernel (the production path, `generate_trace_device_with_lookups`)
+    /// must produce, in ONE GPU pass, columns identical to the host trace over the FULL
+    /// padded height — including the pre-templated CYCLIC padding rows (octet/
+    /// octet_num/index/k pattern, NOT all-zero) that the kernel does not touch — AND
+    /// byte/range histograms identical to the standalone lookup kernel
+    /// (`accumulate_lookups_slots`, the `generate_device_dependencies` path).
+    #[tokio::test]
+    async fn test_sha_compress_fused_kernel() {
+        sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
+            // 3 events * 80 rows = 240 real rows: non-power-of-two, so the padded
+            // height exercises the cyclic padding template.
+            let shard = synth_shard(3, 0x5C05);
+            let chip = ShaCompressChip;
+
+            // CPU reference columns (full padded height, cyclic padding included).
+            let cpu_trace = Tensor::<F>::from(MachineAir::<F>::generate_trace(
+                &chip,
+                &shard,
+                &mut ExecutionRecord::default(),
+            ));
+
+            // The SAME pre-packed inputs the prover's dispatch hands the fused path
+            // (the `pack_device_lookup_inputs` arm for this chip).
+            let events = super::collect_events(&shard);
+            let inputs = super::pack_for_record(&shard);
+            let n_rows = events.len() * 80;
+
+            // Reference histograms from the standalone slot lookup kernel.
+            let (mut r_ref, mut b_ref) = crate::new_byte_histograms(&scope);
+            crate::riscv::accumulate_lookups_slots(
+                super::sha_compress_witgen_chip(),
+                &inputs,
+                n_rows,
+                &mut r_ref,
+                &mut b_ref,
+                &scope,
+            )
+            .await
+            .unwrap();
+            let r_ref_h: Vec<u32> = r_ref.to_host().unwrap();
+            let b_ref_h: Vec<u32> = b_ref.to_host().unwrap();
+
+            // Fused kernel: columns + histograms in a single op-DAG pass, via the
+            // trait method the prover actually calls (which pre-initializes the
+            // cyclic padding template before the kernel overwrites the event rows).
+            let (r_f, b_f) = crate::new_byte_histograms(&scope);
+            let hist = crate::LookupHist {
+                range: r_f.as_ptr() as *mut u32,
+                byte: b_f.as_ptr() as *mut u32,
+            };
+            let fused_trace = chip
+                .generate_trace_device_with_lookups(&shard, inputs, hist, &scope)
+                .await
+                .expect("fused tracegen should succeed")
+                .to_host()
+                .expect("copy fused trace to host")
+                .into_guts();
+            let r_f_h: Vec<u32> = r_f.to_host().unwrap();
+            let b_f_h: Vec<u32> = b_f.to_host().unwrap();
+
+            crate::tests::test_traces_eq(&cpu_trace, &fused_trace, &events);
+            assert_eq!(r_f_h, r_ref_h, "fused range histogram must match the lookup kernel");
+            assert_eq!(b_f_h, b_ref_h, "fused byte histogram must match the lookup kernel");
+        })
+        .await
+        .unwrap();
     }
 }

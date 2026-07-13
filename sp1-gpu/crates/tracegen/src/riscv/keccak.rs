@@ -544,6 +544,54 @@ mod tests {
         }
     }
 
+    /// Device-vs-CPU trace equality for `KeccakPermute` via the FUSED streaming
+    /// path (`generate_trace_device_with_lookups` — the one production calls; the
+    /// non-fused `generate_trace_device` is `unimplemented!`). 4 real + 1 trapped
+    /// events = 120 rows padded to 128, so the kernel covers real rows,
+    /// trapped-event dummy rows, AND the partial-chunk padding tail — packed for
+    /// the FULL padded height exactly as the prover's dispatch does. The chip
+    /// emits ZERO byte lookups, so the fused histograms must come back all-zero.
+    #[tokio::test]
+    async fn test_keccak_generate_trace_device_fused() {
+        use crate::CudaTracegenAir;
+        use slop_tensor::Tensor;
+        use sp1_gpu_cudart::TaskScope;
+        sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
+            let shard = synth_shard(4, 1, 0x4ECCA5);
+            let chip = KeccakPermuteChip;
+            let cpu_trace = Tensor::<F>::from(MachineAir::<F>::generate_trace(
+                &chip,
+                &shard,
+                &mut ExecutionRecord::default(),
+            ));
+
+            // Pack EXACTLY as the prover's dispatch arm does: the FULL padded
+            // height (trapped + padding rows carry the cyclic dummy pattern).
+            let height = MachineAir::<F>::num_rows(&chip, &shard).unwrap();
+            let events = super::collect_events(&shard);
+            let inputs = super::pack_keccak_inputs(&events, height);
+
+            let (mut range_dev, mut byte_dev) = crate::new_byte_histograms(&scope);
+            let hist =
+                crate::LookupHist { range: range_dev.as_mut_ptr(), byte: byte_dev.as_mut_ptr() };
+            let fused_trace = chip
+                .generate_trace_device_with_lookups(&shard, inputs, hist, &scope)
+                .await
+                .expect("fused tracegen should succeed")
+                .to_host()
+                .expect("copy fused trace to host")
+                .into_guts();
+            let range_h: Vec<u32> = range_dev.to_host().unwrap();
+            let byte_h: Vec<u32> = byte_dev.to_host().unwrap();
+
+            crate::tests::test_traces_eq(&cpu_trace, &fused_trace, &events);
+            assert!(range_h.iter().all(|&v| v == 0), "Keccak emits no range lookups");
+            assert!(byte_h.iter().all(|&v| v == 0), "Keccak emits no byte lookups");
+        })
+        .await
+        .unwrap();
+    }
+
     /// KeccakPermute's `generate_dependencies` emits NO byte lookups (its
     /// `populate_chunk` discards the blu vec; interactions live in the separate
     /// control chip) — so the device dependency path is trivially empty and the
