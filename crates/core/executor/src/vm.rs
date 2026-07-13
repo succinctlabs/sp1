@@ -107,18 +107,6 @@ impl ExecutionState for CoreExecutionState {
 }
 
 impl<'a, M: ExecutionMode, S> CoreVM<'a, M, S> {
-    /// If two timestamps are in different epochs, abort all candidates.
-    #[inline]
-    fn abort_if_epoch_changed(
-        candidates: &mut ApcCandidates<CoreExecutionState, Apc, S>,
-        t0: u64,
-        t1: u64,
-    ) {
-        if t0 >> 24 != t1 >> 24 {
-            candidates.abort_in_progress();
-        }
-    }
-
     /// Create a [`CoreVM`] from a [`MinimalTrace`] and a [`Program`].
     pub fn new<T: MinimalTrace>(
         trace: &'a T,
@@ -680,7 +668,6 @@ impl<S> CoreVM<'_, SupervisorMode, S> {
         };
 
         let timestamp = self.timestamp(MemoryAccessPosition::Memory);
-        Self::abort_if_epoch_changed(&mut self.apc_candidates, record.clk, timestamp);
 
         MemoryReadRecord {
             value: record.value,
@@ -694,11 +681,6 @@ impl<S> CoreVM<'_, SupervisorMode, S> {
     #[inline(always)]
     fn mw(&mut self, read_record: MemoryReadRecord, value: u64) -> MemoryWriteRecord {
         let timestamp = self.timestamp(MemoryAccessPosition::Memory);
-        Self::abort_if_epoch_changed(
-            &mut self.apc_candidates,
-            read_record.prev_timestamp,
-            timestamp,
-        );
 
         MemoryWriteRecord {
             prev_timestamp: read_record.prev_timestamp,
@@ -965,12 +947,6 @@ impl<M: ExecutionMode, S> CoreVM<'_, M, S> {
         let new_record =
             MemoryRecord { timestamp: self.timestamp(position), value: prev_record.value };
 
-        Self::abort_if_epoch_changed(
-            &mut self.apc_candidates,
-            prev_record.timestamp,
-            new_record.timestamp,
-        );
-
         self.registers[register as usize] = new_record;
 
         MemoryReadRecord {
@@ -1041,12 +1017,6 @@ impl<M: ExecutionMode, S> CoreVM<'_, M, S> {
 
         let prev_record = self.registers[register as usize];
         let new_record = MemoryRecord { timestamp: self.timestamp(MemoryAccessPosition::A), value };
-
-        Self::abort_if_epoch_changed(
-            &mut self.apc_candidates,
-            prev_record.timestamp,
-            new_record.timestamp,
-        );
 
         self.registers[register as usize] = new_record;
 
