@@ -15,7 +15,7 @@ use slop_algebra::PrimeField32;
 use slop_matrix::Matrix;
 use slop_maybe_rayon::prelude::{
     IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
-    ParallelSliceMut,
+    ParallelSlice, ParallelSliceMut,
 };
 use sp1_core_executor::{
     events::ByteLookupEvent, opcode::ByteOpcode, ApcRange, ExecutionRecord, Program, RiscvAirId,
@@ -369,70 +369,76 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         let trace_width = self.width();
         let mut trace_values = zeroed_f_vec(events.count * trace_width);
 
-        // Fill in the trace values in parallel for each row (apc event)
+        // Fill in the trace values and replay byte lookups in parallel, one chunk of rows per task
+        let chunk_size = std::cmp::max(events.count / num_cpus::get(), 1);
         let byte_lookup_effects = trace_values
-            .par_chunks_mut(trace_width)
-            .zip_eq(dummy_values_by_event.par_iter())
-            .map(|(trace_row, dummy_values_by_instruction)| {
-                for (instruction_index, dummy_slice) in
-                    dummy_values_by_instruction.iter().enumerate()
-                {
-                    let map = &dummy_trace_index_to_apc_index_by_instruction[instruction_index];
-                    // By caching `dummy_trace_index_to_apc_index_by_instruction`, we only loop over
-                    // the values that are assigned to the APC instead of all values in the dummy
-                    // trace
-                    for (dummy_index, apc_index) in map.iter() {
-                        trace_row[*apc_index] = dummy_slice[*dummy_index];
-                    }
-                }
-
-                // Manually set is_valid column to 1
-                trace_row[is_valid_index] = F::one();
-
-                tracing::trace!("Final row: {trace_row:?}");
-
-                // Replay side effects as events
-                // Only need to do this for byte lookup bus, as other buses are implicitly balanced
-                // via main trace values rather than via events
-                let evaluator = RowEvaluator::new(trace_row, Some(&apc_poly_id_to_index));
-
+            .par_chunks_mut(chunk_size * trace_width)
+            .zip_eq(dummy_values_by_event.par_chunks(chunk_size))
+            .map(|(trace_chunk, dummy_chunk)| {
                 // Store effects in a map of ByteLookupEvent to count to apply after parallel
                 // execution
                 let mut byte_lookup_effect = HashMap::new();
-                for bus_interaction in
-                    self.apc().machine.bus_interactions.iter().filter(|bus_interaction| {
-                        bus_interaction.id == InteractionKind::Byte as u64
-                    })
-                {
-                    let mult = evaluator.eval_expr(&bus_interaction.mult).as_canonical_u32();
-                    let mut args = bus_interaction
-                        .args
-                        .iter()
-                        .map(|arg| evaluator.eval_expr(arg).as_canonical_u32());
-                    let opcode = args.next().unwrap() as usize;
-                    let a = args.next().unwrap() as u16;
-                    let b = args.next().unwrap() as u8;
-                    let c = args.next().unwrap() as u8;
-                    assert!(args.next().is_none());
 
-                    // byte lookup
-                    *byte_lookup_effect
-                        .entry(ByteLookupEvent {
-                            opcode: match opcode {
-                                o if o == ByteOpcode::AND as usize => ByteOpcode::AND,
-                                o if o == ByteOpcode::OR as usize => ByteOpcode::OR,
-                                o if o == ByteOpcode::XOR as usize => ByteOpcode::XOR,
-                                o if o == ByteOpcode::U8Range as usize => ByteOpcode::U8Range,
-                                o if o == ByteOpcode::LTU as usize => ByteOpcode::LTU,
-                                o if o == ByteOpcode::MSB as usize => ByteOpcode::MSB,
-                                o if o == ByteOpcode::Range as usize => ByteOpcode::Range,
-                                _ => unreachable!("Unexpected byte lookup Opcode: {}", opcode),
-                            },
-                            a,
-                            b,
-                            c,
+                for (trace_row, dummy_values_by_instruction) in
+                    trace_chunk.chunks_mut(trace_width).zip_eq(dummy_chunk.iter())
+                {
+                    for (instruction_index, dummy_slice) in
+                        dummy_values_by_instruction.iter().enumerate()
+                    {
+                        let map = &dummy_trace_index_to_apc_index_by_instruction[instruction_index];
+                        // By caching `dummy_trace_index_to_apc_index_by_instruction`, we only loop
+                        // over the values that are assigned to the APC instead of all values in the
+                        // dummy trace
+                        for (dummy_index, apc_index) in map.iter() {
+                            trace_row[*apc_index] = dummy_slice[*dummy_index];
+                        }
+                    }
+
+                    // Manually set is_valid column to 1
+                    trace_row[is_valid_index] = F::one();
+
+                    tracing::trace!("Final row: {trace_row:?}");
+
+                    // Replay side effects as events
+                    // Only need to do this for byte lookup bus, as other buses are implicitly
+                    // balanced via main trace values rather than via events
+                    let evaluator = RowEvaluator::new(trace_row, Some(&apc_poly_id_to_index));
+
+                    for bus_interaction in
+                        self.apc().machine.bus_interactions.iter().filter(|bus_interaction| {
+                            bus_interaction.id == InteractionKind::Byte as u64
                         })
-                        .or_insert(0) += mult as usize;
+                    {
+                        let mult = evaluator.eval_expr(&bus_interaction.mult).as_canonical_u32();
+                        let mut args = bus_interaction
+                            .args
+                            .iter()
+                            .map(|arg| evaluator.eval_expr(arg).as_canonical_u32());
+                        let opcode = args.next().unwrap() as usize;
+                        let a = args.next().unwrap() as u16;
+                        let b = args.next().unwrap() as u8;
+                        let c = args.next().unwrap() as u8;
+                        assert!(args.next().is_none());
+
+                        // byte lookup
+                        *byte_lookup_effect
+                            .entry(ByteLookupEvent {
+                                opcode: match opcode {
+                                    o if o == ByteOpcode::AND as usize => ByteOpcode::AND,
+                                    o if o == ByteOpcode::OR as usize => ByteOpcode::OR,
+                                    o if o == ByteOpcode::XOR as usize => ByteOpcode::XOR,
+                                    o if o == ByteOpcode::U8Range as usize => ByteOpcode::U8Range,
+                                    o if o == ByteOpcode::LTU as usize => ByteOpcode::LTU,
+                                    o if o == ByteOpcode::MSB as usize => ByteOpcode::MSB,
+                                    o if o == ByteOpcode::Range as usize => ByteOpcode::Range,
+                                    _ => unreachable!("Unexpected byte lookup Opcode: {}", opcode),
+                                },
+                                a,
+                                b,
+                                c,
+                            })
+                            .or_insert(0) += mult as usize;
+                    }
                 }
 
                 byte_lookup_effect
