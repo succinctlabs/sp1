@@ -718,6 +718,11 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
         // cannot run on device at all, so fall back to HOST tracegen instead of
         // panicking in `generate_trace_device` at prove time
         // (`AR_DEVICE_CHIPS=all` + `AR_DEVICE_DEPS=0`).
+        //
+        // DRIFT HAZARD: this list must be extended BY HAND when the next fused-only
+        // chip lands (a missed entry re-opens the prove-time panic). It should become
+        // a per-chip property when the M-B/M-D macro collapse gives chips a
+        // descriptor to hang it on.
         const FUSED_ONLY: [&str; 3] = ["DivRem", "KeccakPermute", "KeccakPermuteControl"];
         if !device_deps_enabled() && FUSED_ONLY.contains(&name) {
             return false;
@@ -1074,8 +1079,8 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
         let (mut byte_idx, mut byte_mult) = (Vec::with_capacity(n), Vec::with_capacity(n));
         for (lookup, &mult) in record.byte_lookups.iter() {
             // Mirror range/trace.rs and bytes/trace.rs `generate_trace_into` index math
-            // (and the inverse in `byte_lookups_from_histograms`), so the scattered host
-            // multiplicities land in the same cells the device chips' atomics did.
+            // (the same conventions `interpret_c_lookups` documents), so the scattered
+            // host multiplicities land in the same cells the device chips' atomics did.
             if lookup.opcode == ByteOpcode::Range {
                 let idx = lookup.a as usize + (1usize << lookup.b);
                 range_idx.push(idx as u64);

@@ -1,7 +1,9 @@
 # The Witness-Generation IR (witgen IR) — spec & porting guide
 
 Status: supervisor-mode common core + SHA + Keccak fully ported and
-crossverified. 26 op tags. This doc is the durable contract: the IR is both the
+crossverified. 25 ops over pinned tag values 0..=25 (10 unassigned) — the
+`WitTag` enum in witness_record.rs, cbindgen-shared with the CUDA kernels. This
+doc is the durable contract: the IR is both the
 device-tracegen mechanism and the substrate for future *programmatic chip
 construction* — a chip is data (a program + a column map + a packer), not code.
 (The `iter-NNN` citations here and in code comments refer to the development
@@ -40,7 +42,7 @@ impl<T> AddOperation<T> {
 ## 2. The IR (`crates/core/machine/src/air/witness_record.rs`)
 
 - `WireId(u32)` — SSA value id.
-- `WitOp` — 26 ops. Value ops produce one wire: ConstNat, WrappingAdd/Sub, Mul,
+- `WitOp` — 25 ops (16 value + 9 lookup). Value ops produce one wire: ConstNat, WrappingAdd/Sub, Mul,
   Xor(24), And(25), Shl, Shr, Eq, Bits{src,offset,width}, Select,
   NatToField, FieldAdd/Sub/Inverse, FieldSelect. Lookup ops produce none and
   feed the shard Byte/Range histograms: U16/U8/BitRangeCheck (+Var, +Guarded),
@@ -91,12 +93,15 @@ Adding an IR op = one `WitTag` variant plus one `case` line per kernel switch
 ## 6. Porting a chip — the recipe
 
 ```rust
-// 1. record once
+// 1. record once (mirrors riscv/add.rs::record_add_program)
 fn record_x_program() -> (WitProgram, Vec<u32>) {
-    let mut rec = RecordingWitnessBuilder::new(NUM_X_INPUTS as u32);
+    let (mut rec, input) = record_witgen_inputs::<XWitgenInput<WireId>>();
     let mut cols = XCols::<WireId, _>::default();
-    XCols::witgen(&mut rec, &mut cols, /* input wires */);
-    (rec.finish(), columns_as_wires(&cols))
+    XCols::witgen(&mut rec, &mut cols, &input);
+    let program = rec.finish();
+    // columns_as_wires returns &[WireId]; flatten to the raw u32 wire ids.
+    let col_wires = columns_as_wires(&cols).iter().map(|w| w.0).collect();
+    (program, col_wires)
 }
 // 2. pack events -> flat u64 rows (rayon; multi-row chips replay state at pack
 //    time — ShaCompress/Keccak/MemoryGlobal pattern; padding rows pack the

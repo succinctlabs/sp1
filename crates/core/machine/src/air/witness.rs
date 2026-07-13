@@ -28,9 +28,38 @@ use sp1_core_executor::{
     ByteOpcode,
 };
 
+/// Contract-checked variable left shift for the CPU witgen backends. `shift < 64`
+/// is an executor invariant: out of contract, the host (release: Rust masks the
+/// shift amount) and the GPU kernels (hardware-masked) are NOT guaranteed to
+/// agree, so violations must fail loudly on host first — here, in debug builds.
+#[inline]
+pub(crate) fn wit_shl(a: u64, shift: u64) -> u64 {
+    debug_assert!(shift < 64, "witgen Shl out of contract: shift={shift} >= 64");
+    a << shift
+}
+
+/// Contract-checked variable right shift — see [`wit_shl`].
+#[inline]
+pub(crate) fn wit_shr(a: u64, shift: u64) -> u64 {
+    debug_assert!(shift < 64, "witgen Shr out of contract: shift={shift} >= 64");
+    a >> shift
+}
+
+/// Contract-checked nat→field embed for the CPU witgen backends. The witgen
+/// contract requires the nat to be canonical (`< P`); out of contract the host
+/// and the GPU kernel disagree (the kernel reduces mod P). `from_canonical_u64`
+/// debug-asserts canonicity for the concrete `SP1Field`, so violations fail
+/// loudly on host in debug builds; this wrapper exists to make that contract
+/// explicit at every backend's `NatToField`.
+#[inline]
+pub(crate) fn wit_nat_to_field<F: Field>(a: u64) -> F {
+    F::from_canonical_u64(a)
+}
+
 /// Map a `ByteOpcode` discriminant (the value carried by a witgen opcode wire) back
-/// to the enum. Kept in sync with `ByteOpcode`'s declaration order (the enum has no
-/// explicit `repr`, so this relies on the default 0-based discriminants).
+/// to the enum. `ByteOpcode` pins its discriminants explicitly (`AND = 0` …
+/// `Range = 6` in opcode.rs), so this mapping is stable by construction — keep the
+/// two in sync if an opcode is ever added.
 #[inline]
 pub(crate) fn byte_opcode_from_u64(v: u64) -> ByteOpcode {
     match v {
@@ -200,12 +229,12 @@ impl<F: Field, R: ByteRecord> WitnessBuilder for HostWitnessBuilder<'_, F, R> {
 
     #[inline]
     fn shl(&mut self, a: u64, shift: u64) -> u64 {
-        a << shift
+        wit_shl(a, shift)
     }
 
     #[inline]
     fn shr(&mut self, a: u64, shift: u64) -> u64 {
-        a >> shift
+        wit_shr(a, shift)
     }
 
     #[inline]
@@ -234,7 +263,7 @@ impl<F: Field, R: ByteRecord> WitnessBuilder for HostWitnessBuilder<'_, F, R> {
 
     #[inline]
     fn nat_to_field(&mut self, a: u64) -> F {
-        F::from_canonical_u64(a)
+        wit_nat_to_field(a)
     }
 
     #[inline]

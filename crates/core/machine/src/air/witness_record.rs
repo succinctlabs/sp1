@@ -42,7 +42,6 @@
 //! launchers in `sp1-gpu/crates/tracegen/src/riscv/mod.rs`. See `WITGEN-IR.md`
 //! (in this directory) for the spec and the chip-porting recipe.
 
-use hashbrown::HashMap;
 use slop_algebra::Field;
 use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord},
@@ -51,6 +50,7 @@ use sp1_core_executor::{
 
 use crate::bytes::columns::NUM_BYTE_MULT_COLS;
 
+use super::witness::{wit_nat_to_field, wit_shl, wit_shr};
 use super::WitnessBuilder;
 
 /// An SSA-style wire id: an index into the interpreter's value array.
@@ -414,10 +414,10 @@ pub fn interpret<F: Field, R: ByteRecord>(
             WitOp::Eq(a, b) => wires
                 .push(Val::Nat(u64::from(wires[a.0 as usize].nat() == wires[b.0 as usize].nat()))),
             WitOp::Shl(a, s) => {
-                wires.push(Val::Nat(wires[a.0 as usize].nat() << wires[s.0 as usize].nat()))
+                wires.push(Val::Nat(wit_shl(wires[a.0 as usize].nat(), wires[s.0 as usize].nat())))
             }
             WitOp::Shr(a, s) => {
-                wires.push(Val::Nat(wires[a.0 as usize].nat() >> wires[s.0 as usize].nat()))
+                wires.push(Val::Nat(wit_shr(wires[a.0 as usize].nat(), wires[s.0 as usize].nat())))
             }
             WitOp::Mul(a, b) => wires
                 .push(Val::Nat(wires[a.0 as usize].nat().wrapping_mul(wires[b.0 as usize].nat()))),
@@ -432,7 +432,7 @@ pub fn interpret<F: Field, R: ByteRecord>(
                 wires.push(if c != 0 { wires[a.0 as usize] } else { wires[b.0 as usize] });
             }
             WitOp::NatToField(a) => {
-                wires.push(Val::Field(F::from_canonical_u64(wires[a.0 as usize].nat())))
+                wires.push(Val::Field(wit_nat_to_field(wires[a.0 as usize].nat())))
             }
             WitOp::FieldAdd(a, b) => {
                 wires.push(Val::Field(wires[a.0 as usize].field() + wires[b.0 as usize].field()))
@@ -538,8 +538,9 @@ pub fn interpret<F: Field, R: ByteRecord>(
 /// Lookup ops (emit no wire; skipped by the columns-only interpreters and
 /// accumulated into the Range/Byte histograms by the lookup/fused kernels — see
 /// [`interpret_c_lookups`] for the index conventions). Byte-table lookups drop the
-/// result `a` on device; it is reconstructed deterministically from
-/// `(opcode, b, c)` on readback (see [`byte_lookups_from_histograms`]):
+/// result `a` from the device form: the histogram indexes multiplicities by
+/// `(opcode, b, c)` only, and the deferred Byte table trace is built directly
+/// from the histogram on-device, so `a` is never reconstructed on host:
 ///
 /// | tag | op                   | a   | b     | imm1          | imm0         |
 /// |-----|----------------------|-----|-------|---------------|--------------|
@@ -741,7 +742,7 @@ impl WitProgram {
     /// kill-switch form.
     pub fn to_c(&self) -> Vec<WitOpC> {
         // The SSA form is the slot form under the IDENTITY slot map (every wire is
-        // its own "slot"), minus the `out`/`col` fields — delegate so the 26-arm
+        // its own "slot"), minus the `out`/`col` fields — delegate so the 25-arm
         // tag/field mapping exists exactly once, in `to_c_slots`.
         let identity: Vec<u32> = (0..self.num_wires() as u32).collect();
         self.to_c_slots(&identity)
@@ -926,12 +927,10 @@ pub fn interpret_c_columns<F: Field>(
             WitTag::Eq => wires.push(Val::Nat(u64::from(
                 wires[op.a as usize].nat() == wires[op.b as usize].nat(),
             ))),
-            WitTag::Shl => {
-                wires.push(Val::Nat(wires[op.a as usize].nat() << wires[op.b as usize].nat()))
-            }
-            WitTag::Shr => {
-                wires.push(Val::Nat(wires[op.a as usize].nat() >> wires[op.b as usize].nat()))
-            }
+            WitTag::Shl => wires
+                .push(Val::Nat(wit_shl(wires[op.a as usize].nat(), wires[op.b as usize].nat()))),
+            WitTag::Shr => wires
+                .push(Val::Nat(wit_shr(wires[op.a as usize].nat(), wires[op.b as usize].nat()))),
             WitTag::Mul => wires.push(Val::Nat(
                 wires[op.a as usize].nat().wrapping_mul(wires[op.b as usize].nat()),
             )),
@@ -946,7 +945,7 @@ pub fn interpret_c_columns<F: Field>(
                 wires.push(if c != 0 { wires[op.b as usize] } else { wires[op.imm1 as usize] });
             }
             WitTag::NatToField => {
-                wires.push(Val::Field(F::from_canonical_u64(wires[op.a as usize].nat())))
+                wires.push(Val::Field(wit_nat_to_field(wires[op.a as usize].nat())))
             }
             WitTag::FieldAdd => {
                 wires.push(Val::Field(wires[op.a as usize].field() + wires[op.b as usize].field()))
@@ -1014,15 +1013,15 @@ pub fn interpret_c_slots_columns<F: Field>(
                 vals[out] = Val::Nat((x >> op.imm0) & mask);
             }
             WitTag::Eq => vals[out] = Val::Nat(u64::from(vals[a].nat() == vals[b].nat())),
-            WitTag::Shl => vals[out] = Val::Nat(vals[a].nat() << vals[b].nat()),
-            WitTag::Shr => vals[out] = Val::Nat(vals[a].nat() >> vals[b].nat()),
+            WitTag::Shl => vals[out] = Val::Nat(wit_shl(vals[a].nat(), vals[b].nat())),
+            WitTag::Shr => vals[out] = Val::Nat(wit_shr(vals[a].nat(), vals[b].nat())),
             WitTag::Mul => vals[out] = Val::Nat(vals[a].nat().wrapping_mul(vals[b].nat())),
             WitTag::Xor => vals[out] = Val::Nat(vals[a].nat() ^ vals[b].nat()),
             WitTag::And => vals[out] = Val::Nat(vals[a].nat() & vals[b].nat()),
             WitTag::Select => {
                 vals[out] = if vals[a].nat() != 0 { vals[b] } else { vals[op.imm1 as usize] }
             }
-            WitTag::NatToField => vals[out] = Val::Field(F::from_canonical_u64(vals[a].nat())),
+            WitTag::NatToField => vals[out] = Val::Field(wit_nat_to_field(vals[a].nat())),
             WitTag::FieldAdd => vals[out] = Val::Field(vals[a].field() + vals[b].field()),
             WitTag::FieldSub => vals[out] = Val::Field(vals[a].field() - vals[b].field()),
             WitTag::FieldInverse => vals[out] = Val::Field(vals[a].field().inverse()),
@@ -1087,15 +1086,15 @@ pub fn interpret_c_slots_streaming_columns<F: Field>(
                 vals[o] = Val::Nat((x >> op.imm0) & mask);
             }
             WitTag::Eq => vals[o] = Val::Nat(u64::from(vals[a].nat() == vals[b].nat())),
-            WitTag::Shl => vals[o] = Val::Nat(vals[a].nat() << vals[b].nat()),
-            WitTag::Shr => vals[o] = Val::Nat(vals[a].nat() >> vals[b].nat()),
+            WitTag::Shl => vals[o] = Val::Nat(wit_shl(vals[a].nat(), vals[b].nat())),
+            WitTag::Shr => vals[o] = Val::Nat(wit_shr(vals[a].nat(), vals[b].nat())),
             WitTag::Mul => vals[o] = Val::Nat(vals[a].nat().wrapping_mul(vals[b].nat())),
             WitTag::Xor => vals[o] = Val::Nat(vals[a].nat() ^ vals[b].nat()),
             WitTag::And => vals[o] = Val::Nat(vals[a].nat() & vals[b].nat()),
             WitTag::Select => {
                 vals[o] = if vals[a].nat() != 0 { vals[b] } else { vals[op.imm1 as usize] }
             }
-            WitTag::NatToField => vals[o] = Val::Field(F::from_canonical_u64(vals[a].nat())),
+            WitTag::NatToField => vals[o] = Val::Field(wit_nat_to_field(vals[a].nat())),
             WitTag::FieldAdd => vals[o] = Val::Field(vals[a].field() + vals[b].field()),
             WitTag::FieldSub => vals[o] = Val::Field(vals[a].field() - vals[b].field()),
             WitTag::FieldInverse => vals[o] = Val::Field(vals[a].field().inverse()),
@@ -1167,8 +1166,8 @@ pub fn interpret_slots_columns<F: Field>(
                 Val::Nat((x >> offset) & mask)
             }
             WitOp::Eq(a, b) => Val::Nat(u64::from(r!(a).nat() == r!(b).nat())),
-            WitOp::Shl(a, b) => Val::Nat(r!(a).nat() << r!(b).nat()),
-            WitOp::Shr(a, b) => Val::Nat(r!(a).nat() >> r!(b).nat()),
+            WitOp::Shl(a, b) => Val::Nat(wit_shl(r!(a).nat(), r!(b).nat())),
+            WitOp::Shr(a, b) => Val::Nat(wit_shr(r!(a).nat(), r!(b).nat())),
             WitOp::Mul(a, b) => Val::Nat(r!(a).nat().wrapping_mul(r!(b).nat())),
             WitOp::Xor(a, b) => Val::Nat(r!(a).nat() ^ r!(b).nat()),
             WitOp::And(a, b) => Val::Nat(r!(a).nat() & r!(b).nat()),
@@ -1179,7 +1178,7 @@ pub fn interpret_slots_columns<F: Field>(
                     r!(b)
                 }
             }
-            WitOp::NatToField(a) => Val::Field(F::from_canonical_u64(r!(a).nat())),
+            WitOp::NatToField(a) => Val::Field(wit_nat_to_field(r!(a).nat())),
             WitOp::FieldAdd(a, b) => Val::Field(r!(a).field() + r!(b).field()),
             WitOp::FieldSub(a, b) => Val::Field(r!(a).field() - r!(b).field()),
             WitOp::FieldInverse(a) => Val::Field(r!(a).field().inverse()),
@@ -1261,8 +1260,8 @@ pub fn interpret_c_lookups(
                     wires.push((x >> op.imm0) & mask);
                 }
                 WitTag::Eq => wires.push(u64::from(wires[op.a as usize] == wires[op.b as usize])),
-                WitTag::Shl => wires.push(wires[op.a as usize] << wires[op.b as usize]),
-                WitTag::Shr => wires.push(wires[op.a as usize] >> wires[op.b as usize]),
+                WitTag::Shl => wires.push(wit_shl(wires[op.a as usize], wires[op.b as usize])),
+                WitTag::Shr => wires.push(wit_shr(wires[op.a as usize], wires[op.b as usize])),
                 WitTag::Mul => wires.push(wires[op.a as usize].wrapping_mul(wires[op.b as usize])),
                 WitTag::Xor => wires.push(wires[op.a as usize] ^ wires[op.b as usize]),
                 WitTag::And => wires.push(wires[op.a as usize] & wires[op.b as usize]),
@@ -1341,69 +1340,6 @@ pub fn interpret_c_lookups(
             }
         }
     }
-}
-
-/// Reconstruct the `HashMap<ByteLookupEvent, usize>` (the form a chip's
-/// `generate_dependencies` produces, and that the Byte/Range chips consume) from the
-/// two dense device histograms filled by [`interpret_c_lookups`]. This is the host
-/// side of the device byte-lookup path: the prover merges the result into the
-/// shard's `byte_lookups` so the existing host Byte/Range tracegen is unchanged.
-///
-/// Inverts the (bijective) index conventions:
-/// - Range:  `row = a + (1 << bits)` ⇒ `bits = ⌊log2(row)⌋`, `a = row - (1<<bits)`.
-/// - Byte:   `idx = ((b<<8)+c)*NUM_BYTE_MULT_COLS + (opcode as usize)` ⇒ split row/col.
-///
-/// Add/Sub populate only the `U8Range` byte column and `Range`; other byte columns
-/// (AND/OR/XOR/LTU/MSB) stay zero here and are handled generically should a future
-/// device chip emit them.
-pub fn byte_lookups_from_histograms(
-    range_hist: &[u32],
-    byte_hist: &[u32],
-) -> HashMap<ByteLookupEvent, usize> {
-    let mut map = HashMap::new();
-    // Range table (single column): row = a + (1<<bits), bits >= 1 for any real event.
-    for (row, &mult) in range_hist.iter().enumerate() {
-        if mult == 0 {
-            continue;
-        }
-        let bits = 63 - (row as u64).leading_zeros(); // floor(log2(row))
-        let a = (row - (1usize << bits)) as u16;
-        map.insert(
-            ByteLookupEvent { opcode: ByteOpcode::Range, a, b: bits as u8, c: 0 },
-            mult as usize,
-        );
-    }
-    // Byte table (NUM_BYTE_MULT_COLS columns): row = (b<<8)+c, column = opcode index.
-    for (idx, &mult) in byte_hist.iter().enumerate() {
-        if mult == 0 {
-            continue;
-        }
-        let row = idx / NUM_BYTE_MULT_COLS;
-        let col = idx % NUM_BYTE_MULT_COLS;
-        let b = (row >> 8) as u8;
-        let c = (row & 0xFF) as u8;
-        // The histogram indexes by (opcode, b, c) only; the result `a` is dropped to
-        // halve the table. But `a` is part of the `ByteLookupEvent` HashMap key the
-        // consumer (Byte chip) reads, so it must be reconstructed as the *exact* value
-        // the host emits — a deterministic function of (opcode, b, c). Getting this
-        // wrong (e.g. `a = 0` for AND/OR/XOR, whose host `a = b OP c` is non-zero)
-        // splits the LogUp tuples → GKR cumulative-sum mismatch (caught by the e2e
-        // bench on real Bitwise rows; synthetic-only chips like Add/Sub emit just
-        // U8Range/Range where `a = 0`, which is why it slipped earlier).
-        let (opcode, a) = match col {
-            0 => (ByteOpcode::AND, (b & c) as u16),
-            1 => (ByteOpcode::OR, (b | c) as u16),
-            2 => (ByteOpcode::XOR, (b ^ c) as u16),
-            3 => (ByteOpcode::U8Range, 0),
-            // LTU lookups are emitted to assert `b < c`, so the host result is 1.
-            4 => (ByteOpcode::LTU, 1),
-            // MSB of the byte `b` (the lookups always pass `c = 0`).
-            5 => (ByteOpcode::MSB, (b >> 7) as u16),
-            _ => unreachable!("byte table has {NUM_BYTE_MULT_COLS} columns"),
-        };
-        map.insert(ByteLookupEvent { opcode, a, b, c }, mult as usize);
-    }
-    map
 }
 
 /// View a column struct recorded over [`WireId`]s as the flat slice of its column
@@ -1630,16 +1566,6 @@ mod tests {
 
         assert_eq!(range_hist, ref_range, "range histogram mismatch vs generate_dependencies");
         assert_eq!(byte_hist, ref_byte, "byte histogram mismatch vs generate_dependencies");
-
-        // Reconstruct the byte-lookup map from the histograms (the host side of the
-        // device path) and assert it equals the host `generate_dependencies` map —
-        // validating the index inversion the prover relies on to merge device-
-        // produced lookups into `record.byte_lookups`.
-        let reconstructed = byte_lookups_from_histograms(&range_hist, &byte_hist);
-        assert_eq!(
-            reconstructed, dep_out.byte_lookups,
-            "reconstructed byte_lookups != generate_dependencies map"
-        );
     }
 
     /// A guarded lookup (recorded inside `push_guard`/`pop_guard`) must be emitted
