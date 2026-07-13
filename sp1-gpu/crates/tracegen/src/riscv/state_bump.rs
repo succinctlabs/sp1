@@ -302,4 +302,61 @@ mod tests {
         assert_eq!(range_hist, ref_range, "range histogram mismatch");
         assert_eq!(byte_hist, ref_byte, "byte histogram mismatch");
     }
+
+    /// FUSED kernel — the path production dispatch actually takes for this chip
+    /// (`supports_device_dependencies` routes it through
+    /// `generate_trace_device_with_lookups`, NOT the non-fused SSA kernel the test
+    /// above covers): columns must equal host `generate_trace` AND the fused
+    /// histograms must equal the standalone lookup kernel's reference.
+    #[tokio::test]
+    async fn test_state_bump_fused_kernel() {
+        sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
+            let events = synth_events(300, 0x57A82);
+            let shard = ExecutionRecord { bump_state_events: events.clone(), ..Default::default() };
+            let chip = StateBumpChip::new();
+
+            let cpu_trace =
+                Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
+
+            let inputs = super::pack_state_bump_inputs(&events);
+            let n_events = events.len();
+
+            // Reference histograms from the standalone lookup kernel.
+            let (mut r_ref, mut b_ref) = crate::new_byte_histograms(&scope);
+            crate::riscv::accumulate_lookups(
+                super::state_bump_witgen_chip(),
+                &inputs,
+                n_events,
+                &mut r_ref,
+                &mut b_ref,
+                &scope,
+            )
+            .await
+            .unwrap();
+            let r_ref_h: Vec<u32> = r_ref.to_host().unwrap();
+            let b_ref_h: Vec<u32> = b_ref.to_host().unwrap();
+
+            // Fused: columns + histograms in one op-DAG pass via the trait method.
+            let (r_f, b_f) = crate::new_byte_histograms(&scope);
+            let hist = crate::LookupHist {
+                range: r_f.as_ptr() as *mut u32,
+                byte: b_f.as_ptr() as *mut u32,
+            };
+            let fused_trace = chip
+                .generate_trace_device_with_lookups(&shard, inputs, hist, &scope)
+                .await
+                .expect("fused tracegen should succeed")
+                .to_host()
+                .expect("copy fused trace to host")
+                .into_guts();
+            let r_f_h: Vec<u32> = r_f.to_host().unwrap();
+            let b_f_h: Vec<u32> = b_f.to_host().unwrap();
+
+            crate::tests::test_traces_eq(&cpu_trace, &fused_trace, &events);
+            assert_eq!(r_f_h, r_ref_h, "fused range histogram must match the lookup kernel");
+            assert_eq!(b_f_h, b_ref_h, "fused byte histogram must match the lookup kernel");
+        })
+        .await
+        .unwrap();
+    }
 }

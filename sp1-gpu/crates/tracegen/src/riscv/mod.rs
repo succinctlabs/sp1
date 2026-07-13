@@ -670,8 +670,9 @@ fn device_chip_name(air: &RiscvAir<F>) -> Option<&'static str> {
         // DivRem in AR_DEVICE_CHIPS before enabling it in any default config.
         RiscvAir::DivRem(_) => "DivRem",
         // iter-071 CPU-side ports — CPU-model validated (columns + lookups); GPU
-        // device==CPU trace validated (`test_state_bump_generate_trace_device`,
-        // `test_memory_bump_generate_trace_device`, passing on the 4090).
+        // device==CPU validated on BOTH kernels each chip can take: non-fused SSA
+        // (`test_{state,memory}_bump_generate_trace_device`) and the fused path
+        // production dispatch uses (`test_{state,memory}_bump_fused_kernel`).
         RiscvAir::StateBump(_) => "StateBump",
         RiscvAir::MemoryBump(_) => "MemoryBump",
         // iter-071 ports with passing GPU device==CPU fused-kernel tests
