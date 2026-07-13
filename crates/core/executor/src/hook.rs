@@ -442,7 +442,7 @@ pub mod fp_ops {
                     assert!(result.is_some());
 
                     let result = result.unwrap();
-                    assert!((&result * &result) % &p == element);
+                    assert_eq!((&result * &result) % &p, element);
                 } else {
                     assert!(result.is_none());
                 }
