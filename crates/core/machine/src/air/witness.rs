@@ -10,14 +10,15 @@
 //! * [`HostWitnessBuilder`] — `Nat = u64`, `Field = F`; every op computes
 //!   immediately and writes the row columns / emits lookups. This reproduces the
 //!   hand-written `populate` exactly.
-//! * (future) a recording builder — `Nat = Field = WireId`; every op pushes onto a
-//!   per-gadget op-DAG that a single generic CUDA kernel interprets per row, the
-//!   way `zerocheck`/`branchingProgram` already interpret the constraint DAG on
-//!   the GPU.
+//! * [`RecordingWitnessBuilder`](super::RecordingWitnessBuilder) — `Nat = Field =
+//!   WireId`; every op pushes onto a per-gadget op-DAG that a single generic CUDA
+//!   kernel interprets per row, the way `zerocheck`/`branchingProgram` already
+//!   interpret the constraint DAG on the GPU.
 //!
 //! The op-set is taken from SP1's real `populate` bodies (field/nat arithmetic,
 //! bit extraction, nat→field casts, range/byte lookups, conditional select); add
-//! ops only as gadgets need them. See `autoresearch/design/TRACEGEN-DSL.md`.
+//! ops only as gadgets need them. See `WITGEN-IR.md` (in this directory) for the
+//! IR spec and the chip-porting recipe.
 
 use std::marker::PhantomData;
 
@@ -28,7 +29,8 @@ use sp1_core_executor::{
 };
 
 /// Map a `ByteOpcode` discriminant (the value carried by a witgen opcode wire) back
-/// to the enum. Kept in sync with `ByteOpcode` (`#[repr(u8)]`).
+/// to the enum. Kept in sync with `ByteOpcode`'s declaration order (the enum has no
+/// explicit `repr`, so this relies on the default 0-based discriminants).
 #[inline]
 pub(crate) fn byte_opcode_from_u64(v: u64) -> ByteOpcode {
     match v {
@@ -132,7 +134,8 @@ pub trait WitnessBuilder {
     /// rows where `guard != 0`. This lets a per-row branch (e.g. an immediate operand
     /// that skips its register read, or a mode flag) guard the lookups of the gadgets
     /// it composes WITHOUT changing those gadgets (the columns themselves are merged
-    /// with [`select`](Self::select)). Single-level (scopes don't nest) for now.
+    /// with [`select`](Self::select)). Scopes nest: the effective guard is the AND
+    /// (product) of all enclosing scopes, on every backend.
     fn push_guard(&mut self, guard: Self::Nat);
 
     /// End the current guarded scope (lookups are unconditional again).
@@ -311,6 +314,7 @@ impl<F: Field, R: ByteRecord> WitnessBuilder for HostWitnessBuilder<'_, F, R> {
 
     #[inline]
     fn pop_guard(&mut self) {
+        debug_assert!(!self.guard_stack.is_empty(), "pop_guard without a matching push_guard");
         self.guard_stack.pop();
     }
 }

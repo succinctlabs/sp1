@@ -856,8 +856,6 @@ where
     (host_phase_tracegen, host_phase_shape_info)
 }
 
-/// Puts traces on device. Returns (traces, public values).
-#[instrument(skip_all, level = "debug")]
 /// Scatter-add host-chip lookups (row-major histogram index, multiplicity) into a shared
 /// device histogram via `hist_trace_scatter_kernel`. Host-map keys are unique → indices
 /// are distinct → no atomics needed. Launched on the outer scope after the device fused
@@ -888,6 +886,8 @@ fn scatter_into_histogram(
     }
 }
 
+/// Puts traces on device. Returns (traces, public values).
+#[instrument(skip_all, level = "debug")]
 async fn device_main_tracegen<A: CudaTracegenAir<Felt>>(
     host_phase_tracegen: HostPhaseTracegen<A>,
     record: Arc<<A as MachineAir<Felt>>::Record>,
@@ -937,7 +937,7 @@ async fn device_main_tracegen<A: CudaTracegenAir<Felt>>(
     // scope's single stream (iter-070 measurement: the whole device-tracegen wall gap
     // sat in this span, while the old host `synchronize()` below cost ~4ms).
     //
-    // Concurrency is BOUNDED (semaphore, `AR_TRACEGEN_STREAMS`, default 4): unbounded
+    // Concurrency is BOUNDED (semaphore, `AR_TRACEGEN_STREAMS`, default 8): unbounded
     // fan-out OOMs the GPU — shards are sized to ~fill device memory (iter-055), and
     // each in-flight chip carries transient allocations (input staging + the
     // transpose's temporary buffer), so ~25 concurrent chips spike past the pool.
@@ -1058,6 +1058,15 @@ async fn device_main_tracegen<A: CudaTracegenAir<Felt>>(
                     "Range" => &range_dev,
                     other => panic!("unexpected deferred byte/range chip {other}"),
                 };
+                // The kernel reads `hist[0..total]`: a chip width/height change that
+                // outruns the histogram sizing in `new_byte_histograms` must fail here,
+                // not as a silent out-of-bounds device read.
+                assert_eq!(
+                    total,
+                    hist.len(),
+                    "{} table trace ({height}x{width}) does not match its histogram length",
+                    air.name()
+                );
                 // Row-major `[height, width]` field trace. `hist_to_trace_kernel` writes
                 // EVERY cell (`trace[i] = hist[i]`), so allocate uninitialized — the
                 // `zeros_in` memset would be pure waste (immediately overwritten).

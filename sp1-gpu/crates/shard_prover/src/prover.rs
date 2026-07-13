@@ -229,6 +229,16 @@ where
     }
 
     /// Setup and prove a shard.
+    ///
+    /// # Contract
+    /// `record` must have had its host dependencies generated with the chips named by
+    /// [`host_dependency_skip_chips`](Self::host_dependency_skip_chips) EXCLUDED
+    /// (`Machine::generate_dependencies` with the complementary filter): this prover
+    /// re-generates those chips' byte lookups on-device during tracegen, so a record
+    /// whose host pass ran unfiltered double-counts byte multiplicities and fails
+    /// verification at the LogUp cumulative sum. The worker core path upholds this
+    /// pairing; any other caller (perf replay, tests) must prepare the record under
+    /// the SAME `AR_DEVICE_CHIPS`/`AR_DEVICE_DEPS` configuration it proves with.
     async fn setup_and_prove_shard(
         &self,
         program: Arc<<PC::Air as MachineAir<GC::F>>::Program>,

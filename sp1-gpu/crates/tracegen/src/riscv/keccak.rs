@@ -23,12 +23,10 @@
 //! live in the separate `KeccakPermuteControlChip`. So the recorded program is
 //! pure column ops — no lookup tags at all (asserted in tests).
 //!
-//! The `CudaTracegenAir` wiring is deliberately NOT included yet: the pinned slot
-//! footprint (~n_cols, >> the 256-slot kernel cap) rules out the pinned kernel and
-//! the streaming footprint exceeds the current smem cap of 24, so the kernel
-//! strategy (bigger smem cap / per-round subprograms / bespoke kernel) is decided
-//! by the measurements in the tests below.
-#![allow(dead_code)]
+//! The `CudaTracegenAir` wiring (below) is fused-only: the pinned slot footprint
+//! (~n_cols, >> the 256-slot kernel cap) rules out the pinned kernel, so the chip
+//! always routes through `generate_trace_device_with_lookups` on the streaming
+//! lowering (its footprint fits the local-memory tier).
 
 use core::borrow::BorrowMut;
 use std::collections::HashMap;

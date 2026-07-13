@@ -1,5 +1,5 @@
 //! Device tracegen for the RISC-V chips via the witgen IR (see
-//! `autoresearch/design/WITGEN-IR.md` and the module doc of
+//! `crates/core/machine/src/air/WITGEN-IR.md` and the module doc of
 //! `crates/core/machine/src/air/witness_record.rs` for the IR itself).
 //!
 //! Each chip submodule contributes the CPU side of a port: record the chip's
@@ -25,7 +25,9 @@
 //!   kernel.
 //! - **Non-fused column path**: the prover calls the per-chip
 //!   `generate_trace_device` only for `Global` (no byte lookups) and for every
-//!   fused chip when `AR_DEVICE_DEPS=0`. Narrow chips launch the SSA
+//!   fused chip when `AR_DEVICE_DEPS=0` (fused-ONLY chips — DivRem, Keccak* —
+//!   instead fall back to host tracegen entirely, see
+//!   `supports_device_main_tracegen`). Narrow chips launch the SSA
 //!   `witgen_interp_kernel` directly; wide ones use
 //!   [`generate_columns_slots_into`]. Chips that also emit
 //!   `GlobalInteractionEvent`s (MemoryLocal / MemoryGlobal* / Syscall*) fuse
@@ -81,30 +83,6 @@ mod syscall;
 mod syscall_instrs;
 mod utype;
 
-/// Per-thread wire-array capacity in the witgen interpreter kernels. MUST MATCH
-/// `WITGEN_MAX_WIRES` in `sp1-gpu/crates/sys/lib/tracegen/witgen_interp.cu` — the
-/// kernels' per-thread arrays are statically sized by it. A recorded gadget whose
-/// [`num_wires`](sp1_core_machine::air::WitProgram::num_wires) (SSA path) or
-/// `max_slots` (slot paths) exceeds this would overflow them, so every launcher
-/// asserts against it. 256 is a local-memory/occupancy trade-off, not a hard
-/// device limit (raising it linearly raises per-thread local-memory traffic —
-/// the dominant witgen cost, iter-072).
-pub(crate) const WITGEN_MAX_WIRES: usize = 256;
-
-/// Streaming shared-memory tier cap: chips whose streaming footprint
-/// (`allocate_slots_streaming` max) fits this many slots keep their wires in
-/// `__shared__` memory. MUST MATCH `WITGEN_SMEM_CAP` in `witgen_interp.cu` (the
-/// kernel's `__shared__` arrays are statically sized by CAP x BLOCK). Tuned on the
-/// RTX 4090 (iter-073): 24 slots x 64 threads x (8B nat + 4B fld) = 18 KiB/block,
-/// covering most narrow chips' transient working sets.
-pub(crate) const WITGEN_SMEM_CAP: u32 = 24;
-
-/// Thread-block size of the streaming shared-memory kernel. MUST MATCH
-/// `WITGEN_SMEM_BLOCK` in `witgen_interp.cu` — the kernel indexes its shared
-/// arrays as `[slot][thread-in-block]`, so launching with a different block size
-/// would alias or overflow them (it is also the kernel's `__launch_bounds__`).
-pub(crate) const WITGEN_SMEM_BLOCK: usize = 64;
-
 // The lookup kernels hard-code the byte-table shape as `WITGEN_NUM_BYTE_MULT_COLS`
 // (= 6) and `WITGEN_BYTE_U8RANGE_COL` (= 3) in `witgen_interp.cu`; fail the build
 // here if the Rust-side constants they mirror ever drift.
@@ -116,8 +94,10 @@ const _: () = {
 use slop_alloc::mem::CopyError;
 use slop_alloc::Buffer;
 use slop_tensor::Tensor;
-use sp1_core_executor::events::ByteRecord;
-use sp1_core_machine::air::{byte_lookups_from_histograms, WitProgram};
+// The kernel sizing constants are defined next to the IR (single source of truth,
+// exported to `witgen_interp.cu` through cbindgen — the kernels' static array
+// sizes and this crate's launcher asserts/tiering can no longer drift apart).
+use sp1_core_machine::air::{WitProgram, WITGEN_MAX_WIRES, WITGEN_SMEM_BLOCK, WITGEN_SMEM_CAP};
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKernel};
 
@@ -650,10 +630,13 @@ fn device_chip_name(air: &RiscvAir<F>) -> Option<&'static str> {
         // DivRem in AR_DEVICE_CHIPS before enabling it in any default config.
         RiscvAir::DivRem(_) => "DivRem",
         // iter-071 CPU-side ports — CPU-model validated (columns + lookups); GPU
-        // device==CPU trace tests not yet run (GPU busy). Do not enable in
-        // AR_DEVICE_CHIPS until the tokio tests pass on device.
+        // device==CPU trace tests not yet run. Do not enable in AR_DEVICE_CHIPS
+        // until the tokio tests pass on device.
         RiscvAir::StateBump(_) => "StateBump",
         RiscvAir::MemoryBump(_) => "MemoryBump",
+        // iter-071 ports with passing GPU device==CPU fused-kernel tests
+        // (`test_memory_local_fused_kernel`, `test_memory_global_fused_kernel`,
+        // `test_syscall_fused_kernel`).
         RiscvAir::MemoryLocal(_) => "MemoryLocal",
         RiscvAir::MemoryGlobalInit(_) => "MemoryGlobalInit",
         RiscvAir::MemoryGlobalFinal(_) => "MemoryGlobalFinal",
@@ -682,14 +665,26 @@ fn device_chip_name(air: &RiscvAir<F>) -> Option<&'static str> {
 
 /// Runtime gate for the device-tracegen path.
 ///
-/// The device-tracegen DSL (witgen → op-DAG → generic interpreter) was built and
-/// validated for the full RISC-V ALU+memory+control ISA (iters 005–039), but the
-/// e2e bench (iters 040–043) showed it **regresses ~17%** (correct but slower: the
-/// per-chip-per-shard histogram readback + input-packing H2D + per-thread local-mem
-/// traffic dwarf the modest column-gen win). So it is **off by default** — only
-/// `Global` (the pre-existing baseline device chip) runs on device, matching the
-/// baseline. Set `AR_DEVICE_CHIPS` to a comma-list to re-enable specific chips for
-/// study (e.g. to re-bisect or profile); the code + tests are retained.
+/// The device-tracegen DSL (witgen → op-DAG → generic interpreter) is validated
+/// for the full RISC-V ALU+memory+control ISA plus SHA/Keccak. e2e A/B of the
+/// FINAL tier ladder (fused streaming kernels + on-device Byte/Range build +
+/// stream fan-out; `AR_DEVICE_CHIPS=all` vs unset, core mode, proofs verified,
+/// RTX 4090, 2026-07-10):
+///
+/// | program                       | baseline (s) | device (s) | delta  |
+/// |-------------------------------|--------------|------------|--------|
+/// | keccak256-1mb  (5 shards)     | 2.98–3.01    | 2.82–2.83  | ~-5.5% |
+/// | keccak256-3mb  (12 shards)    | 6.96         | 6.51       | ~-6%   |
+/// | rsp block 21000000 (70 shards)| 33.86        | 33.51      | ~-1%   |
+/// | fibonacci-200m (24 shards)    | 12.41–12.78  | 13.77–14.25| ~+9%   |
+///
+/// Net: faster on precompile-heavy workloads, noise on RSP-class, slower on the
+/// ALU-only fibonacci (residual is per-shard phase seams, not kernel time —
+/// analyzed in iter-078; separable follow-up). Kept **off by default** until the
+/// kernel-efficiency workstream (input-read coalescing, histogram atomics)
+/// lands and the fibonacci seam is closed — only `Global` (the pre-existing
+/// baseline device chip) runs on device, matching the baseline. Set
+/// `AR_DEVICE_CHIPS` to a comma-list (or `all`) to enable chips for study.
 fn device_chip_enabled(name: &str) -> bool {
     use std::collections::HashSet;
     use std::sync::OnceLock;
@@ -717,7 +712,17 @@ fn device_deps_enabled() -> bool {
 
 impl CudaTracegenAir<F> for RiscvAir<F> {
     fn supports_device_main_tracegen(&self) -> bool {
-        device_chip_name(self).is_some_and(device_chip_enabled)
+        let Some(name) = device_chip_name(self) else { return false };
+        // Fused-only chips have no columns-only kernel (their pinned slot footprint
+        // exceeds the kernel cap): with the device dependency path disabled they
+        // cannot run on device at all, so fall back to HOST tracegen instead of
+        // panicking in `generate_trace_device` at prove time
+        // (`AR_DEVICE_CHIPS=all` + `AR_DEVICE_DEPS=0`).
+        const FUSED_ONLY: [&str; 3] = ["DivRem", "KeccakPermute", "KeccakPermuteControl"];
+        if !device_deps_enabled() && FUSED_ONLY.contains(&name) {
+            return false;
+        }
+        device_chip_enabled(name)
     }
 
     /// Non-fused (columns-only) dispatch. The prover reaches this only for device
@@ -854,23 +859,6 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::SyscallCore(chip) | Self::SyscallPrecompile(chip) => dispatch!(chip),
             _ => unimplemented!(),
         }
-    }
-
-    /// Reconstruct the `byte_lookups` map from the shared shard histograms (already read
-    /// back to host) ONCE and merge it into `output`. Chip-independent: the dense
-    /// histograms are opcode-indexed, so this single call yields the union of what the
-    /// per-chip reconstructs used to produce. Mirrors the host `generate_dependencies`
-    /// output that the Byte/Range chips consume.
-    ///
-    /// STATUS: no callers — see the trait doc (superseded by the on-device table build).
-    fn add_lookups_from_histograms(
-        &self,
-        range_hist: &[u32],
-        byte_hist: &[u32],
-        output: &mut Self::Record,
-    ) {
-        let map = byte_lookups_from_histograms(range_hist, byte_hist);
-        output.add_byte_lookup_events_from_maps(vec![&map]);
     }
 
     fn pack_device_lookup_inputs(&self, input: &Self::Record) -> Vec<u64> {
@@ -1073,24 +1061,6 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::SyscallCore(chip) | Self::SyscallPrecompile(chip) => dispatch!(chip),
             _ => unimplemented!(),
         }
-    }
-
-    /// Build a (minimal) record carrying the FULL `byte_lookups` map — the host chips'
-    /// lookups already in `base` (from the host `generate_dependencies`) unioned with the
-    /// device chips' lookups reconstructed from the shared histograms — so the deferred
-    /// Byte/Range table chips can generate their traces from it.
-    ///
-    /// STATUS: no callers — see the trait doc (superseded by the on-device table build).
-    fn record_with_byte_lookups(
-        &self,
-        base: &Self::Record,
-        range_hist: &[u32],
-        byte_hist: &[u32],
-    ) -> Self::Record {
-        let dev_map = byte_lookups_from_histograms(range_hist, byte_hist);
-        let mut rec = Self::Record::default();
-        rec.add_byte_lookup_events_from_maps(vec![&base.byte_lookups, &dev_map]);
-        rec
     }
 
     fn host_lookup_scatter(

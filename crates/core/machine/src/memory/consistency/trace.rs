@@ -58,6 +58,17 @@ impl<F: PrimeField32> MemoryAccessCols<F> {
     pub fn populate(&mut self, record: MemoryRecordEnum, output: &mut impl ByteRecord) {
         let prev_record = record.previous_record();
         let current_record = record.current_record();
+        // The witgen body computes `diff - 1` with wrapping ops (out-of-contract
+        // inputs produce a garbage witness, not a panic), so keep the executor
+        // invariant loud here like `MemoryAccessTimestamp::populate_timestamp` does —
+        // an executor bug must fail at the access site, not as a far-away
+        // verification error.
+        assert!(
+            prev_record.timestamp < current_record.timestamp,
+            "prev_timestamp: {}, current_timestamp: {}",
+            prev_record.timestamp,
+            current_record.timestamp
+        );
         let mut wb = crate::air::HostWitnessBuilder::<F, _>::new(output);
         Self::witgen(
             &mut wb,

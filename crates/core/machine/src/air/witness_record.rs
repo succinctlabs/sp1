@@ -39,9 +39,8 @@
 //!    of the column forms).
 //!
 //! The GPU ports live in `sp1-gpu/crates/sys/lib/tracegen/witgen_interp.cu`; the
-//! launchers in `sp1-gpu/crates/tracegen/src/riscv/mod.rs`. See
-//! `autoresearch/design/WITGEN-IR.md` for the spec and the chip-porting recipe,
-//! and `autoresearch/design/TRACEGEN-DSL.md` for the original design.
+//! launchers in `sp1-gpu/crates/tracegen/src/riscv/mod.rs`. See `WITGEN-IR.md`
+//! (in this directory) for the spec and the chip-porting recipe.
 
 use hashbrown::HashMap;
 use slop_algebra::Field;
@@ -253,6 +252,11 @@ impl RecordingWitnessBuilder {
 
     /// Finish recording.
     pub fn finish(self) -> WitProgram {
+        debug_assert!(
+            self.guard_stack.is_empty(),
+            "witgen finished with {} unmatched push_guard(s)",
+            self.guard_stack.len()
+        );
         self.program
     }
 }
@@ -332,10 +336,11 @@ impl WitnessBuilder for RecordingWitnessBuilder {
     }
     fn add_bit_range_check_var(&mut self, a: WireId, bits: WireId) {
         // Used only outside guarded scopes (the shift chips' limb range checks).
-        debug_assert!(
-            self.guard_stack.is_empty(),
-            "guarded variable-width range check unsupported"
-        );
+        // Hard assert: in release a silently-recorded UNGUARDED lookup would diverge
+        // from the host builder (which suppresses it under a 0 guard) — a LogUp
+        // mismatch far from the cause. Recording runs once per program, so this is
+        // free.
+        assert!(self.guard_stack.is_empty(), "guarded variable-width range check unsupported");
         self.program.ops.push(WitOp::BitRangeCheckVar { src: a, bits });
     }
     fn add_byte_lookup(&mut self, opcode: WireId, a: WireId, b: WireId, c: WireId) {
@@ -354,6 +359,7 @@ impl WitnessBuilder for RecordingWitnessBuilder {
         self.guard_stack.push(eff);
     }
     fn pop_guard(&mut self) {
+        debug_assert!(!self.guard_stack.is_empty(), "pop_guard without a matching push_guard");
         self.guard_stack.pop();
     }
 }
@@ -548,19 +554,73 @@ pub fn interpret<F: Field, R: ByteRecord>(
 /// | 22  | BitRangeCheckVar     | src | bits  | -             | -            |
 ///
 /// Tag 10 is unassigned (never allocated; existing tags must stay stable — the
-/// compiled kernels switch on these exact values). Adding an op means: one arm in
-/// [`to_c`](WitProgram::to_c) and [`to_c_slots`](WitProgram::to_c_slots), one case
-/// in each CPU interpreter in this file, and one `case` per kernel switch in
-/// `witgen_interp.cu` (7 sites).
+/// compiled kernels switch on these exact values). Adding an op means: one variant
+/// here, one arm in [`to_c_slots`](WitProgram::to_c_slots) (which [`to_c`]
+/// (WitProgram::to_c) delegates to), one case in each CPU interpreter in this
+/// file, and one `case` per kernel switch in `witgen_interp.cu` (8 sites — a
+/// missing case there hits the switches' trapping `default:`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(C)]
 pub struct WitOpC {
-    pub tag: u32,
+    pub tag: WitTag,
     pub a: u32,
     pub b: u32,
     pub imm1: u32,
     pub imm0: u64,
 }
+
+/// The device op tag — the single source of truth for the tag values shared by
+/// the Rust lowerings/interpreters and the CUDA kernels (exported to C++ via
+/// cbindgen as `sp1_gpu_sys::WitTag`, which the kernel switches consume, so the
+/// two sides cannot drift). Discriminants are PINNED: tag 10 is unassigned and
+/// existing values must never change. Field semantics per tag are the tables on
+/// [`WitOpC`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u32)]
+pub enum WitTag {
+    ConstNat = 0,
+    WrappingAdd = 1,
+    Bits = 2,
+    NatToField = 3,
+    FieldAdd = 4,
+    FieldInverse = 5,
+    U16RangeCheck = 6,
+    BitRangeCheck = 7,
+    WrappingSub = 8,
+    U8RangeCheck = 9,
+    Eq = 11,
+    Select = 12,
+    U16RangeCheckGuarded = 13,
+    BitRangeCheckGuarded = 14,
+    U8RangeCheckGuarded = 15,
+    ByteLookup = 16,
+    ByteLookupGuarded = 17,
+    FieldSelect = 18,
+    FieldSub = 19,
+    Shl = 20,
+    Shr = 21,
+    BitRangeCheckVar = 22,
+    Mul = 23,
+    Xor = 24,
+    And = 25,
+}
+
+/// Per-thread wire-array capacity of the witgen kernels: max wires (inputs +
+/// value ops) on the SSA path, max live slots on the slot/streaming paths.
+/// Exported through cbindgen (single source of truth for `witgen_interp.cu`);
+/// the host launchers assert every lowered program fits before launching.
+pub const WITGEN_MAX_WIRES: usize = 256;
+
+/// Streaming-footprint cap for the SHARED-MEMORY fused streaming kernel tier:
+/// chips whose `streaming_max` is at most this run with their wires in
+/// `__shared__` memory. Exported through cbindgen. Tuned on the RTX 4090
+/// (18 KiB/block at `WITGEN_SMEM_BLOCK` = 64); re-tune per deployment SKU.
+pub const WITGEN_SMEM_CAP: u32 = 24;
+
+/// Thread-block size of the shared-memory streaming kernel (its `__shared__`
+/// arrays are `[WITGEN_SMEM_CAP][WITGEN_SMEM_BLOCK]`). Exported through
+/// cbindgen; the launcher must launch with exactly this block size.
+pub const WITGEN_SMEM_BLOCK: usize = 64;
 
 /// Slot-resolved counterpart of [`WitOpC`]: the flat op form the *register-
 /// allocated* kernel consumes. Every wire reference (`a`/`b`, and `imm1`/`imm0`
@@ -574,7 +634,7 @@ pub struct WitOpC {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(C)]
 pub struct WitOpCSlot {
-    pub tag: u32,
+    pub tag: WitTag,
     pub out: u32,
     pub a: u32,
     pub b: u32,
@@ -594,25 +654,7 @@ impl WitProgram {
     /// wire arrays must be at least this large on the SSA path; the slot lowerings
     /// bound it by `max_slots` instead.
     pub fn num_wires(&self) -> usize {
-        self.num_inputs as usize
-            + self
-                .ops
-                .iter()
-                .filter(|op| {
-                    !matches!(
-                        op,
-                        WitOp::U16RangeCheck(..)
-                            | WitOp::BitRangeCheck { .. }
-                            | WitOp::BitRangeCheckVar { .. }
-                            | WitOp::U8RangeCheck(..)
-                            | WitOp::U16RangeCheckGuarded { .. }
-                            | WitOp::U8RangeCheckGuarded { .. }
-                            | WitOp::BitRangeCheckGuarded { .. }
-                            | WitOp::ByteLookup { .. }
-                            | WitOp::ByteLookupGuarded { .. }
-                    )
-                })
-                .count()
+        self.num_inputs as usize + self.ops.iter().filter(|op| op.produces_wire()).count()
     }
 
     /// Register-allocate the SSA op-DAG: assign each wire a REUSABLE slot via
@@ -643,20 +685,22 @@ impl WitProgram {
             }
         }
         debug_assert_eq!(wc, total, "wire count mismatch");
-        // Last-use time per wire (>= its def; col wires live to `end`).
+        // Last-use time per wire (>= its def; col wires live to `end`). Out-of-range
+        // operand/column wires mean a malformed program — fail loudly rather than
+        // silently computing a wrong allocation.
         let mut lastuse = def.clone();
         for (k, op) in self.ops.iter().enumerate() {
             op.for_each_operand(|w| {
                 let w = w as usize;
-                if w < total && k + 1 > lastuse[w] {
+                debug_assert!(w < total, "op {k} references out-of-range wire {w} (of {total})");
+                if k + 1 > lastuse[w] {
                     lastuse[w] = k + 1;
                 }
             });
         }
         for &c in col_wires {
-            if (c as usize) < total {
-                lastuse[c as usize] = end;
-            }
+            debug_assert!((c as usize) < total, "column wire {c} out of range (of {total})");
+            lastuse[c as usize] = end;
         }
         // Linear-scan allocation in def order; a slot frees once its wire's last use
         // is strictly before the new wire's def (disjoint inclusive live ranges).
@@ -696,59 +740,13 @@ impl WitProgram {
     /// non-fused narrow kernels, and the fused path's `AR_WITGEN_SLOTS=0`
     /// kill-switch form.
     pub fn to_c(&self) -> Vec<WitOpC> {
-        self.ops
-            .iter()
-            .map(|op| match *op {
-                WitOp::ConstNat(v) => WitOpC { tag: 0, a: 0, b: 0, imm1: 0, imm0: v },
-                WitOp::WrappingAdd(a, b) => WitOpC { tag: 1, a: a.0, b: b.0, imm1: 0, imm0: 0 },
-                WitOp::WrappingSub(a, b) => WitOpC { tag: 8, a: a.0, b: b.0, imm1: 0, imm0: 0 },
-                WitOp::U8RangeCheck(a, b) => WitOpC { tag: 9, a: a.0, b: b.0, imm1: 0, imm0: 0 },
-                WitOp::Eq(a, b) => WitOpC { tag: 11, a: a.0, b: b.0, imm1: 0, imm0: 0 },
-                WitOp::Shl(a, s) => WitOpC { tag: 20, a: a.0, b: s.0, imm1: 0, imm0: 0 },
-                WitOp::Shr(a, s) => WitOpC { tag: 21, a: a.0, b: s.0, imm1: 0, imm0: 0 },
-                WitOp::Mul(a, b) => WitOpC { tag: 23, a: a.0, b: b.0, imm1: 0, imm0: 0 },
-                WitOp::Xor(a, b) => WitOpC { tag: 24, a: a.0, b: b.0, imm1: 0, imm0: 0 },
-                WitOp::And(a, b) => WitOpC { tag: 25, a: a.0, b: b.0, imm1: 0, imm0: 0 },
-                WitOp::BitRangeCheckVar { src, bits } => {
-                    WitOpC { tag: 22, a: src.0, b: bits.0, imm1: 0, imm0: 0 }
-                }
-                WitOp::Select { cond, a, b } => {
-                    WitOpC { tag: 12, a: cond.0, b: a.0, imm1: b.0, imm0: 0 }
-                }
-                WitOp::Bits { src, offset, width } => {
-                    WitOpC { tag: 2, a: src.0, b: 0, imm1: width, imm0: offset as u64 }
-                }
-                WitOp::NatToField(a) => WitOpC { tag: 3, a: a.0, b: 0, imm1: 0, imm0: 0 },
-                WitOp::FieldAdd(a, b) => WitOpC { tag: 4, a: a.0, b: b.0, imm1: 0, imm0: 0 },
-                WitOp::FieldSub(a, b) => WitOpC { tag: 19, a: a.0, b: b.0, imm1: 0, imm0: 0 },
-                WitOp::FieldInverse(a) => WitOpC { tag: 5, a: a.0, b: 0, imm1: 0, imm0: 0 },
-                WitOp::FieldSelect { cond, a, b } => {
-                    WitOpC { tag: 18, a: cond.0, b: a.0, imm1: b.0, imm0: 0 }
-                }
-                WitOp::U16RangeCheck(a) => WitOpC { tag: 6, a: a.0, b: 0, imm1: 0, imm0: 0 },
-                WitOp::BitRangeCheck { src, bits } => {
-                    WitOpC { tag: 7, a: src.0, b: 0, imm1: 0, imm0: bits as u64 }
-                }
-                // Guarded lookups (per-row branches): the guard wire rides in an
-                // otherwise-unused field — `b` for the 1-source checks, `imm1` for u8.
-                WitOp::U16RangeCheckGuarded { guard, src } => {
-                    WitOpC { tag: 13, a: src.0, b: guard.0, imm1: 0, imm0: 0 }
-                }
-                WitOp::BitRangeCheckGuarded { guard, src, bits } => {
-                    WitOpC { tag: 14, a: src.0, b: guard.0, imm1: 0, imm0: bits as u64 }
-                }
-                WitOp::U8RangeCheckGuarded { guard, a, b } => {
-                    WitOpC { tag: 15, a: a.0, b: b.0, imm1: guard.0, imm0: 0 }
-                }
-                // Byte-table lookup: device needs only (opcode, b, c) for the
-                // multiplicity index — the result `a` is dropped from the device form.
-                WitOp::ByteLookup { opcode, a: _, b, c } => {
-                    WitOpC { tag: 16, a: b.0, b: c.0, imm1: opcode.0, imm0: 0 }
-                }
-                WitOp::ByteLookupGuarded { guard, opcode, a: _, b, c } => {
-                    WitOpC { tag: 17, a: b.0, b: c.0, imm1: opcode.0, imm0: guard.0 as u64 }
-                }
-            })
+        // The SSA form is the slot form under the IDENTITY slot map (every wire is
+        // its own "slot"), minus the `out`/`col` fields — delegate so the 26-arm
+        // tag/field mapping exists exactly once, in `to_c_slots`.
+        let identity: Vec<u32> = (0..self.num_wires() as u32).collect();
+        self.to_c_slots(&identity)
+            .into_iter()
+            .map(|op| WitOpC { tag: op.tag, a: op.a, b: op.b, imm1: op.imm1, imm0: op.imm0 })
             .collect()
     }
 
@@ -775,36 +773,50 @@ impl WitProgram {
                 // Remap by semantic field (not position) so wire vs. literal is never
                 // confused — mirrors `to_c`, wrapping each wire field in `s(..)`.
                 let (tag, a, b, imm1, imm0) = match *op {
-                    WitOp::ConstNat(v) => (0, 0, 0, 0, v),
-                    WitOp::WrappingAdd(a, b) => (1, s(a), s(b), 0, 0),
-                    WitOp::WrappingSub(a, b) => (8, s(a), s(b), 0, 0),
-                    WitOp::U8RangeCheck(a, b) => (9, s(a), s(b), 0, 0),
-                    WitOp::Eq(a, b) => (11, s(a), s(b), 0, 0),
-                    WitOp::Shl(a, b) => (20, s(a), s(b), 0, 0),
-                    WitOp::Shr(a, b) => (21, s(a), s(b), 0, 0),
-                    WitOp::Mul(a, b) => (23, s(a), s(b), 0, 0),
-                    WitOp::Xor(a, b) => (24, s(a), s(b), 0, 0),
-                    WitOp::And(a, b) => (25, s(a), s(b), 0, 0),
-                    WitOp::BitRangeCheckVar { src, bits } => (22, s(src), s(bits), 0, 0),
-                    WitOp::Select { cond, a, b } => (12, s(cond), s(a), s(b), 0),
-                    WitOp::Bits { src, offset, width } => (2, s(src), 0, width, offset as u64),
-                    WitOp::NatToField(a) => (3, s(a), 0, 0, 0),
-                    WitOp::FieldAdd(a, b) => (4, s(a), s(b), 0, 0),
-                    WitOp::FieldSub(a, b) => (19, s(a), s(b), 0, 0),
-                    WitOp::FieldInverse(a) => (5, s(a), 0, 0, 0),
-                    WitOp::FieldSelect { cond, a, b } => (18, s(cond), s(a), s(b), 0),
-                    WitOp::U16RangeCheck(a) => (6, s(a), 0, 0, 0),
-                    WitOp::BitRangeCheck { src, bits } => (7, s(src), 0, 0, bits as u64),
-                    WitOp::U16RangeCheckGuarded { guard, src } => (13, s(src), s(guard), 0, 0),
-                    WitOp::BitRangeCheckGuarded { guard, src, bits } => {
-                        (14, s(src), s(guard), 0, bits as u64)
+                    WitOp::ConstNat(v) => (WitTag::ConstNat, 0, 0, 0, v),
+                    WitOp::WrappingAdd(a, b) => (WitTag::WrappingAdd, s(a), s(b), 0, 0),
+                    WitOp::WrappingSub(a, b) => (WitTag::WrappingSub, s(a), s(b), 0, 0),
+                    WitOp::U8RangeCheck(a, b) => (WitTag::U8RangeCheck, s(a), s(b), 0, 0),
+                    WitOp::Eq(a, b) => (WitTag::Eq, s(a), s(b), 0, 0),
+                    WitOp::Shl(a, b) => (WitTag::Shl, s(a), s(b), 0, 0),
+                    WitOp::Shr(a, b) => (WitTag::Shr, s(a), s(b), 0, 0),
+                    WitOp::Mul(a, b) => (WitTag::Mul, s(a), s(b), 0, 0),
+                    WitOp::Xor(a, b) => (WitTag::Xor, s(a), s(b), 0, 0),
+                    WitOp::And(a, b) => (WitTag::And, s(a), s(b), 0, 0),
+                    WitOp::BitRangeCheckVar { src, bits } => {
+                        (WitTag::BitRangeCheckVar, s(src), s(bits), 0, 0)
                     }
-                    WitOp::U8RangeCheckGuarded { guard, a, b } => (15, s(a), s(b), s(guard), 0),
+                    WitOp::Select { cond, a, b } => (WitTag::Select, s(cond), s(a), s(b), 0),
+                    WitOp::Bits { src, offset, width } => {
+                        (WitTag::Bits, s(src), 0, width, offset as u64)
+                    }
+                    WitOp::NatToField(a) => (WitTag::NatToField, s(a), 0, 0, 0),
+                    WitOp::FieldAdd(a, b) => (WitTag::FieldAdd, s(a), s(b), 0, 0),
+                    WitOp::FieldSub(a, b) => (WitTag::FieldSub, s(a), s(b), 0, 0),
+                    WitOp::FieldInverse(a) => (WitTag::FieldInverse, s(a), 0, 0, 0),
+                    WitOp::FieldSelect { cond, a, b } => {
+                        (WitTag::FieldSelect, s(cond), s(a), s(b), 0)
+                    }
+                    WitOp::U16RangeCheck(a) => (WitTag::U16RangeCheck, s(a), 0, 0, 0),
+                    WitOp::BitRangeCheck { src, bits } => {
+                        (WitTag::BitRangeCheck, s(src), 0, 0, bits as u64)
+                    }
+                    WitOp::U16RangeCheckGuarded { guard, src } => {
+                        (WitTag::U16RangeCheckGuarded, s(src), s(guard), 0, 0)
+                    }
+                    WitOp::BitRangeCheckGuarded { guard, src, bits } => {
+                        (WitTag::BitRangeCheckGuarded, s(src), s(guard), 0, bits as u64)
+                    }
+                    WitOp::U8RangeCheckGuarded { guard, a, b } => {
+                        (WitTag::U8RangeCheckGuarded, s(a), s(b), s(guard), 0)
+                    }
                     // Byte-table lookups keep only (opcode, b, c) on device — the
                     // result `a` is dropped (same as `to_c`); opcode/guard are wires.
-                    WitOp::ByteLookup { opcode, a: _, b, c } => (16, s(b), s(c), s(opcode), 0),
+                    WitOp::ByteLookup { opcode, a: _, b, c } => {
+                        (WitTag::ByteLookup, s(b), s(c), s(opcode), 0)
+                    }
                     WitOp::ByteLookupGuarded { guard, opcode, a: _, b, c } => {
-                        (17, s(b), s(c), s(opcode), u64::from(s(guard)))
+                        (WitTag::ByteLookupGuarded, s(b), s(c), s(opcode), u64::from(s(guard)))
                     }
                 };
                 WitOpCSlot { tag, out, a, b, imm1, col: u32::MAX, imm0 }
@@ -899,47 +911,64 @@ pub fn interpret_c_columns<F: Field>(
     let mut wires: Vec<Val<F>> = inputs.iter().map(|&v| Val::Nat(v)).collect();
     for op in ops {
         match op.tag {
-            0 => wires.push(Val::Nat(op.imm0)),
-            1 => wires.push(Val::Nat(
+            WitTag::ConstNat => wires.push(Val::Nat(op.imm0)),
+            WitTag::WrappingAdd => wires.push(Val::Nat(
                 wires[op.a as usize].nat().wrapping_add(wires[op.b as usize].nat()),
             )),
-            8 => wires.push(Val::Nat(
+            WitTag::WrappingSub => wires.push(Val::Nat(
                 wires[op.a as usize].nat().wrapping_sub(wires[op.b as usize].nat()),
             )),
-            2 => {
+            WitTag::Bits => {
                 let x = wires[op.a as usize].nat();
                 let mask = if op.imm1 >= 64 { u64::MAX } else { (1u64 << op.imm1) - 1 };
                 wires.push(Val::Nat((x >> op.imm0) & mask));
             }
-            11 => wires.push(Val::Nat(u64::from(
+            WitTag::Eq => wires.push(Val::Nat(u64::from(
                 wires[op.a as usize].nat() == wires[op.b as usize].nat(),
             ))),
-            20 => wires.push(Val::Nat(wires[op.a as usize].nat() << wires[op.b as usize].nat())),
-            21 => wires.push(Val::Nat(wires[op.a as usize].nat() >> wires[op.b as usize].nat())),
-            23 => wires.push(Val::Nat(
+            WitTag::Shl => {
+                wires.push(Val::Nat(wires[op.a as usize].nat() << wires[op.b as usize].nat()))
+            }
+            WitTag::Shr => {
+                wires.push(Val::Nat(wires[op.a as usize].nat() >> wires[op.b as usize].nat()))
+            }
+            WitTag::Mul => wires.push(Val::Nat(
                 wires[op.a as usize].nat().wrapping_mul(wires[op.b as usize].nat()),
             )),
-            24 => wires.push(Val::Nat(wires[op.a as usize].nat() ^ wires[op.b as usize].nat())),
-            25 => wires.push(Val::Nat(wires[op.a as usize].nat() & wires[op.b as usize].nat())),
-            12 => {
+            WitTag::Xor => {
+                wires.push(Val::Nat(wires[op.a as usize].nat() ^ wires[op.b as usize].nat()))
+            }
+            WitTag::And => {
+                wires.push(Val::Nat(wires[op.a as usize].nat() & wires[op.b as usize].nat()))
+            }
+            WitTag::Select => {
                 let c = wires[op.a as usize].nat();
                 wires.push(if c != 0 { wires[op.b as usize] } else { wires[op.imm1 as usize] });
             }
-            3 => wires.push(Val::Field(F::from_canonical_u64(wires[op.a as usize].nat()))),
-            4 => {
+            WitTag::NatToField => {
+                wires.push(Val::Field(F::from_canonical_u64(wires[op.a as usize].nat())))
+            }
+            WitTag::FieldAdd => {
                 wires.push(Val::Field(wires[op.a as usize].field() + wires[op.b as usize].field()))
             }
-            19 => {
+            WitTag::FieldSub => {
                 wires.push(Val::Field(wires[op.a as usize].field() - wires[op.b as usize].field()))
             }
-            5 => wires.push(Val::Field(wires[op.a as usize].field().inverse())),
-            18 => {
+            WitTag::FieldInverse => wires.push(Val::Field(wires[op.a as usize].field().inverse())),
+            WitTag::FieldSelect => {
                 let cond = wires[op.a as usize].nat();
                 wires.push(if cond != 0 { wires[op.b as usize] } else { wires[op.imm1 as usize] });
             }
             // lookups (incl. guarded + byte-table + var-width): no wire, skipped for columns
-            6 | 7 | 9 | 13 | 14 | 15 | 16 | 17 | 22 => {}
-            t => panic!("unknown WitOpC tag {t}"),
+            WitTag::U16RangeCheck
+            | WitTag::BitRangeCheck
+            | WitTag::U8RangeCheck
+            | WitTag::U16RangeCheckGuarded
+            | WitTag::BitRangeCheckGuarded
+            | WitTag::U8RangeCheckGuarded
+            | WitTag::ByteLookup
+            | WitTag::ByteLookupGuarded
+            | WitTag::BitRangeCheckVar => {}
         }
     }
     col_wires
@@ -976,29 +1005,40 @@ pub fn interpret_c_slots_columns<F: Field>(
     for op in ops {
         let (a, b, out) = (op.a as usize, op.b as usize, op.out as usize);
         match op.tag {
-            0 => vals[out] = Val::Nat(op.imm0),
-            1 => vals[out] = Val::Nat(vals[a].nat().wrapping_add(vals[b].nat())),
-            8 => vals[out] = Val::Nat(vals[a].nat().wrapping_sub(vals[b].nat())),
-            2 => {
+            WitTag::ConstNat => vals[out] = Val::Nat(op.imm0),
+            WitTag::WrappingAdd => vals[out] = Val::Nat(vals[a].nat().wrapping_add(vals[b].nat())),
+            WitTag::WrappingSub => vals[out] = Val::Nat(vals[a].nat().wrapping_sub(vals[b].nat())),
+            WitTag::Bits => {
                 let x = vals[a].nat();
                 let mask = if op.imm1 >= 64 { u64::MAX } else { (1u64 << op.imm1) - 1 };
                 vals[out] = Val::Nat((x >> op.imm0) & mask);
             }
-            11 => vals[out] = Val::Nat(u64::from(vals[a].nat() == vals[b].nat())),
-            20 => vals[out] = Val::Nat(vals[a].nat() << vals[b].nat()),
-            21 => vals[out] = Val::Nat(vals[a].nat() >> vals[b].nat()),
-            23 => vals[out] = Val::Nat(vals[a].nat().wrapping_mul(vals[b].nat())),
-            24 => vals[out] = Val::Nat(vals[a].nat() ^ vals[b].nat()),
-            25 => vals[out] = Val::Nat(vals[a].nat() & vals[b].nat()),
-            12 => vals[out] = if vals[a].nat() != 0 { vals[b] } else { vals[op.imm1 as usize] },
-            3 => vals[out] = Val::Field(F::from_canonical_u64(vals[a].nat())),
-            4 => vals[out] = Val::Field(vals[a].field() + vals[b].field()),
-            19 => vals[out] = Val::Field(vals[a].field() - vals[b].field()),
-            5 => vals[out] = Val::Field(vals[a].field().inverse()),
-            18 => vals[out] = if vals[a].nat() != 0 { vals[b] } else { vals[op.imm1 as usize] },
+            WitTag::Eq => vals[out] = Val::Nat(u64::from(vals[a].nat() == vals[b].nat())),
+            WitTag::Shl => vals[out] = Val::Nat(vals[a].nat() << vals[b].nat()),
+            WitTag::Shr => vals[out] = Val::Nat(vals[a].nat() >> vals[b].nat()),
+            WitTag::Mul => vals[out] = Val::Nat(vals[a].nat().wrapping_mul(vals[b].nat())),
+            WitTag::Xor => vals[out] = Val::Nat(vals[a].nat() ^ vals[b].nat()),
+            WitTag::And => vals[out] = Val::Nat(vals[a].nat() & vals[b].nat()),
+            WitTag::Select => {
+                vals[out] = if vals[a].nat() != 0 { vals[b] } else { vals[op.imm1 as usize] }
+            }
+            WitTag::NatToField => vals[out] = Val::Field(F::from_canonical_u64(vals[a].nat())),
+            WitTag::FieldAdd => vals[out] = Val::Field(vals[a].field() + vals[b].field()),
+            WitTag::FieldSub => vals[out] = Val::Field(vals[a].field() - vals[b].field()),
+            WitTag::FieldInverse => vals[out] = Val::Field(vals[a].field().inverse()),
+            WitTag::FieldSelect => {
+                vals[out] = if vals[a].nat() != 0 { vals[b] } else { vals[op.imm1 as usize] }
+            }
             // lookups (incl. guarded + byte-table + var-width): no wire, skipped for columns
-            6 | 7 | 9 | 13 | 14 | 15 | 16 | 17 | 22 => {}
-            t => panic!("unknown WitOpCSlot tag {t}"),
+            WitTag::U16RangeCheck
+            | WitTag::BitRangeCheck
+            | WitTag::U8RangeCheck
+            | WitTag::U16RangeCheckGuarded
+            | WitTag::BitRangeCheckGuarded
+            | WitTag::U8RangeCheckGuarded
+            | WitTag::ByteLookup
+            | WitTag::ByteLookupGuarded
+            | WitTag::BitRangeCheckVar => {}
         }
     }
     col_slots
@@ -1038,29 +1078,40 @@ pub fn interpret_c_slots_streaming_columns<F: Field>(
     for op in ops {
         let (a, b, o) = (op.a as usize, op.b as usize, op.out as usize);
         match op.tag {
-            0 => vals[o] = Val::Nat(op.imm0),
-            1 => vals[o] = Val::Nat(vals[a].nat().wrapping_add(vals[b].nat())),
-            8 => vals[o] = Val::Nat(vals[a].nat().wrapping_sub(vals[b].nat())),
-            2 => {
+            WitTag::ConstNat => vals[o] = Val::Nat(op.imm0),
+            WitTag::WrappingAdd => vals[o] = Val::Nat(vals[a].nat().wrapping_add(vals[b].nat())),
+            WitTag::WrappingSub => vals[o] = Val::Nat(vals[a].nat().wrapping_sub(vals[b].nat())),
+            WitTag::Bits => {
                 let x = vals[a].nat();
                 let mask = if op.imm1 >= 64 { u64::MAX } else { (1u64 << op.imm1) - 1 };
                 vals[o] = Val::Nat((x >> op.imm0) & mask);
             }
-            11 => vals[o] = Val::Nat(u64::from(vals[a].nat() == vals[b].nat())),
-            20 => vals[o] = Val::Nat(vals[a].nat() << vals[b].nat()),
-            21 => vals[o] = Val::Nat(vals[a].nat() >> vals[b].nat()),
-            23 => vals[o] = Val::Nat(vals[a].nat().wrapping_mul(vals[b].nat())),
-            24 => vals[o] = Val::Nat(vals[a].nat() ^ vals[b].nat()),
-            25 => vals[o] = Val::Nat(vals[a].nat() & vals[b].nat()),
-            12 => vals[o] = if vals[a].nat() != 0 { vals[b] } else { vals[op.imm1 as usize] },
-            3 => vals[o] = Val::Field(F::from_canonical_u64(vals[a].nat())),
-            4 => vals[o] = Val::Field(vals[a].field() + vals[b].field()),
-            19 => vals[o] = Val::Field(vals[a].field() - vals[b].field()),
-            5 => vals[o] = Val::Field(vals[a].field().inverse()),
-            18 => vals[o] = if vals[a].nat() != 0 { vals[b] } else { vals[op.imm1 as usize] },
+            WitTag::Eq => vals[o] = Val::Nat(u64::from(vals[a].nat() == vals[b].nat())),
+            WitTag::Shl => vals[o] = Val::Nat(vals[a].nat() << vals[b].nat()),
+            WitTag::Shr => vals[o] = Val::Nat(vals[a].nat() >> vals[b].nat()),
+            WitTag::Mul => vals[o] = Val::Nat(vals[a].nat().wrapping_mul(vals[b].nat())),
+            WitTag::Xor => vals[o] = Val::Nat(vals[a].nat() ^ vals[b].nat()),
+            WitTag::And => vals[o] = Val::Nat(vals[a].nat() & vals[b].nat()),
+            WitTag::Select => {
+                vals[o] = if vals[a].nat() != 0 { vals[b] } else { vals[op.imm1 as usize] }
+            }
+            WitTag::NatToField => vals[o] = Val::Field(F::from_canonical_u64(vals[a].nat())),
+            WitTag::FieldAdd => vals[o] = Val::Field(vals[a].field() + vals[b].field()),
+            WitTag::FieldSub => vals[o] = Val::Field(vals[a].field() - vals[b].field()),
+            WitTag::FieldInverse => vals[o] = Val::Field(vals[a].field().inverse()),
+            WitTag::FieldSelect => {
+                vals[o] = if vals[a].nat() != 0 { vals[b] } else { vals[op.imm1 as usize] }
+            }
             // lookups: no wire, no column
-            6 | 7 | 9 | 13 | 14 | 15 | 16 | 17 | 22 => continue,
-            t => panic!("unknown WitOpCSlot tag {t}"),
+            WitTag::U16RangeCheck
+            | WitTag::BitRangeCheck
+            | WitTag::U8RangeCheck
+            | WitTag::U16RangeCheckGuarded
+            | WitTag::BitRangeCheckGuarded
+            | WitTag::U8RangeCheckGuarded
+            | WitTag::ByteLookup
+            | WitTag::ByteLookupGuarded
+            | WitTag::BitRangeCheckVar => continue,
         }
         if op.col != u32::MAX {
             out[op.col as usize] = match vals[o] {
@@ -1197,65 +1248,73 @@ pub fn interpret_c_lookups(
         wires.extend_from_slice(&inputs[row * ni..(row + 1) * ni]);
         for op in ops {
             match op.tag {
-                0 => wires.push(op.imm0),
-                1 => wires.push(wires[op.a as usize].wrapping_add(wires[op.b as usize])),
-                8 => wires.push(wires[op.a as usize].wrapping_sub(wires[op.b as usize])),
-                2 => {
+                WitTag::ConstNat => wires.push(op.imm0),
+                WitTag::WrappingAdd => {
+                    wires.push(wires[op.a as usize].wrapping_add(wires[op.b as usize]))
+                }
+                WitTag::WrappingSub => {
+                    wires.push(wires[op.a as usize].wrapping_sub(wires[op.b as usize]))
+                }
+                WitTag::Bits => {
                     let x = wires[op.a as usize];
                     let mask = if op.imm1 >= 64 { u64::MAX } else { (1u64 << op.imm1) - 1 };
                     wires.push((x >> op.imm0) & mask);
                 }
-                11 => wires.push(u64::from(wires[op.a as usize] == wires[op.b as usize])),
-                20 => wires.push(wires[op.a as usize] << wires[op.b as usize]),
-                21 => wires.push(wires[op.a as usize] >> wires[op.b as usize]),
-                23 => wires.push(wires[op.a as usize].wrapping_mul(wires[op.b as usize])),
-                24 => wires.push(wires[op.a as usize] ^ wires[op.b as usize]),
-                25 => wires.push(wires[op.a as usize] & wires[op.b as usize]),
-                12 => {
+                WitTag::Eq => wires.push(u64::from(wires[op.a as usize] == wires[op.b as usize])),
+                WitTag::Shl => wires.push(wires[op.a as usize] << wires[op.b as usize]),
+                WitTag::Shr => wires.push(wires[op.a as usize] >> wires[op.b as usize]),
+                WitTag::Mul => wires.push(wires[op.a as usize].wrapping_mul(wires[op.b as usize])),
+                WitTag::Xor => wires.push(wires[op.a as usize] ^ wires[op.b as usize]),
+                WitTag::And => wires.push(wires[op.a as usize] & wires[op.b as usize]),
+                WitTag::Select => {
                     let c = wires[op.a as usize];
                     wires.push(if c != 0 { wires[op.b as usize] } else { wires[op.imm1 as usize] });
                 }
                 // Field-producing ops: placeholder wire (never read by a lookup).
-                3 | 4 | 5 | 18 | 19 => wires.push(0),
+                WitTag::NatToField
+                | WitTag::FieldAdd
+                | WitTag::FieldInverse
+                | WitTag::FieldSelect
+                | WitTag::FieldSub => wires.push(0),
                 // U16RangeCheck: {Range, a: v, bits: 16}.
-                6 => {
+                WitTag::U16RangeCheck => {
                     let v = wires[op.a as usize] as u16 as usize;
                     range_hist[v + (1 << 16)] += 1;
                 }
                 // BitRangeCheck: {Range, a: v, bits} (bits in imm0).
-                7 => {
+                WitTag::BitRangeCheck => {
                     let v = wires[op.a as usize] as u16 as usize;
                     range_hist[v + (1usize << op.imm0)] += 1;
                 }
                 // BitRangeCheckVar: {Range, a: v, bits} where bits = nat[b] (a wire).
-                22 => {
+                WitTag::BitRangeCheckVar => {
                     let v = wires[op.a as usize] as u16 as usize;
                     let bits = wires[op.b as usize];
                     range_hist[v + (1usize << bits)] += 1;
                 }
                 // U8RangeCheck: {U8Range, b: nat[a], c: nat[b]}.
-                9 => {
+                WitTag::U8RangeCheck => {
                     let b_val = wires[op.a as usize] as u8 as usize;
                     let c_val = wires[op.b as usize] as u8 as usize;
                     let r = (b_val << 8) + c_val;
                     byte_hist[r * NUM_BYTE_MULT_COLS + (ByteOpcode::U8Range as usize)] += 1;
                 }
                 // Guarded U16RangeCheck: guard wire in `b`.
-                13 => {
+                WitTag::U16RangeCheckGuarded => {
                     if wires[op.b as usize] != 0 {
                         let v = wires[op.a as usize] as u16 as usize;
                         range_hist[v + (1 << 16)] += 1;
                     }
                 }
                 // Guarded BitRangeCheck: guard wire in `b`, bits in imm0.
-                14 => {
+                WitTag::BitRangeCheckGuarded => {
                     if wires[op.b as usize] != 0 {
                         let v = wires[op.a as usize] as u16 as usize;
                         range_hist[v + (1usize << op.imm0)] += 1;
                     }
                 }
                 // Guarded U8RangeCheck: guard wire in `imm1`.
-                15 => {
+                WitTag::U8RangeCheckGuarded => {
                     if wires[op.imm1 as usize] != 0 {
                         let b_val = wires[op.a as usize] as u8 as usize;
                         let c_val = wires[op.b as usize] as u8 as usize;
@@ -1264,14 +1323,14 @@ pub fn interpret_c_lookups(
                     }
                 }
                 // Byte-table lookup {opcode in imm1, b in a, c in b}: index (b,c,opcode).
-                16 => {
+                WitTag::ByteLookup => {
                     let b_val = wires[op.a as usize] as u8 as usize;
                     let c_val = wires[op.b as usize] as u8 as usize;
                     let opc = wires[op.imm1 as usize] as usize;
                     byte_hist[((b_val << 8) + c_val) * NUM_BYTE_MULT_COLS + opc] += 1;
                 }
                 // Guarded byte-table lookup: guard wire in imm0.
-                17 => {
+                WitTag::ByteLookupGuarded => {
                     if wires[op.imm0 as usize] != 0 {
                         let b_val = wires[op.a as usize] as u8 as usize;
                         let c_val = wires[op.b as usize] as u8 as usize;
@@ -1279,7 +1338,6 @@ pub fn interpret_c_lookups(
                         byte_hist[((b_val << 8) + c_val) * NUM_BYTE_MULT_COLS + opc] += 1;
                     }
                 }
-                t => panic!("unknown WitOpC tag {t}"),
             }
         }
     }
@@ -1353,11 +1411,22 @@ pub fn byte_lookups_from_histograms(
 /// `#[repr(C)]` (`AlignedBorrow`), so for `T = WireId` they are a contiguous array
 /// of `WireId`. This is how a backend maps the recorded wires onto trace columns
 /// generically (no per-gadget code) — the GPU kernel will use the same mapping.
-pub fn columns_as_wires<C>(cols: &C) -> &[WireId] {
+///
+/// The `[WireId]: Borrow<C>` bound (same layout witness as
+/// [`record_witgen_inputs`]) restricts `C` to `AlignedBorrow` structs at
+/// `T = WireId` — the derive only exists for `#[repr(C)]` column structs whose
+/// layout is exactly `[WireId; size_of::<C>() / size_of::<WireId>()]`, which is
+/// what makes the cast below sound.
+pub fn columns_as_wires<C>(cols: &C) -> &[WireId]
+where
+    [WireId]: core::borrow::Borrow<C>,
+{
     let n = core::mem::size_of::<C>() / core::mem::size_of::<WireId>();
+    const { assert!(core::mem::align_of::<C>() >= core::mem::align_of::<WireId>()) };
     debug_assert_eq!(n * core::mem::size_of::<WireId>(), core::mem::size_of::<C>());
-    // Safety: `C` is a `#[repr(C)]` column struct instantiated at `T = WireId`,
-    // hence a contiguous `[WireId; n]` with matching alignment.
+    // Safety: per the `Borrow` layout witness above, `C` is a `#[repr(C)]` column
+    // struct instantiated at `T = WireId`, hence a contiguous `[WireId; n]` with
+    // matching alignment.
     unsafe { core::slice::from_raw_parts(cols as *const C as *const WireId, n) }
 }
 

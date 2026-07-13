@@ -1,14 +1,16 @@
 // Generic witness-generation interpreter kernels — the device backend of the
-// witgen IR (see autoresearch/design/WITGEN-IR.md).
+// witgen IR (see crates/core/machine/src/air/WITGEN-IR.md at the repo root).
 //
 // Unlike the per-chip tracegen kernels (e.g. recursion/alu_base.cu), each kernel
 // here interprets a recorded op-DAG (`sp1_gpu_sys::WitOpC[]` / `WitOpCSlot[]`),
 // one thread per event row. The op-tag census — 16 value ops + 9 lookup ops over
-// tags 0..=25, tag 10 unassigned — and the per-tag field-overloading rules are
-// documented on `WitOpC` in crates/core/machine/src/air/witness_record.rs. Every
-// kernel switch below must cover exactly those tags (adding an IR op = one `case`
-// per kernel switch, 7 sites), and each kernel is a port of a CPU reference
-// interpreter in that file, validated bit-identical before the CUDA port.
+// the cbindgen-pinned `WitTag` enum (values 0..=25, 10 unassigned) — and the
+// per-tag field-overloading rules are documented on `WitOpC` in
+// crates/core/machine/src/air/witness_record.rs. Every kernel switch below must
+// cover exactly those tags (adding an IR op = one `case` per kernel switch, 8
+// sites; a missed site hits that switch's trapping `default:`), and each kernel
+// is a port of a CPU reference interpreter in that file, validated bit-identical
+// before the CUDA port.
 //
 // Kernel families (launchers: sp1-gpu/crates/tracegen/src/riscv/mod.rs):
 //
@@ -51,11 +53,19 @@
 
 #include "fields/kb31_t.cuh"
 
+// Op tags: cbindgen-pinned from `WitTag` in
+// crates/core/machine/src/air/witness_record.rs — the switches below consume the
+// SAME enum the Rust lowerings emit, so the two sides cannot drift. An op value
+// outside the enum (an unported/garbage tag) hits each switch's `default:`
+// __trap() — loud device abort instead of silently skipping the op and shifting
+// every subsequent wire.
+using WT = sp1_gpu_sys::WitTag;
+
 // Per-thread wire-array capacity: max wires (inputs + value ops) on the SSA path,
-// max live slots on the slot/streaming paths. MUST MATCH `WITGEN_MAX_WIRES` in
-// sp1-gpu/crates/tracegen/src/riscv/mod.rs — the host asserts every lowered
-// program fits before launching.
-#define WITGEN_MAX_WIRES 256
+// max live slots on the slot/streaming paths. cbindgen-pinned from
+// crates/core/machine/src/air/witness_record.rs (the host asserts every lowered
+// program fits before launching).
+constexpr uint32_t WITGEN_MAX_WIRES = (uint32_t)sp1_gpu_sys::WITGEN_MAX_WIRES;
 
 template <class T>
 __global__ void witgen_interp_kernel(
@@ -68,7 +78,7 @@ __global__ void witgen_interp_kernel(
     uint32_t num_inputs,
     const uint64_t* inputs,            // row-major [n_rows][num_inputs]
     uintptr_t n_rows) {
-    int row = blockIdx.x * blockDim.x + threadIdx.x;
+    uintptr_t row = blockIdx.x * blockDim.x + threadIdx.x;
     for (; row < n_rows; row += blockDim.x * gridDim.x) {
         uint64_t nat[WITGEN_MAX_WIRES];
         T fld[WITGEN_MAX_WIRES];
@@ -84,98 +94,103 @@ __global__ void witgen_interp_kernel(
         for (uintptr_t k = 0; k < n_ops; ++k) {
             const sp1_gpu_sys::WitOpC op = ops[k];
             switch (op.tag) {
-            case 0: // ConstNat
+            case WT::ConstNat:
                 nat[wc] = op.imm0;
                 is_field[wc] = false;
                 ++wc;
                 break;
-            case 1: // WrappingAdd (u64 wraps naturally)
+            case WT::WrappingAdd: // u64 wraps naturally
                 nat[wc] = nat[op.a] + nat[op.b];
                 is_field[wc] = false;
                 ++wc;
                 break;
-            case 8: // WrappingSub (u64 wraps naturally)
+            case WT::WrappingSub: // u64 wraps naturally
                 nat[wc] = nat[op.a] - nat[op.b];
                 is_field[wc] = false;
                 ++wc;
                 break;
-            case 2: { // Bits: (src >> offset) & ((1<<width)-1)
+            case WT::Bits: { // (src >> offset) & ((1<<width)-1)
                 uint64_t mask = (op.imm1 >= 64) ? ~0ULL : ((1ULL << op.imm1) - 1);
                 nat[wc] = (nat[op.a] >> op.imm0) & mask;
                 is_field[wc] = false;
                 ++wc;
                 break;
             }
-            case 11: // Eq -> 0/1
+            case WT::Eq: // -> 0/1
                 nat[wc] = (nat[op.a] == nat[op.b]) ? 1 : 0;
                 is_field[wc] = false;
                 ++wc;
                 break;
-            case 12: // Select: cond=a, then-wire=b, else-wire=imm1
+            case WT::Select: // cond=a, then-wire=b, else-wire=imm1
                 nat[wc] = nat[op.a] ? nat[op.b] : nat[op.imm1];
                 is_field[wc] = false;
                 ++wc;
                 break;
-            case 20: // Shl: a << shift
+            case WT::Shl: // a << shift
                 nat[wc] = nat[op.a] << nat[op.b];
                 is_field[wc] = false;
                 ++wc;
                 break;
-            case 21: // Shr: a >> shift
+            case WT::Shr: // a >> shift
                 nat[wc] = nat[op.a] >> nat[op.b];
                 is_field[wc] = false;
                 ++wc;
                 break;
-            case 23: // Mul: a * b (wrapping)
+            case WT::Mul: // a * b (wrapping)
                 nat[wc] = nat[op.a] * nat[op.b];
                 is_field[wc] = false;
                 ++wc;
                 break;
-            case 24: // Xor
+            case WT::Xor:
                 nat[wc] = nat[op.a] ^ nat[op.b];
                 is_field[wc] = false;
                 ++wc;
                 break;
-            case 25: // And
+            case WT::And:
                 nat[wc] = nat[op.a] & nat[op.b];
                 is_field[wc] = false;
                 ++wc;
                 break;
-            case 3: // NatToField
+            case WT::NatToField:
                 fld[wc] = T::from_canonical_u32((uint32_t)nat[op.a]);
                 is_field[wc] = true;
                 ++wc;
                 break;
-            case 4: // FieldAdd
+            case WT::FieldAdd:
                 fld[wc] = fld[op.a] + fld[op.b];
                 is_field[wc] = true;
                 ++wc;
                 break;
-            case 19: // FieldSub
+            case WT::FieldSub:
                 fld[wc] = fld[op.a] - fld[op.b];
                 is_field[wc] = true;
                 ++wc;
                 break;
-            case 5: // FieldInverse
+            case WT::FieldInverse:
                 fld[wc] = fld[op.a].reciprocal();
                 is_field[wc] = true;
                 ++wc;
                 break;
-            case 18: // FieldSelect: cond=a (nat), then-field=b, else-field=imm1
+            case WT::FieldSelect: // cond=a (nat), then-field=b, else-field=imm1
                 fld[wc] = nat[op.a] ? fld[op.b] : fld[op.imm1];
                 is_field[wc] = true;
                 ++wc;
                 break;
-            case 6:  // U16RangeCheck (lookup, no wire)
-            case 7:  // BitRangeCheck (lookup, no wire)
-            case 9:  // U8RangeCheck  (lookup, no wire)
-            case 13: // Guarded U16RangeCheck (lookup, no wire)
-            case 14: // Guarded BitRangeCheck (lookup, no wire)
-            case 15: // Guarded U8RangeCheck  (lookup, no wire)
-            case 16: // ByteLookup           (lookup, no wire)
-            case 17: // Guarded ByteLookup    (lookup, no wire)
-            case 22: // BitRangeCheckVar      (lookup, no wire)
+            // Lookup ops: no wire — skipped by this columns-only kernel.
+            case WT::U16RangeCheck:
+            case WT::BitRangeCheck:
+            case WT::U8RangeCheck:
+            case WT::U16RangeCheckGuarded:
+            case WT::BitRangeCheckGuarded:
+            case WT::U8RangeCheckGuarded:
+            case WT::ByteLookup:
+            case WT::ByteLookupGuarded:
+            case WT::BitRangeCheckVar:
                 break;
+            default:
+                // Unknown/unported tag: silently skipping would shift every
+                // subsequent wire (silent corruption) — abort the kernel instead.
+                __trap();
             }
         }
 
@@ -211,6 +226,14 @@ __global__ void witgen_interp_kernel(
 #define WITGEN_NUM_BYTE_MULT_COLS 6
 #define WITGEN_BYTE_U8RANGE_COL 3
 
+// Two histogram indices are per-row DATA rather than program constants: the
+// var-width range check's `bits` (tag 22) and the byte lookup's opcode (tags
+// 16/17). In-contract programs keep `bits <= 16` and `opc <
+// WITGEN_NUM_BYTE_MULT_COLS` (executor invariants; the CPU reference
+// `interpret_c_lookups` has the same exposure) — every emit site guards them
+// anyway, so a violated invariant DROPS the count (surfacing as a LogUp
+// multiset mismatch at verification) instead of scribbling device memory.
+
 __global__ void witgen_lookup_kernel(
     const sp1_gpu_sys::WitOpC* ops,    // the recorded op-DAG
     uintptr_t n_ops,
@@ -219,7 +242,7 @@ __global__ void witgen_lookup_kernel(
     uintptr_t n_rows,
     uint32_t* range_hist,              // Range chip table, len 1<<17
     uint32_t* byte_hist) {             // Byte chip table, len (1<<16)*NUM_BYTE_MULT_COLS
-    int row = blockIdx.x * blockDim.x + threadIdx.x;
+    uintptr_t row = blockIdx.x * blockDim.x + threadIdx.x;
     for (; row < n_rows; row += blockDim.x * gridDim.x) {
         uint64_t nat[WITGEN_MAX_WIRES];
 
@@ -231,65 +254,66 @@ __global__ void witgen_lookup_kernel(
         for (uintptr_t k = 0; k < n_ops; ++k) {
             const sp1_gpu_sys::WitOpC op = ops[k];
             switch (op.tag) {
-            case 0: // ConstNat
+            case WT::ConstNat:
                 nat[wc++] = op.imm0;
                 break;
-            case 1: // WrappingAdd
+            case WT::WrappingAdd:
                 nat[wc++] = nat[op.a] + nat[op.b];
                 break;
-            case 8: // WrappingSub
+            case WT::WrappingSub:
                 nat[wc++] = nat[op.a] - nat[op.b];
                 break;
-            case 2: { // Bits
+            case WT::Bits: {
                 uint64_t mask = (op.imm1 >= 64) ? ~0ULL : ((1ULL << op.imm1) - 1);
                 nat[wc++] = (nat[op.a] >> op.imm0) & mask;
                 break;
             }
-            case 11: // Eq
+            case WT::Eq:
                 nat[wc++] = (nat[op.a] == nat[op.b]) ? 1 : 0;
                 break;
-            case 12: // Select
+            case WT::Select:
                 nat[wc++] = nat[op.a] ? nat[op.b] : nat[op.imm1];
                 break;
-            case 20: // Shl
+            case WT::Shl:
                 nat[wc++] = nat[op.a] << nat[op.b];
                 break;
-            case 21: // Shr
+            case WT::Shr:
                 nat[wc++] = nat[op.a] >> nat[op.b];
                 break;
-            case 23: // Mul
+            case WT::Mul:
                 nat[wc++] = nat[op.a] * nat[op.b];
                 break;
-            case 24: // Xor
+            case WT::Xor:
                 nat[wc++] = nat[op.a] ^ nat[op.b];
                 break;
-            case 25: // And
+            case WT::And:
                 nat[wc++] = nat[op.a] & nat[op.b];
                 break;
-            case 3:  // NatToField
-            case 4:  // FieldAdd
-            case 5:  // FieldInverse
-            case 18: // FieldSelect
-            case 19: // FieldSub
+            case WT::NatToField:
+            case WT::FieldAdd:
+            case WT::FieldInverse:
+            case WT::FieldSelect:
+            case WT::FieldSub:
                 nat[wc++] = 0; // field wire: placeholder (never read by a lookup)
                 break;
-            case 6: { // U16RangeCheck -> {Range, a: v, bits: 16}
+            case WT::U16RangeCheck: { // -> {Range, a: v, bits: 16}
                 uint32_t v = (uint32_t)(uint16_t)nat[op.a];
                 atomicAdd(&range_hist[v + (1u << 16)], 1u);
                 break;
             }
-            case 7: { // BitRangeCheck -> {Range, a: v, bits: imm0}
+            case WT::BitRangeCheck: { // -> {Range, a: v, bits: imm0}
                 uint32_t v = (uint32_t)(uint16_t)nat[op.a];
                 atomicAdd(&range_hist[v + (1u << (uint32_t)op.imm0)], 1u);
                 break;
             }
-            case 22: { // BitRangeCheckVar -> {Range, a: v, bits: nat[op.b]}
+            case WT::BitRangeCheckVar: { // -> {Range, a: v, bits: nat[op.b]}
                 uint32_t v = (uint32_t)(uint16_t)nat[op.a];
                 uint32_t bits = (uint32_t)nat[op.b];
-                atomicAdd(&range_hist[v + (1u << bits)], 1u);
+                if (bits <= 16)
+                    atomicAdd(&range_hist[v + (1u << bits)], 1u);
                 break;
             }
-            case 9: { // U8RangeCheck -> {U8Range, b: nat[a], c: nat[b]}
+            case WT::U8RangeCheck: { // -> {U8Range, b: nat[a], c: nat[b]}
                 uint32_t b = (uint32_t)(uint8_t)nat[op.a];
                 uint32_t c = (uint32_t)(uint8_t)nat[op.b];
                 uint32_t r = (b << 8) + c;
@@ -297,21 +321,21 @@ __global__ void witgen_lookup_kernel(
                 break;
             }
             // Guarded lookups (per-row branches): emit only if the guard wire != 0.
-            case 13: { // Guarded U16RangeCheck: guard wire in `b`
+            case WT::U16RangeCheckGuarded: { // guard wire in `b`
                 if (nat[op.b]) {
                     uint32_t v = (uint32_t)(uint16_t)nat[op.a];
                     atomicAdd(&range_hist[v + (1u << 16)], 1u);
                 }
                 break;
             }
-            case 14: { // Guarded BitRangeCheck: guard wire in `b`, bits in imm0
+            case WT::BitRangeCheckGuarded: { // guard wire in `b`, bits in imm0
                 if (nat[op.b]) {
                     uint32_t v = (uint32_t)(uint16_t)nat[op.a];
                     atomicAdd(&range_hist[v + (1u << (uint32_t)op.imm0)], 1u);
                 }
                 break;
             }
-            case 15: { // Guarded U8RangeCheck: guard wire in `imm1`
+            case WT::U8RangeCheckGuarded: { // guard wire in `imm1`
                 if (nat[op.imm1]) {
                     uint32_t b = (uint32_t)(uint8_t)nat[op.a];
                     uint32_t c = (uint32_t)(uint8_t)nat[op.b];
@@ -321,22 +345,30 @@ __global__ void witgen_lookup_kernel(
                 }
                 break;
             }
-            case 16: { // ByteLookup: b in a, c in b, opcode in imm1 -> index (b,c,opcode)
+            case WT::ByteLookup: { // b in a, c in b, opcode in imm1 -> index (b,c,opcode)
                 uint32_t b = (uint32_t)(uint8_t)nat[op.a];
                 uint32_t c = (uint32_t)(uint8_t)nat[op.b];
                 uint32_t opc = (uint32_t)nat[op.imm1];
-                atomicAdd(&byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
+                if (opc < WITGEN_NUM_BYTE_MULT_COLS)
+                    atomicAdd(
+                        &byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
                 break;
             }
-            case 17: { // Guarded ByteLookup: guard wire in imm0
+            case WT::ByteLookupGuarded: { // guard wire in imm0
                 if (nat[(uintptr_t)op.imm0]) {
                     uint32_t b = (uint32_t)(uint8_t)nat[op.a];
                     uint32_t c = (uint32_t)(uint8_t)nat[op.b];
                     uint32_t opc = (uint32_t)nat[op.imm1];
-                    atomicAdd(&byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
+                    if (opc < WITGEN_NUM_BYTE_MULT_COLS)
+                        atomicAdd(
+                            &byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
                 }
                 break;
             }
+            default:
+                // Unknown/unported tag: silently skipping would shift every
+                // subsequent wire (silent corruption) — abort the kernel instead.
+                __trap();
             }
         }
     }
@@ -366,7 +398,7 @@ __global__ void witgen_fused_kernel(
     uintptr_t n_rows,
     uint32_t* range_hist,              // Range chip table, len 1<<17
     uint32_t* byte_hist) {             // Byte chip table, len (1<<16)*NUM_BYTE_MULT_COLS
-    int row = blockIdx.x * blockDim.x + threadIdx.x;
+    uintptr_t row = blockIdx.x * blockDim.x + threadIdx.x;
     for (; row < n_rows; row += blockDim.x * gridDim.x) {
         uint64_t nat[WITGEN_MAX_WIRES];
         T fld[WITGEN_MAX_WIRES];
@@ -383,127 +415,128 @@ __global__ void witgen_fused_kernel(
             const sp1_gpu_sys::WitOpC op = ops[k];
             switch (op.tag) {
             // --- value ops: produce a wire (from witgen_interp_kernel) ---
-            case 0: // ConstNat
+            case WT::ConstNat:
                 nat[wc] = op.imm0;
                 is_field[wc] = false;
                 ++wc;
                 break;
-            case 1: // WrappingAdd
+            case WT::WrappingAdd:
                 nat[wc] = nat[op.a] + nat[op.b];
                 is_field[wc] = false;
                 ++wc;
                 break;
-            case 8: // WrappingSub
+            case WT::WrappingSub:
                 nat[wc] = nat[op.a] - nat[op.b];
                 is_field[wc] = false;
                 ++wc;
                 break;
-            case 2: { // Bits
+            case WT::Bits: {
                 uint64_t mask = (op.imm1 >= 64) ? ~0ULL : ((1ULL << op.imm1) - 1);
                 nat[wc] = (nat[op.a] >> op.imm0) & mask;
                 is_field[wc] = false;
                 ++wc;
                 break;
             }
-            case 11: // Eq
+            case WT::Eq:
                 nat[wc] = (nat[op.a] == nat[op.b]) ? 1 : 0;
                 is_field[wc] = false;
                 ++wc;
                 break;
-            case 12: // Select
+            case WT::Select:
                 nat[wc] = nat[op.a] ? nat[op.b] : nat[op.imm1];
                 is_field[wc] = false;
                 ++wc;
                 break;
-            case 20: // Shl
+            case WT::Shl:
                 nat[wc] = nat[op.a] << nat[op.b];
                 is_field[wc] = false;
                 ++wc;
                 break;
-            case 21: // Shr
+            case WT::Shr:
                 nat[wc] = nat[op.a] >> nat[op.b];
                 is_field[wc] = false;
                 ++wc;
                 break;
-            case 23: // Mul
+            case WT::Mul:
                 nat[wc] = nat[op.a] * nat[op.b];
                 is_field[wc] = false;
                 ++wc;
                 break;
-            case 24: // Xor
+            case WT::Xor:
                 nat[wc] = nat[op.a] ^ nat[op.b];
                 is_field[wc] = false;
                 ++wc;
                 break;
-            case 25: // And
+            case WT::And:
                 nat[wc] = nat[op.a] & nat[op.b];
                 is_field[wc] = false;
                 ++wc;
                 break;
-            case 3: // NatToField
+            case WT::NatToField:
                 fld[wc] = T::from_canonical_u32((uint32_t)nat[op.a]);
                 is_field[wc] = true;
                 ++wc;
                 break;
-            case 4: // FieldAdd
+            case WT::FieldAdd:
                 fld[wc] = fld[op.a] + fld[op.b];
                 is_field[wc] = true;
                 ++wc;
                 break;
-            case 19: // FieldSub
+            case WT::FieldSub:
                 fld[wc] = fld[op.a] - fld[op.b];
                 is_field[wc] = true;
                 ++wc;
                 break;
-            case 5: // FieldInverse
+            case WT::FieldInverse:
                 fld[wc] = fld[op.a].reciprocal();
                 is_field[wc] = true;
                 ++wc;
                 break;
-            case 18: // FieldSelect
+            case WT::FieldSelect:
                 fld[wc] = nat[op.a] ? fld[op.b] : fld[op.imm1];
                 is_field[wc] = true;
                 ++wc;
                 break;
             // --- lookup ops: no wire, accumulate histogram (from witgen_lookup_kernel) ---
-            case 6: { // U16RangeCheck
+            case WT::U16RangeCheck: {
                 uint32_t v = (uint32_t)(uint16_t)nat[op.a];
                 atomicAdd(&range_hist[v + (1u << 16)], 1u);
                 break;
             }
-            case 7: { // BitRangeCheck
+            case WT::BitRangeCheck: {
                 uint32_t v = (uint32_t)(uint16_t)nat[op.a];
                 atomicAdd(&range_hist[v + (1u << (uint32_t)op.imm0)], 1u);
                 break;
             }
-            case 22: { // BitRangeCheckVar
+            case WT::BitRangeCheckVar: {
                 uint32_t v = (uint32_t)(uint16_t)nat[op.a];
                 uint32_t bits = (uint32_t)nat[op.b];
-                atomicAdd(&range_hist[v + (1u << bits)], 1u);
+                if (bits <= 16)
+                    atomicAdd(&range_hist[v + (1u << bits)], 1u);
                 break;
             }
-            case 9: { // U8RangeCheck
+            case WT::U8RangeCheck: {
                 uint32_t b = (uint32_t)(uint8_t)nat[op.a];
                 uint32_t c = (uint32_t)(uint8_t)nat[op.b];
                 uint32_t r = (b << 8) + c;
                 atomicAdd(&byte_hist[r * WITGEN_NUM_BYTE_MULT_COLS + WITGEN_BYTE_U8RANGE_COL], 1u);
                 break;
             }
-            case 13: { // Guarded U16RangeCheck
+            case WT::U16RangeCheckGuarded: {
                 if (nat[op.b]) {
                     uint32_t v = (uint32_t)(uint16_t)nat[op.a];
                     atomicAdd(&range_hist[v + (1u << 16)], 1u);
                 }
                 break;
             }
-            case 14: { // Guarded BitRangeCheck
+            case WT::BitRangeCheckGuarded: {
                 if (nat[op.b]) {
                     uint32_t v = (uint32_t)(uint16_t)nat[op.a];
                     atomicAdd(&range_hist[v + (1u << (uint32_t)op.imm0)], 1u);
                 }
                 break;
             }
-            case 15: { // Guarded U8RangeCheck
+            case WT::U8RangeCheckGuarded: {
                 if (nat[op.imm1]) {
                     uint32_t b = (uint32_t)(uint8_t)nat[op.a];
                     uint32_t c = (uint32_t)(uint8_t)nat[op.b];
@@ -513,22 +546,30 @@ __global__ void witgen_fused_kernel(
                 }
                 break;
             }
-            case 16: { // ByteLookup
+            case WT::ByteLookup: {
                 uint32_t b = (uint32_t)(uint8_t)nat[op.a];
                 uint32_t c = (uint32_t)(uint8_t)nat[op.b];
                 uint32_t opc = (uint32_t)nat[op.imm1];
-                atomicAdd(&byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
+                if (opc < WITGEN_NUM_BYTE_MULT_COLS)
+                    atomicAdd(
+                        &byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
                 break;
             }
-            case 17: { // Guarded ByteLookup
+            case WT::ByteLookupGuarded: {
                 if (nat[(uintptr_t)op.imm0]) {
                     uint32_t b = (uint32_t)(uint8_t)nat[op.a];
                     uint32_t c = (uint32_t)(uint8_t)nat[op.b];
                     uint32_t opc = (uint32_t)nat[op.imm1];
-                    atomicAdd(&byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
+                    if (opc < WITGEN_NUM_BYTE_MULT_COLS)
+                        atomicAdd(
+                            &byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
                 }
                 break;
             }
+            default:
+                // Unknown/unported tag: silently skipping would shift every
+                // subsequent wire (silent corruption) — abort the kernel instead.
+                __trap();
             }
         }
 
@@ -597,7 +638,7 @@ __global__ void witgen_interp_slots_kernel(
     const uint32_t* input_slots,       // input i lives in slot input_slots[i]
     const uint64_t* inputs,            // row-major [n_rows][num_inputs]
     uintptr_t n_rows) {
-    int row = blockIdx.x * blockDim.x + threadIdx.x;
+    uintptr_t row = blockIdx.x * blockDim.x + threadIdx.x;
     for (; row < n_rows; row += blockDim.x * gridDim.x) {
         uint64_t nat[WITGEN_MAX_WIRES];
         T fld[WITGEN_MAX_WIRES];
@@ -612,82 +653,86 @@ __global__ void witgen_interp_slots_kernel(
         for (uintptr_t k = 0; k < n_ops; ++k) {
             const sp1_gpu_sys::WitOpCSlot op = ops[k];
             switch (op.tag) {
-            case 0: // ConstNat
+            case WT::ConstNat:
                 nat[op.out] = op.imm0;
                 is_field[op.out] = false;
                 break;
-            case 1: // WrappingAdd
+            case WT::WrappingAdd:
                 nat[op.out] = nat[op.a] + nat[op.b];
                 is_field[op.out] = false;
                 break;
-            case 8: // WrappingSub
+            case WT::WrappingSub:
                 nat[op.out] = nat[op.a] - nat[op.b];
                 is_field[op.out] = false;
                 break;
-            case 2: { // Bits
+            case WT::Bits: {
                 uint64_t mask = (op.imm1 >= 64) ? ~0ULL : ((1ULL << op.imm1) - 1);
                 nat[op.out] = (nat[op.a] >> op.imm0) & mask;
                 is_field[op.out] = false;
                 break;
             }
-            case 11: // Eq
+            case WT::Eq:
                 nat[op.out] = (nat[op.a] == nat[op.b]) ? 1 : 0;
                 is_field[op.out] = false;
                 break;
-            case 12: // Select
+            case WT::Select:
                 nat[op.out] = nat[op.a] ? nat[op.b] : nat[op.imm1];
                 is_field[op.out] = false;
                 break;
-            case 20: // Shl
+            case WT::Shl:
                 nat[op.out] = nat[op.a] << nat[op.b];
                 is_field[op.out] = false;
                 break;
-            case 21: // Shr
+            case WT::Shr:
                 nat[op.out] = nat[op.a] >> nat[op.b];
                 is_field[op.out] = false;
                 break;
-            case 23: // Mul
+            case WT::Mul:
                 nat[op.out] = nat[op.a] * nat[op.b];
                 is_field[op.out] = false;
                 break;
-            case 24: // Xor
+            case WT::Xor:
                 nat[op.out] = nat[op.a] ^ nat[op.b];
                 is_field[op.out] = false;
                 break;
-            case 25: // And
+            case WT::And:
                 nat[op.out] = nat[op.a] & nat[op.b];
                 is_field[op.out] = false;
                 break;
-            case 3: // NatToField
+            case WT::NatToField:
                 fld[op.out] = T::from_canonical_u32((uint32_t)nat[op.a]);
                 is_field[op.out] = true;
                 break;
-            case 4: // FieldAdd
+            case WT::FieldAdd:
                 fld[op.out] = fld[op.a] + fld[op.b];
                 is_field[op.out] = true;
                 break;
-            case 19: // FieldSub
+            case WT::FieldSub:
                 fld[op.out] = fld[op.a] - fld[op.b];
                 is_field[op.out] = true;
                 break;
-            case 5: // FieldInverse
+            case WT::FieldInverse:
                 fld[op.out] = fld[op.a].reciprocal();
                 is_field[op.out] = true;
                 break;
-            case 18: // FieldSelect
+            case WT::FieldSelect:
                 fld[op.out] = nat[op.a] ? fld[op.b] : fld[op.imm1];
                 is_field[op.out] = true;
                 break;
-            case 6:  // lookups: no wire
-            case 7:
-            case 9:
-            case 13:
-            case 14:
-            case 15:
-            case 16:
-            case 17:
-            case 22:
+            case WT::U16RangeCheck:  // lookups: no wire
+            case WT::BitRangeCheck:
+            case WT::U8RangeCheck:
+            case WT::U16RangeCheckGuarded:
+            case WT::BitRangeCheckGuarded:
+            case WT::U8RangeCheckGuarded:
+            case WT::ByteLookup:
+            case WT::ByteLookupGuarded:
+            case WT::BitRangeCheckVar:
                 break;
+            default:
+                // Unknown/unported tag: silently skipping would shift every
+                // subsequent wire (silent corruption) — abort the kernel instead.
+                __trap();
             }
         }
 
@@ -711,7 +756,7 @@ __global__ void witgen_lookup_slots_kernel(
     uintptr_t n_rows,
     uint32_t* range_hist,
     uint32_t* byte_hist) {
-    int row = blockIdx.x * blockDim.x + threadIdx.x;
+    uintptr_t row = blockIdx.x * blockDim.x + threadIdx.x;
     for (; row < n_rows; row += blockDim.x * gridDim.x) {
         uint64_t nat[WITGEN_MAX_WIRES];
 
@@ -722,66 +767,67 @@ __global__ void witgen_lookup_slots_kernel(
         for (uintptr_t k = 0; k < n_ops; ++k) {
             const sp1_gpu_sys::WitOpCSlot op = ops[k];
             switch (op.tag) {
-            case 0: nat[op.out] = op.imm0; break;
-            case 1: nat[op.out] = nat[op.a] + nat[op.b]; break;
-            case 8: nat[op.out] = nat[op.a] - nat[op.b]; break;
-            case 2: {
+            case WT::ConstNat: nat[op.out] = op.imm0; break;
+            case WT::WrappingAdd: nat[op.out] = nat[op.a] + nat[op.b]; break;
+            case WT::WrappingSub: nat[op.out] = nat[op.a] - nat[op.b]; break;
+            case WT::Bits: {
                 uint64_t mask = (op.imm1 >= 64) ? ~0ULL : ((1ULL << op.imm1) - 1);
                 nat[op.out] = (nat[op.a] >> op.imm0) & mask;
                 break;
             }
-            case 11: nat[op.out] = (nat[op.a] == nat[op.b]) ? 1 : 0; break;
-            case 12: nat[op.out] = nat[op.a] ? nat[op.b] : nat[op.imm1]; break;
-            case 20: nat[op.out] = nat[op.a] << nat[op.b]; break;
-            case 21: nat[op.out] = nat[op.a] >> nat[op.b]; break;
-            case 23: nat[op.out] = nat[op.a] * nat[op.b]; break;
-            case 24: nat[op.out] = nat[op.a] ^ nat[op.b]; break;
-            case 25: nat[op.out] = nat[op.a] & nat[op.b]; break;
-            case 3:  // field ops: placeholder (never read by a lookup)
-            case 4:
-            case 5:
-            case 18:
-            case 19:
+            case WT::Eq: nat[op.out] = (nat[op.a] == nat[op.b]) ? 1 : 0; break;
+            case WT::Select: nat[op.out] = nat[op.a] ? nat[op.b] : nat[op.imm1]; break;
+            case WT::Shl: nat[op.out] = nat[op.a] << nat[op.b]; break;
+            case WT::Shr: nat[op.out] = nat[op.a] >> nat[op.b]; break;
+            case WT::Mul: nat[op.out] = nat[op.a] * nat[op.b]; break;
+            case WT::Xor: nat[op.out] = nat[op.a] ^ nat[op.b]; break;
+            case WT::And: nat[op.out] = nat[op.a] & nat[op.b]; break;
+            case WT::NatToField:  // field ops: placeholder (never read by a lookup)
+            case WT::FieldAdd:
+            case WT::FieldInverse:
+            case WT::FieldSelect:
+            case WT::FieldSub:
                 nat[op.out] = 0;
                 break;
-            case 6: {
+            case WT::U16RangeCheck: {
                 uint32_t v = (uint32_t)(uint16_t)nat[op.a];
                 atomicAdd(&range_hist[v + (1u << 16)], 1u);
                 break;
             }
-            case 7: {
+            case WT::BitRangeCheck: {
                 uint32_t v = (uint32_t)(uint16_t)nat[op.a];
                 atomicAdd(&range_hist[v + (1u << (uint32_t)op.imm0)], 1u);
                 break;
             }
-            case 22: {
+            case WT::BitRangeCheckVar: {
                 uint32_t v = (uint32_t)(uint16_t)nat[op.a];
                 uint32_t bits = (uint32_t)nat[op.b];
-                atomicAdd(&range_hist[v + (1u << bits)], 1u);
+                if (bits <= 16)
+                    atomicAdd(&range_hist[v + (1u << bits)], 1u);
                 break;
             }
-            case 9: {
+            case WT::U8RangeCheck: {
                 uint32_t b = (uint32_t)(uint8_t)nat[op.a];
                 uint32_t c = (uint32_t)(uint8_t)nat[op.b];
                 uint32_t r = (b << 8) + c;
                 atomicAdd(&byte_hist[r * WITGEN_NUM_BYTE_MULT_COLS + WITGEN_BYTE_U8RANGE_COL], 1u);
                 break;
             }
-            case 13: {
+            case WT::U16RangeCheckGuarded: {
                 if (nat[op.b]) {
                     uint32_t v = (uint32_t)(uint16_t)nat[op.a];
                     atomicAdd(&range_hist[v + (1u << 16)], 1u);
                 }
                 break;
             }
-            case 14: {
+            case WT::BitRangeCheckGuarded: {
                 if (nat[op.b]) {
                     uint32_t v = (uint32_t)(uint16_t)nat[op.a];
                     atomicAdd(&range_hist[v + (1u << (uint32_t)op.imm0)], 1u);
                 }
                 break;
             }
-            case 15: {
+            case WT::U8RangeCheckGuarded: {
                 if (nat[op.imm1]) {
                     uint32_t b = (uint32_t)(uint8_t)nat[op.a];
                     uint32_t c = (uint32_t)(uint8_t)nat[op.b];
@@ -791,22 +837,30 @@ __global__ void witgen_lookup_slots_kernel(
                 }
                 break;
             }
-            case 16: {
+            case WT::ByteLookup: {
                 uint32_t b = (uint32_t)(uint8_t)nat[op.a];
                 uint32_t c = (uint32_t)(uint8_t)nat[op.b];
                 uint32_t opc = (uint32_t)nat[op.imm1];
-                atomicAdd(&byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
+                if (opc < WITGEN_NUM_BYTE_MULT_COLS)
+                    atomicAdd(
+                        &byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
                 break;
             }
-            case 17: {
+            case WT::ByteLookupGuarded: {
                 if (nat[(uintptr_t)op.imm0]) {
                     uint32_t b = (uint32_t)(uint8_t)nat[op.a];
                     uint32_t c = (uint32_t)(uint8_t)nat[op.b];
                     uint32_t opc = (uint32_t)nat[op.imm1];
-                    atomicAdd(&byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
+                    if (opc < WITGEN_NUM_BYTE_MULT_COLS)
+                        atomicAdd(
+                            &byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
                 }
                 break;
             }
+            default:
+                // Unknown/unported tag: silently skipping would shift every
+                // subsequent wire (silent corruption) — abort the kernel instead.
+                __trap();
             }
         }
     }
@@ -830,7 +884,7 @@ __global__ void witgen_fused_slots_kernel(
     uintptr_t n_rows,
     uint32_t* range_hist,
     uint32_t* byte_hist) {
-    int row = blockIdx.x * blockDim.x + threadIdx.x;
+    uintptr_t row = blockIdx.x * blockDim.x + threadIdx.x;
     for (; row < n_rows; row += blockDim.x * gridDim.x) {
         uint64_t nat[WITGEN_MAX_WIRES];
         T fld[WITGEN_MAX_WIRES];
@@ -846,111 +900,112 @@ __global__ void witgen_fused_slots_kernel(
             const sp1_gpu_sys::WitOpCSlot op = ops[k];
             switch (op.tag) {
             // --- value ops (from witgen_interp_slots_kernel) ---
-            case 0:
+            case WT::ConstNat:
                 nat[op.out] = op.imm0;
                 is_field[op.out] = false;
                 break;
-            case 1:
+            case WT::WrappingAdd:
                 nat[op.out] = nat[op.a] + nat[op.b];
                 is_field[op.out] = false;
                 break;
-            case 8:
+            case WT::WrappingSub:
                 nat[op.out] = nat[op.a] - nat[op.b];
                 is_field[op.out] = false;
                 break;
-            case 2: {
+            case WT::Bits: {
                 uint64_t mask = (op.imm1 >= 64) ? ~0ULL : ((1ULL << op.imm1) - 1);
                 nat[op.out] = (nat[op.a] >> op.imm0) & mask;
                 is_field[op.out] = false;
                 break;
             }
-            case 11:
+            case WT::Eq:
                 nat[op.out] = (nat[op.a] == nat[op.b]) ? 1 : 0;
                 is_field[op.out] = false;
                 break;
-            case 12:
+            case WT::Select:
                 nat[op.out] = nat[op.a] ? nat[op.b] : nat[op.imm1];
                 is_field[op.out] = false;
                 break;
-            case 20:
+            case WT::Shl:
                 nat[op.out] = nat[op.a] << nat[op.b];
                 is_field[op.out] = false;
                 break;
-            case 21:
+            case WT::Shr:
                 nat[op.out] = nat[op.a] >> nat[op.b];
                 is_field[op.out] = false;
                 break;
-            case 23:
+            case WT::Mul:
                 nat[op.out] = nat[op.a] * nat[op.b];
                 is_field[op.out] = false;
                 break;
-            case 24:
+            case WT::Xor:
                 nat[op.out] = nat[op.a] ^ nat[op.b];
                 is_field[op.out] = false;
                 break;
-            case 25:
+            case WT::And:
                 nat[op.out] = nat[op.a] & nat[op.b];
                 is_field[op.out] = false;
                 break;
-            case 3:
+            case WT::NatToField:
                 fld[op.out] = T::from_canonical_u32((uint32_t)nat[op.a]);
                 is_field[op.out] = true;
                 break;
-            case 4:
+            case WT::FieldAdd:
                 fld[op.out] = fld[op.a] + fld[op.b];
                 is_field[op.out] = true;
                 break;
-            case 19:
+            case WT::FieldSub:
                 fld[op.out] = fld[op.a] - fld[op.b];
                 is_field[op.out] = true;
                 break;
-            case 5:
+            case WT::FieldInverse:
                 fld[op.out] = fld[op.a].reciprocal();
                 is_field[op.out] = true;
                 break;
-            case 18:
+            case WT::FieldSelect:
                 fld[op.out] = nat[op.a] ? fld[op.b] : fld[op.imm1];
                 is_field[op.out] = true;
                 break;
             // --- lookup ops (from witgen_lookup_slots_kernel) ---
-            case 6: {
+            case WT::U16RangeCheck: {
                 uint32_t v = (uint32_t)(uint16_t)nat[op.a];
                 atomicAdd(&range_hist[v + (1u << 16)], 1u);
                 break;
             }
-            case 7: {
+            case WT::BitRangeCheck: {
                 uint32_t v = (uint32_t)(uint16_t)nat[op.a];
                 atomicAdd(&range_hist[v + (1u << (uint32_t)op.imm0)], 1u);
                 break;
             }
-            case 22: {
+            case WT::BitRangeCheckVar: {
                 uint32_t v = (uint32_t)(uint16_t)nat[op.a];
                 uint32_t bits = (uint32_t)nat[op.b];
-                atomicAdd(&range_hist[v + (1u << bits)], 1u);
+                if (bits <= 16)
+                    atomicAdd(&range_hist[v + (1u << bits)], 1u);
                 break;
             }
-            case 9: {
+            case WT::U8RangeCheck: {
                 uint32_t b = (uint32_t)(uint8_t)nat[op.a];
                 uint32_t c = (uint32_t)(uint8_t)nat[op.b];
                 uint32_t r = (b << 8) + c;
                 atomicAdd(&byte_hist[r * WITGEN_NUM_BYTE_MULT_COLS + WITGEN_BYTE_U8RANGE_COL], 1u);
                 break;
             }
-            case 13: {
+            case WT::U16RangeCheckGuarded: {
                 if (nat[op.b]) {
                     uint32_t v = (uint32_t)(uint16_t)nat[op.a];
                     atomicAdd(&range_hist[v + (1u << 16)], 1u);
                 }
                 break;
             }
-            case 14: {
+            case WT::BitRangeCheckGuarded: {
                 if (nat[op.b]) {
                     uint32_t v = (uint32_t)(uint16_t)nat[op.a];
                     atomicAdd(&range_hist[v + (1u << (uint32_t)op.imm0)], 1u);
                 }
                 break;
             }
-            case 15: {
+            case WT::U8RangeCheckGuarded: {
                 if (nat[op.imm1]) {
                     uint32_t b = (uint32_t)(uint8_t)nat[op.a];
                     uint32_t c = (uint32_t)(uint8_t)nat[op.b];
@@ -960,22 +1015,30 @@ __global__ void witgen_fused_slots_kernel(
                 }
                 break;
             }
-            case 16: {
+            case WT::ByteLookup: {
                 uint32_t b = (uint32_t)(uint8_t)nat[op.a];
                 uint32_t c = (uint32_t)(uint8_t)nat[op.b];
                 uint32_t opc = (uint32_t)nat[op.imm1];
-                atomicAdd(&byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
+                if (opc < WITGEN_NUM_BYTE_MULT_COLS)
+                    atomicAdd(
+                        &byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
                 break;
             }
-            case 17: {
+            case WT::ByteLookupGuarded: {
                 if (nat[(uintptr_t)op.imm0]) {
                     uint32_t b = (uint32_t)(uint8_t)nat[op.a];
                     uint32_t c = (uint32_t)(uint8_t)nat[op.b];
                     uint32_t opc = (uint32_t)nat[op.imm1];
-                    atomicAdd(&byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
+                    if (opc < WITGEN_NUM_BYTE_MULT_COLS)
+                        atomicAdd(
+                            &byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
                 }
                 break;
             }
+            default:
+                // Unknown/unported tag: silently skipping would shift every
+                // subsequent wire (silent corruption) — abort the kernel instead.
+                __trap();
             }
         }
 
@@ -1002,13 +1065,12 @@ __global__ void witgen_fused_slots_kernel(
 // Sizing (tuned on RTX 4090 / Ada, iter-073): CAP 24 x BLOCK 64 threads x
 // (8B nat + 4B kb31_t fld) = 18 KiB shared memory per block — comfortably within
 // the 48 KiB default per-block limit while covering 15/20 of the then-ported
-// chips' streaming footprints. Both values MUST MATCH the Rust launcher
-// (`WITGEN_SMEM_CAP` / `WITGEN_SMEM_BLOCK` in
-// sp1-gpu/crates/tracegen/src/riscv/mod.rs): the kernel's __shared__ arrays are
-// statically sized by CAP x BLOCK, so a larger host block would alias rows and a
-// larger host cap would overflow the arrays.
-#define WITGEN_SMEM_CAP 24
-#define WITGEN_SMEM_BLOCK 64
+// chips' streaming footprints. Both values are cbindgen-pinned from
+// crates/core/machine/src/air/witness_record.rs (shared with the Rust launcher):
+// the kernel's __shared__ arrays are statically sized by CAP x BLOCK, so a larger
+// host block would alias rows and a larger host cap would overflow the arrays.
+constexpr uint32_t WITGEN_SMEM_CAP = sp1_gpu_sys::WITGEN_SMEM_CAP;
+constexpr uint32_t WITGEN_SMEM_BLOCK = (uint32_t)sp1_gpu_sys::WITGEN_SMEM_BLOCK;
 
 template <class T>
 __global__ void __launch_bounds__(WITGEN_SMEM_BLOCK) witgen_fused_streaming_smem_kernel(
@@ -1035,7 +1097,7 @@ __global__ void __launch_bounds__(WITGEN_SMEM_BLOCK) witgen_fused_streaming_smem
 #define NATS(s) nat_s[(s) * WITGEN_SMEM_BLOCK + tid]
 #define FLDS(s) fld_s[(s) * WITGEN_SMEM_BLOCK + tid]
 
-    int row = blockIdx.x * blockDim.x + threadIdx.x;
+    uintptr_t row = blockIdx.x * blockDim.x + threadIdx.x;
     for (; row < n_rows; row += blockDim.x * gridDim.x) {
         for (uint32_t i = 0; i < num_inputs; ++i) {
             NATS(input_slots[i]) = inputs[row * num_inputs + i];
@@ -1049,71 +1111,72 @@ __global__ void __launch_bounds__(WITGEN_SMEM_BLOCK) witgen_fused_streaming_smem
             const sp1_gpu_sys::WitOpCSlot op = ops[k];
             bool is_fld = false;
             switch (op.tag) {
-            case 0: NATS(op.out) = op.imm0; break;
-            case 1: NATS(op.out) = NATS(op.a) + NATS(op.b); break;
-            case 8: NATS(op.out) = NATS(op.a) - NATS(op.b); break;
-            case 2: {
+            case WT::ConstNat: NATS(op.out) = op.imm0; break;
+            case WT::WrappingAdd: NATS(op.out) = NATS(op.a) + NATS(op.b); break;
+            case WT::WrappingSub: NATS(op.out) = NATS(op.a) - NATS(op.b); break;
+            case WT::Bits: {
                 uint64_t mask = (op.imm1 >= 64) ? ~0ULL : ((1ULL << op.imm1) - 1);
                 NATS(op.out) = (NATS(op.a) >> op.imm0) & mask;
                 break;
             }
-            case 11: NATS(op.out) = (NATS(op.a) == NATS(op.b)) ? 1 : 0; break;
-            case 12: NATS(op.out) = NATS(op.a) ? NATS(op.b) : NATS(op.imm1); break;
-            case 20: NATS(op.out) = NATS(op.a) << NATS(op.b); break;
-            case 21: NATS(op.out) = NATS(op.a) >> NATS(op.b); break;
-            case 23: NATS(op.out) = NATS(op.a) * NATS(op.b); break;
-            case 24: NATS(op.out) = NATS(op.a) ^ NATS(op.b); break;
-            case 25: NATS(op.out) = NATS(op.a) & NATS(op.b); break;
-            case 3:
+            case WT::Eq: NATS(op.out) = (NATS(op.a) == NATS(op.b)) ? 1 : 0; break;
+            case WT::Select: NATS(op.out) = NATS(op.a) ? NATS(op.b) : NATS(op.imm1); break;
+            case WT::Shl: NATS(op.out) = NATS(op.a) << NATS(op.b); break;
+            case WT::Shr: NATS(op.out) = NATS(op.a) >> NATS(op.b); break;
+            case WT::Mul: NATS(op.out) = NATS(op.a) * NATS(op.b); break;
+            case WT::Xor: NATS(op.out) = NATS(op.a) ^ NATS(op.b); break;
+            case WT::And: NATS(op.out) = NATS(op.a) & NATS(op.b); break;
+            case WT::NatToField:
                 FLDS(op.out) = T::from_canonical_u32((uint32_t)NATS(op.a));
                 is_fld = true;
                 break;
-            case 4: FLDS(op.out) = FLDS(op.a) + FLDS(op.b); is_fld = true; break;
-            case 19: FLDS(op.out) = FLDS(op.a) - FLDS(op.b); is_fld = true; break;
-            case 5: FLDS(op.out) = FLDS(op.a).reciprocal(); is_fld = true; break;
-            case 18:
+            case WT::FieldAdd: FLDS(op.out) = FLDS(op.a) + FLDS(op.b); is_fld = true; break;
+            case WT::FieldSub: FLDS(op.out) = FLDS(op.a) - FLDS(op.b); is_fld = true; break;
+            case WT::FieldInverse: FLDS(op.out) = FLDS(op.a).reciprocal(); is_fld = true; break;
+            case WT::FieldSelect:
                 FLDS(op.out) = NATS(op.a) ? FLDS(op.b) : FLDS(op.imm1);
                 is_fld = true;
                 break;
             // --- lookup ops: no wire, accumulate histogram; never a column ---
-            case 6: {
+            case WT::U16RangeCheck: {
                 uint32_t v = (uint32_t)(uint16_t)NATS(op.a);
                 atomicAdd(&range_hist[v + (1u << 16)], 1u);
                 continue;
             }
-            case 7: {
+            case WT::BitRangeCheck: {
                 uint32_t v = (uint32_t)(uint16_t)NATS(op.a);
                 atomicAdd(&range_hist[v + (1u << (uint32_t)op.imm0)], 1u);
                 continue;
             }
-            case 22: {
+            case WT::BitRangeCheckVar: {
                 uint32_t v = (uint32_t)(uint16_t)NATS(op.a);
                 uint32_t bits = (uint32_t)NATS(op.b);
-                atomicAdd(&range_hist[v + (1u << bits)], 1u);
+                if (bits <= 16)
+                    atomicAdd(&range_hist[v + (1u << bits)], 1u);
                 continue;
             }
-            case 9: {
+            case WT::U8RangeCheck: {
                 uint32_t b = (uint32_t)(uint8_t)NATS(op.a);
                 uint32_t c = (uint32_t)(uint8_t)NATS(op.b);
                 atomicAdd(&byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS
                                      + WITGEN_BYTE_U8RANGE_COL], 1u);
                 continue;
             }
-            case 13: {
+            case WT::U16RangeCheckGuarded: {
                 if (NATS(op.b)) {
                     uint32_t v = (uint32_t)(uint16_t)NATS(op.a);
                     atomicAdd(&range_hist[v + (1u << 16)], 1u);
                 }
                 continue;
             }
-            case 14: {
+            case WT::BitRangeCheckGuarded: {
                 if (NATS(op.b)) {
                     uint32_t v = (uint32_t)(uint16_t)NATS(op.a);
                     atomicAdd(&range_hist[v + (1u << (uint32_t)op.imm0)], 1u);
                 }
                 continue;
             }
-            case 15: {
+            case WT::U8RangeCheckGuarded: {
                 if (NATS(op.imm1)) {
                     uint32_t b = (uint32_t)(uint8_t)NATS(op.a);
                     uint32_t c = (uint32_t)(uint8_t)NATS(op.b);
@@ -1122,22 +1185,30 @@ __global__ void __launch_bounds__(WITGEN_SMEM_BLOCK) witgen_fused_streaming_smem
                 }
                 continue;
             }
-            case 16: {
+            case WT::ByteLookup: {
                 uint32_t b = (uint32_t)(uint8_t)NATS(op.a);
                 uint32_t c = (uint32_t)(uint8_t)NATS(op.b);
                 uint32_t opc = (uint32_t)NATS(op.imm1);
-                atomicAdd(&byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
+                if (opc < WITGEN_NUM_BYTE_MULT_COLS)
+                    atomicAdd(
+                        &byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
                 continue;
             }
-            case 17: {
+            case WT::ByteLookupGuarded: {
                 if (NATS((uint32_t)op.imm0)) {
                     uint32_t b = (uint32_t)(uint8_t)NATS(op.a);
                     uint32_t c = (uint32_t)(uint8_t)NATS(op.b);
                     uint32_t opc = (uint32_t)NATS(op.imm1);
-                    atomicAdd(&byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
+                    if (opc < WITGEN_NUM_BYTE_MULT_COLS)
+                        atomicAdd(
+                            &byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
                 }
                 continue;
             }
+            default:
+                // Unknown/unported tag: silently skipping would shift every
+                // subsequent wire (silent corruption) — abort the kernel instead.
+                __trap();
             }
             // Store-through: single-column wires go straight to the trace.
             if (op.col != 0xFFFFFFFFu) {
@@ -1182,7 +1253,7 @@ __global__ void witgen_fused_streaming_kernel(
 #define NATS(s) nat_l[s]
 #define FLDS(s) fld_l[s]
 
-    int row = blockIdx.x * blockDim.x + threadIdx.x;
+    uintptr_t row = blockIdx.x * blockDim.x + threadIdx.x;
     for (; row < n_rows; row += blockDim.x * gridDim.x) {
         for (uint32_t i = 0; i < num_inputs; ++i) {
             NATS(input_slots[i]) = inputs[row * num_inputs + i];
@@ -1196,71 +1267,72 @@ __global__ void witgen_fused_streaming_kernel(
             const sp1_gpu_sys::WitOpCSlot op = ops[k];
             bool is_fld = false;
             switch (op.tag) {
-            case 0: NATS(op.out) = op.imm0; break;
-            case 1: NATS(op.out) = NATS(op.a) + NATS(op.b); break;
-            case 8: NATS(op.out) = NATS(op.a) - NATS(op.b); break;
-            case 2: {
+            case WT::ConstNat: NATS(op.out) = op.imm0; break;
+            case WT::WrappingAdd: NATS(op.out) = NATS(op.a) + NATS(op.b); break;
+            case WT::WrappingSub: NATS(op.out) = NATS(op.a) - NATS(op.b); break;
+            case WT::Bits: {
                 uint64_t mask = (op.imm1 >= 64) ? ~0ULL : ((1ULL << op.imm1) - 1);
                 NATS(op.out) = (NATS(op.a) >> op.imm0) & mask;
                 break;
             }
-            case 11: NATS(op.out) = (NATS(op.a) == NATS(op.b)) ? 1 : 0; break;
-            case 12: NATS(op.out) = NATS(op.a) ? NATS(op.b) : NATS(op.imm1); break;
-            case 20: NATS(op.out) = NATS(op.a) << NATS(op.b); break;
-            case 21: NATS(op.out) = NATS(op.a) >> NATS(op.b); break;
-            case 23: NATS(op.out) = NATS(op.a) * NATS(op.b); break;
-            case 24: NATS(op.out) = NATS(op.a) ^ NATS(op.b); break;
-            case 25: NATS(op.out) = NATS(op.a) & NATS(op.b); break;
-            case 3:
+            case WT::Eq: NATS(op.out) = (NATS(op.a) == NATS(op.b)) ? 1 : 0; break;
+            case WT::Select: NATS(op.out) = NATS(op.a) ? NATS(op.b) : NATS(op.imm1); break;
+            case WT::Shl: NATS(op.out) = NATS(op.a) << NATS(op.b); break;
+            case WT::Shr: NATS(op.out) = NATS(op.a) >> NATS(op.b); break;
+            case WT::Mul: NATS(op.out) = NATS(op.a) * NATS(op.b); break;
+            case WT::Xor: NATS(op.out) = NATS(op.a) ^ NATS(op.b); break;
+            case WT::And: NATS(op.out) = NATS(op.a) & NATS(op.b); break;
+            case WT::NatToField:
                 FLDS(op.out) = T::from_canonical_u32((uint32_t)NATS(op.a));
                 is_fld = true;
                 break;
-            case 4: FLDS(op.out) = FLDS(op.a) + FLDS(op.b); is_fld = true; break;
-            case 19: FLDS(op.out) = FLDS(op.a) - FLDS(op.b); is_fld = true; break;
-            case 5: FLDS(op.out) = FLDS(op.a).reciprocal(); is_fld = true; break;
-            case 18:
+            case WT::FieldAdd: FLDS(op.out) = FLDS(op.a) + FLDS(op.b); is_fld = true; break;
+            case WT::FieldSub: FLDS(op.out) = FLDS(op.a) - FLDS(op.b); is_fld = true; break;
+            case WT::FieldInverse: FLDS(op.out) = FLDS(op.a).reciprocal(); is_fld = true; break;
+            case WT::FieldSelect:
                 FLDS(op.out) = NATS(op.a) ? FLDS(op.b) : FLDS(op.imm1);
                 is_fld = true;
                 break;
             // --- lookup ops: no wire, accumulate histogram; never a column ---
-            case 6: {
+            case WT::U16RangeCheck: {
                 uint32_t v = (uint32_t)(uint16_t)NATS(op.a);
                 atomicAdd(&range_hist[v + (1u << 16)], 1u);
                 continue;
             }
-            case 7: {
+            case WT::BitRangeCheck: {
                 uint32_t v = (uint32_t)(uint16_t)NATS(op.a);
                 atomicAdd(&range_hist[v + (1u << (uint32_t)op.imm0)], 1u);
                 continue;
             }
-            case 22: {
+            case WT::BitRangeCheckVar: {
                 uint32_t v = (uint32_t)(uint16_t)NATS(op.a);
                 uint32_t bits = (uint32_t)NATS(op.b);
-                atomicAdd(&range_hist[v + (1u << bits)], 1u);
+                if (bits <= 16)
+                    atomicAdd(&range_hist[v + (1u << bits)], 1u);
                 continue;
             }
-            case 9: {
+            case WT::U8RangeCheck: {
                 uint32_t b = (uint32_t)(uint8_t)NATS(op.a);
                 uint32_t c = (uint32_t)(uint8_t)NATS(op.b);
                 atomicAdd(&byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS
                                      + WITGEN_BYTE_U8RANGE_COL], 1u);
                 continue;
             }
-            case 13: {
+            case WT::U16RangeCheckGuarded: {
                 if (NATS(op.b)) {
                     uint32_t v = (uint32_t)(uint16_t)NATS(op.a);
                     atomicAdd(&range_hist[v + (1u << 16)], 1u);
                 }
                 continue;
             }
-            case 14: {
+            case WT::BitRangeCheckGuarded: {
                 if (NATS(op.b)) {
                     uint32_t v = (uint32_t)(uint16_t)NATS(op.a);
                     atomicAdd(&range_hist[v + (1u << (uint32_t)op.imm0)], 1u);
                 }
                 continue;
             }
-            case 15: {
+            case WT::U8RangeCheckGuarded: {
                 if (NATS(op.imm1)) {
                     uint32_t b = (uint32_t)(uint8_t)NATS(op.a);
                     uint32_t c = (uint32_t)(uint8_t)NATS(op.b);
@@ -1269,22 +1341,30 @@ __global__ void witgen_fused_streaming_kernel(
                 }
                 continue;
             }
-            case 16: {
+            case WT::ByteLookup: {
                 uint32_t b = (uint32_t)(uint8_t)NATS(op.a);
                 uint32_t c = (uint32_t)(uint8_t)NATS(op.b);
                 uint32_t opc = (uint32_t)NATS(op.imm1);
-                atomicAdd(&byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
+                if (opc < WITGEN_NUM_BYTE_MULT_COLS)
+                    atomicAdd(
+                        &byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
                 continue;
             }
-            case 17: {
+            case WT::ByteLookupGuarded: {
                 if (NATS((uint32_t)op.imm0)) {
                     uint32_t b = (uint32_t)(uint8_t)NATS(op.a);
                     uint32_t c = (uint32_t)(uint8_t)NATS(op.b);
                     uint32_t opc = (uint32_t)NATS(op.imm1);
-                    atomicAdd(&byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
+                    if (opc < WITGEN_NUM_BYTE_MULT_COLS)
+                        atomicAdd(
+                            &byte_hist[((b << 8) + c) * WITGEN_NUM_BYTE_MULT_COLS + opc], 1u);
                 }
                 continue;
             }
+            default:
+                // Unknown/unported tag: silently skipping would shift every
+                // subsequent wire (silent corruption) — abort the kernel instead.
+                __trap();
             }
             // Store-through: single-column wires go straight to the trace.
             if (op.col != 0xFFFFFFFFu) {

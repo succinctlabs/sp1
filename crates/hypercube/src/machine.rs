@@ -97,7 +97,7 @@ where
     /// Every chip runs IN MACHINE CHIP ORDER regardless of the filter: each chip
     /// sees the record with all earlier chips' outputs appended, and consumers rely
     /// on it — `Global`'s dependencies read the `global_interaction_events` that
-    /// MemoryLocal/Syscall*/MemoryGlobal* (possibly filter-excluded) emit, so
+    /// `MemoryLocal`/`Syscall*`/`MemoryGlobal*` (possibly filter-excluded) emit, so
     /// running excluded chips in a separate later pass would hand `Global` an empty
     /// event list and break the global cumulative sum.
     #[allow(clippy::needless_for_each)]
@@ -106,6 +106,20 @@ where
         records: impl Iterator<Item = &'a mut A::Record>,
         chips_filter: Option<&[String]>,
     ) {
+        // The filter is stringly-typed; a typo'd or renamed chip name would silently
+        // run the full host dependency pass for a chip the prover ALSO generates
+        // dependencies for on-device — double-counting byte multiplicities and
+        // failing verification far from the cause. Fail loudly here instead.
+        if let Some(chips_filter) = chips_filter {
+            for name in chips_filter {
+                assert!(
+                    self.chips.iter().any(|chip| *chip.name() == *name),
+                    "generate_dependencies: chips_filter names unknown chip `{name}` \
+                     (typo, or a chip rename that outran the filter's source?)"
+                );
+            }
+        }
+
         let full_deps = |chip: &Chip<F, A>| {
             if let Some(chips_filter) = chips_filter {
                 chips_filter.contains(&chip.name().to_string())

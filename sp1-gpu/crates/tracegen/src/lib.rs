@@ -378,14 +378,12 @@ pub trait CudaTracegenAir<F: Field>: MachineAir<F> {
     ///
     /// # Panics
     /// Panics if unsupported. See [`CudaTracegenAir::supports_device_preprocessed_tracegen`].
-    #[allow(unused_variables)]
     fn generate_preprocessed_trace_device(
         &self,
-        program: &Self::Program,
-        scope: &TaskScope,
+        _program: &Self::Program,
+        _scope: &TaskScope,
     ) -> impl Future<Output = Result<Option<DeviceMle<F>>, CopyError>> + Send {
-        #[allow(unreachable_code)]
-        ready(unimplemented!())
+        async { unimplemented!("device preprocessed tracegen is not supported for this chip") }
     }
 
     /// Whether this AIR supports main trace generation on the device.
@@ -397,15 +395,13 @@ pub trait CudaTracegenAir<F: Field>: MachineAir<F> {
     ///
     /// # Panics
     /// Panics if unsupported. See [`CudaTracegenAir::supports_device_main_tracegen`].
-    #[allow(unused_variables)]
     fn generate_trace_device(
         &self,
-        input: &Self::Record,
-        output: &mut Self::Record,
-        scope: &TaskScope,
+        _input: &Self::Record,
+        _output: &mut Self::Record,
+        _scope: &TaskScope,
     ) -> impl Future<Output = Result<DeviceMle<F>, CopyError>> + Send {
-        #[allow(unreachable_code)]
-        ready(unimplemented!())
+        async { unimplemented!("device main tracegen is not supported for this chip") }
     }
 
     /// Whether this AIR generates its dependencies (byte lookups) on the device. When
@@ -439,33 +435,14 @@ pub trait CudaTracegenAir<F: Field>: MachineAir<F> {
     /// dependency pre-pass. Retained (with the per-chip impls and the standalone
     /// lookup kernels) as the validation path: the fused-kernel unit tests use it as
     /// the reference histogram, and it isolates lookup bugs from column bugs.
-    #[allow(unused_variables)]
     fn generate_device_dependencies(
         &self,
-        input: &Self::Record,
-        range_dev: &mut DeviceBuffer<u32>,
-        byte_dev: &mut DeviceBuffer<u32>,
-        scope: &TaskScope,
+        _input: &Self::Record,
+        _range_dev: &mut DeviceBuffer<u32>,
+        _byte_dev: &mut DeviceBuffer<u32>,
+        _scope: &TaskScope,
     ) -> impl Future<Output = Result<(), CopyError>> + Send {
         ready(Ok(()))
-    }
-
-    /// Reconstruct the `byte_lookups` map from the shared histograms (already read back
-    /// to host) and merge it into `output`. Default: no-op.
-    ///
-    /// STATUS: NO callers — the histogram-readback integration it served was replaced
-    /// by building the Byte/Range table traces on-device from the resident histograms
-    /// ([`host_lookup_scatter`](Self::host_lookup_scatter) + `hist_to_trace_kernel`,
-    /// iter-052/053), so nothing reconstructs a host map anymore. Deletion candidate
-    /// (together with [`record_with_byte_lookups`](Self::record_with_byte_lookups))
-    /// at upstreaming time.
-    #[allow(unused_variables)]
-    fn add_lookups_from_histograms(
-        &self,
-        range_hist: &[u32],
-        byte_hist: &[u32],
-        output: &mut Self::Record,
-    ) {
     }
 
     /// Pack this chip's events into the flat per-row `u64` input array consumed by the
@@ -474,8 +451,7 @@ pub trait CudaTracegenAir<F: Field>: MachineAir<F> {
     /// so the packing overlaps the previous shard's proving instead of stalling the GPU
     /// while it holds the permit. `generate_trace_device_with_lookups` then consumes this
     /// pre-packed buffer and only does the (cheap) upload + kernel launch. Default: empty.
-    #[allow(unused_variables)]
-    fn pack_device_lookup_inputs(&self, input: &Self::Record) -> Vec<u64> {
+    fn pack_device_lookup_inputs(&self, _input: &Self::Record) -> Vec<u64> {
         Vec::new()
     }
 
@@ -487,36 +463,14 @@ pub trait CudaTracegenAir<F: Field>: MachineAir<F> {
     /// phase, so the separate dependency pre-pass is unnecessary. `inputs` is the
     /// pre-packed buffer from [`pack_device_lookup_inputs`] (packed pre-permit).
     /// Default: unsupported.
-    #[allow(unused_variables)]
     fn generate_trace_device_with_lookups(
         &self,
-        input: &Self::Record,
-        inputs: Vec<u64>,
-        hist: LookupHist,
-        scope: &TaskScope,
+        _input: &Self::Record,
+        _inputs: Vec<u64>,
+        _hist: LookupHist,
+        _scope: &TaskScope,
     ) -> impl Future<Output = Result<DeviceMle<F>, CopyError>> + Send {
-        #[allow(unreachable_code)]
-        ready(unimplemented!())
-    }
-
-    /// Build a record carrying the full `byte_lookups` map (the host chips' lookups in
-    /// `base` unioned with the device chips' lookups reconstructed from the shared
-    /// histograms) for the deferred Byte/Range table chips to generate their traces
-    /// from. Default: empty record.
-    ///
-    /// STATUS: NO callers — superseded by the fully on-device Byte/Range table build
-    /// (scatter the host chips' lookups into the resident histograms, then
-    /// `hist_to_trace_kernel`; iter-052/053). Deletion candidate (together with
-    /// [`add_lookups_from_histograms`](Self::add_lookups_from_histograms)) at
-    /// upstreaming time.
-    #[allow(unused_variables)]
-    fn record_with_byte_lookups(
-        &self,
-        base: &Self::Record,
-        range_hist: &[u32],
-        byte_hist: &[u32],
-    ) -> Self::Record {
-        Self::Record::default()
+        async { unimplemented!("fused device tracegen is not supported for this chip") }
     }
 
     /// Split the HOST chips' `byte_lookups` (the lookups NOT produced on the device, plus
@@ -528,10 +482,9 @@ pub trait CudaTracegenAir<F: Field>: MachineAir<F> {
     /// `a + (1<<bits)`; Byte: `((b<<8)+c)*NUM_BYTE_MULT_COLS + opcode`). Host-map keys are
     /// unique, so each index is distinct (the scatter kernel needs no atomics). Default:
     /// empty (no host lookups to fold in).
-    #[allow(unused_variables)]
     fn host_lookup_scatter(
         &self,
-        record: &Self::Record,
+        _record: &Self::Record,
     ) -> (Vec<u64>, Vec<u32>, Vec<u64>, Vec<u32>) {
         (Vec::new(), Vec::new(), Vec::new(), Vec::new())
     }

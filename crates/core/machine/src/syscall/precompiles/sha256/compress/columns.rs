@@ -195,7 +195,6 @@ impl<T: Copy> ShaCompressCols<T> {
 
         let zero = wb.const_nat(0);
         let zero_f = wb.nat_to_field(zero);
-        let one = wb.const_nat(1);
 
         cols.is_real = wb.nat_to_field(is_real);
         let clk_high = wb.bits(clk, 24, 32);
@@ -343,6 +342,5 @@ impl<T: Copy> ShaCompressCols<T> {
         let _ = AddU32Operation::<T>::witgen(wb, &mut cols.finalize_add, og_m, fin_m);
         wb.pop_guard();
         cols.finalized_operand = half(wb, fin_m);
-        let _ = one;
     }
 }

@@ -535,6 +535,18 @@ where
         let dep_filter: Option<Vec<String>> = if skip.is_empty() {
             None
         } else {
+            // A skip name that matches no machine chip would silently drop out of the
+            // complement below: the chip keeps its FULL host dependency pass while the
+            // device prover also generates its byte lookups on-device — double-counted
+            // multiplicities and a verification failure far from here. The prover and
+            // this worker must agree on the machine's chip names exactly.
+            for name in &skip {
+                assert!(
+                    self.machine().chips().iter().any(|c| *c.name() == *name),
+                    "host_dependency_skip_chips names `{name}`, which is not a chip of \
+                     the worker's machine — prover/worker machine mismatch?"
+                );
+            }
             Some(
                 self.machine()
                     .chips()
