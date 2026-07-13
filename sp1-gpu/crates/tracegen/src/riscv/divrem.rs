@@ -161,6 +161,28 @@ fn record_divrem_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
     (program, col_wires)
 }
 
+/// The chip's cached [`WitgenChip`](super::WitgenChip) descriptor: recorded +
+/// lowered ONCE per process (the program is shard-independent), not per shard.
+fn divrem_witgen_chip() -> &'static super::WitgenChip {
+    static CHIP: std::sync::OnceLock<super::WitgenChip> = std::sync::OnceLock::new();
+    CHIP.get_or_init(|| {
+        let (program, col_wires) = record_divrem_program();
+        super::WitgenChip::new(program, col_wires)
+    })
+}
+
+/// Lookup-only variant of the cached descriptor: an EMPTY column map, so the
+/// pinned slot allocation does NOT pin the column wires (pinned-with-columns is
+/// 272 slots > the cap; transient-only allocation fits comfortably). The lookup
+/// kernel executes the same op order, so the emitted lookups are identical.
+fn divrem_lookup_chip() -> &'static super::WitgenChip {
+    static CHIP: std::sync::OnceLock<super::WitgenChip> = std::sync::OnceLock::new();
+    CHIP.get_or_init(|| {
+        let (program, _col_wires) = record_divrem_program();
+        super::WitgenChip::new(program, Vec::new())
+    })
+}
+
 /// Build the non-zero padding template ("0 / 1" — see `generate_trace_into`).
 fn padding_template(n_cols: usize) -> Vec<F> {
     let mut tmpl = vec![F::zero(); n_cols];
@@ -229,16 +251,21 @@ impl CudaTracegenAir<F> for DivRemChip<SupervisorMode> {
         hist: crate::LookupHist,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
-        let (program, col_wires) = record_divrem_program();
-        let n_cols = col_wires.len();
+        let chip = divrem_witgen_chip();
+        let n_cols = chip.n_cols();
         debug_assert_eq!(n_cols, NUM_DIVREM_COLS_SUPERVISOR);
         let height = <Self as MachineAir<F>>::num_rows(self, input)
             .expect("num_rows(...) should be Some(_)");
-        let n_events = if height == 0 { 0 } else { inputs.len() / program.num_inputs as usize };
+        let n_events =
+            if height == 0 { 0 } else { inputs.len() / chip.program.num_inputs as usize };
 
         let trace = template_trace(n_cols, height, scope)?;
         super::generate_trace_and_lookups_slots_into(
-            &program, &col_wires, &inputs, n_events, height, trace, hist, scope,
+            chip,
+            super::WitgenBatch { inputs: &inputs, n_events, height },
+            trace,
+            hist,
+            scope,
         )
         .await
     }
@@ -264,15 +291,12 @@ impl CudaTracegenAir<F> for DivRemChip<SupervisorMode> {
             return Ok(());
         }
 
-        let (program, _col_wires) = record_divrem_program();
         let inputs = pack_divrem_inputs(&events[..n_events]);
-        // Lookup-only pass: no columns are read out, so allocate slots WITHOUT
-        // pinning the column wires (pinned-with-columns is 272 slots > the cap;
-        // transient-only allocation fits comfortably). The lookup kernel executes
-        // the same op order, so the emitted lookups are identical.
+        // Lookup-only pass: no columns are read out, so use the descriptor whose
+        // column map is empty (see `divrem_lookup_chip`) — its pinned allocation
+        // never pins the column wires.
         super::accumulate_lookups_slots(
-            &program,
-            &[],
+            divrem_lookup_chip(),
             &inputs,
             n_events,
             range_dev,
@@ -428,39 +452,29 @@ mod tests {
         // cap; streaming drops the 246-column pinning entirely). Must match SSA
         // bit-for-bit and fit the kernel cap with an empty epilogue (the mod.rs
         // streaming gate requires both).
-        let (s_slot, s_max, epilogue) = program.allocate_slots_streaming(&col_wires);
-        let (s_ops, input_cols) = program.to_c_slots_streaming(&s_slot, &col_wires);
-        let s_input_slots: Vec<u32> = s_slot[..ni].to_vec();
-        let epi_slots: Vec<(u32, u32)> =
-            epilogue.iter().map(|&(w, c)| (s_slot[w as usize], c)).collect();
+        let lowering = program.lower_streaming(&col_wires);
         eprintln!(
-            "DivRem streaming: pinned max_slots={max_slots} -> streaming max_slots={s_max} \
+            "DivRem streaming: pinned max_slots={max_slots} -> streaming max_slots={} \
              (epilogue {} entries, input_cols {})",
-            epi_slots.len(),
-            input_cols.len()
+            lowering.max_slots,
+            lowering.epilogue.len(),
+            lowering.input_cols.len()
         );
         assert!(
-            (s_max as usize) <= super::super::WITGEN_MAX_WIRES,
-            "DivRem streaming: max_slots={s_max} exceeds the kernel cap"
+            (lowering.max_slots as usize) <= super::super::WITGEN_MAX_WIRES,
+            "DivRem streaming: max_slots={} exceeds the kernel cap",
+            lowering.max_slots
         );
         assert!(
-            epi_slots.is_empty(),
+            lowering.epilogue.is_empty(),
             "DivRem streaming: non-empty epilogue would fall back to the pinned kernel \
              (which DivRem does not fit)"
         );
         for row in 0..events.len() {
             let row_in = &inputs[row * ni..(row + 1) * ni];
             let ssa: Vec<F> = interpret_c_columns(&ops_c, ni as u32, row_in, &col_wires);
-            let streamed: Vec<F> = interpret_c_slots_streaming_columns(
-                &s_ops,
-                ni as u32,
-                row_in,
-                &s_input_slots,
-                &input_cols,
-                &epi_slots,
-                col_wires.len(),
-                s_max,
-            );
+            let streamed: Vec<F> =
+                interpret_c_slots_streaming_columns(&lowering, ni as u32, row_in, col_wires.len());
             assert_eq!(ssa, streamed, "streaming column mismatch at row {row}");
         }
     }

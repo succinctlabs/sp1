@@ -211,6 +211,16 @@ pub(crate) fn record_sha_compress_program() -> (sp1_core_machine::air::WitProgra
     (program, col_wires)
 }
 
+/// The chip's cached [`WitgenChip`](super::WitgenChip) descriptor: recorded +
+/// lowered ONCE per process (the program is shard-independent), not per shard.
+fn sha_compress_witgen_chip() -> &'static super::WitgenChip {
+    static CHIP: std::sync::OnceLock<super::WitgenChip> = std::sync::OnceLock::new();
+    CHIP.get_or_init(|| {
+        let (program, col_wires) = record_sha_compress_program();
+        super::WitgenChip::new(program, col_wires)
+    })
+}
+
 /// Host-side cyclic padding pattern for row `row` (mirrors `generate_trace_into`'s
 /// padded-row loop): one-hot octet/octet_num, index, and K during compression.
 fn padding_row(row: usize, cols: &mut ShaCompressCols<F>) {
@@ -239,8 +249,8 @@ impl CudaTracegenAir<F> for ShaCompressChip {
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
         use core::borrow::BorrowMut;
-        let (program, col_wires) = record_sha_compress_program();
-        let n_cols = col_wires.len();
+        let chip = sha_compress_witgen_chip();
+        let n_cols = chip.n_cols();
         debug_assert_eq!(n_cols, NUM_SHA_COMPRESS_COLS);
 
         let height = <Self as MachineAir<F>>::num_rows(self, input)
@@ -271,7 +281,10 @@ impl CudaTracegenAir<F> for ShaCompressChip {
         let trace = Tensor::<F, TaskScope>::from(buf).reshape([n_cols, height]);
 
         super::generate_columns_slots_into(
-            &program, &col_wires, &inputs, n_rows, height, trace, scope,
+            chip,
+            super::WitgenBatch { inputs: &inputs, n_events: n_rows, height },
+            trace,
+            scope,
         )
         .await
     }
@@ -288,12 +301,12 @@ impl CudaTracegenAir<F> for ShaCompressChip {
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
         use core::borrow::BorrowMut;
-        let (program, col_wires) = record_sha_compress_program();
-        let n_cols = col_wires.len();
+        let chip = sha_compress_witgen_chip();
+        let n_cols = chip.n_cols();
         debug_assert_eq!(n_cols, NUM_SHA_COMPRESS_COLS);
         let height = <Self as MachineAir<F>>::num_rows(self, input)
             .expect("num_rows(...) should be Some(_)");
-        let n_rows = if height == 0 { 0 } else { inputs.len() / program.num_inputs as usize };
+        let n_rows = if height == 0 { 0 } else { inputs.len() / chip.program.num_inputs as usize };
 
         let mut init = vec![F::default(); n_cols * height];
         {
@@ -314,7 +327,11 @@ impl CudaTracegenAir<F> for ShaCompressChip {
         let trace = Tensor::<F, TaskScope>::from(buf).reshape([n_cols, height]);
 
         super::generate_trace_and_lookups_slots_into(
-            &program, &col_wires, &inputs, n_rows, height, trace, hist, scope,
+            chip,
+            super::WitgenBatch { inputs: &inputs, n_events: n_rows, height },
+            trace,
+            hist,
+            scope,
         )
         .await
     }
@@ -337,10 +354,14 @@ impl CudaTracegenAir<F> for ShaCompressChip {
         if n_rows == 0 {
             return Ok(());
         }
-        let (program, col_wires) = record_sha_compress_program();
         let inputs = pack_sha_compress_inputs(&events);
         super::accumulate_lookups_slots(
-            &program, &col_wires, &inputs, n_rows, range_dev, byte_dev, scope,
+            sha_compress_witgen_chip(),
+            &inputs,
+            n_rows,
+            range_dev,
+            byte_dev,
+            scope,
         )
         .await
     }

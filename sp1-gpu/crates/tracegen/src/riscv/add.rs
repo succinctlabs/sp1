@@ -59,6 +59,16 @@ fn record_add_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
     (program, col_wires)
 }
 
+/// The chip's cached [`WitgenChip`] descriptor: recorded + lowered ONCE per
+/// process (the program is shard-independent), not per shard.
+fn add_witgen_chip() -> &'static super::WitgenChip {
+    static CHIP: std::sync::OnceLock<super::WitgenChip> = std::sync::OnceLock::new();
+    CHIP.get_or_init(|| {
+        let (program, col_wires) = record_add_program();
+        super::WitgenChip::new(program, col_wires)
+    })
+}
+
 impl CudaTracegenAir<F> for AddChip<SupervisorMode> {
     fn supports_device_main_tracegen(&self) -> bool {
         true
@@ -130,14 +140,17 @@ impl CudaTracegenAir<F> for AddChip<SupervisorMode> {
         // Fused: one op-DAG pass writes the columns AND accumulates this chip's
         // byte/range lookups into the shared shard histograms — replaces the separate
         // `generate_trace_device` + dependency pass for this chip.
-        let (program, col_wires) = record_add_program();
-        let n_cols = col_wires.len();
-        debug_assert_eq!(n_cols, NUM_ADD_COLS_SUPERVISOR);
+        let chip = add_witgen_chip();
+        debug_assert_eq!(chip.n_cols(), NUM_ADD_COLS_SUPERVISOR);
         let height = <Self as MachineAir<F>>::num_rows(self, input)
             .expect("num_rows(...) should be Some(_)");
-        let n_events = if height == 0 { 0 } else { inputs.len() / program.num_inputs as usize };
+        let n_events =
+            if height == 0 { 0 } else { inputs.len() / chip.program.num_inputs as usize };
         super::generate_trace_and_lookups(
-            &program, &col_wires, n_cols, &inputs, n_events, height, hist, scope,
+            chip,
+            super::WitgenBatch { inputs: &inputs, n_events, height },
+            hist,
+            scope,
         )
         .await
     }
@@ -164,9 +177,9 @@ impl CudaTracegenAir<F> for AddChip<SupervisorMode> {
         if n_events == 0 {
             return Ok(());
         }
-        let (program, _col_wires) = record_add_program();
         let inputs = pack_add_inputs(&events[..n_events]);
-        super::accumulate_lookups(&program, &inputs, n_events, range_dev, byte_dev, scope).await
+        super::accumulate_lookups(add_witgen_chip(), &inputs, n_events, range_dev, byte_dev, scope)
+            .await
     }
 }
 
@@ -295,18 +308,18 @@ mod tests {
             let cpu_trace =
                 Tensor::<F>::from(chip.generate_trace(&gpu_shard, &mut ExecutionRecord::default()));
 
-            // Build the op-DAG + packed inputs once (shared by both device paths).
-            let (program, col_wires) = super::record_add_program();
-            let n_cols = col_wires.len();
+            // The chip's cached descriptor + packed inputs (shared by both device paths).
+            let wchip = super::add_witgen_chip();
             let height =
                 <AddChip<SupervisorMode> as MachineAir<F>>::num_rows(&chip, &gpu_shard).unwrap();
             let n_events = if height == 0 { 0 } else { add_events.len() };
             let inputs = super::pack_add_inputs(&add_events[..n_events]);
+            let batch = crate::riscv::WitgenBatch { inputs: &inputs, n_events, height };
 
             // Reference histogram from the standalone lookup kernel.
             let (mut r_ref, mut b_ref) = crate::new_byte_histograms(&scope);
             crate::riscv::accumulate_lookups(
-                &program, &inputs, n_events, &mut r_ref, &mut b_ref, &scope,
+                wchip, &inputs, n_events, &mut r_ref, &mut b_ref, &scope,
             )
             .await
             .unwrap();
@@ -319,14 +332,12 @@ mod tests {
                 range: r_f.as_ptr() as *mut u32,
                 byte: b_f.as_ptr() as *mut u32,
             };
-            let fused_trace = crate::riscv::generate_trace_and_lookups(
-                &program, &col_wires, n_cols, &inputs, n_events, height, hist, &scope,
-            )
-            .await
-            .expect("fused tracegen should succeed")
-            .to_host()
-            .expect("copy fused trace to host")
-            .into_guts();
+            let fused_trace = crate::riscv::generate_trace_and_lookups(wchip, batch, hist, &scope)
+                .await
+                .expect("fused tracegen should succeed")
+                .to_host()
+                .expect("copy fused trace to host")
+                .into_guts();
             let r_f_h: Vec<u32> = r_f.to_host().unwrap();
             let b_f_h: Vec<u32> = b_f.to_host().unwrap();
 

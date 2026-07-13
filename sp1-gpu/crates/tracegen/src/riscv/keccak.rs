@@ -262,6 +262,16 @@ pub(crate) fn record_keccak_program() -> (WitProgram, Vec<u32>) {
     (rec.finish(), col_wires)
 }
 
+/// The chip's cached [`WitgenChip`](super::WitgenChip) descriptor: recorded +
+/// lowered ONCE per process (the program is shard-independent), not per shard.
+fn keccak_witgen_chip() -> &'static super::WitgenChip {
+    static CHIP: std::sync::OnceLock<super::WitgenChip> = std::sync::OnceLock::new();
+    CHIP.get_or_init(|| {
+        let (program, col_wires) = record_keccak_program();
+        super::WitgenChip::new(program, col_wires)
+    })
+}
+
 /// Pack `n_rows` witgen input rows (24 per event, in event order, then padding).
 /// Rows of trapped events AND rows past `events.len() * 24` get the host's dummy
 /// pattern: the zero-state permutation with `clk/addr/index/is_real = 0` (the
@@ -355,17 +365,20 @@ impl CudaTracegenAir<F> for KeccakPermuteChip {
         hist: crate::LookupHist,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
-        let (program, col_wires) = record_keccak_program();
-        let n_cols = col_wires.len();
+        let chip = keccak_witgen_chip();
         let height = <Self as MachineAir<F>>::num_rows(self, input)
             .expect("num_rows(...) should be Some(_)");
         // The pack covers the FULL padded height (trapped + padding rows carry the
         // host's cyclic dummy pattern), so every row is a kernel row.
-        let n_rows = if height == 0 { 0 } else { inputs.len() / program.num_inputs as usize };
+        let n_rows = if height == 0 { 0 } else { inputs.len() / chip.program.num_inputs as usize };
         debug_assert!(n_rows == 0 || n_rows == height);
-        let trace = Tensor::<F, TaskScope>::zeros_in([n_cols, height], scope.clone());
+        let trace = Tensor::<F, TaskScope>::zeros_in([chip.n_cols(), height], scope.clone());
         super::generate_trace_and_lookups_slots_into(
-            &program, &col_wires, &inputs, n_rows, height, trace, hist, scope,
+            chip,
+            super::WitgenBatch { inputs: &inputs, n_events: n_rows, height },
+            trace,
+            hist,
+            scope,
         )
         .await
     }
@@ -472,14 +485,15 @@ mod tests {
 
         // Decision numbers for the kernel strategy.
         let (slot, max_slots) = program.allocate_slots(&col_wires);
-        let (s_slot, s_max, epi) = program.allocate_slots_streaming(&col_wires);
+        let lowering = program.lower_streaming(&col_wires);
         eprintln!(
             "Keccak: ops/row={} num_wires={} n_cols={} pinned_max_slots={max_slots} \
-             streaming_max_slots={s_max} epilogue={}",
+             streaming_max_slots={} epilogue={}",
             program.ops.len(),
             program.num_wires(),
             col_wires.len(),
-            epi.len(),
+            lowering.max_slots,
+            lowering.epilogue.len(),
         );
         // No lookup ops at all (deps are empty; see the dependencies test).
         assert!(program.ops.iter().all(WitOp::produces_wire), "unexpected lookup op");
@@ -490,8 +504,6 @@ mod tests {
         let ops_slots = program.to_c_slots(&slot);
         let input_slots = &slot[..ni];
         let col_slots: Vec<u32> = col_wires.iter().map(|&w| slot[w as usize]).collect();
-        let (ops_stream, input_cols) = program.to_c_slots_streaming(&s_slot, &col_wires);
-        let s_input_slots = &s_slot[..ni];
 
         let events = super::collect_events(&shard);
         let inputs = super::pack_keccak_inputs(&events, height);
@@ -512,16 +524,8 @@ mod tests {
                 max_slots,
             );
             assert_eq!(cols, flat, "pinned-slot column mismatch at row {row}");
-            let streamed: Vec<F> = interpret_c_slots_streaming_columns(
-                &ops_stream,
-                ni as u32,
-                row_in,
-                s_input_slots,
-                &input_cols,
-                &epi,
-                width,
-                s_max,
-            );
+            let streamed: Vec<F> =
+                interpret_c_slots_streaming_columns(&lowering, ni as u32, row_in, width);
             assert_eq!(cols, streamed, "streaming column mismatch at row {row}");
         }
     }

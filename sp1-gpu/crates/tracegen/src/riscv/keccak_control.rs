@@ -151,6 +151,28 @@ fn record_keccak_control_program() -> (WitProgram, Vec<u32>) {
     (program, col_wires)
 }
 
+/// The chip's cached [`WitgenChip`](super::WitgenChip) descriptor: recorded +
+/// lowered ONCE per process (the program is shard-independent), not per shard.
+fn keccak_control_witgen_chip() -> &'static super::WitgenChip {
+    static CHIP: std::sync::OnceLock<super::WitgenChip> = std::sync::OnceLock::new();
+    CHIP.get_or_init(|| {
+        let (program, col_wires) = record_keccak_control_program();
+        super::WitgenChip::new(program, col_wires)
+    })
+}
+
+/// Lookup-only variant of the cached descriptor: an EMPTY column map, so the
+/// pinned slot allocation does NOT pin the column wires (the 634-column pinned
+/// footprint doesn't fit; transients-only does). The lookup kernel executes the
+/// same op order, so the emitted lookups are identical.
+fn keccak_control_lookup_chip() -> &'static super::WitgenChip {
+    static CHIP: std::sync::OnceLock<super::WitgenChip> = std::sync::OnceLock::new();
+    CHIP.get_or_init(|| {
+        let (program, _col_wires) = record_keccak_control_program();
+        super::WitgenChip::new(program, Vec::new())
+    })
+}
+
 impl CudaTracegenAir<F> for KeccakPermuteControlChip<SupervisorMode> {
     fn supports_device_main_tracegen(&self) -> bool {
         true
@@ -178,15 +200,19 @@ impl CudaTracegenAir<F> for KeccakPermuteControlChip<SupervisorMode> {
         hist: crate::LookupHist,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
-        let (program, col_wires) = record_keccak_control_program();
-        let n_cols = col_wires.len();
+        let chip = keccak_control_witgen_chip();
         let height = <Self as MachineAir<F>>::num_rows(self, input)
             .expect("num_rows(...) should be Some(_)");
-        let n_events = if height == 0 { 0 } else { inputs.len() / program.num_inputs as usize };
+        let n_events =
+            if height == 0 { 0 } else { inputs.len() / chip.program.num_inputs as usize };
         // Zero padding (host `write_bytes(0)`); the streaming kernel writes event rows.
-        let trace = Tensor::<F, TaskScope>::zeros_in([n_cols, height], scope.clone());
+        let trace = Tensor::<F, TaskScope>::zeros_in([chip.n_cols(), height], scope.clone());
         super::generate_trace_and_lookups_slots_into(
-            &program, &col_wires, &inputs, n_events, height, trace, hist, scope,
+            chip,
+            super::WitgenBatch { inputs: &inputs, n_events, height },
+            trace,
+            hist,
+            scope,
         )
         .await
     }
@@ -212,12 +238,11 @@ impl CudaTracegenAir<F> for KeccakPermuteControlChip<SupervisorMode> {
         if n_events == 0 {
             return Ok(());
         }
-        let (program, _col_wires) = record_keccak_control_program();
-        // Lookup-only pass: allocate slots WITHOUT pinning the column wires (the
-        // 634-column pinned footprint doesn't fit; transients-only does).
+        // Lookup-only pass: use the descriptor whose column map is empty (see
+        // `keccak_control_lookup_chip`) — its pinned allocation never pins the
+        // column wires.
         super::accumulate_lookups_slots(
-            &program,
-            &[],
+            keccak_control_lookup_chip(),
             &inputs,
             n_events,
             range_dev,
@@ -324,21 +349,18 @@ mod tests {
 
         let (program, col_wires) = super::record_keccak_control_program();
         assert_eq!(col_wires.len(), width);
-        let (s_slot, s_max, epi) = program.allocate_slots_streaming(&col_wires);
+        let lowering = program.lower_streaming(&col_wires);
         eprintln!(
-            "KeccakPermuteControl: num_wires={} n_cols={} streaming_max_slots={s_max} \
+            "KeccakPermuteControl: num_wires={} n_cols={} streaming_max_slots={} \
              epilogue={}",
             program.num_wires(),
             col_wires.len(),
-            epi.len(),
+            lowering.max_slots,
+            lowering.epilogue.len(),
         );
 
         let ni = sp1_core_machine::syscall::precompiles::keccak256::controller::NUM_KECCAK_CONTROL_WITGEN_INPUTS;
         let ops_c = program.to_c();
-        let (ops_stream, input_cols) = program.to_c_slots_streaming(&s_slot, &col_wires);
-        let s_input_slots = &s_slot[..ni];
-        let epi_slots: Vec<(u32, u32)> =
-            epi.iter().map(|&(w, c)| (s_slot[w as usize], c)).collect();
 
         let inputs = super::pack_keccak_control_inputs(&shard);
         let n_events = inputs.len() / ni;
@@ -350,16 +372,8 @@ mod tests {
                 &cols[..],
                 "column mismatch at row {row}"
             );
-            let streamed: Vec<F> = interpret_c_slots_streaming_columns(
-                &ops_stream,
-                ni as u32,
-                row_in,
-                s_input_slots,
-                &input_cols,
-                &epi_slots,
-                width,
-                s_max,
-            );
+            let streamed: Vec<F> =
+                interpret_c_slots_streaming_columns(&lowering, ni as u32, row_in, width);
             assert_eq!(cols, streamed, "streaming column mismatch at row {row}");
         }
         // Padding rows are all-zero on the host too.

@@ -56,6 +56,16 @@ fn record_mul_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
     (program, col_wires)
 }
 
+/// The chip's cached [`WitgenChip`](super::WitgenChip) descriptor: recorded +
+/// lowered ONCE per process (the program is shard-independent), not per shard.
+fn mul_witgen_chip() -> &'static super::WitgenChip {
+    static CHIP: std::sync::OnceLock<super::WitgenChip> = std::sync::OnceLock::new();
+    CHIP.get_or_init(|| {
+        let (program, col_wires) = record_mul_program();
+        super::WitgenChip::new(program, col_wires)
+    })
+}
+
 impl CudaTracegenAir<F> for MulChip<SupervisorMode> {
     fn supports_device_main_tracegen(&self) -> bool {
         true
@@ -67,8 +77,8 @@ impl CudaTracegenAir<F> for MulChip<SupervisorMode> {
         _output: &mut Self::Record,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
-        let (program, col_wires) = record_mul_program();
-        let n_cols = col_wires.len();
+        let chip = mul_witgen_chip();
+        let n_cols = chip.n_cols();
         debug_assert_eq!(n_cols, NUM_MUL_COLS_SUPERVISOR);
 
         let height = <Self as MachineAir<F>>::num_rows(self, input)
@@ -81,7 +91,10 @@ impl CudaTracegenAir<F> for MulChip<SupervisorMode> {
         // rows are all-zero (is_mul..is_mulw = 0 → padding row).
         let trace = Tensor::<F, TaskScope>::zeros_in([n_cols, height], scope.clone());
         super::generate_columns_slots_into(
-            &program, &col_wires, &inputs, n_events, height, trace, scope,
+            chip,
+            super::WitgenBatch { inputs: &inputs, n_events, height },
+            trace,
+            scope,
         )
         .await
     }
@@ -98,14 +111,17 @@ impl CudaTracegenAir<F> for MulChip<SupervisorMode> {
         hist: crate::LookupHist,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
-        let (program, col_wires) = record_mul_program();
-        let n_cols = col_wires.len();
-        debug_assert_eq!(n_cols, NUM_MUL_COLS_SUPERVISOR);
+        let chip = mul_witgen_chip();
+        debug_assert_eq!(chip.n_cols(), NUM_MUL_COLS_SUPERVISOR);
         let height = <Self as MachineAir<F>>::num_rows(self, input)
             .expect("num_rows(...) should be Some(_)");
-        let n_events = if height == 0 { 0 } else { inputs.len() / program.num_inputs as usize };
+        let n_events =
+            if height == 0 { 0 } else { inputs.len() / chip.program.num_inputs as usize };
         super::generate_trace_and_lookups_slots(
-            &program, &col_wires, n_cols, &inputs, n_events, height, hist, scope,
+            chip,
+            super::WitgenBatch { inputs: &inputs, n_events, height },
+            hist,
+            scope,
         )
         .await
     }
@@ -129,10 +145,14 @@ impl CudaTracegenAir<F> for MulChip<SupervisorMode> {
             return Ok(());
         }
 
-        let (program, col_wires) = record_mul_program();
         let inputs = pack_mul_inputs(&events[..n_events]);
         super::accumulate_lookups_slots(
-            &program, &col_wires, &inputs, n_events, range_dev, byte_dev, scope,
+            mul_witgen_chip(),
+            &inputs,
+            n_events,
+            range_dev,
+            byte_dev,
+            scope,
         )
         .await
     }
@@ -317,32 +337,21 @@ mod tests {
         // STREAMING (store-through) lowering: columns written at production, no
         // readout pinning — the smem-kernel model. Must match SSA bit-for-bit,
         // and the transient footprint should collapse far below the pinned one.
-        let (s_slot, s_max, epilogue) = program.allocate_slots_streaming(&col_wires);
-        let (s_ops, input_cols) = program.to_c_slots_streaming(&s_slot, &col_wires);
-        let s_input_slots: Vec<u32> = s_slot[..ni].to_vec();
-        let epi_slots: Vec<(u32, u32)> =
-            epilogue.iter().map(|&(w, c)| (s_slot[w as usize], c)).collect();
+        let lowering = program.lower_streaming(&col_wires);
         for row in 0..events.len() {
             let row_in = &inputs[row * ni..(row + 1) * ni];
             let ssa: Vec<F> = interpret_c_columns(&ops_c, ni as u32, row_in, &col_wires);
-            let streamed: Vec<F> = interpret_c_slots_streaming_columns(
-                &s_ops,
-                ni as u32,
-                row_in,
-                &s_input_slots,
-                &input_cols,
-                &epi_slots,
-                col_wires.len(),
-                s_max,
-            );
+            let streamed: Vec<F> =
+                interpret_c_slots_streaming_columns(&lowering, ni as u32, row_in, col_wires.len());
             assert_eq!(ssa, streamed, "streaming column mismatch at row {row}");
         }
-        assert!(s_max < max_slots, "streaming should shrink the footprint");
+        assert!(lowering.max_slots < max_slots, "streaming should shrink the footprint");
         eprintln!(
-            "Mul streaming: pinned max_slots={max_slots} -> streaming max_slots={s_max} \
+            "Mul streaming: pinned max_slots={max_slots} -> streaming max_slots={} \
              (epilogue {} entries, input_cols {})",
-            epi_slots.len(),
-            input_cols.len()
+            lowering.max_slots,
+            lowering.epilogue.len(),
+            lowering.input_cols.len()
         );
         eprintln!(
             "Mul reg-alloc OK: num_wires={} -> max_slots={max_slots} ({:.1}x)",

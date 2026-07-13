@@ -60,6 +60,16 @@ fn record_sll_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
     (program, col_wires)
 }
 
+/// The chip's cached [`WitgenChip`] descriptor: recorded + lowered ONCE per
+/// process (the program is shard-independent), not per shard.
+fn sll_witgen_chip() -> &'static super::WitgenChip {
+    static CHIP: std::sync::OnceLock<super::WitgenChip> = std::sync::OnceLock::new();
+    CHIP.get_or_init(|| {
+        let (program, col_wires) = record_sll_program();
+        super::WitgenChip::new(program, col_wires)
+    })
+}
+
 impl CudaTracegenAir<F> for ShiftLeftChip<SupervisorMode> {
     fn supports_device_main_tracegen(&self) -> bool {
         true
@@ -150,12 +160,13 @@ impl CudaTracegenAir<F> for ShiftLeftChip<SupervisorMode> {
         // with that template (broadcast to all rows) before the kernel overwrites event
         // rows — same as `generate_trace_device`, but the fused kernel also accumulates
         // this chip's byte/range lookups into the shared shard histograms.
-        let (program, col_wires) = record_sll_program();
-        let n_cols = col_wires.len();
+        let chip = sll_witgen_chip();
+        let n_cols = chip.n_cols();
         debug_assert_eq!(n_cols, NUM_SHIFT_LEFT_COLS_SUPERVISOR);
         let height = <Self as MachineAir<F>>::num_rows(self, input)
             .expect("num_rows(...) should be Some(_)");
-        let n_events = if height == 0 { 0 } else { inputs.len() / program.num_inputs as usize };
+        let n_events =
+            if height == 0 { 0 } else { inputs.len() / chip.program.num_inputs as usize };
 
         let trace = {
             let mut tmpl = vec![F::zero(); n_cols];
@@ -179,7 +190,11 @@ impl CudaTracegenAir<F> for ShiftLeftChip<SupervisorMode> {
         };
 
         super::generate_trace_and_lookups_into(
-            &program, &col_wires, &inputs, n_events, height, trace, hist, scope,
+            chip,
+            super::WitgenBatch { inputs: &inputs, n_events, height },
+            trace,
+            hist,
+            scope,
         )
         .await
     }
@@ -203,9 +218,9 @@ impl CudaTracegenAir<F> for ShiftLeftChip<SupervisorMode> {
             return Ok(());
         }
 
-        let (program, _col_wires) = record_sll_program();
         let inputs = pack_sll_inputs(&events[..n_events]);
-        super::accumulate_lookups(&program, &inputs, n_events, range_dev, byte_dev, scope).await
+        super::accumulate_lookups(sll_witgen_chip(), &inputs, n_events, range_dev, byte_dev, scope)
+            .await
     }
 }
 

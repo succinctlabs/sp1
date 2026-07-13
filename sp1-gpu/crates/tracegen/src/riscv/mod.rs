@@ -97,7 +97,10 @@ use slop_tensor::Tensor;
 // The kernel sizing constants are defined next to the IR (single source of truth,
 // exported to `witgen_interp.cu` through cbindgen — the kernels' static array
 // sizes and this crate's launcher asserts/tiering can no longer drift apart).
-use sp1_core_machine::air::{WitProgram, WITGEN_MAX_WIRES, WITGEN_SMEM_BLOCK, WITGEN_SMEM_CAP};
+use sp1_core_machine::air::{
+    StreamingLowering, WitOpC, WitOpCSlot, WitProgram, WITGEN_MAX_WIRES, WITGEN_SMEM_BLOCK,
+    WITGEN_SMEM_CAP,
+};
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKernel};
 
@@ -120,6 +123,87 @@ pub struct LookupHist {
 unsafe impl Send for LookupHist {}
 unsafe impl Sync for LookupHist {}
 
+/// The per-CHIP half of a witgen launch: the recorded op-DAG, its column map, and
+/// its device lowerings. Chips build one of these ONCE per process (in a
+/// per-chip `OnceLock` — see e.g. `add::add_witgen_chip`) instead of re-recording
+/// and re-lowering the same program on every shard: the program is
+/// shard-independent by construction (one symbolic execution covers every row).
+///
+/// The streaming lowering (the production tier selector) is computed eagerly; the
+/// pinned and SSA forms lazily — fused-only wide chips (Keccak: 2641-slot pinned
+/// floor) never touch the pinned form, and the SSA form only runs under the
+/// `AR_WITGEN_SLOTS=0` kill-switch or the standalone-lookup reference path.
+pub(crate) struct WitgenChip {
+    pub program: WitProgram,
+    pub col_wires: Vec<u32>,
+    /// Streaming (store-through) lowering — the production default tier.
+    pub streaming: StreamingLowering,
+    pinned: std::sync::OnceLock<PinnedLowering>,
+    ssa: std::sync::OnceLock<Vec<WitOpC>>,
+}
+
+/// The pinned (register-allocated, columns-live-to-the-end) lowering of a chip —
+/// the fallback tier and the non-fused slot kernels' form.
+pub(crate) struct PinnedLowering {
+    pub ops: Vec<WitOpCSlot>,
+    pub max_slots: u32,
+    pub input_slots: Vec<u32>,
+    pub col_slots: Vec<u32>,
+}
+
+impl WitgenChip {
+    pub fn new(program: WitProgram, col_wires: Vec<u32>) -> Self {
+        let streaming = program.lower_streaming(&col_wires);
+        Self {
+            program,
+            col_wires,
+            streaming,
+            pinned: std::sync::OnceLock::new(),
+            ssa: std::sync::OnceLock::new(),
+        }
+    }
+
+    pub fn n_cols(&self) -> usize {
+        self.col_wires.len()
+    }
+
+    /// The pinned lowering (computed on first use; panics if the chip's pinned
+    /// footprint exceeds the kernel capacity — such chips are streaming-only).
+    pub fn pinned(&self) -> &PinnedLowering {
+        self.pinned.get_or_init(|| {
+            let (slot, max_slots) = self.program.allocate_slots(&self.col_wires);
+            assert!(
+                max_slots as usize <= WITGEN_MAX_WIRES,
+                "reg-alloc: {max_slots} live slots > kernel capacity {WITGEN_MAX_WIRES}"
+            );
+            let ni = self.program.num_inputs as usize;
+            PinnedLowering {
+                ops: self.program.to_c_slots(&slot),
+                max_slots,
+                input_slots: slot[..ni].to_vec(),
+                col_slots: self.col_wires.iter().map(|&w| slot[w as usize]).collect(),
+            }
+        })
+    }
+
+    /// The flat SSA form (kill-switch + standalone-lookup reference path).
+    pub fn ssa(&self) -> &[WitOpC] {
+        self.ssa.get_or_init(|| self.program.to_c())
+    }
+}
+
+/// The per-SHARD half of a witgen launch: one chip's packed event rows and the
+/// padded trace height. Pairs with a [`WitgenChip`] at every launcher call site.
+#[derive(Clone, Copy)]
+pub(crate) struct WitgenBatch<'a> {
+    /// Row-major packed inputs, `[n_events][chip.program.num_inputs]`.
+    pub inputs: &'a [u64],
+    /// Number of event (kernel) rows.
+    pub n_events: usize,
+    /// Padded trace height (rows the trace tensor is allocated for).
+    pub height: usize,
+}
+
 /// Run the FUSED witgen kernel for one chip: a single op-DAG pass that both writes the
 /// gadget's trace columns (returned) AND accumulates its byte/range lookups into the
 /// shared shard histograms `hist`. This is the union of [`accumulate_lookups`] (lookup
@@ -131,23 +215,15 @@ unsafe impl Sync for LookupHist {}
 /// (zero padding rows). By default it routes to the slot/streaming form (see
 /// [`generate_trace_and_lookups_slots_into`] for the kernel tier ladder); the SSA
 /// fused kernel below runs only under the `AR_WITGEN_SLOTS=0` kill-switch.
-#[allow(clippy::too_many_arguments)]
 pub(crate) async fn generate_trace_and_lookups(
-    program: &WitProgram,
-    col_wires: &[u32],
-    n_cols: usize,
-    inputs: &[u64],
-    n_events: usize,
-    height: usize,
+    chip: &WitgenChip,
+    batch: WitgenBatch<'_>,
     hist: LookupHist,
     scope: &TaskScope,
 ) -> Result<DeviceMle<F>, CopyError> {
     // Zeroed trace; only event rows are written (padding rows stay 0 — is_real=0).
-    let trace = Tensor::<F, TaskScope>::zeros_in([n_cols, height], scope.clone());
-    generate_trace_and_lookups_into(
-        program, col_wires, inputs, n_events, height, trace, hist, scope,
-    )
-    .await
+    let trace = Tensor::<F, TaskScope>::zeros_in([chip.n_cols(), batch.height], scope.clone());
+    generate_trace_and_lookups_into(chip, batch, trace, hist, scope).await
 }
 
 /// Whether the fused witgen path uses the register-allocated SLOT kernels (default)
@@ -165,32 +241,26 @@ pub(crate) fn witgen_slots_enabled() -> bool {
 /// ShiftLeft/ShiftRight broadcast a non-zero column template across padding rows before
 /// the kernel overwrites the event rows). Uploads the op-DAG + column map + inputs and
 /// launches the fused column+lookup kernel into `trace`.
-#[allow(clippy::too_many_arguments)]
 pub(crate) async fn generate_trace_and_lookups_into(
-    program: &WitProgram,
-    col_wires: &[u32],
-    inputs: &[u64],
-    n_events: usize,
-    height: usize,
+    chip: &WitgenChip,
+    batch: WitgenBatch<'_>,
     mut trace: Tensor<F, TaskScope>,
     hist: LookupHist,
     scope: &TaskScope,
 ) -> Result<DeviceMle<F>, CopyError> {
     // Default path: the register-allocated slot form (see `witgen_slots_enabled`).
     if witgen_slots_enabled() {
-        return generate_trace_and_lookups_slots_into(
-            program, col_wires, inputs, n_events, height, trace, hist, scope,
-        )
-        .await;
+        return generate_trace_and_lookups_slots_into(chip, batch, trace, hist, scope).await;
     }
-    let n_cols = col_wires.len();
-    let ops_c = program.to_c();
+    let WitgenBatch { inputs, n_events, height } = batch;
+    let n_cols = chip.n_cols();
+    let ops_c = chip.ssa();
     let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone())
         .expect("witgen: alloc device buffer for the op-DAG");
-    ops_dev.extend_from_host_slice(&ops_c)?;
-    let mut col_dev = Buffer::try_with_capacity_in(col_wires.len(), scope.clone())
+    ops_dev.extend_from_host_slice(ops_c)?;
+    let mut col_dev = Buffer::try_with_capacity_in(chip.col_wires.len(), scope.clone())
         .expect("witgen: alloc device buffer for the column map");
-    col_dev.extend_from_host_slice(col_wires)?;
+    col_dev.extend_from_host_slice(&chip.col_wires)?;
     let mut in_dev = Buffer::try_with_capacity_in(inputs.len().max(1), scope.clone())
         .expect("witgen: alloc device buffer for the packed inputs");
     in_dev.extend_from_host_slice(inputs)?;
@@ -206,7 +276,7 @@ pub(crate) async fn generate_trace_and_lookups_into(
                 ops_c.len(),
                 col_dev.as_ptr(),
                 n_cols,
-                program.num_inputs,
+                chip.program.num_inputs,
                 in_dev.as_ptr(),
                 n_events,
                 hist.range,
@@ -234,7 +304,7 @@ pub(crate) async fn generate_trace_and_lookups_into(
 /// `add::tests::test_add_fused_kernel`). Keep in sync with the lookup arms of the
 /// fused kernels it validates.
 pub(crate) async fn accumulate_lookups(
-    program: &WitProgram,
+    chip: &WitgenChip,
     inputs: &[u64],
     n_events: usize,
     range_dev: &mut DeviceBuffer<u32>,
@@ -244,10 +314,10 @@ pub(crate) async fn accumulate_lookups(
     if n_events == 0 {
         return Ok(());
     }
-    let ops_c = program.to_c();
+    let ops_c = chip.ssa();
     let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone())
         .expect("witgen: alloc device buffer for the op-DAG");
-    ops_dev.extend_from_host_slice(&ops_c)?;
+    ops_dev.extend_from_host_slice(ops_c)?;
     let mut in_dev = Buffer::try_with_capacity_in(inputs.len(), scope.clone())
         .expect("witgen: alloc device buffer for the packed inputs");
     in_dev.extend_from_host_slice(inputs)?;
@@ -257,7 +327,7 @@ pub(crate) async fn accumulate_lookups(
         let args = args!(
             ops_dev.as_ptr(),
             ops_c.len(),
-            program.num_inputs,
+            chip.program.num_inputs,
             in_dev.as_ptr(),
             n_events,
             range_dev.as_mut_ptr(),
@@ -279,45 +349,34 @@ pub(crate) async fn accumulate_lookups(
 /// CALLERS: the wide chips' non-fused `generate_trace_device` impls (Mul, SHA family,
 /// SyscallInstrs) — which the prover reaches only when the fused path is off
 /// (`AR_DEVICE_DEPS=0`); otherwise exercised by the per-chip device tests.
-#[allow(clippy::too_many_arguments)]
 pub(crate) async fn generate_columns_slots_into(
-    program: &WitProgram,
-    col_wires: &[u32],
-    inputs: &[u64],
-    n_events: usize,
-    height: usize,
+    chip: &WitgenChip,
+    batch: WitgenBatch<'_>,
     mut trace: Tensor<F, TaskScope>,
     scope: &TaskScope,
 ) -> Result<DeviceMle<F>, CopyError> {
-    let n_cols = col_wires.len();
-    let (slot, max_slots) = program.allocate_slots(col_wires);
-    assert!(
-        max_slots as usize <= WITGEN_MAX_WIRES,
-        "reg-alloc: {max_slots} live slots > kernel capacity {WITGEN_MAX_WIRES}"
-    );
-    let (_, streaming_max, epi) = program.allocate_slots_streaming(col_wires);
+    let WitgenBatch { inputs, n_events, height } = batch;
+    let n_cols = chip.n_cols();
+    let pinned = chip.pinned();
     tracing::debug!(
         target: "witgen_slots",
-        max_slots,
-        streaming_max,
-        epilogue = epi.len(),
-        n_cols = col_wires.len(),
+        max_slots = pinned.max_slots,
+        streaming_max = chip.streaming.max_slots,
+        epilogue = chip.streaming.epilogue.len(),
+        n_cols,
         "witgen slot footprint"
     );
-    let ops_c = program.to_c_slots(&slot);
-    let ni = program.num_inputs as usize;
-    let input_slots: Vec<u32> = slot[..ni].to_vec();
-    let col_slots: Vec<u32> = col_wires.iter().map(|&w| slot[w as usize]).collect();
 
-    let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone())
+    let mut ops_dev = Buffer::try_with_capacity_in(pinned.ops.len(), scope.clone())
         .expect("witgen: alloc device buffer for the op-DAG");
-    ops_dev.extend_from_host_slice(&ops_c)?;
-    let mut col_dev = Buffer::try_with_capacity_in(col_slots.len(), scope.clone())
+    ops_dev.extend_from_host_slice(&pinned.ops)?;
+    let mut col_dev = Buffer::try_with_capacity_in(pinned.col_slots.len(), scope.clone())
         .expect("witgen: alloc device buffer for the column map");
-    col_dev.extend_from_host_slice(&col_slots)?;
-    let mut inslot_dev = Buffer::try_with_capacity_in(input_slots.len().max(1), scope.clone())
-        .expect("witgen: alloc device buffer for the input-slot map");
-    inslot_dev.extend_from_host_slice(&input_slots)?;
+    col_dev.extend_from_host_slice(&pinned.col_slots)?;
+    let mut inslot_dev =
+        Buffer::try_with_capacity_in(pinned.input_slots.len().max(1), scope.clone())
+            .expect("witgen: alloc device buffer for the input-slot map");
+    inslot_dev.extend_from_host_slice(&pinned.input_slots)?;
     let mut in_dev = Buffer::try_with_capacity_in(inputs.len().max(1), scope.clone())
         .expect("witgen: alloc device buffer for the packed inputs");
     in_dev.extend_from_host_slice(inputs)?;
@@ -330,10 +389,10 @@ pub(crate) async fn generate_columns_slots_into(
                 trace.as_mut_ptr(),
                 height,
                 ops_dev.as_ptr(),
-                ops_c.len(),
+                pinned.ops.len(),
                 col_dev.as_ptr(),
                 n_cols,
-                program.num_inputs,
+                chip.program.num_inputs,
                 inslot_dev.as_ptr(),
                 in_dev.as_ptr(),
                 n_events
@@ -352,24 +411,15 @@ pub(crate) async fn generate_columns_slots_into(
 /// writes the columns AND accumulates the byte/range lookups into the shared shard
 /// histograms via `witgen_fused_slots_kernel`. This is the path the prover actually
 /// calls for chips with `supports_device_dependencies` (see `generate_trace_device_with_lookups`).
-#[allow(clippy::too_many_arguments)]
 pub(crate) async fn generate_trace_and_lookups_slots(
-    program: &WitProgram,
-    col_wires: &[u32],
-    n_cols: usize,
-    inputs: &[u64],
-    n_events: usize,
-    height: usize,
+    chip: &WitgenChip,
+    batch: WitgenBatch<'_>,
     hist: LookupHist,
     scope: &TaskScope,
 ) -> Result<DeviceMle<F>, CopyError> {
-    let _ = n_cols;
     // Zeroed trace; only event rows are written (padding rows stay 0 — is_real=0).
-    let trace = Tensor::<F, TaskScope>::zeros_in([col_wires.len(), height], scope.clone());
-    generate_trace_and_lookups_slots_into(
-        program, col_wires, inputs, n_events, height, trace, hist, scope,
-    )
-    .await
+    let trace = Tensor::<F, TaskScope>::zeros_in([chip.n_cols(), batch.height], scope.clone());
+    generate_trace_and_lookups_slots_into(chip, batch, trace, hist, scope).await
 }
 
 /// Like [`generate_trace_and_lookups_slots`] but writes into a caller-provided,
@@ -386,43 +436,39 @@ pub(crate) async fn generate_trace_and_lookups_slots(
 /// 3. otherwise (footprint over cap, or a multi-column epilogue — the kernel
 ///    epilogue is nat-only) → pinned register-allocated fallback
 ///    (`witgen_fused_slots_kernel`, columns read out at the end).
-#[allow(clippy::too_many_arguments)]
 pub(crate) async fn generate_trace_and_lookups_slots_into(
-    program: &WitProgram,
-    col_wires: &[u32],
-    inputs: &[u64],
-    n_events: usize,
-    height: usize,
+    chip: &WitgenChip,
+    batch: WitgenBatch<'_>,
     mut trace: Tensor<F, TaskScope>,
     hist: LookupHist,
     scope: &TaskScope,
 ) -> Result<DeviceMle<F>, CopyError> {
-    let n_cols = col_wires.len();
+    let WitgenBatch { inputs, n_events, height } = batch;
+    let n_cols = chip.n_cols();
     // STREAMING (store-through) shared-memory path: columns written at production,
     // wires resident on-chip. Covers chips whose transient footprint fits the smem
     // cap (iter-073 census: 15/20 <= 24); the multi-column epilogue is nat-only in
     // the kernel, so any field-typed epilogue chip falls back to the pinned path.
-    let (s_slot, s_max, epi) = program.allocate_slots_streaming(col_wires);
+    let streaming = &chip.streaming;
+    let s_max = streaming.max_slots;
     tracing::debug!(
         target: "witgen_slots",
         streaming_max = s_max,
-        epilogue = epi.len(),
+        epilogue = streaming.epilogue.len(),
         n_cols,
         "witgen slot footprint"
     );
-    let ni = program.num_inputs as usize;
-    if (s_max as usize) <= WITGEN_MAX_WIRES && epi.is_empty() {
-        let (ops_c, input_cols) = program.to_c_slots_streaming(&s_slot, col_wires);
-        let input_slots: Vec<u32> = s_slot[..ni].to_vec();
-        let ic_idx: Vec<u32> = input_cols.iter().map(|&(i, _)| i).collect();
-        let ic_col: Vec<u32> = input_cols.iter().map(|&(_, c)| c).collect();
+    if (s_max as usize) <= WITGEN_MAX_WIRES && streaming.epilogue.is_empty() {
+        let ic_idx: Vec<u32> = streaming.input_cols.iter().map(|&(i, _)| i).collect();
+        let ic_col: Vec<u32> = streaming.input_cols.iter().map(|&(_, c)| c).collect();
 
-        let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone())
+        let mut ops_dev = Buffer::try_with_capacity_in(streaming.ops.len(), scope.clone())
             .expect("witgen: alloc device buffer for the op-DAG");
-        ops_dev.extend_from_host_slice(&ops_c)?;
-        let mut inslot_dev = Buffer::try_with_capacity_in(input_slots.len().max(1), scope.clone())
-            .expect("witgen: alloc device buffer for the input-slot map");
-        inslot_dev.extend_from_host_slice(&input_slots)?;
+        ops_dev.extend_from_host_slice(&streaming.ops)?;
+        let mut inslot_dev =
+            Buffer::try_with_capacity_in(streaming.input_slots.len().max(1), scope.clone())
+                .expect("witgen: alloc device buffer for the input-slot map");
+        inslot_dev.extend_from_host_slice(&streaming.input_slots)?;
         let mut ic_idx_dev = Buffer::try_with_capacity_in(ic_idx.len().max(1), scope.clone())
             .expect("witgen: alloc device buffer for the input-column indices");
         ic_idx_dev.extend_from_host_slice(&ic_idx)?;
@@ -442,8 +488,8 @@ pub(crate) async fn generate_trace_and_lookups_slots_into(
                     trace.as_mut_ptr(),
                     height,
                     ops_dev.as_ptr(),
-                    ops_c.len(),
-                    program.num_inputs,
+                    streaming.ops.len(),
+                    chip.program.num_inputs,
                     inslot_dev.as_ptr(),
                     ic_idx_dev.as_ptr(),
                     ic_col_dev.as_ptr(),
@@ -473,24 +519,18 @@ pub(crate) async fn generate_trace_and_lookups_slots_into(
     }
 
     // Pinned fallback: columns held live and read out at the end (local-memory wires).
-    let (slot, max_slots) = program.allocate_slots(col_wires);
-    assert!(
-        max_slots as usize <= WITGEN_MAX_WIRES,
-        "reg-alloc: {max_slots} live slots > kernel capacity {WITGEN_MAX_WIRES}"
-    );
-    let ops_c = program.to_c_slots(&slot);
-    let input_slots: Vec<u32> = slot[..ni].to_vec();
-    let col_slots: Vec<u32> = col_wires.iter().map(|&w| slot[w as usize]).collect();
+    let pinned = chip.pinned();
 
-    let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone())
+    let mut ops_dev = Buffer::try_with_capacity_in(pinned.ops.len(), scope.clone())
         .expect("witgen: alloc device buffer for the op-DAG");
-    ops_dev.extend_from_host_slice(&ops_c)?;
-    let mut col_dev = Buffer::try_with_capacity_in(col_slots.len(), scope.clone())
+    ops_dev.extend_from_host_slice(&pinned.ops)?;
+    let mut col_dev = Buffer::try_with_capacity_in(pinned.col_slots.len(), scope.clone())
         .expect("witgen: alloc device buffer for the column map");
-    col_dev.extend_from_host_slice(&col_slots)?;
-    let mut inslot_dev = Buffer::try_with_capacity_in(input_slots.len().max(1), scope.clone())
-        .expect("witgen: alloc device buffer for the input-slot map");
-    inslot_dev.extend_from_host_slice(&input_slots)?;
+    col_dev.extend_from_host_slice(&pinned.col_slots)?;
+    let mut inslot_dev =
+        Buffer::try_with_capacity_in(pinned.input_slots.len().max(1), scope.clone())
+            .expect("witgen: alloc device buffer for the input-slot map");
+    inslot_dev.extend_from_host_slice(&pinned.input_slots)?;
     let mut in_dev = Buffer::try_with_capacity_in(inputs.len().max(1), scope.clone())
         .expect("witgen: alloc device buffer for the packed inputs");
     in_dev.extend_from_host_slice(inputs)?;
@@ -503,10 +543,10 @@ pub(crate) async fn generate_trace_and_lookups_slots_into(
                 trace.as_mut_ptr(),
                 height,
                 ops_dev.as_ptr(),
-                ops_c.len(),
+                pinned.ops.len(),
                 col_dev.as_ptr(),
                 n_cols,
-                program.num_inputs,
+                chip.program.num_inputs,
                 inslot_dev.as_ptr(),
                 in_dev.as_ptr(),
                 n_events,
@@ -529,10 +569,8 @@ pub(crate) async fn generate_trace_and_lookups_slots_into(
 /// CALLERS: only the wide chips' `generate_device_dependencies` impls — a path the
 /// prover no longer takes (see the trait doc); retained as the standalone lookup
 /// reference for the fused kernels.
-#[allow(clippy::too_many_arguments)]
 pub(crate) async fn accumulate_lookups_slots(
-    program: &WitProgram,
-    col_wires: &[u32],
+    chip: &WitgenChip,
     inputs: &[u64],
     n_events: usize,
     range_dev: &mut DeviceBuffer<u32>,
@@ -542,30 +580,23 @@ pub(crate) async fn accumulate_lookups_slots(
     if n_events == 0 {
         return Ok(());
     }
-    let (slot, max_slots) = program.allocate_slots(col_wires);
-    assert!(
-        max_slots as usize <= WITGEN_MAX_WIRES,
-        "reg-alloc: {max_slots} live slots > kernel capacity {WITGEN_MAX_WIRES}"
-    );
-    let (_, streaming_max, epi) = program.allocate_slots_streaming(col_wires);
+    let pinned = chip.pinned();
     tracing::debug!(
         target: "witgen_slots",
-        max_slots,
-        streaming_max,
-        epilogue = epi.len(),
-        n_cols = col_wires.len(),
+        max_slots = pinned.max_slots,
+        streaming_max = chip.streaming.max_slots,
+        epilogue = chip.streaming.epilogue.len(),
+        n_cols = chip.n_cols(),
         "witgen slot footprint"
     );
-    let ops_c = program.to_c_slots(&slot);
-    let ni = program.num_inputs as usize;
-    let input_slots: Vec<u32> = slot[..ni].to_vec();
 
-    let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone())
+    let mut ops_dev = Buffer::try_with_capacity_in(pinned.ops.len(), scope.clone())
         .expect("witgen: alloc device buffer for the op-DAG");
-    ops_dev.extend_from_host_slice(&ops_c)?;
-    let mut inslot_dev = Buffer::try_with_capacity_in(input_slots.len().max(1), scope.clone())
-        .expect("witgen: alloc device buffer for the input-slot map");
-    inslot_dev.extend_from_host_slice(&input_slots)?;
+    ops_dev.extend_from_host_slice(&pinned.ops)?;
+    let mut inslot_dev =
+        Buffer::try_with_capacity_in(pinned.input_slots.len().max(1), scope.clone())
+            .expect("witgen: alloc device buffer for the input-slot map");
+    inslot_dev.extend_from_host_slice(&pinned.input_slots)?;
     let mut in_dev = Buffer::try_with_capacity_in(inputs.len(), scope.clone())
         .expect("witgen: alloc device buffer for the packed inputs");
     in_dev.extend_from_host_slice(inputs)?;
@@ -574,8 +605,8 @@ pub(crate) async fn accumulate_lookups_slots(
         let grid = n_events.div_ceil(BLOCK);
         let args = args!(
             ops_dev.as_ptr(),
-            ops_c.len(),
-            program.num_inputs,
+            pinned.ops.len(),
+            chip.program.num_inputs,
             inslot_dev.as_ptr(),
             in_dev.as_ptr(),
             n_events,

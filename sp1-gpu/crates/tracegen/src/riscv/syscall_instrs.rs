@@ -69,6 +69,16 @@ fn record_syscall_instr_program() -> (sp1_core_machine::air::WitProgram, Vec<u32
     (program, col_wires)
 }
 
+/// The chip's cached [`WitgenChip`](super::WitgenChip) descriptor: recorded +
+/// lowered ONCE per process (the program is shard-independent), not per shard.
+fn syscall_instr_witgen_chip() -> &'static super::WitgenChip {
+    static CHIP: std::sync::OnceLock<super::WitgenChip> = std::sync::OnceLock::new();
+    CHIP.get_or_init(|| {
+        let (program, col_wires) = record_syscall_instr_program();
+        super::WitgenChip::new(program, col_wires)
+    })
+}
+
 impl CudaTracegenAir<F> for SyscallInstrsChip<SupervisorMode> {
     fn supports_device_main_tracegen(&self) -> bool {
         true
@@ -80,8 +90,8 @@ impl CudaTracegenAir<F> for SyscallInstrsChip<SupervisorMode> {
         _output: &mut Self::Record,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
-        let (program, col_wires) = record_syscall_instr_program();
-        let n_cols = col_wires.len();
+        let chip = syscall_instr_witgen_chip();
+        let n_cols = chip.n_cols();
         debug_assert_eq!(n_cols, NUM_SYSCALL_INSTR_COLS_SUPERVISOR);
 
         let height = <Self as MachineAir<F>>::num_rows(self, input)
@@ -93,7 +103,10 @@ impl CudaTracegenAir<F> for SyscallInstrsChip<SupervisorMode> {
         // Zero padding; slot kernel path (register-allocated).
         let trace = Tensor::<F, TaskScope>::zeros_in([n_cols, height], scope.clone());
         super::generate_columns_slots_into(
-            &program, &col_wires, &inputs, n_events, height, trace, scope,
+            chip,
+            super::WitgenBatch { inputs: &inputs, n_events, height },
+            trace,
+            scope,
         )
         .await
     }
@@ -107,14 +120,17 @@ impl CudaTracegenAir<F> for SyscallInstrsChip<SupervisorMode> {
         hist: crate::LookupHist,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
-        let (program, col_wires) = record_syscall_instr_program();
-        let n_cols = col_wires.len();
-        debug_assert_eq!(n_cols, NUM_SYSCALL_INSTR_COLS_SUPERVISOR);
+        let chip = syscall_instr_witgen_chip();
+        debug_assert_eq!(chip.n_cols(), NUM_SYSCALL_INSTR_COLS_SUPERVISOR);
         let height = <Self as MachineAir<F>>::num_rows(self, input)
             .expect("num_rows(...) should be Some(_)");
-        let n_events = if height == 0 { 0 } else { inputs.len() / program.num_inputs as usize };
+        let n_events =
+            if height == 0 { 0 } else { inputs.len() / chip.program.num_inputs as usize };
         super::generate_trace_and_lookups_slots(
-            &program, &col_wires, n_cols, &inputs, n_events, height, hist, scope,
+            chip,
+            super::WitgenBatch { inputs: &inputs, n_events, height },
+            hist,
+            scope,
         )
         .await
     }
@@ -140,10 +156,14 @@ impl CudaTracegenAir<F> for SyscallInstrsChip<SupervisorMode> {
             return Ok(());
         }
 
-        let (program, col_wires) = record_syscall_instr_program();
         let inputs = pack_syscall_instr_inputs(&events[..n_events]);
         super::accumulate_lookups_slots(
-            &program, &col_wires, &inputs, n_events, range_dev, byte_dev, scope,
+            syscall_instr_witgen_chip(),
+            &inputs,
+            n_events,
+            range_dev,
+            byte_dev,
+            scope,
         )
         .await
     }
@@ -257,13 +277,14 @@ mod tests {
         let (program, col_wires) = super::record_syscall_instr_program();
         assert_eq!(col_wires.len(), width);
         let (slot, max_slots) = program.allocate_slots(&col_wires);
-        let (s_slot, s_max, epi) = program.allocate_slots_streaming(&col_wires);
+        let lowering = program.lower_streaming(&col_wires);
         eprintln!(
             "SyscallInstrs: num_wires={} n_cols={} pinned_max_slots={max_slots} \
-             streaming_max_slots={s_max} epilogue={}",
+             streaming_max_slots={} epilogue={}",
             program.num_wires(),
             col_wires.len(),
-            epi.len(),
+            lowering.max_slots,
+            lowering.epilogue.len(),
         );
 
         let ni = super::NUM_SYSCALL_INSTR_WITGEN_INPUTS;
@@ -271,10 +292,6 @@ mod tests {
         let ops_slots = program.to_c_slots(&slot);
         let input_slots = &slot[..ni];
         let col_slots: Vec<u32> = col_wires.iter().map(|&w| slot[w as usize]).collect();
-        let (ops_stream, input_cols) = program.to_c_slots_streaming(&s_slot, &col_wires);
-        let s_input_slots = &s_slot[..ni];
-        let epi_slots: Vec<(u32, u32)> =
-            epi.iter().map(|&(w, c)| (s_slot[w as usize], c)).collect();
 
         let inputs = super::pack_syscall_instr_inputs(&events);
         for row in 0..events.len() {
@@ -294,16 +311,8 @@ mod tests {
                 max_slots,
             );
             assert_eq!(cols, flat, "pinned-slot column mismatch at row {row}");
-            let streamed: Vec<F> = interpret_c_slots_streaming_columns(
-                &ops_stream,
-                ni as u32,
-                row_in,
-                s_input_slots,
-                &input_cols,
-                &epi_slots,
-                width,
-                s_max,
-            );
+            let streamed: Vec<F> =
+                interpret_c_slots_streaming_columns(&lowering, ni as u32, row_in, width);
             assert_eq!(cols, streamed, "streaming column mismatch at row {row}");
         }
     }

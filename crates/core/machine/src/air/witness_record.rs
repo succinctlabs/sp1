@@ -897,6 +897,42 @@ impl WitProgram {
         }
         (ops, input_cols)
     }
+
+    /// Run the full streaming (store-through) lowering for a column map and bundle
+    /// every program-derived piece a streaming backend consumes into one
+    /// [`StreamingLowering`]. This is the API launchers and interpreters should
+    /// use: it runs [`allocate_slots_streaming`](Self::allocate_slots_streaming)
+    /// and [`to_c_slots_streaming`](Self::to_c_slots_streaming) once, resolves
+    /// the epilogue's wires to slots, and — by naming the two identically-typed
+    /// `(u32, u32)` lists — makes an `input_cols`/`epilogue` argument swap
+    /// unrepresentable at call sites.
+    pub fn lower_streaming(&self, col_wires: &[u32]) -> StreamingLowering {
+        let (slot, max_slots, epilogue) = self.allocate_slots_streaming(col_wires);
+        let (ops, input_cols) = self.to_c_slots_streaming(&slot, col_wires);
+        let input_slots = slot[..self.num_inputs as usize].to_vec();
+        let epilogue = epilogue.into_iter().map(|(w, c)| (slot[w as usize], c)).collect::<Vec<_>>();
+        StreamingLowering { ops, max_slots, input_slots, input_cols, epilogue }
+    }
+}
+
+/// The complete streaming (store-through) lowering of a [`WitProgram`] for a given
+/// column map — everything the streaming kernels and their CPU model
+/// ([`interpret_c_slots_streaming_columns`]) consume. Produced by
+/// [`WitProgram::lower_streaming`].
+#[derive(Clone, Debug)]
+pub struct StreamingLowering {
+    /// Slot-resolved ops carrying their store-through column ([`WitOpCSlot::col`]).
+    pub ops: Vec<WitOpCSlot>,
+    /// Max simultaneously-live slots — the streaming footprint the launcher tiers on.
+    pub max_slots: u32,
+    /// Input `i` lives in slot `input_slots[i]`.
+    pub input_slots: Vec<u32>,
+    /// `(input index, column)` pairs stored at load time.
+    pub input_cols: Vec<(u32, u32)>,
+    /// `(slot, column)` pairs written after the op loop (multi-column wires; the
+    /// GPU kernels only support the empty case — launchers fall back to the pinned
+    /// form when non-empty).
+    pub epilogue: Vec<(u32, u32)>,
 }
 
 /// Columns-only interpreter over the flat [`WitOpC`] layout — the exact reference
@@ -1054,20 +1090,16 @@ pub fn interpret_c_slots_columns<F: Field>(
 /// input-columns at load, multi-column wires by the epilogue; there is no readout
 /// pass and no `is_field` tracking (store type is static per op). MUST produce
 /// columns identical to the SSA [`interpret_c_columns`].
-#[allow(clippy::too_many_arguments)]
 pub fn interpret_c_slots_streaming_columns<F: Field>(
-    ops: &[WitOpCSlot],
+    lowering: &StreamingLowering,
     num_inputs: u32,
     inputs: &[u64],
-    input_slots: &[u32],
-    input_cols: &[(u32, u32)],
-    epilogue_slots: &[(u32, u32)],
     n_cols: usize,
-    max_slots: u32,
 ) -> Vec<F> {
+    let StreamingLowering { ops, max_slots, input_slots, input_cols, epilogue } = lowering;
     assert_eq!(inputs.len() as u32, num_inputs);
     let mut out = vec![F::zero(); n_cols];
-    let mut vals: Vec<Val<F>> = vec![Val::Nat(0); max_slots as usize];
+    let mut vals: Vec<Val<F>> = vec![Val::Nat(0); *max_slots as usize];
     for i in 0..num_inputs as usize {
         vals[input_slots[i] as usize] = Val::Nat(inputs[i]);
     }
@@ -1119,7 +1151,7 @@ pub fn interpret_c_slots_streaming_columns<F: Field>(
             };
         }
     }
-    for &(s, c) in epilogue_slots {
+    for &(s, c) in epilogue {
         out[c as usize] = match vals[s as usize] {
             Val::Field(f) => f,
             Val::Nat(n) => F::from_canonical_u64(n),

@@ -65,6 +65,16 @@ fn record_branch_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
     (program, col_wires)
 }
 
+/// The chip's cached [`WitgenChip`] descriptor: recorded + lowered ONCE per
+/// process (the program is shard-independent), not per shard.
+fn branch_witgen_chip() -> &'static super::WitgenChip {
+    static CHIP: std::sync::OnceLock<super::WitgenChip> = std::sync::OnceLock::new();
+    CHIP.get_or_init(|| {
+        let (program, col_wires) = record_branch_program();
+        super::WitgenChip::new(program, col_wires)
+    })
+}
+
 impl CudaTracegenAir<F> for BranchChip<SupervisorMode> {
     fn supports_device_main_tracegen(&self) -> bool {
         true
@@ -132,14 +142,17 @@ impl CudaTracegenAir<F> for BranchChip<SupervisorMode> {
         // Fused: one op-DAG pass writes the columns AND accumulates this chip's
         // byte/range lookups into the shared shard histograms — replaces the separate
         // `generate_trace_device` + dependency pass for this chip.
-        let (program, col_wires) = record_branch_program();
-        let n_cols = col_wires.len();
-        debug_assert_eq!(n_cols, NUM_BRANCH_COLS_SUPERVISOR);
+        let chip = branch_witgen_chip();
+        debug_assert_eq!(chip.n_cols(), NUM_BRANCH_COLS_SUPERVISOR);
         let height = <Self as MachineAir<F>>::num_rows(self, input)
             .expect("num_rows(...) should be Some(_)");
-        let n_events = if height == 0 { 0 } else { inputs.len() / program.num_inputs as usize };
+        let n_events =
+            if height == 0 { 0 } else { inputs.len() / chip.program.num_inputs as usize };
         super::generate_trace_and_lookups(
-            &program, &col_wires, n_cols, &inputs, n_events, height, hist, scope,
+            chip,
+            super::WitgenBatch { inputs: &inputs, n_events, height },
+            hist,
+            scope,
         )
         .await
     }
@@ -163,9 +176,16 @@ impl CudaTracegenAir<F> for BranchChip<SupervisorMode> {
             return Ok(());
         }
 
-        let (program, _col_wires) = record_branch_program();
         let inputs = pack_branch_inputs(&events[..n_events]);
-        super::accumulate_lookups(&program, &inputs, n_events, range_dev, byte_dev, scope).await
+        super::accumulate_lookups(
+            branch_witgen_chip(),
+            &inputs,
+            n_events,
+            range_dev,
+            byte_dev,
+            scope,
+        )
+        .await
     }
 }
 
