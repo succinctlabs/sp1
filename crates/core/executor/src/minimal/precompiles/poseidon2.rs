@@ -31,7 +31,7 @@ pub(crate) unsafe fn poseidon2(
         .map(|pair| (u64::from(pair[1]) << 32) | u64::from(pair[0]))
         .collect();
 
-    assert!(u64_result.len() == 8);
+    assert_eq!(u64_result.len(), 8);
 
     // Write result back to memory
     ctx.mw_slice_without_prot(ptr, &u64_result);

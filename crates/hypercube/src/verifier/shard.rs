@@ -424,7 +424,7 @@ where {
         // Observe the openings
         let len = shard_chips.len();
         challenger.observe(GC::F::from_canonical_usize(len));
-        for (_, opening) in opened_values.chips.iter() {
+        for opening in opened_values.chips.values() {
             challenger.observe_variable_length_extension_slice(&opening.preprocessed.local);
             challenger.observe_variable_length_extension_slice(&opening.main.local);
         }
