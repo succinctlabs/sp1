@@ -89,9 +89,14 @@ impl PackedInputs {
     /// `self` — the same argument as `host_traces`' `start_pointer`.
     pub fn as_slice(&self) -> &[u64] {
         match self {
-            // SAFETY: `ptr` is 8-byte aligned (staging offsets are u64-aligned in
-            // `host_main_tracegen`), all `len` u64s were initialized by the staging
-            // copy, and nothing writes the region afterwards.
+            // SAFETY: `ptr` is 8-byte aligned — the buffer base comes from
+            // `cudaMallocHost` (page-aligned) and `stage_packed_inputs` quantizes every
+            // region offset to u64 boundaries. All `len` u64s were initialized by the
+            // staging copy (complete before `stage_packed_inputs` returned) and nothing
+            // writes the region afterwards. The allocation outlives this borrow by the
+            // Worker-outlives-futures convention: the `Worker<PinnedBuffer<Felt>>` is
+            // held at the prover.rs call sites until after the tracegen futures holding
+            // `self` are awaited (same argument as `host_traces`' `start_pointer`).
             PackedInputs::Pinned { ptr, len } => unsafe {
                 std::slice::from_raw_parts(*ptr as *const u64, *len)
             },
@@ -417,6 +422,7 @@ async fn generate_jagged_traces(
 async fn host_preprocessed_tracegen<A: CudaTracegenAir<Felt>>(
     machine: &Machine<Felt, A>,
     buffer_ptr: usize,
+    buffer_capacity: usize,
     program: Arc<<A as MachineAir<Felt>>::Program>,
 ) -> (HostPhaseTracegen<A>, usize) {
     // Clone chips so we can move them into spawn_blocking.
@@ -438,6 +444,17 @@ async fn host_preprocessed_tracegen<A: CudaTracegenAir<Felt>>(
                 total_size += height * width;
             }
         }
+        // Same backstop as `host_main_tracegen`: the buffer is sized to cover every
+        // host-generated preprocessed trace (`required_trace_buffer_elems`), so this
+        // can only fire on a sizing/partition disagreement — fail with context rather
+        // than writing past the pinned allocation below.
+        assert!(
+            total_size <= buffer_capacity,
+            "preprocessed traces ({total_size} elements) exceed the pinned trace \
+             buffer ({buffer_capacity} elements): the device-aware buffer sizing \
+             disagrees with the preprocessed tracegen partition (host chips: {:?})",
+            host_airs.iter().map(|air| air.name()).collect::<Vec<_>>(),
+        );
 
         // Spawn a rayon task to generate the traces on the CPU.
         // `traces` is a futures Stream that will immediately begin buffering traces.
@@ -719,6 +736,7 @@ pub async fn setup_tracegen<A: CudaTracegenAir<Felt>>(
     machine: &Machine<Felt, A>,
     program: Arc<<A as MachineAir<Felt>>::Program>,
     buffer_ptr: usize,
+    buffer_capacity: usize,
     max_trace_size: usize,
     log_stacking_height: u32,
     max_log_row_count: u32,
@@ -727,7 +745,8 @@ pub async fn setup_tracegen<A: CudaTracegenAir<Felt>>(
 ) -> (JaggedTraceMle<Felt, TaskScope>, ProverPermit) {
     // Generate traces on host.
     let (host_phase_tracegen, _) =
-        host_preprocessed_tracegen(machine, buffer_ptr, Arc::clone(&program)).await;
+        host_preprocessed_tracegen(machine, buffer_ptr, buffer_capacity, Arc::clone(&program))
+            .await;
 
     let permit = prover_permit.acquire().await.unwrap();
     // - Copying host traces to the device.
@@ -762,6 +781,7 @@ pub async fn setup_tracegen_permit<A: CudaTracegenAir<Felt>>(
         machine,
         program,
         buffer.as_ptr() as usize,
+        buffer.capacity(),
         max_trace_size,
         log_stacking_height,
         max_log_row_count,
@@ -879,75 +899,15 @@ where
             // of the pinned buffer, past the host-trace prefix, still in the permit-free
             // host phase. The fused kernels then upload from page-locked memory (async
             // H2D) and the pageable transient dies here instead of living until device
-            // tracegen. Regions are 8-byte aligned (`u64` rows in a `Felt` buffer) and
-            // even-sized, so laying them out back-to-back keeps every start aligned. A
-            // region that does not fit falls back to the pageable `Vec` — correct, just
-            // slower — and says so loudly.
+            // tracegen.
             let stage_start = std::time::Instant::now();
-            let mut staging_offset = total_size.next_multiple_of(FELTS_PER_U64);
-            let mut staged_bytes = 0usize;
-            let mut fallback_bytes = 0usize;
-            let layout: Vec<(String, Vec<u64>, Option<usize>)> = device_packed
-                .into_iter()
-                .map(|(name, inputs)| {
-                    let region_elems = inputs.len() * FELTS_PER_U64;
-                    if staging_offset + region_elems <= buffer_capacity {
-                        let ptr = buffer_ptr + staging_offset * core::mem::size_of::<Felt>();
-                        staging_offset += region_elems;
-                        staged_bytes += inputs.len() * core::mem::size_of::<u64>();
-                        (name, inputs, Some(ptr))
-                    } else {
-                        fallback_bytes += inputs.len() * core::mem::size_of::<u64>();
-                        (name, inputs, None)
-                    }
-                })
-                .collect();
-            if fallback_bytes > 0 {
-                tracing::warn!(
-                    target: "host_memory",
-                    fallback_bytes,
-                    buffer_capacity,
-                    "packed-input staging overflowed the pinned buffer; \
-                     falling back to pageable H2D for the overflow"
-                );
-            }
-            let device_packed: BTreeMap<String, PackedInputs> = layout
-                .into_par_iter()
-                .map(|(name, inputs, staged_ptr)| {
-                    let packed = match staged_ptr {
-                        Some(ptr) => {
-                            // Chunked so one big chip's region still copies at memory
-                            // bandwidth across the rayon pool (per-chip granularity
-                            // alone leaves the largest region single-threaded).
-                            const COPY_CHUNK: usize = 1 << 20; // u64s: 8 MiB
-                            inputs.par_chunks(COPY_CHUNK).enumerate().for_each(
-                                |(i, chunk)| {
-                                    // SAFETY: the region [ptr, ptr + len * 8) lies past
-                                    // the host-trace prefix and within the buffer's
-                                    // capacity (checked at layout above), regions and
-                                    // chunks are disjoint, and the host trace jobs
-                                    // spawned below only write the prefix.
-                                    unsafe {
-                                        std::ptr::copy_nonoverlapping(
-                                            chunk.as_ptr(),
-                                            (ptr as *mut u64).add(i * COPY_CHUNK),
-                                            chunk.len(),
-                                        );
-                                    }
-                                },
-                            );
-                            PackedInputs::Pinned { ptr, len: inputs.len() }
-                        }
-                        None => PackedInputs::Pageable(inputs),
-                    };
-                    (name, packed)
-                })
-                .collect();
+            let StagedInputs { packed: device_packed, staged_bytes, fallback_bytes, end_elems } =
+                stage_packed_inputs(device_packed, buffer_ptr, buffer_capacity, total_size);
             tracing::debug!(
                 target: "host_memory",
                 staged_bytes,
                 fallback_bytes,
-                staging_end_elems = staging_offset,
+                staging_end_elems = end_elems,
                 stage_ms = stage_start.elapsed().as_millis() as u64,
                 "packed inputs staged into pinned buffer"
             );
@@ -1002,6 +962,90 @@ where
         HostPhaseTracegen { device_airs, host_traces, byte_range_airs, device_packed };
 
     (host_phase_tracegen, host_phase_shape_info)
+}
+
+/// Outcome of [`stage_packed_inputs`]: the per-chip [`PackedInputs`] plus the byte
+/// accounting for the `host_memory` instrumentation.
+struct StagedInputs {
+    packed: BTreeMap<String, PackedInputs>,
+    staged_bytes: usize,
+    fallback_bytes: usize,
+    /// One past the last staged element (`Felt` index into the buffer).
+    end_elems: usize,
+}
+
+/// H5 (host-memory-workstream Phase 3): lay out and copy the packed fused-kernel
+/// inputs into the pinned buffer tail, past the `total_size`-element host-trace
+/// prefix. Regions are 8-byte aligned (`u64` rows in a `Felt` buffer) and even-sized,
+/// so laying them out back-to-back keeps every start aligned. A region that does not
+/// fit in `buffer_capacity` falls back to the pageable `Vec` — correct, just slower —
+/// and says so loudly. Copies are complete when this returns.
+fn stage_packed_inputs(
+    device_packed: BTreeMap<String, Vec<u64>>,
+    buffer_ptr: usize,
+    buffer_capacity: usize,
+    total_size: usize,
+) -> StagedInputs {
+    let mut staging_offset = total_size.next_multiple_of(FELTS_PER_U64);
+    let mut staged_bytes = 0usize;
+    let mut fallback_bytes = 0usize;
+    let layout: Vec<(String, Vec<u64>, Option<usize>)> = device_packed
+        .into_iter()
+        .map(|(name, inputs)| {
+            let region_elems = inputs.len() * FELTS_PER_U64;
+            if staging_offset + region_elems <= buffer_capacity {
+                let ptr = buffer_ptr + staging_offset * core::mem::size_of::<Felt>();
+                staging_offset += region_elems;
+                staged_bytes += inputs.len() * core::mem::size_of::<u64>();
+                (name, inputs, Some(ptr))
+            } else {
+                fallback_bytes += inputs.len() * core::mem::size_of::<u64>();
+                (name, inputs, None)
+            }
+        })
+        .collect();
+    if fallback_bytes > 0 {
+        tracing::warn!(
+            target: "host_memory",
+            fallback_bytes,
+            buffer_capacity,
+            "packed-input staging overflowed the pinned buffer; \
+             falling back to pageable H2D for the overflow"
+        );
+    }
+    let packed: BTreeMap<String, PackedInputs> = layout
+        .into_par_iter()
+        .map(|(name, inputs, staged_ptr)| {
+            let packed = match staged_ptr {
+                Some(ptr) => {
+                    // Chunked so one big chip's region still copies at memory
+                    // bandwidth across the rayon pool (per-chip granularity
+                    // alone leaves the largest region single-threaded).
+                    const COPY_CHUNK: usize = 1 << 20; // u64s: 8 MiB
+                    inputs.par_chunks(COPY_CHUNK).enumerate().for_each(|(i, chunk)| {
+                        // SAFETY: the destination is 8-byte aligned — `buffer_ptr` is a
+                        // `cudaMallocHost` base (page-aligned, so ≥ 8) and every region
+                        // offset is u64-quantized (`FELTS_PER_U64` layout above). The
+                        // region [ptr, ptr + len * 8) lies past the host-trace prefix
+                        // and within the buffer's capacity (checked at layout above),
+                        // regions and chunks are disjoint, and the caller's host trace
+                        // jobs only write the prefix.
+                        unsafe {
+                            std::ptr::copy_nonoverlapping(
+                                chunk.as_ptr(),
+                                (ptr as *mut u64).add(i * COPY_CHUNK),
+                                chunk.len(),
+                            );
+                        }
+                    });
+                    PackedInputs::Pinned { ptr, len: inputs.len() }
+                }
+                None => PackedInputs::Pageable(inputs),
+            };
+            (name, packed)
+        })
+        .collect();
+    StagedInputs { packed, staged_bytes, fallback_bytes, end_elems: staging_offset }
 }
 
 /// The exact pinned trace-buffer requirement (in `Felt` elements) for one shard: the
@@ -1424,8 +1468,13 @@ pub async fn full_tracegen<A: CudaTracegenAir<Felt>>(
     prover_permits: ProverSemaphore,
     global_dependencies_opt: bool,
 ) -> (Vec<Felt>, JaggedTraceMle<Felt, TaskScope>, BTreeSet<Chip<Felt, A>>, ProverPermit) {
-    let (prep_host_phase_tracegen, start_idx) =
-        host_preprocessed_tracegen(machine, buffer.as_ptr() as usize, program.clone()).await;
+    let (prep_host_phase_tracegen, start_idx) = host_preprocessed_tracegen(
+        machine,
+        buffer.as_ptr() as usize,
+        buffer.capacity(),
+        program.clone(),
+    )
+    .await;
 
     let (main_host_phase_tracegen, HostPhaseShapeInfo { traces_by_name: initial_traces, chip_set }) =
         host_main_tracegen(
@@ -1549,12 +1598,112 @@ mod tests {
 
     use crate::test_utils::tracegen_setup::{self, CORE_MAX_LOG_ROW_COUNT, LOG_STACKING_HEIGHT};
     use crate::{
-        count_and_add, fill_buf, full_tracegen, generate_jagged_traces, Trace, CORE_MAX_TRACE_SIZE,
+        count_and_add, ensure_trace_buffer_capacity, fill_buf, full_tracegen,
+        generate_jagged_traces, stage_packed_inputs, PackedInputs, Trace, CORE_MAX_TRACE_SIZE,
     };
     use sp1_core_machine::io::SP1Stdin;
 
     use rand::SeedableRng;
     use rand::{rngs::StdRng, Rng};
+
+    /// E.1: the H5 staging layout — regions disjoint, 8-byte aligned, back-to-back past
+    /// the (rounded-up) host prefix; contents round-trip through `as_slice`; a region
+    /// that does not fit falls back to a pageable `Vec` with identical data.
+    #[test]
+    #[serial]
+    fn test_stage_packed_inputs_roundtrip_and_fallback() {
+        let a: Vec<u64> = (0..100).collect();
+        let b: Vec<u64> = (1000..1500).collect();
+        let packed_map = |a: &[u64], b: &[u64]| {
+            BTreeMap::from([("A".to_string(), a.to_vec()), ("B".to_string(), b.to_vec())])
+        };
+
+        // Everything fits: A at the u64-rounded prefix, B immediately after.
+        let buffer = PinnedBuffer::<Felt>::with_capacity(4096);
+        let total_size = 33; // odd Felt prefix: staging must start at 34
+        let staged = stage_packed_inputs(
+            packed_map(&a, &b),
+            buffer.as_ptr() as usize,
+            buffer.capacity(),
+            total_size,
+        );
+        assert_eq!(staged.fallback_bytes, 0);
+        assert_eq!(staged.staged_bytes, (a.len() + b.len()) * 8);
+        assert_eq!(staged.end_elems, 34 + (a.len() + b.len()) * 2);
+        assert_eq!(staged.packed["A"].as_slice(), &a[..]);
+        assert_eq!(staged.packed["B"].as_slice(), &b[..]);
+        match (&staged.packed["A"], &staged.packed["B"]) {
+            (
+                PackedInputs::Pinned { ptr: a_ptr, len: a_len },
+                PackedInputs::Pinned { ptr: b_ptr, len: _ },
+            ) => {
+                assert_eq!(a_ptr % 8, 0);
+                assert_eq!(b_ptr % 8, 0);
+                assert_eq!(*a_ptr, buffer.as_ptr() as usize + 34 * core::mem::size_of::<Felt>());
+                // Back-to-back and disjoint.
+                assert_eq!(a_ptr + a_len * 8, *b_ptr);
+            }
+            other => panic!("expected both regions pinned, got {:?}", other_kinds(other)),
+        }
+
+        // Undersized buffer: A (200 elems at offset 34) fits, B (1000 elems) does not —
+        // B falls back to pageable with identical data, A stays pinned.
+        let small = PinnedBuffer::<Felt>::with_capacity(300);
+        let staged = stage_packed_inputs(
+            packed_map(&a, &b),
+            small.as_ptr() as usize,
+            small.capacity(),
+            total_size,
+        );
+        assert_eq!(staged.staged_bytes, a.len() * 8);
+        assert_eq!(staged.fallback_bytes, b.len() * 8);
+        assert!(matches!(&staged.packed["A"], PackedInputs::Pinned { .. }));
+        match &staged.packed["B"] {
+            PackedInputs::Pageable(v) => assert_eq!(&v[..], &b[..]),
+            PackedInputs::Pinned { .. } => panic!("expected pageable fallback for B"),
+        }
+        assert_eq!(staged.packed["B"].as_slice(), &b[..]);
+    }
+
+    fn other_kinds(pair: (&PackedInputs, &PackedInputs)) -> [&'static str; 2] {
+        let kind = |p: &PackedInputs| match p {
+            PackedInputs::Pinned { .. } => "pinned",
+            PackedInputs::Pageable(_) => "pageable",
+        };
+        [kind(pair.0), kind(pair.1)]
+    }
+
+    /// E.1: the H1 growth ratchet — no-op at or below capacity; targets quantized to the
+    /// 32 MiB growth quantum with 1.5× headroom; each grow is a FRESH allocation (no
+    /// content carry-over — every shard's host phase rewrites its prefix from scratch).
+    #[tokio::test]
+    #[serial]
+    async fn test_ensure_trace_buffer_capacity_growth() {
+        const QUANTUM: usize = 1 << 23;
+        let mut buffer = PinnedBuffer::<Felt>::with_capacity(1 << 10);
+
+        // At/below capacity: no-op.
+        ensure_trace_buffer_capacity(&mut buffer, 1 << 9).await;
+        assert_eq!(buffer.capacity(), 1 << 10);
+        ensure_trace_buffer_capacity(&mut buffer, 1 << 10).await;
+        assert_eq!(buffer.capacity(), 1 << 10);
+
+        // Growth quantizes up (headroom term is smaller here).
+        ensure_trace_buffer_capacity(&mut buffer, QUANTUM + 1).await;
+        assert_eq!(buffer.capacity(), 2 * QUANTUM);
+
+        // Ratchet again: quantized target and 1.5× headroom coincide at 3 * QUANTUM;
+        // the buffer is a fresh allocation (old freed only after the new one exists,
+        // so the addresses must differ).
+        let old_ptr = buffer.as_ptr() as usize;
+        ensure_trace_buffer_capacity(&mut buffer, 2 * QUANTUM + 1).await;
+        assert_eq!(buffer.capacity(), 3 * QUANTUM);
+        assert_ne!(buffer.as_ptr() as usize, old_ptr);
+
+        // Jitter within the ratcheted capacity: no further grows.
+        ensure_trace_buffer_capacity(&mut buffer, 2 * QUANTUM + 2).await;
+        assert_eq!(buffer.capacity(), 3 * QUANTUM);
+    }
 
     /// Takes a pre-generated proof and vk, and generates traces for the shrink program.
     /// Then, asserts that the jagged traces generated are the same as the traces in the old format.
