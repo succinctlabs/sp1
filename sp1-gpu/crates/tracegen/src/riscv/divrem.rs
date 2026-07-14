@@ -19,8 +19,6 @@ use core::borrow::BorrowMut;
 use rayon::prelude::*;
 use slop_algebra::AbstractField;
 use slop_alloc::mem::CopyError;
-use slop_alloc::Buffer;
-use slop_tensor::Tensor;
 use sp1_core_executor::{
     events::AluEvent, get_msb, get_quotient_and_remainder, is_signed_64bit_operation,
     is_signed_word_operation, is_unsigned_word_operation, RTypeRecord,
@@ -202,28 +200,6 @@ fn padding_template(n_cols: usize) -> Vec<F> {
     tmpl
 }
 
-/// Upload a trace initialized with the padding template broadcast to every row
-/// (the streaming kernel overwrites all columns of the event rows; padding rows
-/// keep the template).
-fn template_trace(
-    n_cols: usize,
-    height: usize,
-    scope: &TaskScope,
-) -> Result<Tensor<F, TaskScope>, CopyError> {
-    let tmpl = padding_template(n_cols);
-    let mut init = vec![F::zero(); n_cols * height];
-    for col in 0..n_cols {
-        if tmpl[col] != F::zero() {
-            for r in 0..height {
-                init[col * height + r] = tmpl[col];
-            }
-        }
-    }
-    let mut buf = Buffer::try_with_capacity_in(init.len().max(1), scope.clone()).unwrap();
-    buf.extend_from_host_slice(&init)?;
-    Ok(Tensor::<F, TaskScope>::from(buf).reshape([n_cols, height]))
-}
-
 impl CudaTracegenAir<F> for DivRemChip<SupervisorMode> {
     fn supports_device_main_tracegen(&self) -> bool {
         true
@@ -262,7 +238,10 @@ impl CudaTracegenAir<F> for DivRemChip<SupervisorMode> {
         let n_events =
             if height == 0 { 0 } else { inputs.len() / chip.program.num_inputs as usize };
 
-        let trace = template_trace(n_cols, height, scope)?;
+        // Padding rows keep the "0 / 1" template, filled ON DEVICE (H2); the
+        // streaming kernel overwrites all columns of the event rows.
+        let trace =
+            super::template_trace(n_cols, height, n_events, &padding_template(n_cols), scope)?;
         super::generate_trace_and_lookups_slots_into(
             chip,
             super::WitgenBatch { inputs, n_events, height },

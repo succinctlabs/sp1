@@ -233,6 +233,9 @@ pub unsafe trait WitgenInterpKernel<F> {
     fn hist_to_trace_kernel() -> KernelPtr;
     /// Scatter-add host-chip lookups (col-major index, multiplicity) into a trace.
     fn hist_trace_scatter_kernel() -> KernelPtr;
+    /// Broadcast a chip's non-zero padding template over a trace's PADDING rows
+    /// (H2 device fill; see `witgen_template_fill_kernel` in `witgen_interp.cu`).
+    fn witgen_template_fill_kernel() -> KernelPtr;
 }
 
 unsafe impl WitgenInterpKernel<SP1Field> for TaskScope {
@@ -265,5 +268,8 @@ unsafe impl WitgenInterpKernel<SP1Field> for TaskScope {
     }
     fn hist_trace_scatter_kernel() -> KernelPtr {
         unsafe { sp1_gpu_sys::tracegen::hist_trace_scatter_koala_bear_kernel() }
+    }
+    fn witgen_template_fill_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::witgen_template_fill_koala_bear_kernel() }
     }
 }

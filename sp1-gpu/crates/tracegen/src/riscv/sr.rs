@@ -8,7 +8,6 @@ use rayon::prelude::*;
 use slop_algebra::AbstractField;
 use slop_alloc::mem::CopyError;
 use slop_alloc::Buffer;
-use slop_tensor::Tensor;
 use sp1_core_executor::{events::AluEvent, ALUTypeRecord};
 use sp1_core_machine::{
     adapter::register::alu_type::ALUTypeReaderWitgenInput,
@@ -69,6 +68,17 @@ pub(crate) fn sr_witgen_chip() -> &'static super::WitgenChip {
     })
 }
 
+/// The CPU padding template (`generate_trace_into`'s padded rows):
+/// v_01=16, v_012=256, v_0123=65536.
+fn sr_template(n_cols: usize) -> Vec<F> {
+    let mut tmpl = vec![F::zero(); n_cols];
+    let cols: &mut ShiftRightCols<F, SupervisorMode> = tmpl.as_mut_slice().borrow_mut();
+    cols.v_01 = F::from_canonical_u32(16);
+    cols.v_012 = F::from_canonical_u32(256);
+    cols.v_0123 = F::from_canonical_u32(65536);
+    tmpl
+}
+
 impl CudaTracegenAir<F> for ShiftRightChip<SupervisorMode> {
     fn supports_device_main_tracegen(&self) -> bool {
         true
@@ -102,26 +112,10 @@ impl CudaTracegenAir<F> for ShiftRightChip<SupervisorMode> {
         in_dev.extend_from_host_slice(&inputs)?;
 
         // Padding rows use a non-zero template: v_01=16, v_012=256, v_0123=65536.
-        let mut trace = {
-            let mut tmpl = vec![F::zero(); n_cols];
-            {
-                let cols: &mut ShiftRightCols<F, SupervisorMode> = tmpl.as_mut_slice().borrow_mut();
-                cols.v_01 = F::from_canonical_u32(16);
-                cols.v_012 = F::from_canonical_u32(256);
-                cols.v_0123 = F::from_canonical_u32(65536);
-            }
-            let mut init = vec![F::zero(); n_cols * height];
-            for col in 0..n_cols {
-                if tmpl[col] != F::zero() {
-                    for r in 0..height {
-                        init[col * height + r] = tmpl[col];
-                    }
-                }
-            }
-            let mut buf = Buffer::try_with_capacity_in(init.len().max(1), scope.clone()).unwrap();
-            buf.extend_from_host_slice(&init)?;
-            Tensor::<F, TaskScope>::from(buf).reshape([n_cols, height])
-        };
+        // Filled ON DEVICE over the padding rows (H2); the kernel writes every
+        // column of the event rows.
+        let mut trace =
+            super::template_trace(n_cols, height, n_events, &sr_template(n_cols), scope)?;
 
         if n_events > 0 {
             unsafe {
@@ -167,26 +161,7 @@ impl CudaTracegenAir<F> for ShiftRightChip<SupervisorMode> {
         let n_events =
             if height == 0 { 0 } else { inputs.len() / chip.program.num_inputs as usize };
 
-        let trace = {
-            let mut tmpl = vec![F::zero(); n_cols];
-            {
-                let cols: &mut ShiftRightCols<F, SupervisorMode> = tmpl.as_mut_slice().borrow_mut();
-                cols.v_01 = F::from_canonical_u32(16);
-                cols.v_012 = F::from_canonical_u32(256);
-                cols.v_0123 = F::from_canonical_u32(65536);
-            }
-            let mut init = vec![F::zero(); n_cols * height];
-            for col in 0..n_cols {
-                if tmpl[col] != F::zero() {
-                    for r in 0..height {
-                        init[col * height + r] = tmpl[col];
-                    }
-                }
-            }
-            let mut buf = Buffer::try_with_capacity_in(init.len().max(1), scope.clone()).unwrap();
-            buf.extend_from_host_slice(&init)?;
-            Tensor::<F, TaskScope>::from(buf).reshape([n_cols, height])
-        };
+        let trace = super::template_trace(n_cols, height, n_events, &sr_template(n_cols), scope)?;
 
         super::generate_trace_and_lookups_into(
             chip,

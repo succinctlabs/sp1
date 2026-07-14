@@ -91,6 +91,7 @@ const _: () = {
     assert!(sp1_core_executor::ByteOpcode::U8Range as usize == 3);
 };
 
+use slop_algebra::AbstractField;
 use slop_alloc::mem::CopyError;
 use slop_alloc::Buffer;
 use slop_tensor::Tensor;
@@ -213,6 +214,66 @@ pub(crate) struct WitgenBatch<'a> {
     pub height: usize,
 }
 
+/// H2 (host-memory-workstream Phase 1): build a fused chip's trace with its non-zero
+/// padding template applied ON DEVICE — zeros, one tiny upload (the template's
+/// non-zero columns × `period` rows), and one broadcast kernel over the PADDING rows
+/// `[n_events, height)`. Replaces the trace-sized pageable host Vec fill + full-trace
+/// H2D that ran under the GPU permit (F.1a measured it at 77–148 ms per launch = the
+/// in-tracegen-phase seam). The witgen kernel overwrites every column of the event
+/// rows, so filling only the padding rows is behavior-identical to the old
+/// broadcast-to-all-rows host init; when `n_events == height` (no padding) or the
+/// template is all-zero, no kernel is launched at all.
+///
+/// `tmpl` is `[period][n_cols]` row-major: the template for absolute row `r` is
+/// `tmpl[r % period]` (period 1 = constant template: sll/sr/divrem; period 80 =
+/// sha_compress's cyclic octet/index/k pattern).
+pub(crate) fn template_trace(
+    n_cols: usize,
+    height: usize,
+    n_events: usize,
+    tmpl: &[F],
+    scope: &TaskScope,
+) -> Result<Tensor<F, TaskScope>, CopyError> {
+    let period = tmpl.len() / n_cols;
+    debug_assert_eq!(tmpl.len(), period * n_cols);
+    let mut trace = Tensor::<F, TaskScope>::zeros_in([n_cols, height], scope.clone());
+    // Columns with any non-zero template value, values transposed to [col][period].
+    let cols: Vec<u32> = (0..n_cols)
+        .filter(|&c| (0..period).any(|p| tmpl[p * n_cols + c] != F::zero()))
+        .map(|c| c as u32)
+        .collect();
+    if height > n_events && !cols.is_empty() {
+        let vals: Vec<F> = cols
+            .iter()
+            .flat_map(|&c| (0..period).map(move |p| tmpl[p * n_cols + c as usize]))
+            .collect();
+        let mut cols_dev = Buffer::try_with_capacity_in(cols.len(), scope.clone())
+            .expect("witgen: alloc device buffer for the template columns");
+        cols_dev.extend_from_host_slice(&cols)?;
+        let mut vals_dev = Buffer::try_with_capacity_in(vals.len(), scope.clone())
+            .expect("witgen: alloc device buffer for the template values");
+        vals_dev.extend_from_host_slice(&vals)?;
+        unsafe {
+            const BLOCK: usize = 256;
+            let total = cols.len() * (height - n_events);
+            let grid = total.div_ceil(BLOCK);
+            let args = args!(
+                trace.as_mut_ptr(),
+                height,
+                n_events,
+                cols_dev.as_ptr(),
+                vals_dev.as_ptr(),
+                period as u32,
+                cols.len() as u32
+            );
+            scope
+                .launch_kernel(TaskScope::witgen_template_fill_kernel(), grid, BLOCK, &args, 0)
+                .expect("witgen: launch template fill kernel");
+        }
+    }
+    Ok(trace)
+}
+
 /// Run the FUSED witgen kernel for one chip: a single op-DAG pass that both writes the
 /// gadget's trace columns (returned) AND accumulates its byte/range lookups into the
 /// shared shard histograms `hist`. This is the union of [`accumulate_lookups`] (lookup
@@ -231,7 +292,18 @@ pub(crate) async fn generate_trace_and_lookups(
     scope: &TaskScope,
 ) -> Result<DeviceMle<F>, CopyError> {
     // Zeroed trace; only event rows are written (padding rows stay 0 — is_real=0).
+    // F.1a seam attribution: the allocation (+ memset enqueue) below is the H-B
+    // suspect for the measured 30–72 ms in-tracegen-phase turnaround (allocator
+    // reclaim ties to synchronization, iter-078).
+    let t_alloc = std::time::Instant::now();
     let trace = Tensor::<F, TaskScope>::zeros_in([chip.n_cols(), batch.height], scope.clone());
+    tracing::debug!(
+        target: "seam",
+        trace_alloc_us = t_alloc.elapsed().as_micros() as u64,
+        n_cols = chip.n_cols(),
+        height = batch.height,
+        "fused trace alloc"
+    );
     generate_trace_and_lookups_into(chip, batch, trace, hist, scope).await
 }
 
@@ -471,6 +543,7 @@ pub(crate) async fn generate_trace_and_lookups_slots_into(
         let ic_idx: Vec<u32> = streaming.input_cols.iter().map(|&(i, _)| i).collect();
         let ic_col: Vec<u32> = streaming.input_cols.iter().map(|&(_, c)| c).collect();
 
+        let t_meta = std::time::Instant::now();
         let mut ops_dev = Buffer::try_with_capacity_in(streaming.ops.len(), scope.clone())
             .expect("witgen: alloc device buffer for the op-DAG");
         ops_dev.extend_from_host_slice(&streaming.ops)?;
@@ -484,10 +557,16 @@ pub(crate) async fn generate_trace_and_lookups_slots_into(
         let mut ic_col_dev = Buffer::try_with_capacity_in(ic_col.len().max(1), scope.clone())
             .expect("witgen: alloc device buffer for the input-column targets");
         ic_col_dev.extend_from_host_slice(&ic_col)?;
+        let meta_us = t_meta.elapsed().as_micros() as u64;
+        let t_in_alloc = std::time::Instant::now();
         let mut in_dev = Buffer::try_with_capacity_in(inputs.len().max(1), scope.clone())
             .expect("witgen: alloc device buffer for the packed inputs");
+        let input_alloc_us = t_in_alloc.elapsed().as_micros() as u64;
+        let t_in_up = std::time::Instant::now();
         in_dev.extend_from_host_slice(inputs)?;
+        let input_upload_us = t_in_up.elapsed().as_micros() as u64;
 
+        let t_launch = std::time::Instant::now();
         if n_events > 0 {
             unsafe {
                 // The smem kernel REQUIRES this exact block size (see the const doc).
@@ -524,12 +603,23 @@ pub(crate) async fn generate_trace_and_lookups_slots_into(
                     .expect("witgen: launch streaming fused kernel");
             }
         }
+        tracing::debug!(
+            target: "seam",
+            tier = "streaming",
+            meta_us,
+            input_alloc_us,
+            input_upload_us,
+            launch_us = t_launch.elapsed().as_micros() as u64,
+            n_events,
+            "fused launcher breakdown"
+        );
         return Ok(DeviceMle::from(trace));
     }
 
     // Pinned fallback: columns held live and read out at the end (local-memory wires).
     let pinned = chip.pinned();
 
+    let t_meta = std::time::Instant::now();
     let mut ops_dev = Buffer::try_with_capacity_in(pinned.ops.len(), scope.clone())
         .expect("witgen: alloc device buffer for the op-DAG");
     ops_dev.extend_from_host_slice(&pinned.ops)?;
@@ -540,10 +630,16 @@ pub(crate) async fn generate_trace_and_lookups_slots_into(
         Buffer::try_with_capacity_in(pinned.input_slots.len().max(1), scope.clone())
             .expect("witgen: alloc device buffer for the input-slot map");
     inslot_dev.extend_from_host_slice(&pinned.input_slots)?;
+    let meta_us = t_meta.elapsed().as_micros() as u64;
+    let t_in_alloc = std::time::Instant::now();
     let mut in_dev = Buffer::try_with_capacity_in(inputs.len().max(1), scope.clone())
         .expect("witgen: alloc device buffer for the packed inputs");
+    let input_alloc_us = t_in_alloc.elapsed().as_micros() as u64;
+    let t_in_up = std::time::Instant::now();
     in_dev.extend_from_host_slice(inputs)?;
+    let input_upload_us = t_in_up.elapsed().as_micros() as u64;
 
+    let t_launch = std::time::Instant::now();
     if n_events > 0 {
         unsafe {
             const BLOCK: usize = 64;
@@ -567,6 +663,16 @@ pub(crate) async fn generate_trace_and_lookups_slots_into(
                 .expect("witgen: launch pinned fused slot kernel");
         }
     }
+    tracing::debug!(
+        target: "seam",
+        tier = "pinned",
+        meta_us,
+        input_alloc_us,
+        input_upload_us,
+        launch_us = t_launch.elapsed().as_micros() as u64,
+        n_events,
+        "fused launcher breakdown"
+    );
     Ok(DeviceMle::from(trace))
 }
 

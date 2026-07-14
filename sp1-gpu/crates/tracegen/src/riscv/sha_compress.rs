@@ -8,15 +8,14 @@
 //! Trapped events' rows and PADDING rows are not all-zero for this chip (they keep
 //! the cyclic octet/octet_num/index/k pattern): trapped rows pack as is_real=0
 //! (the octet/index/k columns are exempt from the is_real masking), and the device
-//! trace is INITIALIZED host-side with the padding pattern before the kernel
-//! overwrites the event rows (like DivRem's non-zero padding template, but cyclic).
+//! trace's padding rows are INITIALIZED ON DEVICE with the cyclic pattern
+//! (`witgen_template_fill_kernel`, period 80) before the kernel writes the event
+//! rows (like DivRem's non-zero padding template, but cyclic).
 
 use core::borrow::BorrowMut;
 
 use rayon::prelude::*;
 use slop_alloc::mem::CopyError;
-use slop_alloc::Buffer;
-use slop_tensor::Tensor;
 use sp1_core_executor::{
     events::{PrecompileEvent, ShaCompressEvent},
     ExecutionRecord, SyscallCode, TrapError,
@@ -237,6 +236,17 @@ fn padding_row(row: usize, cols: &mut ShaCompressCols<F>) {
     }
 }
 
+/// The cyclic padding template as `[80][n_cols]` row-major (absolute row `r` takes
+/// pattern row `r % 80` — [`padding_row`] already keys on `row % 80`).
+fn sha_template(n_cols: usize) -> Vec<F> {
+    let mut tmpl = vec![F::default(); 80 * n_cols];
+    for row in 0..80 {
+        let cols: &mut ShaCompressCols<F> = tmpl[row * n_cols..(row + 1) * n_cols].borrow_mut();
+        padding_row(row, cols);
+    }
+    tmpl
+}
+
 impl CudaTracegenAir<F> for ShaCompressChip {
     fn supports_device_main_tracegen(&self) -> bool {
         true
@@ -248,7 +258,6 @@ impl CudaTracegenAir<F> for ShaCompressChip {
         _output: &mut Self::Record,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
-        use core::borrow::BorrowMut;
         let chip = sha_compress_witgen_chip();
         let n_cols = chip.n_cols();
         debug_assert_eq!(n_cols, NUM_SHA_COMPRESS_COLS);
@@ -259,26 +268,10 @@ impl CudaTracegenAir<F> for ShaCompressChip {
         let n_rows = if height == 0 { 0 } else { events.len() * 80 };
         let inputs = pack_sha_compress_inputs(&events);
 
-        // Initialize the trace with the CYCLIC padding pattern for rows beyond the
-        // events (host `generate_trace_into` sets octet/octet_num/index/k there);
+        // Initialize the padding rows with the CYCLIC pattern (host
+        // `generate_trace_into` sets octet/octet_num/index/k there) ON DEVICE (H2);
         // the kernel overwrites the event rows.
-        let mut init = vec![F::default(); n_cols * height];
-        {
-            let mut row_buf = vec![F::default(); n_cols];
-            for row in n_rows..height {
-                for v in row_buf.iter_mut() {
-                    *v = F::default();
-                }
-                let cols: &mut ShaCompressCols<F> = row_buf.as_mut_slice().borrow_mut();
-                padding_row(row, cols);
-                for (c, &v) in row_buf.iter().enumerate() {
-                    init[c * height + row] = v;
-                }
-            }
-        }
-        let mut buf = Buffer::try_with_capacity_in(init.len().max(1), scope.clone()).unwrap();
-        buf.extend_from_host_slice(&init)?;
-        let trace = Tensor::<F, TaskScope>::from(buf).reshape([n_cols, height]);
+        let trace = super::template_trace(n_cols, height, n_rows, &sha_template(n_cols), scope)?;
 
         super::generate_columns_slots_into(
             chip,
@@ -300,7 +293,6 @@ impl CudaTracegenAir<F> for ShaCompressChip {
         hist: crate::LookupHist,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
-        use core::borrow::BorrowMut;
         let chip = sha_compress_witgen_chip();
         let n_cols = chip.n_cols();
         debug_assert_eq!(n_cols, NUM_SHA_COMPRESS_COLS);
@@ -308,23 +300,8 @@ impl CudaTracegenAir<F> for ShaCompressChip {
             .expect("num_rows(...) should be Some(_)");
         let n_rows = if height == 0 { 0 } else { inputs.len() / chip.program.num_inputs as usize };
 
-        let mut init = vec![F::default(); n_cols * height];
-        {
-            let mut row_buf = vec![F::default(); n_cols];
-            for row in n_rows..height {
-                for v in row_buf.iter_mut() {
-                    *v = F::default();
-                }
-                let cols: &mut ShaCompressCols<F> = row_buf.as_mut_slice().borrow_mut();
-                padding_row(row, cols);
-                for (c, &v) in row_buf.iter().enumerate() {
-                    init[c * height + row] = v;
-                }
-            }
-        }
-        let mut buf = Buffer::try_with_capacity_in(init.len().max(1), scope.clone()).unwrap();
-        buf.extend_from_host_slice(&init)?;
-        let trace = Tensor::<F, TaskScope>::from(buf).reshape([n_cols, height]);
+        // Cyclic padding pattern filled ON DEVICE over the padding rows (H2).
+        let trace = super::template_trace(n_cols, height, n_rows, &sha_template(n_cols), scope)?;
 
         super::generate_trace_and_lookups_slots_into(
             chip,

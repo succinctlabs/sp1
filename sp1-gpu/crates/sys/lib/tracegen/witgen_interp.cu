@@ -1383,7 +1383,36 @@ __global__ void witgen_fused_streaming_kernel(
 #undef FLDS
 }
 
+// H2 (host-memory-workstream Phase 1): broadcast a chip's non-zero padding template
+// over the PADDING rows [row_start, height) of a column-major trace. `vals` is
+// [n_tmpl][period] row-major and absolute row r takes vals[j * period + r % period]
+// (period 1 = constant template: sll/sr/divrem; period 80 = sha_compress's cyclic
+// octet/index/k pattern). Event rows [0, row_start) are left for the witgen kernel
+// to overwrite. Replaces the trace-sized host Vec fill + full-trace H2D that ran
+// under the GPU permit (the F.1a-measured in-tracegen-phase seam).
+template <class T>
+__global__ void witgen_template_fill_kernel(
+    T* __restrict__ trace,
+    size_t height,
+    size_t row_start,
+    const uint32_t* __restrict__ cols,
+    const T* __restrict__ vals,
+    uint32_t period,
+    uint32_t n_tmpl) {
+    size_t n_rows = height - row_start;
+    size_t total = (size_t)n_tmpl * n_rows;
+    for (size_t i = (size_t)blockIdx.x * blockDim.x + threadIdx.x; i < total;
+         i += (size_t)blockDim.x * gridDim.x) {
+        uint32_t j = (uint32_t)(i / n_rows);
+        size_t r = row_start + (i % n_rows);
+        trace[(uintptr_t)cols[j] * height + r] = vals[(size_t)j * period + (r % period)];
+    }
+}
+
 namespace sp1_gpu_sys {
+extern KernelPtr witgen_template_fill_koala_bear_kernel() {
+    return (KernelPtr)::witgen_template_fill_kernel<kb31_t>;
+}
 extern KernelPtr witgen_fused_streaming_smem_koala_bear_kernel() {
     return (KernelPtr)::witgen_fused_streaming_smem_kernel<kb31_t>;
 }

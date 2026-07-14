@@ -1254,8 +1254,15 @@ async fn device_main_tracegen<A: CudaTracegenAir<Felt>>(
             async move {
                 // Hold a permit across spawn->drain so at most `fanout` chip scopes'
                 // transients are in flight.
+                let t0 = std::time::Instant::now();
                 let _permit = chip_sem.acquire_owned().await.expect("tracegen semaphore");
+                let permit_us = t0.elapsed().as_micros() as u64;
+                let t_spawn = std::time::Instant::now();
                 let handle = backend.spawn(move |child| async move {
+                    // F.1a seam attribution: how long the spawned task waited to start
+                    // (tokio wake + child-scope/stream setup — the H-C suspect).
+                    let spawn_us = t_spawn.elapsed().as_micros() as u64;
+                    let t_gen = std::time::Instant::now();
                     // Device-dependency chips use the FUSED kernel (columns + lookups in
                     // one pass, accumulating into the shared histogram); others (e.g.
                     // Global) the plain one.
@@ -1276,13 +1283,24 @@ async fn device_main_tracegen<A: CudaTracegenAir<Felt>>(
                             })
                             .into()
                     };
+                    let gen_us = t_gen.elapsed().as_micros() as u64;
                     // Drain before the permit releases (allocator reclaim requires it;
                     // pure event-window OOMs and cudaEventSynchronize busy-spins —
                     // iter-078 measured both). The drain gaps are hidden by running a
                     // wide window so other chips' streams overlay each drain boundary.
+                    let t_drain = std::time::Instant::now();
                     child.synchronize().await.unwrap_or_else(|e| {
                         panic!("drain tracegen stream for chip {}: {e:?}", air.name())
                     });
+                    tracing::debug!(
+                        target: "seam",
+                        chip = %air.name(),
+                        permit_us,
+                        spawn_us,
+                        gen_us,
+                        drain_us = t_drain.elapsed().as_micros() as u64,
+                        "fused fanout timeline"
+                    );
                     trace
                 });
                 let trace = handle

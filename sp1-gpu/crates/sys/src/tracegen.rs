@@ -31,4 +31,6 @@ extern "C" {
     pub fn witgen_fused_streaming_koala_bear_kernel() -> KernelPtr;
     pub fn hist_to_trace_koala_bear_kernel() -> KernelPtr;
     pub fn hist_trace_scatter_koala_bear_kernel() -> KernelPtr;
+    // Padding-template broadcast over a trace's padding rows (H2 device fill).
+    pub fn witgen_template_fill_koala_bear_kernel() -> KernelPtr;
 }
