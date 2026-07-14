@@ -24,8 +24,6 @@ impl CudaTracegenAir<F> for BaseAluChip {
         // Stage the filtered instructions into the chip's section of the worker's
         // pinned buffer, so the copy below is a non-blocking pinned transfer and
         // no large host allocation has to be freed afterwards.
-        scope.synchronize().await.unwrap();
-        let now = std::time::Instant::now();
         let instrs = staging.stage_iter(
             program
                 .inner
@@ -35,9 +33,6 @@ impl CudaTracegenAir<F> for BaseAluChip {
                     _ => None,
                 }),
         );
-        scope.synchronize().await.unwrap();
-        let elapsed = now.elapsed();
-        tracing::warn!("stage_iter took {:?}", elapsed);
 
         let instrs_device = {
             let mut buf = Buffer::try_with_capacity_in(instrs.len(), scope.clone()).unwrap();
