@@ -163,7 +163,7 @@ fn record_divrem_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
 
 /// The chip's cached [`WitgenChip`](super::WitgenChip) descriptor: recorded +
 /// lowered ONCE per process (the program is shard-independent), not per shard.
-fn divrem_witgen_chip() -> &'static super::WitgenChip {
+pub(crate) fn divrem_witgen_chip() -> &'static super::WitgenChip {
     static CHIP: std::sync::OnceLock<super::WitgenChip> = std::sync::OnceLock::new();
     CHIP.get_or_init(|| {
         let (program, col_wires) = record_divrem_program();
@@ -178,7 +178,7 @@ fn divrem_witgen_chip() -> &'static super::WitgenChip {
 /// (The eagerly-computed streaming lowering is unused here beyond a debug log —
 /// acceptable: one-time, KB-scale, and keeping `WitgenChip::new` uniform beats a
 /// second lazy field.)
-fn divrem_lookup_chip() -> &'static super::WitgenChip {
+pub(crate) fn divrem_lookup_chip() -> &'static super::WitgenChip {
     static CHIP: std::sync::OnceLock<super::WitgenChip> = std::sync::OnceLock::new();
     CHIP.get_or_init(|| {
         let (program, _col_wires) = record_divrem_program();
@@ -250,7 +250,7 @@ impl CudaTracegenAir<F> for DivRemChip<SupervisorMode> {
     async fn generate_trace_device_with_lookups(
         &self,
         input: &Self::Record,
-        inputs: Vec<u64>,
+        inputs: &[u64],
         hist: crate::LookupHist,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
@@ -265,7 +265,7 @@ impl CudaTracegenAir<F> for DivRemChip<SupervisorMode> {
         let trace = template_trace(n_cols, height, scope)?;
         super::generate_trace_and_lookups_slots_into(
             chip,
-            super::WitgenBatch { inputs: &inputs, n_events, height },
+            super::WitgenBatch { inputs, n_events, height },
             trace,
             hist,
             scope,
@@ -601,7 +601,7 @@ mod tests {
                 crate::LookupHist { range: range_dev.as_mut_ptr(), byte: byte_dev.as_mut_ptr() };
             let inputs = super::pack_divrem_inputs(&divrem_events);
             let gpu_trace = chip
-                .generate_trace_device_with_lookups(&gpu_shard, inputs, hist, &scope)
+                .generate_trace_device_with_lookups(&gpu_shard, &inputs, hist, &scope)
                 .await
                 .expect("device tracegen should succeed")
                 .to_host()

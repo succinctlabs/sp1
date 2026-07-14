@@ -1058,10 +1058,91 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
         }
     }
 
+    /// Packed-input row stride for the fused path — from the SAME cached
+    /// descriptors the launches use, so the prover's staging bound and the pack
+    /// cannot drift. Chips without device dependencies (e.g. Global) pack
+    /// nothing and return 0.
+    fn device_pack_row_bytes(&self) -> usize {
+        if !self.supports_device_dependencies() {
+            return 0;
+        }
+        match self {
+            Self::Add(_) => add::add_witgen_chip().program.num_inputs as usize * 8,
+            Self::Sub(_) => sub::sub_witgen_chip().program.num_inputs as usize * 8,
+            Self::Subw(_) => subw::subw_witgen_chip().program.num_inputs as usize * 8,
+            Self::Addw(_) => addw::addw_witgen_chip().program.num_inputs as usize * 8,
+            Self::Bitwise(_) => bitwise::bitwise_witgen_chip().program.num_inputs as usize * 8,
+            Self::Lt(_) => lt::lt_witgen_chip().program.num_inputs as usize * 8,
+            Self::Addi(_) => addi::addi_witgen_chip().program.num_inputs as usize * 8,
+            Self::ShiftLeft(_) => sll::sll_witgen_chip().program.num_inputs as usize * 8,
+            Self::ShiftRight(_) => sr::sr_witgen_chip().program.num_inputs as usize * 8,
+            Self::Mul(_) => mul::mul_witgen_chip().program.num_inputs as usize * 8,
+            Self::DivRem(_) => divrem::divrem_witgen_chip().program.num_inputs as usize * 8,
+            Self::AluX0(_) => alu_x0::alu_x0_witgen_chip().program.num_inputs as usize * 8,
+            Self::LoadDouble(_) => load_double::ld_witgen_chip().program.num_inputs as usize * 8,
+            Self::LoadWord(_) => load_word::lw_witgen_chip().program.num_inputs as usize * 8,
+            Self::LoadHalf(_) => load_half::load_half_witgen_chip().program.num_inputs as usize * 8,
+            Self::LoadByte(_) => load_byte::load_byte_witgen_chip().program.num_inputs as usize * 8,
+            Self::LoadX0(_) => load_x0::lx0_witgen_chip().program.num_inputs as usize * 8,
+            Self::StoreDouble(_) => {
+                store_double::store_double_witgen_chip().program.num_inputs as usize * 8
+            }
+            Self::StoreWord(_) => {
+                store_word::store_word_witgen_chip().program.num_inputs as usize * 8
+            }
+            Self::StoreHalf(_) => {
+                store_half::store_half_witgen_chip().program.num_inputs as usize * 8
+            }
+            Self::StoreByte(_) => {
+                store_byte::store_byte_witgen_chip().program.num_inputs as usize * 8
+            }
+            Self::UType(_) => utype::utype_witgen_chip().program.num_inputs as usize * 8,
+            Self::Jal(_) => jal::jal_witgen_chip().program.num_inputs as usize * 8,
+            Self::Jalr(_) => jalr::jalr_witgen_chip().program.num_inputs as usize * 8,
+            Self::Branch(_) => branch::branch_witgen_chip().program.num_inputs as usize * 8,
+            Self::StateBump(_) => {
+                state_bump::state_bump_witgen_chip().program.num_inputs as usize * 8
+            }
+            Self::MemoryBump(_) => {
+                memory_bump::memory_bump_witgen_chip().program.num_inputs as usize * 8
+            }
+            Self::MemoryLocal(_) => {
+                memory_local::memory_local_witgen_chip().program.num_inputs as usize * 8
+            }
+            Self::SyscallInstrs(_) => {
+                syscall_instrs::syscall_instr_witgen_chip().program.num_inputs as usize * 8
+            }
+            Self::KeccakP(_) => keccak::keccak_witgen_chip().program.num_inputs as usize * 8,
+            Self::KeccakPControl(_) => {
+                keccak_control::keccak_control_witgen_chip().program.num_inputs as usize * 8
+            }
+            Self::Sha256Extend(_) => {
+                sha_extend::sha_extend_witgen_chip().program.num_inputs as usize * 8
+            }
+            Self::Sha256Compress(_) => {
+                sha_compress::sha_compress_witgen_chip().program.num_inputs as usize * 8
+            }
+            Self::Sha256ExtendControl(_) => {
+                sha_extend_control::sha_extend_control_witgen_chip().program.num_inputs as usize * 8
+            }
+            Self::Sha256CompressControl(_) => {
+                sha_compress_control::sha_compress_control_witgen_chip().program.num_inputs as usize
+                    * 8
+            }
+            Self::MemoryGlobalInit(_) | Self::MemoryGlobalFinal(_) => {
+                memory_global::memory_global_witgen_chip().program.num_inputs as usize * 8
+            }
+            Self::SyscallCore(_) | Self::SyscallPrecompile(_) => {
+                syscall::syscall_witgen_chip().program.num_inputs as usize * 8
+            }
+            _ => 0,
+        }
+    }
+
     async fn generate_trace_device_with_lookups(
         &self,
         input: &Self::Record,
-        inputs: Vec<u64>,
+        inputs: &[u64],
         hist: crate::LookupHist,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {

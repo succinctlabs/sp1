@@ -59,7 +59,7 @@ fn record_sub_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
 
 /// The chip's cached [`WitgenChip`] descriptor: recorded + lowered ONCE per
 /// process (the program is shard-independent), not per shard.
-fn sub_witgen_chip() -> &'static super::WitgenChip {
+pub(crate) fn sub_witgen_chip() -> &'static super::WitgenChip {
     static CHIP: std::sync::OnceLock<super::WitgenChip> = std::sync::OnceLock::new();
     CHIP.get_or_init(|| {
         let (program, col_wires) = record_sub_program();
@@ -129,7 +129,7 @@ impl CudaTracegenAir<F> for SubChip<SupervisorMode> {
     async fn generate_trace_device_with_lookups(
         &self,
         input: &Self::Record,
-        inputs: Vec<u64>,
+        inputs: &[u64],
         hist: crate::LookupHist,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
@@ -144,7 +144,7 @@ impl CudaTracegenAir<F> for SubChip<SupervisorMode> {
             if height == 0 { 0 } else { inputs.len() / chip.program.num_inputs as usize };
         super::generate_trace_and_lookups(
             chip,
-            super::WitgenBatch { inputs: &inputs, n_events, height },
+            super::WitgenBatch { inputs, n_events, height },
             hist,
             scope,
         )

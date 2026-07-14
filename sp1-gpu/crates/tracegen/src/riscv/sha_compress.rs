@@ -213,7 +213,7 @@ pub(crate) fn record_sha_compress_program() -> (sp1_core_machine::air::WitProgra
 
 /// The chip's cached [`WitgenChip`](super::WitgenChip) descriptor: recorded +
 /// lowered ONCE per process (the program is shard-independent), not per shard.
-fn sha_compress_witgen_chip() -> &'static super::WitgenChip {
+pub(crate) fn sha_compress_witgen_chip() -> &'static super::WitgenChip {
     static CHIP: std::sync::OnceLock<super::WitgenChip> = std::sync::OnceLock::new();
     CHIP.get_or_init(|| {
         let (program, col_wires) = record_sha_compress_program();
@@ -296,7 +296,7 @@ impl CudaTracegenAir<F> for ShaCompressChip {
     async fn generate_trace_device_with_lookups(
         &self,
         input: &Self::Record,
-        inputs: Vec<u64>,
+        inputs: &[u64],
         hist: crate::LookupHist,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
@@ -328,7 +328,7 @@ impl CudaTracegenAir<F> for ShaCompressChip {
 
         super::generate_trace_and_lookups_slots_into(
             chip,
-            super::WitgenBatch { inputs: &inputs, n_events: n_rows, height },
+            super::WitgenBatch { inputs, n_events: n_rows, height },
             trace,
             hist,
             scope,
@@ -609,7 +609,7 @@ mod tests {
                 byte: b_f.as_ptr() as *mut u32,
             };
             let fused_trace = chip
-                .generate_trace_device_with_lookups(&shard, inputs, hist, &scope)
+                .generate_trace_device_with_lookups(&shard, &inputs, hist, &scope)
                 .await
                 .expect("fused tracegen should succeed")
                 .to_host()

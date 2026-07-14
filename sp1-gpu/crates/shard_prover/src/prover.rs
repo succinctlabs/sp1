@@ -16,7 +16,10 @@ use sp1_gpu_cudart::PinnedBuffer;
 use sp1_gpu_cudart::{DeviceMle, DevicePoint, TaskScope};
 use sp1_gpu_jagged_assist::prove_jagged_evaluation_sync;
 use sp1_gpu_jagged_sumcheck::{generate_jagged_sumcheck_poly, jagged_sumcheck};
-use sp1_gpu_jagged_tracegen::{full_tracegen_permit, main_tracegen_permit, CudaShardProverData};
+use sp1_gpu_jagged_tracegen::{
+    ensure_trace_buffer_capacity, full_tracegen_permit, main_tracegen_permit,
+    required_trace_buffer_elems, CudaShardProverData,
+};
 use sp1_gpu_logup_gkr::{prove_logup_gkr, CudaLogUpGkrOptions, Interactions};
 use sp1_gpu_merkle_tree::{CudaTcsProver, SingleLayerMerkleTreeProverError};
 use sp1_gpu_tracegen::CudaTracegenAir;
@@ -263,13 +266,22 @@ where
                 .unwrap()
         };
 
-        let buffer = self.inner.get_buffer().await;
+        let mut buffer = self.inner.get_buffer().await;
 
         // Device-tracegen chips' byte-lookup dependencies are generated on-device FUSED
         // into the main trace kernel (see jagged_tracegen `device_main_tracegen`), so
         // there is no separate dependency pre-pass; the host `generate_dependencies`
         // still skips them (see `host_dependency_skip_chips`).
         let record = Arc::new(record);
+
+        // Ratchet the worker's pinned buffer up to this shard's exact requirement (H1:
+        // the pool starts small when the device path covers the trace mass).
+        let required = required_trace_buffer_elems(
+            self.machine(),
+            Some(program.as_ref()),
+            Some(record.as_ref()),
+        );
+        ensure_trace_buffer_capacity(&mut buffer, required).await;
 
         // Generate trace.
         let (public_values, trace_data, chip_set, permit) = full_tracegen_permit(
@@ -349,7 +361,14 @@ where
         // there is no separate dependency pre-pass here.
         let record = Arc::new(record);
 
-        let buffer = self.inner.get_buffer().await;
+        let mut buffer = self.inner.get_buffer().await;
+
+        // Ratchet the worker's pinned buffer up to this shard's exact requirement (H1).
+        // No `program`: this path writes only main traces (preprocessed are resident
+        // in the proving key).
+        let required =
+            required_trace_buffer_elems(&self.inner.machine, None, Some(record.as_ref()));
+        ensure_trace_buffer_capacity(&mut buffer, required).await;
 
         let (public_values, chip_set, permit) = main_tracegen_permit(
             &self.inner.machine,

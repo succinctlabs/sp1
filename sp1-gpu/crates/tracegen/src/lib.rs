@@ -455,6 +455,17 @@ pub trait CudaTracegenAir<F: Field>: MachineAir<F> {
         Vec::new()
     }
 
+    /// Bytes of packed kernel input PER TRACE ROW for this chip's fused path
+    /// (`8 * num_inputs` — the row stride of [`pack_device_lookup_inputs`]).
+    /// The prover uses this to size the pinned-buffer STAGING region the packed
+    /// inputs are uploaded through (host-memory workstream H5/H1: the same
+    /// worker buffer that holds host-resident traces stages the device chips'
+    /// uploads, so the pool is sized once from one predicate). Default: 0 (no
+    /// fused path / packs nothing).
+    fn device_pack_row_bytes(&self) -> usize {
+        0
+    }
+
     /// FUSED main tracegen: generate this chip's trace columns AND accumulate its
     /// byte/range lookups into the shared shard histograms `hist` in a single op-DAG
     /// pass (the device counterpart of running `generate_trace_device` +
@@ -466,7 +477,7 @@ pub trait CudaTracegenAir<F: Field>: MachineAir<F> {
     fn generate_trace_device_with_lookups(
         &self,
         _input: &Self::Record,
-        _inputs: Vec<u64>,
+        _inputs: &[u64],
         _hist: LookupHist,
         _scope: &TaskScope,
     ) -> impl Future<Output = Result<DeviceMle<F>, CopyError>> + Send {

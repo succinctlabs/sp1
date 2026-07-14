@@ -264,7 +264,7 @@ pub(crate) fn record_keccak_program() -> (WitProgram, Vec<u32>) {
 
 /// The chip's cached [`WitgenChip`](super::WitgenChip) descriptor: recorded +
 /// lowered ONCE per process (the program is shard-independent), not per shard.
-fn keccak_witgen_chip() -> &'static super::WitgenChip {
+pub(crate) fn keccak_witgen_chip() -> &'static super::WitgenChip {
     static CHIP: std::sync::OnceLock<super::WitgenChip> = std::sync::OnceLock::new();
     CHIP.get_or_init(|| {
         let (program, col_wires) = record_keccak_program();
@@ -361,7 +361,7 @@ impl CudaTracegenAir<F> for KeccakPermuteChip {
     async fn generate_trace_device_with_lookups(
         &self,
         input: &Self::Record,
-        inputs: Vec<u64>,
+        inputs: &[u64],
         hist: crate::LookupHist,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
@@ -375,7 +375,7 @@ impl CudaTracegenAir<F> for KeccakPermuteChip {
         let trace = Tensor::<F, TaskScope>::zeros_in([chip.n_cols(), height], scope.clone());
         super::generate_trace_and_lookups_slots_into(
             chip,
-            super::WitgenBatch { inputs: &inputs, n_events: n_rows, height },
+            super::WitgenBatch { inputs, n_events: n_rows, height },
             trace,
             hist,
             scope,
@@ -575,7 +575,7 @@ mod tests {
             let hist =
                 crate::LookupHist { range: range_dev.as_mut_ptr(), byte: byte_dev.as_mut_ptr() };
             let fused_trace = chip
-                .generate_trace_device_with_lookups(&shard, inputs, hist, &scope)
+                .generate_trace_device_with_lookups(&shard, &inputs, hist, &scope)
                 .await
                 .expect("fused tracegen should succeed")
                 .to_host()
