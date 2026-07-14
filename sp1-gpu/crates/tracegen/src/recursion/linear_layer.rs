@@ -7,7 +7,7 @@ use sp1_gpu_cudart::{
     TracegenPreprocessedRecursionLinearLayerKernel, TracegenRecursionLinearLayerKernel,
 };
 use sp1_hypercube::air::MachineAir;
-use sp1_recursion_executor::Instruction;
+use sp1_recursion_executor::{Instruction, Poseidon2LinearLayerInstr};
 use sp1_recursion_machine::chips::poseidon2_helper::linear::Poseidon2LinearLayerChip;
 
 use crate::{CudaTracegenAir, PinnedStaging, F};
@@ -23,15 +23,16 @@ impl CudaTracegenAir<F> for Poseidon2LinearLayerChip {
         staging: PinnedStaging,
         scope: &TaskScope,
     ) -> Result<Option<DeviceMle<F>>, CopyError> {
-        // Stage the filtered instructions into the chip's section of the worker's
-        // pinned buffer, so the copy below is a non-blocking pinned transfer and
-        // no large host allocation has to be freed afterwards.
-        let instrs = staging.stage_iter(program.inner.iter().filter_map(|instruction| {
-            match instruction.inner() {
-                Instruction::Poseidon2LinearLayer(instr) => Some(**instr),
-                _ => None,
-            }
-        }));
+        // Pre-bucketed by `bucket_preprocessed_device_instructions`; otherwise
+        // (overflow / no bucketing) stage the instructions here.
+        let instrs = staging.staged::<Poseidon2LinearLayerInstr<F>>().unwrap_or_else(|| {
+            staging.stage_iter(program.inner.iter().filter_map(|instruction| {
+                match instruction.inner() {
+                    Instruction::Poseidon2LinearLayer(instr) => Some(**instr),
+                    _ => None,
+                }
+            }))
+        });
 
         let instrs_device = {
             let mut buf = Buffer::try_with_capacity_in(instrs.len(), scope.clone()).unwrap();

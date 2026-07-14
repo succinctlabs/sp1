@@ -410,10 +410,13 @@ async fn host_preprocessed_tracegen<A: CudaTracegenAir<Felt>>(
             device_airs_staged.push((air, staging));
             total_size += section;
         }
-        let device_airs = device_airs_staged;
+        let mut device_airs = device_airs_staged;
 
-        // Spawn a rayon task to generate the traces on the CPU.
+        // Spawn a rayon task to generate the host traces on the CPU. It takes its
+        // own handle to the program so the single-pass bucketing below can run
+        // concurrently on this thread (both only read the program).
         // `traces` is a futures Stream that will immediately begin buffering traces.
+        let program_host = Arc::clone(&program);
         let (host_traces_tx, host_traces) = futures::channel::mpsc::unbounded();
         rayon::spawn(move || {
             jobs.into_par_iter().for_each_with(
@@ -425,7 +428,7 @@ async fn host_preprocessed_tracegen<A: CudaTracegenAir<Felt>>(
                         let slice: &mut [MaybeUninit<Felt>] = unsafe {
                             std::slice::from_raw_parts_mut(base_ptr.add(offset), trace_len)
                         };
-                        air.generate_preprocessed_trace_into(&program, slice);
+                        air.generate_preprocessed_trace_into(&program_host, slice);
                         let start_pointer = unsafe { base_ptr.add(offset) as usize };
                         // Since it's unbounded, it will only error if the receiver is disconnected.
                         // If the receiver dropped (task cancelled), exit gracefully instead of panicking.
@@ -440,8 +443,16 @@ async fn host_preprocessed_tracegen<A: CudaTracegenAir<Felt>>(
             );
             // Make this explicit.
             // If we are the last users of the program, this will expensively drop it.
-            drop(program);
+            drop(program_host);
         });
+
+        // Read the program once, bucketing every device chip's instructions into
+        // its pinned section — instead of each chip re-scanning the whole program
+        // in `generate_preprocessed_trace_device`. Runs concurrently with the host
+        // trace rayon task above (disjoint buffer regions, shared read of program).
+        A::bucket_preprocessed_device_instructions(&program, &mut device_airs);
+        drop(program);
+
         (device_airs, host_traces, total_size)
     })
     .await

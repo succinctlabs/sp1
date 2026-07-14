@@ -75,6 +75,63 @@ pub struct PinnedStaging {
     ptr: usize,
     /// Length of the section, in bytes.
     bytes: usize,
+    /// If a single bucketing pass has already written the chip's records into
+    /// this section, the number written; `None` if the chip must stage its own
+    /// records (`stage_iter` / `stage_slice`). See [`SectionWriter`].
+    prefilled: Option<usize>,
+}
+
+/// A cursor that writes records of one type into a chip's [`PinnedStaging`]
+/// section during the single bucketing pass, tracking overflow.
+///
+/// Machine-specific tracegen (e.g. recursion) creates one writer per device
+/// chip, then makes a single pass over the program, pushing each instruction to
+/// the writer for its type. This reads the (large) instruction stream once
+/// instead of once per chip.
+pub struct SectionWriter<T> {
+    ptr: *mut T,
+    cap: usize,
+    count: usize,
+    overflowed: bool,
+}
+
+impl<T: Copy> SectionWriter<T> {
+    /// Create a writer over `staging`'s section, interpreted as `[T]`.
+    #[inline]
+    pub fn new(staging: &PinnedStaging) -> Self {
+        debug_assert_eq!(
+            staging.ptr % std::mem::align_of::<T>(),
+            0,
+            "pinned staging section is misaligned for the element type"
+        );
+        Self {
+            ptr: staging.ptr as *mut T,
+            cap: staging.bytes / std::mem::size_of::<T>(),
+            count: 0,
+            overflowed: false,
+        }
+    }
+
+    /// Append one record. If the section is full the writer is marked overflowed
+    /// and the record (and all subsequent ones) are dropped — the chip falls back
+    /// to staging its own records. Cheap, branch-predictable in the common case.
+    #[inline]
+    pub fn push(&mut self, item: T) {
+        if self.count < self.cap {
+            // Safety: `count < cap`, and the section is uniquely this chip's for
+            // the duration of trace generation.
+            unsafe { self.ptr.add(self.count).write(item) };
+            self.count += 1;
+        } else {
+            self.overflowed = true;
+        }
+    }
+
+    /// The number of records written, or `None` if the section overflowed.
+    #[inline]
+    pub fn finish(self) -> Option<usize> {
+        (!self.overflowed).then_some(self.count)
+    }
 }
 
 impl PinnedStaging {
@@ -86,7 +143,23 @@ impl PinnedStaging {
     /// every copy issued from it has completed.
     #[inline]
     pub unsafe fn new(ptr: *mut u8, bytes: usize) -> Self {
-        Self { ptr: ptr as usize, bytes }
+        Self { ptr: ptr as usize, bytes, prefilled: None }
+    }
+
+    /// Record that a bucketing pass wrote `count` records into this section
+    /// (`None` leaves the chip responsible for staging its own records).
+    #[inline]
+    pub fn set_prefilled(&mut self, count: Option<usize>) {
+        self.prefilled = count;
+    }
+
+    /// If a bucketing pass pre-filled this section, the records it wrote,
+    /// reinterpreted as `[T]`. `None` means the chip must stage its own records.
+    #[inline]
+    pub fn staged<T: Copy>(&self) -> Option<Staged<'_, T>> {
+        let count = self.prefilled?;
+        // Safety: `count` records of type `T` were written by the bucketing pass.
+        Some(Staged::Slice(unsafe { std::slice::from_raw_parts(self.ptr as *const T, count) }))
     }
 
     /// Stage a contiguous slice of records for the host-to-device copy.
@@ -542,6 +615,24 @@ pub trait CudaTracegenAir<F: Field>: MachineAir<F> {
     /// Whether this AIR supports preprocessed trace generation on the device.
     fn supports_device_preprocessed_tracegen(&self) -> bool {
         false
+    }
+
+    /// Bucket every device chip's preprocessed instructions into its staging
+    /// section in a *single* pass over the program, rather than each chip
+    /// scanning the whole program independently.
+    ///
+    /// For each `(air, staging)` this sets `staging`'s prefilled count (via
+    /// [`PinnedStaging::set_prefilled`]) to the number of records written, or
+    /// leaves it `None` if that chip should stage its own records (e.g. its
+    /// records overflow the trace-sized section). The default implementation
+    /// leaves every section un-filled, so each chip stages itself as before.
+    #[allow(unused_variables)]
+    fn bucket_preprocessed_device_instructions(
+        program: &Self::Program,
+        device_stagings: &mut [(Arc<Self>, PinnedStaging)],
+    ) where
+        Self: Sized,
+    {
     }
 
     /// Generate the preprocessed trace on the device.

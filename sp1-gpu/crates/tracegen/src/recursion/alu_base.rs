@@ -5,7 +5,7 @@ use slop_tensor::Tensor;
 use sp1_gpu_cudart::{args, DeviceMle, TaskScope};
 use sp1_gpu_cudart::{TracegenPreprocessedRecursionBaseAluKernel, TracegenRecursionBaseAluKernel};
 use sp1_hypercube::air::MachineAir;
-use sp1_recursion_executor::Instruction;
+use sp1_recursion_executor::{BaseAluInstr, Instruction};
 use sp1_recursion_machine::chips::alu_base::BaseAluChip;
 
 use crate::{CudaTracegenAir, PinnedStaging, F};
@@ -21,18 +21,17 @@ impl CudaTracegenAir<F> for BaseAluChip {
         staging: PinnedStaging,
         scope: &TaskScope,
     ) -> Result<Option<DeviceMle<F>>, CopyError> {
-        // Stage the filtered instructions into the chip's section of the worker's
-        // pinned buffer, so the copy below is a non-blocking pinned transfer and
-        // no large host allocation has to be freed afterwards.
-        let instrs = staging.stage_iter(
-            program
-                .inner
-                .iter() // Faster than using `rayon` for some reason. Maybe vectorization?
-                .filter_map(|instruction| match instruction.inner() {
+        // The instructions were already bucketed into this chip's pinned section
+        // by the single-pass `bucket_preprocessed_device_instructions`; if not
+        // (overflow / no bucketing), stage them here instead.
+        let instrs = staging.staged::<BaseAluInstr<F>>().unwrap_or_else(|| {
+            staging.stage_iter(program.inner.iter().filter_map(|instruction| {
+                match instruction.inner() {
                     Instruction::BaseAlu(instr) => Some(*instr),
                     _ => None,
-                }),
-        );
+                }
+            }))
+        });
 
         let instrs_device = {
             let mut buf = Buffer::try_with_capacity_in(instrs.len(), scope.clone()).unwrap();
