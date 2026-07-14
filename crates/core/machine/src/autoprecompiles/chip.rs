@@ -128,17 +128,11 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         Some(nb_rows)
     }
 
-    fn generate_trace_into(
+    fn generate_trace(
         &self,
         input: &Self::Record,
         _output: &mut Self::Record,
-        buffer: &mut [std::mem::MaybeUninit<F>],
-    ) {
-        // Every APC chip runs `generate_dependencies` before `generate_trace_into` (the former runs
-        // for all chips during dependency generation), and it fills and caches this trace as a
-        // byproduct of byte-bus evaluation. So we only ever restore from that cache — there is no
-        // from-scratch path. A miss means the pipeline ran out of order.
-        let events = input.get_apc_events(self.id).expect("APC events not found");
+    ) -> slop_matrix::dense::RowMajorMatrix<F> {
         let cached = self
             .cached_traces
             .lock()
@@ -146,18 +140,21 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             .remove(&(input.public_values.proof_nonce, input.initial_timestamp))
             .unwrap_or_else(|| {
                 panic!(
-                    "APC chip {} trace not cached: generate_dependencies must run before generate_trace_into",
+                    "APC chip {} trace not cached: generate_dependencies must run before generate_trace",
                     self.id
                 )
             });
-        let n = cached.len();
-        debug_assert_eq!(n, events.count * self.width());
-        // SAFETY: `n == cached.len()`, so the first `n` slots are filled from `cached` and the rest
-        // (padding rows) are zeroed. `MaybeUninit<F>` has the same layout as `F`.
-        unsafe {
-            core::ptr::copy_nonoverlapping(cached.as_ptr(), buffer.as_mut_ptr().cast::<F>(), n);
-            core::ptr::write_bytes(buffer[n..].as_mut_ptr(), 0, buffer.len() - n);
-        }
+        debug_assert_eq!(cached.len(), self.num_rows(input).unwrap() * self.width());
+        slop_matrix::dense::RowMajorMatrix::new(cached, self.width())
+    }
+
+    fn generate_trace_into(
+        &self,
+        _input: &Self::Record,
+        _output: &mut Self::Record,
+        _buffer: &mut [std::mem::MaybeUninit<F>],
+    ) {
+        unreachable!("`generate_trace` already has access to the full trace and therefore does not call `generate_trace_into`");
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
@@ -273,10 +270,11 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
 
         // Allocate final trace values
         let trace_width = self.width();
-        let mut trace_values = zeroed_f_vec(events.count * trace_width);
+        let padded_nb_rows = self.num_rows(input).unwrap();
+        let mut trace_values = zeroed_f_vec(padded_nb_rows * trace_width);
 
         // Fill in the trace values in parallel for each row (apc event)
-        let byte_lookup_effects = trace_values
+        let byte_lookup_effects = trace_values[..events.count * trace_width]
             .par_chunks_mut(trace_width)
             .zip_eq(dummy_values_by_event.par_iter())
             .map(|(trace_row, dummy_values_by_instruction)| {
