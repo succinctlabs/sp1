@@ -10,8 +10,11 @@ It is split into the following modules:
 
 ## Features
 
-Groth16, Plonk and Compressed proof verification are supported in `no-std` environments. Verification in the
-SP1 zkVM context is patched, in order to make use of the
+The default `full` feature includes Groth16, Plonk, and compressed proof types and verification.
+Disable default features to use only the Groth16 and Plonk verifiers on constrained `no_std`
+targets such as `wasm32-unknown-unknown`.
+
+Verification in the SP1 zkVM context is patched in order to make use of the
 [bn254 precompiles](https://blog.succinct.xyz/succinctshipsprecompiles/).
 
 ### Pre-generated verification keys
