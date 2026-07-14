@@ -8,7 +8,7 @@ use sp1_hypercube::air::MachineAir;
 use sp1_recursion_executor::Instruction;
 use sp1_recursion_machine::chips::alu_base::BaseAluChip;
 
-use crate::{CudaTracegenAir, F};
+use crate::{CudaTracegenAir, PinnedStaging, F};
 
 impl CudaTracegenAir<F> for BaseAluChip {
     fn supports_device_preprocessed_tracegen(&self) -> bool {
@@ -18,16 +18,26 @@ impl CudaTracegenAir<F> for BaseAluChip {
     async fn generate_preprocessed_trace_device(
         &self,
         program: &Self::Program,
+        staging: PinnedStaging,
         scope: &TaskScope,
     ) -> Result<Option<DeviceMle<F>>, CopyError> {
-        let instrs = program
-            .inner
-            .iter() // Faster than using `rayon` for some reason. Maybe vectorization?
-            .filter_map(|instruction| match instruction.inner() {
-                Instruction::BaseAlu(instr) => Some(*instr),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
+        // Stage the filtered instructions into the chip's section of the worker's
+        // pinned buffer, so the copy below is a non-blocking pinned transfer and
+        // no large host allocation has to be freed afterwards.
+        scope.synchronize().await.unwrap();
+        let now = std::time::Instant::now();
+        let instrs = staging.stage_iter(
+            program
+                .inner
+                .iter() // Faster than using `rayon` for some reason. Maybe vectorization?
+                .filter_map(|instruction| match instruction.inner() {
+                    Instruction::BaseAlu(instr) => Some(*instr),
+                    _ => None,
+                }),
+        );
+        scope.synchronize().await.unwrap();
+        let elapsed = now.elapsed();
+        tracing::warn!("stage_iter took {:?}", elapsed);
 
         let instrs_device = {
             let mut buf = Buffer::try_with_capacity_in(instrs.len(), scope.clone()).unwrap();
@@ -74,13 +84,14 @@ impl CudaTracegenAir<F> for BaseAluChip {
         &self,
         input: &Self::Record,
         _: &mut Self::Record,
+        staging: PinnedStaging,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
-        let events = &input.base_alu_events;
+        let events = staging.stage_slice(&input.base_alu_events);
 
         let events_device = {
             let mut buf = Buffer::try_with_capacity_in(events.len(), scope.clone()).unwrap();
-            buf.extend_from_host_slice(events)?;
+            buf.extend_from_host_slice(&events)?;
             buf
         };
 

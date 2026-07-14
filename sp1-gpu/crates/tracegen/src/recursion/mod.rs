@@ -11,7 +11,7 @@ use slop_alloc::mem::CopyError;
 use sp1_gpu_cudart::{DeviceMle, TaskScope};
 use sp1_recursion_machine::RecursionAir;
 
-use crate::{CudaTracegenAir, F};
+use crate::{CudaTracegenAir, PinnedStaging, F};
 
 impl<const DEGREE: usize, const VAR_EVENTS_PER_ROW: usize> CudaTracegenAir<F>
     for RecursionAir<F, DEGREE, VAR_EVENTS_PER_ROW>
@@ -35,26 +35,33 @@ impl<const DEGREE: usize, const VAR_EVENTS_PER_ROW: usize> CudaTracegenAir<F>
     async fn generate_preprocessed_trace_device(
         &self,
         program: &Self::Program,
+        staging: PinnedStaging,
         scope: &TaskScope,
     ) -> Result<Option<DeviceMle<F>>, CopyError> {
         match self {
-            Self::BaseAlu(chip) => chip.generate_preprocessed_trace_device(program, scope).await,
-            Self::ExtAlu(chip) => chip.generate_preprocessed_trace_device(program, scope).await,
+            Self::BaseAlu(chip) => {
+                chip.generate_preprocessed_trace_device(program, staging, scope).await
+            }
+            Self::ExtAlu(chip) => {
+                chip.generate_preprocessed_trace_device(program, staging, scope).await
+            }
             Self::Poseidon2Wide(chip) => {
-                chip.generate_preprocessed_trace_device(program, scope).await
+                chip.generate_preprocessed_trace_device(program, staging, scope).await
             }
             Self::Poseidon2LinearLayer(chip) => {
-                chip.generate_preprocessed_trace_device(program, scope).await
+                chip.generate_preprocessed_trace_device(program, staging, scope).await
             }
             Self::Poseidon2SBox(chip) => {
-                chip.generate_preprocessed_trace_device(program, scope).await
+                chip.generate_preprocessed_trace_device(program, staging, scope).await
             }
             Self::ExtFeltConvert(chip) => {
-                chip.generate_preprocessed_trace_device(program, scope).await
+                chip.generate_preprocessed_trace_device(program, staging, scope).await
             }
-            Self::Select(chip) => chip.generate_preprocessed_trace_device(program, scope).await,
+            Self::Select(chip) => {
+                chip.generate_preprocessed_trace_device(program, staging, scope).await
+            }
             Self::PrefixSumChecks(chip) => {
-                chip.generate_preprocessed_trace_device(program, scope).await
+                chip.generate_preprocessed_trace_device(program, staging, scope).await
             }
             Self::PublicValues(_) => unimplemented!(),
             // Other chips don't have `CudaTracegenAir` implemented yet.
@@ -82,19 +89,28 @@ impl<const DEGREE: usize, const VAR_EVENTS_PER_ROW: usize> CudaTracegenAir<F>
         &self,
         input: &Self::Record,
         output: &mut Self::Record,
+        staging: PinnedStaging,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
         match self {
-            Self::BaseAlu(chip) => chip.generate_trace_device(input, output, scope).await,
-            Self::ExtAlu(chip) => chip.generate_trace_device(input, output, scope).await,
-            Self::Poseidon2Wide(chip) => chip.generate_trace_device(input, output, scope).await,
-            Self::Poseidon2LinearLayer(chip) => {
-                chip.generate_trace_device(input, output, scope).await
+            Self::BaseAlu(chip) => chip.generate_trace_device(input, output, staging, scope).await,
+            Self::ExtAlu(chip) => chip.generate_trace_device(input, output, staging, scope).await,
+            Self::Poseidon2Wide(chip) => {
+                chip.generate_trace_device(input, output, staging, scope).await
             }
-            Self::Poseidon2SBox(chip) => chip.generate_trace_device(input, output, scope).await,
-            Self::ExtFeltConvert(chip) => chip.generate_trace_device(input, output, scope).await,
-            Self::Select(chip) => chip.generate_trace_device(input, output, scope).await,
-            Self::PrefixSumChecks(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::PrefixSumChecks(chip) => {
+                chip.generate_trace_device(input, output, staging, scope).await
+            }
+            Self::Poseidon2LinearLayer(chip) => {
+                chip.generate_trace_device(input, output, staging, scope).await
+            }
+            Self::Poseidon2SBox(chip) => {
+                chip.generate_trace_device(input, output, staging, scope).await
+            }
+            Self::ExtFeltConvert(chip) => {
+                chip.generate_trace_device(input, output, staging, scope).await
+            }
+            Self::Select(chip) => chip.generate_trace_device(input, output, staging, scope).await,
             Self::PublicValues(_) => unimplemented!(),
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => unimplemented!(),
@@ -115,7 +131,7 @@ pub(crate) mod tests {
         AnalyzedInstruction, BasicBlock, RawProgram, RecursionProgram, RootProgram, SeqBlock,
     };
 
-    use crate::{CudaTracegenAir, F};
+    use crate::{CudaTracegenAir, PinnedStaging, F};
 
     pub async fn test_preprocessed_tracegen<A>(
         chip: A,
@@ -145,8 +161,17 @@ pub(crate) mod tests {
                 .expect("should generate Some(preprocessed_trace)"),
         );
 
+        // Stage the instructions into a temporary pinned buffer sized to the trace.
+        let width = MachineAir::<F>::preprocessed_width(&chip);
+        let section =
+            MachineAir::<F>::preprocessed_num_rows(&chip, &program).map_or(0, |h| h * width);
+        let mut pinned = sp1_gpu_cudart::PinnedBuffer::<F>::with_capacity(section.max(1));
+        let staging = unsafe {
+            PinnedStaging::new(pinned.as_mut_ptr() as *mut u8, section * std::mem::size_of::<F>())
+        };
+
         let gpu_trace = chip
-            .generate_preprocessed_trace_device(&program, &scope)
+            .generate_preprocessed_trace_device(&program, staging, &scope)
             .await
             .expect("should copy events to device successfully")
             .expect("should generate Some(preprocessed_trace)")

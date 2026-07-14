@@ -28,6 +28,152 @@ use tracing::{debug_span, instrument, Instrument};
 /// We currently only link to KoalaBear-specialized trace generation FFI.
 pub(crate) type F = SP1Field;
 
+/// A chip's records, positioned for the host-to-device copy.
+///
+/// When the records fit in the chip's (trace-sized) pinned section, they live
+/// there — the copy is a non-blocking pinned transfer and nothing has to be
+/// freed afterwards. When they do not (see [`PinnedStaging`]), this instead
+/// borrows / owns the records the previous, pageable way.
+pub enum Staged<'a, T> {
+    /// Records in the pinned staging section, or borrowed from a contiguous
+    /// source — either way there is no separate allocation to free.
+    Slice(&'a [T]),
+    /// Records collected into a fresh allocation, used as a fallback when they do
+    /// not fit the pinned section. Freed after the (blocking, pageable) copy,
+    /// exactly as before this staging existed.
+    Owned(Vec<T>),
+}
+
+impl<T> std::ops::Deref for Staged<'_, T> {
+    type Target = [T];
+    #[inline]
+    fn deref(&self) -> &[T] {
+        match self {
+            Staged::Slice(s) => s,
+            Staged::Owned(v) => v,
+        }
+    }
+}
+
+/// A section of a worker's pinned host staging buffer, handed to a device
+/// trace-generation chip so it can stage its filtered instructions / events
+/// there before the (asynchronous) host-to-device copy.
+///
+/// A chip that generates its trace on device does not need its assigned section
+/// of the pinned trace buffer for the trace itself, so we reuse that section to
+/// hold the chip's records. Reusing the worker's pinned buffer (rather than a
+/// fresh `Vec`) both avoids a large per-shard deallocation and turns the copy
+/// into a non-blocking pinned transfer.
+///
+/// The section is sized to the chip's full trace. For most chips the records are
+/// smaller than the trace, so they fit; but a few chips (e.g. the wrap-stage
+/// poseidon2 helpers) have records wider than their trace. For those, staging
+/// transparently falls back to the previous behavior — see [`Staged`].
+#[derive(Clone, Copy)]
+pub struct PinnedStaging {
+    /// Start of the section, stored as `usize` so the handle is `Send` across `.await`.
+    ptr: usize,
+    /// Length of the section, in bytes.
+    bytes: usize,
+}
+
+impl PinnedStaging {
+    /// Create a staging handle over `bytes` of pinned host memory at `ptr`.
+    ///
+    /// # Safety
+    /// `ptr` must point to at least `bytes` of pinned host memory that is
+    /// uniquely owned for the duration of trace generation and stays alive until
+    /// every copy issued from it has completed.
+    #[inline]
+    pub unsafe fn new(ptr: *mut u8, bytes: usize) -> Self {
+        Self { ptr: ptr as usize, bytes }
+    }
+
+    /// Stage a contiguous slice of records for the host-to-device copy.
+    ///
+    /// If the records fit the section they are copied into pinned memory;
+    /// otherwise `src` is returned as-is (the copy then goes through pageable
+    /// memory, as it did before). Either way no allocation is made.
+    #[inline]
+    pub fn stage_slice<'a, T: Copy>(&'a self, src: &'a [T]) -> Staged<'a, T> {
+        if self.fits::<T>(src.len()) {
+            // Safety: `fits` checked the length and alignment, and the section is
+            // uniquely owned by this chip for the duration of trace generation.
+            let staged = unsafe {
+                std::ptr::copy_nonoverlapping(src.as_ptr(), self.ptr as *mut T, src.len());
+                std::slice::from_raw_parts(self.ptr as *const T, src.len())
+            };
+            Staged::Slice(staged)
+        } else {
+            Staged::Slice(src)
+        }
+    }
+
+    /// Stage the items yielded by `iter` for the host-to-device copy.
+    ///
+    /// Items are written into the pinned section until it is full; if the
+    /// iterator is exhausted first, the pinned section is returned. If the
+    /// records overflow the section, everything is collected into an owned `Vec`
+    /// fallback instead (freed after the copy, as before).
+    #[inline]
+    pub fn stage_iter<'a, T: Copy>(&'a self, iter: impl IntoIterator<Item = T>) -> Staged<'a, T> {
+        debug_assert_eq!(
+            self.ptr % std::mem::align_of::<T>(),
+            0,
+            "pinned staging section is misaligned for the element type"
+        );
+        let cap = self.bytes / std::mem::size_of::<T>();
+        // Safety: the section is uniquely owned by this chip for the duration of
+        // trace generation; `MaybeUninit` writes do not read the (uninit) memory.
+        let dst = unsafe {
+            std::slice::from_raw_parts_mut(self.ptr as *mut std::mem::MaybeUninit<T>, cap)
+        };
+        let mut iter = iter.into_iter();
+        let mut count = 0;
+        while count < cap {
+            match iter.next() {
+                Some(item) => {
+                    dst[count].write(item);
+                    count += 1;
+                }
+                // Safety: the first `count` elements were just initialized.
+                None => return Staged::Slice(unsafe { self.section_prefix::<T>(count) }),
+            }
+        }
+        // The section is full; if the iterator has more, the records exceed the
+        // trace-sized section, so fall back to an owned allocation.
+        match iter.next() {
+            Some(extra) => {
+                let mut v = Vec::with_capacity(cap * 2);
+                // Safety: the first `cap` elements were just initialized.
+                v.extend_from_slice(unsafe { self.section_prefix::<T>(cap) });
+                v.push(extra);
+                v.extend(iter);
+                Staged::Owned(v)
+            }
+            // Safety: exactly `cap` elements were initialized.
+            None => Staged::Slice(unsafe { self.section_prefix::<T>(cap) }),
+        }
+    }
+
+    /// # Safety
+    /// The first `len` elements of the section must have been initialized as `T`.
+    #[inline]
+    unsafe fn section_prefix<T>(&self, len: usize) -> &[T] {
+        std::slice::from_raw_parts(self.ptr as *const T, len)
+    }
+
+    #[inline]
+    fn fits<T>(&self, len: usize) -> bool {
+        debug_assert_eq!(
+            self.ptr % std::mem::align_of::<T>(),
+            0,
+            "pinned staging section is misaligned for the element type"
+        );
+        len * std::mem::size_of::<T>() <= self.bytes
+    }
+}
+
 /// A trace generator that is GPU accelerated.
 pub struct CudaTraceGenerator<F: Field, A> {
     machine: Machine<F, A>,
@@ -109,11 +255,27 @@ where
             .map(|air| {
                 // We want to borrow the program and move the air.
                 let program = program.as_ref();
+                let scope = &self.trace_allocator;
                 async move {
+                    // This legacy generator has no shared pinned pool, so stage into
+                    // a temporary pinned buffer sized to the preprocessed trace.
+                    let width = air.preprocessed_width();
+                    let section = air.preprocessed_num_rows(program).map_or(0, |h| h * width);
+                    let mut pinned =
+                        sp1_gpu_cudart::PinnedBuffer::<F>::with_capacity(section.max(1));
+                    let staging = unsafe {
+                        PinnedStaging::new(
+                            pinned.as_mut_ptr() as *mut u8,
+                            section * std::mem::size_of::<F>(),
+                        )
+                    };
                     let maybe_trace = air
-                        .generate_preprocessed_trace_device(program, &self.trace_allocator)
+                        .generate_preprocessed_trace_device(program, staging, scope)
                         .await
                         .unwrap();
+                    // Ensure the async copy out of `pinned` completed before it is freed.
+                    scope.synchronize().await.unwrap();
+                    drop(pinned);
                     (air, maybe_trace)
                 }
             })
@@ -225,15 +387,27 @@ where
             .map(|air| {
                 // We want to borrow the record and move the chip.
                 let record = record.as_ref();
+                let scope = &self.trace_allocator;
                 async move {
-                    let trace = air
-                        .generate_trace_device(
-                            record,
-                            &mut A::Record::default(),
-                            &self.trace_allocator,
+                    // This legacy generator has no shared pinned pool, so stage into
+                    // a temporary pinned buffer sized to the main trace.
+                    let width = <A as BaseAir<F>>::width(air.as_ref());
+                    let section = air.num_rows(record).map_or(0, |h| h * width);
+                    let mut pinned =
+                        sp1_gpu_cudart::PinnedBuffer::<F>::with_capacity(section.max(1));
+                    let staging = unsafe {
+                        PinnedStaging::new(
+                            pinned.as_mut_ptr() as *mut u8,
+                            section * std::mem::size_of::<F>(),
                         )
+                    };
+                    let trace = air
+                        .generate_trace_device(record, &mut A::Record::default(), staging, scope)
                         .await
                         .unwrap();
+                    // Ensure the async copy out of `pinned` completed before it is freed.
+                    scope.synchronize().await.unwrap();
+                    drop(pinned);
                     (air.name().to_string(), trace.into())
                 }
             })
@@ -378,6 +552,7 @@ pub trait CudaTracegenAir<F: Field>: MachineAir<F> {
     fn generate_preprocessed_trace_device(
         &self,
         program: &Self::Program,
+        staging: PinnedStaging,
         scope: &TaskScope,
     ) -> impl Future<Output = Result<Option<DeviceMle<F>>, CopyError>> + Send {
         #[allow(unreachable_code)]
@@ -398,6 +573,7 @@ pub trait CudaTracegenAir<F: Field>: MachineAir<F> {
         &self,
         input: &Self::Record,
         output: &mut Self::Record,
+        staging: PinnedStaging,
         scope: &TaskScope,
     ) -> impl Future<Output = Result<DeviceMle<F>, CopyError>> + Send {
         #[allow(unreachable_code)]
@@ -483,8 +659,19 @@ pub(crate) mod tests {
 
         let trace = Tensor::<F>::from(chip.generate_trace(&shard, &mut Record::default()));
 
+        // Stage the events into a temporary pinned buffer sized to the trace.
+        let width = slop_air::BaseAir::<F>::width(&chip);
+        let section = MachineAir::<F>::num_rows(&chip, &gpu_shard).map_or(0, |h| h * width);
+        let mut pinned = sp1_gpu_cudart::PinnedBuffer::<F>::with_capacity(section.max(1));
+        let staging = unsafe {
+            crate::PinnedStaging::new(
+                pinned.as_mut_ptr() as *mut u8,
+                section * std::mem::size_of::<F>(),
+            )
+        };
+
         let gpu_trace = chip
-            .generate_trace_device(&gpu_shard, &mut Record::default(), &scope)
+            .generate_trace_device(&gpu_shard, &mut Record::default(), staging, &scope)
             .await
             .expect("should copy events to device successfully")
             .to_host()
