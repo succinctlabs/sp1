@@ -3,14 +3,13 @@ use hashbrown::{HashMap, HashSet};
 use std::{marker::PhantomData, str::FromStr};
 
 use crate::{
-    events::NUM_PAGE_PROT_ENTRIES_PER_ROW_EXEC, vm::memory::CompressedMemory, ExecutionMode,
-    Instruction, Opcode, RiscvAirId, ShardingThreshold, SupervisorMode, SyscallCode, UserMode,
-    BYTE_NUM_ROWS, RANGE_NUM_ROWS,
+    events::NUM_PAGE_PROT_ENTRIES_PER_ROW_EXEC, ExecutionMode, Instruction, Opcode, RiscvAirId,
+    ShardingThreshold, SupervisorMode, SyscallCode, UserMode, BYTE_NUM_ROWS, RANGE_NUM_ROWS,
 };
 
 /// The maximum trace area from padding with next multiple of 32.
 /// The correctness of this value is checked in the test `test_maximum_padding`.
-pub const MAXIMUM_PADDING_AREA: u64 = 1 << 18;
+pub const MAXIMUM_PADDING_AREA: u64 = 1 << 20;
 
 /// The maximum trace area from a single cycle.
 /// The correctness of this value is checked in the test `test_maximum_cycle`.
@@ -31,7 +30,6 @@ pub struct ShapeChecker<M: ExecutionMode> {
     trace_area: u64,
     max_height: u64,
     is_commit_on: bool,
-    pub(crate) syscall_sent: bool,
     // The start of the most recent shard according to the shape checking logic.
     shard_start_clk: u64,
     /// The maximum trace size and table height to allow.
@@ -44,10 +42,6 @@ pub struct ShapeChecker<M: ExecutionMode> {
     pub(crate) local_mem_counts: u64,
     /// The number of local page prot accesses during this cycle.
     pub(crate) local_page_prot_counts: u64,
-    /// Whether the last read was external, ie: it was read from a deferred precompile.
-    is_last_read_external: CompressedMemory,
-    /// Whether the last page prot access was external, ie: it was read from a deferred precompile.
-    is_last_page_prot_access_external: HashMap<u64, bool>,
     /// The number of instruction decode events that occurred in this shard.
     shard_distinct_instructions: HashSet<u32>,
 }
@@ -69,7 +63,6 @@ impl<M: ExecutionMode> ShapeChecker<M> {
             trace_area: preprocessed_trace_area + MAXIMUM_PADDING_AREA + MAXIMUM_CYCLE_AREA,
             max_height: 0,
             is_commit_on: false,
-            syscall_sent: false,
             shard_start_clk,
             heights: EnumMap::default(),
             sharding_threshold: elem_threshold,
@@ -77,8 +70,6 @@ impl<M: ExecutionMode> ShapeChecker<M> {
             // Assume that all registers will be touched in each shard.
             local_mem_counts: 32,
             local_page_prot_counts: 0,
-            is_last_read_external: CompressedMemory::new(),
-            is_last_page_prot_access_external: HashMap::new(),
             shard_distinct_instructions: HashSet::new(),
         }
     }
@@ -95,33 +86,15 @@ impl<M: ExecutionMode> ShapeChecker<M> {
     }
 
     #[inline]
-    pub fn handle_mem_event(&mut self, addr: u64, clk: u64) {
-        // Round down to the nearest 8-byte aligned address.
-        let addr = addr & !0b111;
-
-        let is_external = self.syscall_sent;
+    pub fn handle_mem_event(&mut self, _addr: u64, clk: u64) {
         let is_first_read_this_shard = self.shard_start_clk > clk;
-        let is_last_read_external = self.is_last_read_external.insert(addr, is_external);
-
-        self.local_mem_counts +=
-            (is_first_read_this_shard || (is_last_read_external && !is_external)) as u64;
+        self.local_mem_counts += is_first_read_this_shard as u64;
     }
 
     #[inline]
-    pub fn local_mem_syscall_rr(&mut self) {
-        self.local_mem_counts += self.syscall_sent as u64;
-    }
-
-    #[inline]
-    pub fn handle_page_prot_event(&mut self, page_idx: u64, clk: u64) {
-        let is_external = self.syscall_sent;
+    pub fn handle_page_prot_event(&mut self, _page_idx: u64, clk: u64) {
         let is_first_read_this_shard = self.shard_start_clk > clk;
-        let is_last_page_prot_access_external =
-            self.is_last_page_prot_access_external.insert(page_idx, is_external).unwrap_or(false);
-
-        self.local_page_prot_counts += (is_first_read_this_shard
-            || (is_last_page_prot_access_external && !is_external))
-            as u64;
+        self.local_page_prot_counts += is_first_read_this_shard as u64;
     }
 
     #[inline]
@@ -151,41 +124,38 @@ impl<M: ExecutionMode> ShapeChecker<M> {
     }
 
     #[inline]
-    pub fn handle_retained_syscall(&mut self, syscall_code: SyscallCode) {
+    pub fn handle_retained_syscall(&mut self, syscall_code: SyscallCode, op_c: u64) {
         let syscall_air_id = if M::PAGE_PROTECTION_ENABLED {
             syscall_code.as_air_id_user().unwrap()
         } else {
             syscall_code.as_air_id().unwrap()
         };
 
-        let rows_per_event = syscall_air_id.rows_per_event() as u64;
+        // `HintRead` emits one row per written word (`ceil(len_bytes / 8)`, with `len_bytes` the
+        // syscall's `op_c`); every other retained syscall has a fixed row count.
+        let rows_per_event = if syscall_air_id == RiscvAirId::HintRead {
+            op_c.div_ceil(8)
+        } else {
+            syscall_air_id.rows_per_event() as u64
+        };
         self.heights[syscall_air_id] += rows_per_event;
 
         self.trace_area += rows_per_event * self.costs[syscall_air_id];
         self.max_height = self.max_height.max(self.heights[syscall_air_id]);
 
-        // Currently, all precompiles with `rows_per_event > 1` have the respective control chip.
-        if rows_per_event > 1 {
-            self.trace_area += self.costs[syscall_air_id
-                .control_air_id(M::PAGE_PROTECTION_ENABLED)
-                .expect("Controls AIRs are found for each precompile with rows_per_event > 1")];
+        // The control chip, when present, contributes one row per event.
+        if let Some(control_air_id) = syscall_air_id.control_air_id(M::PAGE_PROTECTION_ENABLED) {
+            self.trace_area += self.costs[control_air_id];
         }
     }
 
     fn update_heights_and_area(&mut self, bump_clk_high: bool, needs_state_bump: bool) {
         let touched_addresses: u64 = std::mem::take(&mut self.local_mem_counts);
-        let syscall_sent = std::mem::take(&mut self.syscall_sent);
 
         // Increment for each touched address in memory local
         self.trace_area += touched_addresses * self.costs[RiscvAirId::MemoryLocal];
         self.heights[RiscvAirId::MemoryLocal] += touched_addresses;
         self.max_height = self.max_height.max(self.heights[RiscvAirId::MemoryLocal]);
-
-        // Increment for all the global interactions
-        self.trace_area +=
-            self.costs[RiscvAirId::Global] * (2 * touched_addresses + syscall_sent as u64);
-        self.heights[RiscvAirId::Global] += 2 * touched_addresses + syscall_sent as u64;
-        self.max_height = self.max_height.max(self.heights[RiscvAirId::Global]);
 
         // Increment by if bump_clk_high is needed
         if bump_clk_high {
@@ -201,28 +171,6 @@ impl<M: ExecutionMode> ShapeChecker<M> {
             self.heights[RiscvAirId::StateBump] += 1;
             self.max_height = self.max_height.max(self.heights[RiscvAirId::StateBump]);
         }
-
-        if syscall_sent {
-            // Increment if the syscall is retained
-            self.trace_area += self.costs[RiscvAirId::SyscallCore];
-            self.heights[RiscvAirId::SyscallCore] += 1;
-            self.max_height = self.max_height.max(self.heights[RiscvAirId::SyscallCore]);
-        }
-    }
-
-    #[inline]
-    pub fn syscall_sent(&mut self) {
-        self.syscall_sent = true;
-    }
-
-    #[inline]
-    pub fn get_syscall_sent(&self) -> bool {
-        self.syscall_sent
-    }
-
-    #[inline]
-    pub fn set_syscall_sent(&mut self, syscall_sent: bool) {
-        self.syscall_sent = syscall_sent;
     }
 
     /// Set the start clock of the shard.
@@ -250,7 +198,6 @@ impl ShapeChecker<SupervisorMode> {
     /// # Arguments
     ///
     /// * `instruction`: The instruction that is being handled.
-    /// * `syscall_sent`: Whether a syscall was sent during this cycle.
     /// * `bump_clk_high`: Whether the clk's top 24 bits incremented during this cycle.
     /// * `is_alu_x0`: Whether the instruction is an ALU instruction with `rd = x0`.
     /// * `is_load_x0`: Whether the instruction is a load of x0, if so the riscv air id is `LoadX0`.
@@ -314,9 +261,6 @@ impl ShapeChecker<UserMode> {
 
     fn update_heights_and_area_prot(&mut self, num_page_prot_accesses: usize) {
         let touched_pages: u64 = std::mem::take(&mut self.local_page_prot_counts);
-        self.trace_area += self.costs[RiscvAirId::Global] * 2 * touched_pages;
-        self.heights[RiscvAirId::Global] += 2 * touched_pages;
-        self.max_height = self.max_height.max(self.heights[RiscvAirId::Global]);
 
         // Increment for each page prot access
         let prev_count = self.heights[RiscvAirId::PageProt];
@@ -433,6 +377,35 @@ pub fn riscv_air_id_from_opcode_user(opcode: Opcode) -> RiscvAirId {
         _ => {
             eprintln!("Unknown opcode: {opcode:?}");
             unreachable!()
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ShapeChecker;
+    use crate::{RiscvAirId, ShardingThreshold, SupervisorMode, SyscallCode};
+
+    fn fresh_checker() -> ShapeChecker<SupervisorMode> {
+        // A threshold large enough that a single syscall never trips the shard limit.
+        let threshold = ShardingThreshold { element_threshold: 1 << 30, height_threshold: 1 << 30 };
+        ShapeChecker::<SupervisorMode>::new(0, 0, threshold)
+    }
+
+    /// `HintRead` area tracks the exact `ceil(len_bytes / 8)` words, plus one control row per event
+    /// even when the hint is a single word.
+    #[test]
+    fn hint_read_area_is_exact_in_words() {
+        let reference = fresh_checker();
+        let hint_cost = reference.costs[RiscvAirId::HintRead];
+        let control_cost = reference.costs[RiscvAirId::HintReadControl];
+
+        for (len_bytes, words) in [(1u64, 1u64), (8, 1), (9, 2), (16, 2), (8192, 1024)] {
+            let mut checker = fresh_checker();
+            let before = checker.trace_area;
+            checker.handle_retained_syscall(SyscallCode::HINT_READ, len_bytes);
+            assert_eq!(checker.trace_area - before, words * hint_cost + control_cost);
+            assert_eq!(checker.heights[RiscvAirId::HintRead], words);
         }
     }
 }

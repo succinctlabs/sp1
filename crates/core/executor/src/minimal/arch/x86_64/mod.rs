@@ -3,9 +3,9 @@
 use crate::{memory::MAX_LOG_ADDR, ExecutionMode, Instruction, Opcode, Program, Register, HALT_PC};
 use memmap2::MmapMut;
 use sp1_jit::{
-    debug, memory::AnonymousMemory, trace_capacity, DebugBackend, JitFunction, JitMemory, MemValue,
-    RiscOperand, RiscRegister, RiscvTranspiler, TraceChunkHeader, TraceChunkRaw, TranspilerBackend,
-    PUBLIC_VALUE_DIGEST_WORDS,
+    debug, memory::AnonymousMemory, trace_capacity, DebugBackend, DirtyPages, JitFunction,
+    JitMemory, MemValue, RiscOperand, RiscRegister, RiscvTranspiler, TraceChunkHeader,
+    TraceChunkRaw, TranspilerBackend, PUBLIC_VALUE_DIGEST_WORDS,
 };
 use std::marker::PhantomData;
 use std::{
@@ -68,6 +68,19 @@ impl<M: ExecutionMode> MinimalExecutor<M> {
         Self::new(program, false, None)
     }
 
+    /// Drain and return the dirty-page tracking state accumulated during the most recent
+    /// chunk(s). Forwards to [`JitFunction::emit_dirty_pages`].
+    pub fn emit_dirty_pages(&mut self) -> DirtyPages {
+        self.compiled.emit_dirty_pages()
+    }
+
+    /// Borrow the compiled JIT function. Used by benchmarks that need to inspect memory
+    /// state before/after a `call()` to verify dirty-tracking correctness.
+    #[must_use]
+    pub fn compiled(&self) -> &JitFunction<AnonymousMemory> {
+        &self.compiled
+    }
+
     /// Create a new minimal executor with tracing.
     ///
     /// # Arguments
@@ -115,13 +128,28 @@ impl<M: ExecutionMode> MinimalExecutor<M> {
             None => std::ptr::null_mut(),
         };
 
+        // Reset chunk-relative clk and snapshot global_clk for chunk-relative clk_end.
+        self.compiled.clk = 1;
+        let global_clk_before = self.compiled.global_clk;
+
         unsafe {
             self.compiled.call(trace_buf_ptr);
         }
 
-        trace_buf.map(|trace_buf| unsafe {
-            TraceChunkRaw::new(trace_buf.make_read_only().expect("make trace buf read only"))
-        })
+        if !trace_buf_ptr.is_null() {
+            let cycles_in_chunk = self.compiled.global_clk - global_clk_before;
+            let clk_end = 8u64.wrapping_mul(cycles_in_chunk).wrapping_add(self.compiled.clk);
+            #[allow(clippy::cast_ptr_alignment)]
+            unsafe {
+                let header = trace_buf_ptr.cast::<TraceChunkHeader>();
+                (*header).clk_start = 1;
+                (*header).clk_end = clk_end;
+            }
+        }
+
+        // Hand off the trace buffer writable; SplicingVM patches `MemValue.clk` in
+        // place. The read-only convention is enforced by `TraceChunkRaw`'s API.
+        trace_buf.map(|trace_buf| unsafe { TraceChunkRaw::new(trace_buf) })
     }
 
     /// Run `MinimalExecutor` till the end, returns the count of trace chunks generated.
@@ -353,9 +381,8 @@ impl MinimalTranspiler {
     #[allow(clippy::unused_self)]
     #[must_use]
     pub fn memory_buffer_size(&self) -> usize {
-        // Double the size of memory.
-        // We are going to store entries of the form (clk, word).
-        self.max_memory_size * 2
+        // Only the value is stored inside the VM memory.
+        self.max_memory_size
     }
 
     /// Transpile the program, saving the JIT function.
@@ -368,7 +395,6 @@ impl MinimalTranspiler {
             self.max_trace_size,
             program.pc_start_abs,
             program.pc_base,
-            8,
         )
         .expect("Failed to create transpiler backend");
 

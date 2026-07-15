@@ -6,7 +6,7 @@
 //! methods SP1 chips don't use (transition windows, permutation columns).
 
 use slop_air::{
-    Air, AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, PairBuilder,
+    Air, AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, GlobalBuilder, PairBuilder,
     PermutationAirBuilder,
 };
 use slop_matrix::dense::{DenseMatrix, RowMajorMatrixView};
@@ -28,6 +28,7 @@ use crate::{EF, F};
 /// flows through the global `DAG_STATE`.
 pub struct DagBuilder<'a> {
     pub preprocessed: RowMajorMatrixView<'a, DagVarF>,
+    pub global: RowMajorMatrixView<'a, DagVarF>,
     pub main: RowMajorMatrixView<'a, DagVarF>,
     pub public_values: &'a [DagVarF],
     pub num_constraints: u32,
@@ -101,6 +102,12 @@ impl PairBuilder for DagBuilder<'_> {
     }
 }
 
+impl GlobalBuilder for DagBuilder<'_> {
+    fn global(&self) -> Self::M {
+        self.global
+    }
+}
+
 impl AirBuilderWithPublicValues for DagBuilder<'_> {
     type PublicVar = DagVarF;
 
@@ -135,23 +142,28 @@ where
     }
 
     let preprocessed_width = air.preprocessed_width() as u32;
+    let global_width = air.global_width() as u32;
     let main_width = air.width() as u32;
 
-    // Eagerly intern all preprocessed and main column refs. Chip `eval`
-    // reads them through the matrix view.
+    // Eagerly intern all preprocessed, global, and main column refs. Chip
+    // `eval` reads them through the matrix view.
     let prep_vars: Vec<DagVarF> =
         (0..preprocessed_width).map(DagVarF::preprocessed_local).collect();
+    let global_vars: Vec<DagVarF> = (0..global_width).map(DagVarF::global_local).collect();
     let main_vars: Vec<DagVarF> = (0..main_width).map(DagVarF::main_local).collect();
     let public_values: Vec<DagVarF> =
         (0..PROOF_MAX_NUM_PVS as u32).map(DagVarF::public_value).collect();
 
     let prep_matrix = DenseMatrix::new(prep_vars, preprocessed_width.max(1) as usize);
+    let global_matrix = DenseMatrix::new(global_vars, global_width.max(1) as usize);
     let main_matrix = DenseMatrix::new(main_vars, main_width.max(1) as usize);
     let preprocessed_view = AirOpenedValues { local: prep_matrix.values.clone() };
+    let global_view = AirOpenedValues { local: global_matrix.values.clone() };
     let main_view = AirOpenedValues { local: main_matrix.values.clone() };
 
     let mut folder = DagBuilder {
         preprocessed: preprocessed_view.view(),
+        global: global_view.view(),
         main: main_view.view(),
         public_values: &public_values,
         num_constraints: 0,
@@ -168,5 +180,5 @@ where
         (nodes, constraints)
     };
 
-    ConstraintDag { nodes, constraints, preprocessed_width, main_width }
+    ConstraintDag { nodes, constraints, preprocessed_width, global_width, main_width }
 }

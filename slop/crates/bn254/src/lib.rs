@@ -110,6 +110,15 @@ impl<F: PrimeField31, EF: ExtensionField<F>> IopCtx for Poseidon2Bn254GlobalConf
         >::new(default_perm)
         .unwrap()
     }
+
+    /// The outer context has no global round.
+    fn digest_to_elements(_digest: &Self::Digest) -> Vec<Self::F> {
+        unimplemented!("BN254 digests are not used in a global round")
+    }
+
+    fn digest_from_elements(_elements: &[Self::F]) -> Self::Digest {
+        unimplemented!("BN254 digests are not used in a global round")
+    }
 }
 
 pub type BNGC<F, EF> = Poseidon2Bn254GlobalConfig<F, EF>;

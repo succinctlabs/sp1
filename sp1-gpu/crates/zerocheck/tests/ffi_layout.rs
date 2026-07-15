@@ -102,6 +102,7 @@ fn chunk_static_layout_matches() {
         "chip_idx" => std::mem::offset_of!(ChunkStaticC, chip_idx),
         "gkr_main_width" => std::mem::offset_of!(ChunkStaticC, gkr_main_width),
         "gkr_prep_width" => std::mem::offset_of!(ChunkStaticC, gkr_prep_width),
+        "gkr_global_width" => std::mem::offset_of!(ChunkStaticC, gkr_global_width),
         "chip_alpha_offset" => std::mem::offset_of!(ChunkStaticC, chip_alpha_offset),
     );
 }
@@ -114,6 +115,7 @@ fn chip_layout_matches() {
         std::mem::size_of::<ChipLayoutC>(),
         "main_ptr" => std::mem::offset_of!(ChipLayoutC, main_ptr),
         "preprocessed_ptr" => std::mem::offset_of!(ChipLayoutC, preprocessed_ptr),
+        "global_ptr" => std::mem::offset_of!(ChipLayoutC, global_ptr),
         "height" => std::mem::offset_of!(ChipLayoutC, height),
         "_pad" => std::mem::offset_of!(ChipLayoutC, _pad),
     );

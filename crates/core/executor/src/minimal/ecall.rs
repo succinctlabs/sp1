@@ -33,12 +33,9 @@ use sp1_curves::{
 };
 use sp1_jit::{Interrupt, RiscRegister, SyscallContext};
 
-// Used by the x86_64 JIT executor. When profiling is enabled, only compiled for tests.
-#[cfg(all(
-    target_arch = "x86_64",
-    target_endian = "little",
-    any(not(feature = "profiling"), test)
-))]
+// The ecall handler for the x86_64 JIT backend. Compiled whenever the native backend is
+// available for this target, matching the configs where `arch::x86_64` (its only user) is built.
+#[cfg(sp1_native_executor_available)]
 #[allow(dead_code)]
 pub(super) extern "C" fn sp1_ecall_handler(ctx: *mut sp1_jit::JitContext) -> u64 {
     let ctx = unsafe { &mut *ctx };

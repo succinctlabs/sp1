@@ -141,6 +141,22 @@ impl<T: DeviceCopy> DeviceBuffer<T> {
     }
 }
 
+/// Index a contiguous range as a device [`Slice`].
+impl<T: DeviceCopy> std::ops::Index<std::ops::Range<usize>> for DeviceBuffer<T> {
+    type Output = Slice<T, TaskScope>;
+
+    fn index(&self, range: std::ops::Range<usize>) -> &Self::Output {
+        &self.buf[range]
+    }
+}
+
+impl<T: DeviceCopy> DeviceBuffer<T> {
+    pub fn elem_ptr(&self, i: usize) -> *const T {
+        assert!(i < self.len(), "elem_ptr index {i} out of bounds (len {})", self.len());
+        unsafe { self.as_ptr().add(i) }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use rand::{thread_rng, Rng};

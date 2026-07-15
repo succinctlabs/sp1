@@ -1,7 +1,7 @@
 use crate::{analyzed::AnalyzedInstruction, shape::RecursionShape, *};
 use serde::{Deserialize, Serialize};
 use slop_algebra::Field;
-use sp1_hypercube::{air::MachineProgram, septic_digest::SepticDigest, UntrustedConfig};
+use sp1_hypercube::{air::MachineProgram, UntrustedConfig};
 use std::ops::{Deref, DerefMut};
 
 pub use basic_block::BasicBlock;
@@ -73,8 +73,8 @@ impl<F: Field> MachineProgram<F> for RecursionProgram<F> {
         [F::zero(), F::zero(), F::zero()]
     }
 
-    fn initial_global_cumulative_sum(&self) -> SepticDigest<F> {
-        SepticDigest::<F>::zero()
+    fn initial_memory_root(&self) -> [F; 8] {
+        [F::zero(); 8]
     }
 
     fn untrusted_config(&self) -> UntrustedConfig<F> {

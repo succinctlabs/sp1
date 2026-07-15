@@ -57,8 +57,6 @@ pub fn trace_chunk<F: PrimeField32>(
         }
     }
 
-    vm.record_mut().finalize_public_values::<F>(true);
-
     let registers = *vm.registers();
     drop(vm);
     Ok((status.is_done(), record, registers))

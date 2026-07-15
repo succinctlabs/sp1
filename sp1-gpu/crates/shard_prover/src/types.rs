@@ -18,6 +18,8 @@ where
     /// Main trace data
     pub main_trace_data:
         MainTraceData<GC, ShardContextImpl<GC, PC::C, PC::Air>, crate::CudaShardProver<GC, PC>>,
+    /// The chunk's ordered global-trace commitments.
+    pub global_commitments: Option<Vec<GC::Digest>>,
 }
 
 pub struct MainTraceData<

@@ -21,9 +21,10 @@ use sp1_recursion_circuit::{
     },
     jagged::{RecursiveJaggedEvalSumcheckConfig, RecursiveJaggedPcsVerifier},
     machine::{
-        InnerVal, PublicValuesOutputDigest, SP1CompressRootVerifierWithVKey,
-        SP1CompressWithVKeyVerifier, SP1CompressWithVKeyWitnessValues, SP1DeferredVerifier,
-        SP1DeferredWitnessValues, SP1NormalizeWitnessValues, SP1RecursiveVerifier,
+        InnerVal, PublicValuesOutputDigest, SP1ChunkCompressVerifier,
+        SP1CompressRootVerifierWithVKey, SP1CompressWithVKeyWitnessValues, SP1DeferredVerifier,
+        SP1DeferredWitnessValues, SP1GlobalCompressVerifier, SP1NormalizeWitnessValues,
+        SP1RecursiveVerifier,
     },
     shard::RecursiveShardVerifier,
     witness::Witnessable,
@@ -35,7 +36,6 @@ use sp1_recursion_compiler::{
     ir::{Builder, DslIrProgram},
 };
 use sp1_recursion_executor::{RecursionProgram, DIGEST_SIZE};
-#[cfg(feature = "mprotect")]
 use sp1_verifier::VerifierRecursionVks;
 
 use crate::{
@@ -129,7 +129,6 @@ impl RecursionVks {
 
     /// Build a [`VerifierRecursionVks`] whose `root`, `num_keys`, and
     /// `vk_verification` match this prover-side instance.
-    #[cfg(feature = "mprotect")]
     pub fn to_verifier_vks(&self) -> VerifierRecursionVks {
         VerifierRecursionVks {
             root: self.root,
@@ -244,8 +243,9 @@ pub(crate) fn deferred_program_from_input(
     program
 }
 
-/// The "compose" program, which verifies some number of normalized shard proofs.
-pub fn compose_program_from_input(
+/// The within-chunk "compose" program, built around [`SP1ChunkCompressVerifier`]. Reads the same
+/// witness as the other compose family, so shapes and `dummy_compose_input` are unchanged.
+pub fn chunk_compose_program_from_input(
     recursive_verifier: &RecursiveShardVerifier<
         SP1GlobalContext,
         CompressAir<InnerVal>,
@@ -254,13 +254,13 @@ pub fn compose_program_from_input(
     vk_verification: bool,
     input: &SP1CompressWithVKeyWitnessValues<SP1PcsProofInner>,
 ) -> RecursionProgram<SP1Field> {
-    let builder_span = tracing::debug_span!("build compress program").entered();
+    let builder_span = tracing::debug_span!("build within-chunk compress program").entered();
     let mut builder = Builder::<InnerConfig>::default();
     // read the input.
     let input = input.read(&mut builder);
 
-    // Verify the proof.
-    SP1CompressWithVKeyVerifier::<InnerConfig, SP1InnerPcs, _>::verify(
+    // Verify the child proofs.
+    SP1ChunkCompressVerifier::<InnerConfig, SP1InnerPcs, _>::verify(
         &mut builder,
         recursive_verifier,
         input,
@@ -274,7 +274,45 @@ pub fn compose_program_from_input(
     let dsl_program = unsafe { DslIrProgram::new_unchecked(block) };
 
     // Compile the program.
-    let compiler_span = tracing::debug_span!("compile compress program").entered();
+    let compiler_span = tracing::debug_span!("compile within-chunk compress program").entered();
+    let mut compiler = AsmCompiler::default();
+    let program = compiler.compile(dsl_program);
+    compiler_span.exit();
+    program
+}
+
+/// The across-chunk "compose" program, built around [`SP1GlobalCompressVerifier`]. Reads the same
+/// witness as the other compose family, so shapes and `dummy_compose_input` are unchanged.
+pub fn global_compose_program_from_input(
+    recursive_verifier: &RecursiveShardVerifier<
+        SP1GlobalContext,
+        CompressAir<InnerVal>,
+        InnerConfig,
+    >,
+    vk_verification: bool,
+    input: &SP1CompressWithVKeyWitnessValues<SP1PcsProofInner>,
+) -> RecursionProgram<SP1Field> {
+    let builder_span = tracing::debug_span!("build across-chunk compress program").entered();
+    let mut builder = Builder::<InnerConfig>::default();
+    // read the input.
+    let input = input.read(&mut builder);
+
+    // Verify the child proofs.
+    SP1GlobalCompressVerifier::<InnerConfig, SP1InnerPcs, _>::verify(
+        &mut builder,
+        recursive_verifier,
+        input,
+        vk_verification,
+        PublicValuesOutputDigest::Reduce,
+    );
+    let block = builder.into_root_block();
+    builder_span.exit();
+    // SAFETY: The circuit is well-formed. It does not use synchronization primitives
+    // (or possibly other means) to violate the invariants.
+    let dsl_program = unsafe { DslIrProgram::new_unchecked(block) };
+
+    // Compile the program.
+    let compiler_span = tracing::debug_span!("compile across-chunk compress program").entered();
     let mut compiler = AsmCompiler::default();
     let program = compiler.compile(dsl_program);
     compiler_span.exit();
@@ -407,6 +445,7 @@ pub(crate) fn dummy_deferred_input(
         start_reconstruct_deferred_digest: [SP1Field::zero(); POSEIDON_NUM_WORDS],
         sp1_vk_digest: [SP1Field::zero(); DIGEST_SIZE],
         end_pc: [SP1Field::zero(); 3],
+        initial_memory_root: [SP1Field::zero(); DIGEST_SIZE],
         proof_nonce: [SP1Field::zero(); PROOF_NONCE_NUM_WORDS],
         deferred_proof_index: SP1Field::zero(),
     }

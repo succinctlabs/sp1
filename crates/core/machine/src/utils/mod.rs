@@ -1,4 +1,6 @@
 pub mod concurrency;
+#[cfg(test)]
+mod global_round_test;
 mod logger;
 mod prove;
 mod span;
@@ -6,6 +8,8 @@ mod span;
 mod test;
 mod zerocheck_unit_test;
 
+#[cfg(test)]
+pub use global_round_test::*;
 pub use logger::*;
 pub use prove::*;
 use slop_algebra::{AbstractField, Field};

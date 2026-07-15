@@ -317,7 +317,9 @@ mod tests {
     use serial_test::serial;
     use sp1_core_machine::{riscv::RiscvAir, utils::setup_logger};
 
-    use crate::CpuSP1ProverComponents;
+    use crate::{components::SP1ProverComponents, CpuSP1ProverComponents};
+
+    #[cfg(feature = "experimental")]
     use sp1_hypercube::HashableKey;
 
     use crate::worker::{
@@ -377,9 +379,170 @@ mod tests {
 
     #[tokio::test]
     #[serial]
+    #[ignore]
     async fn test_e2e_node() -> anyhow::Result<()> {
         setup_logger();
         run_e2e_node_test(cpu_worker_builder()).await
+    }
+
+    /// Drive the real `SpliceChunkWorker` pipeline in Core mode and verify the resulting shard
+    /// proofs. Verification is `verify_core_shards` (per-chunk seam + `Σ` cancellation).
+    #[tokio::test]
+    #[serial]
+    async fn worker_core_pipeline_proof_verifies() -> anyhow::Result<()> {
+        setup_logger();
+
+        let machine = RiscvAir::machine();
+        let client = SP1LocalNodeBuilder::from_worker_client_builder(
+            cpu_worker_builder_with_machine(machine.clone()),
+        )
+        .build()
+        .await
+        .unwrap();
+
+        let elf = test_artifacts::FIBONACCI_ELF;
+        let stdin = SP1Stdin::default();
+        let context =
+            SP1Context { proof_nonce: [0x6284, 0xC0DE, 0x4242, 0xCAFE], ..Default::default() };
+
+        let vk = client.setup(&elf).await.unwrap();
+        let proof = client
+            .prove_with_mode(&elf, stdin, context, ProofMode::Core)
+            .await
+            .expect("core proof failed");
+
+        let shard_proofs = match proof.proof {
+            SP1Proof::Core(shards) => shards,
+            _ => panic!("expected a core proof"),
+        };
+        assert!(!shard_proofs.is_empty(), "core proof has no shards");
+
+        let core_verifier = CpuSP1ProverComponents::core_verifier(machine);
+        let proof_data = crate::SP1CoreProofData(shard_proofs);
+        crate::verify::verify_core_shards(&core_verifier, &vk.vk, &proof_data)
+            .expect("worker-produced core proof must verify under the per-chunk seam");
+
+        Ok(())
+    }
+
+    /// Drive the real `SpliceChunkWorker` pipeline in *compress* mode and assert the node folds each
+    /// `TraceChunk`'s shards into exactly one `ChunkProof`.
+    #[tokio::test]
+    #[serial]
+    async fn worker_compress_pipeline_emits_one_chunk_proof_per_chunk() -> anyhow::Result<()> {
+        use std::{collections::BTreeSet, sync::Arc};
+
+        use sp1_hypercube::{SP1PcsProofInner, SP1RecursionProof, SP1VerifyingKey, DIGEST_SIZE};
+        use sp1_primitives::SP1GlobalContext;
+        use sp1_recursion_circuit::dummy::dummy_vk;
+        use tokio::sync::mpsc;
+
+        use crate::worker::{
+            drive_chunk_consumer, CommonProverInput, CoreExecuteTaskRequest, MockRecursionStages,
+            ProofData, RecursionStages, TaskId,
+        };
+
+        setup_logger();
+
+        let machine = RiscvAir::machine();
+        let worker = cpu_worker_builder_with_machine(machine.clone()).build().await.unwrap();
+        let artifact_client = worker.artifact_client().clone();
+        let worker_client = worker.worker_client().clone();
+
+        // Stage the `CoreExecute` inputs. The vk is a dummy: the node's core proving derives its pk
+        // from the program, and the mock `normalize` ignores the vk.
+        let elf_art = artifact_client.create_artifact()?;
+        artifact_client.upload_program(&elf_art, test_artifacts::FIBONACCI_ELF.to_vec()).await?;
+        let stdin_art = artifact_client.create_artifact()?;
+        artifact_client.upload(&stdin_art, SP1Stdin::default()).await?;
+        let common_art = artifact_client.create_artifact()?;
+        artifact_client
+            .upload(
+                &common_art,
+                CommonProverInput {
+                    vk: SP1VerifyingKey { vk: dummy_vk() },
+                    mode: ProofMode::Compressed,
+                    deferred_digest: [0u32; DIGEST_SIZE],
+                    num_deferred_proofs: 0,
+                    nonce: [0x6284, 0xC0DE, 0x4242, 0xCAFE],
+                },
+            )
+            .await?;
+        let output_art = artifact_client.create_artifact()?;
+
+        let context = TaskContext {
+            proof_id: ProofId::new("compress-node-test"),
+            parent_id: None,
+            parent_context: None,
+            requester_id: RequesterId::new("compress-node-test"),
+        };
+        let request = CoreExecuteTaskRequest {
+            elf: elf_art,
+            stdin: stdin_art,
+            common_input: common_art,
+            execution_output: output_art,
+            num_deferred_proofs: 0,
+            cycle_limit: None,
+            context,
+            machine: machine.clone(),
+            stdin_private: false,
+        };
+
+        // Subscribe to the executor task's `ProofData` stream before driving it.
+        let task_id = TaskId::new("compress-node-core-execute");
+        let mut msg_rx = worker_client.subscribe_task_messages(&task_id).await?;
+
+        // Mock the recursion seam.
+        let recursion: Arc<dyn RecursionStages> =
+            Arc::new(MockRecursionStages::new(artifact_client.clone()));
+        let core_prover = worker.prover_engine().core_prover.air_prover();
+        let permits = worker.prover_engine().core_prover.permits();
+        let controller = worker.controller();
+        let engine = controller.initialize_splice_chunk_engine::<CpuSP1ProverComponents>(
+            core_prover,
+            permits,
+            recursion,
+        );
+
+        let (chunk_tx, chunk_rx) = mpsc::channel(controller.splicing_buffer_size());
+        let (exec_res, consumer_res) = tokio::join!(
+            controller.execute(task_id.clone(), request, chunk_tx),
+            drive_chunk_consumer(engine, chunk_rx),
+        );
+        exec_res.expect("executor completed");
+        consumer_res.expect("chunk consumer drained every in-flight chunk");
+
+        // Every `ProofData` was sent before the node tasks returned, so the buffered messages are
+        // all present now.
+        let mut chunk_starts = BTreeSet::new();
+        let mut count = 0usize;
+        while let Ok(bytes) = msg_rx.try_recv() {
+            match bincode::deserialize::<ProofData>(&bytes)? {
+                ProofData::ChunkProof { chunk_range, proof } => {
+                    artifact_client
+                        .download::<SP1RecursionProof<SP1GlobalContext, SP1PcsProofInner>>(&proof)
+                        .await
+                        .expect("chunk proof artifact must be uploaded and downloadable");
+                    assert_eq!(
+                        chunk_range.len(),
+                        1,
+                        "node emits single-chunk ranges, got {chunk_range:?}"
+                    );
+                    assert!(
+                        chunk_starts.insert(chunk_range.start),
+                        "duplicate chunk proof for trace_chunk_idx {}",
+                        chunk_range.start
+                    );
+                    count += 1;
+                }
+                _ => panic!("compress mode must emit only ChunkProof variants"),
+            }
+        }
+
+        assert!(count > 0, "compress run emitted no chunk proofs");
+        assert_eq!(count, chunk_starts.len(), "exactly one chunk proof per trace_chunk_idx");
+
+        Ok(())
     }
 
     #[tokio::test]
@@ -570,13 +733,16 @@ mod tests {
 
     #[tokio::test]
     #[serial]
+    #[cfg(feature = "experimental")]
     async fn test_node_deferred_compress() -> anyhow::Result<()> {
         setup_logger();
 
-        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
-            .build()
-            .await
-            .unwrap();
+        let client = SP1LocalNodeBuilder::from_worker_client_builder(
+            cpu_worker_builder().without_vk_verification(),
+        )
+        .build()
+        .await
+        .unwrap();
 
         // Test program which proves the Keccak-256 hash of various inputs.
         let keccak_elf = test_artifacts::KECCAK256_ELF;

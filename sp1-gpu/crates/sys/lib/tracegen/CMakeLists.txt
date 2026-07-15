@@ -7,6 +7,5 @@ add_library(tracegen_objs OBJECT
     recursion/poseidon2_wide.cu
     recursion/sbox.cu
     recursion/select.cu
-    riscv/global.cu
 )
 target_link_libraries(tracegen_objs PRIVATE sp1_gpu_common)

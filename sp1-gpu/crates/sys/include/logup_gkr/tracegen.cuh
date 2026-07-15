@@ -1,18 +1,30 @@
 #pragma once
 
+#include <cstdint>
+
+// Trace section a `PairCol` reads from; matches `PairColSource` in
+// `crates/logup_gkr/src/interactions.rs`.
+#define PAIR_COL_SOURCE_PREPROCESSED 0
+#define PAIR_COL_SOURCE_GLOBAL 1
+#define PAIR_COL_SOURCE_MAIN 2
+
 template <typename F>
 struct PairCol {
     size_t column_idx;
-    bool is_preprocessed;
+    uint8_t source;
     F weight;
 
   public:
-    __device__ F get(F* preprocessed, F* main, size_t rowIdx, size_t height) {
-        if (is_preprocessed) {
-            return preprocessed[column_idx * height + rowIdx] * weight;
+    __device__ F get(F* preprocessed, F* global, F* main, size_t rowIdx, size_t height) {
+        F* base;
+        if (source == PAIR_COL_SOURCE_PREPROCESSED) {
+            base = preprocessed;
+        } else if (source == PAIR_COL_SOURCE_GLOBAL) {
+            base = global;
         } else {
-            return main[column_idx * height + rowIdx] * weight;
+            base = main;
         }
+        return base[column_idx * height + rowIdx] * weight;
     }
 };
 
@@ -30,6 +42,7 @@ struct Interactions {
 
     F* arg_indices;
     bool* is_send;
+    bool* is_global;
 
     size_t num_interactions;
 };

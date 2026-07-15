@@ -1,4 +1,6 @@
-use slop_air::{AirBuilder, AirBuilderWithPublicValues, PairBuilder, PairCol, VirtualPairCol};
+use slop_air::{
+    AirBuilder, AirBuilderWithPublicValues, GlobalBuilder, PairBuilder, PairCol, VirtualPairCol,
+};
 use slop_algebra::Field;
 use slop_matrix::dense::RowMajorMatrix;
 use slop_uni_stark::{Entry, SymbolicExpression, SymbolicVariable};
@@ -13,6 +15,7 @@ use super::Interaction;
 /// A builder for the lookup table interactions.
 pub struct InteractionBuilder<F: Field> {
     preprocessed: RowMajorMatrix<SymbolicVariable<F>>,
+    global: RowMajorMatrix<SymbolicVariable<F>>,
     main: RowMajorMatrix<SymbolicVariable<F>>,
     sends: Vec<Interaction<F>>,
     receives: Vec<Interaction<F>>,
@@ -20,12 +23,16 @@ pub struct InteractionBuilder<F: Field> {
 }
 
 impl<F: Field> InteractionBuilder<F> {
-    /// Creates a new [`InteractionBuilder`] with the given width.
+    /// Creates a new [`InteractionBuilder`] with the given widths.
     #[must_use]
-    pub fn new(preprocessed_width: usize, main_width: usize) -> Self {
+    pub fn new(preprocessed_width: usize, global_width: usize, main_width: usize) -> Self {
         let preprocessed_width = preprocessed_width.max(1);
         let prep_values = (0..preprocessed_width)
             .map(move |column| SymbolicVariable::new(Entry::Preprocessed { offset: 0 }, column))
+            .collect();
+
+        let global_values = (0..global_width)
+            .map(move |column| SymbolicVariable::new(Entry::Global { offset: 0 }, column))
             .collect();
 
         let main_values = (0..main_width)
@@ -34,6 +41,7 @@ impl<F: Field> InteractionBuilder<F> {
 
         Self {
             preprocessed: RowMajorMatrix::new(prep_values, preprocessed_width),
+            global: RowMajorMatrix::new(global_values, global_width),
             main: RowMajorMatrix::new(main_values, main_width),
             sends: vec![],
             receives: vec![],
@@ -76,6 +84,12 @@ impl<F: Field> AirBuilder for InteractionBuilder<F> {
 impl<F: Field> PairBuilder for InteractionBuilder<F> {
     fn preprocessed(&self) -> Self::M {
         self.preprocessed.clone()
+    }
+}
+
+impl<F: Field> GlobalBuilder for InteractionBuilder<F> {
+    fn global(&self) -> Self::M {
+        self.global.clone()
     }
 }
 
@@ -128,6 +142,7 @@ fn eval_symbolic_to_virtual_pair<F: Field>(
             Entry::Preprocessed { offset: 0 } => {
                 (vec![(PairCol::Preprocessed(v.index), F::one())], F::zero())
             }
+            Entry::Global { offset: 0 } => (vec![(PairCol::Global(v.index), F::one())], F::zero()),
             Entry::Main { offset: 0 } => (vec![(PairCol::Main(v.index), F::one())], F::zero()),
             _ => panic!("not an affine expression in current row elements {:?}", v.entry),
         },
@@ -206,7 +221,7 @@ mod tests {
 
         let z = VirtualPairCol::new(column_weights, constant);
 
-        let expr: F = z.apply(&[], &[F::one(), F::one()]);
+        let expr: F = z.apply(&[], &[], &[F::one(), F::one()]);
 
         println!("expr: {expr}");
     }
@@ -259,7 +274,7 @@ mod tests {
     fn test_lookup_interactions() {
         let air = LookupTestAir {};
 
-        let mut builder = InteractionBuilder::<SP1Field>::new(0, NUM_COLS);
+        let mut builder = InteractionBuilder::<SP1Field>::new(0, 0, NUM_COLS);
 
         air.eval(&mut builder);
 
@@ -271,6 +286,7 @@ mod tests {
             for value in interaction.values {
                 let expr = value.apply::<SymbolicExpression<SP1Field>, SymbolicVariable<SP1Field>>(
                     &[],
+                    &[],
                     main.row_mut(0),
                 );
                 print!("{expr:?}, ");
@@ -279,6 +295,7 @@ mod tests {
             let multiplicity = interaction
                 .multiplicity
                 .apply::<SymbolicExpression<SP1Field>, SymbolicVariable<SP1Field>>(
+                    &[],
                     &[],
                     main.row_mut(0),
                 );
@@ -291,6 +308,7 @@ mod tests {
             for value in interaction.values {
                 let expr = value.apply::<SymbolicExpression<SP1Field>, SymbolicVariable<SP1Field>>(
                     &[],
+                    &[],
                     main.row_mut(0),
                 );
                 print!("{expr:?}, ");
@@ -299,6 +317,7 @@ mod tests {
             let multiplicity = interaction
                 .multiplicity
                 .apply::<SymbolicExpression<SP1Field>, SymbolicVariable<SP1Field>>(
+                    &[],
                     &[],
                     main.row_mut(0),
                 );

@@ -33,10 +33,10 @@ use sp1_gpu_jagged_tracegen::CORE_MAX_TRACE_SIZE;
 use sp1_gpu_logup_gkr::Interactions;
 use sp1_gpu_merkle_tree::{CudaTcsProver, Poseidon2SP1Field16CudaProver};
 use sp1_gpu_shard_prover::{CudaShardProver, CudaShardProverComponents};
-use sp1_gpu_utils::{Ext, Felt, JaggedTraceMle, TestGC};
+use sp1_gpu_utils::{Ext, Felt, JaggedTraceMle, TestGC, TraceSection};
 use sp1_gpu_zerocheck::primitives::round_batch_evaluations;
 use sp1_hypercube::air::MachineAir;
-use sp1_hypercube::{SP1InnerPcs, NUM_SP1_COMMITMENTS};
+use sp1_hypercube::SP1InnerPcs;
 use sp1_primitives::fri_params::core_fri_config;
 
 pub struct BenchProverComponents {}
@@ -67,7 +67,17 @@ fn run_verify_trusted_evaluations<R: Rng>(
     let (_preprocessed_digest, preprocessed_prover_data) = commit_multilinears::<TestGC, _>(
         jagged_trace_data,
         CORE_MAX_LOG_ROW_COUNT,
-        true,
+        TraceSection::Preprocessed,
+        false,
+        &basefold_prover,
+    )
+    .unwrap();
+
+    // The core machine has a global round, so commit all three sections.
+    let (_global_digest, global_prover_data) = commit_multilinears::<TestGC, _>(
+        jagged_trace_data,
+        CORE_MAX_LOG_ROW_COUNT,
+        TraceSection::Global,
         false,
         &basefold_prover,
     )
@@ -76,7 +86,7 @@ fn run_verify_trusted_evaluations<R: Rng>(
     let (_main_digest, main_prover_data) = commit_multilinears::<TestGC, _>(
         jagged_trace_data,
         CORE_MAX_LOG_ROW_COUNT,
-        false,
+        TraceSection::Main,
         false,
         &basefold_prover,
     )
@@ -141,7 +151,8 @@ fn run_verify_trusted_evaluations<R: Rng>(
         new_evaluation_claims.push(MleEval::new(device_tensor.into_inner()));
     }
     let claims: Rounds<_> = new_evaluation_claims.into_iter().collect();
-    let prover_data = Rounds::from_iter([&preprocessed_prover_data, &main_prover_data]);
+    let prover_data =
+        Rounds::from_iter([&preprocessed_prover_data, &global_prover_data, &main_prover_data]);
 
     // Snapshot the challenger state the verifier must replicate.
     let verifier_starting_challenger = prover_challenger.clone();
@@ -163,10 +174,10 @@ fn run_verify_trusted_evaluations<R: Rng>(
         core_fri_config(),
         LOG_STACKING_HEIGHT,
         CORE_MAX_LOG_ROW_COUNT as usize,
-        NUM_SP1_COMMITMENTS,
+        3,
     );
 
-    let commitments = [_preprocessed_digest, _main_digest];
+    let commitments = [_preprocessed_digest, _global_digest, _main_digest];
 
     // Sanity check: a proof produced by the GPU prover must verify with the
     // CPU verifier (using a clone of the saved starting challenger state).

@@ -9,7 +9,7 @@ use crate::minimal::ecall::sp1_ecall_handler;
 
 // Helper function to create a new backend for testing
 fn new_backend() -> sp1_jit::backends::x86::TranspilerBackend {
-    sp1_jit::backends::x86::TranspilerBackend::new(0, 1024 * 2, 1000, 100, 100, 8).unwrap()
+    sp1_jit::backends::x86::TranspilerBackend::new(0, 1024 * 2, 1000, 100, 100).unwrap()
 }
 
 // Finalize the function and call it.
@@ -40,7 +40,7 @@ fn test_write_syscall_to_public_values() {
     backend.sw(RiscRegister::X0, RiscRegister::X1, 0x10);
     backend.add(
         RiscRegister::X1,
-        RiscOperand::Immediate(0x9ABCDEF0u32 as i32),
+        RiscOperand::Immediate(0x9ABCDEF0u32 as i32 as i64),
         RiscOperand::Immediate(0),
     );
     backend.sw(RiscRegister::X0, RiscRegister::X1, 0x14);
@@ -49,7 +49,7 @@ fn test_write_syscall_to_public_values() {
     backend.add(RiscRegister::X5, RiscOperand::Immediate(0x02), RiscOperand::Immediate(0));
     backend.add(
         RiscRegister::X10,
-        RiscOperand::Immediate(FD_PUBLIC_VALUES as i32),
+        RiscOperand::Immediate(FD_PUBLIC_VALUES as i32 as i64),
         RiscOperand::Immediate(0),
     );
     backend.add(RiscRegister::X11, RiscOperand::Immediate(0x10), RiscOperand::Immediate(0));
@@ -89,7 +89,7 @@ fn test_write_syscall_to_hint() {
     // Store hint data at address 0x10
     backend.add(
         RiscRegister::X1,
-        RiscOperand::Immediate(0xDEADBEEFu32 as i32),
+        RiscOperand::Immediate(0xDEADBEEFu32 as i32 as i64),
         RiscOperand::Immediate(0),
     );
     backend.sw(RiscRegister::X0, RiscRegister::X1, 0x10);
@@ -98,7 +98,7 @@ fn test_write_syscall_to_hint() {
     backend.add(RiscRegister::X5, RiscOperand::Immediate(0x02), RiscOperand::Immediate(0));
     backend.add(
         RiscRegister::X10,
-        RiscOperand::Immediate(FD_HINT as i32),
+        RiscOperand::Immediate(FD_HINT as i32 as i64),
         RiscOperand::Immediate(0),
     );
     backend.add(RiscRegister::X11, RiscOperand::Immediate(0x10), RiscOperand::Immediate(0));

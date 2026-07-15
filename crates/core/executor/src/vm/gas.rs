@@ -1,12 +1,45 @@
 use crate::{
-    events::{MemoryRecord, NUM_PAGE_PROT_ENTRIES_PER_ROW_EXEC},
-    CompressedMemory, ExecutionReport, Instruction, Opcode, RiscvAirId, SyscallCode,
+    events::NUM_PAGE_PROT_ENTRIES_PER_ROW_EXEC, memory::MAX_LOG_ADDR, ExecutionReport, Instruction,
+    Opcode, RiscvAirId, SyscallCode,
 };
 use enum_map::EnumMap;
-use hashbrown::{HashMap, HashSet};
+use hashbrown::HashMap;
+use memmap2::{MmapMut, MmapOptions};
 use std::str::FromStr;
 
 use super::shapes::riscv_air_id_from_opcode_flag;
+
+/// First-touch bitmap over the guest address space, one bit per 8-byte word.
+struct TouchedMemory {
+    bitmap: MmapMut,
+}
+
+impl TouchedMemory {
+    fn new() -> Self {
+        let bitmap = MmapOptions::new()
+            .len(1 << (MAX_LOG_ADDR - 6))
+            .no_reserve_swap()
+            .map_anon()
+            .expect("failed to map first-touch bitmap");
+        Self { bitmap }
+    }
+
+    /// Mark the 8-byte word containing `addr` as touched; returns whether it was untouched.
+    #[inline]
+    fn first_touch(&mut self, addr: u64) -> bool {
+        debug_assert!(addr < 1 << MAX_LOG_ADDR);
+        let word = (addr >> 3) & ((1 << (MAX_LOG_ADDR - 3)) - 1);
+        // SAFETY: the mask above bounds `word >> 3` by the mapping length `2^(MAX_LOG_ADDR - 6)`.
+        let byte = unsafe { self.bitmap.get_unchecked_mut((word >> 3) as usize) };
+        let bit = 1u8 << (word & 7);
+        // Write only on first touch so steady-state accesses leave the cache line clean.
+        if *byte & bit != 0 {
+            return false;
+        }
+        *byte |= bit;
+        true
+    }
+}
 
 // Trusted gas estimation calculator
 // For a given executor, calculate the total complexity and trace area
@@ -14,16 +47,13 @@ use super::shapes::riscv_air_id_from_opcode_flag;
 pub struct ReportGenerator {
     pub opcode_counts: EnumMap<Opcode, u64>,
     pub syscall_counts: EnumMap<SyscallCode, u64>,
-    pub deferred_syscall_counts: EnumMap<SyscallCode, u64>,
     pub system_chips_counts: EnumMap<RiscvAirId, u64>,
 
-    pub(crate) syscall_sent: bool,
     pub(crate) local_mem_counts: u64,
     /// The number of local page prot accesses during this cycle.
     pub(crate) local_page_prot_counts: u64,
-    is_last_read_external: CompressedMemory,
-    /// Whether the last page prot access was external, ie: it was read from a deferred precompile.
-    is_last_page_prot_access_external: HashMap<u64, bool>,
+    /// Which memory words have been accessed in this chunk.
+    touched_words: TouchedMemory,
 
     trace_cost_lookup: EnumMap<RiscvAirId, u64>,
 
@@ -46,24 +76,15 @@ impl ReportGenerator {
             trace_cost_lookup: costs,
             opcode_counts: EnumMap::default(),
             syscall_counts: EnumMap::default(),
-            deferred_syscall_counts: EnumMap::default(),
             system_chips_counts: EnumMap::default(),
-            syscall_sent: false,
             local_mem_counts: 0,
             local_page_prot_counts: 0,
-            is_last_read_external: CompressedMemory::new(),
-            is_last_page_prot_access_external: HashMap::new(),
+            touched_words: TouchedMemory::new(),
             page_prot_entry_count: 0,
             enable_untrusted_programs,
             shard_start_clk,
             exit_code: 0,
         }
-    }
-
-    /// Set the start clock of the shard.
-    #[inline]
-    pub fn reset(&mut self, clk: u64) {
-        *self = Self::new(clk, self.enable_untrusted_programs);
     }
 
     pub fn get_costs(&self) -> (u64, u64) {
@@ -72,19 +93,11 @@ impl ReportGenerator {
 
     /// Generate an `ExecutionReport` from the current state of the `ReportGenerator`
     pub fn generate_report(&self) -> ExecutionReport {
-        // Combine syscall_counts and deferred_syscall_counts, converting from row counts
-        // back to invocation counts for the report. Internally these fields store
-        // rows_per_event * invocations for gas calculation; the report should show
-        // actual invocation counts.
+        // Convert syscall_counts from row counts back to invocation counts for the report.
+        // Internally the field stores rows_per_event * invocations for gas calculation; the
+        // report should show actual invocation counts.
         let mut total_syscall_counts = EnumMap::default();
         for (syscall_code, &count) in self.syscall_counts.iter() {
-            if count > 0 {
-                if let Some(air_id) = syscall_code.as_air_id() {
-                    total_syscall_counts[syscall_code] += count / air_id.rows_per_event() as u64;
-                }
-            }
-        }
-        for (syscall_code, &count) in self.deferred_syscall_counts.iter() {
             if count > 0 {
                 if let Some(air_id) = syscall_code.as_air_id() {
                     total_syscall_counts[syscall_code] += count / air_id.rows_per_event() as u64;
@@ -143,19 +156,6 @@ impl ReportGenerator {
                 })
                 .sum::<u64>()
             + self
-                .deferred_syscall_counts
-                .iter()
-                .map(|(syscall_code, count)| {
-                    if let Some(syscall_air_id) =
-                        syscall_code.as_air_id_flag(self.enable_untrusted_programs)
-                    {
-                        get_complexity_mapping()[syscall_air_id] * count
-                    } else {
-                        0
-                    }
-                })
-                .sum::<u64>()
-            + self
                 .system_chips_counts
                 .iter()
                 .map(|(riscv_air_id, count)| get_complexity_mapping()[riscv_air_id] * count)
@@ -184,55 +184,28 @@ impl ReportGenerator {
                 })
                 .sum::<u64>()
             + self
-                .deferred_syscall_counts
-                .iter()
-                .map(|(syscall_code, count)| {
-                    if let Some(syscall_air_id) =
-                        syscall_code.as_air_id_flag(self.enable_untrusted_programs)
-                    {
-                        self.trace_cost_lookup[syscall_air_id] * count
-                    } else {
-                        0
-                    }
-                })
-                .sum::<u64>()
-            + self
                 .system_chips_counts
                 .iter()
                 .map(|(riscv_air_id, count)| self.trace_cost_lookup[riscv_air_id] * count)
                 .sum::<u64>()
     }
 
+    /// Handle an access to the 8-byte memory word containing `addr`.
     #[inline]
-    pub fn handle_mem_event(&mut self, addr: u64, clk: u64) {
-        // Round down to the nearest 8-byte aligned address.
-        let addr = if addr > 31 { addr & !0b111 } else { addr };
+    pub fn handle_mem_event(&mut self, addr: u64) {
+        self.local_mem_counts += self.touched_words.first_touch(addr) as u64;
+    }
 
-        let is_external = self.syscall_sent;
-
-        let is_first_read_this_shard = self.shard_start_clk > clk;
-
-        let is_last_read_external = self.is_last_read_external.insert(addr, is_external);
-
-        self.local_mem_counts +=
-            (is_first_read_this_shard || (is_last_read_external && !is_external)) as u64;
+    /// Handle a register access.
+    #[inline]
+    pub fn handle_register_event(&mut self, prev_timestamp: u64) {
+        self.local_mem_counts += (self.shard_start_clk > prev_timestamp) as u64;
     }
 
     #[inline]
-    pub fn local_mem_syscall_rr(&mut self) {
-        self.local_mem_counts += self.syscall_sent as u64;
-    }
-
-    #[inline]
-    pub fn handle_page_prot_event(&mut self, page_idx: u64, clk: u64) {
-        let is_external = self.syscall_sent;
+    pub fn handle_page_prot_event(&mut self, _page_idx: u64, clk: u64) {
         let is_first_read_this_shard = self.shard_start_clk > clk;
-        let is_last_page_prot_access_external =
-            self.is_last_page_prot_access_external.insert(page_idx, is_external).unwrap_or(false);
-
-        self.local_page_prot_counts += (is_first_read_this_shard
-            || (is_last_page_prot_access_external && !is_external))
-            as u64;
+        self.local_page_prot_counts += (is_first_read_this_shard) as u64;
     }
 
     #[inline]
@@ -271,48 +244,6 @@ impl ReportGenerator {
         }
     }
 
-    #[inline]
-    pub fn get_syscall_sent(&self) -> bool {
-        self.syscall_sent
-    }
-
-    #[inline]
-    pub fn set_syscall_sent(&mut self, syscall_sent: bool) {
-        self.syscall_sent = syscall_sent;
-    }
-
-    #[inline]
-    pub fn add_global_init_and_finalize_counts(
-        &mut self,
-        final_registers: &[MemoryRecord; 32],
-        mut touched_addresses: HashSet<u64>,
-        hint_init_events_addrs: &HashSet<u64>,
-        memory_image_addrs: &[u64],
-    ) {
-        touched_addresses.extend(memory_image_addrs);
-
-        // Add init for registers
-        self.system_chips_counts[RiscvAirId::MemoryGlobalInit] += 32;
-
-        // Add finalize for registers
-        self.system_chips_counts[RiscvAirId::MemoryGlobalFinalize] +=
-            final_registers.iter().enumerate().filter(|(_, e)| e.timestamp != 0).count() as u64;
-
-        // Add memory init events
-        self.system_chips_counts[RiscvAirId::MemoryGlobalInit] +=
-            hint_init_events_addrs.len() as u64;
-
-        let memory_init_events = touched_addresses
-            .iter()
-            .filter(|addr| !memory_image_addrs.contains(*addr))
-            .filter(|addr| !hint_init_events_addrs.contains(*addr));
-        self.system_chips_counts[RiscvAirId::MemoryGlobalInit] += memory_init_events.count() as u64;
-
-        touched_addresses.extend(hint_init_events_addrs.clone());
-        self.system_chips_counts[RiscvAirId::MemoryGlobalFinalize] +=
-            touched_addresses.len() as u64;
-    }
-
     /// Increment the trace area for the given instruction.
     ///
     /// # Arguments
@@ -337,31 +268,17 @@ impl ReportGenerator {
     /// Update system chip counts based on the current cycle's state.
     fn update_system_chip_counts(&mut self, bump_clk_high: bool, needs_state_bump: bool) {
         let touched_addresses: u64 = std::mem::take(&mut self.local_mem_counts);
-        let syscall_sent = std::mem::take(&mut self.syscall_sent);
 
         let bump_clk_high_num_events = 32 * bump_clk_high as u64;
         self.system_chips_counts[RiscvAirId::MemoryBump] += bump_clk_high_num_events;
         self.system_chips_counts[RiscvAirId::MemoryLocal] += touched_addresses;
         self.system_chips_counts[RiscvAirId::StateBump] += needs_state_bump as u64;
-        self.system_chips_counts[RiscvAirId::Global] += 2 * touched_addresses + syscall_sent as u64;
-        self.system_chips_counts[RiscvAirId::SyscallCore] += syscall_sent as u64;
     }
 
     /// Update system chip counts based on the current cycle's page count state.
     pub fn update_page_chip_counts(&mut self) {
         let touched_pages: u64 = std::mem::take(&mut self.local_page_prot_counts);
-        self.system_chips_counts[RiscvAirId::Global] += 2 * touched_pages;
         self.system_chips_counts[RiscvAirId::PageProtLocal] += touched_pages;
-    }
-
-    #[inline]
-    pub fn syscall_sent(&mut self, syscall_code: SyscallCode) {
-        self.syscall_sent = true;
-        if let Some(syscall_air_id) = syscall_code.as_air_id() {
-            let rows_per_event = syscall_air_id.rows_per_event() as u64;
-
-            self.deferred_syscall_counts[syscall_code] += rows_per_event;
-        }
     }
 }
 

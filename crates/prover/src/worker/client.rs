@@ -24,7 +24,7 @@ mod local;
 
 pub use local::*;
 
-use crate::worker::{ProveShardTaskRequest, TaskError};
+use crate::worker::TaskError;
 
 pub trait WorkerClient: Send + Sync + Clone + 'static {
     fn submit_task(
@@ -34,6 +34,14 @@ pub trait WorkerClient: Send + Sync + Clone + 'static {
     ) -> impl Future<Output = anyhow::Result<TaskId>> + Send;
 
     fn complete_task(
+        &self,
+        proof_id: ProofId,
+        task_id: TaskId,
+        metadata: TaskMetadata,
+    ) -> impl Future<Output = anyhow::Result<()>> + Send;
+
+    /// Mark a task as `FailedFatal`. Mirrors `complete_task`'s shape.
+    fn fail_task(
         &self,
         proof_id: ProofId,
         task_id: TaskId,
@@ -410,24 +418,15 @@ pub struct TrivialWorkerClient {
 }
 
 impl TrivialWorkerClient {
-    pub fn new<A: ArtifactClient>(task_capacity: usize, artifact_client: A) -> Self {
+    pub fn new<A: ArtifactClient>(task_capacity: usize, _artifact_client: A) -> Self {
         let (task_sender, mut task_receiver) =
             mpsc::channel::<(TaskType, RawTaskRequest)>(task_capacity);
 
         tokio::task::spawn(async move {
-            while let Some((kind, task)) = task_receiver.recv().await {
-                match kind {
-                    TaskType::ProveShard => {
-                        let request = ProveShardTaskRequest::from_raw(task).unwrap();
-                        // remove the record artifact from the client
-                        artifact_client
-                            .delete(&request.record, ArtifactType::UnspecifiedArtifactType)
-                            .await
-                            .unwrap();
-                    }
-                    TaskType::MarkerDeferredRecord => {}
-                    _ => unimplemented!("task type not supported"),
-                }
+            while let Some((_kind, _task)) = task_receiver.recv().await {
+                // Trivial client drops submitted tasks — every kind is now
+                // handled either by the in-process node body (no cluster
+                // submission) or by tests that don't drive the dispatched work.
             }
         });
 
@@ -454,6 +453,16 @@ impl WorkerClient for TrivialWorkerClient {
         _metadata: TaskMetadata,
     ) -> anyhow::Result<()> {
         Ok(())
+    }
+
+    async fn fail_task(
+        &self,
+        proof_id: ProofId,
+        task_id: TaskId,
+        metadata: TaskMetadata,
+    ) -> anyhow::Result<()> {
+        // TrivialWorkerClient doesn't distinguish success/failure status today.
+        self.complete_task(proof_id, task_id, metadata).await
     }
 
     async fn complete_proof(
@@ -637,6 +646,25 @@ mod tests {
             _metadata: TaskMetadata,
         ) -> anyhow::Result<()> {
             unimplemented!()
+        }
+
+        async fn fail_task(
+            &self,
+            _proof_id: ProofId,
+            task_id: TaskId,
+            _metadata: TaskMetadata,
+        ) -> anyhow::Result<()> {
+            // Flip the watch directly.
+            let (tx, _) = self
+                .db
+                .read()
+                .await
+                .get(&task_id)
+                .cloned()
+                .ok_or_else(|| anyhow::anyhow!("task does not exist"))?;
+            tx.send(TaskStatus::FailedFatal)
+                .map_err(|_| anyhow::anyhow!("failed to send status"))?;
+            Ok(())
         }
 
         async fn complete_proof(

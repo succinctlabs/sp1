@@ -16,15 +16,15 @@ use sp1_hypercube::air::{PublicValues, SP1CorePublicValues};
 
 use sp1_hypercube::{air::ShardRange, MachineVerifyingKey, ShardProof};
 
-use sp1_recursion_compiler::{
-    circuit::CircuitV2Builder,
-    ir::{Builder, Config, Felt},
-};
+use sp1_recursion_compiler::ir::{Builder, Config, Felt};
 
-use sp1_recursion_executor::{RecursionPublicValues, DIGEST_SIZE, RECURSIVE_PROOF_NUM_PV_ELTS};
+use sp1_recursion_executor::{
+    RecursionPublicValues, DIGEST_SIZE, HASH_RATE, PERMUTATION_WIDTH, RECURSIVE_PROOF_NUM_PV_ELTS,
+};
 
 use crate::{
     challenger::CanObserveVariable,
+    hash::Poseidon2SP1FieldHasherVariable,
     machine::{assert_complete, recursion_public_values_digest},
     shard::{MachineVerifyingKeyVariable, RecursiveShardVerifier, ShardProofVariable},
     zerocheck::RecursiveVerifierConstraintFolder,
@@ -38,6 +38,20 @@ pub struct SP1RecursionWitnessVariable<C: CircuitConfig, SC: SP1FieldConfigVaria
     pub num_deferred_proofs: Felt<SP1Field>,
     pub is_complete: Felt<SP1Field>,
     pub vk_root: [Felt<SP1Field>; DIGEST_SIZE],
+    /// `H = hash_iter(commitments)` over the chunk's ordered global commitments; observing it
+    /// re-derives the chunk's shared global challenge in-circuit.
+    pub commitments_hash: [Felt<SP1Field>; DIGEST_SIZE],
+    /// The chunk's previous merkle root (chunk-invariant).
+    pub prev_root: [Felt<SP1Field>; DIGEST_SIZE],
+    /// The chunk's current merkle root (chunk-invariant).
+    pub cur_root: [Felt<SP1Field>; DIGEST_SIZE],
+    /// This shard's index within its trace chunk.
+    pub shard_index: Felt<SP1Field>,
+    /// The number of shards in this shard's trace chunk.
+    pub num_shards: Felt<SP1Field>,
+    /// Running Poseidon2 state before this shard folds its global commitment into the chunk's
+    /// running commitments hash. `[0; PERMUTATION_WIDTH]` for the first shard in the chunk.
+    pub prev_hasher_state: [Felt<SP1Field>; PERMUTATION_WIDTH],
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -51,6 +65,21 @@ pub struct SP1NormalizeWitnessValues<GC: IopCtx, Proof> {
     pub vk_root: [GC::F; DIGEST_SIZE],
     pub reconstruct_deferred_digest: [GC::F; 8],
     pub num_deferred_proofs: GC::F,
+    /// `H = hash_iter(commitments)` over the chunk's ordered global commitments. Populate from
+    /// `chunk_ctx` as the precomputed hash, not the commitment list (a variable-length list can't
+    /// live in a fixed circuit shape).
+    pub commitments_hash: [GC::F; DIGEST_SIZE],
+    /// The chunk's previous merkle root (chunk-invariant).
+    pub prev_root: [GC::F; DIGEST_SIZE],
+    /// The chunk's current merkle root (chunk-invariant).
+    pub cur_root: [GC::F; DIGEST_SIZE],
+    /// This shard's index within its trace chunk.
+    pub shard_index: GC::F,
+    /// The number of shards in this shard's trace chunk.
+    pub num_shards: GC::F,
+    /// Running Poseidon2 state before this shard folds its global commitment into the chunk's
+    /// running commitments hash. `[0; PERMUTATION_WIDTH]` for the first shard in the chunk.
+    pub prev_hasher_state: [GC::F; PERMUTATION_WIDTH],
 }
 
 impl<GC: IopCtx, Proof> SP1NormalizeWitnessValues<GC, Proof> {
@@ -112,14 +141,14 @@ where
             vk_root,
             reconstruct_deferred_digest,
             num_deferred_proofs,
+            commitments_hash,
+            prev_hasher_state,
+            ..
         } = input;
 
         // Assert that the number of proofs is one.
         assert!(shard_proofs.len() == 1);
         let shard_proof = &shard_proofs[0];
-
-        // Initialize the cumulative sum.
-        let mut global_cumulative_sums = Vec::new();
 
         // Get the public values.
         let public_values: &PublicValues<[Felt<_>; 4], [Felt<_>; 3], [Felt<_>; 4], Felt<_>> =
@@ -127,18 +156,21 @@ where
 
         // If it's the first shard, then the `pc_start` should be vk.pc_start.
         for (pc, vk_pc) in public_values.pc_start.iter().zip_eq(vk.pc_start.iter()) {
+            builder.assert_felt_eq(public_values.is_first_shard * (*pc - *vk_pc), SP1Field::zero());
+        }
+
+        // If it's the first shard, then the `prev_merkle_root` should be `vk.initial_memory_root`.
+        for (memory_root, vk_initial_memory_root) in
+            public_values.prev_merkle_root.iter().zip_eq(vk.initial_memory_root.iter())
+        {
             builder.assert_felt_eq(
-                public_values.is_first_execution_shard * (*pc - *vk_pc),
+                public_values.is_first_shard * (*memory_root - *vk_initial_memory_root),
                 SP1Field::zero(),
             );
         }
 
-        // If it's the first shard, we add the vk's `initial_global_cumulative_sum` to the
-        // digest. If it's not the first shard, we add the zero digest to the digest.
-        global_cumulative_sums.push(builder.select_global_cumulative_sum(
-            public_values.is_first_execution_shard,
-            vk.initial_global_cumulative_sum,
-        ));
+        let global_cumulative_sum =
+            C::ext2felt(builder, shard_proof.global_cumulative_sum.unwrap());
 
         // Prepare a challenger.
         let mut challenger = SP1GlobalContext::challenger_variable(builder);
@@ -146,8 +178,7 @@ where
         // Observe the vk and start pc.
         challenger.observe(builder, vk.preprocessed_commit);
         challenger.observe_slice(builder, vk.pc_start);
-        challenger.observe_slice(builder, vk.initial_global_cumulative_sum.0.x.0);
-        challenger.observe_slice(builder, vk.initial_global_cumulative_sum.0.y.0);
+        challenger.observe_slice(builder, vk.initial_memory_root);
         challenger.observe(builder, vk.untrusted_config.enable_untrusted_programs);
         #[cfg(feature = "mprotect")]
         {
@@ -157,13 +188,14 @@ where
         }
         // Observe the padding.
         let zero: Felt<_> = builder.eval(SP1Field::zero());
-        for _ in 0..6 {
+        for _ in 0..4 {
             challenger.observe(builder, zero);
         }
 
         // Verify the shard proof.
-        tracing::debug_span!("verify shard")
-            .in_scope(|| machine.verify_shard(builder, &vk, shard_proof, &mut challenger));
+        tracing::debug_span!("verify shard").in_scope(|| {
+            machine.verify_shard(builder, &vk, shard_proof, &mut challenger, Some(commitments_hash))
+        });
 
         // Assert that the `is_untrusted_programs_enabled` is equal to the vkey one.
         builder.assert_felt_eq(
@@ -198,11 +230,16 @@ where
             );
         }
 
-        // We add the global cumulative sum of the shard.
-        global_cumulative_sums.push(public_values.global_cumulative_sum);
-
-        // We sum the digests in `global_cumulative_sums` to get the overall global cumulative sum.
-        let global_cumulative_sum = builder.sum_digest_v2(global_cumulative_sums);
+        // Running commitments hash.
+        let global_commitment =
+            shard_proof.global_commitment.expect("core shard has a global commitment");
+        let mut running_state = prev_hasher_state;
+        running_state[..HASH_RATE].copy_from_slice(&global_commitment);
+        let next_hasher_state =
+            <SP1GlobalContext as Poseidon2SP1FieldHasherVariable<C>>::poseidon2_permute(
+                builder,
+                running_state,
+            );
 
         // Write all values to the public values struct and commit to them.
         {
@@ -222,25 +259,21 @@ where
             recursion_public_values.deferred_proofs_digest = public_values.deferred_proofs_digest;
             recursion_public_values.prev_deferred_proof = num_deferred_proofs;
             recursion_public_values.deferred_proof = num_deferred_proofs;
+            recursion_public_values.prev_chunk_index = public_values.trace_chunk_idx;
+            recursion_public_values.last_chunk_index =
+                builder.eval(public_values.trace_chunk_idx + SP1Field::one());
             recursion_public_values.pc_start = public_values.pc_start;
             recursion_public_values.next_pc = public_values.next_pc;
             recursion_public_values.initial_timestamp = public_values.initial_timestamp;
             recursion_public_values.last_timestamp = public_values.last_timestamp;
-            recursion_public_values.previous_init_addr = public_values.previous_init_addr;
-            recursion_public_values.last_init_addr = public_values.last_init_addr;
-            recursion_public_values.previous_finalize_addr = public_values.previous_finalize_addr;
-            recursion_public_values.last_finalize_addr = public_values.last_finalize_addr;
-            recursion_public_values.previous_init_page_idx = public_values.previous_init_page_idx;
-            recursion_public_values.last_init_page_idx = public_values.last_init_page_idx;
-            recursion_public_values.previous_finalize_page_idx =
-                public_values.previous_finalize_page_idx;
-            recursion_public_values.last_finalize_page_idx = public_values.last_finalize_page_idx;
+            recursion_public_values.initial_memory_root = public_values.prev_merkle_root;
+            recursion_public_values.last_memory_root = public_values.merkle_root;
             recursion_public_values.start_reconstruct_deferred_digest = reconstruct_deferred_digest;
             recursion_public_values.end_reconstruct_deferred_digest = reconstruct_deferred_digest;
             recursion_public_values.sp1_vk_digest = vk_digest;
             recursion_public_values.vk_root = vk_root;
             recursion_public_values.global_cumulative_sum = global_cumulative_sum;
-            recursion_public_values.contains_first_shard = public_values.is_first_execution_shard;
+            recursion_public_values.contains_first_shard = public_values.is_first_shard;
             recursion_public_values.num_included_shard = builder.eval(SP1Field::one());
             recursion_public_values.is_complete = is_complete;
             recursion_public_values.prev_exit_code = public_values.prev_exit_code;
@@ -251,6 +284,15 @@ where
                 public_values.prev_commit_deferred_syscall;
             recursion_public_values.commit_deferred_syscall = public_values.commit_deferred_syscall;
             recursion_public_values.proof_nonce = public_values.proof_nonce;
+            recursion_public_values.prev_shard_index = public_values.shard_index;
+            recursion_public_values.last_shard_index =
+                builder.eval(public_values.shard_index + SP1Field::one());
+            recursion_public_values.num_merkle_shard = public_values.num_merkle_shard;
+            recursion_public_values.num_execution_shard = public_values.num_execution_shard;
+            recursion_public_values.start_reconstruct_global_challenge = prev_hasher_state;
+            recursion_public_values.end_reconstruct_global_challenge = next_hasher_state;
+            recursion_public_values.global_commitments_hash = commitments_hash;
+            recursion_public_values.is_chunk_complete = is_complete;
 
             // Calculate the digest and set it in the public values.
             recursion_public_values.digest = recursion_public_values_digest::<C, SP1GlobalContext>(

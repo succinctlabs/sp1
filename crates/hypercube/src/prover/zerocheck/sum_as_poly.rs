@@ -50,11 +50,14 @@ where
     F: Field,
     EF: ExtensionField<F>,
 {
+    #[allow(clippy::too_many_lines)]
     pub(crate) fn sum_as_poly_in_last_variable<K, const IS_FIRST_ROUND: bool>(
         &self,
         partial_lagrange: &Mle<EF>,
         preprocessed_values: Option<&PaddedMle<K>>,
-        main_values: &PaddedMle<K>,
+        global_values: Option<&PaddedMle<K>>,
+        main_values: Option<&PaddedMle<K>>,
+        num_real_entries: usize,
     ) -> (EF, EF, EF)
     where
         K: ExtensionField<F>,
@@ -66,31 +69,23 @@ where
         let powers_of_alpha = self.powers_of_alpha.clone();
         let gkr_powers = self.gkr_powers.clone();
         {
-            let num_non_padded_terms = main_values.num_real_entries().div_ceil(2);
+            let num_non_padded_terms = num_real_entries.div_ceil(2);
             let eq_chunk_size = std::cmp::max(num_non_padded_terms / num_cpus::get(), 1);
-            let values_chunk_size = eq_chunk_size * 2;
 
             let eq_guts = partial_lagrange.guts().as_buffer().as_slice();
 
-            let num_main_columns = main_values.num_polynomials();
-            let num_preprocessed_columns =
-                preprocessed_values.map_or(0, slop_multilinear::PaddedMle::num_polynomials);
-
-            let main_values = main_values.inner().as_ref().unwrap().guts().as_buffer().as_slice();
-            let has_preprocessed_values = preprocessed_values.is_some();
-            let preprocessed_values = preprocessed_values.as_ref().map_or([].as_slice(), |p| {
-                p.inner().as_ref().unwrap().guts().as_buffer().as_slice()
-            });
+            let (preprocessed_values, num_preprocessed_columns) = group_parts(preprocessed_values);
+            let (global_values, num_global_columns) = group_parts(global_values);
+            let (main_values, num_main_columns) = group_parts(main_values);
 
             // Handle the case when the zerocheck polynomial has non-padded variables.
             let eq_guts = eq_guts[0..num_non_padded_terms].to_vec();
 
             let cumul_ys = eq_guts
                 .chunks(eq_chunk_size)
-                .zip(main_values.chunks(values_chunk_size * num_main_columns))
                 .enumerate()
                 .par_bridge()
-                .map(|(i, (eq_chunk, main_chunk))| {
+                .map(|(i, eq_chunk)| {
                     // Evaluate the constraint polynomial at the points 0, 2, and 4, and
                     // add the results to the y_0, y_2, and y_4 accumulators.
                     let mut cumul_y_0 = EF::zero();
@@ -101,56 +96,41 @@ where
                     let mut main_values_2 = vec![K::zero(); num_main_columns];
                     let mut main_values_4 = vec![K::zero(); num_main_columns];
 
+                    let mut global_values_0 = vec![K::zero(); num_global_columns];
+                    let mut global_values_2 = vec![K::zero(); num_global_columns];
+                    let mut global_values_4 = vec![K::zero(); num_global_columns];
+
                     let mut preprocessed_values_0 = vec![K::zero(); num_preprocessed_columns];
                     let mut preprocessed_values_2 = vec![K::zero(); num_preprocessed_columns];
                     let mut preprocessed_values_4 = vec![K::zero(); num_preprocessed_columns];
 
-                    for (j, (eq, main_row)) in
-                        eq_chunk.iter().zip(main_chunk.chunks(num_main_columns * 2)).enumerate()
-                    {
-                        let main_row_0 = &main_row[0..num_main_columns];
-                        let main_row_1 = if main_row.len() == 2 * num_main_columns {
-                            &main_row[num_main_columns..num_main_columns * 2]
-                        } else {
-                            // Provide a dummy row if there is an odd number of rows.
-                            &vec![K::zero(); num_main_columns]
-                        };
+                    for (j, eq) in eq_chunk.iter().enumerate() {
+                        let pair_idx = i * eq_chunk_size + j;
 
-                        interpolate_last_var_non_padded_values::<K, IS_FIRST_ROUND>(
-                            main_row_0,
-                            main_row_1,
+                        interpolate_group_rows::<K, IS_FIRST_ROUND>(
+                            main_values,
+                            num_main_columns,
+                            pair_idx,
                             &mut main_values_0,
                             &mut main_values_2,
                             &mut main_values_4,
                         );
-
-                        if has_preprocessed_values {
-                            let preprocess_chunk_size =
-                                values_chunk_size * num_preprocessed_columns;
-                            let preprocessed_row_0_start_idx =
-                                i * preprocess_chunk_size + 2 * j * num_preprocessed_columns;
-                            let preprocessed_row_0 = &preprocessed_values
-                                [preprocessed_row_0_start_idx
-                                    ..preprocessed_row_0_start_idx + num_preprocessed_columns];
-                            let preprocessed_row_1_start_idx =
-                                preprocessed_row_0_start_idx + num_preprocessed_columns;
-                            let preprocessed_row_1 =
-                                if preprocessed_values.len() != preprocessed_row_1_start_idx {
-                                    &preprocessed_values[preprocessed_row_1_start_idx
-                                        ..preprocessed_row_1_start_idx + num_preprocessed_columns]
-                                } else {
-                                    // Provide padding values if there is an odd number of rows.
-                                    &vec![K::zero(); num_preprocessed_columns]
-                                };
-
-                            interpolate_last_var_non_padded_values::<K, IS_FIRST_ROUND>(
-                                preprocessed_row_0,
-                                preprocessed_row_1,
-                                &mut preprocessed_values_0,
-                                &mut preprocessed_values_2,
-                                &mut preprocessed_values_4,
-                            );
-                        }
+                        interpolate_group_rows::<K, IS_FIRST_ROUND>(
+                            global_values,
+                            num_global_columns,
+                            pair_idx,
+                            &mut global_values_0,
+                            &mut global_values_2,
+                            &mut global_values_4,
+                        );
+                        interpolate_group_rows::<K, IS_FIRST_ROUND>(
+                            preprocessed_values,
+                            num_preprocessed_columns,
+                            pair_idx,
+                            &mut preprocessed_values_0,
+                            &mut preprocessed_values_2,
+                            &mut preprocessed_values_4,
+                        );
 
                         increment_y_values::<K, F, EF, A, IS_FIRST_ROUND>(
                             &public_values,
@@ -160,10 +140,13 @@ where
                             &mut cumul_y_2,
                             &mut cumul_y_4,
                             &preprocessed_values_0,
+                            &global_values_0,
                             &main_values_0,
                             &preprocessed_values_2,
+                            &global_values_2,
                             &main_values_2,
                             &preprocessed_values_4,
+                            &global_values_4,
                             &main_values_4,
                             &gkr_powers,
                             *eq,
@@ -179,6 +162,40 @@ where
             )
         }
     }
+}
+
+/// The values and width of a trace group.
+fn group_parts<K: Field>(columns: Option<&PaddedMle<K>>) -> (&[K], usize) {
+    columns.map_or(([].as_slice(), 0), |p| {
+        (p.inner().as_ref().unwrap().guts().as_buffer().as_slice(), p.num_polynomials())
+    })
+}
+
+/// Interpolates one trace group's row pair at the points 0, 2, and 4 in the last variable.
+fn interpolate_group_rows<K: Field, const IS_FIRST_ROUND: bool>(
+    values: &[K],
+    width: usize,
+    pair_idx: usize,
+    vals_0: &mut [K],
+    vals_2: &mut [K],
+    vals_4: &mut [K],
+) {
+    if width == 0 {
+        return;
+    }
+    let row_0_start = 2 * pair_idx * width;
+    let row_0 = &values[row_0_start..row_0_start + width];
+    let row_1_start = row_0_start + width;
+    let zero_row;
+    let row_1 = if values.len() >= row_1_start + width {
+        &values[row_1_start..row_1_start + width]
+    } else {
+        zero_row = vec![K::zero(); width];
+        zero_row.as_slice()
+    };
+    interpolate_last_var_non_padded_values::<K, IS_FIRST_ROUND>(
+        row_0, row_1, vals_0, vals_2, vals_4,
+    );
 }
 
 /// This function will calculate the univariate polynomial where all variables other than the last
@@ -197,7 +214,7 @@ pub fn zerocheck_sum_as_poly_in_last_variable<
 where
     AirData: for<'b> Air<ConstraintSumcheckFolder<'b, F, K, EF>> + MachineAir<F>,
 {
-    let num_real_entries = poly.main_columns.num_real_entries();
+    let num_real_entries = poly.num_real_entries();
     if num_real_entries == 0 {
         // NOTE: We hard-code the degree of the zerocheck to be three here. This is important to get
         // the correct shape of a dummy proof.
@@ -229,13 +246,15 @@ where
         poly.air_data.sum_as_poly_in_last_variable::<K, IS_FIRST_ROUND>(
             partial_lagrange.as_ref(),
             poly.preprocessed_columns.as_ref(),
-            &poly.main_columns,
+            poly.global_columns.as_ref(),
+            poly.main_columns.as_ref(),
+            num_real_entries,
         );
 
     // Add the point 0 and it's eval to the xs and ys.
     let virtual_geq = poly.virtual_geq;
 
-    let threshold_half = poly.main_columns.num_real_entries().div_ceil(2) - 1;
+    let threshold_half = num_real_entries.div_ceil(2) - 1;
     let msb_lagrange_eval: EF = poly.eq_adjustment
         * if threshold_half < (1 << (poly.num_variables() - 1)) {
             partial_lagrange.guts().as_buffer()[threshold_half]
@@ -367,10 +386,13 @@ pub fn increment_y_values<
     y_2: &mut EF,
     y_4: &mut EF,
     preprocessed_column_vals_0: &[K],
+    global_column_vals_0: &[K],
     main_column_vals_0: &[K],
     preprocessed_column_vals_2: &[K],
+    global_column_vals_2: &[K],
     main_column_vals_2: &[K],
     preprocessed_column_vals_4: &[K],
+    global_column_vals_4: &[K],
     main_column_vals_4: &[K],
     interaction_batching_powers: &[EF],
     eq: EF,
@@ -380,6 +402,7 @@ pub fn increment_y_values<
     if !IS_FIRST_ROUND {
         let mut folder = ConstraintSumcheckFolder {
             preprocessed: RowMajorMatrixView::new_row(preprocessed_column_vals_0),
+            global: RowMajorMatrixView::new_row(global_column_vals_0),
             main: RowMajorMatrixView::new_row(main_column_vals_0),
             accumulator: EF::zero(),
             public_values,
@@ -390,10 +413,12 @@ pub fn increment_y_values<
         y_0_adjustment += folder.accumulator;
     }
 
+    // The GKR opening batch rides in the same polynomial, ordered `main, prep, global`.
     let gkr_adjustment_0 = main_column_vals_0
         .iter()
         .copied()
         .chain(preprocessed_column_vals_0.iter().copied())
+        .chain(global_column_vals_0.iter().copied())
         .zip(interaction_batching_powers.iter().copied())
         .map(|(val, power)| power * val)
         .sum::<EF>();
@@ -406,6 +431,7 @@ pub fn increment_y_values<
     // Add to the y_2 accumulator.
     let mut folder = ConstraintSumcheckFolder {
         preprocessed: RowMajorMatrixView::new_row(preprocessed_column_vals_2),
+        global: RowMajorMatrixView::new_row(global_column_vals_2),
         main: RowMajorMatrixView::new_row(main_column_vals_2),
         accumulator: EF::zero(),
         public_values,
@@ -419,6 +445,7 @@ pub fn increment_y_values<
         .iter()
         .copied()
         .chain(preprocessed_column_vals_2.iter().copied())
+        .chain(global_column_vals_2.iter().copied())
         .zip(interaction_batching_powers.iter().copied())
         .map(|(val, power)| power * val)
         .sum::<EF>();
@@ -428,6 +455,7 @@ pub fn increment_y_values<
     // Add to the y_4 accumulator.
     let mut folder = ConstraintSumcheckFolder {
         preprocessed: RowMajorMatrixView::new_row(preprocessed_column_vals_4),
+        global: RowMajorMatrixView::new_row(global_column_vals_4),
         main: RowMajorMatrixView::new_row(main_column_vals_4),
         accumulator: EF::zero(),
         public_values,

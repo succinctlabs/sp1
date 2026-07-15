@@ -3,14 +3,14 @@ use std::sync::Arc;
 
 use crate::{Program, SupervisorMode, UserMode};
 pub use arch::*;
-pub use postprocess::chunked_memory_init_events;
 pub use sp1_jit::{MemValue, TraceChunkRaw};
 
-mod arch;
+/// Per-architecture `MinimalExecutor` backends. Portable is re-exported as the default;
+/// `x86_64` is accessible via its explicit path on supported targets.
+pub mod arch;
 mod debug;
 mod ecall;
 mod hint;
-mod postprocess;
 mod precompiles;
 mod write;
 
@@ -127,6 +127,14 @@ impl MinimalExecutorEnum {
         match self {
             Self::Supervisor(e) => e.registers(),
             Self::User(e) => e.registers(),
+        }
+    }
+
+    /// Calls `emit_dirty_pages` to respective `MinimalExecutor`.
+    pub fn emit_dirty_pages(&mut self) -> sp1_jit::DirtyPages {
+        match self {
+            Self::Supervisor(e) => e.emit_dirty_pages(),
+            Self::User(e) => e.emit_dirty_pages(),
         }
     }
 

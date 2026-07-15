@@ -52,6 +52,7 @@ struct HostPhaseTracegen<F, A> {
 struct HostPhaseShapePadding<F: Field, A> {
     pub shard_chips: BTreeSet<Chip<F, A>>,
     pub padded_traces: BTreeMap<String, PaddedMle<F, TaskScope>>,
+    pub global_padded_traces: BTreeMap<String, PaddedMle<F, TaskScope>>,
 }
 
 impl<F, A> CudaTraceGenerator<F, A>
@@ -142,7 +143,7 @@ where
         &self,
         record: Arc<<A as MachineAir<F>>::Record>,
         max_log_row_count: usize,
-    ) -> (HostPhaseTracegen<F, A>, HostPhaseShapePadding<F, A>)
+    ) -> (HostPhaseTracegen<F, A>, HostPhaseTracegen<F, A>, HostPhaseShapePadding<F, A>)
     where
         F: Field,
         A: CudaTracegenAir<F>,
@@ -162,15 +163,41 @@ where
             .map(|chip| chip.air.clone())
             .partition(|c| c.supports_device_main_tracegen());
 
+        // Chips with global columns; their global traces are always generated on the host.
+        let global_airs = chip_set
+            .iter()
+            .map(|chip| chip.air.clone())
+            .filter(|air| air.global_width() > 0)
+            .collect::<Vec<_>>();
+
         // Spawn a rayon task to generate the traces on the CPU.
-        // `host_traces` is a futures Stream that will immediately begin buffering traces.
+        // The streams immediately begin buffering traces.
         let (host_traces_tx, host_traces) = futures::channel::mpsc::unbounded();
+        let (global_traces_tx, global_host_traces) = futures::channel::mpsc::unbounded();
         slop_futures::rayon::spawn(move || {
-            host_airs.into_par_iter().for_each_with(host_traces_tx, |tx, air| {
-                let trace = Mle::from(air.generate_trace(&record, &mut A::Record::default()));
-                // Since it's unbounded, it will only error if the receiver is disconnected.
-                tx.unbounded_send((air.name().to_string(), trace)).unwrap();
-            });
+            rayon::join(
+                || {
+                    // Chips with no main columns (e.g. `MemoryLocalChip`) contribute no main trace.
+                    host_airs.into_par_iter().filter(|air| air.width() > 0).for_each_with(
+                        host_traces_tx,
+                        |tx, air| {
+                            let trace =
+                                Mle::from(air.generate_trace(&record, &mut A::Record::default()));
+                            // Since it's unbounded, it will only error if the receiver is disconnected.
+                            tx.unbounded_send((air.name().to_string(), trace)).unwrap();
+                        },
+                    );
+                },
+                || {
+                    global_airs.into_par_iter().for_each_with(global_traces_tx, |tx, air| {
+                        if let Some(trace) =
+                            air.generate_global_trace(&record, &mut A::Record::default())
+                        {
+                            tx.unbounded_send((air.name().to_string(), Mle::from(trace))).unwrap();
+                        }
+                    });
+                },
+            );
             // Make this explicit.
             // If we are the last users of the record, this will expensively drop it.
             drop(record);
@@ -178,16 +205,30 @@ where
 
         // Get the smallest cluster containing our tracegen chip set.
         let shard_chips = self.machine.smallest_cluster(&chip_set).unwrap().clone();
-        // For every AIR in the cluster, make a (virtual) padded trace.
+        // For every cluster AIR not in the chip set, make a (virtual) padded trace. The main map
+        // only contains chips with main columns, the global map only chips with global columns.
         let padded_traces = shard_chips
             .iter()
-            .filter(|chip| !chip_set.contains(chip))
+            .filter(|chip| chip.width() > 0 && !chip_set.contains(chip))
             .map(|chip| {
-                let num_polynomials = chip.width();
                 (
                     chip.name().to_string(),
                     PaddedMle::zeros_in(
-                        num_polynomials,
+                        chip.width(),
+                        max_log_row_count as u32,
+                        self.trace_allocator.clone(),
+                    ),
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+        let global_padded_traces = shard_chips
+            .iter()
+            .filter(|chip| chip.global_width() > 0 && !chip_set.contains(chip))
+            .map(|chip| {
+                (
+                    chip.name().to_string(),
+                    PaddedMle::zeros_in(
+                        chip.global_width(),
                         max_log_row_count as u32,
                         self.trace_allocator.clone(),
                     ),
@@ -197,23 +238,30 @@ where
 
         (
             HostPhaseTracegen { device_airs, host_traces },
-            HostPhaseShapePadding { shard_chips, padded_traces },
+            HostPhaseTracegen { device_airs: Vec::new(), host_traces: global_host_traces },
+            HostPhaseShapePadding { shard_chips, padded_traces, global_padded_traces },
         )
     }
 
     #[instrument(skip_all, level = "debug")]
+    #[allow(clippy::too_many_arguments)]
     async fn device_main_tracegen(
         &self,
         max_log_row_count: usize,
         record: Arc<<A as MachineAir<F>>::Record>,
         host_phase_tracegen: HostPhaseTracegen<F, A>,
+        global_host_phase_tracegen: HostPhaseTracegen<F, A>,
         padded_traces: BTreeMap<String, PaddedMle<F, TaskScope>>,
-    ) -> (Traces<F, TaskScope>, Vec<F>)
+        global_padded_traces: BTreeMap<String, PaddedMle<F, TaskScope>>,
+    ) -> (Traces<F, TaskScope>, Traces<F, TaskScope>, Vec<F>)
     where
         F: Field,
         A: CudaTracegenAir<F>,
     {
         let HostPhaseTracegen { device_airs, host_traces } = host_phase_tracegen;
+        let HostPhaseTracegen { device_airs: global_device_airs, host_traces: global_host_traces } =
+            global_host_phase_tracegen;
+        debug_assert!(global_device_airs.is_empty(), "global tracegen has no device airs");
 
         // Stream that, when polled, copies the host traces to the device.
         let copied_host_traces = pin!(host_traces.then(|(name, trace)| async move {
@@ -252,6 +300,21 @@ where
             })
             .await;
 
+        // Copy the host-generated global traces to device (no device global airs).
+        let copied_global_traces = pin!(global_host_traces.then(|(name, trace)| async move {
+            (name, DeviceMle::from_host(&trace, &self.trace_allocator).unwrap().into())
+        }));
+        let mut all_global_traces = global_padded_traces;
+        copied_global_traces
+            .for_each(|(name, trace): (String, Mle<F, TaskScope>)| {
+                all_global_traces.insert(
+                    name,
+                    PaddedMle::padded_with_zeros(Arc::new(trace), max_log_row_count as u32),
+                );
+                ready(())
+            })
+            .await;
+
         // All traces are now generated, so the public values are ready.
         // That is, this value will have the correct global cumulative sum.
         let public_values = record.public_values::<F>();
@@ -261,7 +324,8 @@ where
         rayon::spawn(move || drop(record));
 
         let traces = Traces { named_traces: all_traces };
-        (traces, public_values)
+        let global_traces = Traces { named_traces: all_global_traces };
+        (traces, global_traces, public_values)
     }
 }
 
@@ -308,8 +372,11 @@ where
     ) -> MainTraceData<F, A, TaskScope> {
         let record = Arc::new(record);
 
-        let (host_phase_tracegen, HostPhaseShapePadding { shard_chips, padded_traces }) =
-            self.host_main_tracegen(Arc::clone(&record), max_log_row_count);
+        let (
+            host_phase_tracegen,
+            global_host_phase_tracegen,
+            HostPhaseShapePadding { shard_chips, padded_traces, global_padded_traces },
+        ) = self.host_main_tracegen(Arc::clone(&record), max_log_row_count);
 
         // Wait for a prover to be available.
         let permit = prover_permits.acquire().instrument(debug_span!("acquire")).await.unwrap();
@@ -318,11 +385,18 @@ where
         // - Copying host traces to the device.
         // - Generating traces on the device.
 
-        let (traces, public_values) = self
-            .device_main_tracegen(max_log_row_count, record, host_phase_tracegen, padded_traces)
+        let (traces, global_traces, public_values) = self
+            .device_main_tracegen(
+                max_log_row_count,
+                record,
+                host_phase_tracegen,
+                global_host_phase_tracegen,
+                padded_traces,
+                global_padded_traces,
+            )
             .await;
 
-        MainTraceData { traces, public_values, permit, shard_chips }
+        MainTraceData { traces, global_traces, public_values, permit, shard_chips }
     }
 
     async fn generate_traces(
@@ -336,8 +410,11 @@ where
 
         let prep_host_phase_tracegen = self.host_preprocessed_tracegen(Arc::clone(&program));
 
-        let (main_host_phase_tracegen, HostPhaseShapePadding { shard_chips, padded_traces }) =
-            self.host_main_tracegen(Arc::clone(&record), max_log_row_count);
+        let (
+            main_host_phase_tracegen,
+            global_host_phase_tracegen,
+            HostPhaseShapePadding { shard_chips, padded_traces, global_padded_traces },
+        ) = self.host_main_tracegen(Arc::clone(&record), max_log_row_count);
 
         // Wait for a prover to be available.
         let permit = prover_permits.acquire().instrument(debug_span!("acquire")).await.unwrap();
@@ -346,19 +423,27 @@ where
         // - Copying host traces to the device.
         // - Generating traces on the device.
 
-        let (preprocessed_traces, (traces, public_values)) = join!(
+        let (preprocessed_traces, (traces, global_traces, public_values)) = join!(
             self.device_preprocessed_tracegen(program, max_log_row_count, prep_host_phase_tracegen),
             self.device_main_tracegen(
                 max_log_row_count,
                 record,
                 main_host_phase_tracegen,
+                global_host_phase_tracegen,
                 padded_traces,
+                global_padded_traces,
             )
         );
 
         TraceData {
             preprocessed_traces,
-            main_trace_data: MainTraceData { traces, public_values, permit, shard_chips },
+            main_trace_data: MainTraceData {
+                traces,
+                global_traces,
+                public_values,
+                permit,
+                shard_chips,
+            },
         }
     }
 }

@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use super::PublicValuesOutputDigest;
 use crate::{
-    machine::{SP1CompressWithVKeyVerifier, SP1CompressWithVKeyWitnessVariable},
+    machine::{SP1CompressWithVKeyWitnessVariable, SP1GlobalCompressVerifier},
     shard::RecursiveShardVerifier,
     zerocheck::RecursiveVerifierConstraintFolder,
     CircuitConfig,
@@ -15,8 +15,8 @@ use sp1_recursion_compiler::ir::{Builder, Felt};
 
 /// A program to verify a single recursive proof representing a complete proof of program execution.
 ///
-/// The root verifier is simply a `SP1CompressVerifier` with an assertion that the `is_complete`
-/// flag is set to true.
+/// The root verifier is simply a `SP1GlobalCompressVerifier` with an assertion that the
+/// `is_complete` flag is set to true.
 #[derive(Debug, Clone, Copy)]
 pub struct SP1CompressRootVerifierWithVKey<C, A> {
     _phantom: PhantomData<(C, A)>,
@@ -36,8 +36,8 @@ where
     ) {
         // Assert that the program is complete.
         builder.assert_felt_eq(input.compress_var.is_complete, SP1Field::one());
-        // Verify the proof, as a compress proof.
-        SP1CompressWithVKeyVerifier::<C, SP1GlobalContext, _>::verify(
+        // Verify the proof, as an across-chunk compress proof.
+        SP1GlobalCompressVerifier::<C, SP1GlobalContext, _>::verify(
             builder,
             machine,
             input,

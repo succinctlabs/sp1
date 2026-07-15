@@ -123,11 +123,22 @@ pub enum SP1RecursionProverError {
 
 pub type SP1CompressWitness = SP1CompressWithVKeyWitnessValues<SP1PcsProofInner>;
 
+/// Which compose-program family a `Compress` witness targets. The two stages chain public values
+/// differently (within-chunk binds the shared transcript and closes `Σ gcs = 0`; across-chunk
+/// chains boundary state with timestamp resets), so the executor selects the program by scope.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ComposeScope {
+    /// Reduce same-chunk proofs.
+    WithinChunk,
+    /// Reduce per-chunk proofs.
+    AcrossChunk,
+}
+
 #[allow(clippy::large_enum_variant)]
 pub enum SP1CircuitWitness {
     Core(SP1NormalizeWitnessValues<SP1GlobalContext, SP1PcsProofInner>),
     Deferred(SP1DeferredWitnessValues<SP1GlobalContext, SP1PcsProofInner>),
-    Compress(SP1CompressWitness),
+    Compress { witness: SP1CompressWitness, scope: ComposeScope },
     Shrink(SP1CompressWithVKeyWitnessValues<SP1PcsProofInner>),
     Wrap(SP1CompressWithVKeyWitnessValues<SP1PcsProofInner>),
 }
@@ -137,7 +148,7 @@ impl SP1CircuitWitness {
         match self {
             SP1CircuitWitness::Core(input) => input.range(),
             SP1CircuitWitness::Deferred(input) => input.range(),
-            SP1CircuitWitness::Compress(input) => input.compress_val.range(),
+            SP1CircuitWitness::Compress { witness, .. } => witness.compress_val.range(),
             SP1CircuitWitness::Shrink(_) => {
                 unimplemented!("Shrink witness does not need to have a range")
             }

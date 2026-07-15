@@ -98,7 +98,7 @@ fn build_linear_dag() -> ConstraintDag {
         ConstraintRef { root: c3_root, alpha_index: 3 },
     ];
 
-    ConstraintDag { nodes, constraints, preprocessed_width: 0, main_width: 5 }
+    ConstraintDag { nodes, constraints, preprocessed_width: 0, global_width: 0, main_width: 5 }
 }
 
 const N_COLS: usize = 5;
@@ -292,10 +292,16 @@ fn run_gpu(
         // earlier slots are zero-filled placeholders; the test only
         // dispatches the chip at `chip_idx` and the kernel reads
         // `chip_layouts[chip_idx]`.
-        let zero_layout = ChipLayoutC { main_ptr: 0, preprocessed_ptr: 0, height: 0, _pad: 0 };
+        let zero_layout =
+            ChipLayoutC { main_ptr: 0, preprocessed_ptr: 0, global_ptr: 0, height: 0, _pad: 0 };
         let mut chip_layouts_host = vec![zero_layout; chip_idx as usize + 1];
-        chip_layouts_host[chip_idx as usize] =
-            ChipLayoutC { main_ptr: 0, preprocessed_ptr: 0, height: height as u32, _pad: 0 };
+        chip_layouts_host[chip_idx as usize] = ChipLayoutC {
+            main_ptr: 0,
+            preprocessed_ptr: 0,
+            global_ptr: 0,
+            height: height as u32,
+            _pad: 0,
+        };
         let d_chip_layouts = DeviceBuffer::from_host_slice(&chip_layouts_host, &scope).unwrap();
 
         // SAFETY: every device buffer above lives in `scope`, outlives the

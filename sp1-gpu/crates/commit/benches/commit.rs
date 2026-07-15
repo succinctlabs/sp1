@@ -16,7 +16,7 @@ use sp1_gpu_jagged_tracegen::test_utils::tracegen_setup::{
 };
 use sp1_gpu_merkle_tree::{CudaTcsProver, Poseidon2SP1Field16CudaProver};
 use sp1_gpu_utils::config::{Felt, TestGC};
-use sp1_gpu_utils::JaggedTraceMle;
+use sp1_gpu_utils::{JaggedTraceMle, TraceSection};
 use sp1_hypercube::SP1InnerPcs;
 use sp1_primitives::fri_params::core_fri_config;
 
@@ -48,7 +48,7 @@ fn run_commit<R: Rng>(
             let result = commit_multilinears::<TestGC, _>(
                 device_mle,
                 CORE_MAX_LOG_ROW_COUNT,
-                false, // use_preprocessed
+                TraceSection::Main,
                 false, // drop_main_traces
                 &basefold_prover,
             )

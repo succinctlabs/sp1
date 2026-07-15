@@ -1,18 +1,21 @@
 use crate::{
     build::{try_build_groth16_artifacts_dir, try_build_plonk_artifacts_dir},
     recursion::{
-        compose_program_from_input, deferred_program_from_input, dummy_deferred_input,
-        recursive_verifier, shrink_program_from_input, wrap_program_from_input, RecursionVks,
+        chunk_compose_program_from_input, deferred_program_from_input, dummy_deferred_input,
+        global_compose_program_from_input, recursive_verifier, shrink_program_from_input,
+        wrap_program_from_input, RecursionVks,
     },
-    shapes::{SP1RecursionProofShape, DEFAULT_ARITY},
+    shapes::{SP1NormalizeCache, SP1RecursionProofShape, DEFAULT_ARITY},
     verify::WRAP_VK_BYTES,
     worker::{
-        CommonProverInput, DeferredInputs, ProverMetrics, RangeProofs, RawTaskRequest, TaskContext,
-        TaskError, TaskMetadata, WrapAirProverInit,
+        ChunkChallengeCtx, CommonProverInput, DeferredInputs, NormalizeProgramCompiler,
+        ProverMetrics, RangeProofs, RawTaskRequest, RecursionStages, TaskContext, TaskError,
+        TaskMetadata, WrapAirProverInit,
     },
-    RecursionSC, SP1CircuitWitness, SP1ProverComponents,
+    ComposeScope, RecursionSC, SP1CircuitWitness, SP1ProverComponents,
 };
 use core::sync::atomic::AtomicBool;
+use futures::future::BoxFuture;
 use slop_algebra::PrimeField32;
 use slop_algebra::{AbstractField, PrimeField};
 use slop_bn254::Bn254Fr;
@@ -21,11 +24,13 @@ use slop_futures::pipeline::{
     AsyncEngine, AsyncWorker, BlockingEngine, BlockingWorker, Chain, Pipeline, SubmitError,
     SubmitHandle,
 };
+use slop_symmetric::{CryptographicHasher, Permutation};
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{
     inner_perm, koalabears_to_bn254,
     prover::{AirProver, ProverSemaphore, ProvingKey},
-    HashableKey, MachineProof, MachineVerifier, MachineVerifyingKey, MerkleProof, SP1PcsProofInner,
-    SP1PcsProofOuter, SP1RecursionProof, SP1WrapProof, ShardProof, DIGEST_SIZE,
+    HashableKey, Machine, MachineProof, MachineVerifier, MachineVerifyingKey, MerkleProof,
+    SP1PcsProofInner, SP1PcsProofOuter, SP1RecursionProof, SP1WrapProof, ShardProof, DIGEST_SIZE,
 };
 use sp1_primitives::{SP1ExtensionField, SP1Field, SP1GlobalContext, SP1OuterGlobalContext};
 use sp1_prover_types::{Artifact, ArtifactClient, ArtifactId};
@@ -41,7 +46,7 @@ use sp1_recursion_circuit::{
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_executor::{
     shape::RecursionShape, Block, ExecutionRecord, Executor, RecursionProgram,
-    RecursionPublicValues,
+    RecursionPublicValues, HASH_RATE, PERMUTATION_WIDTH,
 };
 use sp1_recursion_gnark_ffi::{Groth16Bn254Prover, PlonkBn254Prover};
 use std::{
@@ -52,6 +57,13 @@ use std::{
 use std::{io::Write, path::PathBuf};
 use tokio::sync::{oneshot, OnceCell};
 use tracing::Instrument;
+
+/// The arities the binary recursion tree composes at: 1 (odd-node carry) and 2 (merge). Both the
+/// within-chunk and across-chunk families are built for these.
+const COMPOSE_ARITIES: [usize; 2] = [1, 2];
+
+/// LRU capacity for compiled normalize programs (one per distinct core-proof shape).
+const NORMALIZE_PROGRAM_CACHE_SIZE: usize = 16;
 
 /// Configuration for the recursion prover.
 #[derive(Debug, Clone)]
@@ -163,10 +175,11 @@ impl<A: ArtifactClient, C: SP1ProverComponents>
     async fn call(&self, input: ReduceTaskRequest) -> Result<RecursionTask, TaskError> {
         let ReduceTaskRequest { range_proofs, is_complete, output, .. } = input;
 
-        let program = self.prover_data.compose_programs.get(&range_proofs.len()).cloned().ok_or(
+        // The `RecursionReduce` task is the across-chunk reduce.
+        let arity = range_proofs.len();
+        let program = self.prover_data.compose_program(ComposeScope::AcrossChunk, arity).ok_or(
             TaskError::Fatal(anyhow::anyhow!(
-                "Compress program not found for arity {}",
-                range_proofs.len()
+                "Across-chunk compose program not found for arity {arity}"
             )),
         )?;
 
@@ -236,11 +249,12 @@ impl<C: SP1ProverComponents>
 
         let keys = tracing::debug_span!("get keys").in_scope(|| match witness {
             SP1CircuitWitness::Core(_) => anyhow::Ok(RecursionKeys::Program(program)),
-            SP1CircuitWitness::Compress(input) => {
+            SP1CircuitWitness::Compress { witness: input, scope } => {
                 let arity = input.compress_val.vks_and_proofs.len();
-                let (pk, vk) = self.prover_data.compose_keys.get(&arity).cloned().ok_or(
-                    TaskError::Fatal(anyhow::anyhow!("Compose key not found for arity {}", arity)),
-                )?;
+                let (pk, vk) =
+                    self.prover_data.compose_keys(scope, arity).ok_or(TaskError::Fatal(
+                        anyhow::anyhow!("Compose key not found for {scope:?} arity {arity}"),
+                    ))?;
                 if let Some(record_write_dir) = &self.record_write_dir {
                     if arity == DEFAULT_ARITY
                         && !RECORDS_WRITTEN.load(std::sync::atomic::Ordering::Relaxed)
@@ -452,6 +466,7 @@ impl<A: Clone, C: SP1ProverComponents> Clone for SP1RecursionProver<A, C> {
 impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
     pub async fn new(
         config: SP1RecursionProverConfig,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
         artifact_client: A,
         (compress_prover, compress_prover_permits): (Arc<C::RecursionProver>, ProverSemaphore),
         (shrink_prover, shrink_prover_permits): (Arc<C::RecursionProver>, ProverSemaphore),
@@ -460,10 +475,6 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
         tokio::task::spawn_blocking(move || {
             // Get the reduce shape.
             let reduce_shape = config.reduce_shape.clone();
-
-            // Make the reduce programs and keys.
-            let mut compose_programs = BTreeMap::new();
-            let mut compose_keys = BTreeMap::new();
 
             let vk_map_path = config.vk_map_file.as_ref().map(std::path::PathBuf::from);
 
@@ -477,18 +488,27 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
                 recursive_verifier::<SP1GlobalContext, _,  InnerConfig>(
                     compress_verifier.shard_verifier(),
                 );
-            for arity in 1..=config.max_compose_arity {
+
+            // Build one compose program + keys for the given arity and family. The binary recursion
+            // tree only ever merges 1 (odd-node carry) or 2 children.
+            let build_compose = |arity: usize, scope: ComposeScope| {
                 let dummy_input =
                     dummy_compose_input::<C>(&reduce_shape, arity, recursion_vks_height);
-                let mut program = compose_program_from_input(
-                    &recursive_compress_verifier,
-                    config.vk_verification,
-                    &dummy_input,
-                );
+                let mut program = match scope {
+                    ComposeScope::WithinChunk => chunk_compose_program_from_input(
+                        &recursive_compress_verifier,
+                        config.vk_verification,
+                        &dummy_input,
+                    ),
+                    ComposeScope::AcrossChunk => global_compose_program_from_input(
+                        &recursive_compress_verifier,
+                        config.vk_verification,
+                        &dummy_input,
+                    ),
+                };
                 program.shape = Some(reduce_shape.shape.clone());
                 let program = Arc::new(program);
 
-                // Make the reduce keys.
                 let (tx, rx) = oneshot::channel();
                 tokio::task::spawn({
                     let program = program.clone();
@@ -501,9 +521,37 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
                 });
                 let (pk, vk) = rx.blocking_recv().unwrap();
                 let pk = unsafe { pk.into_inner() };
-                compose_keys.insert(arity, (pk, vk));
-                compose_programs.insert(arity, program);
+                (program, (pk, vk))
+            };
+
+            let mut within_chunk_compose_programs = BTreeMap::new();
+            let mut within_chunk_compose_keys = BTreeMap::new();
+            let mut across_chunk_compose_programs = BTreeMap::new();
+            let mut across_chunk_compose_keys = BTreeMap::new();
+            for arity in COMPOSE_ARITIES {
+                let (program, keys) = build_compose(arity, ComposeScope::WithinChunk);
+                within_chunk_compose_programs.insert(arity, program);
+                within_chunk_compose_keys.insert(arity, keys);
+                let (program, keys) = build_compose(arity, ComposeScope::AcrossChunk);
+                across_chunk_compose_programs.insert(arity, program);
+                across_chunk_compose_keys.insert(arity, keys);
             }
+
+            // Build the normalize program family: programs are compiled per core-proof
+            // shape on demand and cached, so only the compiler is held here.
+            let normalize = {
+                let core_verifier = C::core_verifier(machine);
+                let recursive_core_verifier = recursive_verifier::<SP1GlobalContext, _, InnerConfig>(
+                    core_verifier.shard_verifier(),
+                );
+                let cache = SP1NormalizeCache::new(NORMALIZE_PROGRAM_CACHE_SIZE);
+                NormalizeProgramCompiler::new(
+                    cache,
+                    recursive_core_verifier,
+                    reduce_shape.clone(),
+                    core_verifier,
+                )
+            };
 
             // Make the deferred program and keys.
             let deferred_input =
@@ -532,8 +580,11 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
             let prover_data = Arc::new(RecursionProverData {
                 recursion_vks,
                 reduce_shape,
-                compose_programs,
-                compose_keys,
+                normalize,
+                within_chunk_compose_programs,
+                within_chunk_compose_keys,
+                across_chunk_compose_programs,
+                across_chunk_compose_keys,
                 deferred_program,
                 deferred_keys: Some(deferred_keys),
             });
@@ -875,6 +926,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
         &self,
         common_input: &CommonProverInput,
         proof: &ShardProof<SP1GlobalContext, SP1PcsProofInner>,
+        chunk_ctx: &ChunkChallengeCtx,
         is_complete: bool,
         is_precompile: bool,
     ) -> SP1NormalizeWitnessValues<SP1GlobalContext, SP1PcsProofInner> {
@@ -893,6 +945,18 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
                 common_input.deferred_digest.map(SP1Field::from_canonical_u32),
             )
         };
+        // `H = hash_iter(commitments)` binds the chunk's shared global challenge, mirroring
+        // `observe_global_challenge`. The circuit re-derives the challenge by observing `H`.
+        let (hasher, _) = SP1GlobalContext::default_hasher_and_compressor();
+        let commitments_hash = hasher
+            .hash_iter(chunk_ctx.commitments.iter().flat_map(SP1GlobalContext::digest_to_elements));
+        // Running hash state before this shard folds in its own commitment.
+        let mut prev_hasher_state = [SP1Field::zero(); PERMUTATION_WIDTH];
+        for c in &chunk_ctx.commitments[..chunk_ctx.shard_index as usize] {
+            prev_hasher_state[..HASH_RATE]
+                .copy_from_slice(&SP1GlobalContext::digest_to_elements(c));
+            inner_perm().permute_mut(&mut prev_hasher_state);
+        }
         SP1NormalizeWitnessValues {
             vk: common_input.vk.vk.clone(),
             shard_proofs: vec![proof.clone()],
@@ -900,11 +964,101 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
             vk_root: self.recursion_vk_root(),
             reconstruct_deferred_digest,
             num_deferred_proofs,
+            commitments_hash: SP1GlobalContext::digest_to_elements(&commitments_hash)
+                .try_into()
+                .expect("commitments hash has DIGEST_SIZE elements"),
+            prev_root: chunk_ctx.prev_root.map(SP1Field::from_canonical_u32),
+            cur_root: chunk_ctx.cur_root.map(SP1Field::from_canonical_u32),
+            shard_index: SP1Field::from_canonical_u32(chunk_ctx.shard_index),
+            num_shards: SP1Field::from_canonical_u32(chunk_ctx.num_shards),
+            prev_hasher_state,
         }
     }
 
     pub fn reduce_shape(&self) -> &SP1RecursionProofShape {
         &self.prover_data.reduce_shape
+    }
+
+    /// Submit a recursion program + witness, wait for it, and return the proof. The prove worker
+    /// uploads the proof to `out`, so we hand the same artifact back after the task completes.
+    async fn prove_recursion_proof(
+        &self,
+        program: Arc<RecursionProgram<SP1Field>>,
+        witness: SP1CircuitWitness,
+        out: Artifact,
+    ) -> Result<SP1RecursionProof<SP1GlobalContext, SP1PcsProofInner>, TaskError> {
+        let metrics = ProverMetrics::new();
+        self.submit_prove_shard(program, witness, out.clone(), metrics)
+            .await?
+            .await
+            .map_err(|e| TaskError::Fatal(e.into()))??;
+        let proof = self
+            .artifact_client
+            .download::<SP1RecursionProof<SP1GlobalContext, SP1PcsProofInner>>(&out)
+            .await?;
+        Ok(proof)
+    }
+
+    /// Assemble a scope-tagged compress witness from child recursion proofs.
+    fn compose_witness(
+        &self,
+        children: Vec<SP1RecursionProof<SP1GlobalContext, SP1PcsProofInner>>,
+        is_complete: bool,
+        scope: ComposeScope,
+    ) -> Result<SP1CircuitWitness, TaskError> {
+        let (vks_and_proofs, merkle_proofs): (Vec<_>, Vec<_>) = children
+            .into_iter()
+            .map(|proof| ((proof.vk, proof.proof), proof.vk_merkle_proof))
+            .unzip();
+        let shaped = SP1ShapedWitnessValues { vks_and_proofs, is_complete };
+        let witness = self.prover_data.append_merkle_proofs_to_witness(shaped, merkle_proofs)?;
+        Ok(SP1CircuitWitness::Compress { witness, scope })
+    }
+
+    /// Reduce child proofs with the compose family selected by `scope`.
+    async fn compose_reduce(
+        &self,
+        children: Vec<SP1RecursionProof<SP1GlobalContext, SP1PcsProofInner>>,
+        is_complete: bool,
+        scope: ComposeScope,
+        out: Artifact,
+    ) -> Result<SP1RecursionProof<SP1GlobalContext, SP1PcsProofInner>, TaskError> {
+        let arity = children.len();
+        let program = self.prover_data.compose_program(scope, arity).ok_or_else(|| {
+            TaskError::Fatal(anyhow::anyhow!(
+                "{scope:?} compose program not found for arity {arity}"
+            ))
+        })?;
+        let witness = self.compose_witness(children, is_complete, scope)?;
+        self.prove_recursion_proof(program, witness, out).await
+    }
+}
+
+impl<A: ArtifactClient, C: SP1ProverComponents> RecursionStages for SP1RecursionProver<A, C> {
+    fn normalize<'a>(
+        &'a self,
+        common: &'a CommonProverInput,
+        core_proof: ShardProof<SP1GlobalContext, SP1PcsProofInner>,
+        chunk_ctx: &'a ChunkChallengeCtx,
+        out: Artifact,
+    ) -> BoxFuture<'a, Result<SP1RecursionProof<SP1GlobalContext, SP1PcsProofInner>, TaskError>>
+    {
+        Box::pin(async move {
+            let program =
+                self.prover_data.normalize.program_for_proof(common.vk.clone(), &core_proof);
+            let witness = self.get_normalize_witness(common, &core_proof, chunk_ctx, false, false);
+            self.prove_recursion_proof(program, SP1CircuitWitness::Core(witness), out).await
+        })
+    }
+
+    fn within_chunk_reduce<'a>(
+        &'a self,
+        children: Vec<SP1RecursionProof<SP1GlobalContext, SP1PcsProofInner>>,
+        is_chunk_complete: bool,
+        out: Artifact,
+    ) -> BoxFuture<'a, Result<SP1RecursionProof<SP1GlobalContext, SP1PcsProofInner>, TaskError>>
+    {
+        Box::pin(self.compose_reduce(children, is_chunk_complete, ComposeScope::WithinChunk, out))
     }
 }
 
@@ -916,8 +1070,11 @@ type CompressKeys<C> = (
 pub struct RecursionProverData<C: SP1ProverComponents> {
     recursion_vks: RecursionVks,
     reduce_shape: SP1RecursionProofShape,
-    compose_programs: BTreeMap<usize, Arc<RecursionProgram<SP1Field>>>,
-    compose_keys: BTreeMap<usize, CompressKeys<C>>,
+    normalize: NormalizeProgramCompiler,
+    within_chunk_compose_programs: BTreeMap<usize, Arc<RecursionProgram<SP1Field>>>,
+    within_chunk_compose_keys: BTreeMap<usize, CompressKeys<C>>,
+    across_chunk_compose_programs: BTreeMap<usize, Arc<RecursionProgram<SP1Field>>>,
+    across_chunk_compose_keys: BTreeMap<usize, CompressKeys<C>>,
     deferred_program: Arc<RecursionProgram<SP1Field>>,
     deferred_keys: Option<CompressKeys<C>>,
 }
@@ -929,6 +1086,33 @@ impl<C: SP1ProverComponents> RecursionProverData<C> {
 
     pub fn recursion_vks(&self) -> &RecursionVks {
         &self.recursion_vks
+    }
+
+    /// The compose program for a (`scope`, `arity`); `None` if that family has no entry for the
+    /// arity (the binary tree only ever asks for 1 or 2).
+    pub(crate) fn compose_program(
+        &self,
+        scope: ComposeScope,
+        arity: usize,
+    ) -> Option<Arc<RecursionProgram<SP1Field>>> {
+        match scope {
+            ComposeScope::WithinChunk => self.within_chunk_compose_programs.get(&arity),
+            ComposeScope::AcrossChunk => self.across_chunk_compose_programs.get(&arity),
+        }
+        .cloned()
+    }
+
+    /// The compose proving/verifying keys for a (`scope`, `arity`).
+    pub(crate) fn compose_keys(
+        &self,
+        scope: ComposeScope,
+        arity: usize,
+    ) -> Option<CompressKeys<C>> {
+        match scope {
+            ComposeScope::WithinChunk => self.within_chunk_compose_keys.get(&arity),
+            ComposeScope::AcrossChunk => self.across_chunk_compose_keys.get(&arity),
+        }
+        .cloned()
     }
 
     pub fn append_merkle_proofs_to_witness(
@@ -972,8 +1156,8 @@ impl<C: SP1ProverComponents> RecursionProverData<C> {
             SP1CircuitWitness::Deferred(input) => {
                 Witnessable::<InnerConfig>::write(&input, &mut witness_stream);
             }
-            SP1CircuitWitness::Compress(input) => {
-                Witnessable::<InnerConfig>::write(&input, &mut witness_stream);
+            SP1CircuitWitness::Compress { witness, .. } => {
+                Witnessable::<InnerConfig>::write(&witness, &mut witness_stream);
             }
             SP1CircuitWitness::Shrink(input) => {
                 Witnessable::<InnerConfig>::write(&input, &mut witness_stream);
@@ -1225,5 +1409,128 @@ impl<C: SP1ProverComponents> WrapProver<C> {
         C::wrap_verifier()
             .verify_shard(vk, proof, &mut challenger)
             .map_err(|e| TaskError::Fatal(e.into()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sp1_core_machine::{riscv::RiscvAir, utils::setup_logger};
+
+    /// Wiring check: the recursion prover stands up all three program families (normalize, plus
+    /// within-chunk and across-chunk compose at the binary-tree arities {1, 2}), and the
+    /// scope-selector returns the right family. No crypto runs.
+    #[tokio::test]
+    async fn recursion_prover_builds_three_program_families() {
+        use crate::{shapes::create_test_shape, worker::cpu_worker_builder_with_machine};
+        use sp1_hypercube::SP1VerifyingKey;
+        use sp1_recursion_circuit::dummy::dummy_vk;
+
+        setup_logger();
+        let machine = RiscvAir::machine();
+        let worker =
+            cpu_worker_builder_with_machine(machine.clone()).build().await.expect("worker builds");
+        let data = &worker.prover_engine().recursion_prover.prover_data;
+
+        for arity in [1usize, 2] {
+            assert!(data.compose_program(ComposeScope::WithinChunk, arity).is_some());
+            assert!(data.compose_keys(ComposeScope::WithinChunk, arity).is_some());
+            assert!(data.compose_program(ComposeScope::AcrossChunk, arity).is_some());
+            assert!(data.compose_keys(ComposeScope::AcrossChunk, arity).is_some());
+        }
+        assert!(data.compose_program(ComposeScope::WithinChunk, 3).is_none());
+        assert!(data.compose_program(ComposeScope::AcrossChunk, 3).is_none());
+        assert_eq!(data.within_chunk_compose_programs.len(), 2);
+        assert_eq!(data.across_chunk_compose_programs.len(), 2);
+
+        let cluster = machine.shape().chip_clusters.first().expect("machine has a chip cluster");
+        let shape = create_test_shape(cluster);
+        let program =
+            data.normalize.get_program(SP1VerifyingKey { vk: dummy_vk() }, &shape.proof_shapes[0]);
+        assert!(program.shape.is_some(), "normalize program is shaped to the reduce shape");
+    }
+
+    /// Green harness for iterating on the normalize circuit.
+    #[tokio::test]
+    #[cfg(feature = "experimental")]
+    async fn normalize_produces_a_leaf_proof() {
+        use crate::{
+            worker::{cpu_worker_builder_with_machine, CommonProverInput},
+            CpuSP1ProverComponents,
+        };
+        use sp1_core_executor::{Program, SP1CoreOpts};
+        use sp1_core_machine::{io::SP1Stdin, utils::generate_records};
+        use sp1_hypercube::{
+            prover::{AirProver, CpuShardProver, ProverSemaphore, SP1InnerPcsProver},
+            SP1InnerPcs, SP1VerifyingKey,
+        };
+        use sp1_prover_types::{
+            network_base_types::ProofMode, ArtifactClient, InMemoryArtifactClient,
+        };
+
+        setup_logger();
+        let machine = RiscvAir::machine();
+
+        // Produce a real single-chunk core shard proof under the chunk's shared commitments.
+        let permit = ProverSemaphore::new(1);
+        let core_verifier = CpuSP1ProverComponents::core_verifier(machine.clone());
+        let prover: CpuShardProver<
+            SP1GlobalContext,
+            SP1InnerPcs,
+            SP1InnerPcsProver,
+            RiscvAir<SP1Field>,
+        > = CpuShardProver::new(core_verifier.shard_verifier().clone());
+        let program = Arc::new(Program::from(&test_artifacts::FIBONACCI_ELF).unwrap());
+        let opts = SP1CoreOpts { minimal_trace_chunk_threshold: 1 << 26, ..Default::default() };
+        let (records, _) =
+            generate_records::<SP1Field>(program.clone(), SP1Stdin::new(), opts, [0; 4]).unwrap();
+        let num_shards = records.len() as u32;
+        let (pk, vk) = prover.setup(program.clone(), permit.clone()).await;
+        let pk = unsafe { pk.into_inner() };
+        let mut commitments = Vec::new();
+        for record in &records {
+            let (proof, _) =
+                prover.prove_shard_with_pk(pk.clone(), record.clone(), permit.clone()).await;
+            commitments.push(proof.global_commitment.expect("core shard has a global commitment"));
+        }
+        let mut core_proof = None;
+        for record in &records {
+            let mut record = record.clone();
+            record.set_global_commitments::<SP1GlobalContext>(&commitments);
+            let (proof, _) = prover.prove_shard_with_pk(pk.clone(), record, permit.clone()).await;
+            core_proof.get_or_insert(proof);
+        }
+        let core_proof = core_proof.expect("the chunk has at least one shard");
+
+        // Recursion prover with vk verification off (the real vk_map.bin is not yet generated).
+        let worker = cpu_worker_builder_with_machine(machine)
+            .without_vk_verification()
+            .build()
+            .await
+            .unwrap();
+        let rp = &worker.prover_engine().recursion_prover;
+        let ids = InMemoryArtifactClient::new();
+
+        let common = CommonProverInput {
+            vk: SP1VerifyingKey { vk },
+            mode: ProofMode::Compressed,
+            deferred_digest: [0; DIGEST_SIZE],
+            num_deferred_proofs: 0,
+            nonce: [0; 4],
+        };
+        // The roots are placeholders; the normalize circuit re-derives the shared challenge from the
+        // commitments hash and (currently) does not constrain the roots.
+        let ctx = ChunkChallengeCtx {
+            commitments,
+            prev_root: [0; 8],
+            cur_root: [0; 8],
+            shard_index: 0,
+            num_shards,
+        };
+
+        // normalize must execute on the shared-FS core proof and yield a leaf.
+        rp.normalize(&common, core_proof, &ctx, ids.create_artifact().unwrap())
+            .await
+            .expect("normalize yields a leaf proof");
     }
 }

@@ -1,10 +1,12 @@
 #![allow(clippy::fn_to_numeric_cast)]
 
+use std::mem::offset_of;
+
 use super::{TranspilerBackend, CONTEXT, MEMORY_PTR, PC_OFFSET, TEMP_A, TEMP_B};
 use crate::{
-    impl_alu32_imm_opt, impl_alu_imm_opt, impl_risc_alu, impl_shift32_imm_opt, ComputeInstructions,
-    ControlFlowInstructions, JitContext, MemoryInstructions, RiscOperand, RiscRegister,
-    RiscvTranspiler, SystemInstructions,
+    impl_alu32_imm_opt, impl_alu_imm_opt, impl_risc_alu, impl_shift32_imm_opt,
+    merkle::DIRTY_LIST_SOFT_CAP, ComputeInstructions, ControlFlowInstructions, JitContext,
+    MemoryInstructions, RiscOperand, RiscRegister, RiscvTranspiler, SystemInstructions,
 };
 use dynasmrt::{dynasm, x64::Rq, DynasmApi, DynasmLabelApi};
 
@@ -441,13 +443,15 @@ impl ComputeInstructions for TranspilerBackend {
 
     fn slt(&mut self, rd: RiscRegister, rs1: RiscOperand, rs2: RiscOperand) {
         match rs2 {
-            RiscOperand::Immediate(imm) => {
+            // Wide immediates (not sign-extended 32-bit) fall through to the
+            // register path, which materializes them with a 64-bit load.
+            RiscOperand::Immediate(imm) if imm == (imm as i32) as i64 => {
                 self.emit_risc_operand_load(rs1, TEMP_A);
                 dynasm! {
                     self;
                     .arch x64;
 
-                    cmp Rq(TEMP_A), imm;
+                    cmp Rq(TEMP_A), imm as i32;
 
                     // ──────────────────────────────────────────────────────────────
                     // 2. setl  r/m8
@@ -497,13 +501,15 @@ impl ComputeInstructions for TranspilerBackend {
 
     fn sltu(&mut self, rd: RiscRegister, rs1: RiscOperand, rs2: RiscOperand) {
         match rs2 {
-            RiscOperand::Immediate(imm) => {
+            // Wide immediates (not sign-extended 32-bit) fall through to the
+            // register path, which materializes them with a 64-bit load.
+            RiscOperand::Immediate(imm) if imm == (imm as i32) as i64 => {
                 self.emit_risc_operand_load(rs1, TEMP_A);
                 dynasm! {
                     self;
                     .arch x64;
 
-                    cmp Rq(TEMP_A), imm;
+                    cmp Rq(TEMP_A), imm as i32;
 
                     // ------------------------------------
                     // `setb` ("below") checks the Carry Flag (CF):
@@ -784,11 +790,12 @@ impl ControlFlowInstructions for TranspilerBackend {
         // Store the current PC + 4 into the destination register.
         self.emit_risc_register_store(TEMP_A, Some(next_pc), rd);
 
-        // Adjust the PC store in the context by the immediate.
-        self.update_pc(TEMP_B, target_pc);
-
         // Add the base amount of cycles for the instruction.
         self.bump_clk();
+        self.flush_clk();
+
+        // Adjust the PC store in the context by the immediate.
+        self.update_pc(TEMP_B, target_pc);
 
         // We know the jump target at transpile time, we can issue jump
         // to it directly, skipping jump table
@@ -806,7 +813,7 @@ impl ControlFlowInstructions for TranspilerBackend {
             self.reg_values.get(&rs1).map(|rs1_imm| rs1_imm.wrapping_add(imm) & !1_u64);
 
         // ------------------------------------
-        // 2. Update PC value
+        // 2. Compute the target pc value.
         // ------------------------------------
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         dynasm! {
@@ -814,8 +821,7 @@ impl ControlFlowInstructions for TranspilerBackend {
             .arch x64;
 
             add Rq(TEMP_A), imm as i32;
-            and Rq(TEMP_A), -2;
-            mov QWORD [Rq(CONTEXT) + PC_OFFSET], Rq(TEMP_A)
+            and Rq(TEMP_A), -2
         }
 
         // ------------------------------------
@@ -826,6 +832,17 @@ impl ControlFlowInstructions for TranspilerBackend {
 
         // Add the base amount of cycles for the instruction.
         self.bump_clk();
+        self.flush_clk();
+
+        // ------------------------------------
+        // 4. Now write the computed target to ctx.pc.
+        // ------------------------------------
+        dynasm! {
+            self;
+            .arch x64;
+
+            mov QWORD [Rq(CONTEXT) + PC_OFFSET], Rq(TEMP_A)
+        }
 
         self.end_branch(jump_target);
     }
@@ -836,6 +853,7 @@ impl ControlFlowInstructions for TranspilerBackend {
 
         // Add the base amount of cycles for the instruction.
         self.bump_clk();
+        self.flush_clk();
 
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
@@ -882,6 +900,7 @@ impl ControlFlowInstructions for TranspilerBackend {
 
         // Add the base amount of cycles for the instruction.
         self.bump_clk();
+        self.flush_clk();
 
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
@@ -927,6 +946,7 @@ impl ControlFlowInstructions for TranspilerBackend {
 
         // Add the base amount of cycles for the instruction.
         self.bump_clk();
+        self.flush_clk();
 
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
@@ -971,6 +991,7 @@ impl ControlFlowInstructions for TranspilerBackend {
 
         // Add the base amount of cycles for the instruction.
         self.bump_clk();
+        self.flush_clk();
 
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
@@ -1017,6 +1038,7 @@ impl ControlFlowInstructions for TranspilerBackend {
 
         // Add the base amount of cycles for the instruction.
         self.bump_clk();
+        self.flush_clk();
 
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
@@ -1059,6 +1081,7 @@ impl ControlFlowInstructions for TranspilerBackend {
 
         // Add the base amount of cycles for the instruction.
         self.bump_clk();
+        self.flush_clk();
 
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
@@ -1101,7 +1124,7 @@ impl MemoryInstructions for TranspilerBackend {
         self.may_early_exit = true;
 
         // ------------------------------------
-        // Load in the base address and the phy sical memory pointer.
+        // Load in the base address and the physical memory pointer.
         // ------------------------------------
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
 
@@ -1128,8 +1151,16 @@ impl MemoryInstructions for TranspilerBackend {
             //
             // Scale to account for the entry size.
             // ------------------------------------
-            and Rq(TEMP_A), -8;
-            shl Rq(TEMP_A), 1;
+            and Rq(TEMP_A), -8
+        }
+
+        if self.tracing() {
+            self.emit_dirty_page_check();
+        }
+
+        dynasm! {
+            self;
+            .arch x64;
 
             // ------------------------------------
             // Add the risc32 byte offset to the physical memory pointer
@@ -1138,15 +1169,8 @@ impl MemoryInstructions for TranspilerBackend {
             // ------------------------------------
             add Rq(TEMP_A), Rq(MEMORY_PTR);
 
-            // ------------------------------------
-            // 4. Load byte → sign-extend to 32 bits
-            //
-            // TEMP_B = clk
-            // TEMP_A = addr + physical_memory_pointer
-            // [addr + physical_memory_pointer] = clk
-            // TEMP_A = [addr + physical_memory_pointer + 8]
-            // ------------------------------------
-            movsx Rq(TEMP_A), BYTE [Rq(TEMP_A) + 8 + rax]
+            // Load byte from [aligned_word + intra_word_offset], sign-extend to 64.
+            movsx Rq(TEMP_A), BYTE [Rq(TEMP_A) + rax]
         }
 
         // 4. Write back to destination register
@@ -1184,8 +1208,16 @@ impl MemoryInstructions for TranspilerBackend {
             //
             // Scale to account for the entry size.
             // ------------------------------------
-            and Rq(TEMP_A), -8;
-            shl Rq(TEMP_A), 1;
+            and Rq(TEMP_A), -8
+        }
+
+        if self.tracing() {
+            self.emit_dirty_page_check();
+        }
+
+        dynasm! {
+            self;
+            .arch x64;
 
             // ------------------------------------
             // Add the risc32 byte offset to the physical memory pointer
@@ -1197,7 +1229,7 @@ impl MemoryInstructions for TranspilerBackend {
             // ------------------------------------
             // Load byte → zero-extend to 32 bits
             // ------------------------------------
-            movzx Rq(TEMP_A), BYTE [Rq(TEMP_A) + 8 + rax]
+            movzx Rq(TEMP_A), BYTE [Rq(TEMP_A) + rax]
         }
 
         self.emit_risc_register_store(TEMP_A, None, rd);
@@ -1234,8 +1266,16 @@ impl MemoryInstructions for TranspilerBackend {
             //
             // Scale to account for the entry size.
             // ------------------------------------
-            and Rq(TEMP_A), -8;
-            shl Rq(TEMP_A), 1;
+            and Rq(TEMP_A), -8
+        }
+
+        if self.tracing() {
+            self.emit_dirty_page_check();
+        }
+
+        dynasm! {
+            self;
+            .arch x64;
 
             // ------------------------------------
             // Add the risc32 byte offset to the physical memory pointer
@@ -1247,7 +1287,7 @@ impl MemoryInstructions for TranspilerBackend {
             // ------------------------------------
             // Load half-word → sign-extend to 32 bits
             // ------------------------------------
-            movsx Rq(TEMP_A), WORD [Rq(TEMP_A) + 8 + rax]
+            movsx Rq(TEMP_A), WORD [Rq(TEMP_A) + rax]
         }
 
         self.emit_risc_register_store(TEMP_A, None, rd);
@@ -1284,8 +1324,16 @@ impl MemoryInstructions for TranspilerBackend {
             //
             // Scale to account for the entry size.
             // ------------------------------------
-            and Rq(TEMP_A), -8;
-            shl Rq(TEMP_A), 1;
+            and Rq(TEMP_A), -8
+        }
+
+        if self.tracing() {
+            self.emit_dirty_page_check();
+        }
+
+        dynasm! {
+            self;
+            .arch x64;
 
             // ------------------------------------
             // Add the risc32 byte offset to the physical memory pointer
@@ -1297,7 +1345,7 @@ impl MemoryInstructions for TranspilerBackend {
             // ------------------------------------
             // Load 16 bits, zero-extend to 32 bits
             // ------------------------------------
-            movzx Rq(TEMP_A), WORD [Rq(TEMP_A) + 8 + rax]
+            movzx Rq(TEMP_A), WORD [Rq(TEMP_A) + rax]
         }
 
         self.emit_risc_register_store(TEMP_A, None, rd);
@@ -1334,8 +1382,16 @@ impl MemoryInstructions for TranspilerBackend {
             //
             // Scale to account for the entry size.
             // ------------------------------------
-            and Rq(TEMP_A), -8;
-            shl Rq(TEMP_A), 1;
+            and Rq(TEMP_A), -8
+        }
+
+        if self.tracing() {
+            self.emit_dirty_page_check();
+        }
+
+        dynasm! {
+            self;
+            .arch x64;
 
             // ------------------------------------
             // 3. Add the risc32 byte offset to the physical memory pointer
@@ -1347,7 +1403,7 @@ impl MemoryInstructions for TranspilerBackend {
             // ------------------------------------
             // 4. Load the word from physical memory into TEMP_A (sign-extended to 64-bit)
             // ------------------------------------
-            movsxd Rq(TEMP_A), DWORD [Rq(TEMP_A) + 8 + rax]
+            movsxd Rq(TEMP_A), DWORD [Rq(TEMP_A) + rax]
         }
 
         // ------------------------------------
@@ -1387,8 +1443,16 @@ impl MemoryInstructions for TranspilerBackend {
             //
             // Scale to account for the entry size.
             // ------------------------------------
-            and Rq(TEMP_A), -8;
-            shl Rq(TEMP_A), 1;
+            and Rq(TEMP_A), -8
+        }
+
+        if self.tracing() {
+            self.emit_dirty_page_check();
+        }
+
+        dynasm! {
+            self;
+            .arch x64;
 
             // ------------------------------------
             // 3. Add the risc32 byte offset to the physical memory pointer
@@ -1400,7 +1464,7 @@ impl MemoryInstructions for TranspilerBackend {
             // ------------------------------------
             // 4. Load the word from physical memory into TEMP_B (zero-extended to 64-bit)
             // ------------------------------------
-            mov Rd(TEMP_A), DWORD [Rq(TEMP_A) + 8 + rax]
+            mov Rd(TEMP_A), DWORD [Rq(TEMP_A) + rax]
         }
 
         // ------------------------------------
@@ -1427,14 +1491,16 @@ impl MemoryInstructions for TranspilerBackend {
             //
             // TEMP_A = rs1 + imm = addr
             // ------------------------------------
-            add Rq(TEMP_A), imm as i32;
+            add Rq(TEMP_A), imm as i32
+        }
 
-            // ------------------------------------
-            // Scale to account for the entry size.
-            //
-            // Assume the addr is properly aligned.
-            // ------------------------------------
-            shl Rq(TEMP_A), 1;
+        if self.tracing() {
+            self.emit_dirty_page_check();
+        }
+
+        dynasm! {
+            self;
+            .arch x64;
 
             // ------------------------------------
             // Add the risc byte offset to the physical memory pointer
@@ -1446,7 +1512,7 @@ impl MemoryInstructions for TranspilerBackend {
             // ------------------------------------
             // Load the word from physical memory into TEMP_A
             // ------------------------------------
-            mov Rq(TEMP_A), QWORD [Rq(TEMP_A) + 8]
+            mov Rq(TEMP_A), QWORD [Rq(TEMP_A)]
         }
 
         // ------------------------------------
@@ -1484,8 +1550,16 @@ impl MemoryInstructions for TranspilerBackend {
             //
             // Scale to account for the entry size.
             // ------------------------------------
-            and Rq(TEMP_A), -8;
-            shl Rq(TEMP_A), 1;
+            and Rq(TEMP_A), -8
+        }
+
+        if self.tracing() {
+            self.emit_dirty_page_check();
+        }
+
+        dynasm! {
+            self;
+            .arch x64;
 
             // ------------------------------------
             // Add the risc32 byte offset to the physical memory pointer
@@ -1505,7 +1579,7 @@ impl MemoryInstructions for TranspilerBackend {
             self;
             .arch x64;
 
-            mov BYTE [Rq(TEMP_A) + 8 + rax], Rb(TEMP_B)
+            mov BYTE [Rq(TEMP_A) + rax], Rb(TEMP_B)
         }
     }
 
@@ -1537,8 +1611,16 @@ impl MemoryInstructions for TranspilerBackend {
             // Align to the start of the word.
             // Scale to account for the entry size.
             // ------------------------------------
-            and Rq(TEMP_A), -8;
-            shl Rq(TEMP_A), 1;
+            and Rq(TEMP_A), -8
+        }
+
+        if self.tracing() {
+            self.emit_dirty_page_check();
+        }
+
+        dynasm! {
+            self;
+            .arch x64;
 
             // ------------------------------------
             // Add the risc32 byte offset to the physical memory pointer
@@ -1558,7 +1640,7 @@ impl MemoryInstructions for TranspilerBackend {
             self;
             .arch x64;
 
-            mov WORD [Rq(TEMP_A) + 8 + rax], Rw(TEMP_B)
+            mov WORD [Rq(TEMP_A) + rax], Rw(TEMP_B)
         }
     }
 
@@ -1590,8 +1672,16 @@ impl MemoryInstructions for TranspilerBackend {
             // Align to the start of the word.
             // Scale to account for the entry size.
             // ------------------------------------
-            and Rq(TEMP_A), -8;
-            shl Rq(TEMP_A), 1;
+            and Rq(TEMP_A), -8
+        }
+
+        if self.tracing() {
+            self.emit_dirty_page_check();
+        }
+
+        dynasm! {
+            self;
+            .arch x64;
 
             // ------------------------------------
             // Add the risc32 byte offset to the physical memory pointer
@@ -1611,7 +1701,7 @@ impl MemoryInstructions for TranspilerBackend {
             self;
             .arch x64;
 
-            mov DWORD [Rq(TEMP_A) + 8 + rax], Rd(TEMP_B)
+            mov DWORD [Rq(TEMP_A) + rax], Rd(TEMP_B)
         }
     }
 
@@ -1631,14 +1721,16 @@ impl MemoryInstructions for TranspilerBackend {
             // ------------------------------------
             // Add the immediate to the base address
             // ------------------------------------
-            add Rq(TEMP_A), imm as i32;
+            add Rq(TEMP_A), imm as i32
+        }
 
-            // ------------------------------------
-            // Scale to account for the entry size.
-            //
-            // Assume the addr is properly aligned.
-            // ------------------------------------
-            shl Rq(TEMP_A), 1;
+        if self.tracing() {
+            self.emit_dirty_page_check();
+        }
+
+        dynasm! {
+            self;
+            .arch x64;
 
             // ------------------------------------
             // 3. Add the risc32 byte offset to the physical memory pointer
@@ -1658,7 +1750,7 @@ impl MemoryInstructions for TranspilerBackend {
             self;
             .arch x64;
 
-            mov QWORD [Rq(TEMP_A) + 8], Rq(TEMP_B)
+            mov QWORD [Rq(TEMP_A)], Rq(TEMP_B)
         }
     }
 }
@@ -1676,6 +1768,10 @@ impl SystemInstructions for TranspilerBackend {
             mov rdi, Rq(CONTEXT)
         };
 
+        // Flush before `update_pc` is called, and before the `is_constrained` flag is toggled.
+        self.bump_clk();
+        self.flush_clk();
+
         // `sp1_ecall_handler` bumps PC for syscalls. So we just need
         // to set current PC.
         self.update_pc(TEMP_A, self.pc_current);
@@ -1685,8 +1781,25 @@ impl SystemInstructions for TranspilerBackend {
         // The ecall returns a u64 in RAX.
         self.emit_risc_register_store(Rq::RAX as u8, None, RiscRegister::X5);
 
-        // Add the base amount of cycles for the instruction.
-        self.bump_clk();
+        // Check the soft cap for the dirty list at the end of the ECALL.
+        const DIRTY_LIST_LEN_OFFSET: i32 = offset_of!(JitContext, dirty_page_list_len) as i32;
+        const SOFT_CAP_I32: i32 = DIRTY_LIST_SOFT_CAP as i32;
+        dynasm! {
+            self;
+            .arch x64;
+            mov edx, DWORD [Rq(CONTEXT) + DIRTY_LIST_LEN_OFFSET];
+            cmp edx, SOFT_CAP_I32;
+            jb >softcap_ok
+        }
+        if self.flush_pending {
+            self.emit_runtime_n_flush_asm(self.pc_current);
+        }
+        dynasm! {
+            self;
+            .arch x64;
+            jmp ->exit;
+            softcap_ok:
+        }
 
         self.end_branch(None);
     }

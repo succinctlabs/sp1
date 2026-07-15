@@ -3969,25 +3969,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "p3-uni-stark"
-version = "0.4.3-succinct"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc3dfdeba14d8db621c4e52dd63973384ff35f353fd750154ff88397f4ea5adf"
-dependencies = [
- "itertools 0.12.1",
- "p3-air",
- "p3-challenger",
- "p3-commit",
- "p3-dft",
- "p3-field",
- "p3-matrix",
- "p3-maybe-rayon",
- "p3-util",
- "serde",
- "tracing",
-]
-
-[[package]]
 name = "p3-util"
 version = "0.4.3-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6043,7 +6024,6 @@ dependencies = [
 name = "sha-program"
 version = "1.1.0"
 dependencies = [
- "rand 0.8.5",
  "sp1-derive",
  "sp1-zkvm",
 ]
@@ -6181,7 +6161,9 @@ checksum = "7a2ae44ef20feb57a68b23d846850f861394c2e02dc425a50098ae8c90267589"
 name = "slop-air"
 version = "6.3.0"
 dependencies = [
- "p3-air",
+ "serde",
+ "slop-algebra",
+ "slop-matrix",
 ]
 
 [[package]]
@@ -6515,7 +6497,9 @@ dependencies = [
 name = "slop-uni-stark"
 version = "6.3.0"
 dependencies = [
- "p3-uni-stark",
+ "slop-air",
+ "slop-algebra",
+ "slop-matrix",
 ]
 
 [[package]]
@@ -6631,6 +6615,7 @@ dependencies = [
  "slop-air",
  "slop-algebra",
  "slop-maybe-rayon",
+ "slop-merkle-tree",
  "slop-symmetric",
  "sp1-curves",
  "sp1-hypercube",
@@ -6703,6 +6688,8 @@ dependencies = [
  "slop-keccak-air",
  "slop-matrix",
  "slop-maybe-rayon",
+ "slop-merkle-tree",
+ "slop-symmetric",
  "slop-uni-stark",
  "snowbridge-amcl",
  "sp1-core-executor",
@@ -6829,6 +6816,7 @@ dependencies = [
  "libc",
  "memfd",
  "memmap2",
+ "rayon",
  "serde",
  "sp1-primitives",
  "tracing",
@@ -6883,12 +6871,15 @@ dependencies = [
  "hex",
  "indicatif",
  "itertools 0.14.0",
+ "libc",
  "lru",
  "mti",
  "num-bigint 0.4.6",
+ "num_cpus",
  "opentelemetry",
  "pin-project",
  "rand 0.8.5",
+ "rayon",
  "reqwest",
  "serde",
  "serde_json",
@@ -6901,6 +6892,7 @@ dependencies = [
  "slop-challenger",
  "slop-futures",
  "slop-jagged",
+ "slop-merkle-tree",
  "slop-multilinear",
  "slop-stacked",
  "slop-symmetric",

@@ -90,6 +90,9 @@ pub enum MachineVerifierError<EF, PcsError> {
     /// Empty proof.
     #[error("empty proof")]
     EmptyProof,
+    /// A trace chunk's per-shard global cumulative sums do not cancel to zero.
+    #[error("global cumulative sum is non-zero")]
+    GlobalCumulativeSumNonZero,
 }
 
 /// Derive the error type from the machine config.

@@ -31,6 +31,15 @@ pub fn shape_from_record<GC: IopCtx, SC: ShardContext<GC>>(
         .map(|air| air.preprocessed_width() * air.num_rows(record).unwrap_or_default())
         .sum::<usize>()
         .next_multiple_of(1 << log_stacking_height);
+    let global_area = if verifier.machine().has_global_round() {
+        shard_chips
+            .iter()
+            .map(|air| air.global_width() * air.num_rows(record).unwrap_or_default())
+            .sum::<usize>()
+            .next_multiple_of(1 << log_stacking_height)
+    } else {
+        0
+    };
     let main_area = shard_chips
         .iter()
         .map(|air| air.width() * air.num_rows(record).unwrap_or_default())
@@ -45,6 +54,18 @@ pub fn shape_from_record<GC: IopCtx, SC: ShardContext<GC>>(
     .div_ceil(1 << max_log_row_count)
     .max(1);
 
+    let global_padding_cols = if verifier.machine().has_global_round() {
+        (global_area
+            - shard_chips
+                .iter()
+                .map(|air| air.global_width() * air.num_rows(record).unwrap_or_default())
+                .sum::<usize>())
+        .div_ceil(1 << max_log_row_count)
+        .max(1)
+    } else {
+        0
+    };
+
     let preprocessed_padding_cols = (preprocessed_area
         - shard_chips
             .iter()
@@ -57,8 +78,10 @@ pub fn shape_from_record<GC: IopCtx, SC: ShardContext<GC>>(
     Some(CoreProofShape {
         shard_chips,
         preprocessed_area,
+        global_area,
         main_area,
         preprocessed_padding_cols,
+        global_padding_cols,
         main_padding_cols,
     })
 }

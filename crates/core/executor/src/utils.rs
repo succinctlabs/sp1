@@ -137,17 +137,12 @@ pub fn cost_and_height_per_syscall(
 
     let touched_addresses = syscall_code.touched_addresses();
     cost_per_syscall += touched_addresses * costs[&RiscvAirId::MemoryLocal];
-    cost_per_syscall += 2 * touched_addresses * costs[&RiscvAirId::Global];
-    cost_per_syscall += costs[&RiscvAirId::SyscallPrecompile];
-    cost_per_syscall += costs[&RiscvAirId::Global];
-    max_height_per_syscall = max_height_per_syscall.max(2 * touched_addresses + 1);
+    max_height_per_syscall = max_height_per_syscall.max(touched_addresses);
 
     if page_protect {
         let touched_pages = syscall_code.touched_pages();
         cost_per_syscall += touched_pages * costs[&RiscvAirId::PageProtLocal];
-        cost_per_syscall += 2 * touched_pages * costs[&RiscvAirId::Global];
-        max_height_per_syscall =
-            max_height_per_syscall.max(2 * touched_addresses + 2 * touched_pages + 1);
+        max_height_per_syscall = max_height_per_syscall.max(touched_pages);
     }
 
     (cost_per_syscall, max_height_per_syscall)

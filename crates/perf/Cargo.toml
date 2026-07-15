@@ -14,7 +14,9 @@ publish = false
 
 [dependencies]
 sp1-core-executor = { workspace = true }
+sp1-core-executor-runner = { workspace = true }
 sp1-sdk = { workspace = true, features = ["native-gnark", "network", "cuda"] }
+sp1-jit = { workspace = true }
 sp1-prover = { workspace = true }
 sp1-prover-types = { workspace = true }
 sp1-core-machine = { workspace = true }
@@ -33,6 +35,9 @@ dotenv = { workspace = true }
 rustyline = "14.0"
 chrono = { workspace = true, features = ["clock"] }
 tracing = { workspace = true }
+rayon = { workspace = true }
+num_cpus = { workspace = true }
+libc = { workspace = true }
 test-artifacts = { path = "../test-artifacts" }
 
 [[bin]]

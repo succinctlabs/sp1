@@ -1,13 +1,11 @@
-use crate::DIGEST_SIZE;
+use crate::{DIGEST_SIZE, PERMUTATION_WIDTH};
 use core::fmt::Debug;
 use serde::{Deserialize, Serialize};
 use slop_algebra::PrimeField32;
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::{
     air::{timestamp_from_limbs, ShardRange, POSEIDON_NUM_WORDS, PROOF_NONCE_NUM_WORDS},
-    indices_arr,
-    septic_digest::SepticDigest,
-    PROOF_MAX_NUM_PVS,
+    indices_arr, PROOF_MAX_NUM_PVS,
 };
 use static_assertions::const_assert_eq;
 use std::{
@@ -57,6 +55,12 @@ pub struct RecursionPublicValues<T> {
     /// The deferred proof index after this shard.
     pub deferred_proof: T,
 
+    /// The chunk index before this chunk.
+    pub prev_chunk_index: T,
+
+    /// The chunk index after this chunk.
+    pub last_chunk_index: T,
+
     /// The start pc of shards being proven.
     pub pc_start: [T; 3],
 
@@ -69,29 +73,11 @@ pub struct RecursionPublicValues<T> {
     /// The last timestamp.
     pub last_timestamp: [T; 4],
 
-    /// Previous MemoryInit address.
-    pub previous_init_addr: [T; 3],
+    /// The initial memory root.
+    pub initial_memory_root: [T; POSEIDON_NUM_WORDS],
 
-    /// Last MemoryInit address.
-    pub last_init_addr: [T; 3],
-
-    /// Previous MemoryFinalize address.
-    pub previous_finalize_addr: [T; 3],
-
-    /// Last MemoryFinalize address.
-    pub last_finalize_addr: [T; 3],
-
-    /// Previous PageProtInit page index.
-    pub previous_init_page_idx: [T; 3],
-
-    /// Last PageProtInit page index.
-    pub last_init_page_idx: [T; 3],
-
-    /// Previous PageProtFinalize page index.
-    pub previous_finalize_page_idx: [T; 3],
-
-    /// Last PageProtFinalize page index.
-    pub last_finalize_page_idx: [T; 3],
+    /// The last memory root.
+    pub last_memory_root: [T; POSEIDON_NUM_WORDS],
 
     /// Start state of reconstruct_deferred_digest.
     pub start_reconstruct_deferred_digest: [T; POSEIDON_NUM_WORDS],
@@ -104,10 +90,6 @@ pub struct RecursionPublicValues<T> {
 
     /// The root of the vk merkle tree.
     pub vk_root: [T; DIGEST_SIZE],
-
-    /// Current cumulative sum of lookup bus. Note that for recursive proofs for core proofs, this
-    /// contains the global cumulative sum.  
-    pub global_cumulative_sum: SepticDigest<T>,
 
     /// Whether or not the first shard is inside the compress proof.
     pub contains_first_shard: T,
@@ -136,11 +118,38 @@ pub struct RecursionPublicValues<T> {
     /// Whether `COMMIT_DEFERRED` syscall has been called up to this shard.
     pub commit_deferred_syscall: T,
 
-    /// The digest of all the previous public values elements.
-    pub digest: [T; DIGEST_SIZE],
-
     /// The nonce used for this proof.
     pub proof_nonce: [T; PROOF_NONCE_NUM_WORDS],
+
+    /// The shard index before this shard.
+    pub prev_shard_index: T,
+
+    /// The shard index after this shard.
+    pub last_shard_index: T,
+
+    /// The number of merkle shards in this chunk.
+    pub num_merkle_shard: T,
+
+    /// The number of execution shards in this chunk.
+    pub num_execution_shard: T,
+
+    /// Start state of reconstruct global challenge.
+    pub start_reconstruct_global_challenge: [T; PERMUTATION_WIDTH],
+
+    /// End state of reconstruct global challenge.
+    pub end_reconstruct_global_challenge: [T; PERMUTATION_WIDTH],
+
+    /// The global commitments hash.
+    pub global_commitments_hash: [T; POSEIDON_NUM_WORDS],
+
+    /// Whether the proof completely proves the chunk.
+    pub is_chunk_complete: T,
+
+    /// Current cumulative sum of lookup bus.
+    pub global_cumulative_sum: [T; 4],
+
+    /// The digest of all the previous public values elements.
+    pub digest: [T; DIGEST_SIZE],
 }
 
 /// Converts the public values to an array of elements.
@@ -160,56 +169,12 @@ impl<F: Copy> RecursionPublicValues<F> {
     {
         let initial_timestamp = timestamp_from_limbs(&self.initial_timestamp);
         let last_timestamp = timestamp_from_limbs(&self.last_timestamp);
-        let previous_init_addr = self
-            .previous_init_addr
-            .iter()
-            .rev()
-            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64);
-        let last_init_addr = self
-            .last_init_addr
-            .iter()
-            .rev()
-            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64);
-        let previous_finalize_addr = self
-            .previous_finalize_addr
-            .iter()
-            .rev()
-            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64);
-        let last_finalize_addr = self
-            .last_finalize_addr
-            .iter()
-            .rev()
-            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64);
-        let previous_init_page_idx = self
-            .previous_init_page_idx
-            .iter()
-            .rev()
-            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64);
-        let last_init_page_idx = self
-            .last_init_page_idx
-            .iter()
-            .rev()
-            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64);
-        let previous_finalize_page_idx = self
-            .previous_finalize_page_idx
-            .iter()
-            .rev()
-            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64);
-        let last_finalize_page_idx = self
-            .last_finalize_page_idx
-            .iter()
-            .rev()
-            .fold(0, |acc, x| acc * (1 << 16) + x.as_canonical_u32() as u64);
 
         let prev_deferred_proof = self.prev_deferred_proof.as_canonical_u64();
         let deferred_proof = self.deferred_proof.as_canonical_u64();
 
         ShardRange {
             timestamp_range: (initial_timestamp, last_timestamp),
-            initialized_address_range: (previous_init_addr, last_init_addr),
-            finalized_address_range: (previous_finalize_addr, last_finalize_addr),
-            initialized_page_index_range: (previous_init_page_idx, last_init_page_idx),
-            finalized_page_index_range: (previous_finalize_page_idx, last_finalize_page_idx),
             deferred_proof_range: (prev_deferred_proof, deferred_proof),
         }
     }

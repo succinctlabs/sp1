@@ -34,11 +34,13 @@ pub fn get_program_and_input(program: String, param: String) -> (Vec<u8>, SP1Std
             return (LOOP_ELF.to_vec(), stdin);
         } else if program_path == "sha2" {
             let mut stdin = SP1Stdin::new();
-            stdin.write_vec(vec![0u8; param.parse::<usize>().unwrap_or(1000)]);
+            let n = param.parse::<u32>().unwrap_or(1000);
+            stdin.write(&n);
             return (SHA2_ELF.to_vec(), stdin);
         } else if program_path == "keccak" {
             let mut stdin = SP1Stdin::new();
-            stdin.write_vec(vec![0u8; param.parse::<usize>().unwrap_or(1000)]);
+            let n = param.parse::<u32>().unwrap_or(1000);
+            stdin.write(&n);
             return (KECCAK_ELF.to_vec(), stdin);
         } else if program_path == "poseidon2" {
             let mut stdin = SP1Stdin::new();

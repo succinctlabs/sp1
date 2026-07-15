@@ -6,8 +6,9 @@ use std::{collections::BTreeSet, marker::PhantomData, ops::Deref};
 use slop_algebra::AbstractField;
 use slop_multilinear::{full_geq, Mle, MleEval, Point};
 use sp1_hypercube::{
-    air::MachineAir, Chip, ChipEvaluation, LogUpEvaluations, LogUpGkrOutput, LogupGkrProof,
-    LogupGkrRoundProof,
+    air::{InteractionScope, MachineAir},
+    beta_seed_dim_for_scope, pv_interaction_max_arity, Chip, ChipEvaluation, LogUpEvaluations,
+    LogUpGkrOutput, LogupGkrProof, LogupGkrRoundProof,
 };
 use sp1_primitives::{SP1ExtensionField, SP1Field};
 use sp1_recursion_compiler::ir::Builder;
@@ -22,6 +23,10 @@ use crate::{
 };
 use sp1_hypercube::{MachineRecord, GKR_GRINDING_BITS};
 
+/// The shared global `LogUp` challenge pair `(alpha, beta_seed)`.
+pub type GlobalChallenge =
+    (Ext<SP1Field, SP1ExtensionField>, Point<Ext<SP1Field, SP1ExtensionField>>);
+
 /// Verifier for `LogUp` GKR.
 #[derive(Clone, Debug, Copy, Default, PartialEq, Eq, Hash)]
 pub struct RecursiveLogUpGkrVerifier<C, SC, A>(PhantomData<(C, SC, A)>);
@@ -32,29 +37,44 @@ where
     SC: SP1FieldConfigVariable<C>,
     A: MachineAir<SP1Field>,
 {
-    /// Verify the public values satisfy the required constraints, and return the cumulative sum.
+    /// Verify the public values satisfy the required constraints, and return the
+    /// `(local, global)` interaction digests.
     pub fn verify_public_values(
         builder: &mut Builder<C>,
         challenge: Ext<SP1Field, SP1ExtensionField>,
         alpha: &Ext<SP1Field, SP1ExtensionField>,
         beta_seed: &Point<Ext<SP1Field, SP1ExtensionField>>,
+        global_challenge: Option<&GlobalChallenge>,
         public_values: &[Felt<SP1Field>],
-    ) -> SymbolicExt<SP1Field, SP1ExtensionField> {
+    ) -> (SymbolicExt<SP1Field, SP1ExtensionField>, SymbolicExt<SP1Field, SP1ExtensionField>) {
         let beta_symbolic = IntoSymbolic::<C>::as_symbolic(beta_seed);
         let betas =
             slop_multilinear::partial_lagrange_blocking(&beta_symbolic).into_buffer().into_vec();
+        let global_betas = global_challenge.map(|(_, seed)| {
+            slop_multilinear::partial_lagrange_blocking(&IntoSymbolic::<C>::as_symbolic(seed))
+                .into_buffer()
+                .into_vec()
+        });
+        let global_perm_challenges = match (global_challenge, global_betas.as_ref()) {
+            (Some((global_alpha, _)), Some(global_betas)) => {
+                Some((global_alpha, global_betas.as_slice()))
+            }
+            _ => None,
+        };
         let mut folder = RecursiveVerifierPublicValuesConstraintFolder {
             perm_challenges: (alpha, &betas),
+            global_perm_challenges,
             alpha: challenge,
             accumulator: SymbolicExt::zero(),
             local_interaction_digest: SymbolicExt::zero(),
+            global_interaction_digest: SymbolicExt::zero(),
             public_values,
             _marker: PhantomData,
         };
         A::Record::eval_public_values(&mut folder);
         // Check that the constraints hold.
         builder.assert_ext_eq(folder.accumulator, SymbolicExt::zero());
-        folder.local_interaction_digest
+        (folder.local_interaction_digest, folder.global_interaction_digest)
     }
 
     /// Verify the `LogUp` GKR proof.
@@ -67,6 +87,8 @@ where
         shard_chips: &BTreeSet<Chip<SP1Field, A>>,
         degrees: &[Point<Felt<SP1Field>>],
         max_log_row_count: usize,
+        global_challenge: Option<&GlobalChallenge>,
+        global_cumulative_sum: Option<Ext<SP1Field, SP1ExtensionField>>,
         proof: &LogupGkrProof<Felt<SP1Field>, Ext<SP1Field, SP1ExtensionField>>,
         public_values: &[Felt<SP1Field>],
         challenger: &mut SC::FriChallengerVariable,
@@ -78,44 +100,71 @@ where
         // `GKR_GRINDING_BITS` zeroes at the beginning).
         challenger.check_witness(builder, GKR_GRINDING_BITS, *witness);
 
-        // Sample the permutation challenges.
+        // Sample the permutation challenges. The local beta-seed dimension is scope-filtered to
+        // match the native verifier; the global challenge pair is sampled earlier in `verify_shard`.
         let alpha = challenger.sample_ext(builder);
-        let max_interaction_arity = shard_chips
-            .iter()
-            .flat_map(|c| c.sends().iter().chain(c.receives().iter()))
-            .map(|i| i.values.len() + 1)
-            .max()
-            .unwrap();
-        let beta_seed_dim = max_interaction_arity.next_power_of_two().ilog2();
+        let beta_seed_dim = beta_seed_dim_for_scope(
+            shard_chips.iter(),
+            InteractionScope::Local,
+            pv_interaction_max_arity::<A::Record>(),
+        );
         let beta_seed =
             Point::from_iter((0..beta_seed_dim).map(|_| challenger.sample_ext(builder)));
         // Sample the public value challenge.
         let pv_challenge = challenger.sample_ext(builder);
 
         builder.cycle_tracker_v2_enter("verify-public-values");
-        let cumulative_sum = -RecursiveLogUpGkrVerifier::<C, SC, A>::verify_public_values(
-            builder,
-            pv_challenge,
-            &alpha,
-            &beta_seed,
-            public_values,
-        );
+        let (local_pv_digest, global_pv_digest) =
+            RecursiveLogUpGkrVerifier::<C, SC, A>::verify_public_values(
+                builder,
+                pv_challenge,
+                &alpha,
+                &beta_seed,
+                global_challenge,
+                public_values,
+            );
+        let cumulative_sum = -local_pv_digest;
         builder.cycle_tracker_v2_exit();
 
         // Observe the output claims.
         challenger.observe_variable_length_extension_slice(builder, numerator.guts().as_slice());
         challenger.observe_variable_length_extension_slice(builder, denominator.guts().as_slice());
 
-        // Verify that the cumulative sum matches the claimed one.
-        let output_cumulative_sum = numerator
-            .guts()
-            .as_slice()
-            .iter()
-            .zip_eq(denominator.guts().as_slice().iter())
-            .map(|(n, d)| *n / *d)
-            .sum::<SymbolicExt<SP1Field, SP1ExtensionField>>();
-        // Assert that the cumulative sum matches the claimed one.
-        builder.assert_ext_eq(output_cumulative_sum, cumulative_sum);
+        // Verify the local cumulative sum against the public-value digest; on a global round, also
+        // bind the claimed global cumulative sum to the recomputed one. The output layer has two
+        // entries per interaction, ordered as `shard_chips.flat_map(sends ++ receives)`.
+        if global_challenge.is_some() {
+            let interaction_scopes = shard_chips
+                .iter()
+                .flat_map(|c| c.sends().iter().chain(c.receives().iter()))
+                .map(|i| i.scope)
+                .collect::<Vec<_>>();
+            let numerators = numerator.guts().as_slice();
+            let denominators = denominator.guts().as_slice();
+            let mut local_sum = SymbolicExt::<SP1Field, SP1ExtensionField>::zero();
+            let mut global_sum = SymbolicExt::<SP1Field, SP1ExtensionField>::zero();
+            for (j, scope) in interaction_scopes.iter().enumerate() {
+                let value = numerators[2 * j] / denominators[2 * j]
+                    + numerators[2 * j + 1] / denominators[2 * j + 1];
+                match scope {
+                    InteractionScope::Local => local_sum += value,
+                    InteractionScope::Global => global_sum += value,
+                }
+            }
+            builder.assert_ext_eq(local_sum, cumulative_sum);
+            if let Some(global_cumulative_sum) = global_cumulative_sum {
+                builder.assert_ext_eq(global_cumulative_sum, global_sum + global_pv_digest);
+            }
+        } else {
+            let output_cumulative_sum = numerator
+                .guts()
+                .as_slice()
+                .iter()
+                .zip_eq(denominator.guts().as_slice().iter())
+                .map(|(n, d)| *n / *d)
+                .sum::<SymbolicExt<SP1Field, SP1ExtensionField>>();
+            builder.assert_ext_eq(output_cumulative_sum, cumulative_sum);
+        }
 
         // Calculate the interaction number.
         let num_of_interactions =
@@ -202,6 +251,10 @@ where
         let betas = slop_multilinear::partial_lagrange_blocking(&IntoSymbolic::<C>::as_symbolic(
             &beta_seed,
         ));
+        let global_alpha = global_challenge.map(|(ga, _)| IntoSymbolic::<C>::as_symbolic(ga));
+        let global_betas = global_challenge.map(|(_, gseed)| {
+            slop_multilinear::partial_lagrange_blocking(&IntoSymbolic::<C>::as_symbolic(gseed))
+        });
         point_extended.add_dimension(SymbolicExt::zero());
         let len = shard_chips.len();
         let len_felt: Felt<_> = builder.constant(SP1Field::from_canonical_usize(len));
@@ -209,9 +262,17 @@ where
         for ((chip, openings), threshold) in
             shard_chips.iter().zip_eq(chip_openings.values()).zip_eq(degrees)
         {
-            // Observe the opening
-            if let Some(prep_eval) = openings.preprocessed_trace_evaluations.as_ref() {
-                challenger.observe_variable_length_extension_slice(builder, prep_eval.deref());
+            // Observe the opening. On a global round the global openings are observed between the
+            // preprocessed and main openings, matching the native verifier.
+            challenger.observe_variable_length_extension_slice(
+                builder,
+                openings.preprocessed_trace_evaluations.deref(),
+            );
+            if global_challenge.is_some() {
+                challenger.observe_variable_length_extension_slice(
+                    builder,
+                    openings.global_trace_evaluations.deref(),
+                );
             }
             challenger.observe_variable_length_extension_slice(
                 builder,
@@ -219,31 +280,50 @@ where
             );
             let threshold = threshold.iter().map(|x| SymbolicExt::from(*x)).collect::<Point<_>>();
             let geq_eval = full_geq(&threshold, &point_extended);
-            let ChipEvaluation { main_trace_evaluations, preprocessed_trace_evaluations } =
-                openings;
+            let ChipEvaluation {
+                main_trace_evaluations,
+                preprocessed_trace_evaluations,
+                global_trace_evaluations,
+            } = openings;
 
+            let padding_global_opening =
+                MleEval::from(vec![SP1Field::zero(); global_trace_evaluations.num_polynomials()]);
             for (interaction, is_send) in chip
                 .sends()
                 .iter()
                 .map(|s| (s, true))
                 .chain(chip.receives().iter().map(|r| (r, false)))
             {
+                // Select the challenge pair by the interaction's scope.
+                let (alpha, betas) = match interaction.scope {
+                    InteractionScope::Local => (alpha, betas.as_slice()),
+                    InteractionScope::Global => (
+                        global_alpha.expect("global interaction without a global challenge"),
+                        global_betas
+                            .as_ref()
+                            .expect("global interaction without a global challenge")
+                            .as_slice(),
+                    ),
+                };
                 let (real_numerator, real_denominator) = interaction.eval(
-                    preprocessed_trace_evaluations.as_ref(),
+                    preprocessed_trace_evaluations,
+                    global_trace_evaluations,
                     main_trace_evaluations,
                     alpha,
-                    betas.as_slice(),
+                    betas,
                 );
                 let padding_trace_opening =
                     MleEval::from(vec![SP1Field::zero(); main_trace_evaluations.num_polynomials()]);
-                let padding_preprocessed_opening = preprocessed_trace_evaluations
-                    .as_ref()
-                    .map(|eval| MleEval::from(vec![SP1Field::zero(); eval.num_polynomials()]));
+                let padding_preprocessed_opening = MleEval::from(vec![
+                    SP1Field::zero();
+                    preprocessed_trace_evaluations.num_polynomials()
+                ]);
                 let (padding_numerator, padding_denominator) = interaction.eval(
-                    padding_preprocessed_opening.as_ref(),
+                    &padding_preprocessed_opening,
+                    &padding_global_opening,
                     &padding_trace_opening,
                     alpha,
-                    betas.as_slice(),
+                    betas,
                 );
 
                 let numerator_eval = real_numerator - padding_numerator * geq_eval;
@@ -328,16 +408,19 @@ impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for ChipEvaluation<T> {
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let main_trace_evaluations = self.main_trace_evaluations.read(builder);
-        let preprocessed_trace_evaluations =
-            self.preprocessed_trace_evaluations.as_ref().map(|mle| mle.read(builder));
-        Self::WitnessVariable { main_trace_evaluations, preprocessed_trace_evaluations }
+        let preprocessed_trace_evaluations = self.preprocessed_trace_evaluations.read(builder);
+        let global_trace_evaluations = self.global_trace_evaluations.read(builder);
+        Self::WitnessVariable {
+            main_trace_evaluations,
+            preprocessed_trace_evaluations,
+            global_trace_evaluations,
+        }
     }
 
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
         self.main_trace_evaluations.write(witness);
-        if let Some(mle) = self.preprocessed_trace_evaluations.as_ref() {
-            mle.write(witness);
-        }
+        self.preprocessed_trace_evaluations.write(witness);
+        self.global_trace_evaluations.write(witness);
     }
 }
 

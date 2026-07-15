@@ -17,7 +17,7 @@ macro_rules! assert_register_is {
 }
 
 fn new_backend() -> TranspilerBackend {
-    TranspilerBackend::new(0, 1024 * 2, 1000, 100, 100, 8).unwrap()
+    TranspilerBackend::new(0, 1024 * 2, 1000, 100, 100).unwrap()
 }
 
 fn run_func(func: &mut JitFunction<AnonymousMemory>) -> Option<TraceChunkRaw> {
@@ -28,7 +28,7 @@ fn run_func(func: &mut JitFunction<AnonymousMemory>) -> Option<TraceChunkRaw> {
         func.call(trace_buf_ptr);
     }
 
-    Some(unsafe { TraceChunkRaw::new(trace_buf.make_read_only().expect("make mmap read-only")) })
+    Some(unsafe { TraceChunkRaw::new(trace_buf) })
 }
 
 /// Finalize the function and call it.
@@ -48,6 +48,42 @@ mod alu {
         backend.start_instr();
         backend.add(RiscRegister::X5, RiscOperand::Immediate(5), RiscOperand::Immediate(10));
         backend.inspect_register(RiscRegister::X5, assert_register_is!(15));
+
+        run_test(backend);
+    }
+
+    /// Immediates carry the raw 64-bit operand: values with bit 31 set must not be
+    /// sign-extended (`Instruction::op_c` semantics match the interpreter VMs).
+    #[test]
+    fn test_add_immediate_wide_not_sign_extended() {
+        let mut backend = new_backend();
+
+        backend.start_instr();
+        backend.add(
+            RiscRegister::X5,
+            RiscOperand::Immediate(0x8000_0000),
+            RiscOperand::Immediate(0),
+        );
+        backend.inspect_register(RiscRegister::X5, assert_register_is!(0x8000_0000));
+
+        backend.add(
+            RiscRegister::X6,
+            RiscOperand::Immediate(0xFFFF_FFFF),
+            RiscOperand::Immediate(0),
+        );
+        backend.inspect_register(RiscRegister::X6, assert_register_is!(0xFFFF_FFFF));
+
+        // Canonical sign-extended immediates still load as their 64-bit value.
+        backend.add(RiscRegister::X7, RiscOperand::Immediate(-2), RiscOperand::Immediate(0));
+        backend.inspect_register(RiscRegister::X7, assert_register_is!(u64::MAX - 1));
+
+        // Unsigned comparison against a wide immediate takes the register path.
+        backend.sltu(
+            RiscRegister::X8,
+            RiscOperand::Register(RiscRegister::X5),
+            RiscOperand::Immediate(0xFFFF_FFFF),
+        );
+        backend.inspect_register(RiscRegister::X8, assert_register_is!(1));
 
         run_test(backend);
     }
@@ -76,8 +112,8 @@ mod alu {
         backend.start_instr();
         backend.add(
             RiscRegister::X5,
-            RiscOperand::Immediate((u64::MAX - 1) as i32),
-            RiscOperand::Immediate((u64::MAX - 1) as i32),
+            RiscOperand::Immediate((u64::MAX - 1) as i32 as i64),
+            RiscOperand::Immediate((u64::MAX - 1) as i32 as i64),
         );
 
         backend.inspect_register(
@@ -106,8 +142,8 @@ mod alu {
         backend.start_instr();
         backend.mul(
             RiscRegister::X5,
-            RiscOperand::Immediate((u64::MAX - 1) as i32),
-            RiscOperand::Immediate((u64::MAX - 1) as i32),
+            RiscOperand::Immediate((u64::MAX - 1) as i32 as i64),
+            RiscOperand::Immediate((u64::MAX - 1) as i32 as i64),
         );
 
         backend.inspect_register(
@@ -179,7 +215,7 @@ mod alu {
         // 0x8000_0000 * 2 → for 64-bit system, this becomes larger multiplication
         backend.mulhu(
             RiscRegister::X5,
-            RiscOperand::Immediate(0x8000_0000u32 as i32), // 2^31
+            RiscOperand::Immediate(0x8000_0000u32 as i32 as i64), // 2^31
             RiscOperand::Immediate(2),
         );
         backend.inspect_register(RiscRegister::X5, assert_register_is!(0x0000_0001));
@@ -732,7 +768,7 @@ mod rv64i {
         // SRLW performs logical (unsigned) 32-bit shift and sign-extends result
         backend.srlw(
             RiscRegister::X5,
-            RiscOperand::Immediate(0x80000000u32 as i32),
+            RiscOperand::Immediate(0x80000000u32 as i32 as i64),
             RiscOperand::Immediate(1),
         );
         // 0x80000000 >> 1 = 0x40000000 (logical), sign-extended to 0x0000000040000000
@@ -752,7 +788,7 @@ mod rv64i {
         // Set up registers
         backend.add(
             RiscRegister::X1,
-            RiscOperand::Immediate(0x80000000u32 as i32),
+            RiscOperand::Immediate(0x80000000u32 as i32 as i64),
             RiscOperand::Immediate(0),
         );
         backend.add(RiscRegister::X2, RiscOperand::Immediate(1), RiscOperand::Immediate(0));
@@ -785,7 +821,7 @@ mod rv64i {
         // SRAW performs arithmetic 32-bit shift and sign-extends result
         backend.sraw(
             RiscRegister::X5,
-            RiscOperand::Immediate(0x80000000u32 as i32),
+            RiscOperand::Immediate(0x80000000u32 as i32 as i64),
             RiscOperand::Immediate(1),
         );
         // 0x80000000 >> 1 = 0xC0000000 (arithmetic), sign-extended to 0xFFFFFFFFC0000000
@@ -806,7 +842,7 @@ mod rv64i {
         // Set up registers
         backend.add(
             RiscRegister::X1,
-            RiscOperand::Immediate(0x80000000u32 as i32),
+            RiscOperand::Immediate(0x80000000u32 as i32 as i64),
             RiscOperand::Immediate(0),
         );
         backend.add(RiscRegister::X2, RiscOperand::Immediate(1), RiscOperand::Immediate(0));
@@ -861,28 +897,24 @@ mod control_flow {
     }
 
     #[test]
-    fn test_bump_clk() {
+    fn test_bump_clk_does_not_touch_per_shard_clk() {
+        // Per-shard clk (r15 / ctx.clk) is no longer maintained by the JIT
+        // since the no-clk MinimalExecutor change. bump_clk only defers a
+        // contribution to global_clk; ctx.clk should stay at its initial value.
         let mut backend = new_backend();
 
-        // Note: The clk starts at 1.
-
-        extern "C" fn assert_clk_is_9(ctx: *mut JitContext) {
+        extern "C" fn assert_clk_is_1(ctx: *mut JitContext) {
             let ctx = unsafe { &mut *ctx };
-
-            assert_eq!(ctx.clk, 9);
-        }
-
-        extern "C" fn assert_clk_is_17(ctx: *mut JitContext) {
-            let ctx = unsafe { &mut *ctx };
-
-            assert_eq!(ctx.clk, 17);
+            assert_eq!(ctx.clk, 1);
         }
 
         backend.start_instr();
         backend.bump_clk();
-        backend.call_extern_fn(assert_clk_is_9);
+        backend.flush_clk();
+        backend.call_extern_fn(assert_clk_is_1);
         backend.bump_clk();
-        backend.call_extern_fn(assert_clk_is_17);
+        backend.flush_clk();
+        backend.call_extern_fn(assert_clk_is_1);
 
         run_test(backend);
     }
@@ -906,25 +938,30 @@ mod control_flow {
         extern "C" fn enter_unconstrained(ctx: *mut JitContext) {
             let ctx = unsafe { &mut *ctx };
 
-            ctx.is_unconstrained = 1;
+            ctx.is_constrained = 0;
         }
 
         extern "C" fn exit_unconstrained(ctx: *mut JitContext) {
             let ctx = unsafe { &mut *ctx };
 
-            ctx.is_unconstrained = 0;
+            ctx.is_constrained = 1;
         }
 
+        // bump_clk defers; we explicitly flush_clk before each assertion so
+        // the global_clk update is visible at the call_extern_fn boundary.
         backend.start_instr();
         backend.bump_clk();
+        backend.flush_clk();
         backend.call_extern_fn(assert_global_clk_is_1);
 
         backend.call_extern_fn(enter_unconstrained);
         backend.bump_clk();
+        backend.flush_clk();
         backend.call_extern_fn(assert_global_clk_is_1);
 
         backend.call_extern_fn(exit_unconstrained);
         backend.bump_clk();
+        backend.flush_clk();
         backend.call_extern_fn(assert_global_clk_is_2);
         run_test(backend)
     }
@@ -943,7 +980,6 @@ mod control_flow {
     //         trace_size as usize,
     //         100,
     //         100,
-    //         8,
     //     )
     //     .unwrap();
 
@@ -1065,8 +1101,6 @@ mod control_flow {
 }
 
 mod memory {
-    use crate::MemValue;
-
     use super::*;
 
     fn run_test_with_memory(assembler: TranspilerBackend, memory: &[(u32, u32)]) {
@@ -1077,7 +1111,7 @@ mod memory {
             assert!(*addr < func.memory.len() as u32, "Addr out of bounds");
             assert!(*addr % 4 == 0, "Addr must be 4 byte aligned");
 
-            let addr = 2 * *addr as usize + 8;
+            let addr = *addr as usize;
             let bytes = val.to_le_bytes();
             func.memory[addr] = bytes[0];
             func.memory[addr + 1] = bytes[1];
@@ -1088,13 +1122,14 @@ mod memory {
         run_func(&mut func);
     }
 
-    fn run_test_and_check_memory(assembler: TranspilerBackend, check: impl Fn(&[MemValue])) {
+    fn run_test_and_check_memory(assembler: TranspilerBackend, check: impl Fn(&[u64])) {
         let mut func = assembler.finalize().expect("Failed to finalize function");
 
         run_func(&mut func);
 
-        unsafe fn caster(input: &[u8]) -> &[MemValue] {
-            std::mem::transmute(input)
+        unsafe fn caster(input: &[u8]) -> &[u64] {
+            let word_count = input.len() / std::mem::size_of::<u64>();
+            std::slice::from_raw_parts(input.as_ptr() as *const u64, word_count)
         }
 
         check(unsafe { caster(&func.memory) });
@@ -1170,7 +1205,7 @@ mod memory {
         backend.sw(RiscRegister::X0, RiscRegister::X1, 0); // SW: m(rs1 + imm) = rs2
 
         run_test_and_check_memory(backend, |memory| {
-            assert_eq!(memory[0].value, 5);
+            assert_eq!(memory[0], 5);
         });
     }
 
@@ -1188,7 +1223,7 @@ mod memory {
         backend.sh(RiscRegister::X0, RiscRegister::X1, 0);
 
         run_test_and_check_memory(backend, |memory| {
-            assert_eq!(memory[0].value, 0x01F2); // low byte
+            assert_eq!(memory[0], 0x01F2); // low byte
         });
     }
 
@@ -1206,10 +1241,10 @@ mod memory {
         backend.sb(RiscRegister::X0, RiscRegister::X1, 0);
 
         run_test_and_check_memory(backend, |memory| {
-            assert_eq!(memory[0].value, 0xAB);
+            assert_eq!(memory[0], 0xAB);
 
             // confirm surrounding bytes remain zero
-            assert_eq!(memory[1].value, 0x00);
+            assert_eq!(memory[1], 0x00);
         });
     }
 
@@ -1284,7 +1319,7 @@ mod memory {
             assert!(*addr % 8 == 0, "Addr must be 8 byte aligned");
 
             let bytes = val.to_le_bytes();
-            let actual_addr = 2 * *addr as usize + 8;
+            let actual_addr = *addr as usize;
             for (i, byte) in bytes.iter().enumerate() {
                 func.memory[actual_addr + i] = *byte;
             }
@@ -1328,7 +1363,7 @@ mod memory {
         // Store value 0xFEDCBA9876543210 to address 0
         backend.add(
             RiscRegister::X1,
-            RiscOperand::Immediate(0xFEDCBA98u32 as i32),
+            RiscOperand::Immediate(0xFEDCBA98u32 as i32 as i64),
             RiscOperand::Immediate(0),
         );
         backend.sll(
@@ -1339,12 +1374,12 @@ mod memory {
         backend.add(
             RiscRegister::X1,
             RiscOperand::Register(RiscRegister::X1),
-            RiscOperand::Immediate(0x76543210u32 as i32),
+            RiscOperand::Immediate(0x76543210u32 as i32 as i64),
         );
         backend.sd(RiscRegister::X0, RiscRegister::X1, 0);
 
         run_test_and_check_memory(backend, |memory| {
-            let val = memory[0].value;
+            let val = memory[0];
             assert_eq!(val, 0xFEDCBA9876543210);
         });
     }
@@ -1365,7 +1400,7 @@ mod memory {
         backend.sd(RiscRegister::X2, RiscRegister::X1, 16);
 
         run_test_and_check_memory(backend, |memory| {
-            let val = memory[3].value;
+            let val = memory[3];
             assert_eq!(val, 0x12345678 + 0x12345678);
         });
     }
@@ -1410,6 +1445,457 @@ mod memory {
         backend.inspect_register(RiscRegister::X2, assert_register_is!(0x0000000080000000));
 
         run_test_with_memory(backend, &[(0, 0x80000000)]);
+    }
+}
+
+mod dirty_pages {
+    use crate::{
+        memory::AnonymousMemory, trace_capacity, ComputeInstructions, MemoryInstructions,
+        RiscOperand, RiscRegister, RiscvTranspiler, TranspilerBackend, MERKLE_PAGE_WORDS,
+    };
+    use memmap2::MmapMut;
+
+    /// Byte size of one merkle page (B × 8).
+    const PAGE_BYTES: u64 = (MERKLE_PAGE_WORDS * 8) as u64;
+
+    /// The JIT lays out memory as `[u64]` (8 bytes per RISC-V word), so the raw buffer
+    /// size is `num_pages × PAGE_BYTES + slack`.
+    fn new_backend_multipage(num_pages: usize) -> TranspilerBackend {
+        let memory_size = num_pages * MERKLE_PAGE_WORDS * 8 + 16;
+        TranspilerBackend::new(0, memory_size, 10_000, 100, 100).unwrap()
+    }
+
+    fn finalize_and_run(assembler: TranspilerBackend) -> crate::JitFunction<AnonymousMemory> {
+        let mut func = assembler.finalize::<AnonymousMemory>().expect("finalize");
+        let mut trace_buf = MmapMut::map_anon(trace_capacity(Some(10_000))).expect("trace buf");
+        let ptr = trace_buf.as_mut_ptr();
+        unsafe { func.call(ptr) };
+        func
+    }
+
+    /// Read back the 32-bit little-endian word that the JIT wrote at RISC-V byte address
+    /// `byte_addr`. Layout: the JIT memory buffer holds one `u64` per RISC-V word, so
+    /// the raw byte offset equals `byte_addr`.
+    fn read_mem_u32(func: &crate::JitFunction<AnonymousMemory>, byte_addr: u64) -> u32 {
+        assert!(byte_addr.is_multiple_of(4));
+        let raw = &*func.memory;
+        let off = byte_addr as usize;
+        u32::from_le_bytes(raw[off..off + 4].try_into().unwrap())
+    }
+
+    /// Load `value` into register `reg` in a single standalone instruction.
+    fn load_imm(backend: &mut TranspilerBackend, reg: RiscRegister, value: i32) {
+        backend.start_instr();
+        backend.add(reg, RiscOperand::Immediate(value as i64), RiscOperand::Immediate(0));
+        backend.end_instr();
+    }
+
+    /// Emit a `sw rs2, imm(rs1)` as a standalone instruction.
+    fn emit_sw(backend: &mut TranspilerBackend, rs1: RiscRegister, rs2: RiscRegister, imm: u64) {
+        backend.start_instr();
+        backend.sw(rs1, rs2, imm);
+        backend.end_instr();
+    }
+
+    /// `emit_dirty_pages` always appends the page-0 register page. Memory-focused
+    /// tests use non-zero pages, so return only the memory pages (`page_id != 0`).
+    fn emit_mem_pages(func: &mut crate::JitFunction<AnonymousMemory>) -> Vec<crate::DirtyPage> {
+        func.emit_dirty_pages().pages.into_iter().filter(|p| p.page_id != 0).collect()
+    }
+
+    /// Writes to two distinct pages with duplicates in between should record exactly those
+    /// two page_ids in first-touch order; the value written must also land in memory.
+    #[test]
+    fn sw_records_first_write_per_page() {
+        let mut backend = new_backend_multipage(4);
+        load_imm(&mut backend, RiscRegister::X1, 0x42);
+
+        emit_sw(&mut backend, RiscRegister::X0, RiscRegister::X1, 0); // page 0
+        emit_sw(&mut backend, RiscRegister::X0, RiscRegister::X1, 8); // page 0 again
+        emit_sw(&mut backend, RiscRegister::X0, RiscRegister::X1, PAGE_BYTES); // page 1
+        backend.start_instr();
+        backend.sw(RiscRegister::X0, RiscRegister::X1, 16); // page 0, third time
+
+        let func = finalize_and_run(backend);
+
+        assert_eq!(func.dirty.list_slice(), vec![0, 1]);
+        assert_eq!(read_mem_u32(&func, 0), 0x42);
+        assert_eq!(read_mem_u32(&func, 8), 0x42);
+        assert_eq!(read_mem_u32(&func, 16), 0x42);
+        assert_eq!(read_mem_u32(&func, PAGE_BYTES), 0x42);
+    }
+
+    /// Many distinct pages, touched in sequential order. Verifies the tracker scales past
+    /// a handful of entries and that the JIT store preserves enough register state that
+    /// every write lands correctly.
+    #[test]
+    fn sw_eight_distinct_pages_in_order() {
+        let num_pages = 8;
+        let mut backend = new_backend_multipage(num_pages);
+
+        // Use a different sentinel per page to confirm the right value hits the right page.
+        for page in 0..num_pages {
+            let reg = match page {
+                0 => RiscRegister::X1,
+                1 => RiscRegister::X2,
+                2 => RiscRegister::X3,
+                3 => RiscRegister::X4,
+                4 => RiscRegister::X5,
+                5 => RiscRegister::X6,
+                6 => RiscRegister::X7,
+                _ => RiscRegister::X8,
+            };
+            load_imm(&mut backend, reg, 0x1000 + page as i32);
+            emit_sw(&mut backend, RiscRegister::X0, reg, page as u64 * PAGE_BYTES);
+        }
+
+        let func = finalize_and_run(backend);
+
+        let expected: Vec<u32> = (0..num_pages as u32).collect();
+        assert_eq!(func.dirty.list_slice(), expected);
+        for page in 0..num_pages {
+            assert_eq!(
+                read_mem_u32(&func, page as u64 * PAGE_BYTES),
+                0x1000 + page as u32,
+                "wrong value at page {page}",
+            );
+        }
+    }
+
+    /// Many writes fully within a single page at various offsets. The dirty list should
+    /// have exactly one entry; every write must land.
+    #[test]
+    fn sw_many_offsets_within_one_page() {
+        let mut backend = new_backend_multipage(1);
+        load_imm(&mut backend, RiscRegister::X1, 0xAAAA);
+
+        // Hit every 8-byte slot in page 0: 0, 8, 16, ..., PAGE_BYTES - 8.
+        let offsets: Vec<u64> = (0..(PAGE_BYTES / 8)).map(|i| i * 8).collect();
+        for &off in &offsets {
+            emit_sw(&mut backend, RiscRegister::X0, RiscRegister::X1, off);
+        }
+
+        let func = finalize_and_run(backend);
+
+        assert_eq!(func.dirty.list_slice(), vec![0]);
+        for off in offsets {
+            assert_eq!(read_mem_u32(&func, off), 0xAAAA, "miss at offset {off}");
+        }
+    }
+
+    /// Interleaved writes: visit pages in a non-monotonic order with repeats. The list must
+    /// be first-touch-order and deduped (except across forced hash collisions, which this
+    /// test avoids by keeping page_ids small).
+    #[test]
+    fn sw_interleaved_pages_ordered_by_first_touch() {
+        let mut backend = new_backend_multipage(5);
+        load_imm(&mut backend, RiscRegister::X1, 0x5555);
+
+        // Sequence: page 3, page 1, page 3 (dup), page 4, page 0, page 1 (dup), page 2,
+        //           page 0 (dup), page 4 (dup).
+        let sequence: &[u64] = &[3, 1, 3, 4, 0, 1, 2, 0, 4];
+        for &page in sequence {
+            emit_sw(&mut backend, RiscRegister::X0, RiscRegister::X1, page * PAGE_BYTES);
+        }
+
+        let func = finalize_and_run(backend);
+        assert_eq!(func.dirty.list_slice(), vec![3, 1, 4, 0, 2]);
+
+        // All final contents must be 0x5555 even though each page was visited multiple times.
+        for page in [0u64, 1, 2, 3, 4] {
+            assert_eq!(read_mem_u32(&func, page * PAGE_BYTES), 0x5555);
+        }
+    }
+
+    /// The direct-mapped hash table resolves collisions by overwriting the slot and
+    /// pushing the new page_id. To exercise that path without needing >256 MB of memory,
+    /// pre-populate the slot that page 0 hashes to with a spurious page_id. The JIT must
+    /// detect the mismatch, treat the write as a fresh dirty, and update the slot.
+    /// With a bitset there are no hash-table collisions — a page's bit is definitive.
+    /// This test verifies the hot path fires when the bit is already set (simulating an
+    /// earlier touch without having to engineer a specific page-id hash).
+    #[test]
+    fn hot_path_fires_when_bit_already_set() {
+        let mut backend = new_backend_multipage(1);
+        load_imm(&mut backend, RiscRegister::X1, 0x1234);
+        emit_sw(&mut backend, RiscRegister::X0, RiscRegister::X1, 0);
+
+        let mut func = backend.finalize::<AnonymousMemory>().expect("finalize");
+
+        // Pre-set page 0's bit. The JIT hot path should see bit set, skip the cold path
+        // (so page 0 does NOT appear in the list), and the store itself still lands.
+        func.dirty.bitset[0] |= 1u64;
+
+        let mut trace_buf = MmapMut::map_anon(trace_capacity(Some(10_000))).expect("trace buf");
+        unsafe { func.call(trace_buf.as_mut_ptr()) };
+
+        assert_eq!(func.dirty.list_len, 0);
+        assert_eq!(read_mem_u32(&func, 0), 0x1234);
+    }
+
+    /// After writing and then resetting, the tracker must look as if brand-new.
+    #[test]
+    fn tracker_reset_between_chunks() {
+        let mut backend = new_backend_multipage(2);
+        load_imm(&mut backend, RiscRegister::X1, 0xCAFE);
+        emit_sw(&mut backend, RiscRegister::X0, RiscRegister::X1, 0);
+
+        let mut func = finalize_and_run(backend);
+        assert_eq!(func.dirty.list_slice(), vec![0]);
+
+        func.dirty.reset();
+        assert!(func.dirty.list_len == 0);
+        assert!(func.dirty.bitset.iter().all(|&w| w == 0));
+    }
+
+    /// Seed the 8-byte value at `byte_addr` in the JIT's raw memory before execution.
+    fn seed_u64(func: &mut crate::JitFunction<AnonymousMemory>, byte_addr: u64, val: u64) {
+        assert!(byte_addr.is_multiple_of(8));
+        let off = byte_addr as usize;
+        func.memory[off..off + 8].copy_from_slice(&val.to_le_bytes());
+    }
+
+    /// `emit_dirty_pages` must return the chunk-END contents of each touched page by
+    /// reading them directly from JIT memory at emit time.
+    #[test]
+    fn emit_captures_final_contents() {
+        let mut backend = new_backend_multipage(2);
+        load_imm(&mut backend, RiscRegister::X1, 0x999);
+
+        // Store 0x999 (32-bit) at page 1, word 0. Only the low 32 bits are affected.
+        backend.start_instr();
+        backend.sw(RiscRegister::X0, RiscRegister::X1, PAGE_BYTES);
+
+        let mut func = backend.finalize::<AnonymousMemory>().expect("finalize");
+
+        // Seed page 1 with distinct values per word so we can tell which word is which.
+        for i in 0..MERKLE_PAGE_WORDS {
+            seed_u64(&mut func, PAGE_BYTES + (i * 8) as u64, 0x1_0000 + i as u64);
+        }
+
+        let mut trace_buf = MmapMut::map_anon(trace_capacity(Some(10_000))).expect("trace buf");
+        unsafe { func.call(trace_buf.as_mut_ptr()) };
+
+        let mem = emit_mem_pages(&mut func);
+        assert_eq!(mem.len(), 1);
+        let page = &mem[0];
+        assert_eq!(page.page_id, 1);
+
+        // Final contents: word 0's low 32 bits = 0x999, high 32 bits untouched (= high 32
+        // bits of the seed, which is 0). All other words unchanged.
+        assert_eq!(page.final_contents[0], 0x999);
+        for i in 1..MERKLE_PAGE_WORDS {
+            assert_eq!(page.final_contents[i], 0x1_0000 + i as u64, "final[{i}]",);
+        }
+    }
+
+    /// `emit_dirty_pages` must leave the tracker in the post-`reset` state so the next
+    /// chunk starts clean.
+    #[test]
+    fn emit_dirty_pages_resets_tracker() {
+        let mut backend = new_backend_multipage(2);
+        load_imm(&mut backend, RiscRegister::X1, 0x1234);
+        emit_sw(&mut backend, RiscRegister::X0, RiscRegister::X1, PAGE_BYTES);
+
+        let mut func = finalize_and_run(backend);
+        assert_eq!(func.dirty.list_slice(), vec![1]);
+
+        let mem = emit_mem_pages(&mut func);
+        assert_eq!(mem.len(), 1);
+
+        assert!(func.dirty.list_len == 0);
+        assert!(func.dirty.bitset.iter().all(|&w| w == 0));
+    }
+
+    /// Read-only pages (`lw` without any corresponding `sw`) must appear in the output,
+    /// with final contents matching the seeded value (unchanged by the read).
+    #[test]
+    fn read_only_page_final_contents_equal_seed() {
+        let mut backend = new_backend_multipage(2);
+
+        backend.start_instr();
+        backend.lw(RiscRegister::X1, RiscRegister::X0, PAGE_BYTES);
+
+        let mut func = backend.finalize::<AnonymousMemory>().expect("finalize");
+        for i in 0..MERKLE_PAGE_WORDS {
+            seed_u64(&mut func, PAGE_BYTES + (i * 8) as u64, 0x2_0000 + i as u64);
+        }
+
+        let mut trace_buf = MmapMut::map_anon(trace_capacity(Some(10_000))).expect("buf");
+        unsafe { func.call(trace_buf.as_mut_ptr()) };
+
+        let mem = emit_mem_pages(&mut func);
+        assert_eq!(mem.len(), 1);
+        let page = &mem[0];
+        assert_eq!(page.page_id, 1);
+
+        for i in 0..MERKLE_PAGE_WORDS {
+            assert_eq!(page.final_contents[i], 0x2_0000 + i as u64);
+        }
+    }
+
+    /// A load (`lw`) from a fresh page must also record it as touched, since the prover
+    /// needs the page's initial contents to verify the read against its merkle leaf.
+    #[test]
+    fn lw_records_touched_page() {
+        let mut backend = new_backend_multipage(2);
+
+        // Seed memory: RISC-V word at address 0 = 0xDEADBEEF, word at PAGE_BYTES = 0x12345.
+        // (run_test_with_memory style: write into the raw buffer before execution.)
+        backend.start_instr();
+        backend.lw(RiscRegister::X1, RiscRegister::X0, 0);
+        backend.end_instr();
+
+        backend.start_instr();
+        backend.lw(RiscRegister::X2, RiscRegister::X0, PAGE_BYTES);
+
+        let mut func = backend.finalize::<AnonymousMemory>().expect("finalize");
+        // Seed non-zero values into the two pages we'll load from.
+        let seed = |func: &mut crate::JitFunction<AnonymousMemory>, byte_addr: u64, val: u32| {
+            let off = byte_addr as usize;
+            func.memory[off..off + 4].copy_from_slice(&val.to_le_bytes());
+        };
+        seed(&mut func, 0, 0xDEADBEEF);
+        seed(&mut func, PAGE_BYTES, 0x12345);
+
+        let mut trace_buf = MmapMut::map_anon(trace_capacity(Some(10_000))).expect("trace buf");
+        let ptr = trace_buf.as_mut_ptr();
+        unsafe { func.call(ptr) };
+
+        assert_eq!(func.dirty.list_slice(), vec![0, 1]);
+    }
+
+    /// `sd` (aligned 8-byte store) must also mark the page — it uses a different code path
+    /// than the misaligned stores (no `rax` intra-word offset).
+    #[test]
+    fn sd_records_touched_page() {
+        let mut backend = new_backend_multipage(2);
+        load_imm(&mut backend, RiscRegister::X1, 0x1234);
+
+        backend.start_instr();
+        backend.sd(RiscRegister::X0, RiscRegister::X1, 0);
+        backend.end_instr();
+
+        backend.start_instr();
+        backend.sd(RiscRegister::X0, RiscRegister::X1, PAGE_BYTES);
+
+        let func = finalize_and_run(backend);
+        assert_eq!(func.dirty.list_slice(), vec![0, 1]);
+    }
+
+    /// `sb` and `sh` touch a specific intra-word position; the dirty-page check must
+    /// preserve `rax` (intra-word offset) so the store itself still lands correctly.
+    #[test]
+    fn sb_and_sh_still_land_correctly_with_dirty_check() {
+        let mut backend = new_backend_multipage(1);
+        load_imm(&mut backend, RiscRegister::X1, 0xAB);
+        load_imm(&mut backend, RiscRegister::X2, 0x1234);
+
+        // sb at byte offset 3 of word 0 → touches page 0 at intra-word offset 3.
+        backend.start_instr();
+        backend.sb(RiscRegister::X0, RiscRegister::X1, 3);
+        backend.end_instr();
+
+        // sh at byte offset 8 (word 1) → touches page 0 at aligned offset.
+        backend.start_instr();
+        backend.sh(RiscRegister::X0, RiscRegister::X2, 8);
+
+        let func = finalize_and_run(backend);
+
+        assert_eq!(func.dirty.list_slice(), vec![0]);
+
+        // Verify the byte store landed at offset 3 of word 0.
+        let mem = &*func.memory;
+        let word0_off = 0;
+        assert_eq!(mem[word0_off + 3], 0xAB, "sb value at byte offset 3");
+
+        // Verify the halfword store landed at the start of word 1.
+        let word1_off = 8;
+        assert_eq!(
+            u16::from_le_bytes(mem[word1_off..word1_off + 2].try_into().unwrap()),
+            0x1234,
+            "sh value at word 1",
+        );
+    }
+
+    /// After `emit_dirty_pages` + `JitFunction::reset`, a second run of the same program
+    /// on the same `JitFunction` must produce a fresh, independent dirty set — no
+    /// carry-over from the first run's tracking state.
+    #[test]
+    fn second_run_after_reset_has_fresh_tracking() {
+        let mut backend = new_backend_multipage(3);
+        load_imm(&mut backend, RiscRegister::X1, 0x1234);
+        load_imm(&mut backend, RiscRegister::X2, 0x5678);
+        emit_sw(&mut backend, RiscRegister::X0, RiscRegister::X1, PAGE_BYTES);
+        backend.start_instr();
+        backend.sw(RiscRegister::X0, RiscRegister::X2, 2 * PAGE_BYTES);
+
+        let mut func = backend.finalize::<AnonymousMemory>().expect("finalize");
+
+        // --- Run 1 ---
+        let mut buf1 = MmapMut::map_anon(trace_capacity(Some(10_000))).expect("buf1");
+        unsafe { func.call(buf1.as_mut_ptr()) };
+        let mem1 = emit_mem_pages(&mut func);
+
+        assert_eq!(mem1.len(), 2);
+        let pages1: std::collections::HashSet<u32> = mem1.iter().map(|p| p.page_id).collect();
+        assert!(pages1.contains(&1));
+        assert!(pages1.contains(&2));
+
+        // --- Reset memory + state. Tracker was already reset by emit_dirty_pages. ---
+        func.reset();
+        assert!(func.dirty.list_len == 0);
+        assert!(func.dirty.bitset.iter().all(|&w| w == 0));
+
+        // --- Run 2 ---
+        let mut buf2 = MmapMut::map_anon(trace_capacity(Some(10_000))).expect("buf2");
+        unsafe { func.call(buf2.as_mut_ptr()) };
+        let mem2 = emit_mem_pages(&mut func);
+
+        assert_eq!(mem2.len(), 2);
+        let pages2: std::collections::HashSet<u32> = mem2.iter().map(|p| p.page_id).collect();
+        assert!(pages2.contains(&1));
+        assert!(pages2.contains(&2));
+    }
+
+    /// For every page_id in the list, its bit in the bitset must be set. Conversely, no
+    /// bit should be set for a page_id that isn't in the list.
+    #[test]
+    fn bitset_matches_list() {
+        let mut backend = new_backend_multipage(6);
+        load_imm(&mut backend, RiscRegister::X1, 0);
+
+        for page in [0u64, 2, 5, 3] {
+            emit_sw(&mut backend, RiscRegister::X0, RiscRegister::X1, page * PAGE_BYTES);
+        }
+
+        let func = finalize_and_run(backend);
+
+        let in_list: std::collections::HashSet<u32> =
+            func.dirty.list_slice().iter().copied().collect();
+
+        // Forward: every list entry has its bit set.
+        for &page_id in func.dirty.list_slice() {
+            let qword = (page_id / 64) as usize;
+            let bit = 1u64 << (page_id % 64);
+            assert_eq!(
+                func.dirty.bitset[qword] & bit,
+                bit,
+                "list had page_id {page_id} but its bit is not set",
+            );
+        }
+
+        // Reverse: iterate the low part of the bitset that could cover our pages and
+        // verify any set bit corresponds to a list entry. (Pages 0..6 means qword 0 only.)
+        let word0 = func.dirty.bitset[0];
+        for bit in 0..64u32 {
+            if word0 & (1u64 << bit) != 0 {
+                assert!(
+                    in_list.contains(&bit),
+                    "bit {bit} is set but page_id {bit} isn't in the list",
+                );
+            }
+        }
     }
 }
 
@@ -1507,10 +1993,13 @@ mod trace {
         assert_eq!(mem_reads[3].value, 15);
         assert_eq!(mem_reads[4].value, 20);
 
-        // Check the clks.
+        // Check the clks. No-clk MinimalExecutor leaves the clk slot of
+        // `trace_mem_value`-written entries untouched (initial zero on a fresh
+        // trace mmap); SplicingVM is expected to backfill it per-chunk.
+        // Precompile-emitted entries still carry their explicit clk values.
         assert_eq!(mem_reads[0].clk, 0);
         assert_eq!(mem_reads[1].clk, 0);
-        assert_eq!(mem_reads[2].clk, 10);
+        assert_eq!(mem_reads[2].clk, 0);
         assert_eq!(mem_reads[3].clk, 5);
         assert_eq!(mem_reads[4].clk, 10);
     }

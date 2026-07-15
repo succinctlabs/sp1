@@ -10,11 +10,10 @@ use sp1_gpu_basefold::DeviceGrindingChallenger;
 use sp1_gpu_cudart::TaskScope;
 use sp1_gpu_jagged_tracegen::setup_tracegen_permit;
 use sp1_gpu_jagged_tracegen::CudaShardProverData;
-use sp1_gpu_utils::{Ext, Felt, JaggedTraceMle};
+use sp1_gpu_utils::{Ext, Felt, JaggedTraceMle, TraceSection};
 use sp1_hypercube::{
     air::{MachineAir, MachineProgram},
     prover::{PreprocessedData, ProverSemaphore, ProvingKey},
-    septic_digest::SepticDigest,
     MachineVerifyingKey, UntrustedConfig,
 };
 
@@ -29,11 +28,11 @@ where
     SP1PcsProof<GC>: Into<<PC::C as BatchPcsVerifier<GC>>::Proof>,
     TaskScope: sp1_gpu_jagged_assist::BranchingProgramKernel<GC::F, GC::EF, PC::DeviceChallenger>,
 {
-    /// Setup from a program with a specific initial global cumulative sum.
-    pub async fn setup_with_initial_global_cumulative_sum(
+    /// Setup from a program with a specific initial memory root.
+    pub async fn setup_with_initial_memory_root(
         self: Arc<Self>,
         program: Arc<<PC::Air as MachineAir<GC::F>>::Program>,
-        initial_global_cumulative_sum: SepticDigest<GC::F>,
+        initial_memory_root: [GC::F; 8],
         setup_permits: ProverSemaphore,
     ) -> (
         PreprocessedData<
@@ -62,7 +61,7 @@ where
         let (pk, vk) = tokio::task::spawn_blocking(move || {
             inner.setup_from_preprocessed_data_and_traces(
                 pc_start,
-                initial_global_cumulative_sum,
+                initial_memory_root,
                 preprocessed_data,
                 untrusted_config,
             )
@@ -83,7 +82,7 @@ where
     pub fn setup_from_preprocessed_data_and_traces(
         &self,
         pc_start: [GC::F; 3],
-        initial_global_cumulative_sum: SepticDigest<GC::F>,
+        initial_memory_root: [GC::F; 8],
         preprocessed_traces: JaggedTraceMle<Felt, TaskScope>,
         untrusted_config: UntrustedConfig<GC::F>,
     ) -> (CudaShardProverData<GC, PC::Air>, MachineVerifyingKey<GC>) {
@@ -91,7 +90,7 @@ where
         let (preprocessed_commit, preprocessed_data) = sp1_gpu_commit::commit_multilinears(
             &preprocessed_traces,
             self.max_log_row_count,
-            true,
+            TraceSection::Preprocessed,
             self.drop_ldes,
             &self.basefold_prover,
         )
@@ -99,7 +98,7 @@ where
 
         let vk = MachineVerifyingKey {
             pc_start,
-            initial_global_cumulative_sum,
+            initial_memory_root,
             preprocessed_commit,
             untrusted_config,
         };

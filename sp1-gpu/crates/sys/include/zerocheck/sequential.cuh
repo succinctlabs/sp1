@@ -19,17 +19,16 @@ struct DagInstr {
 };
 
 // Source tag for `LeafRef.source`. Must match
-// `LEAF_SOURCE_{PREPROCESSED,MAIN}_LOCAL` in
-// `sp1-gpu-air/src/ir/bytecode.rs`. The (`PreprocessedNext`,
-// `MainNext`) variants from the jagged-mle column tags would be 3 and 5
-// but are never emitted here — constraint lowering only references local
-// rows.
+// `LEAF_SOURCE_{PREPROCESSED,GLOBAL,MAIN}_LOCAL` in
+// `sp1-gpu-air/src/ir/bytecode.rs`. Constraint lowering only references
+// local rows, so only these three tags are emitted.
 constexpr uint8_t LEAF_SOURCE_PREPROCESSED_LOCAL = 2;
+constexpr uint8_t LEAF_SOURCE_GLOBAL_LOCAL       = 3;
 constexpr uint8_t LEAF_SOURCE_MAIN_LOCAL         = 4;
 
 // Must match `LeafRef` in sp1-gpu-air/src/ir/bytecode.rs.
 struct LeafRef {
-    uint8_t source;   // LEAF_SOURCE_PREPROCESSED_LOCAL / LEAF_SOURCE_MAIN_LOCAL
+    uint8_t source;   // LEAF_SOURCE_{PREPROCESSED,GLOBAL,MAIN}_LOCAL
     uint8_t _pad;
     uint32_t col;
 };
@@ -68,6 +67,10 @@ struct ChunkStatic {
     /// have these zeroed at shard init.
     uint32_t gkr_main_width;           // 4
     uint32_t gkr_prep_width;           // 4
+    /// Carrier-chunk inline-GKR global width. The sweep is ordered
+    /// `main, prep, global`: global column `i` uses `gkr_powers`
+    /// index `gkr_main_width + gkr_prep_width + i`. Zeroed for wide chips.
+    uint32_t gkr_global_width;         // 4
     uint32_t chip_alpha_offset;        // 4 — added to chip-relative alpha idx
 };
 
@@ -77,6 +80,7 @@ struct ChunkStatic {
 struct ChipLayout {
     uint64_t main_ptr;                 // 8
     uint64_t preprocessed_ptr;         // 8
+    uint64_t global_ptr;               // 8
     uint32_t height;                   // 4
     uint32_t _pad;                     // 4
 };

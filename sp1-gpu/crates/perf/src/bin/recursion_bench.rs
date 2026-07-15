@@ -14,7 +14,7 @@ use sp1_hypercube::{
 };
 use sp1_primitives::{SP1ExtensionField, SP1Field, SP1GlobalContext};
 use sp1_prover::{
-    recursion::{compose_program_from_input, recursive_verifier, shrink_program_from_input},
+    recursion::{chunk_compose_program_from_input, recursive_verifier, shrink_program_from_input},
     shapes::SP1RecursionProofShape,
     SP1ProverComponents,
 };
@@ -147,7 +147,7 @@ async fn main() {
                     machine,
                     original_arity,
                 );
-                let mut program = compose_program_from_input(
+                let mut program = chunk_compose_program_from_input(
                     &recursive_compress_verifier,
                     vk_verification,
                     &input,

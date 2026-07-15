@@ -37,7 +37,9 @@ macro_rules! impl_imm_opt {
 macro_rules! impl_alu_imm_opt {
     ($self:expr, $rd:expr, $rs1:expr, $rs2:expr, $op:ident) => {
         match $rs2 {
-            RiscOperand::Immediate(imm) => {
+            // The x86 `op r64, imm32` encoding sign-extends the immediate; wide
+            // immediates should be materialized the full 64-bit value.
+            RiscOperand::Immediate(imm) if imm == (imm as i32) as i64 => {
                 $self.emit_risc_operand_load($rs1, TEMP_A);
                 dynasm! { $self; .arch x64; $op Rq(TEMP_A), imm as i32 };
                 $self.emit_risc_register_store(TEMP_A, None, $rd);

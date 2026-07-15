@@ -10,15 +10,11 @@ use crate::{
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 use slop_algebra::{Field, PrimeField32};
-use slop_maybe_rayon::prelude::{IntoParallelIterator, ParallelBridge, ParallelIterator};
 use sp1_hypercube::{
     air::{MachineAir, MachineProgram},
-    septic_curve::{SepticCurve, SepticCurveComplete},
-    septic_digest::SepticDigest,
     shape::Shape,
-    InteractionKind, UntrustedConfig,
+    UntrustedConfig,
 };
-use sp1_primitives::consts::split_page_idx;
 use std::sync::Arc;
 
 #[cfg(feature = "mprotect")]
@@ -167,66 +163,9 @@ impl<F: PrimeField32> MachineProgram<F> for Program {
         ]
     }
 
-    fn initial_global_cumulative_sum(&self) -> SepticDigest<F> {
-        let mut memory_digests: Vec<SepticCurveComplete<F>> = self
-            .memory_image
-            .iter()
-            .par_bridge()
-            .map(|(&addr, &word)| {
-                let limb_1 = (word & 0xFFFF) as u32 + (1 << 16) * ((word >> 32) & 0xFF) as u32;
-                let limb_2 =
-                    ((word >> 16) & 0xFFFF) as u32 + (1 << 16) * ((word >> 40) & 0xFF) as u32;
-                let values = [
-                    (InteractionKind::Memory as u32) << 24,
-                    0,
-                    (addr & 0xFFFF) as u32,
-                    ((addr >> 16) & 0xFFFF) as u32,
-                    ((addr >> 32) & 0xFFFF) as u32,
-                    limb_1,
-                    limb_2,
-                    ((word >> 48) & 0xFFFF) as u32,
-                ];
-                let (point, _, _, _) =
-                    SepticCurve::<F>::lift_x(values.map(|x| F::from_canonical_u32(x)));
-                SepticCurveComplete::Affine(point.neg())
-            })
-            .collect();
-
-        if self.enable_untrusted_programs {
-            let page_prot_digests: Vec<SepticCurveComplete<F>> = self
-                .page_prot_image
-                .iter()
-                .par_bridge()
-                .map(|(&page_idx, &page_prot)| {
-                    // Use exact same encoding as PageProtGlobalChip Initialize events
-                    let page_idx_limbs = split_page_idx(page_idx);
-                    let values = [
-                        (InteractionKind::PageProtAccess as u32) << 24,
-                        0,
-                        page_idx_limbs[0].into(),
-                        page_idx_limbs[1].into(),
-                        page_idx_limbs[2].into(),
-                        page_prot.into(),
-                        0,
-                        0,
-                    ];
-                    let (point, _, _, _) =
-                        SepticCurve::<F>::lift_x(values.map(|x| F::from_canonical_u32(x)));
-                    SepticCurveComplete::Affine(point.neg())
-                })
-                .collect();
-
-            // Combine both memory and page protection contributions.
-            memory_digests.extend(page_prot_digests);
-        }
-
-        memory_digests.push(SepticCurveComplete::Affine(SepticDigest::<F>::zero().0));
-        SepticDigest(
-            memory_digests
-                .into_par_iter()
-                .reduce(|| SepticCurveComplete::Infinity, |a, b| a + b)
-                .point(),
-        )
+    fn initial_memory_root(&self) -> [F; 8] {
+        crate::merkle::memory_image_root(&self.memory_image)
+            .map(|e| F::from_canonical_u32(e.as_canonical_u32()))
     }
 
     fn untrusted_config(&self) -> UntrustedConfig<F> {

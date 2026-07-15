@@ -10,56 +10,47 @@ use slop_tensor::Tensor;
 use sp1_gpu_basefold::{CudaStackedPcsProverData, FriCudaProver};
 use sp1_gpu_cudart::TaskScope;
 use sp1_gpu_merkle_tree::{CudaTcsProver, SingleLayerMerkleTreeProverError};
-use sp1_gpu_utils::{traces::JaggedTraceMle, Ext, Felt};
+use sp1_gpu_utils::{traces::JaggedTraceMle, Ext, Felt, TraceSection};
 
-/// TODO: document
+/// Commit to one of the three trace sections (`[preprocessed | global | main]`) of the jagged
+/// trace. The section to commit is chosen by `section`.
 #[allow(clippy::type_complexity)]
 pub fn commit_multilinears<GC: IopCtx<F = Felt, EF = Ext>, P: CudaTcsProver<GC>>(
     jagged_trace_mle: &JaggedTraceMle<Felt, TaskScope>,
     max_log_row_count: u32,
-    use_preprocessed: bool,
+    section: TraceSection,
     drop_main_traces: bool,
     basefold_prover: &FriCudaProver<GC, P, Felt>,
 ) -> Result<
     (GC::Digest, JaggedProverData<GC, CudaStackedPcsProverData<GC>>),
     SingleLayerMerkleTreeProverError,
 > {
-    let (index, padding, dst) = if use_preprocessed {
-        (
-            &jagged_trace_mle.dense().preprocessed_table_index,
-            jagged_trace_mle.dense().preprocessed_padding,
-            Tensor::<Felt, TaskScope>::with_sizes_in(
-                [
-                    jagged_trace_mle.dense().preprocessed_offset >> basefold_prover.log_height,
-                    1 << (basefold_prover.log_height as usize
-                        + basefold_prover.config.log_blowup()),
-                ],
-                jagged_trace_mle.dense().dense.backend().clone(),
-            ),
-        )
-    } else {
-        (
-            &jagged_trace_mle.dense().main_table_index,
-            jagged_trace_mle.dense().main_padding,
-            Tensor::<Felt, TaskScope>::with_sizes_in(
-                [
-                    jagged_trace_mle.dense().main_size() >> basefold_prover.log_height,
-                    1 << (basefold_prover.log_height as usize
-                        + basefold_prover.config.log_blowup()),
-                ],
-                jagged_trace_mle.dense().dense.backend().clone(),
-            ),
-        )
+    let dense = jagged_trace_mle.dense();
+    let (index, padding, section_size) = match section {
+        TraceSection::Preprocessed => {
+            (&dense.preprocessed_table_index, dense.preprocessed_padding, dense.preprocessed_offset)
+        }
+        TraceSection::Global => {
+            (&dense.global_table_index, dense.global_padding, dense.global_size())
+        }
+        TraceSection::Main => (&dense.main_table_index, dense.main_padding, dense.main_size()),
     };
+    let dst = Tensor::<Felt, TaskScope>::with_sizes_in(
+        [
+            section_size >> basefold_prover.log_height,
+            1 << (basefold_prover.log_height as usize + basefold_prover.config.log_blowup()),
+        ],
+        dense.dense.backend().clone(),
+    );
     let (mut row_counts, mut column_counts) = (
         index.values().map(|x| x.poly_size).collect::<Vec<_>>(),
         index.values().map(|x| x.num_polys).collect::<Vec<_>>(),
     );
 
-    let drop_traces = drop_main_traces && !use_preprocessed;
+    let drop_traces = drop_main_traces && section == TraceSection::Main;
 
     let (commitment, data) =
-        basefold_prover.encode_and_commit(use_preprocessed, drop_traces, jagged_trace_mle, dst)?;
+        basefold_prover.encode_and_commit(section, drop_traces, jagged_trace_mle, dst)?;
 
     let num_added_cols = padding.div_ceil(1 << max_log_row_count).max(1);
 
@@ -112,7 +103,7 @@ mod tests {
     };
     use sp1_gpu_jagged_tracegen::{full_tracegen, CORE_MAX_TRACE_SIZE};
     use sp1_gpu_merkle_tree::{CudaTcsProver, Poseidon2SP1Field16CudaProver};
-    use sp1_gpu_utils::{Felt, TestGC};
+    use sp1_gpu_utils::{Felt, TestGC, TraceSection};
     use sp1_hypercube::prover::{DefaultTraceGenerator, ProverSemaphore, TraceGenerator};
     use sp1_hypercube::SP1InnerPcs;
     use sp1_primitives::fri_params::core_fri_config;
@@ -169,11 +160,26 @@ mod tests {
                 main_host_values.push(mle_host);
             }
 
+            // The core machine has a global round (`MemoryLocalChip` is in every core cluster), so
+            // there must be at least one global trace to commit.
+            let mut global_host_values = Vec::new();
+            for mle in old_traces.main_trace_data.global_traces.values() {
+                let mle_host = mle.to_host().unwrap();
+                global_host_values.push(mle_host);
+            }
+            assert!(
+                !global_host_values.is_empty(),
+                "expected the core machine to have global traces"
+            );
+
             let preprocessed_message = preprocessed_host_values.into_iter().collect();
+            let global_message = global_host_values.into_iter().collect();
             let main_message = main_host_values.into_iter().collect();
 
             let (old_preprocessed_commitment, old_preprocessed_data) =
                 jagged_prover.commit_multilinears(preprocessed_message).ok().unwrap();
+            let (old_global_commitment, old_global_data) =
+                jagged_prover.commit_multilinears(global_message).ok().unwrap();
             let (old_main_commitment, old_main_data) =
                 jagged_prover.commit_multilinears(main_message).ok().unwrap();
 
@@ -210,16 +216,25 @@ mod tests {
                 commit_multilinears::<TestGC, _>(
                     &jagged_trace_data,
                     CORE_MAX_LOG_ROW_COUNT,
-                    true,
+                    TraceSection::Preprocessed,
                     false,
                     &basefold_prover,
                 )
                 .unwrap();
 
+            let (new_global_commitment, new_global_data) = commit_multilinears::<TestGC, _>(
+                &jagged_trace_data,
+                CORE_MAX_LOG_ROW_COUNT,
+                TraceSection::Global,
+                false,
+                &basefold_prover,
+            )
+            .unwrap();
+
             let (new_main_commitment, new_main_data) = commit_multilinears::<TestGC, _>(
                 &jagged_trace_data,
                 CORE_MAX_LOG_ROW_COUNT,
-                false,
+                TraceSection::Main,
                 false,
                 &basefold_prover,
             )
@@ -231,6 +246,9 @@ mod tests {
                 old_preprocessed_data.padding_column_count,
                 new_preprocessed_data.padding_column_count
             );
+            assert_eq!(old_global_data.row_counts, new_global_data.row_counts);
+            assert_eq!(old_global_data.column_counts, new_global_data.column_counts);
+            assert_eq!(old_global_data.padding_column_count, new_global_data.padding_column_count);
             assert_eq!(old_main_data.row_counts, new_main_data.row_counts);
             assert_eq!(old_main_data.column_counts, new_main_data.column_counts);
             assert_eq!(old_main_data.padding_column_count, new_main_data.padding_column_count);
@@ -238,8 +256,10 @@ mod tests {
                 old_preprocessed_data.original_commitment,
                 new_preprocessed_data.original_commitment
             );
+            assert_eq!(old_global_data.original_commitment, new_global_data.original_commitment);
             assert_eq!(old_main_data.original_commitment, new_main_data.original_commitment);
             assert_eq!(old_preprocessed_commitment, new_preprocessed_commitment);
+            assert_eq!(old_global_commitment, new_global_commitment);
             assert_eq!(old_main_commitment, new_main_commitment);
         })
         .await;

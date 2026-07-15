@@ -27,7 +27,7 @@ pub mod tests {
     use itertools::Itertools;
     use rand::Rng;
     use serial_test::serial;
-    use slop_air::{Air, BaseAir, PairBuilder};
+    use slop_air::{Air, BaseAir, GlobalBuilder, PairBuilder};
     use slop_algebra::{AbstractField, PrimeField32};
     use slop_alloc::{Buffer, CpuBackend};
     use slop_challenger::{
@@ -823,10 +823,12 @@ pub mod tests {
         A: MachineAir<Felt> + for<'a> Air<VerifierConstraintFolder<'a, Felt, Ext>>,
     {
         let dummy_preprocessed_trace = vec![Ext::zero(); chip.preprocessed_width()];
+        let dummy_global_trace = vec![Ext::zero(); chip.global_width()];
         let dummy_main_trace = vec![Ext::zero(); chip.width()];
 
         let mut folder = VerifierConstraintFolder::<Felt, Ext> {
             preprocessed: RowMajorMatrixView::new_row(&dummy_preprocessed_trace),
+            global: RowMajorMatrixView::new_row(&dummy_global_trace),
             main: RowMajorMatrixView::new_row(&dummy_main_trace),
             alpha,
             accumulator: Ext::zero(),
@@ -851,6 +853,7 @@ pub mod tests {
     {
         let mut folder = VerifierConstraintFolder::<Felt, Ext> {
             preprocessed: RowMajorMatrixView::new_row(&opening.preprocessed.local),
+            global: RowMajorMatrixView::new_row(&opening.global.local),
             main: RowMajorMatrixView::new_row(&opening.main.local),
             alpha,
             accumulator: Ext::zero(),
@@ -876,6 +879,9 @@ pub mod tests {
 
         // Verify that the main width matches the expected value for the chip.
         assert_eq!(opening.main.local.len(), chip.width(), "main width mismatch");
+
+        // Verify that the global width matches the expected value for the chip.
+        assert_eq!(opening.global.local.len(), chip.global_width(), "global width mismatch");
     }
 
     pub fn verify_zerocheck<A, C>(
@@ -890,6 +896,8 @@ pub mod tests {
         A: MachineAir<Felt> + ZerocheckAir<Felt, Ext>,
         C: FieldChallenger<Felt>,
     {
+        let has_global_round = shard_chips.iter().any(|c| c.global_width() > 0);
+
         // Get the random challenge to merge the constraints.
         let alpha = challenger.sample_ext_element::<Ext>();
 
@@ -935,11 +943,13 @@ pub mod tests {
             let constraint_eval = eval_constraints(chip, openings, alpha, public_values)
                 - padded_row_adjustment * geq_val;
 
+            // The GKR opening batch is ordered `main, prep, global`.
             let openings_batch = openings
                 .main
                 .local
                 .iter()
                 .chain(openings.preprocessed.local.iter())
+                .chain(openings.global.local.iter())
                 .copied()
                 .zip(gkr_batch_open_challenge.powers().skip(1))
                 .map(|(opening, power)| opening * power)
@@ -963,13 +973,8 @@ pub mod tests {
                     .deref()
                     .iter()
                     .copied()
-                    .chain(
-                        chip_evaluation
-                            .preprocessed_trace_evaluations
-                            .as_ref()
-                            .iter()
-                            .flat_map(|&evals| evals.deref().iter().copied()),
-                    )
+                    .chain(chip_evaluation.preprocessed_trace_evaluations.deref().iter().copied())
+                    .chain(chip_evaluation.global_trace_evaluations.deref().iter().copied())
                     .zip(gkr_batch_open_challenge.powers().skip(1))
                     .map(|(opening, power)| opening * power)
                     .sum::<Ext>()
@@ -989,9 +994,12 @@ pub mod tests {
         partially_verify_sumcheck_proof(&zerocheck_proof, challenger, max_log_row_count, 4)
             .unwrap();
 
-        // Observe the openings
+        // Observe the openings in `prep, global, main` order.
         for opening in opened_values.chips.values() {
             challenger.observe_variable_length_extension_slice(&opening.preprocessed.local);
+            if has_global_round {
+                challenger.observe_variable_length_extension_slice(&opening.global.local);
+            }
             challenger.observe_variable_length_extension_slice(&opening.main.local);
         }
     }
@@ -1320,15 +1328,20 @@ pub mod tests {
             TraceDenseData {
                 dense: Buffer::from(data),
                 preprocessed_offset: padded_preprocessed as usize,
+                global_offset: padded_preprocessed as usize,
                 preprocessed_cols: total_preprocessed_cols as usize,
+                global_cols: 0,
                 preprocessed_table_index,
+                global_table_index: BTreeMap::new(),
                 main_table_index,
                 main_padding: 0,
+                global_padding: 0,
                 preprocessed_padding: 0,
                 // The synthetic trace layout emits exactly one prep-padding
                 // column (see the `heights.push(padded_preprocessed / 2 - cnt
                 // as u32)` line above); no main-padding columns.
                 prep_padding_col_count: 1,
+                global_padding_col_count: 0,
                 main_padding_col_count: 0,
             },
             Buffer::from(cols),
@@ -1452,17 +1465,15 @@ pub mod tests {
                 let preprocessed_width = chip.preprocessed_width();
                 let main_width = chip.width();
                 let chip_eval = ChipEvaluation {
-                    preprocessed_trace_evaluations: match preprocessed_width {
-                        0 => None,
-                        _ => Some(MleEval::new(Tensor::from(
-                            individual_column_evals
-                                [preprocessed_ptr..preprocessed_ptr + preprocessed_width]
-                                .to_vec(),
-                        ))),
-                    },
+                    preprocessed_trace_evaluations: MleEval::new(Tensor::from(
+                        individual_column_evals
+                            [preprocessed_ptr..preprocessed_ptr + preprocessed_width]
+                            .to_vec(),
+                    )),
                     main_trace_evaluations: MleEval::new(Tensor::from(
                         individual_column_evals[main_ptr..main_ptr + main_width].to_vec(),
                     )),
+                    global_trace_evaluations: MleEval::from(Vec::new()),
                 };
                 chip_openings.insert(
                     <ZerocheckTestChip as MachineAir<SP1Field>>::name(&chip.air).to_string(),
@@ -1630,17 +1641,15 @@ pub mod tests {
                 let preprocessed_width = chip.preprocessed_width();
                 let main_width = chip.width();
                 let chip_eval = ChipEvaluation {
-                    preprocessed_trace_evaluations: match preprocessed_width {
-                        0 => None,
-                        _ => Some(MleEval::new(Tensor::from(
-                            individual_column_evals
-                                [preprocessed_ptr..preprocessed_ptr + preprocessed_width]
-                                .to_vec(),
-                        ))),
-                    },
+                    preprocessed_trace_evaluations: MleEval::new(Tensor::from(
+                        individual_column_evals
+                            [preprocessed_ptr..preprocessed_ptr + preprocessed_width]
+                            .to_vec(),
+                    )),
                     main_trace_evaluations: MleEval::new(Tensor::from(
                         individual_column_evals[main_ptr..main_ptr + main_width].to_vec(),
                     )),
+                    global_trace_evaluations: MleEval::from(Vec::new()),
                 };
                 chip_openings.insert(
                     <ZerocheckTestChip as sp1_hypercube::air::MachineAir<SP1Field>>::name(
@@ -1676,6 +1685,359 @@ pub mod tests {
                 &public_values,
                 &mut challenger_verifier,
                 max_log_row_count,
+            );
+        })
+        .unwrap();
+    }
+
+    #[derive(Debug, Clone)]
+    pub enum GlobalZerocheckTestChip {
+        /// prep 1, global 2, main 2. Constraints: `global[0] == main[0]` and
+        /// `global[1] == main[1] * prep[0]`.
+        Mixed,
+        /// global-only (`width()==0`), global 2. Constraint: `global[0]`
+        /// boolean. Mirrors the `MemoryLocal` shape.
+        GlobalOnly,
+    }
+
+    impl<F> BaseAir<F> for GlobalZerocheckTestChip {
+        fn width(&self) -> usize {
+            match self {
+                Self::Mixed => 2,
+                Self::GlobalOnly => 0,
+            }
+        }
+    }
+
+    impl<F: PrimeField32> MachineAir<F> for GlobalZerocheckTestChip {
+        type Record = ExecutionRecord;
+        type Program = Program;
+
+        fn name(&self) -> &'static str {
+            match self {
+                Self::Mixed => "GlobalMixed",
+                Self::GlobalOnly => "GlobalOnly",
+            }
+        }
+
+        fn preprocessed_width(&self) -> usize {
+            match self {
+                Self::Mixed => 1,
+                Self::GlobalOnly => 0,
+            }
+        }
+
+        fn global_width(&self) -> usize {
+            match self {
+                Self::Mixed => 2,
+                Self::GlobalOnly => 2,
+            }
+        }
+
+        fn num_rows(&self, _: &Self::Record) -> Option<usize> {
+            unimplemented!()
+        }
+        fn generate_trace(&self, _: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
+            unimplemented!()
+        }
+        fn generate_trace_into(
+            &self,
+            _: &Self::Record,
+            _: &mut Self::Record,
+            _: &mut [std::mem::MaybeUninit<F>],
+        ) {
+            unimplemented!()
+        }
+        fn included(&self, _: &Self::Record) -> bool {
+            true
+        }
+    }
+
+    impl<AB: SP1AirBuilder + PairBuilder + GlobalBuilder> Air<AB> for GlobalZerocheckTestChip {
+        fn eval(&self, builder: &mut AB) {
+            match self {
+                Self::Mixed => {
+                    let main = builder.main();
+                    let main = main.row_slice(0);
+                    let global = builder.global();
+                    let global = global.row_slice(0);
+                    let prep = builder.preprocessed();
+                    let prep = prep.row_slice(0);
+                    let m0: AB::Expr = main[0].into();
+                    let m1: AB::Expr = main[1].into();
+                    let g0: AB::Expr = global[0].into();
+                    let g1: AB::Expr = global[1].into();
+                    let p0: AB::Expr = prep[0].into();
+                    // global[0] == main[0]: a linear constraint mixing the
+                    // global and main groups (→ ColumnTile).
+                    builder.assert_zero(g0 - m0);
+                    // global[1] == main[1] * prep[0]: a degree-2 constraint
+                    // mixing all three groups (→ Sequential carrier).
+                    builder.assert_zero(g1 - m1 * p0);
+                }
+                Self::GlobalOnly => {
+                    let global = builder.global();
+                    let global = global.row_slice(0);
+                    let g0: AB::Expr = global[0].into();
+                    builder.assert_zero(g0.clone() * (g0 - AB::Expr::one()));
+                }
+            }
+        }
+    }
+
+    /// Pick a row satisfying a `GlobalZerocheckTestChip`'s constraints,
+    /// returning `(prep_row, global_row, main_row)`.
+    fn generate_global_row<R: Rng>(
+        chip: &GlobalZerocheckTestChip,
+        rng: &mut R,
+    ) -> (Vec<Felt>, Vec<Felt>, Vec<Felt>) {
+        match chip {
+            GlobalZerocheckTestChip::Mixed => {
+                let p0 = random_felt(rng);
+                let m0 = random_felt(rng);
+                let m1 = random_felt(rng);
+                (vec![p0], vec![m0, m1 * p0], vec![m0, m1])
+            }
+            GlobalZerocheckTestChip::GlobalOnly => {
+                let g0 = Felt::from_canonical_u32(rng.next_u32() % 2);
+                let g1 = random_felt(rng);
+                (vec![], vec![g0, g1], vec![])
+            }
+        }
+    }
+
+    /// Build a `[prep | global | main]` jagged trace (no inter-section
+    /// padding; every column is `rows/2` pairs tall) for the global-round
+    /// gate. The column order matches `chips_vec` within each section, so the
+    /// prover's three section pointers line up.
+    fn get_input_with_global(
+        chips_vec: &[Chip<Felt, GlobalZerocheckTestChip>],
+        rows: u32,
+    ) -> JaggedTraceMle<Felt, CpuBackend> {
+        let mut rng = rand::thread_rng();
+        assert_eq!(rows % 4, 0);
+
+        let prep_w: Vec<u32> = chips_vec.iter().map(|c| c.preprocessed_width() as u32).collect();
+        let global_w: Vec<u32> = chips_vec.iter().map(|c| c.global_width() as u32).collect();
+        let main_w: Vec<u32> = chips_vec.iter().map(|c| c.width() as u32).collect();
+
+        let total_prep: u32 = prep_w.iter().map(|w| w * rows).sum();
+        let total_global: u32 = global_w.iter().map(|w| w * rows).sum();
+        let total_main: u32 = main_w.iter().map(|w| w * rows).sum();
+        let sum_length = total_prep + total_global + total_main;
+        let mut data = vec![SP1Field::zero(); sum_length as usize];
+
+        let mut preprocessed_table_index: BTreeMap<String, TraceOffset> = BTreeMap::new();
+        let mut global_table_index: BTreeMap<String, TraceOffset> = BTreeMap::new();
+        let mut main_table_index: BTreeMap<String, TraceOffset> = BTreeMap::new();
+
+        let mut prep_ptr = 0u32;
+        let mut global_ptr = total_prep;
+        let mut main_ptr = total_prep + total_global;
+        for (i, chip) in chips_vec.iter().enumerate() {
+            let (pw, gw, mw) = (prep_w[i], global_w[i], main_w[i]);
+            for j in 0..rows {
+                let (prow, grow, mrow) = generate_global_row(&chip.air, &mut rng);
+                for k in 0..pw {
+                    data[(prep_ptr + j + rows * k) as usize] = prow[k as usize];
+                }
+                for k in 0..gw {
+                    data[(global_ptr + j + rows * k) as usize] = grow[k as usize];
+                }
+                for k in 0..mw {
+                    data[(main_ptr + j + rows * k) as usize] = mrow[k as usize];
+                }
+            }
+            let name =
+                <GlobalZerocheckTestChip as MachineAir<SP1Field>>::name(&chip.air).to_string();
+            if pw > 0 {
+                preprocessed_table_index.insert(
+                    name.clone(),
+                    TraceOffset {
+                        dense_offset: prep_ptr as usize..(prep_ptr + rows * pw) as usize,
+                        poly_size: rows as usize,
+                        num_polys: pw as usize,
+                    },
+                );
+            }
+            if gw > 0 {
+                global_table_index.insert(
+                    name.clone(),
+                    TraceOffset {
+                        dense_offset: global_ptr as usize..(global_ptr + rows * gw) as usize,
+                        poly_size: rows as usize,
+                        num_polys: gw as usize,
+                    },
+                );
+            }
+            if mw > 0 {
+                main_table_index.insert(
+                    name.clone(),
+                    TraceOffset {
+                        dense_offset: main_ptr as usize..(main_ptr + rows * mw) as usize,
+                        poly_size: rows as usize,
+                        num_polys: mw as usize,
+                    },
+                );
+            }
+            prep_ptr += rows * pw;
+            global_ptr += rows * gw;
+            main_ptr += rows * mw;
+        }
+
+        // Uniform column structure: every data column is `rows/2` pairs tall,
+        // laid out section by section (prep, global, main), chip order within.
+        let half = rows / 2;
+        let total_prep_cols: u32 = prep_w.iter().sum();
+        let total_global_cols: u32 = global_w.iter().sum();
+        let total_main_cols: u32 = main_w.iter().sum();
+        let num_cols = total_prep_cols + total_global_cols + total_main_cols;
+        let mut cols = vec![0u32; (sum_length / 2) as usize];
+        let mut start_idx = vec![0u32; (num_cols + 1) as usize];
+        let mut heights = vec![0u32; num_cols as usize];
+        for c in 0..num_cols {
+            cols[(c * half) as usize..((c + 1) * half) as usize].fill(c);
+            start_idx[(c + 1) as usize] = start_idx[c as usize] + half;
+            heights[c as usize] = half;
+        }
+
+        JaggedTraceMle::new(
+            TraceDenseData {
+                dense: Buffer::from(data),
+                preprocessed_offset: total_prep as usize,
+                global_offset: (total_prep + total_global) as usize,
+                preprocessed_cols: total_prep_cols as usize,
+                global_cols: total_global_cols as usize,
+                preprocessed_table_index,
+                global_table_index,
+                main_table_index,
+                preprocessed_padding: 0,
+                global_padding: 0,
+                main_padding: 0,
+                prep_padding_col_count: 0,
+                global_padding_col_count: 0,
+                main_padding_col_count: 0,
+            },
+            Buffer::from(cols),
+            Buffer::from(start_idx),
+            Buffer::from(heights),
+        )
+    }
+
+    #[test]
+    #[serial]
+    fn test_zerocheck_global_round() {
+        let mut chips: BTreeSet<Chip<Felt, _>> = BTreeSet::new();
+        chips.insert(Chip::new(GlobalZerocheckTestChip::Mixed));
+        chips.insert(Chip::new(GlobalZerocheckTestChip::GlobalOnly));
+        let machine_compiled = compile_chips(&chips, ChunkBudget::recommended());
+        let chips_vec = chips.iter().cloned().collect::<Vec<_>>();
+        let log_rows = 16u32;
+        let rows = 1u32 << log_rows;
+
+        run_sync_in_place(move |t| {
+            let machine_bytecode = Arc::new(upload_compiled_bytecode(machine_compiled, &t));
+            let trace_mle = get_input_with_global(&chips_vec, rows);
+            let trace_mle = Arc::new(trace_mle.into_device(&t));
+
+            let mut challenger = TestGC::default_challenger();
+            challenger.observe(Felt::from_canonical_u32(0x2013));
+            challenger.observe(Felt::from_canonical_u32(0x2016));
+            let _lambda: Ext = challenger.sample();
+
+            let mut challenger_prover = challenger.clone();
+            let batching_challenge = challenger_prover.sample_ext_element();
+            let gkr_opening_batch_randomness = challenger_prover.sample_ext_element();
+
+            let mut rng = rand::thread_rng();
+            let zeta = Point::<Ext>::rand(&mut rng, log_rows);
+            let individual_column_evals = evaluate_jagged_columns(&trace_mle, zeta.clone());
+
+            // Verifier-side openings, demuxed `prep | global | main` to match
+            // the prover.
+            let mut preprocessed_ptr = 0usize;
+            let mut global_ptr = trace_mle.dense_data.preprocessed_cols;
+            let mut main_ptr =
+                trace_mle.dense_data.preprocessed_cols + trace_mle.dense_data.global_cols;
+            let mut chip_openings: BTreeMap<String, ChipEvaluation<Ext>> = BTreeMap::new();
+            for chip in chips_vec.iter() {
+                let pw = chip.preprocessed_width();
+                let gw = chip.global_width();
+                let mw = chip.width();
+                let chip_eval = ChipEvaluation {
+                    preprocessed_trace_evaluations: MleEval::new(Tensor::from(
+                        individual_column_evals[preprocessed_ptr..preprocessed_ptr + pw].to_vec(),
+                    )),
+                    main_trace_evaluations: MleEval::new(Tensor::from(
+                        individual_column_evals[main_ptr..main_ptr + mw].to_vec(),
+                    )),
+                    global_trace_evaluations: MleEval::new(Tensor::from(
+                        individual_column_evals[global_ptr..global_ptr + gw].to_vec(),
+                    )),
+                };
+                chip_openings.insert(
+                    <GlobalZerocheckTestChip as MachineAir<SP1Field>>::name(&chip.air).to_string(),
+                    chip_eval,
+                );
+                preprocessed_ptr += pw;
+                global_ptr += gw;
+                main_ptr += mw;
+            }
+            let logup_evaluations = LogUpEvaluations { point: zeta, chip_openings };
+
+            let (opened_values, zerocheck_proof) = zerocheck(
+                &chips,
+                &machine_bytecode,
+                trace_mle.as_ref(),
+                batching_challenge,
+                gkr_opening_batch_randomness,
+                &logup_evaluations,
+                vec![],
+                &mut challenger_prover,
+                log_rows,
+            );
+
+            // Sanity: the mixed chip exposes non-empty prep, global and main
+            // openings, and the global-only chip exposes only global.
+            let mixed = opened_values.chips.get("GlobalMixed").unwrap();
+            assert_eq!(mixed.preprocessed.local.len(), 1);
+            assert_eq!(mixed.global.local.len(), 2);
+            assert_eq!(mixed.main.local.len(), 2);
+            let global_only = opened_values.chips.get("GlobalOnly").unwrap();
+            assert!(global_only.preprocessed.local.is_empty());
+            assert_eq!(global_only.global.local.len(), 2);
+            assert!(global_only.main.local.is_empty());
+
+            // Negative: corrupting a global opening must break the
+            // final-evaluation check, proving the global columns are bound by
+            // the sumcheck rather than ignored.
+            let mut corrupted = opened_values.clone();
+            corrupted.chips.get_mut("GlobalMixed").unwrap().global.local[0] += Ext::one();
+            let prev_hook = std::panic::take_hook();
+            std::panic::set_hook(Box::new(|_| {}));
+            let corrupt_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                crate::tests::verify_zerocheck(
+                    &chips,
+                    &corrupted,
+                    &logup_evaluations,
+                    zerocheck_proof.clone(),
+                    &[],
+                    &mut challenger.clone(),
+                    log_rows as usize,
+                );
+            }));
+            std::panic::set_hook(prev_hook);
+            assert!(corrupt_result.is_err(), "verification accepted a corrupted global opening",);
+
+            let mut challenger_verifier = challenger.clone();
+            crate::tests::verify_zerocheck(
+                &chips,
+                &opened_values,
+                &logup_evaluations,
+                zerocheck_proof,
+                &[],
+                &mut challenger_verifier,
+                log_rows as usize,
             );
         })
         .unwrap();
@@ -1742,26 +2104,30 @@ pub mod tests {
             let zeta = Point::<Ext>::rand(&mut rng, CORE_MAX_LOG_ROW_COUNT);
             let individual_column_evals = evaluate_jagged_columns(&trace_mle, zeta.clone());
             let mut preprocessed_ptr: usize = 0;
-            let mut main_ptr = chips.iter().map(|x| x.preprocessed_width()).sum::<usize>() + 1;
+            let mut global_ptr = trace_mle.dense_data.preprocessed_cols;
+            let mut main_ptr =
+                trace_mle.dense_data.preprocessed_cols + trace_mle.dense_data.global_cols;
             let mut chip_openings: BTreeMap<String, ChipEvaluation<Ext>> = BTreeMap::new();
             for chip in chips.iter() {
                 let preprocessed_width = chip.preprocessed_width();
+                let global_width = chip.global_width();
                 let main_width = chip.width();
                 let chip_eval = ChipEvaluation {
-                    preprocessed_trace_evaluations: match preprocessed_width {
-                        0 => None,
-                        _ => Some(MleEval::new(Tensor::from(
-                            individual_column_evals
-                                [preprocessed_ptr..preprocessed_ptr + preprocessed_width]
-                                .to_vec(),
-                        ))),
-                    },
+                    preprocessed_trace_evaluations: MleEval::new(Tensor::from(
+                        individual_column_evals
+                            [preprocessed_ptr..preprocessed_ptr + preprocessed_width]
+                            .to_vec(),
+                    )),
                     main_trace_evaluations: MleEval::new(Tensor::from(
                         individual_column_evals[main_ptr..main_ptr + main_width].to_vec(),
+                    )),
+                    global_trace_evaluations: MleEval::new(Tensor::from(
+                        individual_column_evals[global_ptr..global_ptr + global_width].to_vec(),
                     )),
                 };
                 chip_openings.insert(chip.air.name().to_string(), chip_eval);
                 preprocessed_ptr += preprocessed_width;
+                global_ptr += global_width;
                 main_ptr += main_width;
             }
             let logup_evaluations = LogUpEvaluations { point: zeta, chip_openings };

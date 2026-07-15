@@ -27,8 +27,11 @@ use sp1_gpu_jagged_tracegen::test_utils::bench_utils::{
 use sp1_gpu_jagged_tracegen::test_utils::tracegen_setup::CORE_MAX_LOG_ROW_COUNT;
 use sp1_gpu_logup_gkr::{generate_gkr_circuit, prove_logup_gkr, CudaLogUpGkrOptions, Interactions};
 use sp1_gpu_utils::{Ext, Felt, TestGC};
-use sp1_hypercube::air::MachineAir;
-use sp1_hypercube::Chip;
+use sp1_hypercube::air::{InteractionScope, MachineAir};
+use sp1_hypercube::prover::Record;
+use sp1_hypercube::{
+    beta_seed_dim_for_scope, observe_global_challenge, pv_interaction_max_arity, Chip, InnerSC,
+};
 use sp1_primitives::SP1GlobalContext;
 
 /// `prove_gkr_circuit` flag: when true, the prover recomputes the first layer on demand from
@@ -101,8 +104,8 @@ fn run_populate_circuit<R: Rng>(
                     &cluster,
                     interactions.clone(),
                     &device_mle,
-                    alpha,
-                    beta_seed,
+                    (alpha, beta_seed.clone()),
+                    (alpha, beta_seed),
                     GKR_OPTIONS,
                     scope.clone(),
                 );
@@ -122,8 +125,18 @@ fn run_prove<R: Rng>(
     _rng: &mut R,
     data: RealTraceData,
 ) {
-    let RealTraceData { machine: _, cluster, public_values: _, device_mle } = data;
+    let RealTraceData { machine: _, cluster, public_values, device_mle } = data;
     let interactions = build_interactions(&cluster, scope);
+
+    let global_beta_dim = beta_seed_dim_for_scope(
+        cluster.iter(),
+        InteractionScope::Global,
+        pv_interaction_max_arity::<Record<SP1GlobalContext, InnerSC<RiscvAir<Felt>>>>(),
+    );
+    let global_challenges = {
+        let mut challenger = TestGC::default_challenger();
+        observe_global_challenge::<SP1GlobalContext>(None, global_beta_dim, &mut challenger)
+    };
 
     let mut group = c.benchmark_group("prove");
     group.sample_size(10);
@@ -135,10 +148,12 @@ fn run_prove<R: Rng>(
                 (interactions.clone(), challenger)
             },
             |(interactions, mut challenger)| {
-                let result = prove_logup_gkr::<SP1GlobalContext, _>(
+                let result = prove_logup_gkr::<SP1GlobalContext, InnerSC<RiscvAir<Felt>>>(
                     &cluster,
                     interactions,
                     &device_mle,
+                    public_values.clone(),
+                    Some(global_challenges.clone()),
                     GKR_OPTIONS,
                     &mut challenger,
                 );

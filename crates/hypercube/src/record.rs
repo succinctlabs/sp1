@@ -1,6 +1,7 @@
 use crate::{air::SP1AirBuilder, InteractionKind};
 use hashbrown::HashMap;
 use slop_algebra::AbstractField;
+use slop_challenger::IopCtx;
 
 /// A record that can be proven by a machine.
 pub trait MachineRecord: Default + Sized + Send + Sync + Clone {
@@ -22,6 +23,11 @@ pub trait MachineRecord: Default + Sized + Send + Sync + Clone {
     /// The interaction kinds that appear in `eval_public_values`. Needed so that the shard verifier
     /// knows how much randomness to allocate for the `LogUpGkr` `beta_seed` challenge.
     fn interactions_in_public_values() -> Vec<InteractionKind>;
+
+    /// The chunk's ordered global-trace commitments.
+    fn global_challenge_input<GC: IopCtx>(&self) -> Option<Vec<GC::Digest>> {
+        None
+    }
 }
 
 /// This exists only for the zerocheck unit test on `MinimalAddChip`.

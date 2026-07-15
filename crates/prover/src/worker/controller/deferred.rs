@@ -101,7 +101,7 @@ impl DeferredInputs {
             let task_id =
                 worker_client.submit_task(TaskType::RecursionDeferred, task_request).await?;
             // Send the id and output to the channel.
-            let proof_data = ProofData { task_id, range, proof: output };
+            let proof_data = ProofData::Artifact { task_id, range, proof: output };
             core_proofs_tx
                 .send(proof_data)
                 .await

@@ -56,17 +56,25 @@ pub extern "C" fn syscall_hint_len() -> usize {
 }
 
 /// Reads the next element in the hint stream into the given buffer.
+///
+/// The read is split into batches of at most [`crate::syscalls::BATCH_HINT_LEN`]
+/// bytes, and each batch issues one `HINT_READ` ECALL.
 #[allow(unused_variables)]
 #[no_mangle]
 pub extern "C" fn syscall_hint_read(ptr: *mut u8, len: usize) {
     #[cfg(target_os = "zkvm")]
     unsafe {
-        asm!(
-            "ecall",
-            in("t0") crate::syscalls::HINT_READ,
-            in("a0") ptr,
-            in("a1") len,
-        );
+        let mut offset = 0usize;
+        while offset < len {
+            let batch = core::cmp::min(len - offset, crate::syscalls::BATCH_HINT_LEN);
+            asm!(
+                "ecall",
+                in("t0") crate::syscalls::HINT_READ,
+                in("a0") ptr.add(offset),
+                in("a1") batch,
+            );
+            offset += batch;
+        }
     }
 
     #[cfg(not(target_os = "zkvm"))]

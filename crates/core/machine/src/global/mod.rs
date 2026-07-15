@@ -116,7 +116,6 @@ impl<F: PrimeField32> MachineAir<F> for GlobalChip {
             .collect::<Vec<_>>();
 
         output.add_byte_lookup_events(blu_batches.into_iter().flatten().collect());
-        output.public_values.global_count = events.len() as u32;
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {

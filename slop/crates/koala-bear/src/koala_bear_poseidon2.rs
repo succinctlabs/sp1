@@ -43,6 +43,14 @@ impl IopCtx for KoalaBearDegree4Duplex {
     fn default_challenger() -> Self::Challenger {
         DuplexChallenger::new(my_kb_16_perm())
     }
+
+    fn digest_to_elements(digest: &Self::Digest) -> Vec<Self::F> {
+        digest.to_vec()
+    }
+
+    fn digest_from_elements(elements: &[Self::F]) -> Self::Digest {
+        from_fn(|i| elements[i])
+    }
 }
 
 pub fn my_kb_16_perm() -> KoalaPerm {

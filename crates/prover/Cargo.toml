@@ -37,6 +37,7 @@ sp1-primitives = { workspace = true }
 slop-algebra = { workspace = true }
 slop-bn254 = { workspace = true }
 slop-stacked = { workspace = true }
+slop-merkle-tree = { workspace = true }
 # slop-util = { workspace = true }
 bincode = { workspace = true }
 serde = { workspace = true, features = ["derive", "rc"] }
@@ -63,6 +64,9 @@ sysinfo = { workspace = true }
 lru = { workspace = true }
 eyre = { workspace = true }
 hashbrown = { workspace = true, features = ["inline-more"] }
+rayon = { workspace = true }
+num_cpus = { workspace = true }
+libc = { workspace = true }
 enum-map = { workspace = true }
 either = { workspace = true }
 static_assertions = { workspace = true }

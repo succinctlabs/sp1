@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use sp1_core_executor::HEIGHT_THRESHOLD;
-use sp1_core_machine::riscv::RiscvAir;
+use sp1_core_machine::{merkle_prover::BatchMerkleProver, riscv::RiscvAir};
 use sp1_hypercube::{
     prover::{AirProver, CpuShardProver, SP1InnerPcsProver, SP1OuterPcsProver},
     Machine, MachineVerifier, SP1InnerPcs, SP1OuterPcs, SP1Pcs, ShardContextImpl, ShardVerifier,
@@ -49,7 +49,7 @@ pub type ShrinkSC =
 pub type WrapSC =
     ShardContextImpl<SP1OuterGlobalContext, SP1Pcs<SP1OuterGlobalContext>, WrapAir<SP1Field>>;
 
-pub trait CoreProver: AirProver<SP1GlobalContext, CoreSC> {
+pub trait CoreProver: AirProver<SP1GlobalContext, CoreSC> + BatchMerkleProver {
     /// The default verifier for the core prover.
     ///
     /// The verifier fixes the parameters of the underlying proof system.
@@ -70,7 +70,7 @@ pub trait CoreProver: AirProver<SP1GlobalContext, CoreSC> {
     }
 }
 
-impl<C> CoreProver for C where C: AirProver<SP1GlobalContext, CoreSC> {}
+impl<C> CoreProver for C where C: AirProver<SP1GlobalContext, CoreSC> + BatchMerkleProver {}
 
 pub trait RecursionProver: AirProver<SP1GlobalContext, RecursionSC> {
     fn verifier() -> MachineVerifier<SP1GlobalContext, RecursionSC> {

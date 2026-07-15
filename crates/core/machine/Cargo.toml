@@ -23,6 +23,8 @@ slop-challenger = { workspace = true }
 slop-keccak-air = { workspace = true }
 slop-matrix = { workspace = true }
 slop-maybe-rayon = { workspace = true }
+slop-merkle-tree = { workspace = true }
+slop-symmetric = { workspace = true }
 slop-uni-stark = { workspace = true }
 sp1-derive = { workspace = true }
 sp1-primitives = { workspace = true }
@@ -73,6 +75,11 @@ slop-alloc = { workspace = true }
 slop-basefold = { workspace = true }
 slop-multilinear = { workspace = true }
 slop-sumcheck = { workspace = true }
+criterion = "0.5"
+
+[[bench]]
+name = "ingest_chunk"
+harness = false
 
 [build-dependencies]
 sp1-hypercube = { workspace = true }

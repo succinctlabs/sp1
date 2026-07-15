@@ -1,21 +1,19 @@
 use std::sync::Arc;
 
+use crate::{
+    worker::{
+        RawTaskRequest, RecursionVkWorker, ReduceSubmitHandle, SP1CoreProver, SP1CoreProverConfig,
+        SP1DeferredProver, SP1DeferredProverConfig, SP1DeferredSubmitHandle, SP1RecursionProver,
+        SP1RecursionProverConfig, SetupSubmitHandle, SetupTask, TaskError, TaskId, WorkerClient,
+    },
+    SP1ProverComponents, WrapProverBuilder,
+};
 use slop_futures::pipeline::SubmitError;
 use sp1_core_executor::SP1CoreOpts;
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{prover::ProverSemaphore, Machine};
 use sp1_primitives::SP1Field;
 use sp1_prover_types::{Artifact, ArtifactClient};
-
-use crate::{
-    worker::{
-        CoreProveSubmitHandle, RawTaskRequest, RecursionVkWorker, ReduceSubmitHandle,
-        SP1CoreProver, SP1CoreProverConfig, SP1DeferredProver, SP1DeferredProverConfig,
-        SP1DeferredSubmitHandle, SP1RecursionProver, SP1RecursionProverConfig, SetupSubmitHandle,
-        SetupTask, TaskError, TaskId, WorkerClient,
-    },
-    SP1ProverComponents, WrapProverBuilder,
-};
 
 #[derive(Clone)]
 pub struct SP1ProverConfig {
@@ -25,10 +23,11 @@ pub struct SP1ProverConfig {
 }
 
 pub struct SP1ProverEngine<A, W, C: SP1ProverComponents> {
-    pub core_prover: SP1CoreProver<A, W, C>,
+    pub core_prover: SP1CoreProver<A, C>,
     pub recursion_prover: SP1RecursionProver<A, C>,
     pub deferred_prover: SP1DeferredProver<A, C>,
     pub vk_worker: RecursionVkWorker<C>,
+    _marker: std::marker::PhantomData<W>,
 }
 
 pub struct WrapAirProverInit<C: SP1ProverComponents> {
@@ -55,16 +54,16 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1ProverEngine
     pub async fn new(
         config: SP1ProverConfig,
         opts: SP1CoreOpts,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
         artifact_client: A,
-        worker_client: W,
         core_prover_and_permits: (Arc<C::CoreProver>, ProverSemaphore),
         recursion_prover_and_permits: (Arc<C::RecursionProver>, ProverSemaphore),
         shrink_air_prover_and_permits: (Arc<C::RecursionProver>, ProverSemaphore),
         wrap_air_prover_init: WrapAirProverInit<C>,
-        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> Self {
         let recursion_prover = SP1RecursionProver::new(
             config.recursion_prover_config,
+            machine,
             artifact_client.clone(),
             recursion_prover_and_permits.clone(),
             shrink_air_prover_and_permits,
@@ -76,11 +75,8 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1ProverEngine
             config.core_prover_config,
             opts,
             artifact_client.clone(),
-            worker_client,
             core_prover_and_permits.0,
             core_prover_and_permits.1,
-            recursion_prover.clone(),
-            machine,
         );
 
         let deferred_prover = SP1DeferredProver::new(
@@ -95,14 +91,13 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1ProverEngine
             shrink_prover: recursion_prover.shrink_prover.clone(),
         };
 
-        Self { core_prover, vk_worker, recursion_prover, deferred_prover }
-    }
-
-    pub async fn submit_prove_core_shard(
-        &self,
-        request: RawTaskRequest,
-    ) -> Result<CoreProveSubmitHandle<A, W, C>, TaskError> {
-        self.core_prover.submit_prove_shard(request).await
+        Self {
+            core_prover,
+            vk_worker,
+            recursion_prover,
+            deferred_prover,
+            _marker: std::marker::PhantomData,
+        }
     }
 
     pub async fn submit_setup(

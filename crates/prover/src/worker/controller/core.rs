@@ -3,41 +3,98 @@ use std::{
     sync::{Arc, OnceLock},
 };
 
-use futures::{prelude::*, stream::FuturesUnordered};
 use serde::{Deserialize, Serialize};
-use slop_futures::pipeline::Pipeline;
 use sp1_core_executor::{
-    events::{MemoryInitializeFinalizeEvent, MemoryRecord, PageProtInitializeFinalizeEvent},
-    CoreVM, ExecutionError, Program, SP1CoreOpts, SyscallCode, UnsafeMemory,
+    events::MemoryRecord, CoreVM, ExecutionError, Program, SP1CoreOpts, UnsafeMemory,
 };
 use sp1_core_executor_runner::MinimalExecutorRunner;
 use sp1_core_machine::{executor::ExecutionOutput, io::SP1Stdin, riscv::RiscvAir};
 use sp1_hypercube::{
     air::{ShardRange, PROOF_NONCE_NUM_WORDS, PV_DIGEST_NUM_WORDS},
-    Machine, SP1VerifyingKey, DIGEST_SIZE,
+    Machine, SP1PcsProofInner, SP1VerifyingKey, ShardProof, DIGEST_SIZE,
 };
 use sp1_jit::MinimalTrace;
-use sp1_primitives::SP1Field;
+use sp1_primitives::{SP1Field, SP1GlobalContext};
 use sp1_prover_types::{
-    network_base_types::ProofMode, Artifact, ArtifactClient, SerializableRiscvMachine, TaskType,
+    network_base_types::ProofMode, Artifact, ArtifactClient, SerializableRiscvMachine,
 };
 use tokio::{
     sync::{mpsc, oneshot},
     task::JoinSet,
 };
-use tracing::Instrument;
 
 use crate::worker::{
-    global_memory, precompile_channel, DeferredMessage, MinimalExecutorCache,
-    PrecompileArtifactSlice, ProveShardTaskRequest, RawTaskRequest, SplicingEngine, SplicingTask,
-    TaskContext, TaskError, TaskId, WorkerClient,
+    controller::{
+        pin_cores_enabled, pin_current_thread_to_cpu, pinned_pool_cpus, ChunkPayload, LeafState,
+        TaskInput,
+    },
+    node_body::SpliceChunkTask,
+    MinimalExecutorCache, RawTaskRequest, TaskContext, TaskError, TaskId, WorkerClient,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProofData {
-    pub task_id: TaskId,
-    pub range: ShardRange,
-    pub proof: Artifact,
+/// Whether the shard proves the merkle update or a part of execution.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum ProofKind {
+    Execution,
+    Merkle,
+}
+
+/// A half-open interval `[start, end)` over chunk indices. Mirrors `ShardRange`'s adjacency
+/// helpers so the across-chunk reduction tree can order and merge per-chunk proofs by index.
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+pub struct ChunkRange {
+    pub start: u32,
+    pub end: u32,
+}
+
+impl ChunkRange {
+    /// The range covering a single chunk, `[idx, idx + 1)`.
+    #[must_use]
+    pub fn single(idx: u32) -> Self {
+        Self { start: idx, end: idx + 1 }
+    }
+
+    /// The number of chunks the range covers.
+    #[must_use]
+    pub fn len(&self) -> u32 {
+        self.end - self.start
+    }
+
+    /// Whether the range covers no chunks.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.start == self.end
+    }
+
+    /// Whether `other` immediately follows `self`, so the two are mergeable.
+    #[must_use]
+    pub fn is_adjacent(&self, other: &Self) -> bool {
+        self.end == other.start
+    }
+
+    /// Merge with the immediately-following range, yielding `[self.start, other.end)`; `None` if
+    /// `other` is not adjacent.
+    #[must_use]
+    pub fn merge(&self, other: &Self) -> Option<Self> {
+        self.is_adjacent(other).then_some(Self { start: self.start, end: other.end })
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub enum ProofData {
+    /// Cluster-path proof (deferred recursion proofs from `SP1Stdin.proofs`).
+    Artifact { task_id: TaskId, range: ShardRange, proof: Artifact },
+    /// In-process proof produced by the node body.
+    InMemory {
+        kind: ProofKind,
+        range: ShardRange,
+        proof: Box<ShardProof<SP1GlobalContext, SP1PcsProofInner>>,
+    },
+    /// A *ready* per-chunk recursion proof: the within-chunk reduce already finished in-node, so
+    /// the artifact is complete when sent (no `task_id`). Consumed by the across-chunk tree.
+    ChunkProof { chunk_range: ChunkRange, proof: Artifact },
 }
 
 #[derive(Debug, Clone)]
@@ -123,40 +180,6 @@ impl CoreExecuteTaskRequest {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-pub enum TraceData {
-    /// A core record to be proven.
-    Core(Vec<u8>),
-    // Precompile data. Several `PrecompileArtifactSlice`s, and the type of precompile.
-    Precompile(Vec<PrecompileArtifactSlice>, SyscallCode),
-    /// Memory data.
-    Memory(Box<GlobalMemoryShard>),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GlobalMemoryShard {
-    pub final_state: FinalVmState,
-    pub initialize_events: Vec<MemoryInitializeFinalizeEvent>,
-    pub finalize_events: Vec<MemoryInitializeFinalizeEvent>,
-    pub page_prot_initialize_events: Vec<PageProtInitializeFinalizeEvent>,
-    pub page_prot_finalize_events: Vec<PageProtInitializeFinalizeEvent>,
-    pub previous_init_addr: u64,
-    pub previous_finalize_addr: u64,
-    pub previous_init_page_idx: u64,
-    pub previous_finalize_page_idx: u64,
-    pub last_init_addr: u64,
-    pub last_finalize_addr: u64,
-    pub last_init_page_idx: u64,
-    pub last_finalize_page_idx: u64,
-}
-
-pub struct ProveShardInput {
-    pub elf: Vec<u8>,
-    pub common_input: CommonProverInput,
-    pub record: TraceData,
-    pub opts: SP1CoreOpts,
-}
-
 #[derive(Clone, Serialize, Deserialize)]
 pub struct CommonProverInput {
     pub vk: SP1VerifyingKey,
@@ -167,18 +190,14 @@ pub struct CommonProverInput {
 }
 
 pub struct SP1CoreExecutor<A: ArtifactClient, W: WorkerClient> {
-    splicing_engine: Arc<SplicingEngine<A, W>>,
-    global_memory_buffer_size: usize,
+    chunk_tx: mpsc::Sender<SpliceChunkTask<W>>,
     elf: Artifact,
     stdin: Arc<SP1Stdin>,
     common_input: Artifact,
     opts: SP1CoreOpts,
     num_deferred_proofs: usize,
-    context: TaskContext,
     sender: MessageSender<W, ProofData>,
     artifact_client: A,
-    worker_client: W,
-    gate: super::ProveShardGate<A, W>,
     minimal_executor_cache: Option<MinimalExecutorCache>,
     cycle_limit: Option<u64>,
     _machine: Machine<SP1Field, RiscvAir<SP1Field>>,
@@ -187,35 +206,27 @@ pub struct SP1CoreExecutor<A: ArtifactClient, W: WorkerClient> {
 impl<A: ArtifactClient, W: WorkerClient> SP1CoreExecutor<A, W> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        splicing_engine: Arc<SplicingEngine<A, W>>,
-        global_memory_buffer_size: usize,
+        chunk_tx: mpsc::Sender<SpliceChunkTask<W>>,
         elf: Artifact,
         stdin: Arc<SP1Stdin>,
         common_input: Artifact,
         opts: SP1CoreOpts,
         num_deferred_proofs: usize,
-        context: TaskContext,
         sender: MessageSender<W, ProofData>,
         artifact_client: A,
-        worker_client: W,
-        gate: super::ProveShardGate<A, W>,
         minimal_executor_cache: Option<MinimalExecutorCache>,
         cycle_limit: Option<u64>,
         _machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> Self {
         Self {
-            splicing_engine,
-            global_memory_buffer_size,
+            chunk_tx,
             elf,
             stdin,
             common_input,
             opts,
             num_deferred_proofs,
-            context,
             sender,
             artifact_client,
-            worker_client,
-            gate,
             minimal_executor_cache,
             cycle_limit,
             _machine,
@@ -241,126 +252,211 @@ where
             )))
         })?);
 
-        // Initialize the touched addresses map.
-        let (all_touched_addresses, all_touched_pages, global_memory_handler) =
-            global_memory(self.global_memory_buffer_size);
-        let (deferred_marker_tx, precompile_handler) = precompile_channel(&program, &opts);
-        // Initialize the final vm state.
-        let final_vm_state = FinalVmStateLock::new();
-        let (final_state_tx, final_state_rx) = oneshot::channel::<FinalVmState>();
+        let chunk_tx = self.chunk_tx;
 
-        // Create a join set in order to be able to cancel all tasks
         let mut join_set = JoinSet::<Result<(), TaskError>>::new();
 
-        // Start the minimal executor.
         let (memory_tx, memory_rx) = oneshot::channel::<UnsafeMemory>();
-        let (minimal_executor_tx, minimal_executor_rx) =
+        let (minimal_executor_tx, _minimal_executor_rx) =
             oneshot::channel::<MinimalExecutorRunner>();
         let (output_tx, output_rx) = oneshot::channel::<ExecutionOutput>();
-        // Create a channel to send the splicing handles to be awaited and their task_ids being
-        // sent after being submitted to the splicing pipeline.
-        let (splicing_submit_tx, mut splicing_submit_rx) = mpsc::unbounded_channel();
         let span = tracing::debug_span!("minimal executor");
 
-        // Making the minimal executor blocks the rest of execution anyway, so we initialize it before spawning the rest of the tokio tasks.
+        let dirty_pages_slot_bytes: usize = 256 * 1024 * 1024;
+
         let mut minimal_executor = if let Some(cache) = &self.minimal_executor_cache {
             let mut optional_minimal_executor = cache.lock().await;
             if let Some(minimal_executor) = optional_minimal_executor.take() {
                 tracing::info!("minimal executor cache hit");
                 minimal_executor
             } else {
-                MinimalExecutorRunner::new(
+                MinimalExecutorRunner::new_with_dirty_pages(
                     program.clone(),
                     false,
                     Some(opts.minimal_trace_chunk_threshold),
                     opts.memory_limit,
                     opts.trace_chunk_slots,
+                    Some(dirty_pages_slot_bytes),
                 )
             }
         } else {
-            MinimalExecutorRunner::new(
+            MinimalExecutorRunner::new_with_dirty_pages(
                 program.clone(),
                 false,
                 Some(opts.minimal_trace_chunk_threshold),
                 opts.memory_limit,
                 opts.trace_chunk_slots,
+                Some(dirty_pages_slot_bytes),
             )
         };
+
+        // Optional pinning (LEAVES_PIN_CORES=1 in env):
+        //   CPU 0 -> JIT child (via SP1_RUNNER_PIN_CORE=0)
+        //   CPU 1 -> recv thread
+        //   CPUs 2..N_physical -> dedicated rayon pool for LeafState hashing
+        let pin_cores = pin_cores_enabled();
+        let hw_logical = num_cpus::get();
+        let hw_physical = num_cpus::get_physical();
+        if pin_cores {
+            std::env::set_var("SP1_RUNNER_PIN_CORE", "0");
+        }
+
         join_set.spawn_blocking({
             let program = program.clone();
-            let elf = self.elf.clone();
             let common_input_artifact = self.common_input.clone();
-            let context = self.context.clone();
             let sender = self.sender.clone();
-            let final_vm_state = final_vm_state.clone();
             let opts = opts.clone();
-            let splicing_engine = self.splicing_engine.clone();
+            let chunk_tx = chunk_tx.clone();
+            let cycle_limit = self.cycle_limit;
+            let num_deferred_proofs = self.num_deferred_proofs;
 
             move || {
                 let _guard = span.enter();
-                // Write input to the minimal executor.
                 for buf in stdin.buffer.iter() {
                     minimal_executor.with_input(buf);
                 }
-                // Get the unsafe memory view of the minimal executor.
                 let unsafe_memory = minimal_executor.unsafe_memory();
-                // Send the unsafe memory view to the parent task.
                 memory_tx
                     .send(unsafe_memory)
                     .map_err(|_| anyhow::anyhow!("failed to send unsafe memory"))?;
+
+                if pin_cores {
+                    pin_current_thread_to_cpu(1);
+                }
+
+                // Set up the hash-worker channel.
+                let (hash_tx, hash_rx) = std::sync::mpsc::sync_channel::<
+                    (sp1_jit::TraceChunkRaw, sp1_jit::DirtyPages),
+                >(4);
+
+                // Spawn the hash worker.
+                let hash_handle = std::thread::Builder::new()
+                    .name("controller-leaf-hash".into())
+                    .spawn({
+                        let program = program.clone();
+                        let common_input_artifact = common_input_artifact.clone();
+                        let sender = sender.clone();
+                        let opts = opts.clone();
+                        let chunk_tx = chunk_tx.clone();
+                        move || -> Result<(), TaskError> {
+                            let pinned_pool = if pin_cores {
+                                crate::worker::controller::build_pinned_rayon_pool(
+                                    pinned_pool_cpus(hw_physical, hw_logical),
+                                )
+                            } else {
+                                None
+                            };
+                            tracing::debug!(
+                                pin_cores,
+                                ?hw_physical,
+                                ?hw_logical,
+                                pool_threads = pinned_pool.as_ref().map(|p| p.current_num_threads()),
+                                "leaf-hash worker starting"
+                            );
+
+                            let mut leaf_state =
+                                LeafState::from_memory_image(&program.memory_image);
+                            let mut chunk_idx: u64 = 0;
+                            while let Ok((chunk, dirty_pages)) = hash_rx.recv() {
+                                let pre_chunk_snapshot = leaf_state.snapshot();
+                                let leaf_start = std::time::Instant::now();
+                                let (prev_leaves, new_leaves) =
+                                    if let Some(pool) = pinned_pool.as_ref() {
+                                        pool.install(|| {
+                                            leaf_state.ingest_chunk(&dirty_pages.pages)
+                                        })
+                                    } else {
+                                        leaf_state.ingest_chunk(&dirty_pages.pages)
+                                    };
+                                let leaf_elapsed = leaf_start.elapsed();
+                                tracing::debug!(
+                                    chunk_idx,
+                                    dirty_pages = dirty_pages.pages.len(),
+                                    leaf_ingest_ms = leaf_elapsed.as_secs_f64() * 1000.0,
+                                    cumulative_touched_pages = leaf_state.touched_pages(),
+                                    "leaf-hash worker ingested chunk"
+                                );
+                                let payload = ChunkPayload {
+                                    chunk_idx,
+                                    chunk: chunk.clone(),
+                                    dirty_page_ids: dirty_pages
+                                        .pages
+                                        .iter()
+                                        .map(|p| p.page_id)
+                                        .collect(),
+                                    prev_leaves,
+                                    new_leaves,
+                                    dirty_page_final_contents: dirty_pages
+                                        .pages
+                                        .into_iter()
+                                        .map(|p| p.final_contents)
+                                        .collect(),
+                                    pre_chunk_snapshot,
+                                };
+                                let task = SpliceChunkTask {
+                                    payload: TaskInput::local(payload),
+                                    program: program.clone(),
+                                    num_deferred_proofs,
+                                    common_input_artifact: common_input_artifact.clone(),
+                                    prove_shard_tx: sender.clone(),
+                                    opts: opts.clone(),
+                                };
+                                chunk_tx.blocking_send(task).map_err(|e| {
+                                    TaskError::Fatal(anyhow::anyhow!(
+                                        "failed to hand off SpliceChunk task: {e}"
+                                    ))
+                                })?;
+                                chunk_idx += 1;
+                            }
+                            tracing::debug!(
+                                total_chunks = chunk_idx,
+                                "leaf-hash worker draining; recv channel closed"
+                            );
+                            Ok(())
+                        }
+                    })
+                    .map_err(|e| anyhow::anyhow!("spawn leaf-hash worker: {e}"))?;
+
                 tracing::debug!("Starting minimal executor");
                 let now = std::time::Instant::now();
                 let mut chunk_count = 0;
-                while let Some(chunk) = minimal_executor
-                    .try_execute_chunk()
+
+                while let Some((chunk, dirty_pages)) = minimal_executor
+                    .try_execute_chunk_with_dirty_pages()
                     .map_err(|e| anyhow::anyhow!("failed to execute chunk: {e}"))?
                 {
-                    tracing::debug!(
-                        trace_chunk = chunk_count,
-                        "mem reads chunk size bytes {}, program is done?: {}",
-                        chunk.num_mem_reads() * std::mem::size_of::<sp1_jit::MemValue>() as u64,
-                        minimal_executor.is_done()
-                    );
-
-                    // Check the `end_clk` for cycle limit
-                    if let Some(cycle_limit) = self.cycle_limit {
+                    if let Some(cycle_limit) = cycle_limit {
                         let last_clk = chunk.global_clk_end();
                         if last_clk > cycle_limit {
-                            tracing::error!("Cycle limit exceeded: last_clk = {last_clk}, cycle_limit = {cycle_limit}");
+                            tracing::error!(
+                                "Cycle limit exceeded: last_clk = {last_clk}, cycle_limit = {cycle_limit}"
+                            );
                             return Err(TaskError::Execution(ExecutionError::ExceededCycleLimit(
                                 cycle_limit,
                             )));
                         }
                     }
 
-                    // Create a splicing task
-                    let task = SplicingTask {
-                        program: program.clone(),
-                        chunk,
-                        elf_artifact: elf.clone(),
-                        common_input_artifact: common_input_artifact.clone(),
-                        num_deferred_proofs: self.num_deferred_proofs,
-                        all_touched_addresses: all_touched_addresses.clone(),
-                        all_touched_pages: all_touched_pages.clone(),
-                        final_vm_state: final_vm_state.clone(),
-                        prove_shard_tx: sender.clone(),
-                        context: context.clone(),
-                        opts: opts.clone(),
-                        deferred_marker_tx: deferred_marker_tx.clone(),
-                    };
+                    tracing::debug!(
+                        trace_chunk = chunk_count,
+                        dirty_pages = dirty_pages.pages.len(),
+                        "mem reads chunk size bytes {}, program is done?: {}",
+                        chunk.num_mem_reads() * std::mem::size_of::<sp1_jit::MemValue>() as u64,
+                        minimal_executor.is_done()
+                    );
 
-                    let splicing_handle = tracing::debug_span!("splicing", idx = chunk_count)
-                        .in_scope(|| {
-                            splicing_engine.blocking_submit(task).map_err(|e| {
-                                anyhow::anyhow!("failed to submit splicing task: {}", e)
-                            })
-                        })?;
-                    splicing_submit_tx
-                        .send((chunk_count, splicing_handle))
-                        .map_err(|e| anyhow::anyhow!("failed to send splicing handle: {}", e))?;
-
+                    hash_tx.send((chunk, dirty_pages)).map_err(|e| {
+                        anyhow::anyhow!("failed to send to leaf-hash worker: {e}")
+                    })?;
                     chunk_count += 1;
                 }
+                // Signal the hash worker that no more chunks are coming.
+                drop(hash_tx);
+
+                hash_handle
+                    .join()
+                    .map_err(|e| anyhow::anyhow!("leaf-hash worker panicked: {e:?}"))??;
+
                 let elapsed = now.elapsed().as_secs_f64();
                 tracing::debug!(
                     "minimal Executor finished. elapsed: {}s, mhz: {}",
@@ -376,13 +472,11 @@ where
                         minimal_executor.is_done(),
                     )));
                 }
-                // Get the output and send it to the output channel.
                 let cycles = minimal_executor.global_clk();
                 let public_value_stream = minimal_executor.public_values_stream().clone();
 
                 let output = ExecutionOutput { cycles, public_value_stream };
                 output_tx.send(output).map_err(|_| anyhow::anyhow!("failed to send output"))?;
-                // Send the hints to the global memory handler.
                 minimal_executor_tx
                     .send(minimal_executor)
                     .map_err(|_| anyhow::anyhow!("failed to send minimal executor"))?;
@@ -390,102 +484,14 @@ where
             }
         });
 
-        let memory =
+        // Drop the executor's `chunk_tx` clone now that the JIT thread
+        // (which holds its own clone) is spawned. Without this drop,
+        // the receiver would never see the end of the stream.
+        drop(chunk_tx);
+
+        let _memory =
             memory_rx.await.map_err(|_| anyhow::anyhow!("failed to receive unsafe memory"))?;
 
-        join_set.spawn({
-            async move {
-                let mut splicing_handles = FuturesUnordered::new();
-                loop {
-                    tokio::select! {
-                        Some((chunk_count, splicing_handle)) = splicing_submit_rx.recv() => {
-                            tracing::debug!(chunk_count = chunk_count, "Received splicing handle");
-                            let handle = splicing_handle.map_ok(move |_| chunk_count);
-                            splicing_handles.push(handle);
-                        }
-                        Some(result) = splicing_handles.next() => {
-                            let chunk_count = result.map_err(|e| anyhow::anyhow!("splicing task panicked: {}", e))?;
-                            tracing::debug!(chunk_count = chunk_count, "Splicing task finished");
-                        }
-                        else => {
-                            tracing::debug!("No more splicing handles to receive");
-                            break;
-                        }
-                    }
-                }
-                // Now that all the splicing tasks are finished, send the final vm state to the global memory handler.
-                let final_state = *final_vm_state.get().ok_or(TaskError::Fatal(anyhow::anyhow!("final vm state not set")))?;
-                final_state_tx.send(final_state).map_err(|_| anyhow::anyhow!("failed to send final vm state"))?;
-                Ok::<_, TaskError>(())
-            }
-            .instrument(tracing::debug_span!("wait for splicers"))
-        });
-
-        // Emit the global memory shards.
-        join_set.spawn(
-            {
-                let artifact_client = self.artifact_client.clone();
-                let worker_client = self.worker_client.clone();
-                let gate = self.gate.clone();
-                let num_deferred_proofs = self.num_deferred_proofs;
-                let sender = self.sender.clone();
-                let elf = self.elf.clone();
-                let common_input = self.common_input.clone();
-                let context = self.context.clone();
-                let minimal_executor_cache = self.minimal_executor_cache.clone();
-
-                async move {
-                    global_memory_handler
-                        .emit_global_memory_shards(
-                            program,
-                            final_state_rx,
-                            minimal_executor_rx,
-                            sender,
-                            elf,
-                            common_input,
-                            context,
-                            memory,
-                            opts,
-                            num_deferred_proofs,
-                            artifact_client,
-                            worker_client,
-                            gate,
-                            minimal_executor_cache,
-                        )
-                        .await?;
-                    Ok::<_, TaskError>(())
-                }
-            }
-            .instrument(tracing::debug_span!("emit global memory shards")),
-        );
-
-        // Emit the precompile shards.
-        join_set.spawn({
-            let artifact_client = self.artifact_client.clone();
-            let worker_client = self.worker_client.clone();
-            let gate = self.gate.clone();
-            let sender = self.sender.clone();
-            let elf = self.elf.clone();
-            let common_input = self.common_input.clone();
-            let context = self.context.clone();
-            async move {
-                precompile_handler
-                    .emit_precompile_shards(
-                        elf,
-                        common_input,
-                        sender,
-                        artifact_client,
-                        worker_client,
-                        gate,
-                        context,
-                    )
-                    .await?;
-                Ok::<_, TaskError>(())
-            }
-            .instrument(tracing::debug_span!("emit precompile shards"))
-        });
-
-        // Wait for tasks to finish
         while let Some(result) = join_set.join_next().await {
             result.map_err(|e| TaskError::Fatal(e.into()))??;
         }
@@ -558,89 +564,51 @@ impl FinalVmStateLock {
     }
 }
 
-pub struct SpawnProveOutput {
-    pub deferred_message: Option<DeferredMessage>,
-    pub proof_data: ProofData,
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[allow(clippy::too_many_arguments)]
-pub(super) async fn create_core_proving_task<A: ArtifactClient, W: WorkerClient>(
-    elf_artifact: Artifact,
-    common_input_artifact: Artifact,
-    context: TaskContext,
-    range: ShardRange,
-    trace_data: TraceData,
-    worker_client: W,
-    artifact_client: A,
-    gate: &super::ProveShardGate<A, W>,
-) -> Result<SpawnProveOutput, ExecutionError> {
-    let record_artifact =
-        artifact_client.create_artifact().map_err(|e| ExecutionError::Other(e.to_string()))?;
+    #[test]
+    fn chunk_range_adjacency() {
+        let a = ChunkRange::single(0); // [0, 1)
+        let b = ChunkRange::single(1); // [1, 2)
+        let c = ChunkRange::single(2); // [2, 3)
 
-    // Reserve before upload; held across upload + submit + task completion.
-    let shard_permit = gate.acquire(&record_artifact).await;
+        assert!(a.is_adjacent(&b));
+        assert!(!b.is_adjacent(&a));
+        assert!(!a.is_adjacent(&c));
 
-    // Make a deferred marker task. This is used for the worker to send
-    // its deferred record back to the controller.
-    let deferred_message = match &trace_data {
-        TraceData::Core(_) => {
-            let marker_task_id = worker_client
-                .submit_task(
-                    TaskType::MarkerDeferredRecord,
-                    RawTaskRequest {
-                        inputs: vec![],
-                        outputs: vec![],
-                        context: TaskContext {
-                            proof_id: context.proof_id.clone(),
-                            parent_id: None,
-                            parent_context: None,
-                            requester_id: context.requester_id.clone(),
-                        },
-                    },
-                )
-                .await
-                .map_err(|e| ExecutionError::Other(e.to_string()))?;
-            let deferred_output_artifact = artifact_client
-                .create_artifact()
-                .map_err(|e| ExecutionError::Other(e.to_string()))?;
-            Some(DeferredMessage { task_id: marker_task_id, record: deferred_output_artifact })
+        assert_eq!(a.merge(&b), Some(ChunkRange { start: 0, end: 2 }));
+        assert_eq!(b.merge(&a), None);
+
+        // Adjacency and merge compose: [0,1) + [1,2) then + [2,3) covers [0,3).
+        let ab = a.merge(&b).unwrap();
+        assert!(ab.is_adjacent(&c));
+        assert_eq!(ab.merge(&c), Some(ChunkRange { start: 0, end: 3 }));
+
+        assert_eq!(a.len(), 1);
+        assert_eq!(ab.len(), 2);
+        assert!(!a.is_empty());
+        assert!(ChunkRange { start: 2, end: 2 }.is_empty());
+    }
+
+    #[test]
+    fn chunk_proof_serde_round_trip() {
+        let proof_id = "chunk-proof-artifact".to_string();
+        let original = ProofData::ChunkProof {
+            chunk_range: ChunkRange { start: 3, end: 7 },
+            proof: Artifact::from(proof_id.clone()),
+        };
+
+        let bytes = bincode::serialize(&original).expect("serialize ChunkProof");
+        let decoded: ProofData = bincode::deserialize(&bytes).expect("deserialize ChunkProof");
+
+        match decoded {
+            ProofData::ChunkProof { chunk_range, proof } => {
+                assert_eq!(chunk_range, ChunkRange { start: 3, end: 7 });
+                assert_eq!(proof, Artifact::from(proof_id));
+            }
+            _ => panic!("expected ChunkProof variant after round-trip"),
         }
-        TraceData::Memory(_) | TraceData::Precompile(_, _) => None,
-    };
-
-    artifact_client
-        .upload(&record_artifact, trace_data)
-        .await
-        .map_err(|e| ExecutionError::Other(e.to_string()))?;
-
-    // Allocate an artifact for the proof
-    let proof_artifact = artifact_client
-        .create_artifact()
-        .map_err(|_| ExecutionError::Other("failed to create shard proof artifact".to_string()))?;
-
-    let request = ProveShardTaskRequest {
-        elf: elf_artifact,
-        common_input: common_input_artifact,
-        record: record_artifact,
-        output: proof_artifact.clone(),
-        deferred_marker_task: deferred_message
-            .as_ref()
-            .map(|m| Artifact::from(m.task_id.to_string()))
-            .unwrap_or(Artifact::from("dummy marker task".to_string())),
-        deferred_output: deferred_message.as_ref().map(|m| m.record.clone()),
-        context,
-    };
-
-    let task = request.into_raw().map_err(|e| ExecutionError::Other(e.to_string()))?;
-
-    // Send the task to the worker.
-    let task_id = worker_client
-        .submit_task(TaskType::ProveShard, task)
-        .await
-        .map_err(|e| ExecutionError::Other(e.to_string()))?;
-
-    gate.schedule_release(task_id.clone(), shard_permit);
-
-    let proof_data = ProofData { task_id, range, proof: proof_artifact };
-    Ok(SpawnProveOutput { deferred_message, proof_data })
+    }
 }

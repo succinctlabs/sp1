@@ -1,6 +1,6 @@
 use std::mem::MaybeUninit;
 
-use crate::{septic_digest::SepticDigest, MachineRecord, UntrustedConfig};
+use crate::{MachineRecord, UntrustedConfig};
 use slop_air::BaseAir;
 use slop_algebra::Field;
 use slop_matrix::dense::RowMajorMatrix;
@@ -69,6 +69,42 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
         buffer: &mut [MaybeUninit<F>],
     );
 
+    /// Generate the global trace.
+    fn generate_global_trace(
+        &self,
+        input: &Self::Record,
+        output: &mut Self::Record,
+    ) -> Option<RowMajorMatrix<F>> {
+        if self.global_width() == 0 {
+            return None;
+        }
+
+        let padded_nb_rows = self.num_rows(input).unwrap();
+        let num_columns = Self::global_width(self);
+        let mut values: Vec<F> = Vec::with_capacity(padded_nb_rows * num_columns);
+        self.generate_global_trace_into(input, output, values.spare_capacity_mut());
+
+        unsafe {
+            values.set_len(padded_nb_rows * num_columns);
+        }
+
+        Some(RowMajorMatrix::new(values, num_columns))
+    }
+
+    /// Generate the global trace into the buffer.
+    fn generate_global_trace_into(
+        &self,
+        _input: &Self::Record,
+        _output: &mut Self::Record,
+        _: &mut [MaybeUninit<F>],
+    ) {
+    }
+
+    /// The width of the global trace.
+    fn global_width(&self) -> usize {
+        0
+    }
+
     /// Whether this execution record contains events for this air.
     fn included(&self, shard: &Self::Record) -> bool;
 
@@ -117,8 +153,8 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
 pub trait MachineProgram<F>: Send + Sync {
     /// Gets the starting program counter.
     fn pc_start(&self) -> [F; 3];
-    /// Gets the initial global cumulative sum.
-    fn initial_global_cumulative_sum(&self) -> SepticDigest<F>;
+    /// Gets the Merkle root of the program's initial memory image.
+    fn initial_memory_root(&self) -> [F; 8];
     /// Gets the metadata on configuration regarding untrusted programs.
     fn untrusted_config(&self) -> UntrustedConfig<F>;
 }

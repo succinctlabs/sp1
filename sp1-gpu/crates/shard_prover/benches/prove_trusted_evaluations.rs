@@ -29,7 +29,7 @@ use sp1_gpu_jagged_tracegen::CORE_MAX_TRACE_SIZE;
 use sp1_gpu_logup_gkr::Interactions;
 use sp1_gpu_merkle_tree::{CudaTcsProver, Poseidon2SP1Field16CudaProver};
 use sp1_gpu_shard_prover::{CudaShardProver, CudaShardProverComponents};
-use sp1_gpu_utils::{Ext, Felt, JaggedTraceMle, TestGC};
+use sp1_gpu_utils::{Ext, Felt, JaggedTraceMle, TestGC, TraceSection};
 use sp1_gpu_zerocheck::primitives::round_batch_evaluations;
 use sp1_hypercube::air::MachineAir;
 use sp1_hypercube::SP1InnerPcs;
@@ -63,7 +63,17 @@ fn run_prove_trusted_evaluations<R: Rng>(
     let (_preprocessed_digest, preprocessed_prover_data) = commit_multilinears::<TestGC, _>(
         jagged_trace_data,
         CORE_MAX_LOG_ROW_COUNT,
-        true,
+        TraceSection::Preprocessed,
+        false,
+        &basefold_prover,
+    )
+    .unwrap();
+
+    // The core machine has a global round, so commit all three sections.
+    let (_global_digest, global_prover_data) = commit_multilinears::<TestGC, _>(
+        jagged_trace_data,
+        CORE_MAX_LOG_ROW_COUNT,
+        TraceSection::Global,
         false,
         &basefold_prover,
     )
@@ -72,7 +82,7 @@ fn run_prove_trusted_evaluations<R: Rng>(
     let (_main_digest, main_prover_data) = commit_multilinears::<TestGC, _>(
         jagged_trace_data,
         CORE_MAX_LOG_ROW_COUNT,
-        false,
+        TraceSection::Main,
         false,
         &basefold_prover,
     )
@@ -118,7 +128,8 @@ fn run_prove_trusted_evaluations<R: Rng>(
         new_evaluation_claims.push(MleEval::new(device_tensor.into_inner()));
     }
     let claims: Rounds<_> = new_evaluation_claims.into_iter().collect();
-    let prover_data = Rounds::from_iter([&preprocessed_prover_data, &main_prover_data]);
+    let prover_data =
+        Rounds::from_iter([&preprocessed_prover_data, &global_prover_data, &main_prover_data]);
     scope.synchronize_blocking().unwrap();
 
     let mut group = c.benchmark_group("prove_trusted_evaluations");

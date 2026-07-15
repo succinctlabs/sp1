@@ -1,6 +1,7 @@
 use std::{future::Future, sync::Arc};
 
 use slop_challenger::IopCtx;
+use sp1_core_executor::ExecutionRecord;
 use sp1_hypercube::{
     prover::{AirProver, PcsProof, Program, ProverPermit, ProverSemaphore, ProvingKey, Record},
     Chip, Machine, MachineVerifyingKey, ShardContext, ShardContextProof, ShardProof,
@@ -38,6 +39,27 @@ pub trait AirProverWorker<GC: IopCtx, SC: ShardContext<GC>, P: AirProver<GC, SC>
         record: Record<GC, SC>,
         prover_permits: ProverSemaphore,
     ) -> impl Future<Output = (ShardProof<GC, PcsProof<GC, SC>>, ProverPermit)> + Send;
+
+    /// Generate the chunk's global commitment for the `ExecutionRecord`.
+    fn generate_global_commitment(
+        &self,
+        record: &ExecutionRecord,
+        permits: ProverSemaphore,
+    ) -> impl Future<Output = GC::Digest> + Send
+    where
+        ExecutionRecord: Into<Record<GC, SC>>;
+
+    /// Prove a shard from its [`ExecutionRecord`] and the chunk's ordered global commitments.
+    fn prove_shard(
+        &self,
+        program: Arc<Program<GC, SC>>,
+        record: &ExecutionRecord,
+        commitments: &[GC::Digest],
+        permits: ProverSemaphore,
+    ) -> impl Future<Output = ShardProof<GC, PcsProof<GC, SC>>> + Send
+    where
+        ExecutionRecord: Into<Record<GC, SC>>;
+
     /// Get all the chips in the machine.
     fn all_chips(&self) -> &[Chip<GC::F, SC::Air>] {
         self.machine().chips()
@@ -83,5 +105,33 @@ where
         prover_permits: ProverSemaphore,
     ) -> (ShardProof<GC, PcsProof<GC, SC>>, ProverPermit) {
         AirProver::prove_shard_with_pk(self, pk, record, prover_permits).await
+    }
+
+    async fn generate_global_commitment(
+        &self,
+        record: &ExecutionRecord,
+        permits: ProverSemaphore,
+    ) -> GC::Digest
+    where
+        ExecutionRecord: Into<Record<GC, SC>>,
+    {
+        self.commit_global_traces_for_record(record.clone().into(), permits).await
+    }
+
+    async fn prove_shard(
+        &self,
+        program: Arc<Program<GC, SC>>,
+        record: &ExecutionRecord,
+        commitments: &[GC::Digest],
+        permits: ProverSemaphore,
+    ) -> ShardProof<GC, PcsProof<GC, SC>>
+    where
+        ExecutionRecord: Into<Record<GC, SC>>,
+    {
+        let mut record = record.clone();
+        record.set_global_commitments::<GC>(commitments);
+        let (_vk, proof, _permit) =
+            self.setup_and_prove_shard(program, record.into(), None, permits).await;
+        proof
     }
 }

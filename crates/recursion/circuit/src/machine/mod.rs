@@ -1,5 +1,7 @@
 mod complete;
 mod compress;
+mod compress_chunk;
+mod compress_global;
 mod core;
 mod deferred;
 mod public_values;
@@ -10,6 +12,8 @@ mod wrap;
 
 pub(crate) use complete::*;
 pub use compress::*;
+pub use compress_chunk::*;
+pub use compress_global::*;
 pub use core::*;
 pub use deferred::*;
 pub use public_values::*;

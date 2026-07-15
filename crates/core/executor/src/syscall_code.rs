@@ -102,7 +102,7 @@ pub enum SyscallCode {
     HINT_LEN = 0x00_00_00_F0,
 
     /// Executes the `HINT_READ` precompile.
-    HINT_READ = 0x00_00_00_F1,
+    HINT_READ = 0x00_00_01_F1,
 
     /// Executes the `UINT256_MUL` precompile.
     UINT256_MUL = 0x00_01_01_1D,
@@ -216,7 +216,7 @@ impl SyscallCode {
             0x00_00_00_1A => SyscallCode::COMMIT_DEFERRED_PROOFS,
             0x00_00_00_1B => SyscallCode::VERIFY_SP1_PROOF,
             0x00_00_00_F0 => SyscallCode::HINT_LEN,
-            0x00_00_00_F1 => SyscallCode::HINT_READ,
+            0x00_00_01_F1 => SyscallCode::HINT_READ,
             0x00_01_01_1D => SyscallCode::UINT256_MUL,
             0x00_01_01_2F => SyscallCode::U256XU2048_MUL,
             0x00_01_01_20 => SyscallCode::BLS12381_FP_ADD,
@@ -355,6 +355,7 @@ impl SyscallCode {
             SyscallCode::MPROTECT => RiscvAirId::Mprotect,
             SyscallCode::POSEIDON2 => RiscvAirId::Poseidon2,
             SyscallCode::SIG_RETURN => RiscvAirId::SigReturn,
+            SyscallCode::HINT_READ => RiscvAirId::HintRead,
             SyscallCode::HINT_MPROTECT_FLUSH
             | SyscallCode::DUMP_ELF
             | SyscallCode::INSERT_PROFILER_SYMBOLS
@@ -370,8 +371,7 @@ impl SyscallCode {
             | SyscallCode::COMMIT
             | SyscallCode::COMMIT_DEFERRED_PROOFS
             | SyscallCode::VERIFY_SP1_PROOF
-            | SyscallCode::HINT_LEN
-            | SyscallCode::HINT_READ => return None,
+            | SyscallCode::HINT_LEN => return None,
         })
     }
 
@@ -413,6 +413,7 @@ impl SyscallCode {
             SyscallCode::MPROTECT => RiscvAirId::Mprotect,
             SyscallCode::SIG_RETURN => RiscvAirId::SigReturn,
             SyscallCode::POSEIDON2 => RiscvAirId::Poseidon2User,
+            SyscallCode::HINT_READ => RiscvAirId::HintRead,
             SyscallCode::HINT_MPROTECT_FLUSH
             | SyscallCode::DUMP_ELF
             | SyscallCode::INSERT_PROFILER_SYMBOLS
@@ -428,8 +429,7 @@ impl SyscallCode {
             | SyscallCode::COMMIT
             | SyscallCode::COMMIT_DEFERRED_PROOFS
             | SyscallCode::VERIFY_SP1_PROOF
-            | SyscallCode::HINT_LEN
-            | SyscallCode::HINT_READ => return None,
+            | SyscallCode::HINT_LEN => return None,
         })
     }
 

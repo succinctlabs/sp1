@@ -40,21 +40,26 @@ pub use tracing::{TracingVM, TracingVMEnum};
 mod vm;
 pub use vm::{
     gas::get_complexity_mapping,
-    memory::{CompressedMemory, CompressedPages},
     results::CycleResult,
     results::TrapResult,
     shapes::{MAXIMUM_CYCLE_AREA, MAXIMUM_PADDING_AREA},
     CoreVM,
 };
 mod splicing;
-pub use splicing::{SplicedMinimalTrace, SplicingVM, SplicingVMEnum};
+pub use splicing::{
+    MerkleProofRecord, MerkleProvingPayload, MerkleProvingPayloadRef, PageState, PerChunkState,
+    ShardData, SplicedMinimalTrace, SplicingVM, SplicingVMEnum, MERKLE_PAGE_BYTES,
+    MERKLE_PAGE_WORDS,
+};
 mod estimating;
 pub use estimating::{GasEstimatingVM, GasEstimatingVMEnum};
 
-mod minimal;
+/// `MinimalExecutor` implementations.
+pub mod minimal;
 pub use minimal::*;
 
 mod memory;
+pub mod merkle;
 mod opcode;
 mod opts;
 #[cfg(feature = "profiling")]
@@ -63,7 +68,6 @@ mod program;
 mod record;
 mod register;
 mod report;
-mod retain;
 mod state;
 pub mod subproof;
 mod syscall_code;
@@ -82,7 +86,6 @@ pub use program::*;
 pub use record::*;
 pub use register::*;
 pub use report::*;
-pub use retain::*;
 pub use state::*;
 pub use utils::*;
 

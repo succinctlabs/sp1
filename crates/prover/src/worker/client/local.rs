@@ -49,12 +49,10 @@ impl LocalWorkerClientInner {
         for task_type in [
             TaskType::UnspecifiedTaskType,
             TaskType::Controller,
-            TaskType::ProveShard,
             TaskType::RecursionReduce,
             TaskType::RecursionDeferred,
             TaskType::ShrinkWrap,
             TaskType::SetupVkey,
-            TaskType::MarkerDeferredRecord,
             TaskType::PlonkWrap,
             TaskType::Groth16Wrap,
             TaskType::ExecuteOnly,
@@ -190,6 +188,15 @@ impl WorkerClient for LocalWorkerClient {
         self.update_task_status(task_id, TaskStatus::Succeeded).await
     }
 
+    async fn fail_task(
+        &self,
+        _proof_id: ProofId,
+        task_id: TaskId,
+        _metadata: TaskMetadata,
+    ) -> anyhow::Result<()> {
+        self.update_task_status(task_id, TaskStatus::FailedFatal).await
+    }
+
     async fn complete_proof(
         &self,
         proof_id: ProofId,
@@ -308,8 +315,6 @@ pub mod test_utils {
         for task_type in [
             TaskType::Controller,
             TaskType::SetupVkey,
-            TaskType::ProveShard,
-            TaskType::MarkerDeferredRecord,
             TaskType::RecursionReduce,
             TaskType::RecursionDeferred,
             TaskType::ShrinkWrap,

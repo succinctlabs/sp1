@@ -1,19 +1,20 @@
+mod chunk_payload;
 mod compress;
 mod core;
 mod deferred;
-mod gate;
-mod global;
-mod precompiles;
-mod splicing;
+mod pinning;
 mod vk_tree;
 
+pub use sp1_core_machine::merkle_prover::{
+    build_merkle_proof_record, zero_leaf, BatchMerkleProver, LeafDigest, LeafState,
+    MerkleProvingInput, DIGEST_WIDTH, MERKLE_TREE_HEIGHT, PAGE_ELEMENTS,
+};
+
+pub use chunk_payload::*;
 pub use compress::*;
 pub use core::*;
 pub use deferred::*;
-pub use gate::*;
-pub use global::*;
-pub use precompiles::*;
-pub use splicing::*;
+pub use pinning::*;
 pub use vk_tree::*;
 
 use lru::LruCache;
@@ -35,15 +36,21 @@ use sp1_prover_types::{
 use sp1_verifier::{ProofFromNetwork, SP1Proof};
 use std::{borrow::Borrow, sync::Arc};
 use tokio::{
-    sync::{oneshot, Mutex, MutexGuard},
+    sync::{mpsc, oneshot, Mutex, MutexGuard},
     task::JoinSet,
 };
 use tracing::Instrument;
 
+use sp1_hypercube::prover::ProverSemaphore;
+
 use crate::{
     verify::SP1Verifier,
-    worker::{MessageReceiver, RawTaskRequest, TaskContext, TaskError, TaskId, WorkerClient},
-    SP1_CIRCUIT_VERSION,
+    worker::{
+        node_body::{SpliceChunkEngine, SpliceChunkTask, SpliceChunkWorker},
+        proof_sort_key, MessageReceiver, RawTaskRequest, RecursionStages, TaskContext, TaskError,
+        TaskId, WorkerClient,
+    },
+    SP1ProverComponents, SP1_CIRCUIT_VERSION,
 };
 
 #[derive(Clone)]
@@ -64,11 +71,7 @@ pub struct SP1ControllerConfig {
     pub opts: SP1CoreOpts,
     pub num_splicing_workers: usize,
     pub splicing_buffer_size: usize,
-    pub max_reduce_arity: usize,
-    pub number_of_send_splice_workers_per_splice: usize,
-    pub send_splice_input_buffer_size_per_splice: usize,
     pub use_fixed_pk: bool,
-    pub global_memory_buffer_size: usize,
 }
 
 pub struct SP1Controller<A, W> {
@@ -110,31 +113,28 @@ where
     }
 
     #[inline]
-    pub const fn max_reduce_arity(&self) -> usize {
-        self.config.max_reduce_arity
+    pub const fn splicing_buffer_size(&self) -> usize {
+        self.config.splicing_buffer_size
     }
 
-    #[inline]
-    pub const fn global_memory_buffer_size(&self) -> usize {
-        self.config.global_memory_buffer_size
-    }
-
-    pub fn initialize_splicing_engine(
+    /// Build the merkle-aware splicing engine.
+    pub fn initialize_splice_chunk_engine<C: SP1ProverComponents>(
         &self,
-        gate: ProveShardGate<A, W>,
-    ) -> Arc<SplicingEngine<A, W>> {
-        let splicing_workers = (0..self.config.num_splicing_workers)
+        core_prover: Arc<C::CoreProver>,
+        permits: ProverSemaphore,
+        recursion: Arc<dyn RecursionStages>,
+    ) -> Arc<SpliceChunkEngine<A, W, C>> {
+        let workers = (0..self.config.num_splicing_workers)
             .map(|_| {
-                SplicingWorker::new(
+                SpliceChunkWorker::new(
                     self.artifact_client.clone(),
-                    self.worker_client.clone(),
-                    gate.clone(),
-                    self.config.number_of_send_splice_workers_per_splice,
-                    self.config.send_splice_input_buffer_size_per_splice,
+                    core_prover.clone(),
+                    permits.clone(),
+                    Some(recursion.clone()),
                 )
             })
             .collect();
-        Arc::new(SplicingEngine::new(splicing_workers, self.config.splicing_buffer_size))
+        Arc::new(SpliceChunkEngine::new(workers, self.config.splicing_buffer_size))
     }
 
     /// Execute Risc-V program, and trigger shard proofs for each trace chunk.
@@ -144,6 +144,7 @@ where
         &self,
         task_id: TaskId,
         request: CoreExecuteTaskRequest,
+        chunk_tx: mpsc::Sender<SpliceChunkTask<W>>,
     ) -> Result<ExecutionOutput, TaskError> {
         let stdin_artifact_type =
             if request.stdin_private { ArtifactType::PrivateStdin } else { ArtifactType::Stdin };
@@ -155,31 +156,17 @@ where
         let deferred_proofs = stdin.proofs.iter().map(|(proof, _)| proof.clone());
         let deferred_inputs = DeferredInputs::new(deferred_proofs);
 
-        // Per-proof backpressure gate; permit pool lives in the artifact store.
-        let gate = ProveShardGate::new(
-            self.artifact_client.clone(),
-            self.worker_client.clone(),
-            request.context.proof_id.clone(),
-        )
-        .await
-        .map_err(TaskError::Fatal)?;
-
-        let splicing_engine = self.initialize_splicing_engine(gate.clone());
         let proof_data_sender =
-            MessageSender::<W, ProofData>::new(self.worker_client.clone(), task_id);
+            MessageSender::<W, ProofData>::new(self.worker_client.clone(), task_id.clone());
         let executor = SP1CoreExecutor::new(
-            splicing_engine,
-            self.global_memory_buffer_size(),
+            chunk_tx,
             request.elf,
             Arc::new(stdin),
             request.common_input.clone(),
             self.opts().clone(),
             request.num_deferred_proofs,
-            request.context.clone(),
             proof_data_sender.clone(),
             self.artifact_client.clone(),
-            self.worker_client.clone(),
-            gate,
             self.minimal_executor_cache.clone(),
             request.cycle_limit,
             request.machine,
@@ -333,11 +320,23 @@ where
             .submit_task(TaskType::CoreExecute, executor_request.into_raw()?)
             .await?;
 
-        let core_proof_rx = MessageReceiver::<ProofData>::new(
+        let outbound_rx = MessageReceiver::<ProofData>::new(
             self.worker_client.subscribe_task_messages(&executor_task_id).await?,
         );
 
+        // Single umbrella channel for every shard proof (execution + merkle).
+        let (core_proof_tx, core_proof_rx) = mpsc::unbounded_channel::<ProofData>();
+
         let mut join_set = JoinSet::<Result<(), TaskError>>::new();
+        // Bridge: pump cluster-subscriber proofs into the in-process collector
+        // channel. Exits when the outer executor task completes.
+        join_set.spawn(async move {
+            let mut rx = outbound_rx;
+            while let Some(proof) = rx.recv().await {
+                let _ = core_proof_tx.send(proof);
+            }
+            Ok(())
+        });
 
         let mut core_proof_artifact = None;
         let mut compress_proof_artifact = None;
@@ -357,7 +356,9 @@ where
                 core_proof_rx,
             ));
         } else {
-            let mut tree = CompressTree::new(self.max_reduce_arity());
+            // Non-Core: fold the per-chunk proofs the node emits into one root compress proof via
+            // the across-chunk binary tree; the shrink/wrap tail below consumes it.
+            let mut tree = CompressTree::new(ACROSS_CHUNK_ARITY);
             let artifact_client = self.artifact_client.clone();
             let worker_client = self.worker_client.clone();
             let context = context.clone();
@@ -368,6 +369,7 @@ where
                     tree.reduce_proofs(
                         context,
                         compress_proof_artifact.clone(),
+                        num_deferred_proofs as u32,
                         core_proof_rx,
                         &artifact_client,
                         &worker_client,
@@ -538,26 +540,45 @@ async fn collect_core_proofs(
     artifact_client: impl ArtifactClient,
     result_artifact: Artifact,
     context: TaskContext,
-    mut core_proof_rx: MessageReceiver<ProofData>,
+    mut core_proof_rx: mpsc::UnboundedReceiver<ProofData>,
 ) -> Result<(), TaskError> {
     let subscriber = worker_client.subscriber(context.proof_id.clone()).await?.per_task();
     let mut shard_proofs = Vec::new();
     while let Some(proof_data) = core_proof_rx.recv().await {
-        let ProofData { task_id, proof, .. } = proof_data;
-        let status = subscriber.wait_task(task_id.clone()).await?;
-        if status != TaskStatus::Succeeded {
-            tracing::error!("core proof task failed: {:?}", task_id);
-            return Err(TaskError::Fatal(anyhow::anyhow!("core proof task failed: {:?}", task_id)));
-        }
-        let proof = artifact_client
-            .download::<ShardProof<SP1GlobalContext, SP1PcsProofInner>>(&proof)
-            .await?;
+        let proof = match proof_data {
+            ProofData::Artifact { task_id, proof, .. } => {
+                let status = subscriber.wait_task(task_id.clone()).await?;
+                if status != TaskStatus::Succeeded {
+                    tracing::error!("core proof task failed: {:?}", task_id);
+                    return Err(TaskError::Fatal(anyhow::anyhow!(
+                        "core proof task failed: {:?}",
+                        task_id
+                    )));
+                }
+                artifact_client
+                    .download::<ShardProof<SP1GlobalContext, SP1PcsProofInner>>(&proof)
+                    .await?
+            }
+            // Both `Execution` and `Merkle` in-memory proofs flow through here.
+            ProofData::InMemory { proof, .. } => *proof,
+            // Chunk proofs are produced only in compress mode and consumed by the across-chunk
+            // tree; they never reach the Core-mode collector.
+            ProofData::ChunkProof { .. } => {
+                return Err(TaskError::Fatal(anyhow::anyhow!(
+                    "unexpected ChunkProof in core-proof collector (compress mode only)"
+                )));
+            }
+        };
         shard_proofs.push(proof);
     }
     shard_proofs.sort_by_key(|shard_proof| {
         let public_values: &PublicValues<[_; 4], [_; 3], [_; 4], _> =
             shard_proof.public_values.as_slice().borrow();
-        public_values.range()
+        proof_sort_key(
+            public_values.trace_chunk_idx.as_canonical_u32(),
+            1 - public_values.is_execution_shard.as_canonical_u32(),
+            public_values.shard_index.as_canonical_u32(),
+        )
     });
 
     artifact_client.upload(&result_artifact, shard_proofs).await?;

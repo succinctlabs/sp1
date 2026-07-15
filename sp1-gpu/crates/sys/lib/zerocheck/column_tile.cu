@@ -48,6 +48,7 @@ __global__ void zerocheck_column_tile(
     // reads from the same device-resident `chip_layouts` array.
     const ChipLayout lay = chip_layouts[chip_idx];
     const size_t preprocessed_ptr = lay.preprocessed_ptr;
+    const size_t global_ptr = lay.global_ptr;
     const size_t main_ptr = lay.main_ptr;
     const uint32_t height = lay.height;
     const uint64_t total = (uint64_t)n_terms * (uint64_t)row_count;
@@ -69,7 +70,9 @@ __global__ void zerocheck_column_tile(
         ColumnTermEntry t = terms[term_idx];
 
         LeafRef leaf = leaves[t.leaf_idx];
-        size_t base = (leaf.source == LEAF_SOURCE_MAIN_LOCAL) ? main_ptr : preprocessed_ptr;
+        size_t base = (leaf.source == LEAF_SOURCE_MAIN_LOCAL)     ? main_ptr
+                      : (leaf.source == LEAF_SOURCE_GLOBAL_LOCAL) ? global_ptr
+                                                                  : preprocessed_ptr;
         // 64-bit column stride math; u32 × u32 wraps near
         // `2^32 / height` columns. See review #6.
         const size_t col_off = (size_t)leaf.col * (size_t)height;

@@ -49,6 +49,13 @@ pub trait IopCtx:
     fn default_hasher_and_compressor() -> (Self::Hasher, Self::Compressor);
 
     fn default_challenger() -> Self::Challenger;
+
+    /// The digest's base-field elements (the inverse of [`Self::digest_from_elements`]).
+    fn digest_to_elements(digest: &Self::Digest) -> Vec<Self::F>;
+
+    /// Reconstruct a digest from the base-field elements produced by
+    /// [`Self::digest_to_elements`].
+    fn digest_from_elements(elements: &[Self::F]) -> Self::Digest;
 }
 
 pub trait VariableLengthChallenger<F: Field, Digest: Copy>:

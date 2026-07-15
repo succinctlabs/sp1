@@ -18,6 +18,8 @@ pub enum RetainedEventsPreset {
     U256Ops,
     /// Retain events for Secp256k1 operations.
     Secp256k1,
+    /// Retain events for Keccak operations.
+    Keccak,
 }
 
 impl RetainedEventsPreset {
@@ -27,14 +29,32 @@ impl RetainedEventsPreset {
         #[allow(clippy::enum_glob_use)]
         use SyscallCode::*;
         match self {
-            RetainedEventsPreset::Bls12381Field => {
-                &[BLS12381_FP_ADD, BLS12381_FP_MUL, BLS12381_FP_SUB]
-            }
-            RetainedEventsPreset::Bn254Field => &[BN254_FP_ADD, BN254_FP_MUL, BN254_FP_SUB],
+            RetainedEventsPreset::Bls12381Field => &[
+                BLS12381_FP_ADD,
+                BLS12381_FP_MUL,
+                BLS12381_FP_SUB,
+                BLS12381_ADD,
+                BLS12381_DECOMPRESS,
+                BLS12381_DOUBLE,
+                BLS12381_FP2_ADD,
+                BLS12381_FP2_SUB,
+                BLS12381_FP2_MUL,
+            ],
+            RetainedEventsPreset::Bn254Field => &[
+                BN254_FP_ADD,
+                BN254_FP_MUL,
+                BN254_FP_SUB,
+                BN254_ADD,
+                BN254_DOUBLE,
+                BN254_FP2_ADD,
+                BN254_FP2_SUB,
+                BN254_FP2_MUL,
+            ],
             RetainedEventsPreset::Sha256 => &[SHA_COMPRESS, SHA_EXTEND],
             RetainedEventsPreset::Poseidon2 => &[POSEIDON2],
             RetainedEventsPreset::U256Ops => &[UINT256_ADD_CARRY, UINT256_MUL_CARRY],
             RetainedEventsPreset::Secp256k1 => &[SECP256K1_ADD, SECP256K1_DOUBLE],
+            RetainedEventsPreset::Keccak => &[KECCAK_PERMUTE],
         }
     }
 }

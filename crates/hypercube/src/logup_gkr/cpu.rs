@@ -75,14 +75,16 @@ pub struct InteractionLayer<F, EF> {
 impl<F: Field, EF: ExtensionField<F>, A: MachineAir<F>> LogupGkrCpuTraceGenerator<F, EF, A> {
     #[allow(unused_variables)]
     #[allow(clippy::needless_pass_by_value)]
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn generate_gkr_circuit(
         &self,
         chips: &BTreeSet<Chip<F, A>>,
         preprocessed_traces: Traces<F, CpuBackend>,
+        global_traces: Traces<F, CpuBackend>,
         traces: Traces<F, CpuBackend>,
         public_values: Vec<F>,
-        alpha: EF,
-        beta_seed: Point<EF>,
+        local_challenges: (EF, Point<EF>),
+        global_challenges: Option<(EF, Point<EF>)>,
     ) -> (LogUpGkrOutput<EF>, LogupGkrCpuCircuit<F, EF>) {
         let interactions = chips
             .iter()
@@ -100,9 +102,10 @@ impl<F: Field, EF: ExtensionField<F>, A: MachineAir<F>> LogupGkrCpuTraceGenerato
         let first_layer = self.generate_first_layer(
             &interactions,
             &traces,
+            &global_traces,
             &preprocessed_traces,
-            alpha,
-            beta_seed,
+            local_challenges,
+            global_challenges,
         );
         let num_row_variables = first_layer.num_row_variables;
         // println!("num_row_variables: {:?}", num_row_variables);

@@ -35,6 +35,7 @@
 struct ChipGkrInfo {
     uint32_t main_width;       // 4
     uint32_t prep_width;       // 4
+    uint32_t global_width;     // 4
 };
 
 // Block size (must match the launcher).

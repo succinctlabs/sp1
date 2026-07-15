@@ -1,4 +1,4 @@
-use memmap2::{Mmap, MmapMut};
+use memmap2::MmapMut;
 use sp1_jit::{MemValue, TraceChunkHeader};
 
 /// A buffer to build a valid [`sp1_jit::TraceChunk`].
@@ -166,8 +166,11 @@ impl TraceChunkBuffer {
     }
 }
 
-impl From<TraceChunkBuffer> for Mmap {
+impl From<TraceChunkBuffer> for MmapMut {
     fn from(buffer: TraceChunkBuffer) -> Self {
-        buffer.inner.make_read_only().expect("Failed to make trace buf read only")
+        // Don't seal: SplicingVM patches `MemValue.clk` in-place during the splicing
+        // pass to fill in the per-address last-access timestamps. The mapping stays
+        // writable; the read-only API on `TraceChunkRaw` is enforced by convention.
+        buffer.inner
     }
 }

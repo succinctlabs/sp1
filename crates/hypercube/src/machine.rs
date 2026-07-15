@@ -87,6 +87,23 @@ where
         self.shape.smallest_cluster(chips)
     }
 
+    /// Whether this machine commits a global trace round.
+    #[must_use]
+    pub fn has_global_round(&self) -> bool {
+        self.chips.iter().any(|chip| chip.global_width() > 0)
+    }
+
+    /// The number of commitment rounds for this machine: `[preprocessed, global, main]` when any
+    /// chip has global columns, `[preprocessed, main]` otherwise.
+    #[must_use]
+    pub fn num_commitment_rounds(&self) -> usize {
+        if self.has_global_round() {
+            3
+        } else {
+            2
+        }
+    }
+
     /// Generates the dependencies of the given records.
     #[allow(clippy::needless_for_each)]
     pub fn generate_dependencies<'a>(

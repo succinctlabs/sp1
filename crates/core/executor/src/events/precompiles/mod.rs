@@ -1,6 +1,7 @@
 mod ec;
 mod edwards;
 mod fptower;
+mod hint_read;
 mod keccak256_permute;
 mod mprotect;
 mod poseidon2;
@@ -18,6 +19,7 @@ pub use ec::*;
 pub use edwards::*;
 pub use fptower::*;
 use hashbrown::HashMap;
+pub use hint_read::*;
 pub use keccak256_permute::*;
 pub use mprotect::*;
 pub use poseidon2::*;
@@ -93,6 +95,8 @@ pub enum PrecompileEvent {
     POSEIDON2(Poseidon2PrecompileEvent),
     /// `SigReturn` precompile event.
     SigReturn(SigReturnEvent),
+    /// `HintRead` precompile event.
+    HintRead(HintReadEvent),
 }
 
 /// Trait to retrieve all the local memory events from a vec of precompile events.
@@ -162,8 +166,9 @@ impl PrecompileLocalMemory for Vec<(SyscallEvent, PrecompileEvent)> {
                 PrecompileEvent::POSEIDON2(e) => {
                     iterators.push(e.local_mem_access.iter());
                 }
-                PrecompileEvent::Mprotect(_) => {
-                    // Mprotect doesn't have local memory access events
+                PrecompileEvent::Mprotect(_) | PrecompileEvent::HintRead(_) => {
+                    // Mprotect has no local memory access; HintRead's writes are sent to the
+                    // memory bus by the chip directly.
                 }
                 PrecompileEvent::SigReturn(e) => {
                     iterators.push(e.local_mem_access.iter());
@@ -237,6 +242,9 @@ impl PrecompileLocalMemory for Vec<(SyscallEvent, PrecompileEvent)> {
                 PrecompileEvent::SigReturn(e) => {
                     iterators.push(e.local_page_prot_access.iter());
                 }
+                PrecompileEvent::HintRead(_) => {
+                    // HintRead doesn't have page prot access events.
+                }
             }
         }
 
@@ -300,6 +308,7 @@ impl PrecompileEvents {
     }
 
     #[inline]
+    #[allow(dead_code)]
     /// Insert a vector of precompile events for a given syscall code.
     pub(crate) fn insert(
         &mut self,
@@ -318,6 +327,7 @@ impl PrecompileEvents {
     }
 
     #[inline]
+    #[allow(dead_code)]
     pub(crate) fn into_iter(
         self,
     ) -> impl Iterator<Item = (SyscallCode, Vec<(SyscallEvent, PrecompileEvent)>)> {

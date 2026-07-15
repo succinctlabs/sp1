@@ -2,7 +2,7 @@ use std::{borrow::Borrow, collections::BTreeMap};
 
 use rayon::prelude::*;
 use slop_air::{
-    Air, AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, PairBuilder,
+    Air, AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, GlobalBuilder, PairBuilder,
     PermutationAirBuilder,
 };
 use slop_algebra::{ExtensionField, Field};
@@ -27,17 +27,30 @@ use crate::{
 pub fn debug_constraints<GC, A>(
     chip: &Chip<GC::F, A>,
     preprocessed: Option<&Mle<GC::F>>,
-    main: &Mle<GC::F>,
+    global: Option<&Mle<GC::F>>,
+    main: Option<&Mle<GC::F>>,
     public_values: &[GC::F],
 ) -> Vec<(usize, Vec<usize>, Vec<GC::F>)>
 where
     GC: IopCtx,
     A: MachineAir<GC::F> + for<'a> Air<DebugConstraintBuilder<'a, GC::F, GC::EF>>,
 {
-    let main: RowMajorMatrix<GC::F> = main.clone().into_guts().try_into().unwrap();
+    let main: Option<RowMajorMatrix<GC::F>> =
+        main.map(|m| m.clone().into_guts().try_into().unwrap());
+    let global: Option<RowMajorMatrix<GC::F>> =
+        global.map(|g| g.clone().into_guts().try_into().unwrap());
     let preprocessed: Option<RowMajorMatrix<GC::F>> =
         preprocessed.map(|pre| pre.clone().into_guts().try_into().unwrap());
-    let height = main.height();
+    let height = main.as_ref().map_or_else(
+        || global.as_ref().map_or(0, Matrix::height),
+        |m| {
+            let height = m.height();
+            if let Some(global) = global.as_ref() {
+                assert_eq!(height, global.height(), "global and main heights must match");
+            }
+            height
+        },
+    );
     if height == 0 {
         return Vec::new();
     }
@@ -46,8 +59,16 @@ where
     let mut failed_rows = (0..height)
         .par_bridge()
         .filter_map(|i| {
-            let main_local = main.row_slice(i);
-            let main_local = &(*main_local);
+            let main_local = main.as_ref().map_or(Vec::new(), |m| {
+                let row = m.row_slice(i);
+                let row: &[_] = (*row).borrow();
+                row.to_vec()
+            });
+            let global_local = global.as_ref().map_or(Vec::new(), |g| {
+                let row = g.row_slice(i);
+                let row: &[_] = (*row).borrow();
+                row.to_vec()
+            });
             let preprocessed_local = if let Some(preprocessed) = preprocessed.as_ref() {
                 let row = preprocessed.row_slice(i);
                 let row: &[_] = (*row).borrow();
@@ -58,7 +79,8 @@ where
 
             let mut builder = DebugConstraintBuilder {
                 preprocessed: RowMajorMatrixView::new_row(&preprocessed_local),
-                main: RowMajorMatrixView::new_row(main_local),
+                global: RowMajorMatrixView::new_row(&global_local),
+                main: RowMajorMatrixView::new_row(&main_local),
                 public_values,
                 failing_constraints: Vec::new(),
                 num_constraints_evaluated: 0,
@@ -66,7 +88,7 @@ where
             };
             chip.eval(&mut builder);
             if !builder.failing_constraints.is_empty() {
-                Some((i, builder.failing_constraints, main_local.to_vec()))
+                Some((i, builder.failing_constraints, main_local))
             } else {
                 None
             }
@@ -79,10 +101,11 @@ where
 }
 
 /// Checks that the constraints of all the given AIRs are satisfied on the proposed witnesses sent
-/// in `main` and `preprocessed`.
+/// in `main`, `global`, and `preprocessed`.
 pub fn debug_constraints_all_chips<GC, A>(
     chips: &[Chip<GC::F, A>],
     preprocessed: &Traces<GC::F, CpuBackend>,
+    global: &Traces<GC::F, CpuBackend>,
     main: &Traces<GC::F, CpuBackend>,
     public_values: &[GC::F],
 ) where
@@ -93,14 +116,21 @@ pub fn debug_constraints_all_chips<GC, A>(
     for chip in chips.iter() {
         let preprocessed_trace =
             preprocessed.get(chip.air.name()).map(|t| t.inner().as_ref().unwrap().as_ref());
-        let maybe_main_trace = main.get(chip.air.name()).unwrap().inner().as_ref();
+        let global_trace =
+            global.get(chip.air.name()).and_then(|t| t.inner().as_ref()).map(AsRef::as_ref);
+        let main_trace =
+            main.get(chip.air.name()).and_then(|t| t.inner().as_ref()).map(AsRef::as_ref);
 
-        if maybe_main_trace.is_none() {
+        if main_trace.is_none() && global_trace.is_none() {
             continue;
         }
-        let main_trace = maybe_main_trace.unwrap().as_ref();
-        let failed_rows =
-            crate::debug_constraints::<GC, A>(chip, preprocessed_trace, main_trace, public_values);
+        let failed_rows = crate::debug_constraints::<GC, A>(
+            chip,
+            preprocessed_trace,
+            global_trace,
+            main_trace,
+            public_values,
+        );
         if !failed_rows.is_empty() {
             result.insert(chip.name().to_string(), failed_rows);
         }
@@ -132,6 +162,7 @@ pub fn debug_constraints_all_chips<GC, A>(
 /// A builder for debugging constraints.
 pub struct DebugConstraintBuilder<'a, F: Field, EF: ExtensionField<F>> {
     pub(crate) preprocessed: RowMajorMatrixView<'a, F>,
+    pub(crate) global: RowMajorMatrixView<'a, F>,
     pub(crate) main: RowMajorMatrixView<'a, F>,
     pub(crate) public_values: &'a [F],
     failing_constraints: Vec<usize>,
@@ -181,6 +212,16 @@ where
 {
     fn preprocessed(&self) -> Self::M {
         self.preprocessed
+    }
+}
+
+impl<F, EF> GlobalBuilder for DebugConstraintBuilder<'_, F, EF>
+where
+    F: Field,
+    EF: ExtensionField<F>,
+{
+    fn global(&self) -> Self::M {
+        self.global
     }
 }
 

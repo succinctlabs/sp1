@@ -51,6 +51,9 @@ pub use unconstrained::*;
 #[cfg(feature = "verify")]
 pub use verify::*;
 
+/// Maximum number of bytes a single `HINT_READ` ECALL is allowed to consume.
+pub const BATCH_HINT_LEN: usize = 1024 * 8;
+
 /// These codes MUST match the codes in `core/src/runtime/syscall.rs`. There is a derived test
 /// that checks that the enum is consistent with the syscalls.
 ///
@@ -121,7 +124,7 @@ pub const VERIFY_SP1_PROOF: u32 = 0x00_00_00_1B;
 pub const HINT_LEN: u32 = 0x00_00_00_F0;
 
 /// Executes `HINT_READ`.
-pub const HINT_READ: u32 = 0x00_00_00_F1;
+pub const HINT_READ: u32 = 0x00_00_01_F1;
 
 /// Executes `BLS12381_DECOMPRESS`.
 pub const BLS12381_DECOMPRESS: u32 = 0x00_00_01_1C;

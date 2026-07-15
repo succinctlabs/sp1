@@ -57,43 +57,67 @@ fn test_using_too_much_memory() {
 }
 
 #[test]
-fn test_clks_should_be_available_while_running() {
+#[cfg(sp1_use_native_executor)]
+fn test_dirty_pages_emitted_per_chunk() {
     use bincode::serialize;
+    use sp1_jit::dirty_pages_wire_bytes;
 
-    let program = Program::from(&KECCAK256_ELF).unwrap();
-    let program = Arc::new(program);
+    setup_logger();
 
-    let mut executor =
-        MinimalExecutorRunner::new(program.clone(), true, Some(10), DEFAULT_MEMORY_LIMIT, 1);
-    executor.with_input(&serialize(&5_usize).unwrap());
-    for i in 0..5 {
-        executor.with_input(&serialize(&vec![i; i]).unwrap());
+    // Use the small fibonacci program with a few iterations — enough to
+    // produce a couple of dirty pages but small enough to keep the test
+    // quick.
+    let program = Arc::new(Program::from(&test_artifacts::FIBONACCI_ELF).expect("parse program"));
+
+    // Slot large enough for ~2000 dirty pages (more than fibonacci ever
+    // produces). Plenty of headroom for safety.
+    let slot_bytes = dirty_pages_wire_bytes(2000);
+
+    let mut runner = MinimalExecutorRunner::new_with_dirty_pages(
+        program,
+        false,
+        Some(100_000), // chunk threshold
+        DEFAULT_MEMORY_LIMIT,
+        4, // shm slots
+        Some(slot_bytes),
+    );
+    runner.with_input(&serialize(&100u32).unwrap());
+
+    let mut chunk_count = 0usize;
+    let mut total_dirty_pages = 0usize;
+    let mut all_page_ids = std::collections::HashSet::<u32>::new();
+
+    loop {
+        match runner.try_execute_chunk_with_dirty_pages() {
+            Ok(Some((chunk, dirty))) => {
+                chunk_count += 1;
+                total_dirty_pages += dirty.pages.len();
+                // Every dirty page must have a u32 page_id and 256 u64 final-contents
+                // (the wire roundtrip path).
+                for page in &dirty.pages {
+                    assert_eq!(page.final_contents.len(), 256);
+                    all_page_ids.insert(page.page_id);
+                }
+                let _ = chunk; // chunk is fine; we just dropped the consumer guard
+            }
+            Ok(None) => break,
+            Err(e) => panic!("execute failed: {e:?}"),
+        }
     }
 
-    let mut last_global_clk = 0;
-    let mut last_clk = 0;
-    let mut chunk_count = 0;
-    while let Some(_chunk) = executor.execute_chunk() {
-        assert!(executor.global_clk() > last_global_clk);
-        assert!(executor.clk() > last_clk);
-
-        last_global_clk = executor.global_clk();
-        last_clk = executor.clk();
-        chunk_count += 1;
-    }
-
-    assert!(chunk_count > 5, "no chunks were executed");
+    assert!(chunk_count >= 1, "expected at least one chunk");
+    assert!(total_dirty_pages >= 1, "expected at least one dirty page across all chunks");
+    assert!(!all_page_ids.is_empty(), "page id set should be non-empty");
 }
 
 /// Demonstrates that the gas estimate depends on `minimal_trace_chunk_threshold`.
 ///
-/// The gas estimator treats each trace chunk as a "shard": `shard_start_clk` is reset to the
-/// chunk start, so every address whose previous access predates the chunk is re-counted as a
-/// "first read this shard" (1 `MemoryLocal` + 2 `Global` rows). Smaller chunks => more chunk
-/// boundaries => the carried working set is re-counted more often => higher cost. Real proving
-/// cost is unaffected because real shards are cut by the (unchanged) sharding thresholds, not the
-/// chunk threshold. PR #2793 cut the chunk threshold 8x (134_217_728 -> 16_777_216), inflating
-/// gas above the value #2786 calibrated against v6.1.0.
+/// The gas estimator treats each trace chunk as a "shard": the first access to each memory
+/// word within a chunk is counted as a "first read this shard" (1 `MemoryLocal` rows).
+/// Smaller chunks => more chunk boundaries => the carried working set is re-counted more often
+/// => higher cost. Real proving cost is unaffected because real shards are cut by the (
+/// unchanged) sharding thresholds, not the chunk threshold. PR #2793 cut the chunk threshold 8x
+/// (134_217_728 -> 16_777_216), inflating gas above the value #2786 calibrated against v6.1.0.
 ///
 /// The assertions compare the raw per-chunk cost `3 * trace_area + complexity`, not the rounded
 /// gas: gas floors that quantity twice per chunk (`/ 10`, then `* 10 / 191`), so summing per-chunk
@@ -107,7 +131,7 @@ fn test_clks_should_be_available_while_running() {
 #[allow(clippy::print_stdout)] // prints a cost-vs-chunk-count table under `--nocapture`
 fn test_gas_depends_on_chunk_threshold() {
     use bincode::serialize;
-    use sp1_core_executor::{GasEstimatingVMEnum, SP1CoreOpts};
+    use sp1_core_executor::{GasEstimatingVMEnum, RiscvAirId, SP1CoreOpts};
 
     let program = Arc::new(Program::from(&KECCAK256_ELF).expect("parse program"));
 
@@ -124,8 +148,9 @@ fn test_gas_depends_on_chunk_threshold() {
 
     let opts = SP1CoreOpts::default();
 
-    // Total raw cost (the gas formula's numerator, before rounding) and chunk count.
-    let cost_for_threshold = |threshold: u64| -> (u64, usize) {
+    // Total raw cost (the gas formula's numerator, before rounding), chunk count, and total
+    // `MemoryLocal` rows (the chunk-boundary-sensitive part of the cost).
+    let cost_for_threshold = |threshold: u64| -> (u64, usize, u64) {
         let mut runner = MinimalExecutorRunner::new(
             program.clone(),
             false,
@@ -138,14 +163,23 @@ fn test_gas_depends_on_chunk_threshold() {
         }
         let mut total_cost = 0u64;
         let mut num_chunks = 0usize;
+        let mut mem_local_rows = 0u64;
         while let Some(chunk) = runner.try_execute_chunk().expect("execute chunk") {
             num_chunks += 1;
             let mut vm = GasEstimatingVMEnum::new(&chunk, program.clone(), [0u32; 4], opts.clone());
             vm.execute().expect("gas execute");
             let (complexity, trace_area) = vm.costs();
             total_cost += 3 * trace_area + complexity;
+            mem_local_rows += match &vm {
+                GasEstimatingVMEnum::Supervisor(vm) => {
+                    vm.gas_calculator.system_chips_counts[RiscvAirId::MemoryLocal]
+                }
+                GasEstimatingVMEnum::User(vm) => {
+                    vm.gas_calculator.system_chips_counts[RiscvAirId::MemoryLocal]
+                }
+            };
         }
-        (total_cost, num_chunks)
+        (total_cost, num_chunks, mem_local_rows)
     };
 
     // A large threshold (single chunk = calibrated baseline) versus progressively smaller ones
@@ -155,8 +189,8 @@ fn test_gas_depends_on_chunk_threshold() {
     let thresholds = [1u64 << 22, 1 << 18, 1 << 16, 1 << 14];
     let mut results = Vec::new();
     for t in thresholds {
-        let (cost, chunks) = cost_for_threshold(t);
-        println!("threshold={t:>12}  chunks={chunks:>5}  cost={cost}");
+        let (cost, chunks, mem_local) = cost_for_threshold(t);
+        println!("threshold={t:>12}  chunks={chunks:>5}  mem_local={mem_local:>9}  cost={cost}");
         results.push((t, cost, chunks));
     }
 

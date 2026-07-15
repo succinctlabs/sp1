@@ -20,7 +20,6 @@ impl RiscvTranspiler for TranspilerBackend {
         max_trace_size: u64,
         pc_start: u64,
         pc_base: u64,
-        clk_bump: u64,
     ) -> Result<Self, std::io::Error> {
         if pc_start < pc_base {
             return Err(std::io::Error::new(
@@ -41,13 +40,13 @@ impl RiscvTranspiler for TranspilerBackend {
             control_flow_instruction_inserted: false,
             instruction_started: false,
             branch_generated: false,
-            clk_bump,
             max_trace_size,
             may_early_exit: false,
             pc_current: pc_base,
             reg_values: HashMap::new(),
             labels: HashMap::new(),
             program_size,
+            flush_pending: false,
         };
 
         // Handle calling conventions and save anything were gonna clobber.

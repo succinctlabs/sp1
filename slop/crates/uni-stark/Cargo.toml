@@ -1,6 +1,6 @@
 [package]
 name = "slop-uni-stark"
-description = "Re-exports p3_uni_stark from Plonky3 for SLOP"
+description = "The symbolic constraint layer for SLOP AIRs"
 readme = "README.md"
 version.workspace = true
 edition.workspace = true
@@ -10,7 +10,9 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-p3-uni-stark = {workspace = true}
+slop-air = { workspace = true }
+slop-algebra = { workspace = true }
+slop-matrix = { workspace = true }
 
 [lints]
 workspace = true

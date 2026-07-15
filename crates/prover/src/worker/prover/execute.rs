@@ -16,7 +16,6 @@ use std::sync::Arc;
 use tracing::Instrument;
 
 use crate::verify::SP1Verifier;
-#[cfg(feature = "mprotect")]
 use crate::{recursion::RecursionVks, worker::DEFAULT_MAX_COMPOSE_ARITY};
 
 type DeferredProofInput =
@@ -120,10 +119,19 @@ fn verify_deferred_proofs(
     if proofs.is_empty() {
         return Ok(());
     }
-    #[cfg(feature = "mprotect")]
+    #[cfg(not(feature = "experimental"))]
     let verifier_vks = RecursionVks::new(None, DEFAULT_MAX_COMPOSE_ARITY, false).to_verifier_vks();
-    #[cfg(not(feature = "mprotect"))]
-    let verifier_vks = crate::verify::VerifierRecursionVks::default();
+    // With vk-verification off the prover stamps the dummy vk-tree root, so the deferred-proof
+    // verifier must use that same dummy root rather than the frozen real one.
+    #[cfg(feature = "experimental")]
+    let verifier_vks = if std::env::var("WITHOUT_VK_VERIFICATION")
+        .map(|v| v == "1" || v == "true")
+        .unwrap_or(false)
+    {
+        RecursionVks::new(None, DEFAULT_MAX_COMPOSE_ARITY, false).to_verifier_vks()
+    } else {
+        crate::verify::VerifierRecursionVks::default()
+    };
     let verifier = SP1Verifier::new_with_machine(verifier_vks, machine.clone());
     for (index, (proof, vk)) in proofs.iter().enumerate() {
         let sp1_vk = SP1VerifyingKey { vk: vk.clone() };

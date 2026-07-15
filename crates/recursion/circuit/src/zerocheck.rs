@@ -46,6 +46,7 @@ where
 {
     let mut folder = RecursiveVerifierConstraintFolder {
         preprocessed: RowMajorMatrixView::new_row(&opening.preprocessed.local),
+        global: RowMajorMatrixView::new_row(&opening.global.local),
         main: RowMajorMatrixView::new_row(&opening.main.local),
         public_values,
         alpha,
@@ -69,10 +70,12 @@ where
 {
     let zero = builder.constant(SP1ExtensionField::zero());
     let dummy_preprocessed_trace = vec![zero; chip.preprocessed_width()];
+    let dummy_global_trace = vec![zero; chip.global_width()];
     let dummy_main_trace = vec![zero; chip.width()];
 
     let mut folder = RecursiveVerifierConstraintFolder {
         preprocessed: RowMajorMatrixView::new_row(&dummy_preprocessed_trace),
+        global: RowMajorMatrixView::new_row(&dummy_global_trace),
         main: RowMajorMatrixView::new_row(&dummy_main_trace),
         alpha,
         accumulator: SymbolicExt::zero(),
@@ -125,6 +128,7 @@ where
         zerocheck_proof: &PartialSumcheckProof<Ext<SP1Field, SP1ExtensionField>>,
         public_values: &[Felt<SP1Field>],
         challenger: &mut GC::FriChallengerVariable,
+        has_global_round: bool,
     ) where
         A: for<'a> Air<RecursiveVerifierConstraintFolder<'a>>,
     {
@@ -149,7 +153,7 @@ where
 
         let max_elements = shard_chips
             .iter()
-            .map(|chip| chip.width() + chip.preprocessed_width())
+            .map(|chip| chip.width() + chip.preprocessed_width() + chip.global_width())
             .max()
             .unwrap_or(0);
 
@@ -188,11 +192,16 @@ where
                 .local
                 .iter()
                 .chain(openings.preprocessed.local.iter())
+                .chain(openings.global.local.iter())
                 .copied()
                 .zip(
                     gkr_batch_open_challenge_powers
                         .iter()
-                        .take(openings.main.local.len() + openings.preprocessed.local.len())
+                        .take(
+                            openings.main.local.len()
+                                + openings.preprocessed.local.len()
+                                + openings.global.local.len(),
+                        )
                         .copied(),
                 )
                 .map(|(opening, power)| opening * power)
@@ -213,13 +222,8 @@ where
                     .deref()
                     .iter()
                     .copied()
-                    .chain(
-                        chip_evaluation
-                            .preprocessed_trace_evaluations
-                            .as_ref()
-                            .iter()
-                            .flat_map(|&evals| evals.deref().iter().copied()),
-                    )
+                    .chain(chip_evaluation.preprocessed_trace_evaluations.deref().iter().copied())
+                    .chain(chip_evaluation.global_trace_evaluations.deref().iter().copied())
                     .zip(gkr_batch_open_challenge_powers.iter().copied())
                     .map(|(opening, power)| opening * power)
                     .sum::<SymbolicExt<SP1Field, SP1ExtensionField>>()
@@ -243,6 +247,9 @@ where
         for opening in opened_values.chips.values() {
             challenger
                 .observe_variable_length_extension_slice(builder, &opening.preprocessed.local);
+            if has_global_round {
+                challenger.observe_variable_length_extension_slice(builder, &opening.global.local);
+            }
             challenger.observe_variable_length_extension_slice(builder, &opening.main.local);
         }
     }
