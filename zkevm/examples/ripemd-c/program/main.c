@@ -2,8 +2,8 @@
  * ripemd-c — RIPEMD-160 precompile demo, C edition.
  *
  * Reads bytes via read_input, computes RIPEMD-160 via libzkevm's
- * `zkvm_ripemd160`, writes the 32-byte output (20-byte digest +
- * 12-byte zero pad, per `zkvm_accelerators.h`) via write_output.
+ * `zkvm_ripemd160`, writes the 32-byte output (12-byte zero pad +
+ * 20-byte digest, per `zkvm_accelerators.h`) via write_output.
  */
 
 #include <stddef.h>

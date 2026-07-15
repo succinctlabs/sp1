@@ -42,7 +42,7 @@ pub struct ZkvmBytes192 {
 // Aliases (size-equivalent, just for header parity).
 pub type Keccak256Hash = ZkvmBytes32;
 pub type Sha256Hash = ZkvmBytes32;
-pub type Ripemd160Hash = ZkvmBytes32; // 20 bytes + 12 zero pad
+pub type Ripemd160Hash = ZkvmBytes32; // 12 zero pad + 20 bytes
 
 pub type Secp256k1Hash = ZkvmBytes32;
 pub type Secp256k1Signature = ZkvmBytes64;
