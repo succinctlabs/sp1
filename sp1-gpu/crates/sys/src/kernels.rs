@@ -47,6 +47,17 @@ extern "C" {
     pub fn zerocheck_fused_sequential_ext_512_kernel() -> KernelPtr;
     pub fn zerocheck_fused_sequential_ext_1024_kernel() -> KernelPtr;
 
+    // zerocheck (DAG-native): bivariate variants for the fused
+    // first-two-rounds evaluation. Eval nodes on blockIdx.z (12 non-boolean
+    // grid nodes of {0,1,2,4}^2), quadruple row consumption, output stride
+    // 12. Round 0 only — base-field trace.
+    pub fn zerocheck_fused_sequential_bivariate_kb_32_kernel() -> KernelPtr;
+    pub fn zerocheck_fused_sequential_bivariate_kb_64_kernel() -> KernelPtr;
+    pub fn zerocheck_fused_sequential_bivariate_kb_128_kernel() -> KernelPtr;
+    pub fn zerocheck_fused_sequential_bivariate_kb_256_kernel() -> KernelPtr;
+    pub fn zerocheck_fused_sequential_bivariate_kb_512_kernel() -> KernelPtr;
+    pub fn zerocheck_fused_sequential_bivariate_kb_1024_kernel() -> KernelPtr;
+
     // zerocheck (DAG-native): ColumnTile lowering kernels.
     pub fn zerocheck_column_tile_kb_kernel() -> KernelPtr;
     pub fn zerocheck_column_tile_ext_kernel() -> KernelPtr;
@@ -55,6 +66,11 @@ extern "C" {
     // writes 3 ext_t partials per chip (one per eval point) that the host
     // aggregation sums into the round's totals.
     pub fn zerocheck_geq_corrections_kernel() -> KernelPtr;
+
+    // zerocheck (DAG-native): bivariate geq correction for the fused
+    // first-two-rounds. One block per geq chip, 12 ext_t partials per chip
+    // (one per non-boolean grid node).
+    pub fn zerocheck_geq_corrections_bivariate_kernel() -> KernelPtr;
 
     // zerocheck (DAG-native): apply `VirtualGeq::fix_last_variable(alpha)`
     // in place to each chip's geq state. One thread per chip.
@@ -65,11 +81,21 @@ extern "C" {
     // host then only downloads the 3 totals instead of the full partials.
     pub fn zerocheck_aggregate_partials_kernel() -> KernelPtr;
 
+    // zerocheck (DAG-native): strided aggregation for the fused
+    // first-two-rounds partials ([group][e] layout with `stride` slots per
+    // group). Launched with gridDim.x == stride.
+    pub fn zerocheck_aggregate_partials_strided_kernel() -> KernelPtr;
+
     // zerocheck (DAG-native): per-chip GKR column sweep. Decoupled from the
     // sequential constraint kernel so wide chips can parallelise the column
     // reduction across a warp's lanes. One block per (chip, row-tile).
     pub fn zerocheck_gkr_sweep_kb_kernel() -> KernelPtr;
     pub fn zerocheck_gkr_sweep_ext_kernel() -> KernelPtr;
+
+    // zerocheck (DAG-native): GKR corner sweep for the fused
+    // first-two-rounds — the opening batch at the four boolean grid corners
+    // (raw rows of each quadruple, no interpolation). Output stride 4.
+    pub fn zerocheck_gkr_corner_sweep_kb_kernel() -> KernelPtr;
 
     // zerocheck (DAG-native): per-chunk padded_row_adjustment via the
     // bytecode interpreter at the all-zero trace. One thread per chunk;

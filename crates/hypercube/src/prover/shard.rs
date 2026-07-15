@@ -11,7 +11,7 @@ use slop_matrix::dense::RowMajorMatrixView;
 use slop_multilinear::{
     Evaluations, MleEval, MultilinearPcsProver, MultilinearPcsVerifier, Point, VirtualGeq,
 };
-use slop_sumcheck::{reduce_sumcheck_to_evaluation, PartialSumcheckProof};
+use slop_sumcheck::PartialSumcheckProof;
 use slop_tensor::Tensor;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -26,8 +26,8 @@ use tracing::Instrument;
 use crate::{
     air::{MachineAir, MachineProgram},
     prover::{
-        DefaultTraceGenerator, Program, ProverPermit, ProverSemaphore, Record, ZeroCheckPoly,
-        ZerocheckCpuProverData,
+        zerocheck_reduce_sumcheck_to_evaluation, DefaultTraceGenerator, Program, ProverPermit,
+        ProverSemaphore, Record, ZeroCheckPoly, ZerocheckCpuProverData,
     },
     septic_digest::SepticDigest,
     AirOpenedValues, Chip, ChipEvaluation, ChipOpenedValues, ChipStatistics,
@@ -598,14 +598,15 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
         // Same lambda for the RLC of the zerocheck polynomials.
         let lambda = challenger.sample_ext_element::<GC::EF>();
 
-        // Compute the sumcheck proof for the zerocheck polynomials.
-        let (partial_sumcheck_proof, component_poly_evals) = reduce_sumcheck_to_evaluation(
-            zerocheck_polys,
-            challenger,
-            chip_sumcheck_claims,
-            1,
-            lambda,
-        );
+        // Compute the sumcheck proof for the zerocheck polynomials, proving the first two rounds
+        // together from a single pass over the base-field traces.
+        let (partial_sumcheck_proof, component_poly_evals) =
+            zerocheck_reduce_sumcheck_to_evaluation(
+                zerocheck_polys,
+                challenger,
+                chip_sumcheck_claims,
+                lambda,
+            );
 
         let mut point_extended = partial_sumcheck_proof.point_and_eval.0.clone();
         point_extended.add_dimension(GC::EF::zero());

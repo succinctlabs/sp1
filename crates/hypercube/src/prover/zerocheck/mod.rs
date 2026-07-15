@@ -1,10 +1,12 @@
 //! Zerocheck Sumcheck polynomial.
 
+mod first_two_rounds;
 mod fix_last_variable;
 mod sum_as_poly;
 
 use std::fmt::Debug;
 
+pub use first_two_rounds::*;
 pub use fix_last_variable::*;
 use slop_air::Air;
 use slop_algebra::{ExtensionField, Field, UnivariatePolynomial};

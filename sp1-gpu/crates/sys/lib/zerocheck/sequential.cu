@@ -30,6 +30,7 @@
 // and lets the GPU run all three eval points concurrently.
 
 #include "zerocheck/sequential.cuh"
+#include "zerocheck/bivariate.cuh"
 #include "config.cuh"
 #include "sum_and_reduce/reduce.cuh"
 
@@ -209,6 +210,162 @@ __global__ void zerocheck_fused_sequential(
     }
 }
 
+// ============================================================================
+// Bivariate variant — the fused first-two-rounds evaluation.
+//
+// Rows are consumed in QUADRUPLES (element index `4·quad + 2·X + Y`), and each
+// block computes ALL 12 non-boolean grid nodes of `{0, 1, 2, 4}^2`: per row,
+// the node loop re-runs the chunk's bytecode once per node, so the trace is
+// pulled from DRAM once and the 11 repeat passes hit L1/L2 (per-thread
+// temporal locality on the same quadruple). This trades compute (the
+// interpreter runs 12× per row either way) for a single pass over memory —
+// the round-message cost is pass-count-bound, not compute-bound.
+// Only run for round 0, so only the felt_t instantiations are exported.
+//
+// Differences from the univariate kernel above:
+//   - No blockIdx.z: the launcher's grid is (n_blocks, 1, 1).
+//   - No inline GKR sweep: the boolean corner nodes are handled by the
+//     dedicated `zerocheck_gkr_corner_sweep` kernel for every chip.
+//   - Loads are guarded against the column height: heights are even but not
+//     necessarily multiples of four, so the last quadruple of a chip may have
+//     only two physical rows; the missing rows are zero (matching the virtual
+//     zero padding of the trace MLE). Reading past `lay.height` would land in
+//     the next column's data.
+//   - Output stride is 12: each block writes nodes e = 0..12 at
+//     (block.x * 12 + e).
+// ============================================================================
+
+template <typename K, int MAX_REGS>
+__global__ void zerocheck_fused_sequential_bivariate(
+    const BlockDispatch* __restrict__ dispatch,
+    const ChunkStatic* __restrict__ chunk_static,
+    const ChipLayout* __restrict__ chip_layouts,
+    const K* __restrict__ trace_data,
+    const felt_t* __restrict__ public_values,
+    const ext_t* __restrict__ powers_of_alpha,
+    const ext_t* __restrict__ partial_lagrange,
+    const ext_t* __restrict__ powers_of_lambda,
+    uint32_t rest_point_dim,
+    ext_t* __restrict__ partials
+) {
+    BlockDispatch disp = dispatch[blockIdx.x];
+    ChunkStatic stc = chunk_static[disp.chunk_id];
+    ChipLayout lay = chip_layouts[stc.chip_idx];
+    const felt_t* consts = reinterpret_cast<const felt_t*>(stc.consts);
+    const ext_t lambda = ext_t::load(powers_of_lambda, stc.chip_idx);
+
+    K regs[MAX_REGS];
+    // One accumulator per grid node. Indexed by the (non-unrolled) node loop,
+    // so it lives in L1-cached local memory rather than bloating the register
+    // file on top of `regs[]`.
+    ext_t thread_acc[BIVARIATE_NUM_NODES];
+    for (int e = 0; e < BIVARIATE_NUM_NODES; e++) {
+        thread_acc[e] = ext_t::zero();
+    }
+
+    const uint32_t quad_limit = 1u << rest_point_dim;
+    const uint32_t quad_end = disp.row_offset + disp.n_rows;
+
+    for (uint32_t quad_idx = disp.row_offset + threadIdx.x;
+         quad_idx < quad_end;
+         quad_idx += blockDim.x)
+    {
+        // Rows at or above the eq range contribute nothing (their true
+        // contribution is zero); skip the bytecode entirely.
+        if (quad_idx >= quad_limit) {
+            continue;
+        }
+        const ext_t w = ext_t::load(partial_lagrange, quad_idx) * lambda;
+        // Heights are even, so only rows 2 and 3 of the chip's last
+        // quadruple can be missing; uniform across the block except at the
+        // chip's boundary quad.
+        const bool full_quad = ((quad_idx << 2) | 3u) < lay.height;
+
+        for (int e = 0; e < BIVARIATE_NUM_NODES; e++) {
+            const BivariateNode node = bivariate_node(e);
+            ext_t acc = ext_t::zero();
+
+            for (uint32_t i = 0; i < stc.n_instrs; i++) {
+                DagInstr instr = stc.instrs[i];
+                switch (instr.opcode) {
+                case BC_LOAD_LEAF: {
+                    LeafRef leaf = stc.leaves[instr.a];
+                    size_t base = (leaf.source == LEAF_SOURCE_MAIN_LOCAL)
+                                      ? lay.main_ptr
+                                      : lay.preprocessed_ptr;
+                    // 64-bit column stride math; u32 × u32 wraps near the
+                    // 2^32 / height column count.
+                    size_t col_off = (size_t)leaf.col * (size_t)lay.height;
+                    size_t quad_base = base + col_off + ((size_t)quad_idx << 2);
+                    K r00 = K::load(trace_data, quad_base);
+                    K r01 = K::load(trace_data, quad_base + 1);
+                    K r10, r11;
+                    if (full_quad) {
+                        r10 = K::load(trace_data, quad_base + 2);
+                        r11 = K::load(trace_data, quad_base + 3);
+                    } else {
+                        r10 = K::zero();
+                        r11 = K::zero();
+                    }
+                    regs[instr.out] = bivariate_interp(r00, r01, r10, r11, node);
+                    break;
+                }
+                case BC_LOAD_CONST: {
+                    regs[instr.out] = K(consts[instr.a]);
+                    break;
+                }
+                case BC_LOAD_PUBLIC: {
+                    uint32_t pv_idx = stc.publics[instr.a];
+                    regs[instr.out] = K(felt_t::load(public_values, pv_idx));
+                    break;
+                }
+                case BC_ADD_F: {
+                    regs[instr.out] = regs[instr.a] + regs[instr.b];
+                    break;
+                }
+                case BC_SUB_F: {
+                    regs[instr.out] = regs[instr.a] - regs[instr.b];
+                    break;
+                }
+                case BC_MUL_F: {
+                    regs[instr.out] = regs[instr.a] * regs[instr.b];
+                    break;
+                }
+                case BC_NEG_F: {
+                    regs[instr.out] = K::zero() - regs[instr.a];
+                    break;
+                }
+                default:
+                    __trap();
+                }
+            }
+
+            for (uint32_t i = 0; i < stc.n_asserts; i++) {
+                uint16_t reg = stc.assert_regs[i];
+                uint32_t alpha_idx = stc.chip_alpha_offset + stc.assert_alphas[i];
+                ext_t alpha = ext_t::load(powers_of_alpha, alpha_idx);
+                acc += alpha * regs[reg];
+            }
+
+            thread_acc[e] += acc * w;
+        }
+    }
+
+    extern __shared__ unsigned char smem[];
+    ext_t* shared = reinterpret_cast<ext_t*>(smem);
+
+    auto block = cg::this_thread_block();
+    auto tile_warp = cg::tiled_partition<32>(block);
+
+    for (int e = 0; e < BIVARIATE_NUM_NODES; e++) {
+        ext_t block_sum = partialBlockReduce(block, tile_warp, thread_acc[e], shared);
+        if (threadIdx.x == 0) {
+            ext_t::store(partials, blockIdx.x * BIVARIATE_NUM_NODES + (uint32_t)e, block_sum);
+        }
+        block.sync();
+    }
+}
+
 } // namespace
 
 // Fused dispatch entry points, tiered by MAX_REGS so the per-thread local
@@ -250,4 +407,25 @@ extern "C" void* zerocheck_fused_sequential_ext_512_kernel() {
 }
 extern "C" void* zerocheck_fused_sequential_ext_1024_kernel() {
     return (void*)zerocheck_fused_sequential<ext_t, 1024>;
+}
+
+// Bivariate (fused first-two-rounds) entry points. Round 0 only, so only the
+// base-field instantiations exist.
+extern "C" void* zerocheck_fused_sequential_bivariate_kb_32_kernel() {
+    return (void*)zerocheck_fused_sequential_bivariate<felt_t, 32>;
+}
+extern "C" void* zerocheck_fused_sequential_bivariate_kb_64_kernel() {
+    return (void*)zerocheck_fused_sequential_bivariate<felt_t, 64>;
+}
+extern "C" void* zerocheck_fused_sequential_bivariate_kb_128_kernel() {
+    return (void*)zerocheck_fused_sequential_bivariate<felt_t, 128>;
+}
+extern "C" void* zerocheck_fused_sequential_bivariate_kb_256_kernel() {
+    return (void*)zerocheck_fused_sequential_bivariate<felt_t, 256>;
+}
+extern "C" void* zerocheck_fused_sequential_bivariate_kb_512_kernel() {
+    return (void*)zerocheck_fused_sequential_bivariate<felt_t, 512>;
+}
+extern "C" void* zerocheck_fused_sequential_bivariate_kb_1024_kernel() {
+    return (void*)zerocheck_fused_sequential_bivariate<felt_t, 1024>;
 }

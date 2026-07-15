@@ -181,6 +181,186 @@ where
     }
 }
 
+impl<F, EF, A> ZerocheckCpuProver<F, EF, A>
+where
+    F: Field,
+    EF: ExtensionField<F>,
+{
+    /// Computes the sums needed to evaluate the bivariate polynomial obtained by summing all
+    /// variables other than the last two over the boolean hypercube, on the grid
+    /// [`super::ZEROCHECK_NODE_XS`]`^2` of the last two variables.
+    ///
+    /// Returns:
+    /// - the eq-weighted sums of the constraint polynomial evaluations at the 12 non-boolean grid
+    ///   nodes (see [`super::ZEROCHECK_CONSTRAINT_NODES`] for the node order), and
+    /// - the eq-weighted sums of the GKR opening batch at the 4 boolean grid nodes, in the order
+    ///   `(0, 0), (0, 1), (1, 0), (1, 1)` where the first coordinate is the second-to-last
+    ///   variable.
+    ///
+    /// The constraint polynomial is not evaluated at the boolean nodes: on real rows the
+    /// constraints vanish there, and on padded rows their value is cancelled exactly by the geq
+    /// correction applied by the caller.
+    pub(crate) fn sum_as_poly_in_last_two_variables<K>(
+        &self,
+        partial_lagrange: &Mle<EF>,
+        preprocessed_values: Option<&PaddedMle<K>>,
+        main_values: &PaddedMle<K>,
+    ) -> ([EF; 12], [EF; 4])
+    where
+        K: ExtensionField<F>,
+        EF: ExtensionField<K>,
+        A: for<'b> Air<ConstraintSumcheckFolder<'b, F, K, EF>> + MachineAir<F>,
+    {
+        let air = self.air.clone();
+        let public_values = self.public_values.clone();
+        let powers_of_alpha = self.powers_of_alpha.clone();
+        let gkr_powers = self.gkr_powers.clone();
+
+        let num_quads = main_values.num_real_entries().div_ceil(4);
+        let eq_chunk_size = std::cmp::max(num_quads / num_cpus::get(), 1);
+        let values_chunk_size = eq_chunk_size * 4;
+
+        let eq_guts = partial_lagrange.guts().as_buffer().as_slice();
+        let eq_guts = &eq_guts[0..num_quads];
+
+        let num_main_columns = main_values.num_polynomials();
+        let num_preprocessed_columns =
+            preprocessed_values.map_or(0, slop_multilinear::PaddedMle::num_polynomials);
+
+        let main_values = main_values.inner().as_ref().unwrap().guts().as_buffer().as_slice();
+        let preprocessed_values = preprocessed_values
+            .as_ref()
+            .map_or([].as_slice(), |p| p.inner().as_ref().unwrap().guts().as_buffer().as_slice());
+
+        // Zero rows standing in for the virtually padded rows of a partially real quadruple.
+        let zero_main_row = vec![K::zero(); num_main_columns];
+        let zero_preprocessed_row = vec![K::zero(); num_preprocessed_columns];
+
+        let cumul_sums = eq_guts
+            .chunks(eq_chunk_size)
+            .zip(main_values.chunks(values_chunk_size * num_main_columns))
+            .enumerate()
+            .par_bridge()
+            .map(|(i, (eq_chunk, main_chunk))| {
+                let mut constraint_sums = [EF::zero(); 12];
+                let mut gkr_sums = [EF::zero(); 4];
+
+                let mut main_node_rows = vec![vec![K::zero(); num_main_columns]; 12];
+                let mut preprocessed_node_rows =
+                    vec![vec![K::zero(); num_preprocessed_columns]; 12];
+
+                for (j, (eq, main_quad)) in
+                    eq_chunk.iter().zip(main_chunk.chunks(num_main_columns * 4)).enumerate()
+                {
+                    // The four rows of the quadruple, padding with zero rows past the real ones.
+                    let main_rows: [&[K]; 4] = std::array::from_fn(|k| {
+                        if main_quad.len() >= (k + 1) * num_main_columns {
+                            &main_quad[k * num_main_columns..(k + 1) * num_main_columns]
+                        } else {
+                            zero_main_row.as_slice()
+                        }
+                    });
+
+                    let quad_start_idx = (i * values_chunk_size + 4 * j) * num_preprocessed_columns;
+                    let preprocessed_rows: [&[K]; 4] = std::array::from_fn(|k| {
+                        let start = quad_start_idx + k * num_preprocessed_columns;
+                        let end = start + num_preprocessed_columns;
+                        if preprocessed_values.len() >= end {
+                            &preprocessed_values[start..end]
+                        } else {
+                            zero_preprocessed_row.as_slice()
+                        }
+                    });
+
+                    interpolate_last_two_vars_rows(&main_rows, &mut main_node_rows);
+                    interpolate_last_two_vars_rows(&preprocessed_rows, &mut preprocessed_node_rows);
+
+                    // The GKR opening batch at the boolean nodes. Node (x, y) is row `2x + y`.
+                    for k in 0..4 {
+                        let gkr_row_sum = main_rows[k]
+                            .iter()
+                            .copied()
+                            .chain(preprocessed_rows[k].iter().copied())
+                            .zip(gkr_powers.iter().copied())
+                            .map(|(val, power)| power * val)
+                            .sum::<EF>();
+                        gkr_sums[k] += gkr_row_sum * *eq;
+                    }
+
+                    // The constraint polynomial at the non-boolean nodes.
+                    for t in 0..12 {
+                        let mut folder = ConstraintSumcheckFolder {
+                            preprocessed: RowMajorMatrixView::new_row(&preprocessed_node_rows[t]),
+                            main: RowMajorMatrixView::new_row(&main_node_rows[t]),
+                            accumulator: EF::zero(),
+                            public_values: &public_values,
+                            constraint_index: 0,
+                            powers_of_alpha: &powers_of_alpha,
+                        };
+                        air.eval(&mut folder);
+                        constraint_sums[t] += folder.accumulator * *eq;
+                    }
+                }
+                (constraint_sums, gkr_sums)
+            })
+            .collect::<Vec<_>>();
+
+        cumul_sums.into_iter().fold(
+            ([EF::zero(); 12], [EF::zero(); 4]),
+            |(mut constraint_acc, mut gkr_acc), (constraint_sums, gkr_sums)| {
+                for (acc, sum) in constraint_acc.iter_mut().zip(constraint_sums) {
+                    *acc += sum;
+                }
+                for (acc, sum) in gkr_acc.iter_mut().zip(gkr_sums) {
+                    *acc += sum;
+                }
+                (constraint_acc, gkr_acc)
+            },
+        )
+    }
+}
+
+/// This function calculates the column values of a quadruple of rows at the 12 non-boolean grid
+/// nodes of the last two variables, in the order of [`super::ZEROCHECK_CONSTRAINT_NODES`].
+///
+/// `rows[2x + y]` is the row at the boolean point `(x, y)` where `x` is the second-to-last
+/// variable. Since the grid coordinates `{0, 1, 2, 4}` and their pairwise products are all powers
+/// of two, the interpolation only requires additions and doublings.
+fn interpolate_last_two_vars_rows<K: Field>(rows: &[&[K]; 4], node_rows: &mut [Vec<K>]) {
+    debug_assert_eq!(node_rows.len(), 12);
+    let [row_00, row_01, row_10, row_11] = rows;
+    for (i, (((a, r01), r10), r11)) in
+        row_00.iter().zip_eq(row_01.iter()).zip_eq(row_10.iter()).zip_eq(row_11.iter()).enumerate()
+    {
+        let a = *a;
+        let dy = *r01 - a;
+        let dx = *r10 - a;
+        let dxy = *r11 - *r10 - *r01 + a;
+
+        let dy2 = dy.double();
+        let dy4 = dy2.double();
+        let dx2 = dx.double();
+        let dx4 = dx2.double();
+        let dxy2 = dxy.double();
+        let dxy4 = dxy2.double();
+        let dxy8 = dxy4.double();
+        let dxy16 = dxy8.double();
+
+        node_rows[0][i] = a + dy2; // (0, 2)
+        node_rows[1][i] = a + dy4; // (0, 4)
+        node_rows[2][i] = a + dx + dy2 + dxy2; // (1, 2)
+        node_rows[3][i] = a + dx + dy4 + dxy4; // (1, 4)
+        node_rows[4][i] = a + dx2; // (2, 0)
+        node_rows[5][i] = a + dx2 + dy + dxy2; // (2, 1)
+        node_rows[6][i] = a + dx2 + dy2 + dxy4; // (2, 2)
+        node_rows[7][i] = a + dx2 + dy4 + dxy8; // (2, 4)
+        node_rows[8][i] = a + dx4; // (4, 0)
+        node_rows[9][i] = a + dx4 + dy + dxy4; // (4, 1)
+        node_rows[10][i] = a + dx4 + dy2 + dxy8; // (4, 2)
+        node_rows[11][i] = a + dx4 + dy4 + dxy16; // (4, 4)
+    }
+}
+
 /// This function will calculate the univariate polynomial where all variables other than the last
 /// are summed on the boolean hypercube and the last variable is left as a free variable.
 /// TODO:  Add flexibility to support degree 2 and degree 3 constraint polynomials.
