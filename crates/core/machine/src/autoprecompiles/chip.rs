@@ -382,10 +382,10 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                 for (trace_row, dummy_values_by_instruction) in
                     trace_chunk.chunks_mut(trace_width).zip_eq(dummy_chunk.iter())
                 {
-for (dummy_slice, map) in dummy_values_by_instruction
-                    .iter()
-                    .zip(&dummy_trace_index_to_apc_index_by_instruction)
-                {
+                    for (dummy_slice, map) in dummy_values_by_instruction
+                        .iter()
+                        .zip(&dummy_trace_index_to_apc_index_by_instruction)
+                    {
                         // By caching `dummy_trace_index_to_apc_index_by_instruction`, we only loop
                         // over the values that are assigned to the APC instead of all values in the
                         // dummy trace
