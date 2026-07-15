@@ -988,6 +988,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bs58"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf88ba1141d185c399bee5288d850d63b8369520c1eafc32a0430b5b6c287bf4"
+dependencies = [
+ "tinyvec",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1487,9 +1496,9 @@ dependencies = [
 
 [[package]]
 name = "darling"
-version = "0.21.3"
+version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9cdf337090841a411e2a7f3deb9187445851f91b309c0c0a29e05f74a00a48c0"
+checksum = "25ae13da2f202d56bd7f91c25fba009e7717a1e4a1cc98a76d844b65ae912e9d"
 dependencies = [
  "darling_core",
  "darling_macro",
@@ -1497,11 +1506,10 @@ dependencies = [
 
 [[package]]
 name = "darling_core"
-version = "0.21.3"
+version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1247195ecd7e3c85f83c8d2a366e4210d588e802133e1e355180a9870b517ea4"
+checksum = "9865a50f7c335f53564bb694ef660825eb8610e0a53d3e11bf1b0d3df31e03b0"
 dependencies = [
- "fnv",
  "ident_case",
  "proc-macro2",
  "quote",
@@ -1511,9 +1519,9 @@ dependencies = [
 
 [[package]]
 name = "darling_macro"
-version = "0.21.3"
+version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d38308df82d1080de0afee5d069fa14b0326a88c14f15c5ccda35b4a6c414c81"
+checksum = "ac3984ec7bd6cfa798e62b4a642426a5be0e68f9401cfc2a01e3fa9ea2fcdb8d"
 dependencies = [
  "darling_core",
  "quote",
@@ -1643,11 +1651,10 @@ dependencies = [
 
 [[package]]
 name = "deranged"
-version = "0.5.5"
+version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ececcb659e7ba858fb4f10388c250a7252eb0a27373f1a72b8748afdd248e587"
+checksum = "7cd812cc2bc1d69d4764bd80df88b4317eaef9e773c75226407d9bc0876b211c"
 dependencies = [
- "powerfmt",
  "serde_core",
 ]
 
@@ -3488,9 +3495,9 @@ dependencies = [
 
 [[package]]
 name = "num-conv"
-version = "0.1.0"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51d515d32fb182ee37cda2ccdcb92950d6a3c2893aa280e540671c2cd0f3b1d9"
+checksum = "521739c6d2bac4aa25192232afe6841231376b2b26d4d9fae5ecf8ca5772e441"
 
 [[package]]
 name = "num-derive"
@@ -4355,7 +4362,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be769465445e8c1474e9c5dac2018218498557af32d9ed057325ec9a41ae81bf"
 dependencies = [
  "heck",
- "itertools 0.10.5",
+ "itertools 0.14.0",
  "log",
  "multimap",
  "once_cell",
@@ -4375,7 +4382,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81bddcdb20abf9501610992b6759a4c888aef7d1a7247ef75e2404275ac24af1"
 dependencies = [
  "anyhow",
- "itertools 0.10.5",
+ "itertools 0.12.1",
  "proc-macro2",
  "quote",
  "syn 2.0.114",
@@ -4388,7 +4395,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a56d757972c98b346a9b766e3f02746cde6dd1cd1d1d563472929fdd74bec4d"
 dependencies = [
  "anyhow",
- "itertools 0.10.5",
+ "itertools 0.14.0",
  "proc-macro2",
  "quote",
  "syn 2.0.114",
@@ -5956,11 +5963,12 @@ dependencies = [
 
 [[package]]
 name = "serde_with"
-version = "3.16.1"
+version = "3.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4fa237f2807440d238e0364a218270b98f767a00d3dada77b1c53ae88940e2e7"
+checksum = "76a5c54c7310e7b8b9577c286d7e399ddd876c3e12b3ed917a8aabc4b96e9e8c"
 dependencies = [
  "base64 0.22.1",
+ "bs58",
  "chrono",
  "hex",
  "indexmap 1.9.3",
@@ -5975,9 +5983,9 @@ dependencies = [
 
 [[package]]
 name = "serde_with_macros"
-version = "3.16.1"
+version = "3.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52a8e3ca0ca629121f70ab50f95249e5a6f925cc0f6ffe8256c45b728875706c"
+checksum = "84d57bc0c8b9a17920c178daa6bb924850d54a9c97ab45194bb8c17ad66bb660"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -6179,14 +6187,14 @@ checksum = "7a2ae44ef20feb57a68b23d846850f861394c2e02dc425a50098ae8c90267589"
 
 [[package]]
 name = "slop-air"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "p3-air",
 ]
 
 [[package]]
 name = "slop-algebra"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "itertools 0.14.0",
  "p3-field",
@@ -6195,7 +6203,7 @@ dependencies = [
 
 [[package]]
 name = "slop-alloc"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "serde",
  "slop-algebra",
@@ -6204,7 +6212,7 @@ dependencies = [
 
 [[package]]
 name = "slop-baby-bear"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "lazy_static",
  "p3-baby-bear",
@@ -6217,7 +6225,7 @@ dependencies = [
 
 [[package]]
 name = "slop-basefold"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "derive-where",
  "itertools 0.14.0",
@@ -6238,7 +6246,7 @@ dependencies = [
 
 [[package]]
 name = "slop-basefold-prover"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "derive-where",
  "itertools 0.14.0",
@@ -6263,7 +6271,7 @@ dependencies = [
 
 [[package]]
 name = "slop-bn254"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "ff",
  "p3-bn254-fr",
@@ -6276,7 +6284,7 @@ dependencies = [
 
 [[package]]
 name = "slop-challenger"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "futures",
  "p3-challenger",
@@ -6287,7 +6295,7 @@ dependencies = [
 
 [[package]]
 name = "slop-commit"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "p3-commit",
  "serde",
@@ -6296,7 +6304,7 @@ dependencies = [
 
 [[package]]
 name = "slop-dft"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "p3-dft",
  "serde",
@@ -6308,14 +6316,14 @@ dependencies = [
 
 [[package]]
 name = "slop-fri"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "p3-fri",
 ]
 
 [[package]]
 name = "slop-futures"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "crossbeam",
  "futures",
@@ -6328,7 +6336,7 @@ dependencies = [
 
 [[package]]
 name = "slop-jagged"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "derive-where",
  "futures",
@@ -6360,14 +6368,14 @@ dependencies = [
 
 [[package]]
 name = "slop-keccak-air"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "p3-keccak-air",
 ]
 
 [[package]]
 name = "slop-koala-bear"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "lazy_static",
  "p3-koala-bear",
@@ -6380,21 +6388,21 @@ dependencies = [
 
 [[package]]
 name = "slop-matrix"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "p3-matrix",
 ]
 
 [[package]]
 name = "slop-maybe-rayon"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "p3-maybe-rayon",
 ]
 
 [[package]]
 name = "slop-merkle-tree"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "derive-where",
  "itertools 0.14.0",
@@ -6418,7 +6426,7 @@ dependencies = [
 
 [[package]]
 name = "slop-multilinear"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "derive-where",
  "futures",
@@ -6437,21 +6445,21 @@ dependencies = [
 
 [[package]]
 name = "slop-poseidon2"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "p3-poseidon2",
 ]
 
 [[package]]
 name = "slop-primitives"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "slop-algebra",
 ]
 
 [[package]]
 name = "slop-stacked"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "derive-where",
  "futures",
@@ -6472,7 +6480,7 @@ dependencies = [
 
 [[package]]
 name = "slop-sumcheck"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "futures",
  "itertools 0.14.0",
@@ -6488,14 +6496,14 @@ dependencies = [
 
 [[package]]
 name = "slop-symmetric"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "p3-symmetric",
 ]
 
 [[package]]
 name = "slop-tensor"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "arrayvec 0.7.6",
  "derive-where",
@@ -6513,14 +6521,14 @@ dependencies = [
 
 [[package]]
 name = "slop-uni-stark"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "p3-uni-stark",
 ]
 
 [[package]]
 name = "slop-utils"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "p3-util",
  "tracing-forest",
@@ -6529,7 +6537,7 @@ dependencies = [
 
 [[package]]
 name = "slop-whir"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "derive-where",
  "futures",
@@ -6596,7 +6604,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -6608,7 +6616,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -6647,7 +6655,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor-runner"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "base64 0.22.1",
  "bincode",
@@ -6667,7 +6675,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor-runner-binary"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "bincode",
  "crash-handler",
@@ -6680,7 +6688,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-machine"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "bincode",
  "cfg-if",
@@ -6727,7 +6735,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cuda"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "bincode",
  "bytes",
@@ -6747,7 +6755,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "cfg-if",
  "dashu",
@@ -6766,7 +6774,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6775,7 +6783,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-hypercube"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "arrayref",
  "deepsize2",
@@ -6822,7 +6830,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-jit"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "dynasmrt",
  "hashbrown 0.14.5",
@@ -6837,7 +6845,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "bincode",
  "elliptic-curve",
@@ -6847,7 +6855,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "bincode",
  "blake3",
@@ -6869,7 +6877,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -6931,7 +6939,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover-types"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "anyhow",
  "async-scoped",
@@ -6953,7 +6961,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "bincode",
  "itertools 0.14.0",
@@ -6991,7 +6999,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "backtrace",
  "cfg-if",
@@ -7010,7 +7018,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-executor"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "backtrace",
  "cfg-if",
@@ -7032,7 +7040,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -7054,7 +7062,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-machine"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "itertools 0.14.0",
  "rand 0.8.5",
@@ -7074,7 +7082,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7110,7 +7118,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-verifier"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "bincode",
  "blake3",
@@ -7135,7 +7143,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "6.3.0"
+version = "6.3.1"
 dependencies = [
  "cfg-if",
  "critical-section",
@@ -7674,30 +7682,29 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.3.44"
+version = "0.3.53"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91e7d9e3bb61134e77bde20dd4825b97c010155709965fedf0f49bb138e52a9d"
+checksum = "18dfaaeddcb932337b5e7866ee7d0ce9b76d2fd092997146f187ec09b4558a50"
 dependencies = [
  "deranged",
- "itoa",
  "num-conv",
  "powerfmt",
- "serde",
+ "serde_core",
  "time-core",
  "time-macros",
 ]
 
 [[package]]
 name = "time-core"
-version = "0.1.6"
+version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40868e7c1d2f0b8d73e4a8c7f0ff63af4f6d19be117e90bd73eb1d62cf831c6b"
+checksum = "9e1c906769ad99c88eaa54e728060edef082f8e358ff32030cb7c7d315e81109"
 
 [[package]]
 name = "time-macros"
-version = "0.2.24"
+version = "0.2.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30cfb0125f12d9c277f35663a0a33f8c30190f4e4574868a330595412d34ebf3"
+checksum = "c431b87111666e491a90baa837f914fb45cd5dc3c268591b0220ff5057f2085f"
 dependencies = [
  "num-conv",
  "time-core",
