@@ -58,7 +58,10 @@ use sp1_hypercube::{
 };
 
 use crate::challenger_update;
-use crate::primitives::{evaluate_jagged_fix_last_variable, JaggedFixLastVariableKernel};
+use crate::primitives::{
+    evaluate_jagged_fix_last_two_variables, evaluate_jagged_fix_last_variable,
+    JaggedFixLastVariableKernel,
+};
 
 // ============================================================================
 // Compiled per-chip data — built once per session, reused across all rounds
@@ -2280,6 +2283,108 @@ where
     }
 }
 
+/// Fixes the last TWO variables in a single pass over the base-field trace —
+/// used by the fused first-two-rounds driver, which holds both challenges
+/// before any fold happens. Equivalent to two chained
+/// [`zerocheck_fix_last_variable`] calls without materializing the
+/// intermediate half-size extension trace.
+///
+/// `alpha_1` folds the last variable, `alpha_2` the second-to-last; `claim`
+/// is the round-2 claim (the second round message evaluated at `alpha_2`).
+pub(crate) fn zerocheck_fix_last_two_variables<'b>(
+    input: ZeroCheckJaggedPoly<'b, Felt>,
+    alpha_1: Ext,
+    alpha_2: Ext,
+    claim: Ext,
+) -> ZeroCheckJaggedPoly<'b, Ext> {
+    let (rest, last_two) = input.zeta.split_at(input.zeta.dimension() - 2);
+    let z_a = *last_two[0];
+    let z_b = *last_two[1];
+
+    let input_length = input.layout_tracker.total_length_pair();
+    let mut layout_tracker = input.layout_tracker;
+    layout_tracker.fold();
+    layout_tracker.fold();
+    let new_total_length = layout_tracker.total_length_pair() * 2;
+
+    let mut scan_block_counter = input.scan_block_counter;
+    let mut scan_flags = input.scan_flags;
+    let mut scan_values = input.scan_values;
+    let new_data = evaluate_jagged_fix_last_two_variables(
+        &input.data,
+        alpha_1,
+        alpha_2,
+        input_length,
+        new_total_length,
+        crate::primitives::FoldMetadataScratch {
+            block_counter: &mut scan_block_counter,
+            flags: &mut scan_flags,
+            scan_values: &mut scan_values,
+        },
+    );
+    // Both fixed eq factors, in fold order: the last coordinate against
+    // `alpha_1`, then the second-to-last against `alpha_2`.
+    let eq_1 = (Ext::one() - z_b) * (Ext::one() - alpha_1) + z_b * alpha_1;
+    let eq_2 = (Ext::one() - z_a) * (Ext::one() - alpha_2) + z_a * alpha_2;
+    let eq_adjustment = input.eq_adjustment * eq_1 * eq_2;
+
+    // Mutate the device-resident per-chip geq state in place, once per
+    // fixed variable (the recurrence is sequential in the challenges).
+    let n_chips = input.compiled.len() as u32;
+    if n_chips > 0 {
+        const BS: u32 = 128;
+        let n_blocks = n_chips.div_ceil(BS);
+        let scope = new_data.dense().backend();
+        for alpha in [alpha_1, alpha_2] {
+            unsafe {
+                let args = args!(input.chip_geq_state_dev.as_ptr(), n_chips, alpha);
+                scope
+                    .launch_kernel(
+                        zerocheck_fix_geq_state_kernel(),
+                        (n_blocks, 1, 1),
+                        (BS, 1, 1),
+                        &args,
+                        0,
+                    )
+                    .unwrap();
+            }
+        }
+    }
+
+    let mut chip_layouts_dev = input.chip_layouts_dev;
+    launch_chip_layouts_kernel(&new_data, &input.chip_column_layouts_dev, &mut chip_layouts_dev);
+
+    ZeroCheckJaggedPoly {
+        data: Cow::Owned(new_data),
+        compiled: input.compiled,
+        machine_bytecode: input.machine_bytecode,
+        eq_adjustment,
+        zeta: rest,
+        claim,
+        padded_row_adjustment_host: input.padded_row_adjustment_host,
+        public_values: input.public_values,
+        powers_of_alpha: input.powers_of_alpha,
+        gkr_powers: input.gkr_powers,
+        powers_of_lambda: input.powers_of_lambda,
+        layout_tracker,
+        chip_column_layouts_dev: input.chip_column_layouts_dev,
+        chip_layouts_dev,
+        chip_alpha_offset: input.chip_alpha_offset,
+        seq_tiers: input.seq_tiers,
+        chip_geq_state_dev: input.chip_geq_state_dev,
+        chip_pad_adj_dev: input.chip_pad_adj_dev,
+        geq_chip_indices_dev: input.geq_chip_indices_dev,
+        n_geq_chips: input.n_geq_chips,
+        chip_gkr_info_dev: input.chip_gkr_info_dev,
+        gkr_active_chips: input.gkr_active_chips,
+        cached_seq_dispatch: input.cached_seq_dispatch,
+        cached_gkr_dispatch: input.cached_gkr_dispatch,
+        scan_block_counter,
+        scan_flags,
+        scan_values,
+    }
+}
+
 // ============================================================================
 // Outer driver — parallel to v1's `zerocheck`.
 // ============================================================================
@@ -2476,7 +2581,7 @@ where
             main_poly.claim,
             "fused first round message inconsistent with the claim"
         );
-        let (alpha, claim_1) = challenger_update(&first_msg, challenger);
+        let (alpha, _claim_1) = challenger_update(&first_msg, challenger);
         univariate_polys.push(first_msg);
         jagged_point.add_dimension(alpha);
 
@@ -2495,16 +2600,15 @@ where
         }
 
         let t = std::time::Instant::now();
-        let mid_poly = zerocheck_fix_last_variable(main_poly, alpha, claim_1);
-        let next_poly = zerocheck_fix_last_variable(mid_poly, alpha_2, claim_2);
+        let next_poly = zerocheck_fix_last_two_variables(main_poly, alpha, alpha_2, claim_2);
         if debug_timing {
             total_fold += t.elapsed();
         }
         if round_timing {
-            // Drain the two async folds so their cost is attributed here
+            // Drain the async double-fold so its cost is attributed here
             // rather than to the next round's eval window.
             next_poly.data.backend().synchronize_blocking().unwrap();
-            tracing::info!("zerocheck folds 0+1 (fused): drain={:?}", t.elapsed());
+            tracing::info!("zerocheck folds 0+1 (fused double-fold): drain={:?}", t.elapsed());
         }
         (next_poly, claim_2, max_log_row_count - 2)
     } else {

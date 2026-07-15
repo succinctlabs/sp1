@@ -31,6 +31,10 @@ extern "C" {
     pub fn fix_last_variable_jagged_felt() -> KernelPtr;
     pub fn fix_last_variable_jagged_ext() -> KernelPtr;
 
+    // Fused two-variable jagged fold (base trace → twice-folded ext trace in
+    // one pass), used by the zerocheck fused first-two-rounds.
+    pub fn fix_last_two_variables_jagged_felt() -> KernelPtr;
+
     // Fused dispatch: one launch per non-empty tier handles every
     // Sequential chunk in a round. The launcher's per-block dispatch
     // descriptor maps each block to its `(chunk_id, row_offset, n_rows)`.
