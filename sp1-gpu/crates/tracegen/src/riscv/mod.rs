@@ -817,29 +817,34 @@ fn device_chip_name(air: &RiscvAir<F>) -> Option<&'static str> {
 /// Runtime gate for the device-tracegen path.
 ///
 /// The device-tracegen DSL (witgen → op-DAG → generic interpreter) is validated
-/// for the full RISC-V ALU+memory+control ISA plus SHA/Keccak. e2e A/B of the
-/// FINAL tier ladder (fused streaming kernels + on-device Byte/Range build +
-/// stream fan-out; `AR_DEVICE_CHIPS=all` vs unset, core mode, proofs verified,
-/// RTX 4090, 2026-07-10):
+/// for the full RISC-V ALU+memory+control ISA plus SHA/Keccak. Promotion-grade
+/// e2e A/B (`AR_DEVICE_CHIPS=all` vs unset at the same head, compressed mode,
+/// 3-rep medians, proofs cross-verified against a pristine-main verifier build,
+/// RTX 4090, 2026-07-16, autoresearch runs `review-r3g-*`):
 ///
-/// | program                       | baseline (s) | device (s) | delta  |
-/// |-------------------------------|--------------|------------|--------|
-/// | keccak256-1mb  (5 shards)     | 2.98–3.01    | 2.82–2.83  | ~-5.5% |
-/// | keccak256-3mb  (12 shards)    | 6.96         | 6.51       | ~-6%   |
-/// | rsp block 21000000 (70 shards)| 33.86        | 33.51      | ~-1%   |
-/// | fibonacci-200m (24 shards)    | 12.41–12.78  | 13.77–14.25| ~+9%   |
+/// | suite                            | device-off | device-on | delta   |
+/// |----------------------------------|------------|-----------|---------|
+/// | RSP loop suite (6 workloads)     | 115.9 s    | 113.7 s   | −2.0%   |
+/// | full bench suite (28 workloads)  | 1326 s     | 1278 s    | −3.6%   |
+/// | full bench suite, 4-core host    |            |           | −26.5%  |
+/// | full bench suite, 2-core host    |            |           | −34.3%  |
 ///
-/// Net: faster on precompile-heavy workloads, noise on RSP-class, slower on the
-/// ALU-only fibonacci (residual is per-shard phase seams, not kernel time —
-/// analyzed in iter-078). Fibonacci is a diagnostic corner case (maximal ALU
-/// trace mass, zero precompiles), not the ship criterion: production workloads
-/// are RSP-class, and the flip-on bar is the benchmarking-suite total —
-/// device-on within +1% of device-off on the RSP suite, confirmed on the full
-/// bench suite, together with a host-RSS win and a weak-CPU win (the charter
-/// criteria; measured via the autoresearch harness in `sp1-testing-suite`).
-/// Until those numbers are in, kept **off by default** — only `Global` (the
-/// pre-existing baseline device chip) runs on device, matching the baseline.
-/// Set `AR_DEVICE_CHIPS` to a comma-list (or `all`) to enable chips for study.
+/// Every production-class workload wins (rsp −4.2…−4.7%, op-succinct-range
+/// −3.4%, provable-edits −3.2%); the only remaining regressions are three small
+/// ALU synthetics totaling +0.6 s absolute (loop-30m +7.6%, fibonacci-2m/20m
+/// +2–4%) — the diagnostic class, not the ship criterion. Prover host CPU is
+/// −24.5% with the device path on. The large-trace-mass regression that gated
+/// earlier rounds was closed by pinned packed-input staging + the demand-sized
+/// pinned pool (Session E) and device-side padding-template fills (F.1b seam
+/// fix); the residual ALU-synthetic delta is witgen kernel time (P5/P2
+/// follow-up).
+///
+/// The charter flip-on bar (suite totals within +1%, weak-CPU win, coverage,
+/// cross-verify) is MET by these numbers; the default-ON flip is a user
+/// decision tracked in the round-3/4 review docs. Until it lands, kept **off
+/// by default** — only `Global` (the pre-existing baseline device chip) runs
+/// on device, matching the baseline. Set `AR_DEVICE_CHIPS` to a comma-list
+/// (or `all`) to enable chips.
 fn device_chip_enabled(name: &str) -> bool {
     use std::collections::HashSet;
     use std::sync::OnceLock;
