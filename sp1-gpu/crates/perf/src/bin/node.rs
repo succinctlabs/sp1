@@ -107,9 +107,6 @@ async fn main() {
             let time = tokio::time::Instant::now();
             tracing::info!("proving with mode: {mode:?}");
             let proof = client.prove_with_mode(&elf, stdin, context, mode).await.unwrap();
-            let proof_bytes = bincode::serialize(&proof).unwrap();
-
-            tracing::info!("proof size: {} bytes", proof_bytes.len());
             let proof_time = time.elapsed();
             tracing::info!("proof time: {:?}", proof_time);
 
