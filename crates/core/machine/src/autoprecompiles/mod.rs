@@ -1,5 +1,6 @@
 pub mod adapter;
 pub mod air_to_symbolic_machine;
+pub mod benchmark;
 pub mod bus_interaction_handler;
 pub mod bus_map;
 pub mod candidate;

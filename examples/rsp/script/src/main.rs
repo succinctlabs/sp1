@@ -32,6 +32,15 @@ enum Commands {
     Execute,
     /// Generate APCs using Powdr
     Powdr,
+    /// Export an apc-optimizer benchmark set (Sp1Benchmarks/rsp) for this guest.
+    PowdrBench {
+        /// Output root; the set is written to `<out>/rsp`.
+        #[arg(long, default_value = "Sp1Benchmarks")]
+        out: PathBuf,
+        /// Number of top-ranked (cell PGO) candidates to export.
+        #[arg(long, default_value_t = 100)]
+        top: u64,
+    },
     /// Prove the RSP program
     Prove {
         /// Number of APCs to enable (0 = disabled)
@@ -88,6 +97,15 @@ async fn main() {
             let pgo_data = PgoData::Cell(execution_profile, None);
             let _compiled_program = CompiledProgram::new(&ELF, generate, select, pgo_data);
 
+            println!("[powdr] Done!");
+        }
+        Commands::PowdrBench { out, top } => {
+            let out_dir = out.join("rsp");
+            let note = format!("rsp (reth) block {block}, cell PGO");
+            println!("[powdr] Exporting benchmark set to {} ...", out_dir.display());
+            sp1_core_machine::autoprecompiles::benchmark::export_benchmark_set(
+                &ELF, stdin, &out_dir, top, &note,
+            );
             println!("[powdr] Done!");
         }
         Commands::Prove { apcs, mode } => {
