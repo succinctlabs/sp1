@@ -99,6 +99,7 @@ pub fn sort_memory_interactions<F: PrimeField32>(
         constraints: machine.constraints,
         bus_interactions: other_interactions.into_iter().chain(memory_bus_interactions).collect(),
         derived_columns: machine.derived_columns,
+        memory_drops: machine.memory_drops,
     }
 }
 
@@ -172,8 +173,12 @@ pub fn air_to_symbolic_machine<
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    let mut machine =
-        SymbolicMachine { constraints, bus_interactions, derived_columns: Vec::new() };
+    let mut machine = SymbolicMachine {
+        constraints,
+        bus_interactions,
+        derived_columns: Vec::new(),
+        memory_drops: Vec::new(),
+    };
     // In some machines, not all references are used, so we add dummy constraints for the ones
     // that are not
     let referenced: BTreeSet<u64> = machine.unique_references().map(|r| r.id).collect();

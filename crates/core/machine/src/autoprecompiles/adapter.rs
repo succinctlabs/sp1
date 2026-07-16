@@ -7,7 +7,10 @@ use crate::autoprecompiles::{
 };
 use powdr_autoprecompiles::{
     adapter::{Adapter, AdapterApc},
+    blocks::SuperBlock,
+    bus_map::BusMap,
     evaluation::{AirStats, EvaluationResult},
+    symbolic_machine::{MemoryDrop, SymbolicMachine},
 };
 use powdr_number::{FieldElement, LargeInt};
 use slop_algebra::{AbstractField, PrimeField32};
@@ -68,5 +71,15 @@ impl Adapter for Sp1ApcAdapter {
                 | Opcode::JAL
                 | Opcode::JALR
         )
+    }
+
+    fn lower_memory_drops(
+        _instruction_handler: &Self::InstructionHandler,
+        _block: &SuperBlock<Self::Instruction>,
+        _machines: &[SymbolicMachine<Self::PowdrField>],
+        _bus_map: &BusMap<Self::CustomBusTypes>,
+    ) -> Vec<MemoryDrop<Self::PowdrField>> {
+        // SP1 does not emit drop hints, so there are never any memory drops.
+        Vec::new()
     }
 }
