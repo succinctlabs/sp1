@@ -16,9 +16,12 @@ use sp1_core_executor::{
 use sp1_core_machine::executor::trace_chunk;
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{
+    air::MachineAir,
     prover::{shape_from_record, CoreProofShape, ProverSemaphore, ProvingKey},
     InnerSC, Machine, MachineProof, MachineVerifier, SP1VerifyingKey,
 };
+// `AirProver` is referenced only via fully-qualified syntax below (importing its
+// methods would clash with `AirProverWorker`, which the prove calls use).
 use sp1_jit::TraceChunk;
 use sp1_primitives::{SP1Field, SP1GlobalContext};
 use sp1_prover_types::{
@@ -516,13 +519,47 @@ where
             )
         });
 
-        // Generate dependencies on the main record.
+        // Generate dependencies on the main record. Chips whose BYTE-LOOKUP
+        // dependencies are generated on the device (`host_dependency_skip_chips`,
+        // empty for the CPU prover) are excluded from the full host pass here —
+        // `Machine::generate_dependencies` still runs their
+        // `generate_global_dependencies` (global interaction events cannot be
+        // produced on device); the byte lookups are re-added by the device prover
+        // during tracegen.
         let span = tracing::debug_span!("generate dependencies");
         let machine_clone = self.machine().clone();
+        let skip = <C::CoreProver as sp1_hypercube::prover::AirProver<
+            SP1GlobalContext,
+            CoreSC,
+        >>::host_dependency_skip_chips(&self.core_prover);
+        let dep_filter: Option<Vec<String>> = if skip.is_empty() {
+            None
+        } else {
+            // A skip name that matches no machine chip would silently drop out of the
+            // complement below: the chip keeps its FULL host dependency pass while the
+            // device prover also generates its byte lookups on-device — double-counted
+            // multiplicities and a verification failure far from here. The prover and
+            // this worker must agree on the machine's chip names exactly.
+            for name in &skip {
+                assert!(
+                    self.machine().chips().iter().any(|c| *c.name() == *name),
+                    "host_dependency_skip_chips names `{name}`, which is not a chip of \
+                     the worker's machine — prover/worker machine mismatch?"
+                );
+            }
+            Some(
+                self.machine()
+                    .chips()
+                    .iter()
+                    .map(|c| c.name().to_string())
+                    .filter(|n| !skip.contains(n))
+                    .collect(),
+            )
+        };
         let record = tokio::task::spawn_blocking(move || {
             let _guard = span.enter();
             let record_iter = std::iter::once(&mut record);
-            machine_clone.generate_dependencies(record_iter, None);
+            machine_clone.generate_dependencies(record_iter, dep_filter.as_deref());
             record
         })
         .await

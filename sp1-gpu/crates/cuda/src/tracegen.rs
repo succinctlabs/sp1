@@ -203,3 +203,73 @@ unsafe impl TracegenRecursionSBoxKernel<SP1Field> for TaskScope {
         unsafe { sp1_gpu_sys::tracegen::recursion_sbox_generate_trace_koala_bear_kernel() }
     }
 }
+
+/// Generic witgen op-DAG interpreter kernel (see `lib/tracegen/witgen_interp.cu`).
+/// `witgen_interp_kernel` produces a gadget's columns; `witgen_lookup_kernel`
+/// accumulates its byte/range lookups into two device multiplicity histograms.
+///
+/// # Safety
+/// Implementors must return kernel pointers whose signatures exactly match the
+/// launch-site `args!` layouts in `sp1-gpu-tracegen` (mismatches are UB).
+pub unsafe trait WitgenInterpKernel<F> {
+    fn witgen_interp_kernel() -> KernelPtr;
+    fn witgen_lookup_kernel() -> KernelPtr;
+    /// Fused column + lookup kernel: one op-DAG pass writes columns AND accumulates
+    /// the byte/range histograms (see `lib/tracegen/witgen_interp.cu`).
+    fn witgen_fused_kernel() -> KernelPtr;
+    /// Slot-indexed (register-allocated) column kernel for WIDE gadgets: the
+    /// per-thread wire array is bounded by max-live slots, so Mul/DivRem fit.
+    fn witgen_interp_slots_kernel() -> KernelPtr;
+    /// Slot-indexed lookup-histogram kernel (the wide-gadget dual of the above).
+    fn witgen_lookup_slots_kernel() -> KernelPtr;
+    /// Slot-indexed FUSED kernel (columns + lookups, one pass) for wide device-dep gadgets.
+    fn witgen_fused_slots_kernel() -> KernelPtr;
+    /// Streaming store-through fused kernel, shared-memory wires (streaming_max <= 24).
+    fn witgen_fused_streaming_smem_kernel() -> KernelPtr;
+    /// Streaming store-through fused kernel, LOCAL wires (streaming_max <= WITGEN_MAX_WIRES).
+    fn witgen_fused_streaming_kernel() -> KernelPtr;
+    /// Convert a row-major u32 lookup histogram into the column-major field trace of the
+    /// Byte/Range table chip (the trace IS the histogram). See `hist_to_trace_kernel`.
+    fn hist_to_trace_kernel() -> KernelPtr;
+    /// Scatter-add host-chip lookups (col-major index, multiplicity) into a trace.
+    fn hist_trace_scatter_kernel() -> KernelPtr;
+    /// Broadcast a chip's non-zero padding template over a trace's PADDING rows
+    /// (H2 device fill; see `witgen_template_fill_kernel` in `witgen_interp.cu`).
+    fn witgen_template_fill_kernel() -> KernelPtr;
+}
+
+unsafe impl WitgenInterpKernel<SP1Field> for TaskScope {
+    fn witgen_interp_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::witgen_interp_koala_bear_kernel() }
+    }
+    fn witgen_lookup_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::witgen_lookup_koala_bear_kernel() }
+    }
+    fn witgen_fused_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::witgen_fused_koala_bear_kernel() }
+    }
+    fn witgen_interp_slots_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::witgen_interp_slots_koala_bear_kernel() }
+    }
+    fn witgen_lookup_slots_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::witgen_lookup_slots_koala_bear_kernel() }
+    }
+    fn witgen_fused_slots_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::witgen_fused_slots_koala_bear_kernel() }
+    }
+    fn witgen_fused_streaming_smem_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::witgen_fused_streaming_smem_koala_bear_kernel() }
+    }
+    fn witgen_fused_streaming_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::witgen_fused_streaming_koala_bear_kernel() }
+    }
+    fn hist_to_trace_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::hist_to_trace_koala_bear_kernel() }
+    }
+    fn hist_trace_scatter_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::hist_trace_scatter_koala_bear_kernel() }
+    }
+    fn witgen_template_fill_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::witgen_template_fill_koala_bear_kernel() }
+    }
+}

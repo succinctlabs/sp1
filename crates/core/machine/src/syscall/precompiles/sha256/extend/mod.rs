@@ -1,6 +1,9 @@
 mod air;
 mod columns;
 mod controller;
+pub use controller::{
+    num_sha_extend_control_cols_supervisor, num_sha_extend_control_cols_user, ShaExtendControlCols,
+};
 mod trace;
 pub use columns::*;
 /// Implements the SHA extension operation which loops over i = \[16, 63\] and modifies w\[i\] in

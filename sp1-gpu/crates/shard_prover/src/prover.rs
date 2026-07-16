@@ -16,7 +16,10 @@ use sp1_gpu_cudart::PinnedBuffer;
 use sp1_gpu_cudart::{DeviceMle, DevicePoint, TaskScope};
 use sp1_gpu_jagged_assist::prove_jagged_evaluation_sync;
 use sp1_gpu_jagged_sumcheck::{generate_jagged_sumcheck_poly, jagged_sumcheck};
-use sp1_gpu_jagged_tracegen::{full_tracegen_permit, main_tracegen_permit, CudaShardProverData};
+use sp1_gpu_jagged_tracegen::{
+    ensure_trace_buffer_capacity, full_tracegen_permit, main_tracegen_permit,
+    required_trace_buffer_elems, CudaShardProverData,
+};
 use sp1_gpu_logup_gkr::{prove_logup_gkr, CudaLogUpGkrOptions, Interactions};
 use sp1_gpu_merkle_tree::{CudaTcsProver, SingleLayerMerkleTreeProverError};
 use sp1_gpu_tracegen::CudaTracegenAir;
@@ -180,6 +183,18 @@ where
         &self.inner.machine
     }
 
+    /// Chips whose dependencies are generated on the device (so the host
+    /// `generate_dependencies` skips them — their byte-lookups are produced on-device,
+    /// fused into the main trace kernel in jagged_tracegen `device_main_tracegen`).
+    fn host_dependency_skip_chips(&self) -> Vec<String> {
+        self.machine()
+            .chips()
+            .iter()
+            .filter(|c| c.air.supports_device_dependencies())
+            .map(|c| c.name().to_string())
+            .collect()
+    }
+
     /// Setup a shard, using a verifying key if provided.
     async fn setup_from_vk(
         &self,
@@ -217,6 +232,16 @@ where
     }
 
     /// Setup and prove a shard.
+    ///
+    /// # Contract
+    /// `record` must have had its host dependencies generated with the chips named by
+    /// [`host_dependency_skip_chips`](Self::host_dependency_skip_chips) EXCLUDED
+    /// (`Machine::generate_dependencies` with the complementary filter): this prover
+    /// re-generates those chips' byte lookups on-device during tracegen, so a record
+    /// whose host pass ran unfiltered double-counts byte multiplicities and fails
+    /// verification at the LogUp cumulative sum. The worker core path upholds this
+    /// pairing; any other caller (perf replay, tests) must prepare the record under
+    /// the SAME `AR_DEVICE_CHIPS`/`AR_DEVICE_DEPS` configuration it proves with.
     async fn setup_and_prove_shard(
         &self,
         program: Arc<<PC::Air as MachineAir<GC::F>>::Program>,
@@ -241,9 +266,22 @@ where
                 .unwrap()
         };
 
-        let buffer = self.inner.get_buffer().await;
+        let mut buffer = self.inner.get_buffer().await;
 
+        // Device-tracegen chips' byte-lookup dependencies are generated on-device FUSED
+        // into the main trace kernel (see jagged_tracegen `device_main_tracegen`), so
+        // there is no separate dependency pre-pass; the host `generate_dependencies`
+        // still skips them (see `host_dependency_skip_chips`).
         let record = Arc::new(record);
+
+        // Ratchet the worker's pinned buffer up to this shard's exact requirement (H1:
+        // the pool starts small when the device path covers the trace mass).
+        let required = required_trace_buffer_elems(
+            self.machine(),
+            Some(program.as_ref()),
+            Some(record.as_ref()),
+        );
+        ensure_trace_buffer_capacity(&mut buffer, required).await;
 
         // Generate trace.
         let (public_values, trace_data, chip_set, permit) = full_tracegen_permit(
@@ -318,10 +356,19 @@ where
         record: <PC::Air as MachineAir<GC::F>>::Record,
         prover_permits: ProverSemaphore,
     ) -> (ShardProof<GC, <PC::C as MultilinearPcsVerifier<GC>>::Proof>, ProverPermit) {
-        // Generate the traces.
+        // Device-tracegen chips' byte-lookup dependencies are generated on-device fused
+        // into the main trace kernel (see jagged_tracegen `device_main_tracegen`), so
+        // there is no separate dependency pre-pass here.
         let record = Arc::new(record);
 
-        let buffer = self.inner.get_buffer().await;
+        let mut buffer = self.inner.get_buffer().await;
+
+        // Ratchet the worker's pinned buffer up to this shard's exact requirement (H1).
+        // No `program`: this path writes only main traces (preprocessed are resident
+        // in the proving key).
+        let required =
+            required_trace_buffer_elems(&self.inner.machine, None, Some(record.as_ref()));
+        ensure_trace_buffer_capacity(&mut buffer, required).await;
 
         let (public_values, chip_set, permit) = main_tracegen_permit(
             &self.inner.machine,

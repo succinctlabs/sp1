@@ -33,7 +33,47 @@ impl<F: Field> FixedShiftRightOperation<F> {
         let nb_bits_to_shift = Self::nb_bits_to_shift(rotation);
         1 << (16 - nb_bits_to_shift)
     }
+}
 
+// Witgen in an unconstrained `impl` (column type is the builder's `Field`).
+impl<T: Copy> FixedShiftRightOperation<T> {
+    /// Backend-agnostic witgen dual of `populate` (fixed shift amount, baked into
+    /// the recorded op-DAG). Returns `input >> rotation` as a nat wire.
+    pub fn witgen<WB: crate::air::WitnessBuilder<Field = T>>(
+        wb: &mut WB,
+        cols: &mut FixedShiftRightOperation<T>,
+        input: WB::Nat,
+        rotation: usize,
+    ) -> WB::Nat {
+        let nb_limbs_to_shift = rotation / 16;
+        let nb_bits_to_shift = rotation % 16;
+        assert!(nb_bits_to_shift > 0, "shift must not be a multiple of 16");
+        let zero = wb.const_nat(0);
+        let expected = wb.bits(input, rotation as u32, 32 - rotation as u32);
+        let e0 = wb.bits(expected, 0, 16);
+        let e1 = wb.bits(expected, 16, 16);
+        cols.value = [wb.nat_to_field(e0), wb.nat_to_field(e1)];
+        // Limb shift, then per-limb bit split (mirrors `populate`).
+        let l0 = wb.bits(input, 0, 16);
+        let l1 = wb.bits(input, 16, 16);
+        let word = match nb_limbs_to_shift {
+            0 => [l0, l1],
+            1 => [l1, zero],
+            _ => [zero, zero],
+        };
+        for i in [1usize, 0] {
+            let limb = word[i];
+            let lower = wb.bits(limb, 0, nb_bits_to_shift as u32);
+            let higher = wb.bits(limb, nb_bits_to_shift as u32, (16 - nb_bits_to_shift) as u32);
+            cols.higher_limb[i] = wb.nat_to_field(higher);
+            wb.add_bit_range_check(lower, nb_bits_to_shift as u8);
+            wb.add_bit_range_check(higher, (16 - nb_bits_to_shift) as u8);
+        }
+        expected
+    }
+}
+
+impl<F: Field> FixedShiftRightOperation<F> {
     pub fn populate(&mut self, record: &mut impl ByteRecord, input: u32, rotation: usize) -> u32 {
         let input_limbs = u32_to_u16_limbs(input);
         let expected = input >> rotation;

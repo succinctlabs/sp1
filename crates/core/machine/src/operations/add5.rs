@@ -15,6 +15,53 @@ pub struct Add5Operation<T> {
     pub value: [T; 2],
 }
 
+// Witgen in an unconstrained `impl` (column type is the builder's `Field`).
+impl<T: Copy> Add5Operation<T> {
+    /// Backend-agnostic witgen dual of `populate`: `value = (a+b+c+d+e) mod 2^32`
+    /// in two u16 limbs, with limb range checks and the two carry byte checks.
+    /// Returns the u32 sum as a nat wire.
+    pub fn witgen<WB: crate::air::WitnessBuilder<Field = T>>(
+        wb: &mut WB,
+        cols: &mut Add5Operation<T>,
+        a: WB::Nat,
+        b: WB::Nat,
+        c: WB::Nat,
+        d: WB::Nat,
+        e: WB::Nat,
+    ) -> WB::Nat {
+        let s1 = wb.wrapping_add(a, b);
+        let s2 = wb.wrapping_add(s1, c);
+        let s3 = wb.wrapping_add(s2, d);
+        let sum = wb.wrapping_add(s3, e);
+        let expected = wb.bits(sum, 0, 32);
+        let e0 = wb.bits(expected, 0, 16);
+        let e1 = wb.bits(expected, 16, 16);
+        cols.value = [wb.nat_to_field(e0), wb.nat_to_field(e1)];
+        wb.add_u16_range_check(e0);
+        wb.add_u16_range_check(e1);
+        // Carries over the u16 limb columns (see `populate`).
+        let col_sum = |wb: &mut WB, off: u32, carry_in: Option<WB::Nat>| {
+            let a_l = wb.bits(a, off, 16);
+            let b_l = wb.bits(b, off, 16);
+            let c_l = wb.bits(c, off, 16);
+            let d_l = wb.bits(d, off, 16);
+            let e_l = wb.bits(e, off, 16);
+            let s1 = wb.wrapping_add(a_l, b_l);
+            let s2 = wb.wrapping_add(s1, c_l);
+            let s3 = wb.wrapping_add(s2, d_l);
+            let mut s4 = wb.wrapping_add(s3, e_l);
+            if let Some(cin) = carry_in {
+                s4 = wb.wrapping_add(s4, cin);
+            }
+            wb.bits(s4, 16, 16)
+        };
+        let carry0 = col_sum(wb, 0, None);
+        let carry1 = col_sum(wb, 16, Some(carry0));
+        wb.add_u8_range_check(carry0, carry1);
+        expected
+    }
+}
+
 impl<F: Field> Add5Operation<F> {
     #[allow(clippy::too_many_arguments)]
     pub fn populate(

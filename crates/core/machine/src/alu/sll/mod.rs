@@ -21,7 +21,7 @@ use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
-        register::alu_type::{ALUTypeReader, ALUTypeReaderInput},
+        register::alu_type::{ALUTypeReader, ALUTypeReaderInput, ALUTypeReaderWitgenInput},
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
@@ -96,6 +96,126 @@ pub struct ShiftLeftCols<T, M: TrustMode> {
 
     /// Adapter columns for trust mode specific data.
     pub adapter_cols: M::AdapterCols<T>,
+}
+
+/// Witgen inputs for the `ShiftLeft` chip: one `#[repr(C)]` row per event (see
+/// `record_witgen_inputs` — field order IS the packed input layout).
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ShiftLeftWitgenInput<T> {
+    pub clk: T,
+    pub pc: T,
+    /// The result operand.
+    pub a: T,
+    pub b: T,
+    pub c: T,
+    /// The per-row RISC-V `Opcode` discriminant.
+    pub opcode: T,
+    pub adapter: ALUTypeReaderWitgenInput<T>,
+}
+
+/// Number of witgen inputs per `ShiftLeft` row.
+pub const NUM_SHIFT_LEFT_WITGEN_INPUTS: usize = size_of::<ShiftLeftWitgenInput<u8>>();
+
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T, M: TrustMode> ShiftLeftCols<T, M> {
+    /// Backend-agnostic witgen for `ShiftLeft` (SLL/SLLW + immediate). The shift
+    /// amount is per-row data: limb splits use the variable `shl`/`shr` and
+    /// variable-width range checks; SLLW's msb gadget is guarded by `is_sllw`.
+    /// `c` is the shift source (its low u16 is the amount); `a` is the result.
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut ShiftLeftCols<WB::Field, M>,
+        input: &ShiftLeftWitgenInput<WB::Nat>,
+    ) {
+        let ShiftLeftWitgenInput { clk, pc, a, b, c, opcode, adapter } = *input;
+        let imm_c = adapter.imm_c;
+        let zero = wb.const_nat(0);
+        let one = wb.const_nat(1);
+        let zero_f = wb.nat_to_field(zero);
+
+        // Selectors.
+        let sll = wb.const_nat(Opcode::SLL as u64);
+        let sllw = wb.const_nat(Opcode::SLLW as u64);
+        let is_sll = wb.eq(opcode, sll);
+        cols.is_sll = wb.nat_to_field(is_sll);
+        let is_sllw = wb.eq(opcode, sllw);
+        cols.is_sllw = wb.nat_to_field(is_sllw);
+        let is_sllw_imm = wb.select(is_sllw, imm_c, zero); // is_sllw AND imm_c
+        cols.is_sllw_imm = wb.nat_to_field(is_sllw_imm);
+
+        // c_bits[i] = (c >> i) & 1, and a range check on the high bits of c (>>6, 10b).
+        for i in 0..6 {
+            let bit = wb.bits(c, i as u32, 1);
+            cols.c_bits[i] = wb.nat_to_field(bit);
+        }
+        let c_hi = wb.bits(c, 6, 10);
+        wb.add_bit_range_check(c_hi, 10);
+
+        // Power-of-two shift columns: v = 1 << (c & {3,7,15}).
+        let c_2 = wb.bits(c, 0, 2);
+        let v01 = wb.shl(one, c_2);
+        cols.v_01 = wb.nat_to_field(v01);
+        let c_3 = wb.bits(c, 0, 3);
+        let v012 = wb.shl(one, c_3);
+        cols.v_012 = wb.nat_to_field(v012);
+        let bit_shift = wb.bits(c, 0, 4); // c & 0xF
+        let v0123 = wb.shl(one, bit_shift);
+        cols.v_0123 = wb.nat_to_field(v0123);
+
+        // shift_u16 one-hot of shift_amount = ((c>>4)&1) + 2*((c>>5)&1)*is_sll.
+        let c4 = wb.bits(c, 4, 1);
+        let c5 = wb.bits(c, 5, 1);
+        let c5_sll = wb.select(is_sll, c5, zero);
+        let two_c5 = wb.wrapping_add(c5_sll, c5_sll);
+        let shift_amount = wb.wrapping_add(c4, two_c5);
+        for i in 0..WORD_SIZE {
+            let ki = wb.const_nat(i as u64);
+            let f = wb.eq(shift_amount, ki);
+            cols.shift_u16[i] = wb.nat_to_field(f);
+        }
+
+        // Per-limb split by `bit_shift`, computed in nat-space (variable shifts).
+        let sixteen = wb.const_nat(16);
+        let w = wb.wrapping_sub(sixteen, bit_shift); // 16 - bit_shift
+        let mut lower_nat = [zero; WORD_SIZE];
+        let mut higher_nat = [zero; WORD_SIZE];
+        for i in 0..WORD_SIZE {
+            let limb = wb.bits(b, (i as u32) * 16, 16);
+            let higher = wb.shr(limb, w);
+            let high_shifted = wb.shl(higher, w);
+            let lower = wb.wrapping_sub(limb, high_shifted);
+            cols.lower_limb[i] = wb.nat_to_field(lower);
+            cols.higher_limb[i] = wb.nat_to_field(higher);
+            wb.add_bit_range_check_var(lower, w);
+            wb.add_bit_range_check_var(higher, bit_shift);
+            lower_nat[i] = lower;
+            higher_nat[i] = higher;
+        }
+        for i in 0..WORD_SIZE {
+            let shifted = wb.shl(lower_nat[i], bit_shift);
+            let lr = if i != 0 { wb.wrapping_add(shifted, higher_nat[i - 1]) } else { shifted };
+            cols.limb_result[i] = wb.nat_to_field(lr);
+        }
+
+        // Result word `a`.
+        for i in 0..WORD_SIZE {
+            let limb = wb.bits(a, (i as u32) * 16, 16);
+            cols.a[i] = wb.nat_to_field(limb);
+        }
+
+        // SLLW msb of the high limb of (b << (c & 0x1f)); guarded by is_sllw.
+        let c_5b = wb.bits(c, 0, 5); // c & 0x1f
+        let sllw_val = wb.shl(b, c_5b);
+        let sllw_high = wb.bits(sllw_val, 16, 16);
+        wb.push_guard(is_sllw);
+        U16MSBOperation::<WB::Field>::witgen(wb, &mut cols.sllw_msb, sllw_high);
+        wb.pop_guard();
+        cols.sllw_msb.msb = wb.field_select(is_sllw, cols.sllw_msb.msb, zero_f);
+
+        CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
+        ALUTypeReader::<WB::Field>::witgen(wb, &mut cols.adapter, &adapter);
+    }
 }
 
 impl<F: PrimeField32, M: TrustMode> MachineAir<F> for ShiftLeftChip<M> {

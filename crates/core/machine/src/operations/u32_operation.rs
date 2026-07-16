@@ -10,6 +10,21 @@ pub struct U32toU8Operation<T> {
     low_bytes: [T; 2],
 }
 
+// Witgen in an unconstrained `impl` (column type is the builder's `Field`).
+impl<T: Copy> U32toU8Operation<T> {
+    /// Backend-agnostic witgen dual of `populate_u32_to_u8_unsafe`: store the low
+    /// byte of each u16 limb (the high bytes are recovered in-circuit).
+    pub fn witgen_u32_to_u8_unsafe<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut U32toU8Operation<WB::Field>,
+        a: WB::Nat,
+    ) {
+        let b0 = wb.bits(a, 0, 8);
+        let b1 = wb.bits(a, 16, 8);
+        cols.low_bytes = [wb.nat_to_field(b0), wb.nat_to_field(b1)];
+    }
+}
+
 impl<F: Field> U32toU8Operation<F> {
     pub fn populate_u32_to_u8_unsafe(&mut self, a_u32: u32) {
         let a_limbs = u32_to_u16_limbs(a_u32);

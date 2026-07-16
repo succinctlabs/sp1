@@ -1,11 +1,13 @@
 use crate::{
     adapter::{
-        register::i_type::{ITypeReader, ITypeReaderImmutable, ITypeReaderImmutableInput},
+        register::i_type::{
+            ITypeReader, ITypeReaderImmutable, ITypeReaderImmutableInput, ITypeReaderWitgenInput,
+        },
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
     eval_untrusted_program,
-    memory::MemoryAccessCols,
+    memory::{MemoryAccessCols, MemoryAccessWitgenInput},
     operations::{AddressOperation, AddressOperationInput},
     utils::next_multiple_of_32,
     SupervisorMode, TrustMode, UserMode,
@@ -80,6 +82,70 @@ pub struct LoadX0Columns<T, M: TrustMode> {
 
     /// Adapter columns for trust mode specific data.
     pub adapter_cols: M::AdapterCols<T>,
+}
+
+/// Witgen inputs for the `LoadX0` chip: one `#[repr(C)]` row per event (see
+/// `record_witgen_inputs` — field order IS the packed input layout). Beyond the
+/// state + adapter, the address operands (`b_val`, `c_val`), the memory access,
+/// and the opcode are per-chip inputs.
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct LoadX0WitgenInput<T> {
+    pub clk: T,
+    pub pc: T,
+    pub adapter: ITypeReaderWitgenInput<T>,
+    pub b_val: T,
+    pub c_val: T,
+    pub mem: MemoryAccessWitgenInput<T>,
+    pub opcode: T,
+}
+
+/// Number of witgen inputs per `LoadX0` row.
+pub const NUM_LOAD_X0_WITGEN_INPUTS: usize = size_of::<LoadX0WitgenInput<u8>>();
+
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T, M: TrustMode> LoadX0Columns<T, M> {
+    /// Backend-agnostic witgen for the `LoadX0` chip (loads writing to x0; the
+    /// loaded value is discarded). Just the memory access, the address operation,
+    /// the address low-bit offset flags, and the per-opcode selectors.
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut LoadX0Columns<WB::Field, M>,
+        input: &LoadX0WitgenInput<WB::Nat>,
+    ) {
+        let LoadX0WitgenInput { clk, pc, adapter, b_val, c_val, mem, opcode } = *input;
+        MemoryAccessCols::<WB::Field>::witgen(
+            wb,
+            &mut cols.memory_access,
+            mem.prev_value,
+            mem.prev_ts,
+            mem.cur_ts,
+        );
+        let memory_addr =
+            AddressOperation::<WB::Field>::witgen(wb, &mut cols.address_operation, b_val, c_val);
+        let bit0 = wb.bits(memory_addr, 0, 1);
+        cols.offset_bit[0] = wb.nat_to_field(bit0);
+        let bit1 = wb.bits(memory_addr, 1, 1);
+        cols.offset_bit[1] = wb.nat_to_field(bit1);
+        let bit2 = wb.bits(memory_addr, 2, 1);
+        cols.offset_bit[2] = wb.nat_to_field(bit2);
+
+        let flag = |wb: &mut WB, op: Opcode| {
+            let c = wb.const_nat(op as u64);
+            let e = wb.eq(opcode, c);
+            wb.nat_to_field(e)
+        };
+        cols.is_lb = flag(wb, Opcode::LB);
+        cols.is_lbu = flag(wb, Opcode::LBU);
+        cols.is_lh = flag(wb, Opcode::LH);
+        cols.is_lhu = flag(wb, Opcode::LHU);
+        cols.is_lw = flag(wb, Opcode::LW);
+        cols.is_lwu = flag(wb, Opcode::LWU);
+        cols.is_ld = flag(wb, Opcode::LD);
+
+        CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
+        ITypeReader::<WB::Field>::witgen(wb, &mut cols.adapter, &adapter);
+    }
 }
 
 impl<F, M: TrustMode> BaseAir<F> for LoadX0Chip<M> {

@@ -1,5 +1,8 @@
 use crate::{
-    adapter::{register::j_type::JTypeReader, state::CPUState},
+    adapter::{
+        register::j_type::{JTypeReader, JTypeReaderWitgenInput},
+        state::CPUState,
+    },
     operations::AddOperation,
     SupervisorMode, TrustMode, UserMode,
 };
@@ -32,4 +35,55 @@ pub struct JalColumns<T, M: TrustMode> {
 
     /// Adapter columns for trust mode specific data.
     pub adapter_cols: M::AdapterCols<T>,
+}
+
+/// Witgen inputs for the `Jal` chip: one `#[repr(C)]` row per event (see
+/// `record_witgen_inputs` — field order IS the packed input layout).
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct JalWitgenInput<T> {
+    pub clk: T,
+    pub pc: T,
+    pub adapter: JTypeReaderWitgenInput<T>,
+    pub event_b: T,
+}
+
+/// Number of witgen inputs per `Jal` row.
+pub const NUM_JAL_WITGEN_INPUTS: usize = size_of::<JalWitgenInput<u8>>();
+
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T, M: TrustMode> JalColumns<T, M> {
+    /// Backend-agnostic witgen for the `Jal` chip: `add_operation = pc + b` (the
+    /// jump target) and `op_a_operation = pc + 4` (the return address, guarded+masked
+    /// by op_a≠0 — a write to x0 zeroes it), plus the `CPUState` and `JTypeReader`.
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut JalColumns<WB::Field, M>,
+        input: &JalWitgenInput<WB::Nat>,
+    ) {
+        let JalWitgenInput { clk, pc, adapter, event_b } = *input;
+        let op_a = adapter.op_a;
+        let zero = wb.const_nat(0);
+        let one = wb.const_nat(1);
+        cols.is_real = wb.nat_to_field(one);
+        AddOperation::<WB::Field>::witgen(wb, &mut cols.add_operation, pc, event_b);
+
+        // PC-alignment check on the jump target's low limb (`next_pc/4` fits 14 bits)
+        // — emitted by `generate_dependencies` (matches Jalr; was missing here).
+        let next_pc = wb.wrapping_add(pc, event_b);
+        let lq = wb.bits(next_pc, 2, 14);
+        wb.add_bit_range_check(lq, 14);
+
+        let four = wb.const_nat(4);
+        let is_op_a_zero = wb.eq(op_a, zero);
+        let op_a_nz = wb.eq(is_op_a_zero, zero);
+        let pc_m = wb.select(op_a_nz, pc, zero);
+        let four_m = wb.select(op_a_nz, four, zero);
+        wb.push_guard(op_a_nz);
+        AddOperation::<WB::Field>::witgen(wb, &mut cols.op_a_operation, pc_m, four_m);
+        wb.pop_guard();
+
+        CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
+        JTypeReader::<WB::Field>::witgen(wb, &mut cols.adapter, &adapter);
+    }
 }

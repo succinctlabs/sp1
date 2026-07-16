@@ -1,11 +1,13 @@
 use crate::{
     adapter::{
-        register::i_type::{ITypeReader, ITypeReaderImmutable, ITypeReaderImmutableInput},
+        register::i_type::{
+            ITypeReader, ITypeReaderImmutable, ITypeReaderImmutableInput, ITypeReaderWitgenInput,
+        },
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
     eval_untrusted_program,
-    memory::MemoryAccessCols,
+    memory::{MemoryAccessCols, MemoryAccessWitgenInput},
     operations::{AddressOperation, AddressOperationInput},
     utils::next_multiple_of_32,
     SupervisorMode, TrustMode, UserMode,
@@ -80,6 +82,99 @@ pub struct StoreByteColumns<T, M: TrustMode> {
 
     /// Adapter columns for trust mode specific data.
     pub adapter_cols: M::AdapterCols<T>,
+}
+
+/// Witgen inputs for the `StoreByte` chip: one `#[repr(C)]` row per event (see
+/// `record_witgen_inputs` — field order IS the packed input layout). Beyond the
+/// state + adapter, the address operands (`b_val`, `c_val`), the memory access,
+/// the NEW memory value, and the register's value (`reg_a`) are per-chip inputs.
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct StoreByteWitgenInput<T> {
+    pub clk: T,
+    pub pc: T,
+    pub adapter: ITypeReaderWitgenInput<T>,
+    pub b_val: T,
+    pub c_val: T,
+    pub mem: MemoryAccessWitgenInput<T>,
+    pub mem_value: T,
+    pub reg_a: T,
+}
+
+/// Number of witgen inputs per `StoreByte` row.
+pub const NUM_STORE_BYTE_WITGEN_INPUTS: usize = size_of::<StoreByteWitgenInput<u8>>();
+
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T, M: TrustMode> StoreByteColumns<T, M> {
+    /// Backend-agnostic witgen for the `StoreByte` chip (sb): selects the target u16
+    /// limb of the OLD memory value (address bits 1-2), splits the register's low
+    /// limb, and computes the `increment` (the field delta applied to the limb to
+    /// install the stored byte at the position chosen by address bit 0). The stored
+    /// word is the access's new value.
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut StoreByteColumns<WB::Field, M>,
+        input: &StoreByteWitgenInput<WB::Nat>,
+    ) {
+        let StoreByteWitgenInput { clk, pc, adapter, b_val, c_val, mem, mem_value, reg_a } = *input;
+        let mem_prev_value = mem.prev_value;
+        let one = wb.const_nat(1);
+        cols.is_real = wb.nat_to_field(one);
+        MemoryAccessCols::<WB::Field>::witgen(
+            wb,
+            &mut cols.memory_access,
+            mem.prev_value,
+            mem.prev_ts,
+            mem.cur_ts,
+        );
+        let memory_addr =
+            AddressOperation::<WB::Field>::witgen(wb, &mut cols.address_operation, b_val, c_val);
+
+        let bit0 = wb.bits(memory_addr, 0, 1);
+        let bit1 = wb.bits(memory_addr, 1, 1);
+        let bit2 = wb.bits(memory_addr, 2, 1);
+        cols.offset_bit[0] = wb.nat_to_field(bit0);
+        cols.offset_bit[1] = wb.nat_to_field(bit1);
+        cols.offset_bit[2] = wb.nat_to_field(bit2);
+
+        // Select the target u16 limb of the OLD memory value (bits 1-2).
+        let l0 = wb.bits(mem_prev_value, 0, 16);
+        let l1 = wb.bits(mem_prev_value, 16, 16);
+        let l2 = wb.bits(mem_prev_value, 32, 16);
+        let l3 = wb.bits(mem_prev_value, 48, 16);
+        let sel_low = wb.select(bit1, l1, l0);
+        let sel_high = wb.select(bit1, l3, l2);
+        let limb = wb.select(bit2, sel_high, sel_low);
+        let limb_low = wb.bits(limb, 0, 8);
+        let limb_high = wb.bits(limb, 8, 8);
+        let reg_low = wb.bits(reg_a, 0, 8);
+        let reg_high = wb.bits(reg_a, 8, 8);
+        wb.add_u8_range_check(limb_low, limb_high);
+        wb.add_u8_range_check(reg_low, reg_high);
+
+        cols.mem_limb = wb.nat_to_field(limb);
+        cols.mem_limb_low_byte = wb.nat_to_field(limb_low);
+        cols.register_low_byte = wb.nat_to_field(reg_low);
+        for i in 0..sp1_primitives::consts::WORD_SIZE {
+            let v = wb.bits(mem_value, (i as u32) * 16, 16);
+            cols.store_value[i] = wb.nat_to_field(v);
+        }
+
+        // increment = bit0 ? (256*reg_low - limb + limb_low) : (reg_low - limb_low).
+        let rlb_f = wb.nat_to_field(reg_low);
+        let mllb_f = wb.nat_to_field(limb_low);
+        let ml_f = wb.nat_to_field(limb);
+        let diff1 = wb.field_sub(rlb_f, mllb_f);
+        let eight = wb.const_nat(8);
+        let r256 = wb.shl(reg_low, eight);
+        let r256_f = wb.nat_to_field(r256);
+        let sum = wb.field_add(r256_f, mllb_f);
+        let term2 = wb.field_sub(sum, ml_f);
+        cols.increment = wb.field_select(bit0, term2, diff1);
+
+        CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
+        ITypeReader::<WB::Field>::witgen(wb, &mut cols.adapter, &adapter);
+    }
 }
 
 impl<F, M: TrustMode> BaseAir<F> for StoreByteChip<M> {

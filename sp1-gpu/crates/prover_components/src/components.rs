@@ -95,9 +95,34 @@ where
         all_interactions.insert(chip.name().to_string(), Arc::new(device_interactions));
     }
 
+    // H1 (host-memory-workstream Phase 2): when the device-tracegen path covers the
+    // trace mass (some chip generates its main trace AND its dependencies on device),
+    // per-shard host-resident bytes are measured in MB, not GB — so don't pre-allocate
+    // `num_workers × max_trace_size` of page-locked memory. A static sound bound can't
+    // capture this (the not-yet-ported precompile tail keeps the worst case at
+    // `max_trace_size`), so the pool starts small and every shard checkout ratchets its
+    // worker's buffer up to that shard's exact requirement
+    // (`sp1_gpu_jagged_tracegen::required_trace_buffer_elems`, derived from the same
+    // `supports_device_*` predicates as the tracegen partition). With the device path
+    // off — the `AR_DEVICE_CHIPS` default, and always for recursion/wrap machines —
+    // allocate the full `max_trace_size` up front, exactly today's behavior; a shard's
+    // requirement never exceeds it, so growth never triggers.
+    let device_path_on = machine
+        .chips()
+        .iter()
+        .any(|c| c.air.supports_device_main_tracegen() && c.air.supports_device_dependencies());
+    // Covers the measured device-on steady state for ALU-class workloads (written
+    // prefix of 4–5 MB per shard) without a first-shard grow; precompile-heavy shards
+    // ratchet up from here.
+    const DEVICE_ON_INITIAL_BUFFER_SIZE: usize = 1 << 22;
+    let buffer_size = if device_path_on {
+        DEVICE_ON_INITIAL_BUFFER_SIZE.min(max_trace_size)
+    } else {
+        max_trace_size
+    };
     let mut trace_buffers = Vec::with_capacity(num_workers);
     for _ in 0..num_workers {
-        let pinned_buffer = PinnedBuffer::<GC::F>::with_capacity(max_trace_size);
+        let pinned_buffer = PinnedBuffer::<GC::F>::with_capacity(buffer_size);
         trace_buffers.push(pinned_buffer);
     }
 

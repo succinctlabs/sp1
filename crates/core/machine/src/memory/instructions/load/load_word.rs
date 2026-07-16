@@ -10,12 +10,12 @@ use std::{
 
 use crate::{
     adapter::{
-        register::i_type::{ITypeReader, ITypeReaderInput},
+        register::i_type::{ITypeReader, ITypeReaderInput, ITypeReaderWitgenInput},
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
     eval_untrusted_program,
-    memory::MemoryAccessCols,
+    memory::{MemoryAccessCols, MemoryAccessWitgenInput},
     operations::{AddressOperation, AddressOperationInput, U16MSBOperation, U16MSBOperationInput},
     utils::next_multiple_of_32,
     SupervisorMode, TrustMode, UserMode,
@@ -73,6 +73,82 @@ pub struct LoadWordColumns<T, M: TrustMode> {
 
     /// Adapter columns for trust mode specific data.
     pub adapter_cols: M::AdapterCols<T>,
+}
+
+/// Witgen inputs for the `LoadWord` chip: one `#[repr(C)]` row per event (see
+/// `record_witgen_inputs` — field order IS the packed input layout). Beyond the
+/// state + adapter, the address operands (`b_val`, `c_val`), the memory access,
+/// and the opcode are per-chip inputs.
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct LoadWordWitgenInput<T> {
+    pub clk: T,
+    pub pc: T,
+    pub adapter: ITypeReaderWitgenInput<T>,
+    pub b_val: T,
+    pub c_val: T,
+    pub mem: MemoryAccessWitgenInput<T>,
+    pub opcode: T,
+}
+
+/// Number of witgen inputs per `LoadWord` row.
+pub const NUM_LOAD_WORD_WITGEN_INPUTS: usize = size_of::<LoadWordWitgenInput<u8>>();
+
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T, M: TrustMode> LoadWordColumns<T, M> {
+    /// Backend-agnostic witgen for the `LoadWord` chip (lw/lwu): the memory access,
+    /// the address operation, the offset bit selecting which 32-bit half of the
+    /// 64-bit memory word, the selected word's two u16 limbs, and (for signed lw)
+    /// the msb of the high limb for sign extension. The memory value equals the
+    /// access's `prev_value` (a read leaves it unchanged).
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut LoadWordColumns<WB::Field, M>,
+        input: &LoadWordWitgenInput<WB::Nat>,
+    ) {
+        let LoadWordWitgenInput { clk, pc, adapter, b_val, c_val, mem, opcode } = *input;
+        let mem_prev_value = mem.prev_value;
+        let zero = wb.const_nat(0);
+        let zero_f = wb.nat_to_field(zero);
+
+        MemoryAccessCols::<WB::Field>::witgen(
+            wb,
+            &mut cols.memory_access,
+            mem.prev_value,
+            mem.prev_ts,
+            mem.cur_ts,
+        );
+        let memory_addr =
+            AddressOperation::<WB::Field>::witgen(wb, &mut cols.address_operation, b_val, c_val);
+
+        // Bit 2 of the address selects the high vs low 32-bit half.
+        let bit_2 = wb.bits(memory_addr, 2, 1);
+        cols.offset_bit = wb.nat_to_field(bit_2);
+        let lo0 = wb.bits(mem_prev_value, 0, 16);
+        let hi0 = wb.bits(mem_prev_value, 32, 16);
+        let limb_0 = wb.select(bit_2, hi0, lo0);
+        cols.selected_word[0] = wb.nat_to_field(limb_0);
+        let lo1 = wb.bits(mem_prev_value, 16, 16);
+        let hi1 = wb.bits(mem_prev_value, 48, 16);
+        let limb_1 = wb.select(bit_2, hi1, lo1);
+        cols.selected_word[1] = wb.nat_to_field(limb_1);
+
+        let o_lw = wb.const_nat(Opcode::LW as u64);
+        let o_lwu = wb.const_nat(Opcode::LWU as u64);
+        let is_lw = wb.eq(opcode, o_lw);
+        cols.is_lw = wb.nat_to_field(is_lw);
+        let is_lwu = wb.eq(opcode, o_lwu);
+        cols.is_lwu = wb.nat_to_field(is_lwu);
+
+        // Sign bit of the high limb (signed lw only).
+        wb.push_guard(is_lw);
+        U16MSBOperation::<WB::Field>::witgen(wb, &mut cols.msb, limb_1);
+        wb.pop_guard();
+        cols.msb.msb = wb.field_select(is_lw, cols.msb.msb, zero_f);
+
+        CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
+        ITypeReader::<WB::Field>::witgen(wb, &mut cols.adapter, &adapter);
+    }
 }
 
 impl<F, M: TrustMode> BaseAir<F> for LoadWordChip<M> {

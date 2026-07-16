@@ -1,14 +1,14 @@
 use serde::{Deserialize, Serialize};
 use sp1_core_executor::events::ByteRecord;
 use sp1_hypercube::{air::SP1AirBuilder, Word};
-use sp1_primitives::consts::{u64_to_u16_limbs, WORD_SIZE};
+use sp1_primitives::consts::WORD_SIZE;
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use slop_air::AirBuilder;
 use slop_algebra::{AbstractField, Field};
 use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationBuilder};
 
-use crate::air::{SP1Operation, WordAirBuilder};
+use crate::air::{HostWitnessBuilder, SP1Operation, WordAirBuilder};
 
 /// A set of columns needed to compute the addition of two Words as an u48 address.
 #[derive(
@@ -29,18 +29,40 @@ pub struct AddrAddOperation<T> {
     pub value: [T; 3],
 }
 
+// Witgen lives in an unconstrained `impl<T>` (not `impl<F: Field>`) because the
+// column type is the *builder's* `Field`, which for a GPU recording backend is a
+// wire id, not a field element.
+impl<T> AddrAddOperation<T> {
+    /// Backend-agnostic witness generation: writes the three u16 limbs of the u48
+    /// sum `a + b` into `cols.value` and emits their range checks. Runs concretely
+    /// under [`HostWitnessBuilder`] (CPU) or, in future, records an op-DAG for a
+    /// GPU interpreter. The body is the witgen dual of [`Self::eval`].
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut AddrAddOperation<WB::Field>,
+        a: WB::Nat,
+        b: WB::Nat,
+    ) -> WB::Nat {
+        let expected = wb.wrapping_add(a, b);
+        let limb0 = wb.bits(expected, 0, 16);
+        let limb1 = wb.bits(expected, 16, 16);
+        let limb2 = wb.bits(expected, 32, 16);
+        cols.value = [wb.nat_to_field(limb0), wb.nat_to_field(limb1), wb.nat_to_field(limb2)];
+        wb.add_u16_range_check(limb0);
+        wb.add_u16_range_check(limb1);
+        wb.add_u16_range_check(limb2);
+        expected
+    }
+}
+
 impl<F: Field> AddrAddOperation<F> {
     pub fn populate(&mut self, record: &mut impl ByteRecord, a_u64: u64, b_u64: u64) -> u64 {
         let expected = a_u64.wrapping_add(b_u64);
         assert!(expected >> 48 == 0);
-        self.value = [
-            F::from_canonical_u16((expected & 0xFFFF) as u16),
-            F::from_canonical_u16((expected >> 16) as u16),
-            F::from_canonical_u16((expected >> 32) as u16),
-        ];
-        // Range check
-        record.add_u16_range_checks(&u64_to_u16_limbs(expected)[..3]);
-        expected
+        // Witness generation is expressed once via `witgen`; the host backend
+        // reproduces the original `populate` exactly.
+        let mut wb = HostWitnessBuilder::<F, _>::new(record);
+        Self::witgen(&mut wb, self, a_u64, b_u64)
     }
 
     /// Evaluate the add operation.

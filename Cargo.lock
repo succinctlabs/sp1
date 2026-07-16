@@ -7753,6 +7753,7 @@ dependencies = [
 name = "sp1-gpu-tracegen"
 version = "6.3.1"
 dependencies = [
+ "criterion",
  "futures",
  "rand 0.8.6",
  "rayon",
@@ -7760,6 +7761,7 @@ dependencies = [
  "slop-algebra 6.3.1",
  "slop-alloc",
  "slop-futures",
+ "slop-keccak-air",
  "slop-koala-bear 6.3.1",
  "slop-multilinear",
  "slop-symmetric 6.3.1",
@@ -7771,6 +7773,7 @@ dependencies = [
  "sp1-primitives 6.3.1",
  "sp1-recursion-executor",
  "sp1-recursion-machine",
+ "tiny-keccak 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio",
  "tracing",
 ]

@@ -20,7 +20,7 @@ use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
-        register::r_type::{RTypeReader, RTypeReaderInput},
+        register::r_type::{RTypeReader, RTypeReaderInput, RTypeReaderWitgenInput},
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation, WordAirBuilder},
@@ -200,6 +200,302 @@ pub struct DivRemCols<T, M: TrustMode> {
 
     /// Adapter columns for trust mode specific data.
     pub adapter_cols: M::AdapterCols<T>,
+}
+
+/// Witgen inputs for the `DivRem` chip: one `#[repr(C)]` row per event (see
+/// `record_witgen_inputs` — field order IS the packed input layout). Beyond the
+/// state + adapter, the host-derived division results (quotient/remainder,
+/// computational/abs forms, sign flags, and the upper 64 bits of `c*quotient`)
+/// are plain per-row inputs computed in the packing function.
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct DivRemWitgenInput<T> {
+    pub clk: T,
+    pub pc: T,
+    pub adapter: RTypeReaderWitgenInput<T>,
+    pub a: T,
+    pub b_comp: T,
+    pub c_comp: T,
+    pub quotient: T,
+    pub remainder: T,
+    pub quotient_comp: T,
+    pub remainder_comp: T,
+    pub abs_remainder: T,
+    pub abs_c: T,
+    pub max_abs_c_or_1: T,
+    pub opcode: T,
+    pub ctq_hi: T,
+    pub b_neg: T,
+    pub c_neg: T,
+    pub rem_neg: T,
+    pub is_overflow: T,
+}
+
+/// Number of witgen inputs per `DivRem` row.
+pub const NUM_DIVREM_WITGEN_INPUTS: usize = size_of::<DivRemWitgenInput<u8>>();
+
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T, M: TrustMode> DivRemCols<T, M> {
+    /// Backend-agnostic witgen for the `DivRem` chip (DIV/DIVU/REM/REMU + W
+    /// variants). Host-derived values that need an actual division
+    /// (`quotient`/`remainder`, their computational/abs forms, sign flags, and the
+    /// upper 64 bits of `c*quotient`) are passed in as inputs (computed in the
+    /// packing function), so the op-DAG needs no divide op. The five
+    /// conditionally-populated sub-gadgets (the two abs `AddOperation`s, the upper
+    /// `MulOperation`, `quot_msb`, and `remainder_lt`) are input-masked to 0 and
+    /// lookup-guarded so masked rows reproduce the zero-initialized columns exactly.
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut DivRemCols<WB::Field, M>,
+        input: &DivRemWitgenInput<WB::Nat>,
+    ) {
+        let DivRemWitgenInput {
+            clk,
+            pc,
+            adapter,
+            a,
+            b_comp,
+            c_comp,
+            quotient,
+            remainder,
+            quotient_comp,
+            remainder_comp,
+            abs_remainder,
+            abs_c,
+            max_abs_c_or_1,
+            opcode,
+            ctq_hi,
+            b_neg,
+            c_neg,
+            rem_neg,
+            is_overflow,
+        } = *input;
+        use crate::operations::{
+            AddOperation, IsEqualWordOperation, IsZeroWordOperation, LtOperationUnsigned,
+            MulOperation, U16MSBOperation,
+        };
+        let zero = wb.const_nat(0);
+        let one = wb.const_nat(1);
+        let zero_f = wb.nat_to_field(zero);
+
+        // Helper to fill a `Word`'s four u16 limbs from a nat.
+        macro_rules! set_word {
+            ($word:expr, $val:expr) => {
+                for i in 0..WORD_SIZE {
+                    let limb = wb.bits($val, (i as u32) * 16, 16);
+                    $word[i] = wb.nat_to_field(limb);
+                }
+            };
+        }
+
+        // --- opcode flags ---
+        let o_divu = wb.const_nat(Opcode::DIVU as u64);
+        let o_remu = wb.const_nat(Opcode::REMU as u64);
+        let o_div = wb.const_nat(Opcode::DIV as u64);
+        let o_rem = wb.const_nat(Opcode::REM as u64);
+        let o_divw = wb.const_nat(Opcode::DIVW as u64);
+        let o_remw = wb.const_nat(Opcode::REMW as u64);
+        let o_divuw = wb.const_nat(Opcode::DIVUW as u64);
+        let o_remuw = wb.const_nat(Opcode::REMUW as u64);
+        let is_divu = wb.eq(opcode, o_divu);
+        cols.is_divu = wb.nat_to_field(is_divu);
+        let is_remu = wb.eq(opcode, o_remu);
+        cols.is_remu = wb.nat_to_field(is_remu);
+        let is_div = wb.eq(opcode, o_div);
+        cols.is_div = wb.nat_to_field(is_div);
+        let is_rem = wb.eq(opcode, o_rem);
+        cols.is_rem = wb.nat_to_field(is_rem);
+        let is_divw = wb.eq(opcode, o_divw);
+        cols.is_divw = wb.nat_to_field(is_divw);
+        let is_remw = wb.eq(opcode, o_remw);
+        cols.is_remw = wb.nat_to_field(is_remw);
+        let is_divuw = wb.eq(opcode, o_divuw);
+        cols.is_divuw = wb.nat_to_field(is_divuw);
+        let is_remuw = wb.eq(opcode, o_remuw);
+        cols.is_remuw = wb.nat_to_field(is_remuw);
+
+        // Derived: word / not-word / signed-64.
+        let w01 = wb.wrapping_add(is_divw, is_remw);
+        let w23 = wb.wrapping_add(is_divuw, is_remuw);
+        let is_word = wb.wrapping_add(w01, w23);
+        let not_word = wb.eq(is_word, zero);
+        let is_signed64 = wb.wrapping_add(is_div, is_rem);
+
+        cols.is_real = wb.nat_to_field(one);
+        cols.is_real_not_word = wb.nat_to_field(not_word);
+
+        // --- operand / quotient / remainder / abs words ---
+        set_word!(cols.a, a);
+        set_word!(cols.b, b_comp);
+        set_word!(cols.c, c_comp);
+        set_word!(cols.quotient, quotient);
+        set_word!(cols.quotient_comp, quotient_comp);
+        set_word!(cols.remainder_comp, remainder_comp);
+        set_word!(cols.remainder, remainder);
+        set_word!(cols.abs_remainder, abs_remainder);
+        set_word!(cols.abs_c, abs_c);
+        set_word!(cols.max_abs_c_or_1, max_abs_c_or_1);
+
+        // --- sign / overflow flags ---
+        cols.b_neg = wb.nat_to_field(b_neg);
+        cols.c_neg = wb.nat_to_field(c_neg);
+        cols.rem_neg = wb.nat_to_field(rem_neg);
+        cols.is_overflow = wb.nat_to_field(is_overflow);
+        let not_overflow = wb.eq(is_overflow, zero);
+        let bnno = wb.select(b_neg, not_overflow, zero);
+        cols.b_neg_not_overflow = wb.nat_to_field(bnno);
+        let not_b_neg = wb.eq(b_neg, zero);
+        let bnnno = wb.select(not_b_neg, not_overflow, zero);
+        cols.b_not_neg_not_overflow = wb.nat_to_field(bnnno);
+        cols.abs_c_alu_event = wb.nat_to_field(c_neg);
+        cols.abs_rem_alu_event = wb.nat_to_field(rem_neg);
+
+        // --- is_c_0 + remainder_check_multiplicity ---
+        let is_c_0 = IsZeroWordOperation::<WB::Field>::witgen(wb, &mut cols.is_c_0, c_comp);
+        let rcm = wb.eq(is_c_0, zero);
+        cols.remainder_check_multiplicity = wb.nat_to_field(rcm);
+
+        // --- is_overflow_b / is_overflow_c (against MIN / -1, word-width aware) ---
+        let min_w = wb.const_nat(0x8000_0000);
+        let min_64 = wb.const_nat(0x8000_0000_0000_0000);
+        let neg1_w = wb.const_nat(0xffff_ffff);
+        let neg1_64 = wb.const_nat(0xffff_ffff_ffff_ffff);
+        let b_lo32 = wb.bits(b_comp, 0, 32);
+        let b_ov_in = wb.select(is_word, b_lo32, b_comp);
+        let min_sel = wb.select(is_word, min_w, min_64);
+        IsEqualWordOperation::<WB::Field>::witgen(wb, &mut cols.is_overflow_b, b_ov_in, min_sel);
+        let c_lo32 = wb.bits(c_comp, 0, 32);
+        let c_ov_in = wb.select(is_word, c_lo32, c_comp);
+        let neg1_sel = wb.select(is_word, neg1_w, neg1_64);
+        IsEqualWordOperation::<WB::Field>::witgen(wb, &mut cols.is_overflow_c, c_ov_in, neg1_sel);
+
+        // --- abs AddOperations (negation checks), guarded+masked by their sign ---
+        let cneg_a = wb.select(c_neg, c_comp, zero);
+        let cneg_b = wb.select(c_neg, abs_c, zero);
+        wb.push_guard(c_neg);
+        AddOperation::<WB::Field>::witgen(wb, &mut cols.c_neg_operation, cneg_a, cneg_b);
+        wb.pop_guard();
+        let rneg_a = wb.select(rem_neg, remainder, zero);
+        let rneg_b = wb.select(rem_neg, abs_remainder, zero);
+        wb.push_guard(rem_neg);
+        AddOperation::<WB::Field>::witgen(wb, &mut cols.rem_neg_operation, rneg_a, rneg_b);
+        wb.pop_guard();
+
+        // --- MSBs (b/c/rem always; quot only for word ops) ---
+        let b_msb_hi = wb.bits(b_comp, 16, 16);
+        let b_msb_lo = wb.bits(b_comp, 48, 16);
+        let b_msb_in = wb.select(is_word, b_msb_hi, b_msb_lo);
+        U16MSBOperation::<WB::Field>::witgen(wb, &mut cols.b_msb, b_msb_in);
+        let c_msb_hi = wb.bits(c_comp, 16, 16);
+        let c_msb_lo = wb.bits(c_comp, 48, 16);
+        let c_msb_in = wb.select(is_word, c_msb_hi, c_msb_lo);
+        U16MSBOperation::<WB::Field>::witgen(wb, &mut cols.c_msb, c_msb_in);
+        let r_msb_hi = wb.bits(remainder, 16, 16);
+        let r_msb_lo = wb.bits(remainder, 48, 16);
+        let r_msb_in = wb.select(is_word, r_msb_hi, r_msb_lo);
+        U16MSBOperation::<WB::Field>::witgen(wb, &mut cols.rem_msb, r_msb_in);
+        let quot_hi = wb.bits(quotient, 16, 16);
+        let quot_in = wb.select(is_word, quot_hi, zero);
+        wb.push_guard(is_word);
+        U16MSBOperation::<WB::Field>::witgen(wb, &mut cols.quot_msb, quot_in);
+        wb.pop_guard();
+        cols.quot_msb.msb = wb.field_select(is_word, cols.quot_msb.msb, zero_f);
+
+        // --- remainder_lt: abs(rem) < max(abs(c),1), guarded+masked by !is_c_0 ---
+        let lt_a = wb.select(rcm, one, zero);
+        let lt_b = wb.select(rcm, abs_remainder, zero);
+        let lt_c = wb.select(rcm, max_abs_c_or_1, zero);
+        wb.push_guard(rcm);
+        LtOperationUnsigned::<WB::Field>::witgen(
+            wb,
+            &mut cols.remainder_lt_operation,
+            lt_a,
+            lt_b,
+            lt_c,
+        );
+        wb.pop_guard();
+
+        // --- c * quotient as 8 u16 limbs (lower 64 via mul, upper 64 host-computed) ---
+        let ctq_lo = wb.mul(quotient_comp, c_comp);
+        let mut ctq = [zero; LONG_WORD_SIZE];
+        for i in 0..WORD_SIZE {
+            ctq[i] = wb.bits(ctq_lo, (i as u32) * 16, 16);
+            ctq[WORD_SIZE + i] = wb.bits(ctq_hi, (i as u32) * 16, 16);
+        }
+        for i in 0..LONG_WORD_SIZE {
+            cols.c_times_quotient[i] = wb.nat_to_field(ctq[i]);
+        }
+
+        // --- two MulOperations verifying c*quotient (upper only for non-word) ---
+        MulOperation::<WB::Field>::witgen(
+            wb,
+            &mut cols.c_times_quotient_lower,
+            quotient_comp,
+            c_comp,
+            zero,
+            zero,
+            zero,
+        );
+        let up_a = wb.select(not_word, quotient_comp, zero);
+        let up_c = wb.select(not_word, c_comp, zero);
+        wb.push_guard(not_word);
+        MulOperation::<WB::Field>::witgen(
+            wb,
+            &mut cols.c_times_quotient_upper,
+            up_a,
+            up_c,
+            is_signed64,
+            zero,
+            zero,
+        );
+        wb.pop_guard();
+
+        // --- carry propagation: c_times_quotient + remainder ---
+        let rem_hi = {
+            let ffff = wb.const_nat(0xffff);
+            wb.select(rem_neg, ffff, zero)
+        };
+        let sh16 = wb.const_nat(16);
+        let mut carry_prev = zero;
+        for i in 0..LONG_WORD_SIZE {
+            let rem_i =
+                if i < WORD_SIZE { wb.bits(remainder_comp, (i as u32) * 16, 16) } else { rem_hi };
+            let mut x = wb.wrapping_add(ctq[i], rem_i);
+            if i > 0 {
+                x = wb.wrapping_add(x, carry_prev);
+            }
+            let carry_i = wb.shr(x, sh16);
+            cols.carry[i] = wb.nat_to_field(carry_i);
+            let low = wb.bits(x, 0, 16);
+            wb.add_u16_range_check(low);
+            carry_prev = carry_i;
+        }
+
+        // --- final range checks (quotient, remainder, c_times_quotient, abs_*) ---
+        for i in 0..WORD_SIZE {
+            let q = wb.bits(quotient, (i as u32) * 16, 16);
+            wb.add_u16_range_check(q);
+        }
+        for i in 0..WORD_SIZE {
+            let r = wb.bits(remainder, (i as u32) * 16, 16);
+            wb.add_u16_range_check(r);
+        }
+        for i in 0..LONG_WORD_SIZE {
+            wb.add_u16_range_check(ctq[i]);
+        }
+        for i in 0..WORD_SIZE {
+            let v = wb.bits(abs_c, (i as u32) * 16, 16);
+            wb.add_u16_range_check(v);
+        }
+        for i in 0..WORD_SIZE {
+            let v = wb.bits(abs_remainder, (i as u32) * 16, 16);
+            wb.add_u16_range_check(v);
+        }
+
+        // --- state + register adapter ---
+        CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
+        RTypeReader::<WB::Field>::witgen(wb, &mut cols.adapter, &adapter);
+    }
 }
 
 impl<F: PrimeField32, M: TrustMode> MachineAir<F> for DivRemChip<M> {

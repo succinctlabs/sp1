@@ -1,4 +1,4 @@
-use crate::air::WordAirBuilder;
+use crate::air::{HostWitnessBuilder, WitnessBuilder, WordAirBuilder};
 use serde::{Deserialize, Serialize};
 use slop_algebra::{AbstractField, Field};
 use sp1_core_executor::{events::ByteRecord, ByteOpcode};
@@ -48,24 +48,46 @@ impl<T: Copy> CPUState<T> {
     }
 }
 
+// Witgen lives in an unconstrained `impl<T>` (the column type is the builder's
+// `Field`, a wire id under the recording backend). See `AddrAddOperation::witgen`.
+impl<T> CPUState<T> {
+    /// Backend-agnostic witness generation: the clk (high/8-bit/16-bit) and pc
+    /// (three u16 limbs) column decomposition, plus the clk range checks. Witgen
+    /// dual of [`Self::eval`].
+    pub fn witgen<WB: WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut CPUState<WB::Field>,
+        clk: WB::Nat,
+        pc: WB::Nat,
+    ) {
+        let clk_high = wb.bits(clk, 24, 32);
+        cols.clk_high = wb.nat_to_field(clk_high);
+        let clk_16_24 = wb.bits(clk, 16, 8);
+        cols.clk_16_24 = wb.nat_to_field(clk_16_24);
+        let clk_0_16 = wb.bits(clk, 0, 16);
+        cols.clk_0_16 = wb.nat_to_field(clk_0_16);
+        let pc0 = wb.bits(pc, 0, 16);
+        let pc1 = wb.bits(pc, 16, 16);
+        let pc2 = wb.bits(pc, 32, 16);
+        cols.pc[0] = wb.nat_to_field(pc0);
+        cols.pc[1] = wb.nat_to_field(pc1);
+        cols.pc[2] = wb.nat_to_field(pc2);
+
+        // 0 <= (clk_0_16 - 1) / 8 < 2^13 shows clk == 1 (mod 8) and clk_0_16 is 16 bits.
+        let one = wb.const_nat(1);
+        let cm1 = wb.wrapping_sub(clk_0_16, one);
+        let cm1_div8 = wb.bits(cm1, 3, 13);
+        wb.add_bit_range_check(cm1_div8, 13);
+        let zero = wb.const_nat(0);
+        wb.add_u8_range_check(clk_16_24, zero);
+    }
+}
+
 impl<F: Field> CPUState<F> {
     #[allow(clippy::too_many_arguments)]
     pub fn populate(&mut self, blu_events: &mut impl ByteRecord, clk: u64, pc: u64) {
-        let clk_high = (clk >> 24) as u32;
-        let clk_16_24 = ((clk >> 16) & 0xFF) as u8;
-        let clk_0_16 = (clk & 0xFFFF) as u16;
-        self.clk_high = F::from_canonical_u32(clk_high);
-        self.clk_16_24 = F::from_canonical_u8(clk_16_24);
-        self.clk_0_16 = F::from_canonical_u16(clk_0_16);
-        self.pc = [
-            F::from_canonical_u16((pc & 0xFFFF) as u16),
-            F::from_canonical_u16(((pc >> 16) & 0xFFFF) as u16),
-            F::from_canonical_u16(((pc >> 32) & 0xFFFF) as u16),
-        ];
-
-        // 0 <= (clk_0_16 - 1) / 8 < 2^13 shows clk == 1 (mod 8) and clk_0_16 is 16 bits.
-        blu_events.add_bit_range_check((clk_0_16 - 1) / 8, 13);
-        blu_events.add_u8_range_checks(&[clk_16_24, 0]);
+        let mut wb = HostWitnessBuilder::<F, _>::new(blu_events);
+        Self::witgen(&mut wb, self, clk, pc);
     }
 
     #[allow(clippy::too_many_arguments)]

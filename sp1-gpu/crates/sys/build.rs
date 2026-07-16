@@ -67,6 +67,12 @@ fn cbindgen_builder() -> cbindgen::Builder {
         .include_item("PERMUTATION_WIDTH")
         .include_item("PrefixSumChecksEvent")
         .include_item("PrefixSumChecksCols")
+        .include_item("WitOpC")
+        .include_item("WitOpCSlot")
+        .include_item("WitTag")
+        .include_item("WITGEN_MAX_WIRES")
+        .include_item("WITGEN_SMEM_CAP")
+        .include_item("WITGEN_SMEM_BLOCK")
         .with_namespace("sp1_gpu_sys")
         .with_crate(env::var("CARGO_MANIFEST_DIR").unwrap())
 }

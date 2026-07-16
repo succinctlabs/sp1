@@ -20,7 +20,7 @@ use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
-        register::alu_type::ALUTypeReader,
+        register::alu_type::{ALUTypeReader, ALUTypeReaderWitgenInput},
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
@@ -65,6 +65,40 @@ pub struct AluX0Cols<T, M: TrustMode> {
 
     /// Opcode selectors.
     pub selector_cols: M::AluX0SelectorCols<T>,
+}
+
+/// Witgen inputs for the `AluX0` chip: one `#[repr(C)]` row per event (see
+/// `record_witgen_inputs` — field order IS the packed input layout).
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct AluX0WitgenInput<T> {
+    pub clk: T,
+    pub pc: T,
+    pub opcode: T,
+    pub adapter: ALUTypeReaderWitgenInput<T>,
+}
+
+/// Number of witgen inputs per `AluX0` row.
+pub const NUM_ALU_X0_WITGEN_INPUTS: usize = size_of::<AluX0WitgenInput<u8>>();
+
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T, M: TrustMode> AluX0Cols<T, M> {
+    /// Backend-agnostic witgen for the `AluX0` chip (ALU instructions writing to
+    /// `x0`, whose result is discarded). No operation gadget — just `is_real`, the
+    /// `opcode` column, the `CPUState`, and the `ALUTypeReader` adapter (which
+    /// handles the per-row immediate via `imm_c`). Mode-specific `selector_cols`
+    /// are empty in Supervisor mode.
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut AluX0Cols<WB::Field, M>,
+        input: &AluX0WitgenInput<WB::Nat>,
+    ) {
+        let one = wb.const_nat(1);
+        cols.is_real = wb.nat_to_field(one);
+        cols.opcode = wb.nat_to_field(input.opcode);
+        CPUState::<WB::Field>::witgen(wb, &mut cols.state, input.clk, input.pc);
+        ALUTypeReader::<WB::Field>::witgen(wb, &mut cols.adapter, &input.adapter);
+    }
 }
 
 impl<F, M: TrustMode> BaseAir<F> for AluX0Chip<M> {

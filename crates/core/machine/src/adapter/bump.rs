@@ -16,9 +16,9 @@ use sp1_core_executor::{
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::air::MachineAir;
 use struct_reflection::{StructReflection, StructReflectionHelper};
-pub(crate) const NUM_STATE_BUMP_COLS: usize = size_of::<StateBumpCols<u8>>();
+pub const NUM_STATE_BUMP_COLS: usize = size_of::<StateBumpCols<u8>>();
 
-#[derive(AlignedBorrow, Clone, Copy, StructReflection)]
+#[derive(AlignedBorrow, Default, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct StateBumpCols<T: Copy> {
     pub next_clk_32_48: T,
@@ -31,6 +31,101 @@ pub struct StateBumpCols<T: Copy> {
     pub pc: [T; 3],
     pub is_clk: T,
     pub is_real: T,
+}
+
+/// Witgen inputs for the `StateBump` chip: one `#[repr(C)]` row per event. The GPU
+/// packs each event into one `StateBumpWitgenInput<u64>` and the op-DAG recorder
+/// casts a wire slice to the same struct (see `record_witgen_inputs`), so field
+/// order IS the kernel input layout.
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct StateBumpWitgenInput<T> {
+    pub clk: T,
+    pub increment: T,
+    /// Whether the received pc is the un-carried `prev_pc + PC_INC` form (0/1).
+    pub bump2: T,
+    pub pc: T,
+}
+
+/// Number of witgen inputs per `StateBump` row.
+pub const NUM_STATE_BUMP_WITGEN_INPUTS: usize = size_of::<StateBumpWitgenInput<u8>>();
+
+// Witgen in an unconstrained `impl` (column type is the builder's `Field`).
+impl<T: Copy> StateBumpCols<T> {
+    /// Backend-agnostic witgen for the `StateBump` chip: next_clk = clk + increment
+    /// decomposed into 16/8/8/16 limbs, `clk_low = (clk & 0xFFFFFF) + increment`
+    /// (possibly non-canonical), the pc/next_pc u16 limbs (with the `bump2` carry
+    /// correction on the low limb), the 24-bit carry flag `is_clk`, and the
+    /// dependency range checks (mirrors `generate_dependencies`).
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut StateBumpCols<WB::Field>,
+        input: &StateBumpWitgenInput<WB::Nat>,
+    ) {
+        let StateBumpWitgenInput { clk, increment, bump2, pc } = *input;
+        let one = wb.const_nat(1);
+        let zero = wb.const_nat(0);
+
+        // clk_low = (clk & 0xFFFFFF) + increment (may exceed 24 bits — sent as-is).
+        let clk_0_24 = wb.bits(clk, 0, 24);
+        let clk_low = wb.wrapping_add(clk_0_24, increment);
+        cols.clk_low = wb.nat_to_field(clk_low);
+        let clk_high = wb.bits(clk, 24, 32);
+        cols.clk_high = wb.nat_to_field(clk_high);
+
+        // next_clk limbs (canonical form).
+        let next_clk = wb.wrapping_add(clk, increment);
+        let n0 = wb.bits(next_clk, 0, 16);
+        cols.next_clk_0_16 = wb.nat_to_field(n0);
+        let n16 = wb.bits(next_clk, 16, 8);
+        cols.next_clk_16_24 = wb.nat_to_field(n16);
+        let n24 = wb.bits(next_clk, 24, 8);
+        cols.next_clk_24_32 = wb.nat_to_field(n24);
+        let n32 = wb.bits(next_clk, 32, 16);
+        cols.next_clk_32_48 = wb.nat_to_field(n32);
+
+        // next_pc = the event pc in u16 limbs (canonical).
+        let pc0 = wb.bits(pc, 0, 16);
+        let pc1 = wb.bits(pc, 16, 16);
+        let pc2 = wb.bits(pc, 32, 16);
+        cols.next_pc[0] = wb.nat_to_field(pc0);
+        cols.next_pc[1] = wb.nat_to_field(pc1);
+        cols.next_pc[2] = wb.nat_to_field(pc2);
+
+        // pc: on `bump2` rows the received pc is the un-carried form
+        // `prev_pc + PC_INC` on the low limb (prev_pc = pc - PC_INC); otherwise the
+        // received pc equals next_pc.
+        let pc_inc = wb.const_nat(PC_INC as u64);
+        let prev_pc = wb.wrapping_sub(pc, pc_inc);
+        let pp0 = wb.bits(prev_pc, 0, 16);
+        let pp0_inc = wb.wrapping_add(pp0, pc_inc);
+        let pp1 = wb.bits(prev_pc, 16, 16);
+        let pp2 = wb.bits(prev_pc, 32, 16);
+        let s0 = wb.select(bump2, pp0_inc, pc0);
+        let s1 = wb.select(bump2, pp1, pc1);
+        let s2 = wb.select(bump2, pp2, pc2);
+        cols.pc[0] = wb.nat_to_field(s0);
+        cols.pc[1] = wb.nat_to_field(s1);
+        cols.pc[2] = wb.nat_to_field(s2);
+
+        // is_clk = (next_clk >> 24) != (clk >> 24) — the low-24-bit carry happened.
+        let next_hi = wb.bits(next_clk, 24, 40);
+        let cur_hi = wb.bits(clk, 24, 40);
+        let hi_eq = wb.eq(next_hi, cur_hi);
+        let is_clk = wb.eq(hi_eq, zero);
+        cols.is_clk = wb.nat_to_field(is_clk);
+        cols.is_real = wb.nat_to_field(one);
+
+        // Dependency lookups (generate_dependencies): clk canonicity + pc u16 limbs.
+        let nm1 = wb.wrapping_sub(n0, one);
+        let nm1_div8 = wb.bits(nm1, 3, 13);
+        wb.add_bit_range_check(nm1_div8, 13);
+        wb.add_bit_range_check(n32, 16);
+        wb.add_u8_range_check(n16, n24);
+        wb.add_u16_range_check(pc0);
+        wb.add_u16_range_check(pc1);
+        wb.add_u16_range_check(pc2);
+    }
 }
 
 pub struct StateBumpChip {}

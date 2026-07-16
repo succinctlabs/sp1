@@ -1,10 +1,7 @@
-use crate::air::SP1Operation;
+use crate::air::{HostWitnessBuilder, SP1Operation, WitnessBuilder};
 use serde::{Deserialize, Serialize};
 use slop_algebra::Field;
-use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord},
-    ByteOpcode, Opcode,
-};
+use sp1_core_executor::{events::ByteRecord, ByteOpcode, Opcode};
 use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationBuilder};
 use sp1_hypercube::air::SP1AirBuilder;
 use sp1_primitives::consts::WORD_BYTE_SIZE;
@@ -29,6 +26,29 @@ pub struct BitwiseOperation<T> {
     pub result: [T; WORD_BYTE_SIZE],
 }
 
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T> BitwiseOperation<T> {
+    /// Backend-agnostic witgen dual of [`Self::eval`]: the result bytes (`a`) plus a
+    /// byte-table lookup `{byte_opcode, a_byte, b_byte, c_byte}` per byte. `byte_opcode`
+    /// is a `ByteOpcode` discriminant (AND/OR/XOR), a per-row wire.
+    pub fn witgen<WB: WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut BitwiseOperation<WB::Field>,
+        a: WB::Nat,
+        b: WB::Nat,
+        c: WB::Nat,
+        byte_opcode: WB::Nat,
+    ) {
+        for i in 0..WORD_BYTE_SIZE {
+            let a_byte = wb.bits(a, (i as u32) * 8, 8);
+            cols.result[i] = wb.nat_to_field(a_byte);
+            let b_byte = wb.bits(b, (i as u32) * 8, 8);
+            let c_byte = wb.bits(c, (i as u32) * 8, 8);
+            wb.add_byte_lookup(byte_opcode, a_byte, b_byte, c_byte);
+        }
+    }
+}
+
 impl<F: Field> BitwiseOperation<F> {
     pub fn populate_bitwise(
         &mut self,
@@ -38,17 +58,8 @@ impl<F: Field> BitwiseOperation<F> {
         c_u64: u64,
         opcode: Opcode,
     ) {
-        let a = a_u64.to_le_bytes();
-        let b = b_u64.to_le_bytes();
-        let c = c_u64.to_le_bytes();
-
-        self.result = a.map(|x| F::from_canonical_u8(x));
-
-        for ((b_a, b_b), b_c) in a.into_iter().zip(b).zip(c) {
-            let byte_event =
-                ByteLookupEvent { opcode: ByteOpcode::from(opcode), a: b_a as u16, b: b_b, c: b_c };
-            record.add_byte_lookup_event(byte_event);
-        }
+        let mut wb = HostWitnessBuilder::<F, _>::new(record);
+        Self::witgen(&mut wb, self, a_u64, b_u64, c_u64, ByteOpcode::from(opcode) as u64);
     }
 
     /// Evaluate the bitwise operation over two u64s in byte form.

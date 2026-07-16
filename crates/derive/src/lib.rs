@@ -210,6 +210,13 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                 }
             });
 
+            let generate_global_dependencies_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as sp1_hypercube::air::MachineAir<F>>::generate_global_dependencies(x, input, output)
+                }
+            });
+
             let included_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
@@ -301,6 +308,16 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                     ) {
                         match self {
                             #(#generate_dependencies_arms,)*
+                        }
+                    }
+
+                    fn generate_global_dependencies(
+                        &self,
+                        input: &#execution_record_path,
+                        output: &mut #execution_record_path,
+                    ) {
+                        match self {
+                            #(#generate_global_dependencies_arms,)*
                         }
                     }
 

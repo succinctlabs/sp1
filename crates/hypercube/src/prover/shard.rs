@@ -80,6 +80,14 @@ pub trait AirProver<GC: IopCtx, SC: ShardContext<GC>>: 'static + Send + Sync + S
         self.machine().chips()
     }
 
+    /// Names of chips whose dependencies (byte lookups) are generated on the device,
+    /// and which the host `generate_dependencies` must therefore SKIP (the device
+    /// prover re-adds them during tracegen). Default: none — the CPU prover generates
+    /// all dependencies on the host.
+    fn host_dependency_skip_chips(&self) -> Vec<String> {
+        Vec::new()
+    }
+
     /// Setup from a program.
     ///
     /// The setup phase produces a pair '(pk, vk)' of proving and verifying keys. The proving key

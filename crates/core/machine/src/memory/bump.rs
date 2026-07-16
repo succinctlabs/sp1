@@ -5,7 +5,7 @@ use std::{
 
 use crate::{air::SP1CoreAirBuilder, utils::next_multiple_of_32};
 
-use super::MemoryAccessCols;
+use super::{MemoryAccessCols, MemoryAccessWitgenInput};
 use hashbrown::HashMap;
 use itertools::Itertools;
 use slop_air::{Air, BaseAir};
@@ -19,9 +19,9 @@ use sp1_derive::AlignedBorrow;
 use sp1_hypercube::air::MachineAir;
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
-pub(crate) const NUM_MEMORY_BUMP_COLS: usize = size_of::<MemoryBumpCols<u8>>();
+pub const NUM_MEMORY_BUMP_COLS: usize = size_of::<MemoryBumpCols<u8>>();
 
-#[derive(AlignedBorrow, Clone, Copy, StructReflection)]
+#[derive(AlignedBorrow, Default, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct MemoryBumpCols<T: Copy> {
     pub access: MemoryAccessCols<T>,
@@ -31,6 +31,74 @@ pub struct MemoryBumpCols<T: Copy> {
     pub clk_0_16: T,
     pub addr: T,
     pub is_real: T,
+}
+
+/// Witgen inputs for the `MemoryBump` chip: one `#[repr(C)]` row per event. The GPU
+/// packs each event into one `MemoryBumpWitgenInput<u64>` and the op-DAG recorder
+/// casts a wire slice to the same struct (see `record_witgen_inputs`), so field
+/// order IS the kernel input layout.
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct MemoryBumpWitgenInput<T> {
+    /// The bumped access record; `cur_ts` is the RAW timestamp (the witgen truncates
+    /// it to its top 40 bits on non-refresh rows).
+    pub access: MemoryAccessWitgenInput<T>,
+    pub is_refresh: T,
+    pub addr: T,
+}
+
+/// Number of witgen inputs per `MemoryBump` row.
+pub const NUM_MEMORY_BUMP_WITGEN_INPUTS: usize = size_of::<MemoryBumpWitgenInput<u8>>();
+
+// Witgen in an unconstrained `impl` (column type is the builder's `Field`).
+impl<T: Copy> MemoryBumpCols<T> {
+    /// Backend-agnostic witgen for the `MemoryBump` chip: the bump timestamp is the
+    /// raw access timestamp on refresh rows, else its top-40-bit truncation
+    /// (`(ts >> 24) << 24`); the row is a synthetic memory READ at that timestamp
+    /// (composing [`MemoryAccessCols::witgen`]), plus the timestamp limb splits, the
+    /// register address, and the dependency lookups (u16/u8 limb checks + the
+    /// `addr < 32` LTU byte lookup) — mirrors `generate_dependencies` exactly.
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut MemoryBumpCols<WB::Field>,
+        input: &MemoryBumpWitgenInput<WB::Nat>,
+    ) {
+        let MemoryBumpWitgenInput { access, is_refresh, addr } = *input;
+        let MemoryAccessWitgenInput { prev_value, prev_ts: prev_timestamp, cur_ts: raw_timestamp } =
+            access;
+        let c24 = wb.const_nat(24);
+        let ts_hi = wb.shr(raw_timestamp, c24);
+        let ts_masked = wb.shl(ts_hi, c24);
+        let timestamp = wb.select(is_refresh, raw_timestamp, ts_masked);
+
+        MemoryAccessCols::<WB::Field>::witgen(
+            wb,
+            &mut cols.access,
+            prev_value,
+            prev_timestamp,
+            timestamp,
+        );
+
+        let t0 = wb.bits(timestamp, 0, 16);
+        cols.clk_0_16 = wb.nat_to_field(t0);
+        let t16 = wb.bits(timestamp, 16, 8);
+        cols.clk_16_24 = wb.nat_to_field(t16);
+        let t24 = wb.bits(timestamp, 24, 8);
+        cols.clk_24_32 = wb.nat_to_field(t24);
+        let t32 = wb.bits(timestamp, 32, 16);
+        cols.clk_32_48 = wb.nat_to_field(t32);
+        cols.addr = wb.nat_to_field(addr);
+        let one = wb.const_nat(1);
+        cols.is_real = wb.nat_to_field(one);
+
+        // Dependency lookups (generate_dependencies).
+        wb.add_u16_range_check(t0);
+        wb.add_u16_range_check(t32);
+        wb.add_u8_range_check(t16, t24);
+        let ltu = wb.const_nat(ByteOpcode::LTU as u64);
+        let c32 = wb.const_nat(32);
+        wb.add_byte_lookup(ltu, one, addr, c32);
+    }
 }
 
 pub struct MemoryBumpChip {}

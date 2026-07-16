@@ -10,12 +10,12 @@ use std::{
 
 use crate::{
     adapter::{
-        register::i_type::{ITypeReader, ITypeReaderInput},
+        register::i_type::{ITypeReader, ITypeReaderInput, ITypeReaderWitgenInput},
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
     eval_untrusted_program,
-    memory::MemoryAccessCols,
+    memory::{MemoryAccessCols, MemoryAccessWitgenInput},
     operations::{AddressOperation, AddressOperationInput},
     utils::next_multiple_of_32,
     SupervisorMode, TrustMode, UserMode,
@@ -62,6 +62,50 @@ pub struct LoadDoubleColumns<T, M: TrustMode> {
 
     /// Adapter columns for trust mode specific data.
     pub adapter_cols: M::AdapterCols<T>,
+}
+
+/// Witgen inputs for the `LoadDouble` chip: one `#[repr(C)]` row per event (see
+/// `record_witgen_inputs` — field order IS the packed input layout). Beyond the
+/// state + adapter, the address operands (`b_val`, `c_val`) and the memory access
+/// are per-chip inputs.
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct LoadDoubleWitgenInput<T> {
+    pub clk: T,
+    pub pc: T,
+    pub adapter: ITypeReaderWitgenInput<T>,
+    pub b_val: T,
+    pub c_val: T,
+    pub mem: MemoryAccessWitgenInput<T>,
+}
+
+/// Number of witgen inputs per `LoadDouble` row.
+pub const NUM_LOAD_DOUBLE_WITGEN_INPUTS: usize = size_of::<LoadDoubleWitgenInput<u8>>();
+
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T, M: TrustMode> LoadDoubleColumns<T, M> {
+    /// Backend-agnostic witgen for the `LoadDouble` chip (full 64-bit load): the
+    /// `MemoryAccessCols` (the read), the `AddressOperation` (`addr = b + c`), the
+    /// `CPUState`, and the immediate-only `ITypeReader` adapter.
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut LoadDoubleColumns<WB::Field, M>,
+        input: &LoadDoubleWitgenInput<WB::Nat>,
+    ) {
+        let LoadDoubleWitgenInput { clk, pc, adapter, b_val, c_val, mem } = *input;
+        let one = wb.const_nat(1);
+        cols.is_real = wb.nat_to_field(one);
+        MemoryAccessCols::<WB::Field>::witgen(
+            wb,
+            &mut cols.memory_access,
+            mem.prev_value,
+            mem.prev_ts,
+            mem.cur_ts,
+        );
+        AddressOperation::<WB::Field>::witgen(wb, &mut cols.address_operation, b_val, c_val);
+        CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
+        ITypeReader::<WB::Field>::witgen(wb, &mut cols.adapter, &adapter);
+    }
 }
 
 impl<F, M: TrustMode> BaseAir<F> for LoadDoubleChip<M> {

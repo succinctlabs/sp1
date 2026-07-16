@@ -1,0 +1,251 @@
+//! Device main-trace + dependency generation for the trusted `Addi` chip (ADDI).
+//! Uses the immediate-only `ITypeReader` adapter (two register reads + an immediate
+//! op_c) and the ported `AddOperation` — a clean port with no per-row branches.
+
+use core::borrow::BorrowMut;
+
+use rayon::prelude::*;
+use slop_alloc::mem::CopyError;
+use slop_alloc::Buffer;
+use slop_tensor::Tensor;
+use sp1_core_executor::{events::AluEvent, ITypeRecord};
+use sp1_core_machine::{
+    adapter::register::i_type::ITypeReaderWitgenInput,
+    air::{columns_as_wires, record_witgen_inputs, WireId},
+    alu::add_sub::addi::{
+        AddiChip, AddiCols, AddiWitgenInput, NUM_ADDI_COLS_SUPERVISOR, NUM_ADDI_WITGEN_INPUTS,
+    },
+    SupervisorMode,
+};
+use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, TaskScope, WitgenInterpKernel};
+use sp1_hypercube::air::MachineAir;
+
+use crate::{CudaTracegenAir, F};
+
+/// Pack each event into one [`AddiWitgenInput`] row. Only two register reads
+/// (op_a, op_b); op_c is an immediate.
+pub(crate) fn pack_addi_inputs(events: &[(AluEvent, ITypeRecord)]) -> Vec<u64> {
+    let mut inputs: Vec<u64> = vec![0u64; events.len() * NUM_ADDI_WITGEN_INPUTS];
+    inputs.par_chunks_mut(NUM_ADDI_WITGEN_INPUTS).zip(events.par_iter()).for_each(
+        |(chunk, (alu, r))| {
+            let slot: &mut AddiWitgenInput<u64> = chunk.borrow_mut();
+            slot.clk = alu.clk;
+            slot.pc = alu.pc;
+            slot.b = alu.b;
+            slot.c = alu.c;
+            slot.adapter = ITypeReaderWitgenInput::from_record(r);
+        },
+    );
+    inputs
+}
+
+fn record_addi_program() -> (sp1_core_machine::air::WitProgram, Vec<u32>) {
+    let (mut rec, input) = record_witgen_inputs::<AddiWitgenInput<WireId>>();
+    let mut cols_w = AddiCols::<WireId, SupervisorMode>::default();
+    AddiCols::<WireId, SupervisorMode>::witgen(&mut rec, &mut cols_w, &input);
+    let program = rec.finish();
+    assert!(
+        program.num_wires() <= super::WITGEN_MAX_WIRES,
+        "Addi gadget needs {} wires > kernel capacity {}",
+        program.num_wires(),
+        super::WITGEN_MAX_WIRES
+    );
+    let col_wires: Vec<u32> = columns_as_wires(&cols_w).iter().map(|w| w.0).collect();
+    (program, col_wires)
+}
+
+/// The chip's cached [`WitgenChip`] descriptor: recorded + lowered ONCE per
+/// process (the program is shard-independent), not per shard.
+pub(crate) fn addi_witgen_chip() -> &'static super::WitgenChip {
+    static CHIP: std::sync::OnceLock<super::WitgenChip> = std::sync::OnceLock::new();
+    CHIP.get_or_init(|| {
+        let (program, col_wires) = record_addi_program();
+        super::WitgenChip::new(program, col_wires)
+    })
+}
+
+impl CudaTracegenAir<F> for AddiChip<SupervisorMode> {
+    fn supports_device_main_tracegen(&self) -> bool {
+        true
+    }
+
+    async fn generate_trace_device(
+        &self,
+        input: &Self::Record,
+        _output: &mut Self::Record,
+        scope: &TaskScope,
+    ) -> Result<DeviceMle<F>, CopyError> {
+        // The chip's cached descriptor: recorded + lowered once per process.
+        let chip = addi_witgen_chip();
+        let ops_c = chip.ssa();
+        let n_cols = chip.n_cols();
+        debug_assert_eq!(n_cols, NUM_ADDI_COLS_SUPERVISOR);
+
+        let height = <Self as MachineAir<F>>::num_rows(self, input)
+            .expect("num_rows(...) should be Some(_)");
+        let events = &input.addi_events;
+        let n_events = if height == 0 { 0 } else { events.len() };
+
+        let inputs = pack_addi_inputs(&events[..n_events]);
+
+        let mut ops_dev = Buffer::try_with_capacity_in(ops_c.len(), scope.clone()).unwrap();
+        ops_dev.extend_from_host_slice(ops_c)?;
+        let mut col_dev =
+            Buffer::try_with_capacity_in(chip.col_wires.len(), scope.clone()).unwrap();
+        col_dev.extend_from_host_slice(&chip.col_wires)?;
+        let mut in_dev = Buffer::try_with_capacity_in(inputs.len().max(1), scope.clone()).unwrap();
+        in_dev.extend_from_host_slice(&inputs)?;
+
+        let mut trace = Tensor::<F, TaskScope>::zeros_in([n_cols, height], scope.clone());
+
+        if n_events > 0 {
+            unsafe {
+                const BLOCK: usize = 64;
+                let grid = n_events.div_ceil(BLOCK);
+                let args = args!(
+                    trace.as_mut_ptr(),
+                    height,
+                    ops_dev.as_ptr(),
+                    ops_c.len(),
+                    col_dev.as_ptr(),
+                    n_cols,
+                    chip.program.num_inputs,
+                    in_dev.as_ptr(),
+                    n_events
+                );
+                scope
+                    .launch_kernel(TaskScope::witgen_interp_kernel(), grid, BLOCK, &args, 0)
+                    .unwrap();
+            }
+        }
+
+        Ok(DeviceMle::from(trace))
+    }
+
+    async fn generate_trace_device_with_lookups(
+        &self,
+        input: &Self::Record,
+        inputs: &[u64],
+        hist: crate::LookupHist,
+        scope: &TaskScope,
+    ) -> Result<DeviceMle<F>, CopyError> {
+        // Fused: one op-DAG pass writes the columns AND accumulates this chip's
+        // byte/range lookups into the shared shard histograms — replaces the separate
+        // `generate_trace_device` + dependency pass for this chip.
+        let chip = addi_witgen_chip();
+        debug_assert_eq!(chip.n_cols(), NUM_ADDI_COLS_SUPERVISOR);
+        let height = <Self as MachineAir<F>>::num_rows(self, input)
+            .expect("num_rows(...) should be Some(_)");
+        let n_events =
+            if height == 0 { 0 } else { inputs.len() / chip.program.num_inputs as usize };
+        super::generate_trace_and_lookups(
+            chip,
+            super::WitgenBatch { inputs, n_events, height },
+            hist,
+            scope,
+        )
+        .await
+    }
+
+    fn supports_device_dependencies(&self) -> bool {
+        true
+    }
+
+    async fn generate_device_dependencies(
+        &self,
+        input: &Self::Record,
+        range_dev: &mut DeviceBuffer<u32>,
+        byte_dev: &mut DeviceBuffer<u32>,
+        scope: &TaskScope,
+    ) -> Result<(), CopyError> {
+        let height = <Self as MachineAir<F>>::num_rows(self, input)
+            .expect("num_rows(...) should be Some(_)");
+        let events = &input.addi_events;
+        let n_events = if height == 0 { 0 } else { events.len() };
+        if n_events == 0 {
+            return Ok(());
+        }
+
+        let inputs = pack_addi_inputs(&events[..n_events]);
+        super::accumulate_lookups(addi_witgen_chip(), &inputs, n_events, range_dev, byte_dev, scope)
+            .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rand::{rngs::StdRng, Rng, SeedableRng};
+    use slop_tensor::Tensor;
+    use sp1_core_executor::events::{AluEvent, MemoryReadRecord, MemoryRecordEnum};
+    use sp1_core_executor::{ExecutionRecord, ITypeRecord, Opcode};
+    use sp1_core_machine::alu::add_sub::addi::AddiChip;
+    use sp1_core_machine::SupervisorMode;
+    use sp1_gpu_cudart::TaskScope;
+    use sp1_hypercube::air::MachineAir;
+
+    use crate::{CudaTracegenAir, F};
+
+    fn read(rng: &mut StdRng) -> MemoryRecordEnum {
+        let prev_timestamp = rng.gen::<u32>() as u64;
+        let timestamp = prev_timestamp + 1 + (rng.gen::<u32>() as u64);
+        MemoryRecordEnum::Read(MemoryReadRecord {
+            value: rng.gen::<u32>() as u64,
+            timestamp,
+            prev_timestamp,
+            prev_page_prot_record: None,
+        })
+    }
+
+    #[tokio::test]
+    async fn test_addi_generate_trace_device() {
+        sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
+            let mut rng = StdRng::seed_from_u64(0xADD1);
+            let addi_events = (0..1000)
+                .map(|i| {
+                    let b = rng.gen::<u64>();
+                    let c = rng.gen::<u64>();
+                    let a = b.wrapping_add(c);
+                    let alu = AluEvent::new(
+                        (i as u64) * 8 + 8,
+                        (i as u64) * 4 + 4,
+                        Opcode::ADD,
+                        a,
+                        b,
+                        c,
+                        false,
+                    );
+                    let record = ITypeRecord {
+                        op_a: rng.gen_range(1..32),
+                        a: read(&mut rng),
+                        op_b: rng.gen_range(1..32),
+                        b: read(&mut rng),
+                        op_c: c,
+                        is_untrusted: false,
+                    };
+                    (alu, record)
+                })
+                .collect::<Vec<_>>();
+
+            let [shard, gpu_shard] = core::array::from_fn(|_| ExecutionRecord {
+                addi_events: addi_events.clone(),
+                ..Default::default()
+            });
+
+            let chip = AddiChip::<SupervisorMode>::default();
+
+            let trace =
+                Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
+            let gpu_trace = chip
+                .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
+                .await
+                .expect("device tracegen should succeed")
+                .to_host()
+                .expect("copy trace to host")
+                .into_guts();
+
+            crate::tests::test_traces_eq(&trace, &gpu_trace, &addi_events);
+        })
+        .await
+        .unwrap();
+    }
+}

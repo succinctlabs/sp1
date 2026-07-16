@@ -1,5 +1,8 @@
 mod recursion;
 mod riscv;
+pub use riscv::LookupHist;
+#[cfg(test)]
+mod witgen_interp;
 
 use core::future::{ready, Future};
 use core::pin::pin;
@@ -12,8 +15,9 @@ use rayon::prelude::*;
 use slop_air::BaseAir;
 use slop_algebra::Field;
 use slop_alloc::mem::CopyError;
+use slop_alloc::Buffer;
 use slop_multilinear::{Mle, PaddedMle};
-use sp1_gpu_cudart::{DeviceMle, DeviceTransposeKernel, TaskScope};
+use sp1_gpu_cudart::{DeviceBuffer, DeviceMle, DeviceTransposeKernel, TaskScope};
 use sp1_hypercube::prover::{MainTraceData, PreprocessedTraceData, ProverSemaphore, TraceData};
 use sp1_hypercube::{
     air::MachineAir,
@@ -374,14 +378,12 @@ pub trait CudaTracegenAir<F: Field>: MachineAir<F> {
     ///
     /// # Panics
     /// Panics if unsupported. See [`CudaTracegenAir::supports_device_preprocessed_tracegen`].
-    #[allow(unused_variables)]
     fn generate_preprocessed_trace_device(
         &self,
-        program: &Self::Program,
-        scope: &TaskScope,
+        _program: &Self::Program,
+        _scope: &TaskScope,
     ) -> impl Future<Output = Result<Option<DeviceMle<F>>, CopyError>> + Send {
-        #[allow(unreachable_code)]
-        ready(unimplemented!())
+        async { unimplemented!("device preprocessed tracegen is not supported for this chip") }
     }
 
     /// Whether this AIR supports main trace generation on the device.
@@ -393,16 +395,135 @@ pub trait CudaTracegenAir<F: Field>: MachineAir<F> {
     ///
     /// # Panics
     /// Panics if unsupported. See [`CudaTracegenAir::supports_device_main_tracegen`].
-    #[allow(unused_variables)]
     fn generate_trace_device(
         &self,
-        input: &Self::Record,
-        output: &mut Self::Record,
-        scope: &TaskScope,
+        _input: &Self::Record,
+        _output: &mut Self::Record,
+        _scope: &TaskScope,
     ) -> impl Future<Output = Result<DeviceMle<F>, CopyError>> + Send {
-        #[allow(unreachable_code)]
-        ready(unimplemented!())
+        async { unimplemented!("device main tracegen is not supported for this chip") }
     }
+
+    /// Whether this AIR generates its dependencies (byte lookups) on the device. When
+    /// true, the host `generate_dependencies` SKIPS this chip (see
+    /// `AirProver::host_dependency_skip_chips`) and the prover instead produces the
+    /// chip's byte lookups on-device, FUSED into the main-trace kernel
+    /// ([`CudaTracegenAir::generate_trace_device_with_lookups`], accumulating into the
+    /// SHARED shard histograms); the deferred Byte/Range table traces are then built
+    /// directly from those histograms (see `jagged_tracegen::device_main_tracegen`).
+    ///
+    /// Chips whose `generate_dependencies` ALSO emits `GlobalInteractionEvent`s
+    /// (MemoryLocal/Syscall*/MemoryGlobal*) may still return true — the device
+    /// histogram carries only their byte lookups, and the prover keeps the globals
+    /// on host by running `MachineAir::generate_global_dependencies` for every
+    /// chip its host dependency pass skips (see `Machine::generate_dependencies`).
+    fn supports_device_dependencies(&self) -> bool {
+        false
+    }
+
+    /// Accumulate this chip's byte-lookup dependencies into the SHARED shard-level
+    /// histograms `range_dev`/`byte_dev` (allocated once by the prover via
+    /// [`new_byte_histograms`], shared across all device-dependency chips). The dense
+    /// histograms are opcode-indexed, so accumulating every chip into one pair and
+    /// reconstructing once equals the union of the per-chip maps — but with a single
+    /// alloc/zero, a single D2H readback, and a single host reconstruct per shard
+    /// instead of one set per chip (heed iter-004). Default: no-op.
+    ///
+    /// STATUS: NOT called by the prover — the fused
+    /// [`generate_trace_device_with_lookups`](Self::generate_trace_device_with_lookups)
+    /// produces columns + lookups in one pass (iter-050) and replaced the separate
+    /// dependency pre-pass. Retained (with the per-chip impls and the standalone
+    /// lookup kernels) as the validation path: the fused-kernel unit tests use it as
+    /// the reference histogram, and it isolates lookup bugs from column bugs.
+    fn generate_device_dependencies(
+        &self,
+        _input: &Self::Record,
+        _range_dev: &mut DeviceBuffer<u32>,
+        _byte_dev: &mut DeviceBuffer<u32>,
+        _scope: &TaskScope,
+    ) -> impl Future<Output = Result<(), CopyError>> + Send {
+        ready(Ok(()))
+    }
+
+    /// Pack this chip's events into the flat per-row `u64` input array consumed by the
+    /// device witgen kernel — the **CPU half** of device tracegen. Split out so the
+    /// caller can run it BEFORE acquiring the GPU permit (in the permit-free host phase),
+    /// so the packing overlaps the previous shard's proving instead of stalling the GPU
+    /// while it holds the permit. `generate_trace_device_with_lookups` then consumes this
+    /// pre-packed buffer and only does the (cheap) upload + kernel launch. Default: empty.
+    fn pack_device_lookup_inputs(&self, _input: &Self::Record) -> Vec<u64> {
+        Vec::new()
+    }
+
+    /// Bytes of packed kernel input PER TRACE ROW for this chip's fused path
+    /// (`8 * num_inputs` — the row stride of [`pack_device_lookup_inputs`]).
+    /// The prover uses this to size the pinned-buffer STAGING region the packed
+    /// inputs are uploaded through (host-memory workstream H5/H1: the same
+    /// worker buffer that holds host-resident traces stages the device chips'
+    /// uploads, so the pool is sized once from one predicate). Default: 0 (no
+    /// fused path / packs nothing).
+    fn device_pack_row_bytes(&self) -> usize {
+        0
+    }
+
+    /// FUSED main tracegen: generate this chip's trace columns AND accumulate its
+    /// byte/range lookups into the shared shard histograms `hist` in a single op-DAG
+    /// pass (the device counterpart of running `generate_trace_device` +
+    /// `generate_device_dependencies` separately, but with the witgen evaluated once).
+    /// Called for chips with [`supports_device_dependencies`] during the device trace
+    /// phase, so the separate dependency pre-pass is unnecessary. `inputs` is the
+    /// pre-packed buffer from [`pack_device_lookup_inputs`] (packed pre-permit).
+    /// Default: unsupported.
+    fn generate_trace_device_with_lookups(
+        &self,
+        _input: &Self::Record,
+        _inputs: &[u64],
+        _hist: LookupHist,
+        _scope: &TaskScope,
+    ) -> impl Future<Output = Result<DeviceMle<F>, CopyError>> + Send {
+        async { unimplemented!("fused device tracegen is not supported for this chip") }
+    }
+
+    /// Split the HOST chips' `byte_lookups` (the lookups NOT produced on the device, plus
+    /// the Byte/Range chips' own self-dependencies) into row-major histogram-index +
+    /// multiplicity arrays — `(range_idx, range_mult, byte_idx, byte_mult)` — so they can
+    /// be scattered into the shared device histograms (which already hold the device
+    /// chips' lookups) BEFORE building the Byte/Range table traces on-device. The indices
+    /// match the consumer chips' own `generate_trace_into` exactly (Range:
+    /// `a + (1<<bits)`; Byte: `((b<<8)+c)*NUM_BYTE_MULT_COLS + opcode`). Host-map keys are
+    /// unique, so each index is distinct (the scatter kernel needs no atomics). Default:
+    /// empty (no host lookups to fold in).
+    fn host_lookup_scatter(
+        &self,
+        _record: &Self::Record,
+    ) -> (Vec<u32>, Vec<u32>, Vec<u32>, Vec<u32>) {
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new())
+    }
+}
+
+/// Allocate the two shard-level byte-lookup histograms (`range`, `byte`), zeroed, on
+/// the device. Shared across every device-dependency chip in a shard: each accumulates
+/// via the byte-lookup kernel, then the host reconstructs the `byte_lookups` map ONCE
+/// (heed iter-004 — one dense histogram pair per shard, not one per chip per shard).
+pub fn new_byte_histograms(scope: &TaskScope) -> (DeviceBuffer<u32>, DeviceBuffer<u32>) {
+    use slop_alloc::mem::DeviceMemory;
+    use sp1_core_machine::air::{BYTE_HIST_ROWS, RANGE_HIST_ROWS};
+    use sp1_core_machine::bytes::columns::NUM_BYTE_MULT_COLS;
+    // H3 (host-memory-workstream Phase 1): zero on device with a stream-ordered
+    // memset instead of uploading a ~2 MB host zero-vec per shard.
+    let zeroed = |len: usize| {
+        let mut buf: Buffer<u32, TaskScope> =
+            Buffer::try_with_capacity_in(len, scope.clone()).unwrap();
+        // SAFETY: `write_bytes` initializes all `len * 4` bytes before any reader —
+        // it is enqueued on this scope's stream, ahead of every kernel that uses
+        // the histogram.
+        unsafe {
+            buf.set_len(len);
+            scope.write_bytes(buf.as_mut_ptr() as *mut u8, 0u8, len * size_of::<u32>()).unwrap();
+        }
+        DeviceBuffer::from_raw(buf)
+    };
+    (zeroed(RANGE_HIST_ROWS), zeroed(BYTE_HIST_ROWS * NUM_BYTE_MULT_COLS))
 }
 
 #[cfg(test)]

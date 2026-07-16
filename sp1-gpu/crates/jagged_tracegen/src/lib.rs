@@ -15,7 +15,8 @@ use tracing::{instrument, Instrument};
 
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
+use rayon::slice::ParallelSlice;
 use slop_air::BaseAir;
 use slop_alloc::{Backend, Buffer, HasBackend, Slice};
 use slop_challenger::IopCtx;
@@ -25,8 +26,10 @@ use sp1_gpu_cudart::sys::kernels::{
     count_and_add_kernel, fill_buffer, generate_col_index, generate_start_indices,
     sum_to_trace_kernel,
 };
-use sp1_gpu_cudart::{args, DeviceBuffer, DeviceTensor, PinnedBuffer, TaskScope};
-use sp1_gpu_tracegen::CudaTracegenAir;
+use sp1_gpu_cudart::{
+    args, DeviceBuffer, DeviceTensor, PinnedBuffer, TaskScope, WitgenInterpKernel,
+};
+use sp1_gpu_tracegen::{new_byte_histograms, CudaTracegenAir, LookupHist};
 use sp1_hypercube::prover::{ProverPermit, ProverSemaphore};
 
 use sp1_core_executor::ELEMENT_THRESHOLD;
@@ -41,6 +44,9 @@ pub mod test_utils;
 // ------------- The following logic is mostly copied from crates/tracegen/src/lib.rs -------------
 // TODO: is this a reasonable upper bound on number of columns per trace? ~16k
 pub const MAX_COLS_PER_TRACE: usize = 1 << 14;
+
+/// `u64` packed-input rows staged inside a `Felt` pinned buffer: elements per row word.
+const FELTS_PER_U64: usize = core::mem::size_of::<u64>() / core::mem::size_of::<Felt>();
 pub const CORE_MAX_TRACE_SIZE: u32 = (ELEMENT_THRESHOLD + (ELEMENT_THRESHOLD >> 1)) as u32;
 
 /// The output of the host phase of the tracegen.
@@ -49,6 +55,54 @@ pub struct HostPhaseTracegen<A> {
     pub device_airs: Vec<Arc<A>>,
     /// The real traces generated in the host phase.
     pub host_traces: futures::channel::mpsc::UnboundedReceiver<(String, usize, usize, usize)>,
+    /// Byte/Range lookup-table chips deferred out of the concurrent host set: their
+    /// traces depend on the full `byte_lookups` map, which (when device chips generate
+    /// dependencies on the GPU fused into the main-trace kernel) is not complete until
+    /// device tracegen finishes. Empty unless device-dependency chips are present.
+    pub byte_range_airs: Vec<Arc<A>>,
+    /// Pre-packed device-kernel inputs (chip name -> flat `u64` rows), packed in
+    /// the permit-FREE host phase so the CPU pack overlaps the previous shard's proving
+    /// instead of stalling the GPU under the permit. Keyed by chip name; consumed by
+    /// `device_main_tracegen`. Empty for chips without device dependencies.
+    pub device_packed: BTreeMap<String, PackedInputs>,
+}
+
+/// One chip's pre-packed fused-kernel inputs (flat `u64` rows).
+///
+/// `Pinned` is the production path: the rows were staged into the tail of the shard's
+/// pinned trace buffer (past the host-trace prefix) in the permit-free host phase, so the
+/// fused kernel's H2D upload runs async from page-locked memory instead of the driver
+/// staging a pageable `Vec`. `Pageable` is the fallback when the staging region does not
+/// fit in the buffer, and the empty default for chips without device dependencies.
+pub enum PackedInputs {
+    /// Staged in the shard's pinned trace buffer: `len` `u64` rows at the 8-byte-aligned
+    /// address `ptr`.
+    Pinned { ptr: usize, len: usize },
+    /// Ordinary pageable host memory.
+    Pageable(Vec<u64>),
+}
+
+impl PackedInputs {
+    /// View the packed rows. For [`PackedInputs::Pinned`] this reads the staging region
+    /// of the shard's pinned buffer; that stays valid for `self`'s lifetime because the
+    /// `Worker<PinnedBuffer<Felt>>` it points into outlives the tracegen futures holding
+    /// `self` — the same argument as `host_traces`' `start_pointer`.
+    pub fn as_slice(&self) -> &[u64] {
+        match self {
+            // SAFETY: `ptr` is 8-byte aligned — the buffer base comes from
+            // `cudaMallocHost` (page-aligned) and `stage_packed_inputs` quantizes every
+            // region offset to u64 boundaries. All `len` u64s were initialized by the
+            // staging copy (complete before `stage_packed_inputs` returned) and nothing
+            // writes the region afterwards. The allocation outlives this borrow by the
+            // Worker-outlives-futures convention: the `Worker<PinnedBuffer<Felt>>` is
+            // held at the prover.rs call sites until after the tracegen futures holding
+            // `self` are awaited (same argument as `host_traces`' `start_pointer`).
+            PackedInputs::Pinned { ptr, len } => unsafe {
+                std::slice::from_raw_parts(*ptr as *const u64, *len)
+            },
+            PackedInputs::Pageable(inputs) => inputs,
+        }
+    }
 }
 
 /// Information about the traces generated in the host phase.
@@ -368,6 +422,7 @@ async fn generate_jagged_traces(
 async fn host_preprocessed_tracegen<A: CudaTracegenAir<Felt>>(
     machine: &Machine<Felt, A>,
     buffer_ptr: usize,
+    buffer_capacity: usize,
     program: Arc<<A as MachineAir<Felt>>::Program>,
 ) -> (HostPhaseTracegen<A>, usize) {
     // Clone chips so we can move them into spawn_blocking.
@@ -389,6 +444,17 @@ async fn host_preprocessed_tracegen<A: CudaTracegenAir<Felt>>(
                 total_size += height * width;
             }
         }
+        // Same backstop as `host_main_tracegen`: the buffer is sized to cover every
+        // host-generated preprocessed trace (`required_trace_buffer_elems`), so this
+        // can only fire on a sizing/partition disagreement — fail with context rather
+        // than writing past the pinned allocation below.
+        assert!(
+            total_size <= buffer_capacity,
+            "preprocessed traces ({total_size} elements) exceed the pinned trace \
+             buffer ({buffer_capacity} elements): the device-aware buffer sizing \
+             disagrees with the preprocessed tracegen partition (host chips: {:?})",
+            host_airs.iter().map(|air| air.name()).collect::<Vec<_>>(),
+        );
 
         // Spawn a rayon task to generate the traces on the CPU.
         // `traces` is a futures Stream that will immediately begin buffering traces.
@@ -425,7 +491,15 @@ async fn host_preprocessed_tracegen<A: CudaTracegenAir<Felt>>(
     .await
     .unwrap();
 
-    (HostPhaseTracegen { device_airs, host_traces }, total_size)
+    (
+        HostPhaseTracegen {
+            device_airs,
+            host_traces,
+            byte_range_airs: Vec::new(),
+            device_packed: BTreeMap::new(),
+        },
+        total_size,
+    )
 }
 
 #[instrument(skip_all, level = "debug")]
@@ -434,7 +508,8 @@ async fn device_preprocessed_tracegen<A: CudaTracegenAir<Felt>>(
     host_phase_tracegen: HostPhaseTracegen<A>,
     backend: &TaskScope,
 ) -> BTreeMap<String, Trace<TaskScope>> {
-    let HostPhaseTracegen { device_airs, host_traces } = host_phase_tracegen;
+    let HostPhaseTracegen { device_airs, host_traces, byte_range_airs: _, device_packed: _ } =
+        host_phase_tracegen;
 
     // Stream that, when polled, copies the host traces to the device.
     let copied_host_traces =
@@ -661,6 +736,7 @@ pub async fn setup_tracegen<A: CudaTracegenAir<Felt>>(
     machine: &Machine<Felt, A>,
     program: Arc<<A as MachineAir<Felt>>::Program>,
     buffer_ptr: usize,
+    buffer_capacity: usize,
     max_trace_size: usize,
     log_stacking_height: u32,
     max_log_row_count: u32,
@@ -669,7 +745,8 @@ pub async fn setup_tracegen<A: CudaTracegenAir<Felt>>(
 ) -> (JaggedTraceMle<Felt, TaskScope>, ProverPermit) {
     // Generate traces on host.
     let (host_phase_tracegen, _) =
-        host_preprocessed_tracegen(machine, buffer_ptr, Arc::clone(&program)).await;
+        host_preprocessed_tracegen(machine, buffer_ptr, buffer_capacity, Arc::clone(&program))
+            .await;
 
     let permit = prover_permit.acquire().await.unwrap();
     // - Copying host traces to the device.
@@ -704,6 +781,7 @@ pub async fn setup_tracegen_permit<A: CudaTracegenAir<Felt>>(
         machine,
         program,
         buffer.as_ptr() as usize,
+        buffer.capacity(),
         max_trace_size,
         log_stacking_height,
         max_log_row_count,
@@ -719,6 +797,7 @@ pub async fn setup_tracegen_permit<A: CudaTracegenAir<Felt>>(
 async fn host_main_tracegen<A>(
     machine: &Machine<Felt, A>,
     buffer_ptr: usize,
+    buffer_capacity: usize,
     start_idx: usize,
     record: Arc<<A as MachineAir<Felt>>::Record>,
 ) -> (HostPhaseTracegen<A>, HostPhaseShapeInfo<A>)
@@ -732,7 +811,7 @@ where
 
     // Move ALL CPU-intensive work into spawn_blocking to avoid blocking the async runtime.
     // This includes: chip filtering, num_rows() calls, and trace generation.
-    let (device_airs, host_traces, chip_set, shard_chips) =
+    let (device_airs, host_traces, byte_range_airs, chip_set, shard_chips, device_packed) =
         tokio::task::spawn_blocking(move || {
             // Set of chips we need to generate traces for.
             let chip_set: BTreeSet<_> = chips
@@ -747,12 +826,91 @@ where
                 .map(|chip| chip.air.clone())
                 .partition(|c| c.supports_device_main_tracegen());
 
+            // When device chips generate their byte-lookup dependencies on the GPU
+            // (fused into the main-trace kernel), the full `byte_lookups` map isn't
+            // complete until device tracegen finishes — so defer the Byte/Range
+            // lookup-table chips out of the concurrent host set; `device_main_tracegen`
+            // generates them afterward from the reconstructed map. With no
+            // device-dependency chips (e.g. recursion/wrap), nothing is deferred.
+            let defer_byte_range =
+                device_airs.iter().any(|c| c.supports_device_dependencies());
+            let (byte_range_airs, host_airs): (Vec<_>, Vec<_>) = if defer_byte_range {
+                host_airs.into_iter().partition(|c| c.name() == "Byte" || c.name() == "Range")
+            } else {
+                (Vec::new(), host_airs)
+            };
+
+            // Pre-pack the device-dependency chips' kernel inputs HERE, in the permit-free
+            // host phase, in parallel with the host column-gen below. Moving the (CPU) pack
+            // off the GPU-permit-held `device_main_tracegen` lets it overlap the previous
+            // shard's proving instead of stalling the GPU while it holds the permit.
+            let pack_start = std::time::Instant::now();
+            let device_packed: BTreeMap<String, Vec<u64>> = device_airs
+                .iter()
+                .filter(|c| c.supports_device_dependencies())
+                .cloned()
+                .collect::<Vec<_>>()
+                .into_par_iter()
+                .map(|air| {
+                    (air.name().to_string(), air.pack_device_lookup_inputs(record.as_ref()))
+                })
+                .collect();
+            // Host-memory Phase-0 instrumentation (host-memory-workstream.md): the
+            // packed-kernel-input transient (H5's "needs measurement") per shard.
+            // `pack_ms` sizes the residual pack CPU for the executor-emits-inputs
+            // end-state decision (Session E addendum).
+            tracing::debug!(
+                target: "host_memory",
+                packed_bytes = device_packed.values().map(|v| v.len() * 8).sum::<usize>(),
+                packed_chips = device_packed.len(),
+                pack_ms = pack_start.elapsed().as_millis() as u64,
+                "device_packed transient total"
+            );
+
             let mut total_size = start_idx;
             let mut jobs = Vec::new();
             for air in host_airs.iter() {
                 jobs.push((air.clone(), total_size));
                 total_size += air.num_rows(&record).unwrap() * air.width();
             }
+            // The buffer is sized to a sound upper bound over every possibly-host chip
+            // (components.rs derives it from the same `supports_device_main_tracegen`
+            // predicate as the partition above), so this can only fire on a sizing /
+            // partition disagreement — fail with context rather than writing past the
+            // pinned allocation below.
+            assert!(
+                total_size <= buffer_capacity,
+                "host-resident traces ({total_size} elements) exceed the pinned trace \
+                 buffer ({buffer_capacity} elements): the device-aware buffer sizing \
+                 disagrees with the host/device tracegen partition (host chips: {:?})",
+                host_airs.iter().map(|air| air.name()).collect::<Vec<_>>(),
+            );
+            // Host-memory Phase-0 instrumentation: the pinned buffer's written prefix
+            // this shard (high-water mark) — the empirical H1 sizing bound. With
+            // device chips enabled this shrinks to the non-ported chips' trace bytes.
+            tracing::debug!(
+                target: "host_memory",
+                pinned_hwm_elems = total_size,
+                pinned_hwm_bytes = total_size * core::mem::size_of::<Felt>(),
+                "pinned buffer high-water mark"
+            );
+
+            // H5 (host-memory-workstream Phase 3): stage the packed inputs into the tail
+            // of the pinned buffer, past the host-trace prefix, still in the permit-free
+            // host phase. The fused kernels then upload from page-locked memory (async
+            // H2D) and the pageable transient dies here instead of living until device
+            // tracegen.
+            let stage_start = std::time::Instant::now();
+            let StagedInputs { packed: device_packed, staged_bytes, fallback_bytes, end_elems } =
+                stage_packed_inputs(device_packed, buffer_ptr, buffer_capacity, total_size);
+            tracing::debug!(
+                target: "host_memory",
+                staged_bytes,
+                fallback_bytes,
+                staging_end_elems = end_elems,
+                stage_ms = stage_start.elapsed().as_millis() as u64,
+                "packed inputs staged into pinned buffer"
+            );
 
             // Get the smallest cluster containing our tracegen chip set.
             let shard_chips = shape.smallest_cluster(&chip_set).unwrap().clone();
@@ -783,7 +941,7 @@ where
                 drop(record);
             });
 
-            (device_airs, host_traces, chip_set, shard_chips)
+            (device_airs, host_traces, byte_range_airs, chip_set, shard_chips, device_packed)
         })
         .await
         .unwrap();
@@ -800,9 +958,207 @@ where
 
     let host_phase_shape_info = HostPhaseShapeInfo { traces_by_name: initial_traces, chip_set };
 
-    let host_phase_tracegen = HostPhaseTracegen { device_airs, host_traces };
+    let host_phase_tracegen =
+        HostPhaseTracegen { device_airs, host_traces, byte_range_airs, device_packed };
 
     (host_phase_tracegen, host_phase_shape_info)
+}
+
+/// Outcome of [`stage_packed_inputs`]: the per-chip [`PackedInputs`] plus the byte
+/// accounting for the `host_memory` instrumentation.
+struct StagedInputs {
+    packed: BTreeMap<String, PackedInputs>,
+    staged_bytes: usize,
+    fallback_bytes: usize,
+    /// One past the last staged element (`Felt` index into the buffer).
+    end_elems: usize,
+}
+
+/// H5 (host-memory-workstream Phase 3): lay out and copy the packed fused-kernel
+/// inputs into the pinned buffer tail, past the `total_size`-element host-trace
+/// prefix. Regions are 8-byte aligned (`u64` rows in a `Felt` buffer) and even-sized,
+/// so laying them out back-to-back keeps every start aligned. A region that does not
+/// fit in `buffer_capacity` falls back to the pageable `Vec` — correct, just slower —
+/// and says so loudly. Copies are complete when this returns.
+fn stage_packed_inputs(
+    device_packed: BTreeMap<String, Vec<u64>>,
+    buffer_ptr: usize,
+    buffer_capacity: usize,
+    total_size: usize,
+) -> StagedInputs {
+    let mut staging_offset = total_size.next_multiple_of(FELTS_PER_U64);
+    let mut staged_bytes = 0usize;
+    let mut fallback_bytes = 0usize;
+    let layout: Vec<(String, Vec<u64>, Option<usize>)> = device_packed
+        .into_iter()
+        .map(|(name, inputs)| {
+            let region_elems = inputs.len() * FELTS_PER_U64;
+            if staging_offset + region_elems <= buffer_capacity {
+                let ptr = buffer_ptr + staging_offset * core::mem::size_of::<Felt>();
+                staging_offset += region_elems;
+                staged_bytes += inputs.len() * core::mem::size_of::<u64>();
+                (name, inputs, Some(ptr))
+            } else {
+                fallback_bytes += inputs.len() * core::mem::size_of::<u64>();
+                (name, inputs, None)
+            }
+        })
+        .collect();
+    if fallback_bytes > 0 {
+        tracing::warn!(
+            target: "host_memory",
+            fallback_bytes,
+            buffer_capacity,
+            "packed-input staging overflowed the pinned buffer; \
+             falling back to pageable H2D for the overflow"
+        );
+    }
+    let packed: BTreeMap<String, PackedInputs> = layout
+        .into_par_iter()
+        .map(|(name, inputs, staged_ptr)| {
+            let packed = match staged_ptr {
+                Some(ptr) => {
+                    // Chunked so one big chip's region still copies at memory
+                    // bandwidth across the rayon pool (per-chip granularity
+                    // alone leaves the largest region single-threaded).
+                    const COPY_CHUNK: usize = 1 << 20; // u64s: 8 MiB
+                    inputs.par_chunks(COPY_CHUNK).enumerate().for_each(|(i, chunk)| {
+                        // SAFETY: the destination is 8-byte aligned — `buffer_ptr` is a
+                        // `cudaMallocHost` base (page-aligned, so ≥ 8) and every region
+                        // offset is u64-quantized (`FELTS_PER_U64` layout above). The
+                        // region [ptr, ptr + len * 8) lies past the host-trace prefix
+                        // and within the buffer's capacity (checked at layout above),
+                        // regions and chunks are disjoint, and the caller's host trace
+                        // jobs only write the prefix.
+                        unsafe {
+                            std::ptr::copy_nonoverlapping(
+                                chunk.as_ptr(),
+                                (ptr as *mut u64).add(i * COPY_CHUNK),
+                                chunk.len(),
+                            );
+                        }
+                    });
+                    PackedInputs::Pinned { ptr, len: inputs.len() }
+                }
+                None => PackedInputs::Pageable(inputs),
+            };
+            (name, packed)
+        })
+        .collect();
+    StagedInputs { packed, staged_bytes, fallback_bytes, end_elems: staging_offset }
+}
+
+/// The exact pinned trace-buffer requirement (in `Felt` elements) for one shard: the
+/// preprocessed + host-resident main-trace prefix that `host_preprocessed_tracegen` /
+/// `host_main_tracegen` write, plus the packed-input staging region laid out past it.
+///
+/// Derived from the SAME `supports_device_*` predicates as the tracegen partitions, so
+/// the sizing and the partition cannot disagree; `host_main_tracegen` still checks at
+/// layout time as the backstop. Pass `program` for paths that write preprocessed traces
+/// into the buffer (setup / `full_tracegen`) and `record` for paths that write main
+/// traces (`full_tracegen` / `main_tracegen`). The result is an upper bound: it counts
+/// the deferred Byte/Range tables (built on-device when the dependency path is on) and
+/// full padded height for packed inputs.
+pub fn required_trace_buffer_elems<A: CudaTracegenAir<Felt>>(
+    machine: &Machine<Felt, A>,
+    program: Option<&<A as MachineAir<Felt>>::Program>,
+    record: Option<&<A as MachineAir<Felt>>::Record>,
+) -> usize {
+    let mut elems = 0usize;
+    if let Some(program) = program {
+        for chip in machine.chips() {
+            let air = &chip.air;
+            if !air.supports_device_preprocessed_tracegen() {
+                if let Some(height) = air.preprocessed_num_rows(program) {
+                    elems += height * air.preprocessed_width();
+                }
+            }
+        }
+    }
+    if let Some(record) = record {
+        let mut staging_elems = 0usize;
+        for chip in machine.chips().iter().filter(|chip| chip.included(record)) {
+            let air = &chip.air;
+            if !air.supports_device_main_tracegen() {
+                elems += air.num_rows(record).unwrap() * air.width();
+            } else if air.supports_device_dependencies() {
+                staging_elems += air.num_rows(record).unwrap() * air.device_pack_row_bytes()
+                    / core::mem::size_of::<Felt>();
+            }
+        }
+        if staging_elems > 0 {
+            // The staging region starts at the next u64 boundary past the host prefix.
+            elems = elems.next_multiple_of(FELTS_PER_U64) + staging_elems;
+        }
+    }
+    elems
+}
+
+/// Grow a worker's pinned trace buffer to at least `required` elements (H1,
+/// host-memory-workstream Phase 2). The pool starts small when the device-tracegen
+/// path covers the trace mass (see `prover_components`), and each shard checkout
+/// ratchets its buffer up to the shard's [`required_trace_buffer_elems`] — so the
+/// steady-state footprint tracks what the workload actually keeps host-resident
+/// instead of the static worst case. Never shrinks; the page-locked allocation and
+/// the old buffer's free both run off the async runtime.
+///
+/// Growth must stay RARE: `cudaHostAlloc`/`cudaFreeHost` serialize with in-flight GPU
+/// work, so a grow mid-pipeline stalls every stream (measured: per-shard requirements
+/// jitter by ~0.01%, and growing to the exact requirement re-allocated an ~840 MB
+/// buffer 44 times on provable-edits). Quantizing the target absorbs the jitter and
+/// the 1.5× headroom absorbs a workload's phase ramps — a few grows per worker total.
+pub async fn ensure_trace_buffer_capacity(buffer: &mut PinnedBuffer<Felt>, required: usize) {
+    let capacity = buffer.capacity();
+    if required <= capacity {
+        return;
+    }
+    /// Growth quantum: 1<<23 `Felt`s = 32 MiB.
+    const GROWTH_QUANTUM: usize = 1 << 23;
+    let target = required.next_multiple_of(GROWTH_QUANTUM).max(capacity + capacity / 2);
+    let grow_start = std::time::Instant::now();
+    let grown = tokio::task::spawn_blocking(move || PinnedBuffer::<Felt>::with_capacity(target))
+        .await
+        .unwrap();
+    let old = std::mem::replace(buffer, grown);
+    tokio::task::spawn_blocking(move || drop(old));
+    tracing::debug!(
+        target: "host_memory",
+        capacity,
+        required,
+        target,
+        grow_ms = grow_start.elapsed().as_millis() as u64,
+        "growing pinned trace buffer"
+    );
+}
+
+/// Scatter-add host-chip lookups (row-major histogram index, multiplicity) into a shared
+/// device histogram via `hist_trace_scatter_kernel`. Host-map keys are unique → indices
+/// are distinct → no atomics needed. Launched on the outer scope after the device fused
+/// kernels are synchronized, so the histogram already holds the device chips' lookups and
+/// the subsequent `hist_to_trace` (same stream) sees the complete counts. No-op if empty.
+fn scatter_into_histogram(
+    hist: &mut DeviceBuffer<u32>,
+    idxs: &[u32],
+    mults: &[u32],
+    backend: &TaskScope,
+) {
+    if idxs.is_empty() {
+        return;
+    }
+    let mut idx_dev: Buffer<u32, TaskScope> = Buffer::with_capacity_in(idxs.len(), backend.clone());
+    idx_dev.extend_from_host_slice(idxs).unwrap();
+    let mut mult_dev: Buffer<u32, TaskScope> =
+        Buffer::with_capacity_in(mults.len(), backend.clone());
+    mult_dev.extend_from_host_slice(mults).unwrap();
+    let n = idxs.len();
+    unsafe {
+        const BLOCK: usize = 256;
+        let grid = n.div_ceil(BLOCK);
+        let kargs = args!(hist.as_mut_ptr(), idx_dev.as_ptr(), mult_dev.as_ptr(), n);
+        backend
+            .launch_kernel(TaskScope::hist_trace_scatter_kernel(), grid, BLOCK, &kargs, 0)
+            .unwrap();
+    }
 }
 
 /// Puts traces on device. Returns (traces, public values).
@@ -813,7 +1169,23 @@ async fn device_main_tracegen<A: CudaTracegenAir<Felt>>(
     initial_traces: BTreeMap<String, Trace>,
     backend: &TaskScope,
 ) -> (BTreeMap<String, Trace>, Vec<Felt>) {
-    let HostPhaseTracegen { device_airs, host_traces } = host_phase_tracegen;
+    let HostPhaseTracegen { device_airs, host_traces, byte_range_airs, mut device_packed } =
+        host_phase_tracegen;
+
+    // When any device chip generates its byte-lookup dependencies on the GPU, all such
+    // chips accumulate into ONE shared shard histogram pair via the fused kernel (no
+    // separate dependency pre-pass). Shared by raw pointer across the concurrent device
+    // futures — the device-side atomicAdds serialize the writes; read back only after
+    // the stream drains and the scope is synchronized.
+    let has_device_deps = device_airs.iter().any(|c| c.supports_device_dependencies());
+    let histograms = has_device_deps.then(|| new_byte_histograms(backend));
+    let hist = match &histograms {
+        Some((range_dev, byte_dev)) => LookupHist {
+            range: range_dev.as_ptr() as *mut u32,
+            byte: byte_dev.as_ptr() as *mut u32,
+        },
+        None => LookupHist { range: std::ptr::null_mut(), byte: std::ptr::null_mut() },
+    };
 
     let outer_span = tracing::Span::current();
     // Stream that, when polled, copies the host traces to the device.
@@ -834,20 +1206,107 @@ async fn device_main_tracegen<A: CudaTracegenAir<Felt>>(
         tracing::trace_span!(parent: &outer_span, "copy host trace to device", chip = %name)
     )));
 
-    // Stream that, when polled, copies events to the device and generates traces.
+    // Fan each device chip's tracegen out to its OWN task scope (a real CUDA stream):
+    // different chips' uploads and fused kernels overlap on the GPU and their host-side
+    // driving parallelizes across the tokio runtime, instead of serializing on this
+    // scope's single stream (iter-070 measurement: the whole device-tracegen wall gap
+    // sat in this span, while the old host `synchronize()` below cost ~4ms).
+    //
+    // Concurrency is BOUNDED (semaphore, `AR_TRACEGEN_STREAMS`, default 8): unbounded
+    // fan-out OOMs the GPU — shards are sized to ~fill device memory (iter-055), and
+    // each in-flight chip carries transient allocations (input staging + the
+    // transpose's temporary buffer), so ~25 concurrent chips spike past the pool.
+    // A small K keeps the copy/compute-overlap win with a bounded memory spike.
+    //
+    // Ordering safety, without any host barrier: `TaskScope::spawn` records a fork
+    // event (child stream starts after the parent's already-enqueued work — so the
+    // histograms are zeroed before any fused kernel runs), and awaiting the handle
+    // JOINS the child to the parent (the parent stream `cudaStreamWaitEvent`s the
+    // child's end event). Everything enqueued on `backend` after the joins — the
+    // histogram scatter, `hist_to_trace`, commit — is therefore device-ordered after
+    // every fused kernel's atomicAdds.
+    // Concurrency bounded by semaphore + per-chip DRAIN (allocator reclaim is tied to
+    // synchronization — a pure event-edge window OOMs, iter-078). The drain itself is
+    // a FAST driver-blocking event wait (cudaEventSynchronize in spawn_blocking,
+    // ~us wake) instead of TaskScope::synchronize's host-fn callback (A7: 10-50ms
+    // wake latency per chip per shard = 93% of the fibonacci-class gap as GPU idle).
+    let fanout: usize =
+        std::env::var("AR_TRACEGEN_STREAMS").ok().and_then(|v| v.parse().ok()).unwrap_or(8).max(1);
+    let chip_sem = Arc::new(tokio::sync::Semaphore::new(fanout));
     let device_traces = device_airs
         .into_iter()
         .map(|air| {
-            // We want to borrow the record and move the chip.
-            let record = record.as_ref();
+            let record = record.clone();
             let outer_span = outer_span.clone();
+            // Take this chip's pre-packed inputs (packed and pinned-staged in the
+            // permit-free host phase); empty for non-dependency chips (e.g. Global),
+            // which don't use the fused path.
+            let packed = if air.supports_device_dependencies() {
+                device_packed
+                    .remove(air.name())
+                    .unwrap_or_else(|| PackedInputs::Pageable(Vec::new()))
+            } else {
+                PackedInputs::Pageable(Vec::new())
+            };
+            let name = air.name().to_string();
+            let backend = backend.clone();
+            let chip_sem = chip_sem.clone();
             async move {
-                let trace = air
-                    .generate_trace_device(record, &mut A::Record::default(), backend)
-                    .instrument(tracing::trace_span!(parent: &outer_span, "device chip tracegen", chip = %air.name()))
+                // Hold a permit across spawn->drain so at most `fanout` chip scopes'
+                // transients are in flight.
+                let t0 = std::time::Instant::now();
+                let _permit = chip_sem.acquire_owned().await.expect("tracegen semaphore");
+                let permit_us = t0.elapsed().as_micros() as u64;
+                let t_spawn = std::time::Instant::now();
+                let handle = backend.spawn(move |child| async move {
+                    // F.1a seam attribution: how long the spawned task waited to start
+                    // (tokio wake + child-scope/stream setup — the H-C suspect).
+                    let spawn_us = t_spawn.elapsed().as_micros() as u64;
+                    let t_gen = std::time::Instant::now();
+                    // Device-dependency chips use the FUSED kernel (columns + lookups in
+                    // one pass, accumulating into the shared histogram); others (e.g.
+                    // Global) the plain one.
+                    let trace: Mle<Felt, TaskScope> = if air.supports_device_dependencies() {
+                        air.generate_trace_device_with_lookups(record.as_ref(), packed.as_slice(), hist, &child)
+                            .instrument(tracing::trace_span!(parent: &outer_span, "device chip fused tracegen", chip = %air.name()))
+                            .await
+                            .unwrap_or_else(|e| {
+                                panic!("fused device tracegen failed for chip {}: {e:?}", air.name())
+                            })
+                            .into()
+                    } else {
+                        air.generate_trace_device(record.as_ref(), &mut A::Record::default(), &child)
+                            .instrument(tracing::trace_span!(parent: &outer_span, "device chip tracegen", chip = %air.name()))
+                            .await
+                            .unwrap_or_else(|e| {
+                                panic!("device tracegen failed for chip {}: {e:?}", air.name())
+                            })
+                            .into()
+                    };
+                    let gen_us = t_gen.elapsed().as_micros() as u64;
+                    // Drain before the permit releases (allocator reclaim requires it;
+                    // pure event-window OOMs and cudaEventSynchronize busy-spins —
+                    // iter-078 measured both). The drain gaps are hidden by running a
+                    // wide window so other chips' streams overlay each drain boundary.
+                    let t_drain = std::time::Instant::now();
+                    child.synchronize().await.unwrap_or_else(|e| {
+                        panic!("drain tracegen stream for chip {}: {e:?}", air.name())
+                    });
+                    tracing::debug!(
+                        target: "seam",
+                        chip = %air.name(),
+                        permit_us,
+                        spawn_us,
+                        gen_us,
+                        drain_us = t_drain.elapsed().as_micros() as u64,
+                        "fused fanout timeline"
+                    );
+                    trace
+                });
+                let trace = handle
                     .await
-                    .unwrap();
-                (air.name().to_string(), trace.into())
+                    .unwrap_or_else(|e| panic!("device tracegen task for chip {name}: {e:?}"));
+                (name, trace)
             }
         })
         .collect::<FuturesUnordered<_>>();
@@ -862,6 +1321,69 @@ async fn device_main_tracegen<A: CudaTracegenAir<Felt>>(
         })
         .instrument(tracing::debug_span!("wait for device traces"))
         .await;
+
+    // The device-dependency chips ran the fused kernel on their own child task streams,
+    // each JOINED to this scope above (the parent stream waits on every child's end
+    // event) — so every fused kernel's atomicAdds are device-ordered before the work
+    // below, with NO host synchronize. Build the deferred Byte/Range table traces
+    // ENTIRELY ON-DEVICE from the resident histogram: the table trace IS the
+    // multiplicity histogram (range/trace.rs, bytes/trace.rs), so (1) scatter the few
+    // HOST-chip lookups into the histogram (the device chips' are already there), then
+    // (2) convert each histogram region to a field trace on-device and transpose to the
+    // column-major MLE. No readback, no host `byte_lookups` reconstruction, no serial
+    // CPU `generate_trace` tail.
+    if let Some((mut range_dev, mut byte_dev)) = histograms {
+        if let Some(first) = byte_range_airs.first() {
+            let tail_span = tracing::debug_span!("deferred byte range tables");
+            let _tail = tail_span.enter();
+            // (1) Fold the host chips' lookups into the device histograms. Host-map keys
+            // are unique → distinct indices → the scatter kernel needs no atomics.
+            let (range_idx, range_mult, byte_idx, byte_mult) =
+                tracing::debug_span!("host lookup scatter prep")
+                    .in_scope(|| first.host_lookup_scatter(record.as_ref()));
+            scatter_into_histogram(&mut range_dev, &range_idx, &range_mult, backend);
+            scatter_into_histogram(&mut byte_dev, &byte_idx, &byte_mult, backend);
+
+            // (2) Build each table trace on-device from its (now complete) histogram.
+            for air in &byte_range_airs {
+                let height = air.num_rows(record.as_ref()).unwrap();
+                let width = air.width();
+                let total = height * width;
+                let hist = match air.name() {
+                    "Byte" => &byte_dev,
+                    "Range" => &range_dev,
+                    other => panic!("unexpected deferred byte/range chip {other}"),
+                };
+                // The kernel reads `hist[0..total]`: a chip width/height change that
+                // outruns the histogram sizing in `new_byte_histograms` must fail here,
+                // not as a silent out-of-bounds device read.
+                assert_eq!(
+                    total,
+                    hist.len(),
+                    "{} table trace ({height}x{width}) does not match its histogram length",
+                    air.name()
+                );
+                // Row-major `[height, width]` field trace. `hist_to_trace_kernel` writes
+                // EVERY cell (`trace[i] = hist[i]`), so allocate uninitialized — the
+                // `zeros_in` memset would be pure waste (immediately overwritten).
+                let mut tensor =
+                    Tensor::<Felt, TaskScope>::with_sizes_in([height, width], backend.clone());
+                unsafe {
+                    tensor.assume_init();
+                    const BLOCK: usize = 256;
+                    let grid = total.div_ceil(BLOCK);
+                    let kargs = args!(tensor.as_mut_ptr(), hist.as_ptr(), total);
+                    backend
+                        .launch_kernel(TaskScope::hist_to_trace_kernel(), grid, BLOCK, &kargs, 0)
+                        .unwrap();
+                }
+                // Transpose row-major `[height, width]` → column-major MLE, exactly as the
+                // host-trace path does.
+                let guts = DeviceTensor::from_raw(tensor).transpose().into_inner();
+                all_traces.insert(air.name().to_string(), Trace::Real(Mle::new(guts)));
+            }
+        }
+    }
 
     // All traces are now generated, so the public values are ready.
     // That is, this value will have the correct global cumulative sum.
@@ -891,7 +1413,8 @@ pub async fn main_tracegen<GC: IopCtx<F = Felt>, A: CudaTracegenAir<Felt>>(
 ) -> (Vec<Felt>, BTreeSet<Chip<Felt, A>>, ProverPermit) {
     // Start generating traces on host.
     let (host_phase_tracegen, host_phase_shape_info) =
-        host_main_tracegen(machine, buffer.as_ptr() as usize, 0, record.clone()).await;
+        host_main_tracegen(machine, buffer.as_ptr() as usize, buffer.capacity(), 0, record.clone())
+            .await;
 
     let HostPhaseShapeInfo { traces_by_name: initial_traces, chip_set } = host_phase_shape_info;
     let permit =
@@ -963,11 +1486,23 @@ pub async fn full_tracegen<A: CudaTracegenAir<Felt>>(
     prover_permits: ProverSemaphore,
     global_dependencies_opt: bool,
 ) -> (Vec<Felt>, JaggedTraceMle<Felt, TaskScope>, BTreeSet<Chip<Felt, A>>, ProverPermit) {
-    let (prep_host_phase_tracegen, start_idx) =
-        host_preprocessed_tracegen(machine, buffer.as_ptr() as usize, program.clone()).await;
+    let (prep_host_phase_tracegen, start_idx) = host_preprocessed_tracegen(
+        machine,
+        buffer.as_ptr() as usize,
+        buffer.capacity(),
+        program.clone(),
+    )
+    .await;
 
     let (main_host_phase_tracegen, HostPhaseShapeInfo { traces_by_name: initial_traces, chip_set }) =
-        host_main_tracegen(machine, buffer.as_ptr() as usize, start_idx, record.clone()).await;
+        host_main_tracegen(
+            machine,
+            buffer.as_ptr() as usize,
+            buffer.capacity(),
+            start_idx,
+            record.clone(),
+        )
+        .await;
 
     // Wait for a prover to be available.
     let permit =
@@ -1081,12 +1616,112 @@ mod tests {
 
     use crate::test_utils::tracegen_setup::{self, CORE_MAX_LOG_ROW_COUNT, LOG_STACKING_HEIGHT};
     use crate::{
-        count_and_add, fill_buf, full_tracegen, generate_jagged_traces, Trace, CORE_MAX_TRACE_SIZE,
+        count_and_add, ensure_trace_buffer_capacity, fill_buf, full_tracegen,
+        generate_jagged_traces, stage_packed_inputs, PackedInputs, Trace, CORE_MAX_TRACE_SIZE,
     };
     use sp1_core_machine::io::SP1Stdin;
 
     use rand::SeedableRng;
     use rand::{rngs::StdRng, Rng};
+
+    /// E.1: the H5 staging layout — regions disjoint, 8-byte aligned, back-to-back past
+    /// the (rounded-up) host prefix; contents round-trip through `as_slice`; a region
+    /// that does not fit falls back to a pageable `Vec` with identical data.
+    #[test]
+    #[serial]
+    fn test_stage_packed_inputs_roundtrip_and_fallback() {
+        let a: Vec<u64> = (0..100).collect();
+        let b: Vec<u64> = (1000..1500).collect();
+        let packed_map = |a: &[u64], b: &[u64]| {
+            BTreeMap::from([("A".to_string(), a.to_vec()), ("B".to_string(), b.to_vec())])
+        };
+
+        // Everything fits: A at the u64-rounded prefix, B immediately after.
+        let buffer = PinnedBuffer::<Felt>::with_capacity(4096);
+        let total_size = 33; // odd Felt prefix: staging must start at 34
+        let staged = stage_packed_inputs(
+            packed_map(&a, &b),
+            buffer.as_ptr() as usize,
+            buffer.capacity(),
+            total_size,
+        );
+        assert_eq!(staged.fallback_bytes, 0);
+        assert_eq!(staged.staged_bytes, (a.len() + b.len()) * 8);
+        assert_eq!(staged.end_elems, 34 + (a.len() + b.len()) * 2);
+        assert_eq!(staged.packed["A"].as_slice(), &a[..]);
+        assert_eq!(staged.packed["B"].as_slice(), &b[..]);
+        match (&staged.packed["A"], &staged.packed["B"]) {
+            (
+                PackedInputs::Pinned { ptr: a_ptr, len: a_len },
+                PackedInputs::Pinned { ptr: b_ptr, len: _ },
+            ) => {
+                assert_eq!(a_ptr % 8, 0);
+                assert_eq!(b_ptr % 8, 0);
+                assert_eq!(*a_ptr, buffer.as_ptr() as usize + 34 * core::mem::size_of::<Felt>());
+                // Back-to-back and disjoint.
+                assert_eq!(a_ptr + a_len * 8, *b_ptr);
+            }
+            other => panic!("expected both regions pinned, got {:?}", other_kinds(other)),
+        }
+
+        // Undersized buffer: A (200 elems at offset 34) fits, B (1000 elems) does not —
+        // B falls back to pageable with identical data, A stays pinned.
+        let small = PinnedBuffer::<Felt>::with_capacity(300);
+        let staged = stage_packed_inputs(
+            packed_map(&a, &b),
+            small.as_ptr() as usize,
+            small.capacity(),
+            total_size,
+        );
+        assert_eq!(staged.staged_bytes, a.len() * 8);
+        assert_eq!(staged.fallback_bytes, b.len() * 8);
+        assert!(matches!(&staged.packed["A"], PackedInputs::Pinned { .. }));
+        match &staged.packed["B"] {
+            PackedInputs::Pageable(v) => assert_eq!(&v[..], &b[..]),
+            PackedInputs::Pinned { .. } => panic!("expected pageable fallback for B"),
+        }
+        assert_eq!(staged.packed["B"].as_slice(), &b[..]);
+    }
+
+    fn other_kinds(pair: (&PackedInputs, &PackedInputs)) -> [&'static str; 2] {
+        let kind = |p: &PackedInputs| match p {
+            PackedInputs::Pinned { .. } => "pinned",
+            PackedInputs::Pageable(_) => "pageable",
+        };
+        [kind(pair.0), kind(pair.1)]
+    }
+
+    /// E.1: the H1 growth ratchet — no-op at or below capacity; targets quantized to the
+    /// 32 MiB growth quantum with 1.5× headroom; each grow is a FRESH allocation (no
+    /// content carry-over — every shard's host phase rewrites its prefix from scratch).
+    #[tokio::test]
+    #[serial]
+    async fn test_ensure_trace_buffer_capacity_growth() {
+        const QUANTUM: usize = 1 << 23;
+        let mut buffer = PinnedBuffer::<Felt>::with_capacity(1 << 10);
+
+        // At/below capacity: no-op.
+        ensure_trace_buffer_capacity(&mut buffer, 1 << 9).await;
+        assert_eq!(buffer.capacity(), 1 << 10);
+        ensure_trace_buffer_capacity(&mut buffer, 1 << 10).await;
+        assert_eq!(buffer.capacity(), 1 << 10);
+
+        // Growth quantizes up (headroom term is smaller here).
+        ensure_trace_buffer_capacity(&mut buffer, QUANTUM + 1).await;
+        assert_eq!(buffer.capacity(), 2 * QUANTUM);
+
+        // Ratchet again: quantized target and 1.5× headroom coincide at 3 * QUANTUM;
+        // the buffer is a fresh allocation (old freed only after the new one exists,
+        // so the addresses must differ).
+        let old_ptr = buffer.as_ptr() as usize;
+        ensure_trace_buffer_capacity(&mut buffer, 2 * QUANTUM + 1).await;
+        assert_eq!(buffer.capacity(), 3 * QUANTUM);
+        assert_ne!(buffer.as_ptr() as usize, old_ptr);
+
+        // Jitter within the ratcheted capacity: no further grows.
+        ensure_trace_buffer_capacity(&mut buffer, 2 * QUANTUM + 2).await;
+        assert_eq!(buffer.capacity(), 3 * QUANTUM);
+    }
 
     /// Takes a pre-generated proof and vk, and generates traces for the shrink program.
     /// Then, asserts that the jagged traces generated are the same as the traces in the old format.

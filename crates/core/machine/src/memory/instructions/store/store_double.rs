@@ -1,11 +1,13 @@
 use crate::{
     adapter::{
-        register::i_type::{ITypeReader, ITypeReaderImmutable, ITypeReaderImmutableInput},
+        register::i_type::{
+            ITypeReader, ITypeReaderImmutable, ITypeReaderImmutableInput, ITypeReaderWitgenInput,
+        },
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
     eval_untrusted_program,
-    memory::MemoryAccessCols,
+    memory::{MemoryAccessCols, MemoryAccessWitgenInput},
     operations::{AddressOperation, AddressOperationInput},
     utils::next_multiple_of_32,
     SupervisorMode, TrustMode, UserMode,
@@ -60,6 +62,50 @@ pub struct StoreDoubleColumns<T, M: TrustMode> {
 
     /// Adapter columns for trust mode specific data.
     pub adapter_cols: M::AdapterCols<T>,
+}
+
+/// Witgen inputs for the `StoreDouble` chip: one `#[repr(C)]` row per event (see
+/// `record_witgen_inputs` — field order IS the packed input layout). Beyond the
+/// state + adapter, the address operands (`b_val`, `c_val`) and the memory access
+/// are per-chip inputs.
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct StoreDoubleWitgenInput<T> {
+    pub clk: T,
+    pub pc: T,
+    pub adapter: ITypeReaderWitgenInput<T>,
+    pub b_val: T,
+    pub c_val: T,
+    pub mem: MemoryAccessWitgenInput<T>,
+}
+
+/// Number of witgen inputs per `StoreDouble` row.
+pub const NUM_STORE_DOUBLE_WITGEN_INPUTS: usize = size_of::<StoreDoubleWitgenInput<u8>>();
+
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T, M: TrustMode> StoreDoubleColumns<T, M> {
+    /// Backend-agnostic witgen for the `StoreDouble` chip (sd): the memory access,
+    /// the address operation, and `is_real`. (The stored value is verified by the
+    /// memory argument, not a column here.)
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut StoreDoubleColumns<WB::Field, M>,
+        input: &StoreDoubleWitgenInput<WB::Nat>,
+    ) {
+        let StoreDoubleWitgenInput { clk, pc, adapter, b_val, c_val, mem } = *input;
+        let one = wb.const_nat(1);
+        cols.is_real = wb.nat_to_field(one);
+        MemoryAccessCols::<WB::Field>::witgen(
+            wb,
+            &mut cols.memory_access,
+            mem.prev_value,
+            mem.prev_ts,
+            mem.cur_ts,
+        );
+        AddressOperation::<WB::Field>::witgen(wb, &mut cols.address_operation, b_val, c_val);
+        CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
+        ITypeReader::<WB::Field>::witgen(wb, &mut cols.adapter, &adapter);
+    }
 }
 
 impl<F, M: TrustMode> BaseAir<F> for StoreDoubleChip<M> {

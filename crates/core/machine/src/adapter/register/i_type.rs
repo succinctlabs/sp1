@@ -13,9 +13,14 @@ use sp1_hypercube::{
 };
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
+use sp1_primitives::consts::WORD_SIZE;
+
 use crate::{
-    air::{MemoryAirBuilder, ProgramAirBuilder, SP1Operation, WordAirBuilder},
-    memory::RegisterAccessCols,
+    air::{
+        HostWitnessBuilder, MemoryAirBuilder, ProgramAirBuilder, SP1Operation, WitnessBuilder,
+        WordAirBuilder,
+    },
+    memory::{MemoryAccessWitgenInput, RegisterAccessCols},
     program::instruction::InstructionCols,
 };
 
@@ -34,14 +39,73 @@ pub struct ITypeReader<T> {
     pub op_c_imm: Word<T>,
 }
 
+/// Witgen inputs of [`ITypeReader::witgen`], for nesting inside chip-level
+/// witgen-input structs (see `record_witgen_inputs`). Field order IS the packed
+/// input layout.
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ITypeReaderWitgenInput<T> {
+    pub op_a: T,
+    pub a: MemoryAccessWitgenInput<T>,
+    pub op_b: T,
+    pub b: MemoryAccessWitgenInput<T>,
+    pub op_c: T,
+}
+
+impl ITypeReaderWitgenInput<u64> {
+    /// Pack an executor [`ITypeRecord`] into witgen-input form (`op_a`/`op_b` are
+    /// register accesses; `op_c` is the immediate).
+    pub fn from_record(record: &ITypeRecord) -> Self {
+        Self {
+            op_a: record.op_a as u64,
+            a: MemoryAccessWitgenInput::from_record(record.a),
+            op_b: record.op_b,
+            b: MemoryAccessWitgenInput::from_record(record.b),
+            op_c: record.op_c,
+        }
+    }
+}
+
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T> ITypeReader<T> {
+    /// Backend-agnostic witgen: two register reads (`op_a`, `op_b`) and the immediate
+    /// `op_c` as a Word. `op_c` is always an immediate here — no register read, no
+    /// conditional (cf. the mixed `ALUTypeReader`). Mirrors [`Self::populate`].
+    pub fn witgen<WB: WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut ITypeReader<WB::Field>,
+        input: &ITypeReaderWitgenInput<WB::Nat>,
+    ) {
+        cols.op_a = wb.nat_to_field(input.op_a);
+        RegisterAccessCols::<WB::Field>::witgen(
+            wb,
+            &mut cols.op_a_memory,
+            input.a.prev_value,
+            input.a.prev_ts,
+            input.a.cur_ts,
+        );
+        let zero = wb.const_nat(0);
+        let a_is_zero = wb.eq(input.op_a, zero);
+        cols.op_a_0 = wb.nat_to_field(a_is_zero);
+        cols.op_b = wb.nat_to_field(input.op_b);
+        RegisterAccessCols::<WB::Field>::witgen(
+            wb,
+            &mut cols.op_b_memory,
+            input.b.prev_value,
+            input.b.prev_ts,
+            input.b.cur_ts,
+        );
+        for i in 0..WORD_SIZE {
+            let limb = wb.bits(input.op_c, (i as u32) * 16, 16);
+            cols.op_c_imm[i] = wb.nat_to_field(limb);
+        }
+    }
+}
+
 impl<F: PrimeField32> ITypeReader<F> {
     pub fn populate(&mut self, blu_events: &mut impl ByteRecord, record: ITypeRecord) {
-        self.op_a = F::from_canonical_u8(record.op_a);
-        self.op_a_memory.populate(record.a, blu_events);
-        self.op_a_0 = F::from_bool(record.op_a == 0);
-        self.op_b = F::from_canonical_u64(record.op_b);
-        self.op_b_memory.populate(record.b, blu_events);
-        self.op_c_imm = Word::from(record.op_c);
+        let mut wb = HostWitnessBuilder::<F, _>::new(blu_events);
+        Self::witgen(&mut wb, self, &ITypeReaderWitgenInput::from_record(&record));
     }
 }
 

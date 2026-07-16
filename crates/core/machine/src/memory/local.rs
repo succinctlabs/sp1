@@ -11,7 +11,7 @@ use slop_maybe_rayon::prelude::{
     IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
 use sp1_core_executor::{
-    events::{ByteRecord, GlobalInteractionEvent},
+    events::{ByteRecord, GlobalInteractionEvent, MemoryLocalEvent},
     ExecutionRecord, Program,
 };
 use sp1_derive::AlignedBorrow;
@@ -22,9 +22,9 @@ use sp1_hypercube::{
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
 pub const NUM_LOCAL_MEMORY_ENTRIES_PER_ROW: usize = 1;
-pub(crate) const NUM_MEMORY_LOCAL_INIT_COLS: usize = size_of::<MemoryLocalCols<u8>>();
+pub const NUM_MEMORY_LOCAL_INIT_COLS: usize = size_of::<MemoryLocalCols<u8>>();
 
-#[derive(AlignedBorrow, Clone, Copy, StructReflection)]
+#[derive(AlignedBorrow, Default, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct SingleMemoryLocal<T: Copy> {
     /// The address of the memory access.
@@ -70,6 +70,67 @@ pub struct MemoryLocalCols<T: Copy> {
     memory_local_entries: [SingleMemoryLocal<T>; NUM_LOCAL_MEMORY_ENTRIES_PER_ROW],
 }
 
+// Witgen in an unconstrained `impl` (column type is the builder's `Field`).
+impl<T: Copy> SingleMemoryLocal<T> {
+    /// Backend-agnostic witgen for one `MemoryLocal` entry: address u16 limbs,
+    /// initial/final clk splits (24 low / high), initial/final value u16 limbs plus
+    /// the 8-bit split of the third limb, and the dependency byte lookups (a u8
+    /// check on each value's byte 4/5 pair + u16 checks on each value's four limbs).
+    /// NOTE: `generate_dependencies` ALSO emits two `GlobalInteractionEvent`s per
+    /// event — those are NOT byte lookups and are NOT modeled here; the device
+    /// dependency path must stay off for this chip (host still runs
+    /// `generate_dependencies` for the global events).
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut SingleMemoryLocal<WB::Field>,
+        addr: WB::Nat,
+        initial_clk: WB::Nat,
+        initial_value: WB::Nat,
+        final_clk: WB::Nat,
+        final_value: WB::Nat,
+    ) {
+        for i in 0..3 {
+            let limb = wb.bits(addr, 16 * i as u32, 16);
+            cols.addr[i] = wb.nat_to_field(limb);
+        }
+        let i_hi = wb.bits(initial_clk, 24, 32);
+        cols.initial_clk_high = wb.nat_to_field(i_hi);
+        let f_hi = wb.bits(final_clk, 24, 32);
+        cols.final_clk_high = wb.nat_to_field(f_hi);
+        let i_lo = wb.bits(initial_clk, 0, 24);
+        cols.initial_clk_low = wb.nat_to_field(i_lo);
+        let f_lo = wb.bits(final_clk, 0, 24);
+        cols.final_clk_low = wb.nat_to_field(f_lo);
+
+        // Initial value: 4 u16 limbs + 8-bit split of the third limb (+ lookups).
+        for i in 0..4 {
+            let limb = wb.bits(initial_value, 16 * i as u32, 16);
+            wb.add_u16_range_check(limb);
+            cols.initial_value.0[i] = wb.nat_to_field(limb);
+        }
+        let ib0 = wb.bits(initial_value, 32, 8);
+        let ib1 = wb.bits(initial_value, 40, 8);
+        wb.add_u8_range_check(ib0, ib1);
+        cols.initial_value_lower = wb.nat_to_field(ib0);
+        cols.initial_value_upper = wb.nat_to_field(ib1);
+
+        // Final value: same shape.
+        for i in 0..4 {
+            let limb = wb.bits(final_value, 16 * i as u32, 16);
+            wb.add_u16_range_check(limb);
+            cols.final_value.0[i] = wb.nat_to_field(limb);
+        }
+        let fb0 = wb.bits(final_value, 32, 8);
+        let fb1 = wb.bits(final_value, 40, 8);
+        wb.add_u8_range_check(fb0, fb1);
+        cols.final_value_lower = wb.nat_to_field(fb0);
+        cols.final_value_upper = wb.nat_to_field(fb1);
+
+        let one = wb.const_nat(1);
+        cols.is_real = wb.nat_to_field(one);
+    }
+}
+
 pub struct MemoryLocalChip {}
 
 impl MemoryLocalChip {
@@ -93,6 +154,49 @@ fn nb_rows(count: usize) -> usize {
     }
 }
 
+/// The two global interactions of one local-memory event: the initial-access receive
+/// and the final-access send. Shared by `generate_dependencies` (which also emits the
+/// byte lookups) and `generate_global_dependencies` (which emits only these).
+fn local_mem_global_events(mem_event: &MemoryLocalEvent) -> [GlobalInteractionEvent; 2] {
+    let initial_value_byte0 = ((mem_event.initial_mem_access.value >> 32) & 0xFF) as u32;
+    let initial_value_byte1 = ((mem_event.initial_mem_access.value >> 40) & 0xFF) as u32;
+    let final_value_byte0 = ((mem_event.final_mem_access.value >> 32) & 0xFF) as u32;
+    let final_value_byte1 = ((mem_event.final_mem_access.value >> 40) & 0xFF) as u32;
+    [
+        GlobalInteractionEvent {
+            message: [
+                (mem_event.initial_mem_access.timestamp >> 24) as u32,
+                (mem_event.initial_mem_access.timestamp & 0xFFFFFF) as u32,
+                (mem_event.addr & 0xFFFF) as u32,
+                ((mem_event.addr >> 16) & 0xFFFF) as u32,
+                ((mem_event.addr >> 32) & 0xFFFF) as u32,
+                (mem_event.initial_mem_access.value & 0xFFFF) as u32
+                    + (1 << 16) * initial_value_byte0,
+                ((mem_event.initial_mem_access.value >> 16) & 0xFFFF) as u32
+                    + (1 << 16) * initial_value_byte1,
+                ((mem_event.initial_mem_access.value >> 48) & 0xFFFF) as u32,
+            ],
+            is_receive: true,
+            kind: InteractionKind::Memory as u8,
+        },
+        GlobalInteractionEvent {
+            message: [
+                (mem_event.final_mem_access.timestamp >> 24) as u32,
+                (mem_event.final_mem_access.timestamp & 0xFFFFFF) as u32,
+                (mem_event.addr & 0xFFFF) as u32,
+                ((mem_event.addr >> 16) & 0xFFFF) as u32,
+                ((mem_event.addr >> 32) & 0xFFFF) as u32,
+                (mem_event.final_mem_access.value & 0xFFFF) as u32 + (1 << 16) * final_value_byte0,
+                ((mem_event.final_mem_access.value >> 16) & 0xFFFF) as u32
+                    + (1 << 16) * final_value_byte1,
+                ((mem_event.final_mem_access.value >> 48) & 0xFFFF) as u32,
+            ],
+            is_receive: false,
+            kind: InteractionKind::Memory as u8,
+        },
+    ]
+}
+
 impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
     type Record = ExecutionRecord;
 
@@ -103,8 +207,9 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        let mut events = Vec::new();
-
+        // Byte-lookup half. Kept separate from the global half so a prover that
+        // produces these lookups elsewhere (fused into the device tracegen kernel)
+        // can run `generate_global_dependencies` alone.
         input.get_local_mem_events().for_each(|mem_event| {
             let mut blu = Vec::with_capacity(10); // 1 + 4 + 1 + 4
             let initial_value_byte0 = ((mem_event.initial_mem_access.value >> 32) & 0xFF) as u32;
@@ -112,47 +217,20 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
             blu.add_u8_range_check(initial_value_byte0 as u8, initial_value_byte1 as u8);
             blu.add_u16_range_checks_field::<F>(&Word::from(mem_event.initial_mem_access.value).0);
 
-            events.push(GlobalInteractionEvent {
-                message: [
-                    (mem_event.initial_mem_access.timestamp >> 24) as u32,
-                    (mem_event.initial_mem_access.timestamp & 0xFFFFFF) as u32,
-                    (mem_event.addr & 0xFFFF) as u32,
-                    ((mem_event.addr >> 16) & 0xFFFF) as u32,
-                    ((mem_event.addr >> 32) & 0xFFFF) as u32,
-                    (mem_event.initial_mem_access.value & 0xFFFF) as u32
-                        + (1 << 16) * initial_value_byte0,
-                    ((mem_event.initial_mem_access.value >> 16) & 0xFFFF) as u32
-                        + (1 << 16) * initial_value_byte1,
-                    ((mem_event.initial_mem_access.value >> 48) & 0xFFFF) as u32,
-                ],
-                is_receive: true,
-                kind: InteractionKind::Memory as u8,
-            });
-
             let final_value_byte0 = ((mem_event.final_mem_access.value >> 32) & 0xFF) as u32;
             let final_value_byte1 = ((mem_event.final_mem_access.value >> 40) & 0xFF) as u32;
             blu.add_u8_range_check(final_value_byte0 as u8, final_value_byte1 as u8);
             blu.add_u16_range_checks_field::<F>(&Word::from(mem_event.final_mem_access.value).0);
-            events.push(GlobalInteractionEvent {
-                message: [
-                    (mem_event.final_mem_access.timestamp >> 24) as u32,
-                    (mem_event.final_mem_access.timestamp & 0xFFFFFF) as u32,
-                    (mem_event.addr & 0xFFFF) as u32,
-                    ((mem_event.addr >> 16) & 0xFFFF) as u32,
-                    ((mem_event.addr >> 32) & 0xFFFF) as u32,
-                    (mem_event.final_mem_access.value & 0xFFFF) as u32
-                        + (1 << 16) * final_value_byte0,
-                    ((mem_event.final_mem_access.value >> 16) & 0xFFFF) as u32
-                        + (1 << 16) * final_value_byte1,
-                    ((mem_event.final_mem_access.value >> 48) & 0xFFFF) as u32,
-                ],
-                is_receive: false,
-                kind: InteractionKind::Memory as u8,
-            });
 
             output.add_byte_lookup_events(blu);
         });
 
+        MachineAir::<F>::generate_global_dependencies(self, input, output);
+    }
+
+    fn generate_global_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
+        let events: Vec<_> =
+            input.get_local_mem_events().flat_map(local_mem_global_events).collect();
         output.global_interaction_events.extend(events);
     }
 
@@ -560,3 +638,46 @@ where
 //         RowMajorMatrix::new(values, NUM_MEMORY_LOCAL_INIT_COLS)
 //     }
 // }
+
+#[cfg(test)]
+mod split_tests {
+    use sp1_core_executor::events::{MemoryLocalEvent, MemoryRecord};
+    use sp1_hypercube::air::MachineAir;
+    use sp1_primitives::SP1Field;
+
+    use super::MemoryLocalChip;
+    use sp1_core_executor::ExecutionRecord;
+
+    /// `generate_global_dependencies` must be exactly the global subset of
+    /// `generate_dependencies`: same global events in the same order, and no byte
+    /// lookups — the contract the device prover relies on when it fuses this chip's
+    /// byte lookups into the tracegen kernel and keeps only the globals on host.
+    #[test]
+    fn global_dependencies_are_the_global_subset() {
+        let events: Vec<MemoryLocalEvent> = (0..100u64)
+            .map(|i| MemoryLocalEvent {
+                addr: i * 8 + 0x1000,
+                initial_mem_access: MemoryRecord {
+                    timestamp: i * 3 + 1,
+                    value: i.wrapping_mul(0x1234_5678_9ABC_DEF1),
+                },
+                final_mem_access: MemoryRecord {
+                    timestamp: i * 3 + 100,
+                    value: i.wrapping_mul(0xFEDC_BA98_7654_3211),
+                },
+            })
+            .collect();
+        let shard = ExecutionRecord { cpu_local_memory_access: events, ..Default::default() };
+        let chip = MemoryLocalChip::new();
+
+        let mut full = ExecutionRecord::default();
+        MachineAir::<SP1Field>::generate_dependencies(&chip, &shard, &mut full);
+        let mut globals_only = ExecutionRecord::default();
+        MachineAir::<SP1Field>::generate_global_dependencies(&chip, &shard, &mut globals_only);
+
+        assert_eq!(globals_only.global_interaction_events, full.global_interaction_events);
+        assert!(!full.global_interaction_events.is_empty());
+        assert!(globals_only.byte_lookups.is_empty());
+        assert!(!full.byte_lookups.is_empty());
+    }
+}

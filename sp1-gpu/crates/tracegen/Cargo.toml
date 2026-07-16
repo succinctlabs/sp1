@@ -15,12 +15,14 @@ slop-air = { workspace = true }
 slop-algebra = { workspace = true }
 slop-alloc = { workspace = true }
 slop-koala-bear = { workspace = true }
+slop-keccak-air = { workspace = true }
 slop-futures = { workspace = true }
 slop-multilinear = { workspace = true }
 slop-symmetric = { workspace = true }
 slop-tensor = { workspace = true }
 
 sp1-core-machine = { workspace = true }
+sp1-core-executor = { workspace = true }
 sp1-recursion-executor = { workspace = true }
 sp1-recursion-machine = { workspace = true }
 sp1-hypercube = { workspace = true }
@@ -34,6 +36,12 @@ tracing = { workspace = true }
 [dev-dependencies]
 rand = { workspace = true }
 sp1-core-executor = { workspace = true }
+tiny-keccak = { workspace = true, features = ["keccak"] }
+criterion = "0.5"
+
+[[bench]]
+name = "tracegen_cols"
+harness = false
 
 [lints]
 workspace = true

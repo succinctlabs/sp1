@@ -35,6 +35,35 @@ impl<T: Copy> ClkOperation<T> {
     }
 }
 
+// Witgen in an unconstrained `impl` (column type is the builder's `Field`).
+impl<T: Copy> ClkOperation<T> {
+    /// Backend-agnostic witgen dual of `populate`: decompose `next_clk = clk +
+    /// increment` into 16/8 limbs and the 24-bit carry flag, with the canonicity
+    /// range checks.
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut ClkOperation<WB::Field>,
+        clk: WB::Nat,
+        increment: WB::Nat,
+    ) {
+        let zero = wb.const_nat(0);
+        let next_clk = wb.wrapping_add(clk, increment);
+        let n0 = wb.bits(next_clk, 0, 16);
+        cols.next_clk_0_16 = wb.nat_to_field(n0);
+        let n16 = wb.bits(next_clk, 16, 8);
+        cols.next_clk_16_24 = wb.nat_to_field(n16);
+        // is_overflow = (next_clk >> 24) != (clk >> 24).
+        let next_hi = wb.bits(next_clk, 24, 40);
+        let cur_hi = wb.bits(clk, 24, 40);
+        let hi_eq = wb.eq(next_hi, cur_hi);
+        let is_overflow = wb.eq(hi_eq, zero);
+        cols.is_overflow = wb.nat_to_field(is_overflow);
+
+        wb.add_bit_range_check(n0, 16);
+        wb.add_u8_range_check(n16, zero);
+    }
+}
+
 impl<F: Field> ClkOperation<F> {
     pub fn populate(&mut self, record: &mut impl ByteRecord, clk: u64, increment: u64) {
         let next_clk = clk + increment;

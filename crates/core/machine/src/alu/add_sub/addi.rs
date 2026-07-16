@@ -20,7 +20,7 @@ use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
-        register::i_type::{ITypeReader, ITypeReaderInput},
+        register::i_type::{ITypeReader, ITypeReaderInput, ITypeReaderWitgenInput},
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
@@ -59,6 +59,39 @@ pub struct AddiCols<T, M: TrustMode> {
 
     /// Adapter columns for trust mode specific data.
     pub adapter_cols: M::AdapterCols<T>,
+}
+
+/// Witgen inputs for the `Addi` chip: one `#[repr(C)]` row per event (see
+/// `record_witgen_inputs` — field order IS the packed input layout).
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct AddiWitgenInput<T> {
+    pub clk: T,
+    pub pc: T,
+    pub b: T,
+    pub c: T,
+    pub adapter: ITypeReaderWitgenInput<T>,
+}
+
+/// Number of witgen inputs per `Addi` row.
+pub const NUM_ADDI_WITGEN_INPUTS: usize = size_of::<AddiWitgenInput<u8>>();
+
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T, M: TrustMode> AddiCols<T, M> {
+    /// Backend-agnostic witgen for the `Addi` chip: `is_real`, the `AddOperation` over
+    /// `(b, imm)`, the `CPUState`, and the `ITypeReader` (immediate op_c). Inputs
+    /// mirror the `AluEvent`/`ITypeRecord` fields read by `populate`.
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut AddiCols<WB::Field, M>,
+        input: &AddiWitgenInput<WB::Nat>,
+    ) {
+        let one = wb.const_nat(1);
+        cols.is_real = wb.nat_to_field(one);
+        AddOperation::<WB::Field>::witgen(wb, &mut cols.add_operation, input.b, input.c);
+        CPUState::<WB::Field>::witgen(wb, &mut cols.state, input.clk, input.pc);
+        ITypeReader::<WB::Field>::witgen(wb, &mut cols.adapter, &input.adapter);
+    }
 }
 
 impl<F: PrimeField32, M: TrustMode> MachineAir<F> for AddiChip<M> {

@@ -54,10 +54,58 @@ impl<M: TrustMode> SyscallChip<M> {
     pub fn shard_kind(&self) -> SyscallShardKind {
         self.shard_kind
     }
+
+    /// The shard's SENDING syscall events for this shard kind — the rows that emit
+    /// dependencies (byte lookups + one global interaction each).
+    fn sending_events(&self, input: &ExecutionRecord) -> Vec<SyscallEvent> {
+        match self.shard_kind {
+            SyscallShardKind::Core => input
+                .syscall_events
+                .iter()
+                .map(|(event, _)| *event)
+                .filter(|e| e.should_send)
+                .collect(),
+            SyscallShardKind::Precompile => input
+                .precompile_events
+                .all_events()
+                .map(|(event, _)| event.to_owned())
+                .filter(|e| e.should_send)
+                .collect(),
+        }
+    }
+
+    /// The global interaction of one sending syscall event: sent by the Core table,
+    /// received by the Precompile table.
+    fn global_event(&self, event: &SyscallEvent) -> GlobalInteractionEvent {
+        let trap_code = syscall_trap_code(event);
+        GlobalInteractionEvent {
+            message: [
+                (event.clk >> 24) as u32,
+                (event.clk & 0xFFFFFF) as u32,
+                event.syscall_id + (1 << 8) * (event.arg1 & 0xFFFF) as u32,
+                ((event.arg1 >> 16) & 0xFFFF) as u32 + ((trap_code as u32) << 16),
+                ((event.arg1 >> 32) & 0xFFFF) as u32,
+                (event.arg2 & 0xFFFF) as u32,
+                ((event.arg2 >> 16) & 0xFFFF) as u32,
+                ((event.arg2 >> 32) & 0xFFFF) as u32,
+            ],
+            is_receive: self.shard_kind == SyscallShardKind::Precompile,
+            kind: InteractionKind::Syscall as u8,
+        }
+    }
+}
+
+/// The page-protection trap code of a syscall event (0 when it did not trap).
+fn syscall_trap_code(event: &SyscallEvent) -> u8 {
+    if let Some(TrapError::PagePermissionViolation(code)) = event.trap_error {
+        code as u8
+    } else {
+        0
+    }
 }
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Clone, Copy, StructReflection)]
+#[derive(AlignedBorrow, Default, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct SyscallCols<T: Copy, M: TrustMode> {
     /// The high bits of the clk of the syscall.
@@ -79,6 +127,67 @@ pub struct SyscallCols<T: Copy, M: TrustMode> {
 
     /// The trap code of the syscall.
     pub trap_code: M::TrapCodeCols<T>,
+}
+
+/// Witgen inputs for the syscall table: one `#[repr(C)]` row per event (see
+/// `record_witgen_inputs` — field order IS the packed input layout).
+///
+/// `syscall_id` is the COLUMN value (`syscall_code.syscall_id()`);
+/// `raw_syscall_id` is the DEPENDENCY value (`event.syscall_id`) — the two are
+/// distinct event fields and must be packed separately for bit-fidelity.
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct SyscallWitgenInput<T> {
+    pub clk: T,
+    pub syscall_id: T,
+    pub raw_syscall_id: T,
+    pub arg1: T,
+    pub arg2: T,
+    pub trap_code: T,
+    /// Guard for the dependency lookups (Precompile-kind shards put non-sending
+    /// events in the trace but skip them in `generate_dependencies`).
+    pub should_send: T,
+}
+
+/// Number of witgen inputs per syscall row.
+pub const NUM_SYSCALL_WITGEN_INPUTS: usize = size_of::<SyscallWitgenInput<u8>>();
+
+// Witgen in an unconstrained `impl` (column type is the builder's `Field`).
+impl<T: Copy, M: TrustMode> SyscallCols<T, M> {
+    /// Backend-agnostic witgen for the syscall table (SUPERVISOR mode): clk split
+    /// (24 low / 32 high), syscall id, and the arg1/arg2 u16 limbs, plus the
+    /// dependency lookups — a u8 check on the RAW event syscall id + trap code and
+    /// a u16 check on arg1's low limb — guarded by `should_send`. NOTE: the
+    /// user-mode `trap_code` column and the extra `arg1[1]` u16 check are NOT
+    /// emitted here (user mode is not device-ported).
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut SyscallCols<WB::Field, M>,
+        input: &SyscallWitgenInput<WB::Nat>,
+    ) {
+        debug_assert!(M::IS_TRUSTED, "witgen ports the supervisor-mode syscall table only");
+        let one = wb.const_nat(1);
+        let clk_high = wb.bits(input.clk, 24, 32);
+        cols.clk_high = wb.nat_to_field(clk_high);
+        let clk_low = wb.bits(input.clk, 0, 24);
+        cols.clk_low = wb.nat_to_field(clk_low);
+        cols.syscall_id = wb.nat_to_field(input.syscall_id);
+        let a1_limbs: [_; 3] = core::array::from_fn(|i| wb.bits(input.arg1, 16 * i as u32, 16));
+        for (col, limb) in cols.arg1.iter_mut().zip(a1_limbs) {
+            *col = wb.nat_to_field(limb);
+        }
+        for i in 0..3 {
+            let limb = wb.bits(input.arg2, 16 * i as u32, 16);
+            cols.arg2[i] = wb.nat_to_field(limb);
+        }
+        cols.is_real = wb.nat_to_field(one);
+
+        // Dependency lookups: emitted only for sending events.
+        wb.push_guard(input.should_send);
+        wb.add_u8_range_check(input.raw_syscall_id, input.trap_code);
+        wb.add_u16_range_check(a1_limbs[0]);
+        wb.pop_guard();
+    }
 }
 
 impl<F: PrimeField32, M: TrustMode> MachineAir<F> for SyscallChip<M> {
@@ -104,57 +213,29 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for SyscallChip<M> {
         if input.program.enable_untrusted_programs == M::IS_TRUSTED {
             return;
         }
-        let events = match self.shard_kind {
-            SyscallShardKind::Core => &input
-                .syscall_events
-                .iter()
-                .map(|(event, _)| event)
-                .filter(|e| e.should_send)
-                .copied()
-                .collect::<Vec<_>>(),
-            SyscallShardKind::Precompile => &input
-                .precompile_events
-                .all_events()
-                .map(|(event, _)| event.to_owned())
-                .collect::<Vec<_>>(),
-        };
+        // Byte-lookup half. Kept separate from the global half so a prover that
+        // produces these lookups elsewhere (fused into the device tracegen kernel)
+        // can run `generate_global_dependencies` alone.
+        for event in self.sending_events(input) {
+            let trap_code = syscall_trap_code(&event);
+            let mut blu = Vec::new();
+            blu.add_u8_range_checks(&[event.syscall_id as u8, trap_code]);
+            blu.add_u16_range_checks(&[(event.arg1 & 0xFFFF) as u16]);
+            if !M::IS_TRUSTED {
+                blu.add_u16_range_checks(&[((event.arg1 >> 16) & 0xFFFF) as u16]);
+            }
+            output.add_byte_lookup_events(blu);
+        }
 
-        let events = events
-            .iter()
-            .filter(|e| e.should_send)
-            .map(|event| {
-                let trap_code =
-                    if let Some(TrapError::PagePermissionViolation(code)) = event.trap_error {
-                        code as u8
-                    } else {
-                        0
-                    };
+        MachineAir::<F>::generate_global_dependencies(self, input, output);
+    }
 
-                let mut blu = Vec::new();
-                blu.add_u8_range_checks(&[event.syscall_id as u8, trap_code]);
-                blu.add_u16_range_checks(&[(event.arg1 & 0xFFFF) as u16]);
-                if !M::IS_TRUSTED {
-                    blu.add_u16_range_checks(&[((event.arg1 >> 16) & 0xFFFF) as u16]);
-                }
-
-                let global_event = GlobalInteractionEvent {
-                    message: [
-                        (event.clk >> 24) as u32,
-                        (event.clk & 0xFFFFFF) as u32,
-                        event.syscall_id + (1 << 8) * (event.arg1 & 0xFFFF) as u32,
-                        ((event.arg1 >> 16) & 0xFFFF) as u32 + ((trap_code as u32) << 16),
-                        ((event.arg1 >> 32) & 0xFFFF) as u32,
-                        (event.arg2 & 0xFFFF) as u32,
-                        ((event.arg2 >> 16) & 0xFFFF) as u32,
-                        ((event.arg2 >> 32) & 0xFFFF) as u32,
-                    ],
-                    is_receive: self.shard_kind == SyscallShardKind::Precompile,
-                    kind: InteractionKind::Syscall as u8,
-                };
-                output.add_byte_lookup_events(blu);
-                global_event
-            })
-            .collect_vec();
+    fn generate_global_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return;
+        }
+        let events =
+            self.sending_events(input).iter().map(|event| self.global_event(event)).collect_vec();
         output.global_interaction_events.extend(events);
     }
 
@@ -431,5 +512,79 @@ impl fmt::Display for SyscallShardKind {
             SyscallShardKind::Core => write!(f, "Core"),
             SyscallShardKind::Precompile => write!(f, "Precompile"),
         }
+    }
+}
+
+#[cfg(test)]
+mod split_tests {
+    use sp1_core_executor::{
+        events::{MemoryReadRecord, MemoryRecordEnum, SyscallEvent},
+        ExecutionRecord, RTypeRecord, SupervisorMode, SyscallCode,
+    };
+    use sp1_hypercube::air::MachineAir;
+    use sp1_primitives::SP1Field;
+
+    use super::SyscallChip;
+
+    fn synth_events(n: u64) -> Vec<(SyscallEvent, RTypeRecord)> {
+        let read = |seed: u64| {
+            MemoryRecordEnum::Read(MemoryReadRecord {
+                value: seed.wrapping_mul(0x9E37_79B9_7F4A_7C15),
+                timestamp: seed * 2 + 10,
+                prev_timestamp: seed * 2 + 1,
+                prev_page_prot_record: None,
+            })
+        };
+        let codes = [SyscallCode::HALT, SyscallCode::WRITE, SyscallCode::SHA_EXTEND];
+        (0..n)
+            .map(|i| {
+                let code = codes[i as usize % codes.len()];
+                let event = SyscallEvent {
+                    pc: i * 4 + 4,
+                    next_pc: i * 4 + 8,
+                    clk: i * 8 + 8,
+                    // Mix of sending and non-sending events, so the filter matters.
+                    should_send: i % 3 != 0,
+                    syscall_code: code,
+                    syscall_id: code.syscall_id(),
+                    arg1: i.wrapping_mul(0x1111_2222_3333) & 0xFFFF_FFFF_FFFF,
+                    arg2: i.wrapping_mul(0x4444_5555_6666) & 0xFFFF_FFFF_FFFF,
+                    exit_code: 0,
+                    sig_return_pc_record: None,
+                    trap_result: None,
+                    trap_error: None,
+                };
+                let record = RTypeRecord {
+                    op_a: (i % 31 + 1) as u8,
+                    a: read(i * 3 + 1),
+                    op_b: i % 31 + 1,
+                    b: read(i * 3 + 2),
+                    op_c: i % 31 + 1,
+                    c: read(i * 3 + 3),
+                    is_untrusted: false,
+                };
+                (event, record)
+            })
+            .collect()
+    }
+
+    /// `generate_global_dependencies` must be exactly the global subset of
+    /// `generate_dependencies`: same global events in the same order and no byte
+    /// lookups — the contract the device prover relies on when it fuses this chip's
+    /// byte lookups into the tracegen kernel and keeps only the globals on host.
+    #[test]
+    fn global_dependencies_are_the_global_subset() {
+        let shard = ExecutionRecord { syscall_events: synth_events(100), ..Default::default() };
+        let chip = SyscallChip::<SupervisorMode>::core();
+
+        let mut full = ExecutionRecord::default();
+        MachineAir::<SP1Field>::generate_dependencies(&chip, &shard, &mut full);
+        let mut globals_only = ExecutionRecord::default();
+        MachineAir::<SP1Field>::generate_global_dependencies(&chip, &shard, &mut globals_only);
+
+        assert_eq!(globals_only.global_interaction_events, full.global_interaction_events);
+        assert!(!full.global_interaction_events.is_empty());
+        assert!(globals_only.byte_lookups.is_empty());
+        assert!(!full.byte_lookups.is_empty());
     }
 }

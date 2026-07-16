@@ -12,6 +12,24 @@ pub struct NotU32Operation<T> {
     pub value: [T; 2],
 }
 
+// Witgen in an unconstrained `impl` (column type is the builder's `Field`).
+impl<T: Copy> NotU32Operation<T> {
+    /// Backend-agnostic witgen dual of `populate`: `!x` per u16 limb (no lookups).
+    /// Returns `!x` (over u32) as a nat wire.
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut NotU32Operation<WB::Field>,
+        x: WB::Nat,
+    ) -> WB::Nat {
+        let ones = wb.const_nat(0xFFFF_FFFF);
+        let expected = wb.xor(x, ones);
+        let e0 = wb.bits(expected, 0, 16);
+        let e1 = wb.bits(expected, 16, 16);
+        cols.value = [wb.nat_to_field(e0), wb.nat_to_field(e1)];
+        expected
+    }
+}
+
 impl<F: Field> NotU32Operation<F> {
     pub fn populate(&mut self, x: u32) -> u32 {
         let x_limbs = u32_to_u16_limbs(x);

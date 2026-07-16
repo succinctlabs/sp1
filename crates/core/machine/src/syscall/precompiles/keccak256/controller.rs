@@ -1,7 +1,7 @@
 use super::{KeccakPermuteControlChip, STATE_NUM_WORDS};
 use crate::{
     air::SP1CoreAirBuilder,
-    memory::MemoryAccessCols,
+    memory::{MemoryAccessCols, MemoryAccessWitgenInput},
     operations::{AddrAddOperation, AddressSlicePageProtOperation, SyscallAddrOperation},
     utils::next_multiple_of_32,
     SupervisorMode, TrustMode, UserMode,
@@ -35,6 +35,36 @@ pub const fn num_keccak_permute_control_cols_supervisor() -> usize {
 pub const fn num_keccak_permute_control_cols_user() -> usize {
     std::mem::size_of::<KeccakPermuteControlCols<u8, UserMode>>()
 }
+
+/// Witgen inputs of one of the 25 state-word WRITE records for
+/// [`KeccakPermuteControlWitgenInput`]: the memory-access triple plus the written
+/// value (which feeds the `final_value` word columns).
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct KeccakControlWriteWitgenInput<T> {
+    pub access: MemoryAccessWitgenInput<T>,
+    pub value: T,
+}
+
+/// Witgen inputs for the `KeccakPermuteControl` chip: one `#[repr(C)]` row per
+/// KECCAK_PERMUTE event. The chip's witgen op-DAG is recorded inline on the GPU
+/// side (see `record_keccak_control_program` in sp1-gpu tracegen); the GPU packs
+/// each event into one `KeccakPermuteControlWitgenInput<u64>` and the recorder
+/// casts a wire slice to the same struct (see `record_witgen_inputs`), so field
+/// order IS the kernel input layout. For the READ records `prev_value` holds the
+/// read VALUE (a read's previous value IS its value).
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct KeccakPermuteControlWitgenInput<T> {
+    pub clk: T,
+    pub state_addr: T,
+    pub reads: [MemoryAccessWitgenInput<T>; 25],
+    pub writes: [KeccakControlWriteWitgenInput<T>; 25],
+}
+
+/// Number of witgen inputs per `KeccakPermuteControl` row.
+pub const NUM_KECCAK_CONTROL_WITGEN_INPUTS: usize =
+    std::mem::size_of::<KeccakPermuteControlWitgenInput<u8>>();
 
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]

@@ -20,7 +20,7 @@ use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
-        register::alu_type::{ALUTypeReader, ALUTypeReaderInput},
+        register::alu_type::{ALUTypeReader, ALUTypeReaderInput, ALUTypeReaderWitgenInput},
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
@@ -62,6 +62,50 @@ pub struct LtCols<T, M: TrustMode> {
 
     /// Adapter columns for trust mode specific data.
     pub adapter_cols: M::AdapterCols<T>,
+}
+
+/// Witgen inputs for the `Lt` chip: one `#[repr(C)]` row per event (see
+/// `record_witgen_inputs` — field order IS the packed input layout).
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct LtWitgenInput<T> {
+    pub clk: T,
+    pub pc: T,
+    /// The result operand.
+    pub a: T,
+    pub b: T,
+    pub c: T,
+    /// The per-row RISC-V `Opcode` discriminant.
+    pub opcode: T,
+    pub adapter: ALUTypeReaderWitgenInput<T>,
+}
+
+/// Number of witgen inputs per `Lt` row.
+pub const NUM_LT_WITGEN_INPUTS: usize = size_of::<LtWitgenInput<u8>>();
+
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T, M: TrustMode> LtCols<T, M> {
+    /// Backend-agnostic witgen for the `Lt` chip. `opcode` is the per-row RISC-V
+    /// opcode discriminant; `is_slt`/`is_sltu` are derived from it, and `is_slt`
+    /// doubles as `is_signed` for the comparison. `imm_c` is the per-row
+    /// register/immediate selector. No `is_real` column (the sum of the selectors).
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut LtCols<WB::Field, M>,
+        input: &LtWitgenInput<WB::Nat>,
+    ) {
+        let LtWitgenInput { clk, pc, a, b, c, opcode, adapter } = *input;
+        let slt = wb.const_nat(Opcode::SLT as u64);
+        let sltu = wb.const_nat(Opcode::SLTU as u64);
+        let is_slt = wb.eq(opcode, slt);
+        cols.is_slt = wb.nat_to_field(is_slt);
+        let is_sltu = wb.eq(opcode, sltu);
+        cols.is_sltu = wb.nat_to_field(is_sltu);
+        // `is_slt` is the `is_signed` flag for the comparison.
+        LtOperationSigned::<WB::Field>::witgen(wb, &mut cols.lt_operation, a, b, c, is_slt);
+        CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
+        ALUTypeReader::<WB::Field>::witgen(wb, &mut cols.adapter, &adapter);
+    }
 }
 
 impl<F: PrimeField32, M: TrustMode> MachineAir<F> for LtChip<M> {

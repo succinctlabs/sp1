@@ -40,6 +40,39 @@ impl<F: PrimeField32> SP1FieldWordRangeChecker<F> {
     }
 }
 
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T> SP1FieldWordRangeChecker<T> {
+    /// Backend-agnostic GUARDED witgen dual of [`Self::populate`]: when `guard`
+    /// (a 0/1 nat) is 1, populate the checker for `value` (a u64 whose most
+    /// significant u16 limb of the low word is `(value >> 16) & 0xFFFF`); when 0,
+    /// leave the columns default (bit = 0) and emit no lookups — mirroring callers
+    /// that only populate on a per-row branch (e.g. SyscallInstrs' HALT /
+    /// COMMIT_DEFERRED_PROOFS operand checks).
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut SP1FieldWordRangeChecker<WB::Field>,
+        value: WB::Nat,
+        guard: WB::Nat,
+    ) {
+        let ms = wb.bits(value, 16, 16);
+        let top = wb.const_nat(TOP_LIMB as u64);
+        // lt = (ms < TOP_LIMB): both operands are < 2^16, so the wrapping
+        // difference borrows (bit 63 set) exactly when ms < top.
+        let diff = wb.wrapping_sub(ms, top);
+        let lt = wb.bits(diff, 63, 1);
+        let lt_masked = wb.mul(guard, lt);
+        wb.push_guard(guard);
+        U16CompareOperation::<WB::Field>::witgen(
+            wb,
+            &mut cols.most_sig_limb_lt_top_limb,
+            lt_masked,
+            ms,
+            top,
+        );
+        wb.pop_guard();
+    }
+}
+
 impl<F: Field> SP1FieldWordRangeChecker<F> {
     /// Constrains that `value` represents a value less than the SP1Field modulus.
     /// Assumes that `value` is a valid `Word` of u16 limbs.

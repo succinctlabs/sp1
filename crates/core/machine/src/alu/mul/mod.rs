@@ -19,7 +19,7 @@ use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
-        register::r_type::{RTypeReader, RTypeReaderInput},
+        register::r_type::{RTypeReader, RTypeReaderInput, RTypeReaderWitgenInput},
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
@@ -73,6 +73,70 @@ pub struct MulCols<T, M: TrustMode> {
 
     /// Adapter columns for trust mode specific data.
     pub adapter_cols: M::AdapterCols<T>,
+}
+
+/// Witgen inputs for the `Mul` chip: one `#[repr(C)]` row per event (see
+/// `record_witgen_inputs` — field order IS the packed input layout).
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct MulWitgenInput<T> {
+    pub clk: T,
+    pub pc: T,
+    pub a: T,
+    pub b: T,
+    pub c: T,
+    pub opcode: T,
+    pub adapter: RTypeReaderWitgenInput<T>,
+}
+
+/// Number of witgen inputs per `Mul` row.
+pub const NUM_MUL_WITGEN_INPUTS: usize = size_of::<MulWitgenInput<u8>>();
+
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T, M: TrustMode> MulCols<T, M> {
+    /// Backend-agnostic witgen for the `Mul` chip (MUL/MULH/MULHU/MULHSU/MULW):
+    /// per-row opcode flags, the result word `a`, the `MulOperation` convolution,
+    /// the `CPUState`, and the register-register `RTypeReader` adapter.
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut MulCols<WB::Field, M>,
+        input: &MulWitgenInput<WB::Nat>,
+    ) {
+        let MulWitgenInput { clk, pc, a, b, c, opcode, adapter } = *input;
+        let mul = wb.const_nat(Opcode::MUL as u64);
+        let mulh = wb.const_nat(Opcode::MULH as u64);
+        let mulhu = wb.const_nat(Opcode::MULHU as u64);
+        let mulhsu = wb.const_nat(Opcode::MULHSU as u64);
+        let mulw = wb.const_nat(Opcode::MULW as u64);
+        let is_mul = wb.eq(opcode, mul);
+        cols.is_mul = wb.nat_to_field(is_mul);
+        let is_mulh = wb.eq(opcode, mulh);
+        cols.is_mulh = wb.nat_to_field(is_mulh);
+        let is_mulhu = wb.eq(opcode, mulhu);
+        cols.is_mulhu = wb.nat_to_field(is_mulhu);
+        let is_mulhsu = wb.eq(opcode, mulhsu);
+        cols.is_mulhsu = wb.nat_to_field(is_mulhsu);
+        let is_mulw = wb.eq(opcode, mulw);
+        cols.is_mulw = wb.nat_to_field(is_mulw);
+
+        // Result word `a`.
+        for i in 0..sp1_primitives::consts::WORD_SIZE {
+            let limb = wb.bits(a, (i as u32) * 16, 16);
+            cols.a[i] = wb.nat_to_field(limb);
+        }
+
+        MulOperation::<WB::Field>::witgen(
+            wb,
+            &mut cols.mul_operation,
+            b,
+            c,
+            is_mulh,
+            is_mulhsu,
+            is_mulw,
+        );
+        CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
+        RTypeReader::<WB::Field>::witgen(wb, &mut cols.adapter, &adapter);
+    }
 }
 
 impl<F: PrimeField32, M: TrustMode> MachineAir<F> for MulChip<M> {

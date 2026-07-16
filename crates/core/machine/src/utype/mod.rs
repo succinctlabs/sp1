@@ -21,7 +21,7 @@ use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
-        register::j_type::{JTypeReader, JTypeReaderInput},
+        register::j_type::{JTypeReader, JTypeReaderInput, JTypeReaderWitgenInput},
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
@@ -37,6 +37,62 @@ pub const NUM_UTYPE_COLS_USER: usize = size_of::<UTypeColumns<u8, UserMode>>();
 #[derive(Default)]
 pub struct UTypeChip<M: TrustMode> {
     pub _phantom: PhantomData<M>,
+}
+
+/// Witgen inputs for the `UType` chip: one `#[repr(C)]` row per event (see
+/// `record_witgen_inputs` — field order IS the packed input layout).
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct UTypeWitgenInput<T> {
+    pub clk: T,
+    pub pc: T,
+    pub opcode: T,
+    pub adapter: JTypeReaderWitgenInput<T>,
+    pub event_b: T,
+}
+
+/// Number of witgen inputs per `UType` row.
+pub const NUM_UTYPE_WITGEN_INPUTS: usize = size_of::<UTypeWitgenInput<u8>>();
+
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T, M: TrustMode> UTypeColumns<T, M> {
+    /// Backend-agnostic witgen for the `UType` chip (AUIPC/LUI): the addend `a`
+    /// (`pc` for AUIPC, `0` for LUI) as 3 u16 limbs, the `AddOperation` `a + b`
+    /// (guarded+masked by op_a≠0, since a write to x0 zeroes the result), the
+    /// `CPUState`, and the `JTypeReader` adapter.
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut UTypeColumns<WB::Field, M>,
+        input: &UTypeWitgenInput<WB::Nat>,
+    ) {
+        let UTypeWitgenInput { clk, pc, opcode, adapter, event_b } = *input;
+        let op_a = adapter.op_a;
+        let zero = wb.const_nat(0);
+        let one = wb.const_nat(1);
+        let o_auipc = wb.const_nat(Opcode::AUIPC as u64);
+        let is_auipc = wb.eq(opcode, o_auipc);
+        cols.is_auipc = wb.nat_to_field(is_auipc);
+        cols.is_real = wb.nat_to_field(one);
+
+        // The addend `a` is pc for AUIPC, else 0.
+        let a = wb.select(is_auipc, pc, zero);
+        for i in 0..(WORD_SIZE - 1) {
+            let l = wb.bits(a, (i as u32) * 16, 16);
+            cols.addend[i] = wb.nat_to_field(l);
+        }
+
+        // add_operation = a + b, but zeroed (and no lookups) when op_a == 0.
+        let is_op_a_zero = wb.eq(op_a, zero);
+        let op_a_nz = wb.eq(is_op_a_zero, zero);
+        let add_a = wb.select(op_a_nz, a, zero);
+        let add_b = wb.select(op_a_nz, event_b, zero);
+        wb.push_guard(op_a_nz);
+        AddOperation::<WB::Field>::witgen(wb, &mut cols.add_operation, add_a, add_b);
+        wb.pop_guard();
+
+        CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
+        JTypeReader::<WB::Field>::witgen(wb, &mut cols.adapter, &adapter);
+    }
 }
 
 impl<F, M: TrustMode> BaseAir<F> for UTypeChip<M> {

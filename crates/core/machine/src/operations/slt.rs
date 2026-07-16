@@ -7,9 +7,9 @@ use struct_reflection::{StructReflection, StructReflectionHelper};
 use slop_air::AirBuilder;
 use slop_algebra::{AbstractField, Field};
 use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationBuilder};
-use sp1_primitives::consts::{u64_to_u16_limbs, WORD_SIZE};
+use sp1_primitives::consts::WORD_SIZE;
 
-use crate::air::{SP1Operation, SP1OperationBuilder};
+use crate::air::{HostWitnessBuilder, SP1Operation, SP1OperationBuilder, WitnessBuilder};
 
 use super::{U16CompareOperation, U16CompareOperationInput, U16MSBOperation, U16MSBOperationInput};
 
@@ -59,6 +59,50 @@ pub struct LtOperationSigned<T> {
     pub c_msb: U16MSBOperation<T>,
 }
 
+/// `x ^ (1 << 63)` (toggle the top bit) using only DSL ops: `low_63 + (msb ? 0 :
+/// 1<<63)`. Used to map signed comparison to unsigned by flipping the sign bit.
+fn flip_top_bit<WB: WitnessBuilder>(wb: &mut WB, x: WB::Nat) -> WB::Nat {
+    let zero = wb.const_nat(0);
+    let low = wb.bits(x, 0, 63);
+    let msb = wb.bits(x, 63, 1);
+    let big = wb.const_nat(1u64 << 63);
+    let add = wb.select(msb, zero, big);
+    wb.wrapping_add(low, add)
+}
+
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T> LtOperationSigned<T> {
+    /// Backend-agnostic witgen dual of [`Self::eval_lt_signed`]: per-row signed vs
+    /// unsigned (`is_signed`). The MSB gadgets of `b`/`c` are computed always but
+    /// their lookups are guarded by `is_signed` and their `msb` column is 0 when
+    /// unsigned (field_select); the signed comparison flips the sign bit of `b`/`c`.
+    pub fn witgen<WB: WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut LtOperationSigned<WB::Field>,
+        a: WB::Nat,
+        b: WB::Nat,
+        c: WB::Nat,
+        is_signed: WB::Nat,
+    ) {
+        let zero = wb.const_nat(0);
+        let zero_f = wb.nat_to_field(zero);
+        let b3 = wb.bits(b, 48, 16);
+        let c3 = wb.bits(c, 48, 16);
+        wb.push_guard(is_signed);
+        U16MSBOperation::<WB::Field>::witgen(wb, &mut cols.b_msb, b3);
+        U16MSBOperation::<WB::Field>::witgen(wb, &mut cols.c_msb, c3);
+        wb.pop_guard();
+        cols.b_msb.msb = wb.field_select(is_signed, cols.b_msb.msb, zero_f);
+        cols.c_msb.msb = wb.field_select(is_signed, cols.c_msb.msb, zero_f);
+        // Map signed → unsigned by flipping the sign bit when signed.
+        let b_flip = flip_top_bit(wb, b);
+        let c_flip = flip_top_bit(wb, c);
+        let b_cmp = wb.select(is_signed, b_flip, b);
+        let c_cmp = wb.select(is_signed, c_flip, c);
+        LtOperationUnsigned::<WB::Field>::witgen(wb, &mut cols.result, a, b_cmp, c_cmp);
+    }
+}
+
 impl<F: Field> LtOperationSigned<F> {
     pub fn populate_signed(
         &mut self,
@@ -68,17 +112,8 @@ impl<F: Field> LtOperationSigned<F> {
         c_u64: u64,
         is_signed: bool,
     ) {
-        let b_comp = u64_to_u16_limbs(b_u64);
-        let c_comp = u64_to_u16_limbs(c_u64);
-        if is_signed {
-            self.b_msb.populate_msb(record, b_comp[3]);
-            self.c_msb.populate_msb(record, c_comp[3]);
-            self.result.populate_unsigned(record, a_u64, b_u64 ^ (1 << 63), c_u64 ^ (1 << 63));
-        } else {
-            self.b_msb.msb = F::zero();
-            self.c_msb.msb = F::zero();
-            self.result.populate_unsigned(record, a_u64, b_u64, c_u64);
-        }
+        let mut wb = HostWitnessBuilder::<F, _>::new(record);
+        Self::witgen(&mut wb, self, a_u64, b_u64, c_u64, is_signed as u64);
     }
 
     /// Evaluate the signed LT operation.
@@ -151,6 +186,81 @@ impl<F: Field> LtOperationSigned<F> {
     }
 }
 
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T> LtOperationUnsigned<T> {
+    /// Backend-agnostic witgen dual of [`Self::eval_lt_unsigned`]. The data-dependent
+    /// "first differing limb (from the MSB)" search is expressed branch-free over the
+    /// 4 limbs with `select`/`eq` chains; `not_eq_inv = (cb − cc)^{-1}` is guarded
+    /// against the all-equal case (inverse of 0) via `field_select`.
+    pub fn witgen<WB: WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut LtOperationUnsigned<WB::Field>,
+        a: WB::Nat,
+        b: WB::Nat,
+        c: WB::Nat,
+    ) {
+        let zero = wb.const_nat(0);
+        let one = wb.const_nat(1);
+        // u16 limbs of b and c.
+        let b0 = wb.bits(b, 0, 16);
+        let b1 = wb.bits(b, 16, 16);
+        let b2 = wb.bits(b, 32, 16);
+        let b3 = wb.bits(b, 48, 16);
+        let c0 = wb.bits(c, 0, 16);
+        let c1 = wb.bits(c, 16, 16);
+        let c2 = wb.bits(c, 32, 16);
+        let c3 = wb.bits(c, 48, 16);
+        // Per-limb equality and "differs" flags.
+        let eq0 = wb.eq(b0, c0);
+        let eq1 = wb.eq(b1, c1);
+        let eq2 = wb.eq(b2, c2);
+        let eq3 = wb.eq(b3, c3);
+        let ne0 = wb.eq(eq0, zero);
+        let ne1 = wb.eq(eq1, zero);
+        let ne2 = wb.eq(eq2, zero);
+        let ne3 = wb.eq(eq3, zero);
+        // First difference from the MSB: flag_i = differs_i AND (all higher equal).
+        let first3 = ne3;
+        let first2 = wb.select(eq3, ne2, zero);
+        let he1 = wb.select(eq3, eq2, zero); // eq3 && eq2
+        let first1 = wb.select(he1, ne1, zero);
+        let he0 = wb.select(he1, eq1, zero); // eq3 && eq2 && eq1
+        let first0 = wb.select(he0, ne0, zero);
+        cols.u16_flags[3] = wb.nat_to_field(first3);
+        cols.u16_flags[2] = wb.nat_to_field(first2);
+        cols.u16_flags[1] = wb.nat_to_field(first1);
+        cols.u16_flags[0] = wb.nat_to_field(first0);
+        // Comparison limbs = (b, c) at the first differing limb, else 0.
+        let cb_a = wb.select(first0, b0, zero);
+        let cb_b = wb.select(first1, b1, cb_a);
+        let cb_c = wb.select(first2, b2, cb_b);
+        let cb = wb.select(first3, b3, cb_c);
+        let cc_a = wb.select(first0, c0, zero);
+        let cc_b = wb.select(first1, c1, cc_a);
+        let cc_c = wb.select(first2, c2, cc_b);
+        let cc = wb.select(first3, c3, cc_c);
+        cols.comparison_limbs[0] = wb.nat_to_field(cb);
+        cols.comparison_limbs[1] = wb.nat_to_field(cc);
+        // not_eq_inv = (cb − cc)^{-1} when they differ, else 0 (avoid inverse(0)).
+        let all_eq = wb.eq(cb, cc);
+        let diff_f = wb.field_sub(cols.comparison_limbs[0], cols.comparison_limbs[1]);
+        let one_f = wb.nat_to_field(one);
+        let safe = wb.field_select(all_eq, one_f, diff_f);
+        let inv = wb.field_inverse(safe);
+        let zero_f = wb.nat_to_field(zero);
+        cols.not_eq_inv = wb.field_select(all_eq, zero_f, inv);
+        // The u16 compare over the low result limb and the comparison limbs.
+        let a_u16 = wb.bits(a, 0, 16);
+        U16CompareOperation::<WB::Field>::witgen(
+            wb,
+            &mut cols.u16_compare_operation,
+            a_u16,
+            cb,
+            cc,
+        );
+    }
+}
+
 impl<F: Field> LtOperationUnsigned<F> {
     pub fn populate_unsigned(
         &mut self,
@@ -159,38 +269,8 @@ impl<F: Field> LtOperationUnsigned<F> {
         b_u64: u64,
         c_u64: u64,
     ) {
-        self.comparison_limbs[0] = F::zero();
-        self.comparison_limbs[1] = F::zero();
-        self.not_eq_inv = F::zero();
-        self.u16_flags = [F::zero(), F::zero(), F::zero(), F::zero()];
-
-        let a_limbs = u64_to_u16_limbs(a_u64);
-        let b_limbs = u64_to_u16_limbs(b_u64);
-        let c_limbs = u64_to_u16_limbs(c_u64);
-
-        let a_u16 = a_limbs[0] as u16;
-
-        let mut comparison_limbs = [0u16; 2];
-        for (b_limb, c_limb, flag) in
-            izip!(b_limbs.iter().rev(), c_limbs.iter().rev(), self.u16_flags.iter_mut().rev())
-        {
-            if b_limb != c_limb {
-                *flag = F::one();
-                comparison_limbs[0] = *b_limb;
-                comparison_limbs[1] = *c_limb;
-                let b_limb = F::from_canonical_u16(*b_limb);
-                let c_limb = F::from_canonical_u16(*c_limb);
-                self.not_eq_inv = (b_limb - c_limb).inverse();
-                self.comparison_limbs = [b_limb, c_limb];
-                break;
-            }
-        }
-        self.u16_compare_operation.populate(
-            record,
-            a_u16,
-            comparison_limbs[0],
-            comparison_limbs[1],
-        );
+        let mut wb = HostWitnessBuilder::<F, _>::new(record);
+        Self::witgen(&mut wb, self, a_u64, b_u64, c_u64);
     }
 
     /// Evaluate that LT operation.

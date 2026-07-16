@@ -5,10 +5,9 @@ use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationB
 
 use sp1_core_executor::{events::ByteRecord, ByteOpcode};
 use sp1_hypercube::{air::SP1AirBuilder, Word};
-use sp1_primitives::consts::u64_to_u16_limbs;
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
-use crate::air::{SP1Operation, SP1OperationBuilder};
+use crate::air::{HostWitnessBuilder, SP1Operation, SP1OperationBuilder, WitnessBuilder};
 
 use super::{AddrAddOperation, AddrAddOperationInput};
 
@@ -37,12 +36,37 @@ pub struct AddressOperation<T> {
 impl<F: PrimeField32> AddressOperation<F> {
     pub fn populate(&mut self, record: &mut impl ByteRecord, b: u64, c: u64) -> u64 {
         let memory_addr = b.wrapping_add(c);
-        let addr_limbs = u64_to_u16_limbs(memory_addr);
-        self.addr_operation.populate(record, b, c);
-        let sum_top_two_limb =
-            F::from_canonical_u16(addr_limbs[1]) + F::from_canonical_u16(addr_limbs[2]);
-        self.top_two_limb_inv = sum_top_two_limb.inverse();
-        record.add_bit_range_check(addr_limbs[0] / 8, 13);
+        assert!(memory_addr >> 48 == 0);
+        let mut wb = HostWitnessBuilder::<F, _>::new(record);
+        Self::witgen(&mut wb, self, b, c)
+    }
+}
+
+// Witgen lives in an unconstrained `impl<T>` (see `AddrAddOperation::witgen`): the
+// column type is the builder's `Field`, a wire id under the recording backend.
+impl<T> AddressOperation<T> {
+    /// Backend-agnostic witness generation: derives the aligned u48 memory address
+    /// `b + c`, fills `addr_operation` (composing [`AddrAddOperation::witgen`]),
+    /// computes `top_two_limb_inv`, and emits the alignment bit-range check. The
+    /// witgen dual of [`Self::eval`].
+    pub fn witgen<WB: WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut AddressOperation<WB::Field>,
+        b: WB::Nat,
+        c: WB::Nat,
+    ) -> WB::Nat {
+        let memory_addr = wb.wrapping_add(b, c);
+        // u48 limbs.
+        AddrAddOperation::<WB::Field>::witgen(wb, &mut cols.addr_operation, b, c);
+        let limb1 = wb.bits(memory_addr, 16, 16);
+        let limb2 = wb.bits(memory_addr, 32, 16);
+        let limb1_f = wb.nat_to_field(limb1);
+        let limb2_f = wb.nat_to_field(limb2);
+        let sum_top_two_limb = wb.field_add(limb1_f, limb2_f);
+        cols.top_two_limb_inv = wb.field_inverse(sum_top_two_limb);
+        // `addr_limbs[0] / 8` == bits 3..16 of the address.
+        let limb0_div8 = wb.bits(memory_addr, 3, 13);
+        wb.add_bit_range_check(limb0_div8, 13);
         memory_addr
     }
 }

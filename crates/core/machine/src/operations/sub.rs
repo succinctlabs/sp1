@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use sp1_core_executor::events::ByteRecord;
 use sp1_hypercube::{air::SP1AirBuilder, Word};
-use sp1_primitives::consts::{u64_to_u16_limbs, WORD_SIZE};
+use sp1_primitives::consts::WORD_SIZE;
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use slop_air::AirBuilder;
@@ -29,13 +29,30 @@ pub struct SubOperation<T> {
     pub value: Word<T>,
 }
 
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T> SubOperation<T> {
+    /// Backend-agnostic witness generation: the four u16 limbs of `a - b` into
+    /// `value`, with their range checks. Witgen dual of [`Self::eval`].
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut SubOperation<WB::Field>,
+        a: WB::Nat,
+        b: WB::Nat,
+    ) -> WB::Nat {
+        let expected = wb.wrapping_sub(a, b);
+        for i in 0..WORD_SIZE {
+            let limb = wb.bits(expected, (i as u32) * 16, 16);
+            cols.value[i] = wb.nat_to_field(limb);
+            wb.add_u16_range_check(limb);
+        }
+        expected
+    }
+}
+
 impl<F: Field> SubOperation<F> {
     pub fn populate(&mut self, record: &mut impl ByteRecord, a_u64: u64, b_u64: u64) -> u64 {
-        let expected = a_u64.wrapping_sub(b_u64);
-        self.value = Word::from(expected);
-        // Range check
-        record.add_u16_range_checks(&u64_to_u16_limbs(expected));
-        expected
+        let mut wb = crate::air::HostWitnessBuilder::<F, _>::new(record);
+        Self::witgen(&mut wb, self, a_u64, b_u64)
     }
 
     /// Evaluate the sub operation.

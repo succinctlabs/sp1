@@ -1,6 +1,6 @@
 use crate::{
     adapter::{
-        register::alu_type::{ALUTypeReader, ALUTypeReaderInput},
+        register::alu_type::{ALUTypeReader, ALUTypeReaderInput, ALUTypeReaderWitgenInput},
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
@@ -68,6 +68,60 @@ pub struct BitwiseCols<T, M: TrustMode> {
 
     /// Adapter columns for trust mode specific data.
     pub adapter_cols: M::AdapterCols<T>,
+}
+
+/// Witgen inputs for the `Bitwise` chip: one `#[repr(C)]` row per event. The GPU
+/// packs each event into one `BitwiseWitgenInput<u64>` and the op-DAG recorder casts
+/// a wire slice to the same struct (see `record_witgen_inputs`), so field order IS
+/// the kernel input layout.
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct BitwiseWitgenInput<T> {
+    pub clk: T,
+    pub pc: T,
+    /// The result operand.
+    pub a: T,
+    pub b: T,
+    pub c: T,
+    /// The per-row `ByteOpcode` discriminant (AND=0, OR=1, XOR=2).
+    pub byte_opcode: T,
+    pub adapter: ALUTypeReaderWitgenInput<T>,
+}
+
+/// Number of witgen inputs per `Bitwise` row.
+pub const NUM_BITWISE_WITGEN_INPUTS: usize = size_of::<BitwiseWitgenInput<u8>>();
+
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T, M: TrustMode> BitwiseCols<T, M> {
+    /// Backend-agnostic witgen for the `Bitwise` chip. The `is_*` selectors are
+    /// derived from `input.byte_opcode`. There is no `is_real` column (the sum of the
+    /// three selectors plays that role).
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut BitwiseCols<WB::Field, M>,
+        input: &BitwiseWitgenInput<WB::Nat>,
+    ) {
+        BitwiseU16Operation::<WB::Field>::witgen(
+            wb,
+            &mut cols.bitwise_operation,
+            input.a,
+            input.b,
+            input.c,
+            input.byte_opcode,
+        );
+        // Selectors from the byte opcode (AND=0, OR=1, XOR=2).
+        let zero = wb.const_nat(0);
+        let one = wb.const_nat(1);
+        let two = wb.const_nat(2);
+        let is_and = wb.eq(input.byte_opcode, zero);
+        cols.is_and = wb.nat_to_field(is_and);
+        let is_or = wb.eq(input.byte_opcode, one);
+        cols.is_or = wb.nat_to_field(is_or);
+        let is_xor = wb.eq(input.byte_opcode, two);
+        cols.is_xor = wb.nat_to_field(is_xor);
+        CPUState::<WB::Field>::witgen(wb, &mut cols.state, input.clk, input.pc);
+        ALUTypeReader::<WB::Field>::witgen(wb, &mut cols.adapter, &input.adapter);
+    }
 }
 
 impl<F: PrimeField32, M: TrustMode> MachineAir<F> for BitwiseChip<M> {

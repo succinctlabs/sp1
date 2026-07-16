@@ -8,8 +8,10 @@ use slop_challenger::IopCtx;
 use slop_multilinear::MultilinearPcsVerifier;
 use sp1_gpu_basefold::DeviceGrindingChallenger;
 use sp1_gpu_cudart::TaskScope;
-use sp1_gpu_jagged_tracegen::setup_tracegen_permit;
 use sp1_gpu_jagged_tracegen::CudaShardProverData;
+use sp1_gpu_jagged_tracegen::{
+    ensure_trace_buffer_capacity, required_trace_buffer_elems, setup_tracegen_permit,
+};
 use sp1_gpu_utils::{Ext, Felt, JaggedTraceMle};
 use sp1_hypercube::{
     air::{MachineAir, MachineProgram},
@@ -44,7 +46,12 @@ where
         let pc_start = program.pc_start();
         let untrusted_config = program.untrusted_config();
 
-        let buffer = self.get_buffer().await;
+        let mut buffer = self.get_buffer().await;
+
+        // Ratchet the worker's pinned buffer up to this program's preprocessed-trace
+        // requirement (H1). No `record`: setup writes only preprocessed traces.
+        let required = required_trace_buffer_elems(&self.machine, Some(program.as_ref()), None);
+        ensure_trace_buffer_capacity(&mut buffer, required).await;
 
         let (preprocessed_data, permit) = setup_tracegen_permit(
             &self.machine,

@@ -1,11 +1,13 @@
 use crate::{
     adapter::{
-        register::i_type::{ITypeReader, ITypeReaderImmutable, ITypeReaderImmutableInput},
+        register::i_type::{
+            ITypeReader, ITypeReaderImmutable, ITypeReaderImmutableInput, ITypeReaderWitgenInput,
+        },
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
     eval_untrusted_program,
-    memory::MemoryAccessCols,
+    memory::{MemoryAccessCols, MemoryAccessWitgenInput},
     operations::{AddressOperation, AddressOperationInput},
     utils::next_multiple_of_32,
     SupervisorMode, TrustMode, UserMode,
@@ -65,6 +67,59 @@ pub struct StoreHalfColumns<T, M: TrustMode> {
 
     /// Adapter columns for trust mode specific data.
     pub adapter_cols: M::AdapterCols<T>,
+}
+
+/// Witgen inputs for the `StoreHalf` chip: one `#[repr(C)]` row per event (see
+/// `record_witgen_inputs` — field order IS the packed input layout). Beyond the
+/// state + adapter, the address operands (`b_val`, `c_val`), the memory access,
+/// and the NEW memory value are per-chip inputs.
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct StoreHalfWitgenInput<T> {
+    pub clk: T,
+    pub pc: T,
+    pub adapter: ITypeReaderWitgenInput<T>,
+    pub b_val: T,
+    pub c_val: T,
+    pub mem: MemoryAccessWitgenInput<T>,
+    pub mem_value: T,
+}
+
+/// Number of witgen inputs per `StoreHalf` row.
+pub const NUM_STORE_HALF_WITGEN_INPUTS: usize = size_of::<StoreHalfWitgenInput<u8>>();
+
+// Witgen in an unconstrained `impl<T>` (column type is the builder's `Field`).
+impl<T, M: TrustMode> StoreHalfColumns<T, M> {
+    /// Backend-agnostic witgen for the `StoreHalf` chip (sh): memory access, address
+    /// operation, the two offset bits (address bits 1-2), and the stored word.
+    pub fn witgen<WB: crate::air::WitnessBuilder>(
+        wb: &mut WB,
+        cols: &mut StoreHalfColumns<WB::Field, M>,
+        input: &StoreHalfWitgenInput<WB::Nat>,
+    ) {
+        let StoreHalfWitgenInput { clk, pc, adapter, b_val, c_val, mem, mem_value } = *input;
+        let one = wb.const_nat(1);
+        cols.is_real = wb.nat_to_field(one);
+        MemoryAccessCols::<WB::Field>::witgen(
+            wb,
+            &mut cols.memory_access,
+            mem.prev_value,
+            mem.prev_ts,
+            mem.cur_ts,
+        );
+        let memory_addr =
+            AddressOperation::<WB::Field>::witgen(wb, &mut cols.address_operation, b_val, c_val);
+        let bit1 = wb.bits(memory_addr, 1, 1);
+        let bit2 = wb.bits(memory_addr, 2, 1);
+        cols.offset_bit[0] = wb.nat_to_field(bit1);
+        cols.offset_bit[1] = wb.nat_to_field(bit2);
+        for i in 0..sp1_primitives::consts::WORD_SIZE {
+            let limb = wb.bits(mem_value, (i as u32) * 16, 16);
+            cols.store_value[i] = wb.nat_to_field(limb);
+        }
+        CPUState::<WB::Field>::witgen(wb, &mut cols.state, clk, pc);
+        ITypeReader::<WB::Field>::witgen(wb, &mut cols.adapter, &adapter);
+    }
 }
 
 impl<F, M: TrustMode> BaseAir<F> for StoreHalfChip<M> {
