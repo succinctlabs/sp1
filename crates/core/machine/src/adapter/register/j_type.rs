@@ -29,12 +29,15 @@ pub struct JTypeReader<T> {
 }
 
 impl<F: PrimeField32> JTypeReader<F> {
+    /// Host-side populate DELEGATES to [`Self::witgen`] via `HostWitnessBuilder`
+    /// (canonicalization stage 1): one witness implementation, two backends — the
+    /// same motion as `RTypeReader`/`ITypeReader`. Equivalence (identical trace
+    /// columns AND identical `ByteRecord` events) is pinned by the device==CPU
+    /// full-trace equality tests of the J-type chips, whose CPU reference is this
+    /// method.
     pub fn populate(&mut self, blu_events: &mut impl ByteRecord, record: JTypeRecord) {
-        self.op_a = F::from_canonical_u8(record.op_a);
-        self.op_a_memory.populate(record.a, blu_events);
-        self.op_a_0 = F::from_bool(record.op_a == 0);
-        self.op_b_imm = Word::from(record.op_b);
-        self.op_c_imm = Word::from(record.op_c);
+        let mut wb = crate::air::HostWitnessBuilder::<F, _>::new(blu_events);
+        Self::witgen(&mut wb, self, &JTypeReaderWitgenInput::from_record(&record));
     }
 }
 

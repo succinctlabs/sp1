@@ -76,22 +76,15 @@ impl<T: Copy> ALUTypeReader<T> {
 }
 
 impl<F: PrimeField32> ALUTypeReader<F> {
+    /// Host-side populate DELEGATES to [`Self::witgen`] via `HostWitnessBuilder`
+    /// (canonicalization stage 1): one witness implementation, two backends — the
+    /// same motion as `RTypeReader`/`ITypeReader`. Equivalence (identical trace
+    /// columns AND identical `ByteRecord` events, both register and immediate
+    /// `op_c`) is pinned by the device==CPU full-trace equality tests of every
+    /// ALU-reader chip, whose CPU reference is this method.
     pub fn populate(&mut self, blu_events: &mut impl ByteRecord, record: ALUTypeRecord) {
-        self.op_a = F::from_canonical_u8(record.op_a);
-        self.op_a_memory.populate(record.a, blu_events);
-        self.op_a_0 = F::from_bool(record.op_a == 0);
-        self.op_b = F::from_canonical_u64(record.op_b);
-        self.op_b_memory.populate(record.b, blu_events);
-        self.op_c = Word::from(record.op_c);
-        let imm_c = record.c.is_none();
-        self.imm_c = F::from_bool(imm_c);
-        if imm_c {
-            self.op_c_memory.prev_value = self.op_c;
-            self.op_c_memory.access_timestamp.diff_low_limb = F::zero();
-            self.op_c_memory.access_timestamp.prev_low = F::zero();
-        } else {
-            self.op_c_memory.populate(record.c.unwrap(), blu_events);
-        }
+        let mut wb = crate::air::HostWitnessBuilder::<F, _>::new(blu_events);
+        Self::witgen(&mut wb, self, &ALUTypeReaderWitgenInput::from_record(&record));
     }
 }
 
