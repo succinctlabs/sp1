@@ -7,6 +7,7 @@ use sp1_core_machine::autoprecompiles::sp1_configs;
 use sp1_core_machine::autoprecompiles::execution_profile_from_program;
 use sp1_core_machine::autoprecompiles::CompiledProgram;
 use sp1_core_executor::Program;
+use std::path::PathBuf;
 
 const ELF: Elf = include_elf!("keccak-bench-program");
 
@@ -24,6 +25,15 @@ struct Args {
     /// The number of APCs to generate
     #[arg(long, default_value_t = 0)]
     apcs: usize,
+
+    /// Instead of proving, export an apc-optimizer benchmark set to `<out>/keccak`.
+    /// Use with `--manual false` so the hot software-keccak blocks become APCs.
+    #[arg(long)]
+    bench_out: Option<PathBuf>,
+
+    /// Number of top-ranked (cell PGO) candidates to export in `--bench-out` mode.
+    #[arg(long, default_value_t = 1)]
+    bench_top: u64,
 }
 
 #[tokio::main]
@@ -40,6 +50,21 @@ async fn main() {
     stdin.write(&manual);
     stdin.write(&num_hashes);
     stdin.write(&state);
+
+    if let Some(out) = args.bench_out {
+        let out_dir = out.join("keccak");
+        let note = format!("keccak-bench (manual={manual}), {num_hashes} hashes, cell PGO");
+        println!("[powdr] Exporting benchmark set to {} ...", out_dir.display());
+        sp1_core_machine::autoprecompiles::benchmark::export_benchmark_set(
+            &ELF,
+            stdin,
+            &out_dir,
+            args.bench_top,
+            &note,
+        );
+        println!("[powdr] Done!");
+        return;
+    }
 
     let apcs = if args.apcs > 0 {
         let program = Arc::new(Program::from(&ELF).unwrap());
