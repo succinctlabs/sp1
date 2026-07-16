@@ -195,7 +195,7 @@ mod tests {
     use sp1_hypercube::{
         air::MachineAir,
         debug_constraints,
-        prover::{zerocheck_reduce_sumcheck_to_evaluation, ZeroCheckPoly, ZerocheckCpuProverData},
+        prover::{ZeroCheckPoly, ZerocheckCpuProverData},
         AirOpenedValues, Chip, ChipOpenedValues, ConstraintSumcheckFolder, InnerSC, ShardVerifier,
         PROOF_MAX_NUM_PVS,
     };
@@ -557,6 +557,9 @@ mod tests {
         for (num_variables, heights) in cases {
             let zeta = Point::<EF>::rand(&mut rng, num_variables as u32);
             let lambda = rng.gen::<EF>();
+            // The lookahead depth of the fused prover; traces with a single variable only
+            // support the plain first round.
+            let lookahead = num_variables.min(2);
 
             let (add_polys, add_claims): (Vec<_>, Vec<_>) = heights
                 .iter()
@@ -586,10 +589,11 @@ mod tests {
             );
 
             let mut challenger_fused = SP1GlobalContext::default_challenger();
-            let (add_proof_fused, add_evals_fused) = zerocheck_reduce_sumcheck_to_evaluation(
+            let (add_proof_fused, add_evals_fused) = reduce_sumcheck_to_evaluation(
                 add_polys,
                 &mut challenger_fused,
                 add_claims,
+                lookahead,
                 lambda,
             );
 
@@ -620,10 +624,11 @@ mod tests {
             );
 
             let mut challenger_fused = SP1GlobalContext::default_challenger();
-            let (cube_proof_fused, cube_evals_fused) = zerocheck_reduce_sumcheck_to_evaluation(
+            let (cube_proof_fused, cube_evals_fused) = reduce_sumcheck_to_evaluation(
                 cube_polys,
                 &mut challenger_fused,
                 cube_claims,
+                lookahead,
                 lambda,
             );
 

@@ -91,6 +91,32 @@ struct BlockDispatch {
     uint32_t n_rows;                   // 4
 };
 
+// Load one column's row pair `(2·row, 2·row + 1)` and interpolate the last
+// variable at eval point `e` — the univariate round-message nodes {0, 2, 4}.
+// Diff-doubling: `z + ep * (o - z)` is rewritten as `z + d2 (+ d2)` with
+// `d2 = 2·(o − z)`, so we never multiply by a felt; `e == 0` skips the
+// second load entirely. `e` is uniform per block, so the branches never
+// diverge. Shared by the univariate constraint and GKR sweep kernels.
+//
+// The column-stride math is 64-bit: with u32 × u32 the product wraps for
+// chips approaching `2^32 / height` columns, silently reading from the
+// wrong column. See review #6.
+template <typename K>
+__device__ __forceinline__ K interp_load_pair(
+    const K* trace_data, size_t base, uint32_t col, uint32_t height,
+    uint32_t row_idx, int e)
+{
+    const size_t col_off = (size_t)col * (size_t)height;
+    K z = K::load(trace_data, base + col_off + (row_idx << 1));
+    if (e == 0) {
+        return z;
+    }
+    K o = K::load(trace_data, base + col_off + (row_idx << 1 | 1));
+    K diff = o - z;
+    K d2 = diff + diff;
+    return (e == 1) ? (z + d2) : (z + d2 + d2);
+}
+
 // Fused dispatch kernel. One launch handles every Sequential chunk tile
 // produced by the host-side dispatch builder. Each block reads its
 // `BlockDispatch` once at block init — no per-row binary search.

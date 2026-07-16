@@ -41,6 +41,72 @@ namespace cg = cooperative_groups;
 
 namespace {
 
+// Run one chunk's DAG bytecode for a single row position, then batch the
+// assertion registers by their alpha powers, returning the chunk's
+// constraint accumulator. Shared by the univariate and bivariate kernels,
+// which differ only in how a leaf's trace value is interpolated —
+// `load_leaf(LeafRef) -> K` supplies it.
+template <typename K, int MAX_REGS, typename LoadLeaf>
+__device__ __forceinline__ ext_t run_chunk_bytecode(
+    const ChunkStatic& stc,
+    const felt_t* consts,
+    const felt_t* public_values,
+    const ext_t* powers_of_alpha,
+    K (&regs)[MAX_REGS],
+    LoadLeaf load_leaf)
+{
+    for (uint32_t i = 0; i < stc.n_instrs; i++) {
+        DagInstr instr = stc.instrs[i];
+        switch (instr.opcode) {
+        case BC_LOAD_LEAF: {
+            regs[instr.out] = load_leaf(stc.leaves[instr.a]);
+            break;
+        }
+        case BC_LOAD_CONST: {
+            regs[instr.out] = K(consts[instr.a]);
+            break;
+        }
+        case BC_LOAD_PUBLIC: {
+            uint32_t pv_idx = stc.publics[instr.a];
+            regs[instr.out] = K(felt_t::load(public_values, pv_idx));
+            break;
+        }
+        case BC_ADD_F: {
+            regs[instr.out] = regs[instr.a] + regs[instr.b];
+            break;
+        }
+        case BC_SUB_F: {
+            regs[instr.out] = regs[instr.a] - regs[instr.b];
+            break;
+        }
+        case BC_MUL_F: {
+            regs[instr.out] = regs[instr.a] * regs[instr.b];
+            break;
+        }
+        case BC_NEG_F: {
+            regs[instr.out] = K::zero() - regs[instr.a];
+            break;
+        }
+        default:
+            // Unknown opcode = Rust↔CUDA bytecode drift; fail loudly
+            // rather than leaving `regs[instr.out]` stale and silently
+            // producing the wrong constraint value downstream.
+            __trap();
+        }
+    }
+
+    ext_t acc = ext_t::zero();
+    for (uint32_t i = 0; i < stc.n_asserts; i++) {
+        uint16_t reg = stc.assert_regs[i];
+        // Bytecode stores chip-relative alpha indices; shift into the
+        // cluster's powers_of_alpha table here.
+        uint32_t alpha_idx = stc.chip_alpha_offset + stc.assert_alphas[i];
+        ext_t alpha = ext_t::load(powers_of_alpha, alpha_idx);
+        acc += alpha * regs[reg];
+    }
+    return acc;
+}
+
 template <typename K, int MAX_REGS>
 __global__ void zerocheck_fused_sequential(
     const BlockDispatch* __restrict__ dispatch,
@@ -62,9 +128,8 @@ __global__ void zerocheck_fused_sequential(
     ChipLayout lay = chip_layouts[stc.chip_idx];
     const felt_t* consts = reinterpret_cast<const felt_t*>(stc.consts);
 
-    // Eval point index. Diff-doubling: eval points are {0, 2, 4}; the leaf
-    // interpolation `z + ep * (o - z)` is rewritten as `z + d2 (+ d2)` with
-    // `d2 = diff + diff` so we never multiply by a felt.
+    // Eval point index into the univariate nodes {0, 2, 4}; see
+    // `interp_load_pair` for the diff-doubling interpolation.
     const int e = blockIdx.z;
 
     K regs[MAX_REGS];
@@ -80,72 +145,13 @@ __global__ void zerocheck_fused_sequential(
          row_idx < row_end;
          row_idx += blockDim.x)
     {
-        ext_t acc = ext_t::zero();
-
-        for (uint32_t i = 0; i < stc.n_instrs; i++) {
-            DagInstr instr = stc.instrs[i];
-            switch (instr.opcode) {
-            case BC_LOAD_LEAF: {
-                LeafRef leaf = stc.leaves[instr.a];
+        ext_t acc = run_chunk_bytecode(
+            stc, consts, public_values, powers_of_alpha, regs, [&](LeafRef leaf) {
                 size_t base = (leaf.source == LEAF_SOURCE_MAIN_LOCAL)
                                   ? lay.main_ptr
                                   : lay.preprocessed_ptr;
-                // 64-bit column stride math; u32 × u32 wraps near the
-                // 2^32 / height column count. See review #6.
-                size_t col_off = (size_t)leaf.col * (size_t)lay.height;
-                K z = K::load(trace_data, base + col_off + (row_idx << 1));
-                if (e == 0) {
-                    regs[instr.out] = z;
-                } else {
-                    K o = K::load(trace_data, base + col_off + (row_idx << 1 | 1));
-                    K diff = o - z;
-                    K d2 = diff + diff;          // 2 * diff
-                    regs[instr.out] = (e == 1) ? (z + d2)            // z + 2*diff
-                                               : (z + d2 + d2);      // z + 4*diff
-                }
-                break;
-            }
-            case BC_LOAD_CONST: {
-                regs[instr.out] = K(consts[instr.a]);
-                break;
-            }
-            case BC_LOAD_PUBLIC: {
-                uint32_t pv_idx = stc.publics[instr.a];
-                regs[instr.out] = K(felt_t::load(public_values, pv_idx));
-                break;
-            }
-            case BC_ADD_F: {
-                regs[instr.out] = regs[instr.a] + regs[instr.b];
-                break;
-            }
-            case BC_SUB_F: {
-                regs[instr.out] = regs[instr.a] - regs[instr.b];
-                break;
-            }
-            case BC_MUL_F: {
-                regs[instr.out] = regs[instr.a] * regs[instr.b];
-                break;
-            }
-            case BC_NEG_F: {
-                regs[instr.out] = K::zero() - regs[instr.a];
-                break;
-            }
-            default:
-                // Unknown opcode = Rust↔CUDA bytecode drift; fail loudly
-                // rather than leaving `regs[instr.out]` stale and silently
-                // producing the wrong constraint value downstream.
-                __trap();
-            }
-        }
-
-        for (uint32_t i = 0; i < stc.n_asserts; i++) {
-            uint16_t reg = stc.assert_regs[i];
-            // Bytecode stores chip-relative alpha indices; shift into the
-            // cluster's powers_of_alpha table here.
-            uint32_t alpha_idx = stc.chip_alpha_offset + stc.assert_alphas[i];
-            ext_t alpha = ext_t::load(powers_of_alpha, alpha_idx);
-            acc += alpha * regs[reg];
-        }
+                return interp_load_pair(trace_data, base, leaf.col, lay.height, row_idx, e);
+            });
 
         // Inline GKR column sweep for the carrier chunk of NARROW chips
         // (the launcher zeroes these widths for wide chips, which get GKR
@@ -155,37 +161,13 @@ __global__ void zerocheck_fused_sequential(
         //
         // Geq correction is always out-of-band (`zerocheck_geq_corrections`).
         if (stc.gkr_main_width != 0 || stc.gkr_prep_width != 0) {
-            // 64-bit column stride math; u32 × u32 wraps near
-            // `2^32 / height` columns. See review #6.
-            const size_t height_64 = (size_t)lay.height;
             for (uint32_t i = 0; i < stc.gkr_main_width; i++) {
-                size_t col_off = (size_t)i * height_64;
-                K z = K::load(trace_data, lay.main_ptr + col_off + (row_idx << 1));
-                K v;
-                if (e == 0) {
-                    v = z;
-                } else {
-                    K o = K::load(trace_data,
-                                  lay.main_ptr + col_off + (row_idx << 1 | 1));
-                    K diff = o - z;
-                    K d2 = diff + diff;
-                    v = (e == 1) ? (z + d2) : (z + d2 + d2);
-                }
+                K v = interp_load_pair(trace_data, lay.main_ptr, i, lay.height, row_idx, e);
                 acc += ext_t::load(gkr_powers, i) * v;
             }
             for (uint32_t i = 0; i < stc.gkr_prep_width; i++) {
-                size_t col_off = (size_t)i * height_64;
-                K z = K::load(trace_data, lay.preprocessed_ptr + col_off + (row_idx << 1));
-                K v;
-                if (e == 0) {
-                    v = z;
-                } else {
-                    K o = K::load(trace_data,
-                                  lay.preprocessed_ptr + col_off + (row_idx << 1 | 1));
-                    K diff = o - z;
-                    K d2 = diff + diff;
-                    v = (e == 1) ? (z + d2) : (z + d2 + d2);
-                }
+                K v = interp_load_pair(
+                    trace_data, lay.preprocessed_ptr, i, lay.height, row_idx, e);
                 acc += ext_t::load(gkr_powers, stc.gkr_main_width + i) * v;
             }
         }
@@ -283,69 +265,14 @@ __global__ void zerocheck_fused_sequential_bivariate(
 
         for (int e = 0; e < BIVARIATE_NUM_NODES; e++) {
             const BivariateNode node = bivariate_node(e);
-            ext_t acc = ext_t::zero();
-
-            for (uint32_t i = 0; i < stc.n_instrs; i++) {
-                DagInstr instr = stc.instrs[i];
-                switch (instr.opcode) {
-                case BC_LOAD_LEAF: {
-                    LeafRef leaf = stc.leaves[instr.a];
+            ext_t acc = run_chunk_bytecode(
+                stc, consts, public_values, powers_of_alpha, regs, [&](LeafRef leaf) {
                     size_t base = (leaf.source == LEAF_SOURCE_MAIN_LOCAL)
                                       ? lay.main_ptr
                                       : lay.preprocessed_ptr;
-                    // 64-bit column stride math; u32 × u32 wraps near the
-                    // 2^32 / height column count.
-                    size_t col_off = (size_t)leaf.col * (size_t)lay.height;
-                    size_t quad_base = base + col_off + ((size_t)quad_idx << 2);
-                    K r00 = K::load(trace_data, quad_base);
-                    K r01 = K::load(trace_data, quad_base + 1);
-                    K r10, r11;
-                    if (full_quad) {
-                        r10 = K::load(trace_data, quad_base + 2);
-                        r11 = K::load(trace_data, quad_base + 3);
-                    } else {
-                        r10 = K::zero();
-                        r11 = K::zero();
-                    }
-                    regs[instr.out] = bivariate_interp(r00, r01, r10, r11, node);
-                    break;
-                }
-                case BC_LOAD_CONST: {
-                    regs[instr.out] = K(consts[instr.a]);
-                    break;
-                }
-                case BC_LOAD_PUBLIC: {
-                    uint32_t pv_idx = stc.publics[instr.a];
-                    regs[instr.out] = K(felt_t::load(public_values, pv_idx));
-                    break;
-                }
-                case BC_ADD_F: {
-                    regs[instr.out] = regs[instr.a] + regs[instr.b];
-                    break;
-                }
-                case BC_SUB_F: {
-                    regs[instr.out] = regs[instr.a] - regs[instr.b];
-                    break;
-                }
-                case BC_MUL_F: {
-                    regs[instr.out] = regs[instr.a] * regs[instr.b];
-                    break;
-                }
-                case BC_NEG_F: {
-                    regs[instr.out] = K::zero() - regs[instr.a];
-                    break;
-                }
-                default:
-                    __trap();
-                }
-            }
-
-            for (uint32_t i = 0; i < stc.n_asserts; i++) {
-                uint16_t reg = stc.assert_regs[i];
-                uint32_t alpha_idx = stc.chip_alpha_offset + stc.assert_alphas[i];
-                ext_t alpha = ext_t::load(powers_of_alpha, alpha_idx);
-                acc += alpha * regs[reg];
-            }
+                    return interp_load_quad(
+                        trace_data, base, leaf.col, lay.height, quad_idx, full_quad, node);
+                });
 
             thread_acc[e] += acc * w;
         }

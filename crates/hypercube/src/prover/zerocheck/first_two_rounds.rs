@@ -18,18 +18,19 @@
 //! `X, Y ∈ {0, 1}` (on real rows they hold, and on padded rows their value is cancelled exactly
 //! by the geq correction), so those nodes only require the GKR opening batch, which is linear in
 //! the trace and hence bilinear in `(X, Y)`.
+//!
+//! The fused rounds are proven by [`slop_sumcheck::reduce_sumcheck_to_evaluation`] with a
+//! lookahead depth of `t = 2`: [`ZeroCheckPoly`]'s first-round implementation computes the grid
+//! (and the first message) in [`zerocheck_sum_as_poly_in_last_two_variables`], and
+//! [`zerocheck_fix_last_variable_with_lookahead`] hands the second message over to the
+//! next-round polynomial.
 
 use itertools::Itertools;
 use slop_algebra::{
-    interpolate_univariate_polynomial, rlc_univariate_polynomials, AbstractExtensionField,
-    ExtensionField, Field, UnivariatePolynomial,
+    interpolate_univariate_polynomial, ExtensionField, Field, UnivariatePolynomial,
 };
-use slop_challenger::{FieldChallenger, VariableLengthChallenger};
 use slop_multilinear::Mle;
-use slop_sumcheck::{
-    reduce_sumcheck_to_evaluation, ComponentPoly, PartialSumcheckProof, SumcheckPoly,
-    SumcheckPolyBase,
-};
+use slop_sumcheck::SumcheckPolyBase;
 
 use super::{zerocheck_fix_last_variable, ZeroCheckPoly, ZerocheckAir};
 
@@ -62,6 +63,7 @@ pub const ZEROCHECK_CONSTRAINT_NODES: [(usize, usize); 12] = [
 ///
 /// `grid[ix][iy]` is the evaluation at `(ZEROCHECK_NODE_XS[ix], ZEROCHECK_NODE_XS[iy])`, where
 /// the first coordinate corresponds to the second-to-last variable.
+#[derive(Clone)]
 pub struct ZerocheckBivariateEvals<EF> {
     grid: [[EF; 4]; 4],
 }
@@ -267,128 +269,49 @@ where
     )
 }
 
-/// Proves the zerocheck sumcheck, reducing it to a claim about the evaluations of the trace
-/// columns at a point.
+/// The first-round message of the zerocheck sumcheck with a two-round lookahead (`t = 2`).
 ///
-/// This produces exactly the same transcript and proof as
-/// [`slop_sumcheck::reduce_sumcheck_to_evaluation`] applied to the zerocheck polynomials, but
-/// computes the first two round messages together from a single pass over the base-field traces.
-///
-/// # Panics
-/// Panics if `polys` is empty or if the polynomials do not all have the same number of variables.
-pub fn zerocheck_reduce_sumcheck_to_evaluation<F, EF, A, Challenger>(
-    polys: Vec<ZeroCheckPoly<F, F, EF, A>>,
-    challenger: &mut Challenger,
-    claims: Vec<EF>,
-    lambda: EF,
-) -> (PartialSumcheckProof<EF>, Vec<Vec<EF>>)
+/// Computes the bivariate grid evaluations in a single pass over the base-field traces and
+/// caches them on the polynomial, from where [`zerocheck_fix_last_variable_with_lookahead`]
+/// interpolates the second-round message once the first challenge is known.
+pub(crate) fn zerocheck_sum_as_poly_in_last_two_variables<F, EF, A>(
+    poly: &ZeroCheckPoly<F, F, EF, A>,
+    claim: Option<EF>,
+) -> UnivariatePolynomial<EF>
 where
     F: Field,
-    EF: ExtensionField<F> + Send + Sync,
+    EF: ExtensionField<F>,
     A: ZerocheckAir<F, EF>,
-    Challenger: FieldChallenger<F>,
 {
-    assert!(!polys.is_empty());
-    let num_variables = polys[0].num_variables();
-    assert!(polys.iter().all(|poly| poly.num_variables() == num_variables));
-
-    // The fused first two rounds require at least two variables.
-    if num_variables < 2 {
-        return reduce_sumcheck_to_evaluation(polys, challenger, claims, 1, lambda);
-    }
-
-    // The point at which the reduced sumcheck proof should be evaluated.
-    let mut point = vec![];
-
-    // The univariate poly messages.  This will be a rlc of the polys' univariate polys.
-    let mut univariate_poly_msgs: Vec<UnivariatePolynomial<EF>> = vec![];
-
-    // Evaluate the bivariate round polynomial of each chip on the interpolation grid.
-    let bivariate_evals = polys.iter().map(zerocheck_bivariate_evals).collect::<Vec<_>>();
-
-    // First round message.
-    let mut uni_polys: Vec<_> = polys
-        .iter()
-        .zip(bivariate_evals.iter())
-        .map(|(poly, evals)| zerocheck_first_round_message(poly, evals.as_ref()))
-        .collect();
-
-    #[cfg(debug_assertions)]
-    for (uni_poly, claim) in uni_polys.iter().zip_eq(claims.iter()) {
+    let evals = poly.bivariate_evals.get_or_init(|| zerocheck_bivariate_evals(poly));
+    let message = zerocheck_first_round_message(poly, evals.as_ref());
+    if let Some(claim) = claim {
         debug_assert_eq!(
-            uni_poly.eval_one_plus_eval_zero(),
-            *claim,
+            message.eval_one_plus_eval_zero(),
+            claim,
             "first round message inconsistent with the claim"
         );
     }
+    message
+}
 
-    let mut rlc_uni_poly = rlc_univariate_polynomials(&uni_polys, lambda);
-    let coefficients = rlc_uni_poly
-        .coefficients
-        .iter()
-        .flat_map(AbstractExtensionField::as_base_slice)
-        .copied()
-        .collect_vec();
-    challenger.observe_constant_length_slice(&coefficients);
-    univariate_poly_msgs.push(rlc_uni_poly);
-
-    let alpha: EF = challenger.sample_ext_element();
-    point.insert(0, alpha);
-
-    // Second round message, obtained from the stored grid without a pass over the traces.
-    uni_polys = polys
-        .iter()
-        .zip(bivariate_evals.iter())
-        .map(|(poly, evals)| zerocheck_second_round_message(poly, evals.as_ref(), alpha))
-        .collect();
-
-    rlc_uni_poly = rlc_univariate_polynomials(&uni_polys, lambda);
-    challenger.observe_constant_length_extension_slice(&rlc_uni_poly.coefficients);
-    univariate_poly_msgs.push(rlc_uni_poly);
-
-    let alpha_2: EF = challenger.sample_ext_element();
-    point.insert(0, alpha_2);
-
-    // Fix the last two variables to the sampled challenges.
-    let mut polys_cursor: Vec<_> = polys
-        .into_iter()
-        .map(|poly| zerocheck_fix_last_variable(zerocheck_fix_last_variable(poly, alpha), alpha_2))
-        .collect();
-
-    // The remaining rounds proceed exactly as in the generic sumcheck prover.
-    for _ in 2..num_variables as usize {
-        let round_claims = uni_polys.iter().map(|poly| poly.eval_at_point(*point.first().unwrap()));
-
-        uni_polys = polys_cursor
-            .iter()
-            .zip_eq(round_claims)
-            .map(|(poly, round_claim)| poly.sum_as_poly_in_last_variable(Some(round_claim)))
-            .collect();
-        let rlc_uni_poly = rlc_univariate_polynomials(&uni_polys, lambda);
-        challenger.observe_constant_length_extension_slice(&rlc_uni_poly.coefficients);
-
-        univariate_poly_msgs.push(rlc_uni_poly);
-
-        let alpha: EF = challenger.sample_ext_element();
-        point.insert(0, alpha);
-        polys_cursor = polys_cursor.into_iter().map(|poly| poly.fix_last_variable(alpha)).collect();
-    }
-
-    let evals =
-        uni_polys.iter().map(|poly| poly.eval_at_point(*point.first().unwrap())).collect_vec();
-
-    let component_poly_evals: Vec<_> =
-        polys_cursor.iter().map(ComponentPoly::get_component_poly_evals).collect();
-
-    (
-        PartialSumcheckProof {
-            univariate_polys: univariate_poly_msgs,
-            claimed_sum: claims.into_iter().fold(EF::zero(), |acc, x| acc * lambda + x),
-            point_and_eval: (
-                point.into(),
-                evals.into_iter().fold(EF::zero(), |acc, x| acc * lambda + x),
-            ),
-        },
-        component_poly_evals,
-    )
+/// Fixes the last variable to the first-round challenge under a two-round lookahead (`t = 2`).
+///
+/// The second-round message `h(X) = p(X, alpha)` is interpolated from the grid cached by
+/// [`zerocheck_sum_as_poly_in_last_two_variables`] and carried over to the folded polynomial,
+/// so the second round requires no pass over the trace.
+pub(crate) fn zerocheck_fix_last_variable_with_lookahead<F, EF, A>(
+    mut poly: ZeroCheckPoly<F, F, EF, A>,
+    alpha: EF,
+) -> ZeroCheckPoly<EF, F, EF, A>
+where
+    F: Field,
+    EF: ExtensionField<F>,
+    A: ZerocheckAir<F, EF>,
+{
+    let evals = poly.bivariate_evals.take().unwrap_or_else(|| zerocheck_bivariate_evals(&poly));
+    let message = zerocheck_second_round_message(&poly, evals.as_ref(), alpha);
+    let mut folded = zerocheck_fix_last_variable(poly, alpha);
+    folded.lookahead_message = Some(message);
+    folded
 }

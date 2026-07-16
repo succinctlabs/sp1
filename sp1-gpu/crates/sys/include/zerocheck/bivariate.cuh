@@ -89,3 +89,30 @@ __device__ __forceinline__ K bivariate_interp(K r00, K r01, K r10, K r11, Bivari
     return r00 + mul_small_pow2(dx, nd.cx) + mul_small_pow2(dy, nd.cy)
         + mul_small_pow2(dxy, nd.cxy);
 }
+
+// Load one column's row quadruple `4·quad .. 4·quad + 3` and bilinearly
+// interpolate it at grid node `nd`. `full_quad` guards rows 2 and 3, which
+// can be missing from a chip's last quadruple (heights are even but not
+// necessarily multiples of four); the missing rows are zero, matching the
+// virtual zero padding of the trace MLE — an unguarded load would land in
+// the next column's data.
+//
+// The column-stride math is 64-bit: with u32 × u32 the product wraps for
+// chips approaching `2^32 / height` columns. See review #6.
+template <typename K>
+__device__ __forceinline__ K interp_load_quad(
+    const K* trace_data, size_t base, uint32_t col, uint32_t height,
+    uint32_t quad_idx, bool full_quad, BivariateNode nd)
+{
+    const size_t col_off = (size_t)col * (size_t)height;
+    const size_t quad_base = base + col_off + ((size_t)quad_idx << 2);
+    K r00 = K::load(trace_data, quad_base);
+    K r01 = K::load(trace_data, quad_base + 1);
+    K r10 = K::zero();
+    K r11 = K::zero();
+    if (full_quad) {
+        r10 = K::load(trace_data, quad_base + 2);
+        r11 = K::load(trace_data, quad_base + 3);
+    }
+    return bivariate_interp(r00, r01, r10, r11, nd);
+}

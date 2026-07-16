@@ -28,7 +28,7 @@ where
 /// A trait to enable backend implementations of sumcheck polynomials for the first round.
 ///
 /// An implementation of this trait for a type will imply a [crate::SumcheckPolyFirstRound]
-/// implementation for that type.
+/// implementation for that type. See that trait for the meaning of the lookahead depth `t`.
 pub trait SumCheckPolyFirstRoundBackend<P, K>: Backend
 where
     K: Field,
