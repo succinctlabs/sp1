@@ -496,7 +496,7 @@ pub trait CudaTracegenAir<F: Field>: MachineAir<F> {
     fn host_lookup_scatter(
         &self,
         _record: &Self::Record,
-    ) -> (Vec<u64>, Vec<u32>, Vec<u64>, Vec<u32>) {
+    ) -> (Vec<u32>, Vec<u32>, Vec<u32>, Vec<u32>) {
         (Vec::new(), Vec::new(), Vec::new(), Vec::new())
     }
 }
@@ -506,15 +506,24 @@ pub trait CudaTracegenAir<F: Field>: MachineAir<F> {
 /// via the byte-lookup kernel, then the host reconstructs the `byte_lookups` map ONCE
 /// (heed iter-004 — one dense histogram pair per shard, not one per chip per shard).
 pub fn new_byte_histograms(scope: &TaskScope) -> (DeviceBuffer<u32>, DeviceBuffer<u32>) {
+    use slop_alloc::mem::DeviceMemory;
     use sp1_core_machine::air::{BYTE_HIST_ROWS, RANGE_HIST_ROWS};
     use sp1_core_machine::bytes::columns::NUM_BYTE_MULT_COLS;
-    let range_len = RANGE_HIST_ROWS;
-    let byte_len = BYTE_HIST_ROWS * NUM_BYTE_MULT_COLS;
-    let mut range_buf = Buffer::try_with_capacity_in(range_len, scope.clone()).unwrap();
-    range_buf.extend_from_host_slice(&vec![0u32; range_len]).unwrap();
-    let mut byte_buf = Buffer::try_with_capacity_in(byte_len, scope.clone()).unwrap();
-    byte_buf.extend_from_host_slice(&vec![0u32; byte_len]).unwrap();
-    (DeviceBuffer::from_raw(range_buf), DeviceBuffer::from_raw(byte_buf))
+    // H3 (host-memory-workstream Phase 1): zero on device with a stream-ordered
+    // memset instead of uploading a ~2 MB host zero-vec per shard.
+    let zeroed = |len: usize| {
+        let mut buf: Buffer<u32, TaskScope> =
+            Buffer::try_with_capacity_in(len, scope.clone()).unwrap();
+        // SAFETY: `write_bytes` initializes all `len * 4` bytes before any reader —
+        // it is enqueued on this scope's stream, ahead of every kernel that uses
+        // the histogram.
+        unsafe {
+            buf.set_len(len);
+            scope.write_bytes(buf.as_mut_ptr() as *mut u8, 0u8, len * size_of::<u32>()).unwrap();
+        }
+        DeviceBuffer::from_raw(buf)
+    };
+    (zeroed(RANGE_HIST_ROWS), zeroed(BYTE_HIST_ROWS * NUM_BYTE_MULT_COLS))
 }
 
 #[cfg(test)]

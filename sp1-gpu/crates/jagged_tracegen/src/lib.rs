@@ -1138,14 +1138,14 @@ pub async fn ensure_trace_buffer_capacity(buffer: &mut PinnedBuffer<Felt>, requi
 /// the subsequent `hist_to_trace` (same stream) sees the complete counts. No-op if empty.
 fn scatter_into_histogram(
     hist: &mut DeviceBuffer<u32>,
-    idxs: &[u64],
+    idxs: &[u32],
     mults: &[u32],
     backend: &TaskScope,
 ) {
     if idxs.is_empty() {
         return;
     }
-    let mut idx_dev: Buffer<u64, TaskScope> = Buffer::with_capacity_in(idxs.len(), backend.clone());
+    let mut idx_dev: Buffer<u32, TaskScope> = Buffer::with_capacity_in(idxs.len(), backend.clone());
     idx_dev.extend_from_host_slice(idxs).unwrap();
     let mut mult_dev: Buffer<u32, TaskScope> =
         Buffer::with_capacity_in(mults.len(), backend.clone());

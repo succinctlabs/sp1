@@ -607,7 +607,7 @@ __global__ void hist_to_trace_kernel(T* trace, const uint32_t* hist, uintptr_t t
 // device, so the host work is O(host lookups), not O(histogram).
 __global__ void hist_trace_scatter_kernel(
     uint32_t* hist,
-    const uint64_t* idxs,
+    const uint32_t* idxs, // max index < 2^18 (Range hist rows) — u32 halves the upload (H4)
     const uint32_t* mults,
     uintptr_t n) {
     // Host-map keys are unique, so each `idxs[i]` is distinct → no atomics needed.

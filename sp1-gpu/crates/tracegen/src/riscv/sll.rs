@@ -222,47 +222,42 @@ mod tests {
         })
     }
 
+    /// MIXED SLL/SLLW + register/immediate events with random shift amounts.
+    fn synth_events(n: usize, seed: u64) -> Vec<(AluEvent, ALUTypeRecord)> {
+        let mut rng = StdRng::seed_from_u64(seed);
+        (0..n)
+            .map(|i| {
+                let sllw = i % 2 == 0;
+                let opcode = if sllw { Opcode::SLLW } else { Opcode::SLL };
+                let b = rng.gen::<u64>();
+                let c = rng.gen::<u64>();
+                let a =
+                    if sllw { ((b as i32) << (c & 0x1f)) as i64 as u64 } else { b << (c & 0x3f) };
+                let alu =
+                    AluEvent::new((i as u64) * 8 + 8, (i as u64) * 4 + 4, opcode, a, b, c, false);
+                let imm = i % 3 == 0;
+                let record = ALUTypeRecord {
+                    op_a: rng.gen_range(1..32),
+                    a: read(&mut rng),
+                    op_b: rng.gen_range(1..32),
+                    b: read(&mut rng),
+                    op_c: if imm { c } else { rng.gen_range(1..32) },
+                    c: if imm { None } else { Some(read(&mut rng)) },
+                    is_imm: imm,
+                    is_untrusted: false,
+                };
+                (alu, record)
+            })
+            .collect()
+    }
+
     /// Device-vs-CPU trace equality for `ShiftLeft` over MIXED SLL/SLLW + register/
     /// immediate events with random shift amounts — exercises the variable shifts,
     /// variable-width range checks, and the SLLW guard.
     #[tokio::test]
     async fn test_shift_left_generate_trace_device() {
         sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
-            let mut rng = StdRng::seed_from_u64(0x511);
-            let shift_left_events = (0..1200)
-                .map(|i| {
-                    let sllw = i % 2 == 0;
-                    let opcode = if sllw { Opcode::SLLW } else { Opcode::SLL };
-                    let b = rng.gen::<u64>();
-                    let c = rng.gen::<u64>();
-                    let a = if sllw {
-                        ((b as i32) << (c & 0x1f)) as i64 as u64
-                    } else {
-                        b << (c & 0x3f)
-                    };
-                    let alu = AluEvent::new(
-                        (i as u64) * 8 + 8,
-                        (i as u64) * 4 + 4,
-                        opcode,
-                        a,
-                        b,
-                        c,
-                        false,
-                    );
-                    let imm = i % 3 == 0;
-                    let record = ALUTypeRecord {
-                        op_a: rng.gen_range(1..32),
-                        a: read(&mut rng),
-                        op_b: rng.gen_range(1..32),
-                        b: read(&mut rng),
-                        op_c: if imm { c } else { rng.gen_range(1..32) },
-                        c: if imm { None } else { Some(read(&mut rng)) },
-                        is_imm: imm,
-                        is_untrusted: false,
-                    };
-                    (alu, record)
-                })
-                .collect::<Vec<_>>();
+            let shift_left_events = synth_events(1200, 0x511);
 
             let [shard, gpu_shard] = core::array::from_fn(|_| ExecutionRecord {
                 shift_left_events: shift_left_events.clone(),
@@ -275,6 +270,42 @@ mod tests {
                 Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
             let gpu_trace = chip
                 .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
+                .await
+                .expect("device tracegen should succeed")
+                .to_host()
+                .expect("copy trace to host")
+                .into_guts();
+
+            crate::tests::test_traces_eq(&trace, &gpu_trace, &shift_left_events);
+        })
+        .await
+        .unwrap();
+    }
+
+    /// Device-vs-CPU trace equality for `ShiftLeft` via the FUSED entry
+    /// (`generate_trace_device_with_lookups` — the one production calls, since
+    /// `supports_device_dependencies` is true), covering the device-side padding
+    /// template fill on this path (non-power-of-two count ⇒ padding rows present).
+    #[tokio::test]
+    async fn test_shift_left_generate_trace_device_fused() {
+        sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
+            let shift_left_events = synth_events(1200, 0x511F);
+
+            let [shard, gpu_shard] = core::array::from_fn(|_| ExecutionRecord {
+                shift_left_events: shift_left_events.clone(),
+                ..Default::default()
+            });
+
+            let chip = ShiftLeftChip::<SupervisorMode>::default();
+
+            let trace =
+                Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
+            let (mut range_dev, mut byte_dev) = crate::new_byte_histograms(&scope);
+            let hist =
+                crate::LookupHist { range: range_dev.as_mut_ptr(), byte: byte_dev.as_mut_ptr() };
+            let inputs = super::pack_sll_inputs(&shift_left_events);
+            let gpu_trace = chip
+                .generate_trace_device_with_lookups(&gpu_shard, &inputs, hist, &scope)
                 .await
                 .expect("device tracegen should succeed")
                 .to_host()

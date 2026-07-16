@@ -1307,7 +1307,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
     fn host_lookup_scatter(
         &self,
         record: &Self::Record,
-    ) -> (Vec<u64>, Vec<u32>, Vec<u64>, Vec<u32>) {
+    ) -> (Vec<u32>, Vec<u32>, Vec<u32>, Vec<u32>) {
         use sp1_core_executor::ByteOpcode;
         use sp1_core_machine::bytes::columns::NUM_BYTE_MULT_COLS;
         let n = record.byte_lookups.len();
@@ -1317,14 +1317,16 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             // Mirror range/trace.rs and bytes/trace.rs `generate_trace_into` index math
             // (the same conventions `interpret_c_lookups` documents), so the scattered
             // host multiplicities land in the same cells the device chips' atomics did.
+            // Indices fit u32 by construction (H4): Range max = a + 2^b < 2^18
+            // (RANGE_HIST_ROWS); Byte max = (2^16 - 1) * NUM_BYTE_MULT_COLS + opcode.
             if lookup.opcode == ByteOpcode::Range {
                 let idx = lookup.a as usize + (1usize << lookup.b);
-                range_idx.push(idx as u64);
+                range_idx.push(idx as u32);
                 range_mult.push(mult as u32);
             } else {
                 let row = ((lookup.b as usize) << 8) + lookup.c as usize;
                 let idx = row * NUM_BYTE_MULT_COLS + lookup.opcode as usize;
-                byte_idx.push(idx as u64);
+                byte_idx.push(idx as u32);
                 byte_mult.push(mult as u32);
             }
         }
