@@ -152,12 +152,23 @@ fn bench(k: usize, n: usize, warmup: usize, measured: usize) -> Row {
 }
 
 fn main() {
-    const NUM_WARMUP: usize = 1;
-    const NUM_MEASURED: usize = 5;
+    // Iteration counts default to 1 warm-up + 5 measured; override via DOT_BENCH_WARMUP /
+    // DOT_BENCH_MEASURED (e.g. to run the much slower single-threaded sweep with fewer repeats).
+    let env_usize = |k: &str, d: usize| {
+        std::env::var(k).ok().and_then(|s| s.parse().ok()).unwrap_or(d)
+    };
+    let num_warmup = env_usize("DOT_BENCH_WARMUP", 1);
+    let num_measured = env_usize("DOT_BENCH_MEASURED", 5);
 
     // (K, n). n = 512 matches the GPU example's MSG_N; the K sweep shows how each phase scales with
-    // the batch (the GPU example's headline claim is that verify is O(1) in K).
-    let configs: &[(usize, usize)] = &[(1, 512), (8, 512), (64, 512), (512, 512), (1, 4096)];
+    // the batch (the GPU example's headline claim is that verify is O(1) in K). Override the batch
+    // widths with DOT_BENCH_KS=1,2,4,... and the length with DOT_BENCH_N=<n>.
+    let n: usize =
+        std::env::var("DOT_BENCH_N").ok().and_then(|s| s.parse().ok()).unwrap_or(512);
+    let configs: Vec<(usize, usize)> = match std::env::var("DOT_BENCH_KS") {
+        Ok(s) => s.split(',').filter_map(|k| k.trim().parse().ok()).map(|k| (k, n)).collect(),
+        Err(_) => vec![(1, 512), (8, 512), (64, 512), (512, 512), (1, 4096)],
+    };
 
     let rate: f64 = std::env::var("VEIL_CODE_INVERSE_RATE")
         .ok()
@@ -166,10 +177,10 @@ fn main() {
 
     eprintln!("zk dot-product sweep — CPU (slop-veil), code = RsInterpolation, GC = KoalaBearDegree4Duplex");
     eprintln!("inverse rate = {rate}  (set VEIL_CODE_INVERSE_RATE to change)");
-    eprintln!("warmup = {NUM_WARMUP}, measured = {NUM_MEASURED} (median reported)\n");
+    eprintln!("warmup = {num_warmup}, measured = {num_measured} (median reported)\n");
 
     let rows: Vec<Row> =
-        configs.iter().map(|&(k, n)| bench(k, n, NUM_WARMUP, NUM_MEASURED)).collect();
+        configs.iter().map(|&(k, n)| bench(k, n, num_warmup, num_measured)).collect();
 
     let out = concat!(env!("CARGO_MANIFEST_DIR"), "/benchmarking/dot_product_sweep_results.csv");
     let mut file = File::create(out).expect("create csv");
