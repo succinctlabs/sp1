@@ -17,6 +17,23 @@ use std::iter::repeat_with;
 pub(in crate::zk::dot_product) const CODE_INVERSE_RATE: f64 = 16.0;
 pub(in crate::zk::dot_product) const SECURITY_BITS: usize = 100;
 
+/// The code's inverse rate, with a **benchmark-only** override via the `VEIL_CODE_INVERSE_RATE`
+/// environment variable; unset (the normal case) yields [`CODE_INVERSE_RATE`], so shipped behaviour is
+/// unchanged. This exists so a benchmark sweep can build the code at the same rate as an
+/// implementation being compared against — the proximity-gap query count is rederived from it by
+/// [`CodeParametersForZk::new`], so the protocol stays consistent at any rate. Read once and cached;
+/// only the prover consults it, as the verifier takes the parameters from the proof.
+pub(in crate::zk::dot_product) fn code_inverse_rate() -> f64 {
+    static RATE: std::sync::OnceLock<f64> = std::sync::OnceLock::new();
+    *RATE.get_or_init(|| {
+        std::env::var("VEIL_CODE_INVERSE_RATE")
+            .ok()
+            .and_then(|s| s.parse::<f64>().ok())
+            .filter(|r| *r > 1.0)
+            .unwrap_or(CODE_INVERSE_RATE)
+    })
+}
+
 // ============================================================================
 // FINAL PROOF OUTPUT
 // ============================================================================
@@ -105,7 +122,7 @@ where
     let width = in_vecs.len() + 1;
 
     let parameters =
-        CodeParametersForZk::new(length, SECURITY_BITS, CODE_INVERSE_RATE, padding_schedule);
+        CodeParametersForZk::new(length, SECURITY_BITS, code_inverse_rate(), padding_schedule);
 
     // Generate masking vector
     let masks: Vec<GC::EF> = repeat_with(|| rng.gen()).take(length).collect();
