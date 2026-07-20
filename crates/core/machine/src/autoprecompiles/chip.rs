@@ -14,8 +14,7 @@ use slop_air::{Air, AirBuilder, BaseAir, PairBuilder};
 use slop_algebra::PrimeField32;
 use slop_matrix::Matrix;
 use slop_maybe_rayon::prelude::{
-    IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
-    ParallelSliceMut,
+    IndexedParallelIterator, IntoParallelIterator, ParallelIterator, ParallelSliceMut,
 };
 use sp1_core_executor::{
     events::ByteLookupEvent, opcode::ByteOpcode, ApcRange, ExecutionRecord, Program, RiscvAirId,
@@ -277,7 +276,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         // Fill in the trace values in parallel for each row (apc event)
         let byte_lookup_effects = trace_values
             .par_chunks_mut(trace_width)
-            .zip_eq(dummy_values_by_event.par_iter())
+            .zip_eq(dummy_values_by_event.into_par_iter())
             .map(|(trace_row, dummy_values_by_instruction)| {
                 for (instruction_index, dummy_slice) in
                     dummy_values_by_instruction.iter().enumerate()
