@@ -131,7 +131,7 @@ where
 
         // Iterate over the layers and compute the compressions.
         for k in (0..height).rev() {
-            let block_dim: Dim3 = (128u32, 4, 1).into();
+            let block_dim: Dim3 = (512u32, 1, 1).into();
             let grid_dim: Dim3 = ((1u32 << k).div_ceil(block_dim.x), 1, 1).into();
             let args = args!(hasher_device.as_raw(), tree.digests.as_mut_ptr(), k);
             unsafe {
