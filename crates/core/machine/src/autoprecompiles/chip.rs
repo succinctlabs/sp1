@@ -57,6 +57,20 @@ impl<F: PrimeField32> From<Arc<Sp1Apc<F>>> for CachedApc<F> {
     }
 }
 
+/// Cache of filled APC traces, keyed by `(proof_nonce, initial_timestamp)`.
+/// `generate_dependencies` fills the trace to evaluate the byte-bus interactions and stores it here
+/// so `generate_trace_into` can restore it instead of regenerating the identical trace. `Mutex`
+/// because the chip is shared via `Arc` across concurrent shard workers.
+struct CachedTraces<F>(Mutex<HashMap<([u32; 4], u64), Vec<F>>>);
+
+// A derived `Debug` would dump the whole runtime trace cache, so only print the type name.
+impl<F> std::fmt::Debug for CachedTraces<F> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CachedTraces").finish_non_exhaustive()
+    }
+}
+
+#[derive(Debug)]
 pub struct ApcChip<F: PrimeField32> {
     /// The ID of the APC.
     id: usize,
@@ -66,24 +80,8 @@ pub struct ApcChip<F: PrimeField32> {
     cached_apc: CachedApc<F>,
     /// A machine to generate traces for the APC. By construction, it will never have apcs itself.
     machine: Machine<F, RiscvAir<F>>,
-    /// Cache of the filled APC trace, keyed by `(proof_nonce, initial_timestamp)`.
-    /// `generate_dependencies` fills the trace to evaluate the byte-bus interactions and stores it
-    /// here so `generate_trace_into` can restore it instead of regenerating the identical trace.
-    /// `Mutex` because the chip is shared via `Arc` across concurrent shard workers.
-    cached_traces: Mutex<HashMap<([u32; 4], u64), Vec<F>>>,
-}
-
-// Manual `Debug` mirrors the previous `#[derive(Debug)]` (`id`, `name`, `cached_apc`, `machine`)
-// but skips only `cached_traces`: a derived impl would dump the whole runtime trace cache.
-impl<F: PrimeField32> std::fmt::Debug for ApcChip<F> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ApcChip")
-            .field("id", &self.id)
-            .field("name", &self.name)
-            .field("cached_apc", &self.cached_apc)
-            .field("machine", &self.machine)
-            .finish_non_exhaustive()
-    }
+    /// Cache of filled APC traces (see [`CachedTraces`]).
+    cached_traces: CachedTraces<F>,
 }
 
 impl<F: PrimeField32> ApcChip<F> {
@@ -93,7 +91,7 @@ impl<F: PrimeField32> ApcChip<F> {
             name: format!("APC_{id}"),
             cached_apc: apc.into(),
             machine: RiscvAir::machine(),
-            cached_traces: Mutex::new(HashMap::new()),
+            cached_traces: CachedTraces(Mutex::new(HashMap::new())),
         }
     }
 
@@ -141,6 +139,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         let events = input.get_apc_events(self.id).expect("APC events not found");
         let cached = self
             .cached_traces
+            .0
             .lock()
             .unwrap()
             .remove(&(input.public_values.proof_nonce, input.initial_timestamp))
@@ -355,6 +354,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         // Cache the filled trace so `generate_trace_into` can restore it instead of regenerating
         // the bit-identical trace. Moves `trace_values` (unused after this point).
         self.cached_traces
+            .0
             .lock()
             .unwrap()
             .insert((input.public_values.proof_nonce, input.initial_timestamp), trace_values);
