@@ -48,6 +48,5 @@ pub struct ExecutionRecordSnapshot {
     pub syscall_events_len: usize,
     pub apc_events_len: usize,
     pub global_interaction_event_count: u32,
-    pub bump_memory_events_len: usize,
     pub bump_state_events_len: usize,
 }

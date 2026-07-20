@@ -660,7 +660,6 @@ impl ExecutionRecord {
             syscall_events_len: self.syscall_events.len(),
             apc_events_len: self.apc_events.len(),
             global_interaction_event_count: self.global_interaction_event_count,
-            bump_memory_events_len: self.bump_memory_events.len(),
             bump_state_events_len: self.bump_state_events.len(),
             instruction_fetch_events_len: self.instruction_fetch_events.len(),
             instruction_decode_events_len: self.instruction_decode_events.len(),
@@ -813,7 +812,6 @@ impl ExecutionRecord {
         let cpu_local_memory_access =
             extract_vec!(cpu_local_memory_access, cpu_local_memory_access_len);
         let syscall = extract_vec!(syscall_events, syscall_events_len);
-        let bump_memory = extract_vec!(bump_memory_events, bump_memory_events_len);
         let bump_state = extract_vec!(bump_state_events, bump_state_events_len);
         let global_interaction_event_count = extract_diff(
             &mut self.global_interaction_event_count,
@@ -871,7 +869,6 @@ impl ExecutionRecord {
             cpu_local_memory_access,
             syscall,
             global_interaction_event_count,
-            bump_memory,
             bump_state,
             precompile_events,
             apc_events,
@@ -916,7 +913,6 @@ impl ExecutionRecord {
                 cpu_local_memory_access,
                 syscall_events,
                 global_interaction_event_count,
-                bump_memory_events,
                 bump_state_events,
                 precompile_events,
                 apc_events,
@@ -962,7 +958,13 @@ impl ExecutionRecord {
                         global_memory_finalize_events,
                         cpu_local_memory_access,
                         syscall_events,
-                        bump_memory_events,
+                        // Do NOT carve `bump_memory_events` into APC block records: the APC chip
+                        // fills its columns only from the block's *instruction* chips (see
+                        // `chip.rs`), so a `MemoryBump` dummy trace from a carved bump is discarded
+                        // and its bus interaction is lost. Every bump stays in the main record,
+                        // whose `MemoryBump` chip emits it — matching the APC's re-anchored
+                        // register receive (`RegisterAccessTimestamp` re-anchors `prev_low -> 0`).
+                        bump_memory_events: Vec::default(),
                         bump_state_events,
                         program: self.program.clone(),
                         cpu_event_count,
