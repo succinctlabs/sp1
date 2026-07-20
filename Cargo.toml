@@ -141,7 +141,7 @@ sp1-recursion-executor = { version = "6.3.1", path = "crates/recursion/executor"
 sp1-recursion-gnark-ffi = { version = "6.3.1", path = "crates/recursion/gnark-ffi", default-features = false }
 sp1-recursion-machine = { version = "6.3.1", path = "crates/recursion/machine", default-features = false }
 sp1-sdk = { version = "6.3.1", path = "crates/sdk", default-features = false }
-sp1-verifier = { version = "6.3.1", path = "crates/verifier", default-features = false }
+sp1-verifier = { version = "6.3.1", path = "crates/verifier", default-features = false, features = ["full"] }
 sp1-zkvm = { version = "6.3.1", path = "crates/zkvm/entrypoint", default-features = false }
 test-artifacts = { path = "crates/test-artifacts" }
 
