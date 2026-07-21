@@ -91,7 +91,7 @@ impl<F: PrimeField32> ApcChip<F> {
             name: format!("APC_{id}"),
             cached_apc: apc.into(),
             machine: RiscvAir::machine(),
-            cached_traces: CachedTraces(Mutex::new(HashMap::new())),
+            cached_traces: CachedTraces::default(),
         }
     }
 
