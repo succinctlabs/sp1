@@ -1,0 +1,22 @@
+[package]
+name = "fibonacci-c-script"
+description = "Host driver for the fibonacci-c guest. Mirrors `fibonacci-script` but loads a C-built ELF."
+version = { workspace = true }
+edition = { workspace = true }
+publish = false
+
+[[bin]]
+name = "fibonacci-c-execute"
+path = "src/execute.rs"
+
+[[bin]]
+name = "fibonacci-c-prove"
+path = "src/prove.rs"
+
+[dependencies]
+sp1-sdk = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[build-dependencies]
+zkevm-c-build = { path = "../../c-build" }

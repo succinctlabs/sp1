@@ -207,7 +207,6 @@ pub fn get_hint_event_addrs(minimal_executor: &MinimalExecutorRunner) -> HashSet
 ///
 /// This is a test-only function that proves records sequentially for simplicity. It is
 /// extremely inefficient in both time and space, and should only be used for testing.
-// #[allow(clippy::too_many_arguments)]
 pub async fn prove_core<GC, SC, PC>(
     prover: &SimpleProver<GC, SC, PC>,
     pk: Arc<ProvingKey<GC, SC, PC>>,

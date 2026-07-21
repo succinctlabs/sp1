@@ -117,14 +117,17 @@ class kb31_t {
         return (((uint64_t)x << MONTY_BITS) % MOD);
     }
 
+    // Montgomery reduction using the 32-bit inline-asm primitives (the same sequence as the tail
+    // of mul() and the accel_t -> kb31_t conversion), which avoids the emulated 64-bit integer
+    // multiplies a plain C++ implementation compiles to.
     static inline uint32_t monty_reduce(uint64_t x) {
-        uint64_t t = (x * (uint64_t)MONTY_MU) & (uint64_t)MONTY_MASK;
-        uint64_t u = t * (uint64_t)MOD;
-        uint64_t x_sub_u = x - u;
-        bool over = x < u;
-        uint32_t x_sub_u_hi = (uint32_t)(x_sub_u >> MONTY_BITS);
-        uint32_t corr = over ? MOD : 0;
-        return x_sub_u_hi + corr;
+        uint32_t tl, th, red;
+        unpack(tl, th, x);
+        mul_lo(red, tl, M);
+        mad_lo_cc(tl, red, MOD, tl);
+        madc_hi(th, red, MOD, th);
+        final_sub(th);
+        return th;
     }
 
     static inline uint32_t from_monty(uint32_t x) { return monty_reduce((uint64_t)x); }

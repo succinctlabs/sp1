@@ -24,8 +24,6 @@ pub struct ApcCount {
     pub success: u64,
     /// The number of runs of this apc in which a state bump error occured
     pub state_bump_error: u64,
-    /// The number of runs of this apc in which a memory bump error occured
-    pub memory_bump_error: u64,
     /// The number of runs of this apc in which a segmentation occurred
     pub segmentation_error: u64,
 }
@@ -34,7 +32,6 @@ impl AddAssign for ApcCount {
     fn add_assign(&mut self, rhs: Self) {
         self.success += rhs.success;
         self.state_bump_error += rhs.state_bump_error;
-        self.memory_bump_error += rhs.memory_bump_error;
         self.segmentation_error += rhs.segmentation_error;
     }
 }
@@ -52,7 +49,6 @@ impl SubAssign for ApcCount {
     fn sub_assign(&mut self, rhs: Self) {
         self.success -= rhs.success;
         self.state_bump_error -= rhs.state_bump_error;
-        self.memory_bump_error -= rhs.memory_bump_error;
         self.segmentation_error -= rhs.segmentation_error;
     }
 }

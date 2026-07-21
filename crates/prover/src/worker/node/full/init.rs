@@ -337,9 +337,18 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                                 .await
                                 .unwrap();
                             let tx = task_tx.clone();
+                            let artifact_client = worker.artifact_client().clone();
                             task_set.spawn(
                                 async move {
-                                    let result = handle.await;
+                                    // Outer `Err` = panicked/aborted task (pass through);
+                                    // recover the task's result if a prior delivery already
+                                    // completed it (all outputs exist).
+                                    let result = match handle.await {
+                                        Ok(task_result) => Ok(request
+                                            .recover_if_complete(task_result, &artifact_client)
+                                            .await),
+                                        join_err => join_err,
+                                    };
                                     TaskOutput::handle_worker_result(result, &tx, proof_id, id, request, TaskType::ProveShard);
                                 }.instrument(span)
                            );
@@ -377,8 +386,17 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                                 .await
                                 .unwrap();
                             let tx = task_tx.clone();
+                            let artifact_client = worker.artifact_client().clone();
                             task_set.spawn(async move {
-                                let result = handle.await;
+                                // Outer `Err` = panicked/aborted task (pass through);
+                                // recover the task's result if a prior delivery already
+                                // completed it (all outputs exist).
+                                let result = match handle.await {
+                                    Ok(task_result) => Ok(request
+                                        .recover_if_complete(task_result, &artifact_client)
+                                        .await),
+                                    join_err => join_err,
+                                };
                                 TaskOutput::handle_worker_result(result, &tx, proof_id, id, request, TaskType::RecursionReduce);
                             }.instrument(span)
                           );

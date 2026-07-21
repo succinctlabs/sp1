@@ -570,7 +570,7 @@ mod test_utils {
             record: record_artifact,
             output: proof_artifact.clone(),
             deferred_marker_task: Artifact::from("dummy marker task".to_string()),
-            deferred_output: Artifact::from("dummy output artifact".to_string()),
+            deferred_output: None,
             context: context.clone(),
         };
 

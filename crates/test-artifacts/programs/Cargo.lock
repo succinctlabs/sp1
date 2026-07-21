@@ -431,7 +431,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 6.2.4",
+ "sp1-lib 6.3.1",
  "sp1-zkvm",
 ]
 
@@ -474,7 +474,7 @@ name = "bls12381-mul-test"
 version = "1.1.0"
 dependencies = [
  "sp1-derive",
- "sp1-lib 6.2.4",
+ "sp1-lib 6.3.1",
  "sp1-zkvm",
 ]
 
@@ -484,7 +484,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 6.2.4",
+ "sp1-lib 6.3.1",
  "sp1-zkvm",
 ]
 
@@ -527,7 +527,7 @@ name = "bn254-mul-test"
 version = "1.1.0"
 dependencies = [
  "sp1-derive",
- "sp1-lib 6.2.4",
+ "sp1-lib 6.3.1",
  "sp1-zkvm",
 ]
 
@@ -606,7 +606,7 @@ name = "common-test-utils"
 version = "1.1.0"
 dependencies = [
  "num-bigint 0.4.6",
- "sp1-lib 6.2.4",
+ "sp1-lib 6.3.1",
 ]
 
 [[package]]
@@ -747,7 +747,7 @@ dependencies = [
  "digest 0.10.7",
  "fiat-crypto",
  "rustc_version 0.4.1",
- "sp1-lib 6.2.4",
+ "sp1-lib 6.3.1",
  "subtle",
  "zeroize",
 ]
@@ -2639,7 +2639,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 6.2.4",
+ "sp1-lib 6.3.1",
  "sp1-zkvm",
 ]
 
@@ -2684,7 +2684,7 @@ dependencies = [
  "num",
  "p256",
  "sp1-curves",
- "sp1-lib 6.2.4",
+ "sp1-lib 6.3.1",
  "sp1-zkvm",
 ]
 
@@ -2705,7 +2705,7 @@ dependencies = [
  "num",
  "p256",
  "sp1-curves",
- "sp1-lib 6.2.4",
+ "sp1-lib 6.3.1",
  "sp1-zkvm",
 ]
 
@@ -2930,7 +2930,7 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
 name = "slop-algebra"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "itertools 0.14.0",
  "p3-field",
@@ -2939,7 +2939,7 @@ dependencies = [
 
 [[package]]
 name = "slop-bn254"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "ff",
  "p3-bn254-fr",
@@ -2952,7 +2952,7 @@ dependencies = [
 
 [[package]]
 name = "slop-challenger"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "futures",
  "p3-challenger",
@@ -2963,7 +2963,7 @@ dependencies = [
 
 [[package]]
 name = "slop-koala-bear"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "lazy_static",
  "p3-koala-bear",
@@ -2976,21 +2976,21 @@ dependencies = [
 
 [[package]]
 name = "slop-poseidon2"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "p3-poseidon2",
 ]
 
 [[package]]
 name = "slop-primitives"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "slop-algebra",
 ]
 
 [[package]]
 name = "slop-symmetric"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "p3-symmetric",
 ]
@@ -3007,7 +3007,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "cfg-if",
  "dashu",
@@ -3026,7 +3026,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3045,7 +3045,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "bincode",
  "elliptic-curve",
@@ -3055,7 +3055,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "bincode",
  "blake3",
@@ -3077,7 +3077,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "6.2.4"
+version = "6.3.1"
 dependencies = [
  "cfg-if",
  "critical-section",
@@ -3089,7 +3089,7 @@ dependencies = [
  "rand 0.8.6",
  "sha2 0.10.9",
  "slop-algebra",
- "sp1-lib 6.2.4",
+ "sp1-lib 6.3.1",
  "sp1-primitives",
 ]
 
@@ -3338,7 +3338,7 @@ source = "git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.2
 dependencies = [
  "cfg-if",
  "crunchy",
- "sp1-lib 6.2.4",
+ "sp1-lib 6.3.1",
 ]
 
 [[package]]

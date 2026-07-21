@@ -60,7 +60,7 @@ pub struct ProveShardTaskRequest {
     /// The deferred marker task id.
     pub deferred_marker_task: Artifact,
     /// The deferred output artifact.
-    pub deferred_output: Artifact,
+    pub deferred_output: Option<Artifact>,
     /// The task context.
     pub context: TaskContext,
 }
@@ -74,7 +74,7 @@ impl ProveShardTaskRequest {
         let deferred_marker_task = inputs[3].clone();
 
         let output = outputs[0].clone();
-        let deferred_output = outputs[1].clone();
+        let deferred_output = outputs.get(1).cloned();
 
         Ok(ProveShardTaskRequest {
             elf,
@@ -99,7 +99,8 @@ impl ProveShardTaskRequest {
         } = self;
 
         let inputs = vec![elf, common_input, record, deferred_marker_task];
-        let outputs = vec![output, deferred_output];
+        let mut outputs = vec![output];
+        outputs.extend(deferred_output);
         let raw_task_request = RawTaskRequest { inputs, outputs, context };
         Ok(raw_task_request)
     }
@@ -120,7 +121,7 @@ pub struct CoreProvingTask {
     /// The deferred marker task id.
     pub deferred_marker_task: Artifact,
     /// The deferred output artifact.
-    pub deferred_output: Artifact,
+    pub deferred_output: Option<Artifact>,
     /// The metrics for the prover.
     pub metrics: ProverMetrics,
 }
@@ -253,11 +254,13 @@ where
 {
     async fn call(&self, input: CoreProvingTask) -> Result<TaskMetadata, TaskError> {
         // === Phase 1: Tracing ===
-        // Save the trace input artifact for later use in the task
+        // Keep the record id for reclamation after the proof is uploaded (below).
         let record_artifact = input.record.clone();
         let metrics = input.metrics.clone();
 
-        // Ok to panic because it will send a JoinError.
+        // Ok to panic because it will send a JoinError. A re-delivery whose
+        // inputs a prior run already consumed fails here; the task dispatcher
+        // recovers it via `RawTaskRequest::recover_if_complete` (outputs exist).
         let (elf, common_input, record) = tokio::try_join!(
             self.artifact_client.download_program(&input.elf),
             self.artifact_client.download::<CommonProverInput>(&input.common_input),
@@ -481,7 +484,8 @@ where
         let deferred_upload_handle = deferred_record.map(|deferred_record| {
             let artifact_client = self.artifact_client.clone();
             let worker_client = self.worker_client.clone();
-            let output_artifact = input.deferred_output.clone();
+            let output_artifact =
+                input.deferred_output.clone().expect("core shard must have a deferred output");
             let deferred_marker_task = TaskId::new(input.deferred_marker_task.clone().to_id());
             let opts = self.opts.clone();
             let program = program.clone();
@@ -652,11 +656,6 @@ where
             self.artifact_client.upload(&output, proof).await?;
         }
 
-        // Remove the record artifact since it is no longer needed
-        self.artifact_client
-            .try_delete(&record_artifact, ArtifactType::UnspecifiedArtifactType)
-            .await?;
-
         // Remove task reference for precompile artifacts only at successful completion
         if let Some(artifacts) = precompile_artifacts {
             for range in artifacts {
@@ -675,6 +674,13 @@ where
         if let Some(deferred_upload_handle) = deferred_upload_handle {
             deferred_upload_handle.await.map_err(|e| TaskError::Fatal(e.into()))??;
         }
+
+        // Reclaim the input record only after every output (`output` and the
+        // deferred upload above) is durable. The re-run guard treats "record
+        // gone" as "task fully complete", so the record must be deleted last.
+        self.artifact_client
+            .try_delete(&record_artifact, ArtifactType::UnspecifiedArtifactType)
+            .await?;
 
         // Get the metadata
         let metadata = metrics.to_metadata();

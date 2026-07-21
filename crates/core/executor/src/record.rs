@@ -565,48 +565,48 @@ impl ExecutionRecord {
     /// Reset the record, without deallocating the event vecs.
     #[inline]
     pub fn reset(&mut self) {
-        self.alu_x0_events.truncate(0);
-        self.add_events.truncate(0);
-        self.addw_events.truncate(0);
-        self.addi_events.truncate(0);
-        self.mul_events.truncate(0);
-        self.sub_events.truncate(0);
-        self.subw_events.truncate(0);
-        self.bitwise_events.truncate(0);
-        self.shift_left_events.truncate(0);
-        self.shift_right_events.truncate(0);
-        self.divrem_events.truncate(0);
-        self.lt_events.truncate(0);
-        self.memory_load_byte_events.truncate(0);
-        self.memory_load_half_events.truncate(0);
-        self.memory_load_word_events.truncate(0);
-        self.memory_load_x0_events.truncate(0);
-        self.memory_load_double_events.truncate(0);
-        self.memory_store_byte_events.truncate(0);
-        self.memory_store_half_events.truncate(0);
-        self.memory_store_word_events.truncate(0);
-        self.memory_store_double_events.truncate(0);
-        self.utype_events.truncate(0);
-        self.branch_events.truncate(0);
-        self.jal_events.truncate(0);
-        self.jalr_events.truncate(0);
+        self.alu_x0_events.clear();
+        self.add_events.clear();
+        self.addw_events.clear();
+        self.addi_events.clear();
+        self.mul_events.clear();
+        self.sub_events.clear();
+        self.subw_events.clear();
+        self.bitwise_events.clear();
+        self.shift_left_events.clear();
+        self.shift_right_events.clear();
+        self.divrem_events.clear();
+        self.lt_events.clear();
+        self.memory_load_byte_events.clear();
+        self.memory_load_half_events.clear();
+        self.memory_load_word_events.clear();
+        self.memory_load_x0_events.clear();
+        self.memory_load_double_events.clear();
+        self.memory_store_byte_events.clear();
+        self.memory_store_half_events.clear();
+        self.memory_store_word_events.clear();
+        self.memory_store_double_events.clear();
+        self.utype_events.clear();
+        self.branch_events.clear();
+        self.jal_events.clear();
+        self.jalr_events.clear();
         self.byte_lookups.clear();
         self.precompile_events = PrecompileEvents::default();
-        self.global_memory_initialize_events.truncate(0);
-        self.global_memory_finalize_events.truncate(0);
-        self.global_page_prot_initialize_events.truncate(0);
-        self.global_page_prot_finalize_events.truncate(0);
-        self.cpu_local_memory_access.truncate(0);
-        self.cpu_local_page_prot_access.truncate(0);
-        self.syscall_events.truncate(0);
-        self.global_interaction_events.truncate(0);
-        self.instruction_fetch_events.truncate(0);
-        self.instruction_decode_events.truncate(0);
+        self.global_memory_initialize_events.clear();
+        self.global_memory_finalize_events.clear();
+        self.global_page_prot_initialize_events.clear();
+        self.global_page_prot_finalize_events.clear();
+        self.cpu_local_memory_access.clear();
+        self.cpu_local_page_prot_access.clear();
+        self.syscall_events.clear();
+        self.global_interaction_events.clear();
+        self.instruction_fetch_events.clear();
+        self.instruction_decode_events.clear();
         let mut cumulative_sum = self.global_cumulative_sum.lock().unwrap();
         *cumulative_sum = SepticDigest::default();
         self.global_interaction_event_count = 0;
-        self.bump_memory_events.truncate(0);
-        self.bump_state_events.truncate(0);
+        self.bump_memory_events.clear();
+        self.bump_state_events.clear();
         let _ = self.public_values.reset();
         self.next_nonce = 0;
         self.shape = None;
@@ -660,7 +660,6 @@ impl ExecutionRecord {
             syscall_events_len: self.syscall_events.len(),
             apc_events_len: self.apc_events.len(),
             global_interaction_event_count: self.global_interaction_event_count,
-            bump_memory_events_len: self.bump_memory_events.len(),
             bump_state_events_len: self.bump_state_events.len(),
             instruction_fetch_events_len: self.instruction_fetch_events.len(),
             instruction_decode_events_len: self.instruction_decode_events.len(),
@@ -813,7 +812,6 @@ impl ExecutionRecord {
         let cpu_local_memory_access =
             extract_vec!(cpu_local_memory_access, cpu_local_memory_access_len);
         let syscall = extract_vec!(syscall_events, syscall_events_len);
-        let bump_memory = extract_vec!(bump_memory_events, bump_memory_events_len);
         let bump_state = extract_vec!(bump_state_events, bump_state_events_len);
         let global_interaction_event_count = extract_diff(
             &mut self.global_interaction_event_count,
@@ -871,7 +869,6 @@ impl ExecutionRecord {
             cpu_local_memory_access,
             syscall,
             global_interaction_event_count,
-            bump_memory,
             bump_state,
             precompile_events,
             apc_events,
@@ -916,7 +913,6 @@ impl ExecutionRecord {
                 cpu_local_memory_access,
                 syscall_events,
                 global_interaction_event_count,
-                bump_memory_events,
                 bump_state_events,
                 precompile_events,
                 apc_events,
@@ -962,7 +958,13 @@ impl ExecutionRecord {
                         global_memory_finalize_events,
                         cpu_local_memory_access,
                         syscall_events,
-                        bump_memory_events,
+                        // Do NOT carve `bump_memory_events` into APC block records: the APC chip
+                        // fills its columns only from the block's *instruction* chips (see
+                        // `chip.rs`), so a `MemoryBump` dummy trace from a carved bump is discarded
+                        // and its bus interaction is lost. Every bump stays in the main record,
+                        // whose `MemoryBump` chip emits it — matching the APC's re-anchored
+                        // register receive (`RegisterAccessTimestamp` re-anchors `prev_low -> 0`).
+                        bump_memory_events: Vec::default(),
                         bump_state_events,
                         program: self.program.clone(),
                         cpu_event_count,

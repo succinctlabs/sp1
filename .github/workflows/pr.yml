@@ -11,6 +11,7 @@ on:
       - "slop/**"
       - "sp1-gpu/**"
       - "examples/**"
+      - "zkevm/**"
       - "Cargo.toml"
       - ".github/workflows/**"
       - ".github/actions/**"
@@ -408,26 +409,21 @@ jobs:
           cd ./examples/
           cargo check --all-targets --all-features
 
-  # check-verifier-no-std:
-  #   name: Check Verifier `no_std`
-  #   runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
-  #   timeout-minutes: 10
-  #   strategy:
-  #     fail-fast: false
-  #   steps:
-  #     - name: Checkout Actions Repository
-  #       uses: actions/checkout@v6
+  check-verifier-no-std:
+    name: Check Verifier `no_std`
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
 
-  #     - name: Install Rust toolchain
-  #       uses: dtolnay/rust-toolchain@stable
-  #       with:
-  #         targets: riscv32imac-unknown-none-elf
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
 
-  #     - name: Install target support
-  #       run: rustup target add riscv32imac-unknown-none-elf
-
-  #     - name: Check build
-  #       run: cargo check --target riscv32imac-unknown-none-elf --no-default-features -p sp1-verifier
+      - name: Check build
+        run: cargo check --target wasm32-unknown-unknown --no-default-features -p sp1-verifier
 
   # TODO: Enable once recursion crates are fixed for multilinear.
   # lock-files:

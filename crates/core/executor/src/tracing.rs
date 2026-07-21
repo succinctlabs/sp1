@@ -1686,7 +1686,7 @@ impl<'a, M: ExecutionMode> SyscallRuntime<'a, M> for PrecompileMemory<'a, '_, M>
             local_page_prot_access.insert_record(page_idx, prev_page_prot_record, clk, prot);
         }
         assert!(self.inner.precompile_local_page_prot_access.is_some());
-        assert!(self.inner.precompile_local_page_prot_access.as_ref().unwrap().inner.len() == 1);
+        assert_eq!(self.inner.precompile_local_page_prot_access.as_ref().unwrap().inner.len(), 1);
 
         prev_page_prot_record
     }
@@ -2267,11 +2267,6 @@ mod tests {
         // - bump1: Clock overflow - triggers when clk's top 24 bits change (requires ~2M cycles)
         // - bump2: PC overflow - triggers when PC crosses a 16-bit boundary (testable with pc_base)
         //
-        // Memory bump also requires clk to reach 2^24 (~2M cycles), making it impractical
-        // to test with unit tests. However, the APC rejection logic is identical for all
-        // bump types (comparing event count in from_snapshot vs to_snapshot), so this test
-        // validates the shared code path.
-        //
         // This test uses bump2 by setting pc_base = 0xFFF0, so instruction 3 (at PC 0xFFFC)
         // will cause next_pc = 0x10000, crossing the 16-bit boundary.
         //
@@ -2335,6 +2330,10 @@ mod tests {
         let upper = loop_count & !0xFFF; // upper bits for LUI
         let lower = (loop_count & 0xFFF) as i32; // lower 12 bits for ADDI
 
+        // A word-aligned heap address touched before and after the epoch boundary, so a RAM
+        // access also crosses an epoch (in addition to the register crossing on x11).
+        let addr: u64 = 0x27654320;
+
         let mut instructions = vec![
             // Index 0: LUI x10, upper
             Instruction::new(Opcode::LUI, 10, upper, 0, true, true),
@@ -2342,15 +2341,17 @@ mod tests {
             Instruction::new(Opcode::ADDI, 10, 10, lower as u64, false, true),
             // Index 2: ADDI x11, x0, 42 — touch x11 before the epoch boundary
             Instruction::new(Opcode::ADDI, 11, 0, 42, false, true),
-            // Index 3: ADDI x10, x10, -1 — loop body (decrement)
+            // Index 3: SW x11, [addr] — touch RAM `addr` before the epoch boundary
+            Instruction::new(Opcode::SW, 11, 0, addr, false, true),
+            // Index 4: ADDI x10, x10, -1 — loop body (decrement)
             Instruction::new(Opcode::ADDI, 10, 10, (-1i64) as u64, false, true),
-            // Index 4: BNE x10, x0, -4 — branch back to index 3
+            // Index 5: BNE x10, x0, -4 — branch back to index 4
             Instruction::new(Opcode::BNE, 10, 0, (-4i64) as u64, false, true),
-            // Index 5: ADDI x12, x11, 1 — post-loop: reads x11 (stale from epoch 0)
-            Instruction::new(Opcode::ADDI, 12, 11, 1, false, true),
-            // Index 6: ADDI x13, x12, 1
-            Instruction::new(Opcode::ADDI, 13, 12, 1, false, true),
-            // Index 7: ADDI x14, x13, 1
+            // Index 6: LW x12, [addr] — post-loop: reads RAM `addr` (stale from epoch 0)
+            Instruction::new(Opcode::LW, 12, 0, addr, false, true),
+            // Index 7: ADDI x13, x11, 1 — post-loop: reads x11 (stale from epoch 0)
+            Instruction::new(Opcode::ADDI, 13, 11, 1, false, true),
+            // Index 8: ADDI x14, x13, 1
             Instruction::new(Opcode::ADDI, 14, 13, 1, false, true),
         ];
 
@@ -2360,35 +2361,53 @@ mod tests {
     }
 
     #[test]
-    fn test_apc_memory_bump_error() {
-        // Test that an APC is aborted when it accesses a register whose previous timestamp
-        // is in a different clk_high epoch (memory bump), even though the APC's own
-        // instructions don't cross an epoch boundary.
+    fn test_apc_memory_bump_tolerated() {
+        // An APC is *kept* (not aborted) when it accesses a register OR a RAM address whose
+        // previous timestamp is in a different clk_high epoch, even though the APC's own
+        // instructions don't cross an epoch boundary. The register crossing is routed to the
+        // shared `MemoryBump` chip (which re-anchors the register); the RAM crossing is
+        // represented natively by `compare_low` (no bump needed). Either way the block stays an
+        // APC instead of falling back to software.
         //
-        // Setup: x11 is touched at index 2 (epoch 0, clk ~ 24). After ~2.1M loop iterations
-        // the loop exits in epoch 1. Post-loop index 5 reads x11, whose prev_timestamp is
-        // still in epoch 0 → triggers pending_memory_bump → APC aborted.
+        // Setup: x11 and RAM `addr` are touched at indices 2-3 (epoch 0). After ~2.1M loop
+        // iterations the loop exits in epoch 1. Post-loop, index 6 reads `addr` and index 7
+        // reads x11 — both stale from epoch 0.
         let program_without_apcs = build_epoch_crossing_program();
 
-        // APC covers only post-loop instructions (indices 5-7), all within epoch 1.
-        // No clk_high boundary is crossed, but index 5 reads x11 which was last accessed
-        // in epoch 0, triggering a memory bump event.
-        let apc = vec![Apc::new(&(5, 8), 1, OptimisticConstraints::from_constraints(vec![]))];
+        // APC covers post-loop instructions (indices 6-8), all within epoch 1: a RAM read
+        // (index 6) and a register read (index 7), each crossing an epoch relative to its last
+        // access in epoch 0. No clk_high boundary is crossed inside the block itself.
+        let apc = vec![Apc::new(&(6, 9), 1, OptimisticConstraints::from_constraints(vec![]))];
         let program = program_without_apcs.with_apcs(apc);
 
         let (record, registers, status) =
             run_tracing_vm(Arc::new(program), SP1CoreOpts::default(), 10_000_000);
         assert!(status.is_done(), "TracingVM did not complete");
-        // Verify the program computed correctly (x11=42, x12=43, x13=44, x14=45)
+        // Verify the program computed correctly (x11=42, x12=42 loaded from addr, x13=43, x14=44)
         assert_eq!(registers[11].value, 42);
-        assert_eq!(registers[12].value, 43);
-        assert_eq!(registers[13].value, 44);
-        assert_eq!(registers[14].value, 45);
-        // The APC covering indices 5-7 should be rejected because index 5 reads x11
-        // whose prev_timestamp is in epoch 0 while the current clk is in epoch 1.
+        assert_eq!(registers[12].value, 42);
+        assert_eq!(registers[13].value, 43);
+        assert_eq!(registers[14].value, 44);
+        // The APC is kept despite both the RAM crossing (index 6) and the register crossing
+        // (index 7): neither aborts the candidate.
         assert!(
-            record.apc_events.is_empty(),
-            "Expected APC to be rejected due to memory bump (stale register access across epoch)"
+            !record.apc_events.is_empty(),
+            "Expected APC to be kept (register + RAM epoch crossings are tolerated, not aborted)"
+        );
+        // The stale-register crossing is routed to the shared `MemoryBump` chip so the
+        // re-anchored register access balances on the memory bus. (The RAM crossing needs no
+        // bump — it is handled natively by `compare_low`.)
+        assert!(
+            !record.bump_memory_events.is_empty(),
+            "Expected a register bump event emitted to the MemoryBump chip for the crossing"
+        );
+        // ...and that bump must stay in the MAIN record: the APC chip fills its columns only from
+        // block-instruction chips, so a bump carved into the APC block record is silently dropped
+        // (the APC emits no MemoryBump interaction), which would leave the re-anchored register
+        // receive unmatched on the memory bus. Guard that no APC record carries a carved bump.
+        assert!(
+            record.apc_events.events.values().all(|e| e.record.bump_memory_events.is_empty()),
+            "APC block records must not carry carved bump events (they belong in the main record)"
         );
     }
 }

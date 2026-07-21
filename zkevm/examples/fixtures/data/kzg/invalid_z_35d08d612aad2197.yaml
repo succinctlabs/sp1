@@ -1,0 +1,4 @@
+input: {commitment: '0x8f59a8d2a1a625a17f3fea0fe5eb8c896db3764f3185481bc22f91b4aaffcca25f26936857bc3a7c2539ea8ec3a952b7',
+  z: '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff', y: '0x60f840641ec0d0c0d2b77b2d5a393b329442721fad05ab78c7b98f2aa3c20ec9',
+  proof: '0xb30b3d1e4faccc380557792c9a0374d58fa286f5f75fea48870585393f890909cd3c53cfe4897e799fb211b4be531e43'}
+output: null

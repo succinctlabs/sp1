@@ -1,0 +1,27 @@
+[package]
+name = "bls12-c-script"
+description = "Host driver for bls12-c. Cross-checks the guest's BLS12-381 G1/G2 add, MSM, pairing-check, and map-to-curve outputs against host-side bls12_381 computations."
+version = { workspace = true }
+edition = { workspace = true }
+publish = false
+
+[[bin]]
+name = "bls12-c-execute"
+path = "src/execute.rs"
+
+[[bin]]
+name = "bls12-c-prove"
+path = "src/prove.rs"
+
+[dependencies]
+sp1-sdk = { workspace = true }
+bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", tag = "patch-0.8.0-sp1-6.2.0", default-features = false, features = ["groups", "pairings", "alloc", "experimental"] }
+ff = { version = "0.13", default-features = false }
+group = { version = "0.13", default-features = false }
+rand = "0.8"
+tokio = { workspace = true }
+tracing = { workspace = true }
+zkevm-fixtures = { path = "../../fixtures" }
+
+[build-dependencies]
+zkevm-c-build = { path = "../../c-build" }

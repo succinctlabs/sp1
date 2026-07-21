@@ -1,0 +1,13 @@
+[package]
+name = "hello-rust"
+version = { workspace = true }
+edition = { workspace = true }
+publish = false
+description = "Rust guest smoke test for the SP1 zkEVM SDK. Uses libzkevm via the same C ABI a C/Go consumer would."
+
+[[bin]]
+name = "hello-rust"
+path = "src/main.rs"
+
+[dependencies]
+libzkevm = { workspace = true }
