@@ -328,6 +328,38 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
             worker_client,
         }
     }
+
+    /// Skip the recursion compose & deferred PK build in `SP1RecursionProver::new`.
+    /// Use only when the caller knows it will only run `--mode core` (e.g. RSP perf
+    /// benchmarks). Saves ~14 GB of GPU VRAM at startup on APC-configured machines.
+    /// Any subsequent compressed/shrink/wrap request will fail with "key not found".
+    #[cfg(feature = "experimental")]
+    pub fn without_recursion(self) -> SP1WorkerBuilder<C, A, W> {
+        let SP1WorkerBuilder {
+            machine,
+            mut config,
+            core_air_prover_and_permits,
+            compress_air_prover_and_permits,
+            shrink_air_prover_and_permits,
+            wrap_air_prover_and_permits,
+            artifact_client,
+            worker_client,
+        } = self;
+
+        config.prover_config.recursion_prover_config =
+            config.prover_config.recursion_prover_config.without_recursion();
+
+        SP1WorkerBuilder {
+            machine,
+            config,
+            core_air_prover_and_permits,
+            compress_air_prover_and_permits,
+            shrink_air_prover_and_permits,
+            wrap_air_prover_and_permits,
+            artifact_client,
+            worker_client,
+        }
+    }
 }
 
 /// Create a [SP1WorkerBuilder] for a CPU worker with default components.
