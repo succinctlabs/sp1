@@ -61,6 +61,7 @@ impl<F: PrimeField32> From<Arc<Sp1Apc<F>>> for CachedApc<F> {
 /// `generate_dependencies` fills the trace to evaluate the byte-bus interactions and stores it here
 /// so `generate_trace_into` can restore it instead of regenerating the identical trace. `Mutex`
 /// because the chip is shared via `Arc` across concurrent shard workers.
+#[derive(Default)]
 struct CachedTraces<F>(Mutex<HashMap<([u32; 4], u64), Vec<F>>>);
 
 // A derived `Debug` would dump the whole runtime trace cache, so only print the type name.
