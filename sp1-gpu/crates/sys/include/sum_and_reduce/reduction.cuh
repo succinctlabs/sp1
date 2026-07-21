@@ -51,8 +51,24 @@ partialBlockReduce(const TyBlock& block, const TyTile& tile, F val, F* shared, T
     }
     block.sync(); // Synchronize after warp-level reduction
 
+    // See `reduce.cuh::partialBlockReduce` for a discussion of the
+    // non-power-of-2 fold-tail trick used here. Shared-memory contract is
+    // unchanged: caller still allocates N = warps-per-block slots.
+    const int n = block.size() / tile.size();
+    int pow2 = 1;
+    while ((pow2 << 1) <= n) {
+        pow2 <<= 1;
+    }
+    if (pow2 < n) {
+        const int tail = n - pow2;
+        if (block.thread_rank() < tail) {
+            op.evalAssign(shared[block.thread_rank()], shared[block.thread_rank() + pow2]);
+        }
+        block.sync();
+    }
+
     // Perform tree-based reduction on shared memory
-    for (int stride = (block.size() / tile.size()) / 2; stride > 0; stride /= 2) {
+    for (int stride = pow2 / 2; stride > 0; stride /= 2) {
         if (block.thread_rank() < stride) {
             op.evalAssign(shared[block.thread_rank()], shared[block.thread_rank() + stride]);
         }

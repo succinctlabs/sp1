@@ -18,8 +18,9 @@ use crate::{
         signer::NetworkSigner,
         tee::{client::Client as TeeClient, verify_tee_proof},
         Error, NetworkMode, DEFAULT_AUCTION_TIMEOUT_DURATION, DEFAULT_GAS_LIMIT,
-        MAINNET_EXPLORER_URL, MAINNET_RPC_URL, PRIVATE_EXPLORER_URL, PRIVATE_NETWORK_RPC_URL,
-        RESERVED_EXPLORER_URL, RESERVED_RPC_URL, TEE_NETWORK_RPC_URL,
+        DEFAULT_MAX_PRICE_PER_PGU_BUFFER, MAINNET_EXPLORER_URL, MAINNET_RPC_URL,
+        PRIVATE_EXPLORER_URL, PRIVATE_NETWORK_RPC_URL, RESERVED_EXPLORER_URL, RESERVED_RPC_URL,
+        TEE_NETWORK_RPC_URL,
     },
     prover::{verify_proof, BaseProveRequest, SendFutureResult},
     ProofFromNetwork, Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey,
@@ -100,6 +101,7 @@ impl Prover for NetworkProver {
             verifier: None,
             treasury: None,
             max_price_per_pgu: None,
+            max_price_per_pgu_buffer: None,
             auction_timeout: None,
             private_stdin: false,
         }
@@ -117,6 +119,66 @@ impl Prover for NetworkProver {
 
         verify_proof(self.inner(), self.version(), proof, vkey, status_code)
     }
+}
+
+/// Returns `true` if the error is a wait-loop terminal failure that the auction fallback path
+/// should retry against high-availability provers. The retry is single-shot — guarded by
+/// `whitelist.is_none()` at the call site, which is set on retry — so adding a variant here
+/// cannot produce an unbounded retry loop.
+///
+/// Settlement failures (`RequestReverted`) are deliberately NOT retryable by default. The SDK only
+/// sees the terminal status, not a stable retry reason, so retrying here can burn more PROVE on
+/// deterministic failures. Callers who own a different policy can inspect the error and resubmit.
+fn should_retry_with_ha_fallback(error: &Error) -> bool {
+    matches!(
+        error,
+        Error::RequestUnfulfillable { .. }
+            | Error::RequestTimedOut { .. }
+            | Error::RequestAuctionTimedOut { .. }
+            | Error::RequestExpired { .. }
+    )
+}
+
+/// Maps the post-RPC status to a public outcome. Pure logic, kept separate from the RPC path so
+/// the decision boundaries are unit-testable without mocking transport.
+///
+/// Priority (matches the inline order in `process_proof_status` prior to this extraction):
+///   1. `FulfillmentStatus::Fulfilled` -> `Ok((proof, Fulfilled))` even past deadline
+///   2. `ExecutionStatus::Unexecutable` -> `Error::RequestUnexecutable`
+///   3. `FulfillmentStatus::Unfulfillable` -> `Error::RequestUnfulfillable`
+///   4. `FulfillmentStatus::Reverted` -> `Error::RequestReverted`
+///   5. `FulfillmentStatus::Expired` -> `Error::RequestExpired`
+///   6. `deadline_exceeded` -> `Error::RequestTimedOut`
+///   7. otherwise (Unspecified, Requested, Assigned) -> `Ok((None, status))` for the caller to poll
+fn decide_status_outcome(
+    request_id: B256,
+    execution_status: ExecutionStatus,
+    fulfillment_status: FulfillmentStatus,
+    maybe_proof: Option<SP1ProofWithPublicValues>,
+    deadline_exceeded: bool,
+) -> Result<(Option<SP1ProofWithPublicValues>, FulfillmentStatus)> {
+    if fulfillment_status == FulfillmentStatus::Fulfilled {
+        return Ok((maybe_proof, fulfillment_status));
+    }
+    if execution_status == ExecutionStatus::Unexecutable {
+        return Err(Error::RequestUnexecutable { request_id: request_id.to_vec() }.into());
+    }
+    match fulfillment_status {
+        FulfillmentStatus::Unfulfillable => {
+            return Err(Error::RequestUnfulfillable { request_id: request_id.to_vec() }.into());
+        }
+        FulfillmentStatus::Reverted => {
+            return Err(Error::RequestReverted { request_id: request_id.to_vec() }.into());
+        }
+        FulfillmentStatus::Expired => {
+            return Err(Error::RequestExpired { request_id: request_id.to_vec() }.into());
+        }
+        _ => {}
+    }
+    if deadline_exceeded {
+        return Err(Error::RequestTimedOut { request_id: request_id.to_vec() }.into());
+    }
+    Ok((None, fulfillment_status))
 }
 
 impl NetworkProver {
@@ -349,31 +411,22 @@ impl NetworkProver {
         let (status, maybe_proof): (GetProofRequestStatusResponse, Option<ProofFromNetwork>) =
             self.client.get_proof_request_status(request_id, remaining_timeout).await?;
 
-        let maybe_proof = maybe_proof.map(Into::into);
+        let maybe_proof: Option<SP1ProofWithPublicValues> = maybe_proof.map(Into::into);
 
         let execution_status = ExecutionStatus::try_from(status.execution_status()).unwrap();
         let fulfillment_status = FulfillmentStatus::try_from(status.fulfillment_status()).unwrap();
 
-        // Check fulfillment before the deadline — a fulfilled proof should be
-        // returned even if polled after the deadline has passed.
-        if fulfillment_status == FulfillmentStatus::Fulfilled {
-            return Ok((maybe_proof, fulfillment_status));
-        }
-        if execution_status == ExecutionStatus::Unexecutable {
-            return Err(Error::RequestUnexecutable { request_id: request_id.to_vec() }.into());
-        }
-        if fulfillment_status == FulfillmentStatus::Unfulfillable {
-            return Err(Error::RequestUnfulfillable { request_id: request_id.to_vec() }.into());
-        }
-
-        // Only check the deadline for requests that are still in progress.
         let current_time =
             std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
-        if current_time > status.deadline() {
-            return Err(Error::RequestTimedOut { request_id: request_id.to_vec() }.into());
-        }
+        let deadline_exceeded = current_time > status.deadline();
 
-        Ok((None, fulfillment_status))
+        decide_status_outcome(
+            request_id,
+            execution_status,
+            fulfillment_status,
+            maybe_proof,
+            deadline_exceeded,
+        )
     }
 
     /// Requests a proof from the prover network, returning the request ID.
@@ -602,6 +655,7 @@ impl NetworkProver {
         verifier: Option<Address>,
         treasury: Option<Address>,
         max_price_per_pgu: Option<u64>,
+        max_price_per_pgu_buffer: Option<u64>,
         private_stdin: bool,
     ) -> Result<B256> {
         let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
@@ -616,6 +670,7 @@ impl NetworkProver {
                 verifier,
                 treasury,
                 max_price_per_pgu,
+                max_price_per_pgu_buffer,
             )
             .await?;
 
@@ -661,6 +716,7 @@ impl NetworkProver {
         verifier: Option<Address>,
         treasury: Option<Address>,
         max_price_per_pgu: Option<u64>,
+        max_price_per_pgu_buffer: Option<u64>,
         auction_timeout: Option<Duration>,
         private_stdin: bool,
     ) -> Result<SP1ProofWithPublicValues> {
@@ -687,6 +743,7 @@ impl NetworkProver {
                     verifier,
                     treasury,
                     max_price_per_pgu,
+                    max_price_per_pgu_buffer,
                     private_stdin,
                 )
                 .await?;
@@ -722,12 +779,8 @@ impl NetworkProver {
                     // Check if this is a Mainnet auction request that we can retry.
                     if self.network_mode == NetworkMode::Mainnet {
                         if let Some(network_error) = e.downcast_ref::<Error>() {
-                            if matches!(
-                                network_error,
-                                Error::RequestUnfulfillable { .. }
-                                    | Error::RequestTimedOut { .. }
-                                    | Error::RequestAuctionTimedOut { .. }
-                            ) && strategy == FulfillmentStrategy::Auction
+                            if should_retry_with_ha_fallback(network_error)
+                                && strategy == FulfillmentStrategy::Auction
                                 && whitelist.is_none()
                             {
                                 tracing::warn!(
@@ -848,7 +901,7 @@ impl NetworkProver {
     /// 1. If the parameter is explicitly set by the requester, use the specified value.
     /// 2. Otherwise, use the default values fetched from the network RPC.
     #[allow(unused_variables)]
-    #[allow(clippy::unused_async)]
+    #[allow(clippy::unused_async, clippy::too_many_arguments)]
     async fn get_auction_request_params(
         &self,
         mode: SP1ProofMode,
@@ -857,6 +910,7 @@ impl NetworkProver {
         verifier: Option<Address>,
         treasury: Option<Address>,
         max_price_per_pgu: Option<u64>,
+        max_price_per_pgu_buffer: Option<u64>,
     ) -> Result<(Address, Address, Address, Address, u64, u64, Vec<u8>)> {
         match self.network_mode {
             NetworkMode::Mainnet => {
@@ -883,13 +937,23 @@ impl NetworkProver {
                         } else {
                             Address::from_slice(&auction_params.treasury)
                         };
-                        let max_price_per_pgu_value = if let Some(max_price_per_pgu) = max_price_per_pgu {
-                            max_price_per_pgu
+                        let max_price_per_pgu_value = if let Some(v) = max_price_per_pgu {
+                            v
                         } else {
-                            auction_params
-                                .max_price_per_pgu
-                                .parse::<u64>()
-                                .expect("invalid max_price_per_pgu")
+                            let base = auction_params.max_price_per_pgu.parse::<u64>().map_err(
+                                |e| {
+                                    anyhow::anyhow!(
+                                        "invalid max_price_per_pgu {:?}: {e}",
+                                        auction_params.max_price_per_pgu
+                                    )
+                                },
+                            )?;
+                            let pct = max_price_per_pgu_buffer.unwrap_or(DEFAULT_MAX_PRICE_PER_PGU_BUFFER);
+                            let buffered = buffer_max_price_per_pgu(base, pct);
+                            // Align to the network's auction tick when advertised. `tick_size == 0`
+                            // means an older RPC that predates the field — leave the value as-is so
+                            // the bidder still rounds it on intake.
+                            align_to_tick(buffered, auction_params.tick_size)
                         };
                         let base_fee = auction_params
                             .base_fee
@@ -929,5 +993,207 @@ impl From<SP1ProofMode> for ProofMode {
             SP1ProofMode::Plonk => Self::Plonk,
             SP1ProofMode::Groth16 => Self::Groth16,
         }
+    }
+}
+
+/// Apply a percentage buffer to the server-supplied `max_price_per_pgu` default. If the
+/// buffered value overflows `u64`, log and return `base` unchanged.
+fn buffer_max_price_per_pgu(base: u64, buffer_pct: u64) -> u64 {
+    let buffered = u128::from(base).saturating_mul(u128::from(buffer_pct)) / 100;
+    u64::try_from(buffered).unwrap_or_else(|_| {
+        tracing::warn!(
+            buffered,
+            "buffered max_price_per_pgu overflows u64; using server-supplied default"
+        );
+        base
+    })
+}
+
+/// Floor `value` to a multiple of `tick`. A tick of `0` or `1` returns `value` unchanged,
+/// so older RPCs that don't advertise a tick — or future envs without one — are no-ops.
+fn align_to_tick(value: u64, tick: u64) -> u64 {
+    if tick <= 1 {
+        return value;
+    }
+    value - (value % tick)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn buffer_applied_to_base() {
+        // 1000 * 120 / 100 = 1200.
+        assert_eq!(buffer_max_price_per_pgu(1000, 120), 1200);
+    }
+
+    #[test]
+    fn custom_buffer_pct_applied() {
+        // Caller can override the buffer; 1000 * 150 / 100 = 1500.
+        assert_eq!(buffer_max_price_per_pgu(1000, 150), 1500);
+    }
+
+    #[test]
+    fn overflow_returns_base() {
+        // u64::MAX * u64::MAX saturates to u128::MAX; /100 is well beyond u64::MAX.
+        assert_eq!(buffer_max_price_per_pgu(u64::MAX, u64::MAX), u64::MAX);
+    }
+
+    #[test]
+    fn align_floors_to_tick() {
+        // 1_234_567_890 floored to a 10M tick.
+        assert_eq!(align_to_tick(1_234_567_890, 10_000_000), 1_230_000_000);
+    }
+
+    #[test]
+    fn align_zero_tick_is_no_op() {
+        // Older RPCs return tick_size=0; must pass the buffered value through unchanged.
+        assert_eq!(align_to_tick(1_234_567_890, 0), 1_234_567_890);
+        assert_eq!(align_to_tick(1_234_567_890, 1), 1_234_567_890);
+    }
+}
+
+#[cfg(test)]
+mod decision_tests {
+    use super::*;
+
+    fn rid() -> B256 {
+        B256::from([0xab; 32])
+    }
+
+    #[test]
+    fn fulfilled_takes_precedence_over_unexecutable_and_deadline() {
+        // Per #2737 ordering: a Fulfilled proof should be returned even if both Unexecutable
+        // and the deadline are concurrent — the proof is in hand.
+        let (proof, status) = decide_status_outcome(
+            rid(),
+            ExecutionStatus::Unexecutable,
+            FulfillmentStatus::Fulfilled,
+            None,
+            true,
+        )
+        .unwrap();
+        assert!(proof.is_none());
+        assert_eq!(status, FulfillmentStatus::Fulfilled);
+    }
+
+    #[test]
+    fn unexecutable_maps_to_request_unexecutable() {
+        let err = decide_status_outcome(
+            rid(),
+            ExecutionStatus::Unexecutable,
+            FulfillmentStatus::Assigned,
+            None,
+            false,
+        )
+        .unwrap_err();
+        assert!(matches!(err.downcast_ref::<Error>(), Some(Error::RequestUnexecutable { .. })));
+    }
+
+    #[test]
+    fn unfulfillable_maps_to_request_unfulfillable() {
+        let err = decide_status_outcome(
+            rid(),
+            ExecutionStatus::Executed,
+            FulfillmentStatus::Unfulfillable,
+            None,
+            false,
+        )
+        .unwrap_err();
+        assert!(matches!(err.downcast_ref::<Error>(), Some(Error::RequestUnfulfillable { .. })));
+    }
+
+    #[test]
+    fn reverted_maps_to_request_reverted() {
+        let err = decide_status_outcome(
+            rid(),
+            ExecutionStatus::Executed,
+            FulfillmentStatus::Reverted,
+            None,
+            false,
+        )
+        .unwrap_err();
+        let net = err.downcast_ref::<Error>().expect("network error");
+        assert!(matches!(net, Error::RequestReverted { .. }));
+        assert!(net.to_string().contains("failed during settlement"));
+    }
+
+    #[test]
+    fn expired_maps_to_request_expired() {
+        let err = decide_status_outcome(
+            rid(),
+            ExecutionStatus::Executed,
+            FulfillmentStatus::Expired,
+            None,
+            false,
+        )
+        .unwrap_err();
+        let net = err.downcast_ref::<Error>().expect("network error");
+        assert!(matches!(net, Error::RequestExpired { .. }));
+        assert!(net.to_string().contains("expired"));
+    }
+
+    #[test]
+    fn deadline_exceeded_maps_to_request_timed_out_for_in_progress_states() {
+        for fs in [
+            FulfillmentStatus::UnspecifiedFulfillmentStatus,
+            FulfillmentStatus::Requested,
+            FulfillmentStatus::Assigned,
+        ] {
+            let err = decide_status_outcome(rid(), ExecutionStatus::Executed, fs, None, true)
+                .unwrap_err();
+            assert!(
+                matches!(err.downcast_ref::<Error>(), Some(Error::RequestTimedOut { .. })),
+                "fs={fs:?} should map to RequestTimedOut when deadline exceeded",
+            );
+        }
+    }
+
+    #[test]
+    fn polling_states_return_ok_with_status() {
+        for fs in [
+            FulfillmentStatus::UnspecifiedFulfillmentStatus,
+            FulfillmentStatus::Requested,
+            FulfillmentStatus::Assigned,
+        ] {
+            let (proof, status) =
+                decide_status_outcome(rid(), ExecutionStatus::Executed, fs, None, false).unwrap();
+            assert!(proof.is_none());
+            assert_eq!(status, fs);
+        }
+    }
+
+    #[test]
+    fn ha_fallback_retries_expired_but_not_reverted() {
+        let request_id = rid().to_vec();
+        // Expired joins the existing retryable set.
+        assert!(should_retry_with_ha_fallback(&Error::RequestExpired {
+            request_id: request_id.clone()
+        }));
+        assert!(should_retry_with_ha_fallback(&Error::RequestUnfulfillable {
+            request_id: request_id.clone()
+        }));
+        assert!(should_retry_with_ha_fallback(&Error::RequestTimedOut {
+            request_id: request_id.clone()
+        }));
+        assert!(should_retry_with_ha_fallback(&Error::RequestAuctionTimedOut {
+            request_id: request_id.clone()
+        }));
+        // Settlement failures stay terminal by default; retry policy needs caller context.
+        assert!(!should_retry_with_ha_fallback(&Error::RequestReverted {
+            request_id: request_id.clone()
+        }));
+        // RequestUnexecutable also stays out of the retry set (pre-existing behavior).
+        assert!(!should_retry_with_ha_fallback(&Error::RequestUnexecutable { request_id }));
+    }
+
+    #[test]
+    fn error_display_strings_for_new_variants() {
+        let request_id = vec![0xde, 0xad, 0xbe, 0xef];
+        let reverted = Error::RequestReverted { request_id: request_id.clone() }.to_string();
+        assert_eq!(reverted, "Proof request 0xdeadbeef failed during settlement");
+        let expired = Error::RequestExpired { request_id }.to_string();
+        assert_eq!(expired, "Proof request 0xdeadbeef expired before a proof was submitted");
     }
 }

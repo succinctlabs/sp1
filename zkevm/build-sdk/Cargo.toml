@@ -1,0 +1,21 @@
+[package]
+name = "zkevm-build-sdk"
+description = "Internal helper: builds `libzkevm-cabi` via `sp1_build::build_program_staticlib` and stages the SDK output (`libzkevm.a`, `zkvm.ld`, headers) into `zkevm/sdk/`. Driven by the top-level `make sdk` target and by the `zkevm-sdk-release` GitHub Actions workflow."
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+rust-version = { workspace = true }
+publish = false
+
+[[bin]]
+name = "zkevm-build-sdk"
+path = "src/main.rs"
+
+[dependencies]
+sp1-build = { workspace = true }
+
+[lints]
+workspace = true

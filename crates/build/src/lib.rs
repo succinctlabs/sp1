@@ -3,6 +3,7 @@ mod command;
 mod utils;
 
 use std::env;
+use std::path::{Path, PathBuf};
 
 use build::build_program_internal;
 pub use build::{execute_build_program, generate_elf_paths};
@@ -15,6 +16,90 @@ use clap::{Parser, ValueEnum};
 const DEFAULT_DOCKER_TAG: &str = concat!("v", env!("CARGO_PKG_VERSION"));
 pub const DEFAULT_TARGET: &str = "riscv64im-succinct-zkvm-elf";
 const HELPER_TARGET_SUBDIR: &str = "elf-compilation";
+
+/// Clang/clang++ command-line flags for compiling C/C++ for SP1's
+/// `riscv64im-succinct-zkvm-elf` target.
+///
+/// Useful for build scripts that want to bring C code into an SP1 guest
+/// (either as a pure-C guest linked against a libc-style shim, or as
+/// FFI inside a Rust guest). Pair with [`find_lld`] to drive a clang +
+/// ld.lld pipeline by hand, or use [`build_program_staticlib`] +
+/// [`build_program`] for the canonical Rust-staticlib path.
+pub const CLANG_FLAGS: &[&str] = &[
+    "--target=riscv64-unknown-none-elf",
+    "-march=rv64im",
+    "-mabi=lp64",
+    "-ffreestanding",
+    "-fno-builtin",
+    "-fno-stack-protector",
+    "-nostdlibinc",
+];
+
+/// Locate `ld.lld`, preferring a system `PATH` install and falling
+/// back to the bundled copy in any installed SP1 toolchain
+/// (`~/.sp1/toolchains/*/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld/ld.lld`).
+///
+/// Useful for build scripts that need to link C objects against an
+/// SP1 staticlib without requiring a system-wide `lld` install.
+pub fn find_lld() -> Option<PathBuf> {
+    use std::process::Command;
+    if Command::new("ld.lld").arg("--version").output().is_ok_and(|o| o.status.success()) {
+        return Some(PathBuf::from("ld.lld"));
+    }
+    let home = std::env::var_os("HOME")?;
+    let toolchains = Path::new(&home).join(".sp1/toolchains");
+    for entry in std::fs::read_dir(&toolchains).ok()?.flatten() {
+        let candidate = entry.path().join("lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld/ld.lld");
+        if candidate.exists() {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
+/// Build a `crate-type = ["staticlib"]` crate for SP1 via
+/// [`build_program`] and return the path to the resulting `.a`.
+///
+/// `build_program` is bin-oriented and surfaces ELFs via `SP1_ELF_*`
+/// env vars; for staticlibs the artifact path follows a fixed
+/// convention under SP1's helper target subdirectory, so this wrapper
+/// just runs the build and assembles the path from cargo metadata.
+///
+/// Path layout: `<crate>/target/elf-compilation/<triple>/release/lib<lib_name>.a`.
+///
+/// Panics if cargo metadata can't be read or the staticlib doesn't
+/// exist after the build.
+pub fn build_program_staticlib(path: &str) -> PathBuf {
+    let manifest = Path::new(path).join("Cargo.toml");
+    let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
+    let metadata = metadata_cmd.manifest_path(&manifest).exec().unwrap_or_else(|e| {
+        panic!("failed to read cargo metadata from {}: {e}", manifest.display())
+    });
+    let root_package = metadata
+        .root_package()
+        .unwrap_or_else(|| panic!("no root package at {}", manifest.display()));
+    let lib_target = root_package
+        .targets
+        .iter()
+        .find(|t| t.kind.iter().any(|k| k == "staticlib"))
+        .unwrap_or_else(|| panic!("crate {} has no `staticlib` target", root_package.name));
+
+    build_program(path);
+
+    let staticlib = metadata
+        .target_directory
+        .join(HELPER_TARGET_SUBDIR)
+        .join(DEFAULT_TARGET)
+        .join("release")
+        .join(format!("lib{}.a", lib_target.name));
+    if !staticlib.as_std_path().exists() {
+        panic!(
+            "expected staticlib at {} after `build_program` — did the build fail silently?",
+            staticlib
+        );
+    }
+    staticlib.into_std_path_buf()
+}
 
 /// Controls the warning message verbosity in the build process.
 #[derive(Clone, Copy, ValueEnum, Debug, Default)]

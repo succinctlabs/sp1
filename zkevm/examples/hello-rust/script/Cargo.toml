@@ -1,0 +1,22 @@
+[package]
+name = "hello-rust-script"
+description = "Host-side script: builds the hello-rust C-ABI guest, executes it under SP1 (with optional proving), and verifies the public output matches the input."
+version = { workspace = true }
+edition = { workspace = true }
+publish = false
+
+[[bin]]
+name = "hello-rust-execute"
+path = "src/execute.rs"
+
+[[bin]]
+name = "hello-rust-prove"
+path = "src/prove.rs"
+
+[dependencies]
+sp1-sdk = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[build-dependencies]
+sp1-build = { workspace = true }

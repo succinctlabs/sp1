@@ -33,4 +33,12 @@ tikv-jemallocator = { version = "0.6", features = ["profiling", "stats"] }
 workspace = true
 
 [features]
+experimental = ["sp1-prover/experimental", "sp1-gpu-prover/experimental"]
+mprotect = [
+  "experimental",
+  "sp1-core-executor/mprotect",
+  "sp1-core-machine/mprotect",
+  "sp1-gpu-prover/mprotect",
+  "sp1-prover/mprotect",
+]
 groth16-cuda = ["sp1-recursion-gnark-ffi/groth16-cuda"]

@@ -1,6 +1,6 @@
 use sp1_gpu_cudart::{
     args,
-    sys::v2_kernels::{
+    sys::kernels::{
         jagged_fix_and_sum, jagged_sum_as_poly,
         mle_fix_last_variable_koala_bear_ext_ext_zero_padding, padded_hadamard_fix_and_sum,
     },

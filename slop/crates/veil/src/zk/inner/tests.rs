@@ -18,6 +18,16 @@ use slop_merkle_tree::Poseidon2KoalaBear16Prover;
 type MK = Poseidon2KoalaBear16Prover;
 use crate::name_constraint;
 
+// The prover/verifier contexts use `Arc<Mutex<>>` (rather than `Rc<RefCell<>>`) so that
+// they stay `Send + Sync`, which downstream GPU integration relies on. Guard that here.
+const fn _assert_send_sync<T: Send + Sync>() {}
+const _: () = {
+    _assert_send_sync::<ZkProverContext<KoalaBearDegree4Duplex, MK>>();
+    _assert_send_sync::<super::verifier::ZkVerificationContext<KoalaBearDegree4Duplex>>();
+    _assert_send_sync::<super::mask_counter::MaskCounterContext<KoalaBearDegree4Duplex>>();
+    _assert_send_sync::<crate::zk::ZkVerifierCtx<KoalaBearDegree4Duplex>>();
+};
+
 /// Single source of truth constraint builder.
 ///
 /// This function is generic over the field K, element type E, and context C.
@@ -155,7 +165,7 @@ async fn test_zk_builder_with_generic_constraints() {
     // Prover side
     let zkproof = {
         let mut prover_context: ZkProverContext<GC, MK> =
-            ZkProverContext::initialize(MASK_LENGTH, &mut rng);
+            ZkProverContext::initialize(MASK_LENGTH, &mut rng).expect("zk init failed");
 
         // Add values to the transcript
         let a_elem = prover_context.add_value(a_val);
@@ -181,7 +191,7 @@ async fn test_zk_builder_with_generic_constraints() {
         );
 
         // Generate the proof
-        prover_context.prove_without_pcs(&mut rng)
+        prover_context.prove_without_pcs(&mut rng).expect("zk prove failed")
     };
 
     // Verifier side
@@ -314,7 +324,7 @@ async fn test_equal_index_optimization() {
     // Prover side
     let zkproof = {
         let mut prover_context: ZkProverContext<GC, MK> =
-            ZkProverContext::initialize(MASK_LENGTH, &mut rng);
+            ZkProverContext::initialize(MASK_LENGTH, &mut rng).expect("zk init failed");
 
         // Add values to the transcript
         let a_elem = prover_context.add_value(a_val);
@@ -343,7 +353,7 @@ async fn test_equal_index_optimization() {
         );
 
         // Generate the proof
-        prover_context.prove_without_pcs(&mut rng)
+        prover_context.prove_without_pcs(&mut rng).expect("zk prove failed")
     };
 
     // Verifier side
@@ -487,7 +497,8 @@ async fn test_dot_product_constraint_generation_comparison() {
     let prover_start = Instant::now();
     let zkproof_transcript = {
         let mut prover_context: ZkProverContext<GC, MK> =
-            ZkProverContext::initialize_only_lin_constraints(MASK_LENGTH, &mut rng);
+            ZkProverContext::initialize_only_lin_constraints(MASK_LENGTH, &mut rng)
+                .expect("zk init failed");
 
         // Add private vector to transcript
         let private_vec_elems: Vec<_> =
@@ -496,7 +507,7 @@ async fn test_dot_product_constraint_generation_comparison() {
 
         build_dot_product_constraint_transcript(private_vec_elems, &public_coeffs, result_elem);
 
-        prover_context.prove_without_pcs(&mut rng)
+        prover_context.prove_without_pcs(&mut rng).expect("zk prove failed")
     };
     let prover_duration = prover_start.elapsed();
     eprintln!("  Prover time: {:?}", prover_duration);
@@ -528,7 +539,8 @@ async fn test_dot_product_constraint_generation_comparison() {
     let prover_start = Instant::now();
     let zkproof_expr_index = {
         let mut prover_context: ZkProverContext<GC, MK> =
-            ZkProverContext::initialize_only_lin_constraints(MASK_LENGTH, &mut rng);
+            ZkProverContext::initialize_only_lin_constraints(MASK_LENGTH, &mut rng)
+                .expect("zk init failed");
 
         // Add private vector to transcript
         let private_vec_elems: Vec<_> =
@@ -541,7 +553,7 @@ async fn test_dot_product_constraint_generation_comparison() {
             result_elem,
         );
 
-        prover_context.prove_without_pcs(&mut rng)
+        prover_context.prove_without_pcs(&mut rng).expect("zk prove failed")
     };
     let prover_duration = prover_start.elapsed();
     eprintln!("  Prover time: {:?}", prover_duration);
@@ -598,7 +610,8 @@ fn test_pcs_commitment_tracking() {
     let zkproof = {
         let masks_length = 2;
         let mut prover_context: ZkProverContext<GC, MK> =
-            ZkProverContext::initialize_only_lin_constraints(masks_length, &mut rng);
+            ZkProverContext::initialize_only_lin_constraints(masks_length, &mut rng)
+                .expect("zk init failed");
 
         // Register commitments (passing () for prover_data since we don't need it in this test)
         let commit_idx1 = prover_context.register_commitment(digest1, (), 10, 4);
@@ -620,7 +633,7 @@ fn test_pcs_commitment_tracking() {
         let _val2 = prover_context.add_value(rng.gen());
 
         // No eval claims, so prove_without_pcs is fine
-        prover_context.prove_without_pcs(&mut rng)
+        prover_context.prove_without_pcs(&mut rng).expect("zk prove failed")
     };
 
     // Test verifier side

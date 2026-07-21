@@ -213,9 +213,9 @@ mod tests {
 
         utils::setup_logger();
 
-        // Use a small chunk threshold to force multiple chunks
+        // Use a small gas chunk threshold to force multiple chunks in the gas path.
         let mut opts = SP1CoreOpts::default();
-        opts.minimal_trace_chunk_threshold = 1000;
+        opts.gas_trace_chunk_threshold = 1000;
 
         let client = MockProver::new_with_opts(opts).await;
         let elf = test_artifacts::CYCLE_TRACKER_ELF;
