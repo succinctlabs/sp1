@@ -93,7 +93,7 @@ pub enum SP1RecursionProgramShape {
 }
 
 const PADDED_ELEMENT_THRESHOLD: u64 =
-    sp1_core_executor::ELEMENT_THRESHOLD + (1 << CORE_LOG_STACKING_HEIGHT);
+    sp1_core_executor::ELEMENT_THRESHOLD + (2 << CORE_LOG_STACKING_HEIGHT);
 
 #[derive(Debug, Error)]
 pub enum VkBuildError {

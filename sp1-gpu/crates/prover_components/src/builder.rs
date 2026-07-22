@@ -70,7 +70,7 @@ pub async fn core_prover_and_verifier(
 ) {
     let opts = local_gpu_opts();
     let num_elts =
-        opts.sharding_threshold.element_threshold as usize + (1 << CORE_LOG_STACKING_HEIGHT);
+        opts.sharding_threshold.element_threshold as usize + (2 << CORE_LOG_STACKING_HEIGHT);
     let core_verifier = SP1CudaProverComponents::core_verifier(machine);
     (
         new_cuda_prover(&core_verifier, num_elts, 4, opts.recompute_gkr_trace, scope).await,

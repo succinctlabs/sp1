@@ -51,6 +51,10 @@ pub unsafe fn hint_len(
     _op_b: u64,
 ) -> Result<Option<u64>, Interrupt> {
     let value = ctx.hint_remaining_len().map_or(u64::MAX, |n| n as u64);
+    // An empty hint gets no HINT_READ from the guest, so consume it here.
+    if value == 0 {
+        ctx.consume_hint_bytes(0);
+    }
     ctx.trace_value(value);
     Ok(Some(value))
 }
