@@ -5488,8 +5488,7 @@ dependencies = [
 [[package]]
 name = "powdr-autoprecompiles"
 version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "036a58d702e1bfe2c54938820b16402714ca1e9e4ae101ca00439efb88cda391"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=247d43704b67c921c452523110a5878d87dfe110#247d43704b67c921c452523110a5878d87dfe110"
 dependencies = [
  "deepsize2",
  "derivative",
@@ -5504,6 +5503,7 @@ dependencies = [
  "priority-queue",
  "rayon",
  "serde",
+ "serde_cbor",
  "serde_json",
  "strum",
  "tracing",
@@ -5513,8 +5513,7 @@ dependencies = [
 [[package]]
 name = "powdr-constraint-solver"
 version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af1961a5bb9cb721f32223e84a1d58c955d21701507fbc7bb96ebe02ca6341a3"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=247d43704b67c921c452523110a5878d87dfe110#247d43704b67c921c452523110a5878d87dfe110"
 dependencies = [
  "auto_enums",
  "bitvec",
@@ -5531,8 +5530,7 @@ dependencies = [
 [[package]]
 name = "powdr-expression"
 version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3abd13f6b4e8eb519f0ab68030fb67cf6e528e999ecb3b85d59dc34562208bb"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=247d43704b67c921c452523110a5878d87dfe110#247d43704b67c921c452523110a5878d87dfe110"
 dependencies = [
  "derive_more 2.1.1",
  "num-traits",
@@ -5544,14 +5542,12 @@ dependencies = [
 [[package]]
 name = "powdr-isa-utils"
 version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a264ae7642168f24ece3907387ed72381efb00091daf37c6764f7fde384317bf"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=247d43704b67c921c452523110a5878d87dfe110#247d43704b67c921c452523110a5878d87dfe110"
 
 [[package]]
 name = "powdr-number"
 version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7d001c737abb81edc4b543e3916cb6b58c32855186812799ade3482eebeefad"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=247d43704b67c921c452523110a5878d87dfe110#247d43704b67c921c452523110a5878d87dfe110"
 dependencies = [
  "ark-bn254 0.4.0",
  "ark-ff 0.4.2",
@@ -5574,8 +5570,7 @@ dependencies = [
 [[package]]
 name = "powdr-riscv-elf"
 version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7fcf427e03113c13b3bc3126d99084a713bc74b82c65ffb0675b5aedca7827ae"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=247d43704b67c921c452523110a5878d87dfe110#247d43704b67c921c452523110a5878d87dfe110"
 dependencies = [
  "gimli 0.31.1",
  "goblin",
@@ -5592,8 +5587,7 @@ dependencies = [
 [[package]]
 name = "powdr-riscv-types"
 version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "861f1585704ab1aaabdc6d5ba24df23ab2b8edf4eaff627985c61a2d8d03bbee"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=247d43704b67c921c452523110a5878d87dfe110#247d43704b67c921c452523110a5878d87dfe110"
 dependencies = [
  "powdr-isa-utils",
 ]
@@ -5601,8 +5595,7 @@ dependencies = [
 [[package]]
 name = "powdr-syscalls"
 version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "407e16802113a8652f064ab4914ccc29f5f586e8e140c7e367c7c667d903c063"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=247d43704b67c921c452523110a5878d87dfe110#247d43704b67c921c452523110a5878d87dfe110"
 
 [[package]]
 name = "powerfmt"
