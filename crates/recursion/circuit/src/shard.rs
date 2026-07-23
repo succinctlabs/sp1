@@ -646,14 +646,30 @@ mod tests {
             &[shape.preprocessed_padding_cols, shape.main_padding_cols],
         );
 
+        let t_machine = Instant::now();
+        let prebuilt_machine = RiscvAir::machine();
+        println!("RiscvAir::machine() construction (once): {:?}", t_machine.elapsed());
+
         // Builds the DSL block for verifying one shard, mirroring [`test_verify_shard`].
         let build_verify_shard_block = || {
+            // TEMP-BENCH: build-phase timing, remove with the verify_shard instrumentation.
+            let build_timing = std::env::var_os("SP1_BUILD_PHASE_TIMING").is_some();
+            let mut timer = Instant::now();
+            let mark = move |label: &str, t: &mut Instant| {
+                if build_timing {
+                    eprintln!("[build-phase] {label}: {:?}", t.elapsed());
+                }
+                *t = Instant::now();
+            };
+
             let mut initial_challenger = verifier.jagged_pcs_verifier.challenger();
             vk.observe_into(&mut initial_challenger);
 
             let mut builder = Builder::<C>::default();
             let vk_variable = vk.read(&mut builder);
+            mark("vk.read", &mut timer);
             let shard_proof_variable = dummy_proof.read(&mut builder);
+            mark("proof.read", &mut timer);
 
             let basefold_verifier =
                 BasefoldVerifier::<GC>::new(FriConfig::default_fri_config(), NUM_SP1_COMMITMENTS);
@@ -669,15 +685,22 @@ mod tests {
                 max_log_row_count,
                 jagged_evaluator: RecursiveJaggedEvalSumcheckConfig::<GC>(PhantomData),
             };
+            mark("pcs-verifier construction", &mut timer);
+
+            // Production (`recursion::recursive_verifier`) clones a prebuilt machine rather
+            // than constructing one, so the bench does the same.
+            let machine = prebuilt_machine.clone();
+            mark("machine.clone()", &mut timer);
 
             let stark_verifier = RecursiveShardVerifier::<GC, A, C> {
-                machine: RiscvAir::machine(),
+                machine,
                 pcs_verifier: recursive_jagged_verifier,
                 _phantom: std::marker::PhantomData,
             };
 
             let mut challenger_variable =
                 DuplexChallengerVariable::from_challenger(&mut builder, &initial_challenger);
+            mark("from_challenger", &mut timer);
 
             stark_verifier.verify_shard(
                 &mut builder,
