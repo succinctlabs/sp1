@@ -41,7 +41,9 @@ where
     let cpu_challenger: DuplexChallenger<F, _> = challenger.clone().into();
 
     let mut result = DeviceBuffer::with_capacity_in(1, scope.clone());
-    let mut found_flag = DeviceBuffer::<bool>::with_capacity_in(1, scope.clone());
+    // The kernel requires a host-zeroed flag; it must not reset it on device (see
+    // challenger.cu — a per-thread reset races with multi-wave grids).
+    let mut found_flag = DeviceBuffer::from_host_slice(&[false], scope).unwrap();
     let mut gpu_challenger = cpu_challenger.to_device_sync(scope).unwrap();
 
     let block_dim: usize = 512;
@@ -50,7 +52,6 @@ where
 
     unsafe {
         result.assume_init();
-        found_flag.assume_init();
         let args = args!(
             gpu_challenger.as_mut_raw(),
             result.as_mut_ptr(),
@@ -102,16 +103,22 @@ where
     let cpu_challenger: MultiField32Challenger<F, PF, _> = challenger.clone().into();
 
     let mut result = DeviceBuffer::with_capacity_in(1, scope.clone());
-    let mut found_flag = DeviceBuffer::<bool>::with_capacity_in(1, scope.clone());
+    // The kernel requires a host-zeroed flag; it must not reset it on device (see
+    // challenger.cu — a per-thread reset races with multi-wave grids).
+    let mut found_flag = DeviceBuffer::from_host_slice(&[false], scope).unwrap();
     let mut gpu_challenger = cpu_challenger.to_device_sync(scope).unwrap();
 
     let block_dim: usize = 512;
-    let grid_dim: usize = 1;
+    // The kernel is a grid-stride loop with a found-flag early exit, so a multi-block grid
+    // finds an (approximately minimal) witness with the whole GPU instead of one SM. This
+    // matches the duplex (KoalaBear) grind shape and measured ~100x faster at wrap PoW bits
+    // (2.34s -> 23ms per grind on an RTX 4090). Requires the host-zeroed flag above: with a
+    // device-side reset, late-launching blocks clear the flag and destroy the early exit.
+    let grid_dim: usize = 512;
     let n = F::ORDER_U64;
 
     unsafe {
         result.assume_init();
-        found_flag.assume_init();
         let args = args!(
             gpu_challenger.as_mut_raw(),
             result.as_mut_ptr(),
