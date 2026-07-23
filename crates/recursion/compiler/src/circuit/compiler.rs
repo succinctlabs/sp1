@@ -628,19 +628,28 @@ where
     }
 
     /// A raw program (algebraic data type of instructions), not yet backfilled.
+    ///
+    /// Event-vector offsets (see [`AnalyzedInstruction`]) are assigned as instructions are
+    /// emitted, in emission order, which coincides with the traversal order of
+    /// [`RawProgram::analyze`]. `Mem` instructions are assigned offsets starting from zero and
+    /// are shifted up by the number of interned constants in [`Self::backfill_all`], once that
+    /// number is known; the constants themselves occupy the first offsets (as if they were
+    /// analyzed first, matching their position at the start of the program).
+    ///
     /// The parameter `cycle_tracker` is enabled with the `debug` feature.
     /// The cycle tracker cannot be a field of `self` because of the consumer
     /// passed to `compile_one`, which exclusively borrows `self`.
     fn compile_raw_program<C: Config<N = SP1Field>>(
         &mut self,
         block: DslIrBlock<C>,
-        instrs_prefix: Vec<SeqBlock<Instruction<SP1Field>>>,
+        instrs_prefix: Vec<SeqBlock<AnalyzedInstruction<SP1Field>>>,
+        event_counts: &mut RecursionAirEventCount,
         #[cfg(feature = "debug")] cycle_tracker: &mut SpanBuilder<Cow<'static, str>, &'static str>,
-    ) -> RawProgram<Instruction<SP1Field>> {
+    ) -> RawProgram<AnalyzedInstruction<SP1Field>> {
         // Consider refactoring the builder to use an AST instead of a list of operations.
         // Possible to remove address translation at this step.
         let mut seq_blocks = instrs_prefix;
-        let mut maybe_bb: Option<BasicBlock<Instruction<SP1Field>>> = None;
+        let mut maybe_bb: Option<BasicBlock<AnalyzedInstruction<SP1Field>>> = None;
 
         for op in block.ops {
             match op {
@@ -652,9 +661,9 @@ where
                             .map(|b| {
                                 cfg_if! {
                                     if #[cfg(feature = "debug")] {
-                                        self.compile_raw_program(b, vec![], cycle_tracker)
+                                        self.compile_raw_program(b, vec![], event_counts, cycle_tracker)
                                     } else {
-                                        self.compile_raw_program(b, vec![])
+                                        self.compile_raw_program(b, vec![], event_counts)
                                     }
                                 }
                             })
@@ -669,7 +678,8 @@ where
                             {
                                 cycle_tracker.item(instr_name(&instr));
                             }
-                            bb.instrs.push(instr)
+                            let offset = event_counts.claim_offset(&instr);
+                            bb.instrs.push(AnalyzedInstruction::new(instr, offset))
                         }
                         #[cfg(not(feature = "debug"))]
                         Err(
@@ -696,12 +706,22 @@ where
         RawProgram { seq_blocks }
     }
 
-    fn backfill_all<'a>(&mut self, instrs: impl Iterator<Item = &'a mut Instruction<SP1Field>>) {
+    /// Backfills the multiplicities of all instructions, and relocates `Mem` event offsets
+    /// after the interned constants (see [`Self::compile_raw_program`]).
+    fn backfill_all<'a>(
+        &mut self,
+        instrs: impl Iterator<Item = &'a mut AnalyzedInstruction<SP1Field>>,
+        num_consts: usize,
+    ) {
         let mut backfill = |(mult, addr): (&mut SP1Field, &Address<SP1Field>)| {
             *mult = self.addr_to_mult.remove(addr.as_usize()).unwrap()
         };
 
-        for asm_instr in instrs {
+        for analyzed_instr in instrs {
+            if matches!(analyzed_instr.inner(), Instruction::Mem(_)) {
+                analyzed_instr.shift_offset(num_consts);
+            }
+            let asm_instr = analyzed_instr.inner_mut();
             // Exhaustive match for refactoring purposes.
             match asm_instr {
                 Instruction::BaseAlu(BaseAluInstr {
@@ -814,6 +834,7 @@ where
         &mut self,
         root_block: DslIrBlock<C>,
     ) -> RootProgram<SP1Field> {
+        let mut event_counts = RecursionAirEventCount::default();
         let mut program = tracing::debug_span!("compile raw program").in_scope(|| {
             // Prefix an empty basic block in the argument to `compile_raw_program`.
             // Later, we will fill it with constants.
@@ -824,6 +845,7 @@ where
                     let program = self.compile_raw_program(
                         root_block,
                         vec![SeqBlock::Basic(BasicBlock::default())],
+                        &mut event_counts,
                         &mut cycle_tracker,
                     );
                     let cycle_tracker_root_span = cycle_tracker.finish().unwrap();
@@ -835,35 +857,41 @@ where
                     self.compile_raw_program(
                         root_block,
                         vec![SeqBlock::Basic(BasicBlock::default())],
+                        &mut event_counts,
                     )
                 }
             }
         });
         let total_memory = self.addr_to_mult.len() + self.consts.len();
-        tracing::debug_span!("backfill mult").in_scope(|| self.backfill_all(program.iter_mut()));
+        let num_consts = self.consts.len();
+        tracing::debug_span!("backfill mult")
+            .in_scope(|| self.backfill_all(program.iter_mut(), num_consts));
 
-        // Put in the constants.
+        // Put in the constants. They occupy the first `Mem` event offsets, ahead of the
+        // program body's `Mem` instructions, whose offsets were shifted in `backfill_all`.
         tracing::debug_span!("prepend constants").in_scope(|| {
             let Some(SeqBlock::Basic(BasicBlock { instrs: instrs_consts })) =
                 program.seq_blocks.first_mut()
             else {
                 unreachable!()
             };
-            instrs_consts.extend(self.consts.drain().sorted_by_key(|x| x.1 .0 .0).map(
-                |(imm, (addr, mult))| {
-                    Instruction::Mem(MemInstr {
-                        addrs: MemIo { inner: addr },
-                        vals: MemIo { inner: imm.as_block() },
-                        mult,
-                        kind: MemAccessKind::Write,
-                    })
+            instrs_consts.extend(self.consts.drain().sorted_by_key(|x| x.1 .0 .0).enumerate().map(
+                |(offset, (imm, (addr, mult)))| {
+                    AnalyzedInstruction::new(
+                        Instruction::Mem(MemInstr {
+                            addrs: MemIo { inner: addr },
+                            vals: MemIo { inner: imm.as_block() },
+                            mult,
+                            kind: MemAccessKind::Write,
+                        }),
+                        offset,
+                    )
                 },
             ));
+            event_counts.mem_const_events += num_consts;
         });
 
-        let (analyzed, counts) = program.analyze();
-
-        RootProgram { inner: analyzed, total_memory, shape: None, event_counts: counts }
+        RootProgram { inner: program, total_memory, shape: None, event_counts }
     }
 }
 

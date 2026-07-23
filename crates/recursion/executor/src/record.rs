@@ -222,6 +222,54 @@ pub struct RecursionAirEventCount {
     pub commit_pv_hash_events: usize,
 }
 
+impl RecursionAirEventCount {
+    /// Claims the starting offset in the relevant event vector for `instr`'s events, advancing
+    /// the corresponding counter. The executor writes events at these offsets without
+    /// synchronization; see [`crate::analyzed`] for the safety argument.
+    #[inline]
+    pub fn claim_offset<F>(&mut self, instr: &Instruction<F>) -> usize {
+        /// Increment a counter and return the previous value.
+        #[inline]
+        fn incr(num: &mut usize, amt: usize) -> usize {
+            let start = *num;
+            *num += amt;
+            start
+        }
+
+        match instr {
+            Instruction::BaseAlu(_) => incr(&mut self.base_alu_events, 1),
+            Instruction::ExtAlu(_) => incr(&mut self.ext_alu_events, 1),
+            Instruction::Mem(_) => incr(&mut self.mem_const_events, 1),
+            Instruction::ExtFelt(_) => incr(&mut self.ext_felt_conversion_events, 1),
+            Instruction::Poseidon2(_) => incr(&mut self.poseidon2_wide_events, 1),
+            Instruction::Poseidon2LinearLayer(_) => {
+                incr(&mut self.poseidon2_linear_layer_events, 1)
+            }
+            Instruction::Poseidon2SBox(_) => incr(&mut self.poseidon2_sbox_events, 1),
+            Instruction::Select(_) => incr(&mut self.select_events, 1),
+            Instruction::Hint(HintInstr { output_addrs_mults })
+            | Instruction::HintBits(HintBitsInstr {
+                output_addrs_mults,
+                input_addr: _, // No receive interaction for the hint operation
+            }) => incr(&mut self.mem_var_events, output_addrs_mults.len()),
+            Instruction::HintExt2Felts(HintExt2FeltsInstr {
+                output_addrs_mults,
+                input_addr: _, // No receive interaction for the hint operation
+            }) => incr(&mut self.mem_var_events, output_addrs_mults.len()),
+            Instruction::PrefixSumChecks(instr) => {
+                incr(&mut self.prefix_sum_checks_events, instr.addrs.x1.len())
+            }
+            Instruction::HintAddCurve(instr) => incr(
+                &mut self.mem_var_events,
+                instr.output_x_addrs_mults.len() + instr.output_y_addrs_mults.len(),
+            ),
+            Instruction::CommitPublicValues(_) => incr(&mut self.commit_pv_hash_events, 1),
+            // Placeholder; the executor does not create events for these instructions.
+            Instruction::Print(_) | Instruction::DebugBacktrace(_) => 0,
+        }
+    }
+}
+
 impl<F> AddAssign<&Instruction<F>> for RecursionAirEventCount {
     #[inline]
     fn add_assign(&mut self, rhs: &Instruction<F>) {
