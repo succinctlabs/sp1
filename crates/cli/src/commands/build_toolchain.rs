@@ -10,17 +10,21 @@ use crate::{get_target, LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG, RUSTUP_TOOLCHAIN
 // There is a lot of Commands in this module, having this trait back can
 // help us simplify the code a bit.
 trait CommandExecutor {
+    /// Run the command to completion, returning an error if it could not be
+    /// spawned or if it exited with a non-zero status.
     fn run(&mut self) -> Result<()>;
 }
 
 impl CommandExecutor for Command {
     fn run(&mut self) -> Result<()> {
-        self.stderr(Stdio::inherit())
+        let status = self
+            .stderr(Stdio::inherit())
             .stdout(Stdio::inherit())
             .stdin(Stdio::inherit())
-            .output()
-            .with_context(|| format!("while executing `{:?}`", self))
-            .map(|_| ())
+            .status()
+            .with_context(|| format!("while executing `{self:?}`"))?;
+
+        status.success().then_some(()).with_context(|| format!("`{self:?}` failed: {status}"))
     }
 }
 
@@ -161,5 +165,21 @@ impl BuildToolchainCmd {
         println!("Successfully compressed the toolchain to {tar_gz_path}.");
 
         Ok(())
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn run_errors_on_nonzero_exit() {
+        let err = Command::new("sh").args(["-c", "exit 42"]).run().unwrap_err();
+        assert!(err.to_string().contains("failed"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn run_succeeds_on_zero_exit() {
+        Command::new("sh").args(["-c", "exit 0"]).run().unwrap();
     }
 }
