@@ -779,6 +779,128 @@ mod tests {
         }
         println!("record: {record_summary}");
 
+        // Estimate how batchable the program's Poseidon2 instructions are for 8-wide packed
+        // execution. Memory is write-once, so a Poseidon2 instruction may be deferred past
+        // later instructions until something reads one of its pending outputs (or the basic
+        // block ends); a batch flushes at width 8, on such a read hazard, or at block end.
+        {
+            use slop_algebra::PrimeField32;
+            use sp1_recursion_executor::{Instruction, SeqBlock};
+
+            #[derive(Default)]
+            struct BatchStats {
+                hist: [usize; 9],
+                flushed_on_hazard: usize,
+            }
+            impl BatchStats {
+                fn flush(&mut self, n: usize, hazard: bool) {
+                    if n > 0 {
+                        self.hist[n] += 1;
+                        self.flushed_on_hazard += usize::from(hazard);
+                    }
+                }
+            }
+
+            fn sim_program(
+                program: &sp1_recursion_executor::RawProgram<
+                    sp1_recursion_executor::AnalyzedInstruction<SP1Field>,
+                >,
+                stats: &mut BatchStats,
+            ) {
+                for block in &program.seq_blocks {
+                    match block {
+                        SeqBlock::Basic(bb) => {
+                            let mut pending = 0usize;
+                            let mut pending_outputs = std::collections::HashSet::<u32>::new();
+                            for ai in &bb.instrs {
+                                let (inputs, outputs) = ai.inner().io_addrs();
+                                if pending > 0
+                                    && inputs
+                                        .iter()
+                                        .any(|a| pending_outputs.contains(&a.0.as_canonical_u32()))
+                                {
+                                    stats.flush(pending, true);
+                                    pending = 0;
+                                    pending_outputs.clear();
+                                }
+                                if matches!(ai.inner(), Instruction::Poseidon2(_)) {
+                                    pending += 1;
+                                    pending_outputs
+                                        .extend(outputs.iter().map(|o| o.0.as_canonical_u32()));
+                                    if pending == 8 {
+                                        stats.flush(8, false);
+                                        pending = 0;
+                                        pending_outputs.clear();
+                                    }
+                                }
+                            }
+                            stats.flush(pending, false);
+                        }
+                        SeqBlock::Parallel(subprograms) => {
+                            for subprogram in subprograms {
+                                sim_program(subprogram, stats);
+                            }
+                        }
+                    }
+                }
+            }
+
+            let mut stats = BatchStats::default();
+            sim_program(&program.inner, &mut stats);
+            let total_p2: usize = stats.hist.iter().enumerate().map(|(w, n)| w * n).sum();
+            let batches: usize = stats.hist.iter().sum();
+            println!(
+                "poseidon2 batchability: {total_p2} permutes -> {batches} packed calls \
+                 (avg fill {:.2}, hazard flushes {}), width histogram {:?}",
+                total_p2 as f64 / batches.max(1) as f64,
+                stats.flushed_on_hazard,
+                &stats.hist[1..],
+            );
+        }
+
+        // Packed-permutation throughput ceiling: 8 independent chains via AVX2 packing.
+        #[cfg(target_feature = "avx2")]
+        {
+            use slop_koala_bear::PackedKoalaBearAVX2;
+            use slop_symmetric::Permutation;
+            let perm = inner_perm();
+            let n_perm = program.event_counts.poseidon2_wide_events;
+            let batches = n_perm.div_ceil(8);
+
+            // Pure packed chains (no marshaling).
+            let mut rows = [PackedKoalaBearAVX2([SP1Field::zero(); 8]); 16];
+            let t0 = Instant::now();
+            for _ in 0..batches {
+                rows = perm.permute(rows);
+            }
+            let packed_time = t0.elapsed();
+            std::hint::black_box(rows);
+
+            // With per-batch pack/unpack from/to 8 scalar states (executor-shaped marshaling).
+            let mut states = [[SP1Field::zero(); 16]; 8];
+            let t0 = Instant::now();
+            for _ in 0..batches {
+                let rows: [PackedKoalaBearAVX2; 16] = std::array::from_fn(|i| {
+                    PackedKoalaBearAVX2(std::array::from_fn(|j| states[j][i]))
+                });
+                let rows = perm.permute(rows);
+                for (i, row) in rows.iter().enumerate() {
+                    for j in 0..8 {
+                        states[j][i] = row.0[j];
+                    }
+                }
+            }
+            let marshal_time = t0.elapsed();
+            std::hint::black_box(states);
+
+            println!(
+                "poseidon2 packed probe: {batches} packed calls (8 lanes) in {packed_time:.3?} \
+                 (pure) / {marshal_time:.3?} (with pack/unpack)"
+            );
+        }
+        #[cfg(not(target_feature = "avx2"))]
+        println!("poseidon2 packed probe: skipped (build without avx2 target feature)");
+
         // Attribute the Poseidon2 share of execution: time the bare permutation at the
         // program's event count (chained, mirroring the data dependencies of hash chains).
         {

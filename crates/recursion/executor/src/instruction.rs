@@ -29,10 +29,11 @@ pub enum Instruction<F> {
 }
 
 impl<F: Copy> Instruction<F> {
+    /// The input and output memory addresses of this instruction.
     #[cfg(any(test, feature = "program_validation"))]
     #[allow(clippy::type_complexity)]
     #[must_use]
-    pub(crate) fn io_addrs(&self) -> (SmallVec<[Address<F>; 4]>, SmallVec<[Address<F>; 4]>) {
+    pub fn io_addrs(&self) -> (SmallVec<[Address<F>; 4]>, SmallVec<[Address<F>; 4]>) {
         use smallvec::{smallvec as svec, *};
 
         match *self {
