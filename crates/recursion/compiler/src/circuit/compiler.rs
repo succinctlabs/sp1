@@ -25,6 +25,67 @@ use sp1_recursion_executor::*;
 
 use crate::prelude::*;
 
+/// A fast, deterministic hasher for the compiler's const-interning map.
+///
+/// The keys are one or four field-element limbs, so hashing itself is a large fraction of
+/// each map operation under the default SipHash hasher. The map is not exposed to untrusted
+/// input, so an FxHash-style multiply-mix suffices.
+#[derive(Debug, Clone, Copy, Default)]
+struct FxHasher(u64);
+
+impl FxHasher {
+    #[inline]
+    fn add(&mut self, v: u64) {
+        const SEED: u64 = 0x517cc1b727220a95;
+        self.0 = (self.0.rotate_left(5) ^ v).wrapping_mul(SEED);
+    }
+}
+
+impl std::hash::Hasher for FxHasher {
+    #[inline]
+    fn finish(&self) -> u64 {
+        self.0
+    }
+
+    #[inline]
+    fn write(&mut self, bytes: &[u8]) {
+        for &b in bytes {
+            self.add(b as u64);
+        }
+    }
+
+    #[inline]
+    fn write_u8(&mut self, i: u8) {
+        self.add(i as u64);
+    }
+
+    #[inline]
+    fn write_u16(&mut self, i: u16) {
+        self.add(i as u64);
+    }
+
+    #[inline]
+    fn write_u32(&mut self, i: u32) {
+        self.add(i as u64);
+    }
+
+    #[inline]
+    fn write_u64(&mut self, i: u64) {
+        self.add(i);
+    }
+
+    #[inline]
+    fn write_usize(&mut self, i: usize) {
+        self.add(i as u64);
+    }
+}
+
+type ConstsMap = HashMap<
+    Imm<SP1Field, SP1ExtensionField>,
+    (Address<SP1Field>, SP1Field),
+    std::hash::BuildHasherDefault<FxHasher>,
+>;
+
 /// The backend for the circuit compiler.
 #[derive(Debug, Clone, Default)]
 pub struct AsmCompiler {
@@ -32,7 +93,7 @@ pub struct AsmCompiler {
     /// Map the frame pointers of the variables to the "physical" addresses.
     virtual_to_physical: VecMap<Address<SP1Field>>,
     /// Map base or extension field constants to "physical" addresses and mults.
-    consts: HashMap<Imm<SP1Field, SP1ExtensionField>, (Address<SP1Field>, SP1Field)>,
+    consts: ConstsMap,
     /// Map each "physical" address to its read count.
     addr_to_mult: VecMap<SP1Field>,
 }
