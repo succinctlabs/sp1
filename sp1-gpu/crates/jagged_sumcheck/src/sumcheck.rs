@@ -265,6 +265,7 @@ where
             alpha,
             round_claim,
             padded_hadamard_fix_and_sum,
+            true,
         );
 
         if sc_round == log_stacking_height {
