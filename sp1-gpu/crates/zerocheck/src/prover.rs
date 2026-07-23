@@ -26,30 +26,42 @@ use sp1_gpu_air::ir::{
     lower_sequential, ChunkBudget, ChunkBytecode, ColumnTileBytecode, DagBuilder, Lowering,
 };
 use sp1_gpu_cudart::sys::kernels::{
-    zerocheck_aggregate_partials_kernel, zerocheck_column_tile_ext_kernel,
-    zerocheck_column_tile_kb_kernel, zerocheck_fix_geq_state_kernel,
-    zerocheck_fused_sequential_ext_1024_kernel, zerocheck_fused_sequential_ext_128_kernel,
-    zerocheck_fused_sequential_ext_256_kernel, zerocheck_fused_sequential_ext_32_kernel,
-    zerocheck_fused_sequential_ext_512_kernel, zerocheck_fused_sequential_ext_64_kernel,
-    zerocheck_fused_sequential_kb_1024_kernel, zerocheck_fused_sequential_kb_128_kernel,
-    zerocheck_fused_sequential_kb_256_kernel, zerocheck_fused_sequential_kb_32_kernel,
-    zerocheck_fused_sequential_kb_512_kernel, zerocheck_fused_sequential_kb_64_kernel,
-    zerocheck_geq_corrections_kernel, zerocheck_gkr_sweep_ext_kernel,
-    zerocheck_gkr_sweep_kb_kernel, zerocheck_pad_adj_1024_kernel, zerocheck_pad_adj_128_kernel,
-    zerocheck_pad_adj_256_kernel, zerocheck_pad_adj_32_kernel, zerocheck_pad_adj_512_kernel,
-    zerocheck_pad_adj_64_kernel,
+    zerocheck_aggregate_partials_kernel, zerocheck_aggregate_partials_strided_kernel,
+    zerocheck_column_tile_ext_kernel, zerocheck_column_tile_kb_kernel,
+    zerocheck_fix_geq_state_kernel, zerocheck_fused_sequential_bivariate_kb_1024_kernel,
+    zerocheck_fused_sequential_bivariate_kb_128_kernel,
+    zerocheck_fused_sequential_bivariate_kb_256_kernel,
+    zerocheck_fused_sequential_bivariate_kb_32_kernel,
+    zerocheck_fused_sequential_bivariate_kb_512_kernel,
+    zerocheck_fused_sequential_bivariate_kb_64_kernel, zerocheck_fused_sequential_ext_1024_kernel,
+    zerocheck_fused_sequential_ext_128_kernel, zerocheck_fused_sequential_ext_256_kernel,
+    zerocheck_fused_sequential_ext_32_kernel, zerocheck_fused_sequential_ext_512_kernel,
+    zerocheck_fused_sequential_ext_64_kernel, zerocheck_fused_sequential_kb_1024_kernel,
+    zerocheck_fused_sequential_kb_128_kernel, zerocheck_fused_sequential_kb_256_kernel,
+    zerocheck_fused_sequential_kb_32_kernel, zerocheck_fused_sequential_kb_512_kernel,
+    zerocheck_fused_sequential_kb_64_kernel, zerocheck_geq_corrections_bivariate_kernel,
+    zerocheck_geq_corrections_kernel, zerocheck_gkr_corner_sweep_kb_kernel,
+    zerocheck_gkr_sweep_ext_kernel, zerocheck_gkr_sweep_kb_kernel, zerocheck_pad_adj_1024_kernel,
+    zerocheck_pad_adj_128_kernel, zerocheck_pad_adj_256_kernel, zerocheck_pad_adj_32_kernel,
+    zerocheck_pad_adj_512_kernel, zerocheck_pad_adj_64_kernel,
 };
 use sp1_gpu_cudart::sys::runtime::KernelPtr;
 use sp1_gpu_cudart::{args, DeviceBuffer, DeviceCopy, DevicePoint, TaskScope};
 use sp1_gpu_utils::{Ext, Felt, JaggedTraceMle};
 use sp1_hypercube::air::MachineAir;
-use sp1_hypercube::prover::ZerocheckAir;
+use sp1_hypercube::prover::{
+    zerocheck_first_round_message_from_grid, zerocheck_second_round_message_from_grid,
+    ZerocheckAir, ZEROCHECK_CONSTRAINT_NODES, ZEROCHECK_NODE_XS,
+};
 use sp1_hypercube::{
     AirOpenedValues, Chip, ChipEvaluation, ChipOpenedValues, LogUpEvaluations, ShardOpenedValues,
 };
 
 use crate::challenger_update;
-use crate::primitives::{evaluate_jagged_fix_last_variable, JaggedFixLastVariableKernel};
+use crate::primitives::{
+    evaluate_jagged_fix_last_two_variables, evaluate_jagged_fix_last_variable,
+    JaggedFixLastVariableKernel,
+};
 
 // ============================================================================
 // Compiled per-chip data — built once per session, reused across all rounds
@@ -1857,6 +1869,319 @@ fn launch_chunk_into<K: Field>(
 }
 
 // ============================================================================
+// Fused first-two-rounds ("bivariate") evaluation.
+// ============================================================================
+
+/// The tiered bivariate fused-sequential kernel for the first round's base-field trace.
+fn bivariate_sequential_kernel_for(max_reg_in_tier: u16) -> KernelPtr {
+    unsafe {
+        if max_reg_in_tier <= 32 {
+            zerocheck_fused_sequential_bivariate_kb_32_kernel()
+        } else if max_reg_in_tier <= 64 {
+            zerocheck_fused_sequential_bivariate_kb_64_kernel()
+        } else if max_reg_in_tier <= 128 {
+            zerocheck_fused_sequential_bivariate_kb_128_kernel()
+        } else if max_reg_in_tier <= 256 {
+            zerocheck_fused_sequential_bivariate_kb_256_kernel()
+        } else if max_reg_in_tier <= 512 {
+            zerocheck_fused_sequential_bivariate_kb_512_kernel()
+        } else {
+            zerocheck_fused_sequential_bivariate_kb_1024_kernel()
+        }
+    }
+}
+
+/// Evaluates the bivariate round polynomial of the fused first two rounds on the interpolation
+/// grid `{0, 1, 2, 4}^2` of the last two variables, in a single pass over the base-field trace.
+///
+/// Returns `grid[ix][iy]` — the eq-weighted, lambda-RLC'ed sums over the trace quadruples at node
+/// `(ZEROCHECK_NODE_XS[ix], ZEROCHECK_NODE_XS[iy])`, excluding the eq factors in the last two
+/// variables and the `eq_adjustment` (which the message assembly applies). The four boolean
+/// corners hold only the GKR opening batch: constraint values vanish on real rows there and the
+/// padded rows' values cancel exactly against the geq correction, so neither is computed. The 12
+/// non-boolean nodes hold constraint sums (via the bivariate bytecode kernel), the bilinearly
+/// extended GKR batch, and the geq corrections.
+///
+/// The caller must ensure no active chip has a ColumnTile chunk — those only have a univariate
+/// kernel — and that the poly has at least two variables.
+pub(crate) fn evaluate_zerocheck_bivariate(
+    poly: &mut ZeroCheckJaggedPoly<'_, Felt>,
+) -> [[Ext; 4]; 4] {
+    let backend = poly.data.backend();
+    // The 12 non-boolean grid nodes evaluated by the constraint + geq kernels, and the 4 boolean
+    // corners swept by the GKR corner kernel. Must match `bivariate.cuh`.
+    const NUM_NODES: usize = 12;
+    const NUM_CORNERS: usize = 4;
+    const BLOCK_SIZE_LOW_REG: u32 = 256;
+    const BLOCK_SIZE_HIGH_REG: u32 = 64;
+    // One quadruple per thread: unlike the univariate kernels, the bivariate
+    // kernels have no eval-point grid dimension (each block computes all
+    // nodes), so smaller tiles restore the block-level parallelism that
+    // small chips would otherwise lose.
+    const ROWS_PER_THREAD: u32 = 1;
+
+    debug_assert!(poly.zeta.dimension() >= 2);
+    let (rest, _) = poly.zeta.split_at(poly.zeta.dimension() - 2);
+    let rest_point = DevicePoint::from_host(&rest, backend).unwrap();
+    let partial_lagrange = rest_point.partial_lagrange();
+    let rest_point_dim = rest.dimension() as u32;
+
+    let trace_ptr = poly.data.as_ref().dense_data.dense.as_ptr();
+    let chip_layouts_ptr = poly.chip_layouts_dev.as_ptr();
+
+    let block_size_for = |tier: usize| -> u32 {
+        if poly.seq_tiers[tier].max_reg > 128 {
+            BLOCK_SIZE_HIGH_REG
+        } else {
+            BLOCK_SIZE_LOW_REG
+        }
+    };
+
+    // ---- Per-tier dispatch tables over row QUADRUPLES ----
+    let mut dispatch_tiers: [Vec<BlockDispatchC>; 2] = [Vec::new(), Vec::new()];
+    for (t, tier) in poly.seq_tiers.iter().enumerate() {
+        let tile = block_size_for(t) * ROWS_PER_THREAD;
+        for (chunk_idx_in_tier, &chip_idx) in tier.chip_indices.iter().enumerate() {
+            let quad_count =
+                poly.layout_tracker.chip_height_elements(chip_idx as usize).div_ceil(4);
+            if quad_count == 0 {
+                continue;
+            }
+            let mut row_offset = 0u32;
+            while row_offset < quad_count {
+                let n_rows = (quad_count - row_offset).min(tile);
+                dispatch_tiers[t].push(BlockDispatchC {
+                    chunk_id: chunk_idx_in_tier as u32,
+                    row_offset,
+                    n_rows,
+                });
+                row_offset += tile;
+            }
+        }
+    }
+
+    // ---- GKR corner-sweep dispatch: EVERY chip with non-zero width ----
+    //
+    // The bivariate sequential kernel has no inline GKR path, so the corner
+    // sweep covers narrow and wide chips uniformly.
+    const GKR_BLOCK_SIZE: u32 = 256;
+    let gkr_tile: u32 = GKR_BLOCK_SIZE * ROWS_PER_THREAD;
+    let mut corner_dispatch: Vec<BlockDispatchC> = Vec::new();
+    for chip in poly.compiled.iter() {
+        if chip.main_width + chip.prep_width == 0 {
+            continue;
+        }
+        let quad_count =
+            poly.layout_tracker.chip_height_elements(chip.chip_idx as usize).div_ceil(4);
+        if quad_count == 0 {
+            continue;
+        }
+        let mut row_offset = 0u32;
+        while row_offset < quad_count {
+            let n_rows = (quad_count - row_offset).min(gkr_tile);
+            corner_dispatch.push(BlockDispatchC { chunk_id: chip.chip_idx, row_offset, n_rows });
+            row_offset += gkr_tile;
+        }
+    }
+
+    // ---- Slot allocation ----
+    //
+    // Two shared buffers by output stride: the node buffer ([group][e] with
+    // 12 slots per group — sequential tiers + geq chips) and the corner
+    // buffer (4 slots per corner-sweep block).
+    let mut tier_slot: [usize; 2] = [0, 0];
+    let mut node_slots: usize = 0;
+    for t in 0..2 {
+        tier_slot[t] = node_slots;
+        node_slots += dispatch_tiers[t].len() * NUM_NODES;
+    }
+    let geq_slot = node_slots;
+    node_slots += poly.n_geq_chips * NUM_NODES;
+    let corner_slots = corner_dispatch.len() * NUM_CORNERS;
+
+    let mut node_partials: Tensor<Ext, TaskScope> =
+        Tensor::with_sizes_in([node_slots.max(1)], backend.clone());
+    let mut corner_partials: Tensor<Ext, TaskScope> =
+        Tensor::with_sizes_in([corner_slots.max(1)], backend.clone());
+    unsafe {
+        node_partials.assume_init();
+        corner_partials.assume_init();
+    }
+    let node_partials_ptr = node_partials.as_mut_ptr();
+    let corner_partials_ptr = corner_partials.as_mut_ptr();
+
+    // ---- Launch one bivariate fused kernel per non-empty tier ----
+    for t in 0..2 {
+        if dispatch_tiers[t].is_empty() {
+            continue;
+        }
+        let bs = block_size_for(t);
+        let dispatch_ptr =
+            refill_buffer(&mut poly.cached_seq_dispatch[t], &dispatch_tiers[t], backend).as_ptr();
+        let static_ptr = poly.seq_tiers[t].static_buf.as_ref().unwrap().as_ptr();
+        let max_reg = poly.seq_tiers[t].max_reg;
+        let out_ptr = unsafe { node_partials_ptr.add(tier_slot[t]) };
+        let shmem_bytes = (bs as usize / 32).max(1) * std::mem::size_of::<Ext>();
+        unsafe {
+            let args = args!(
+                dispatch_ptr,
+                static_ptr,
+                chip_layouts_ptr,
+                trace_ptr,
+                poly.public_values.as_ptr(),
+                poly.powers_of_alpha.as_ptr(),
+                partial_lagrange.as_ptr(),
+                poly.powers_of_lambda.as_ptr(),
+                rest_point_dim,
+                out_ptr
+            );
+            backend
+                .launch_kernel(
+                    bivariate_sequential_kernel_for(max_reg),
+                    (dispatch_tiers[t].len() as u32, 1, 1),
+                    (bs, 1, 1),
+                    &args,
+                    shmem_bytes,
+                )
+                .unwrap();
+        }
+    }
+
+    // ---- Per-chip bivariate geq corrections ----
+    if poly.n_geq_chips > 0 {
+        const GEQ_BLOCK_SIZE: u32 = 256;
+        let geq_indices = poly.geq_chip_indices_dev.as_ref().unwrap();
+        let out_ptr = unsafe { node_partials_ptr.add(geq_slot) };
+        let shmem_bytes = (GEQ_BLOCK_SIZE as usize / 32) * std::mem::size_of::<Ext>();
+        unsafe {
+            let args = args!(
+                geq_indices.as_ptr(),
+                (poly.n_geq_chips as u32),
+                poly.chip_geq_state_dev.as_ptr(),
+                poly.chip_pad_adj_dev.as_ptr(),
+                poly.powers_of_lambda.as_ptr(),
+                chip_layouts_ptr,
+                partial_lagrange.as_ptr(),
+                rest_point_dim,
+                out_ptr
+            );
+            backend
+                .launch_kernel(
+                    zerocheck_geq_corrections_bivariate_kernel(),
+                    (poly.n_geq_chips as u32, 1, 1),
+                    (GEQ_BLOCK_SIZE, 1, 1),
+                    &args,
+                    shmem_bytes,
+                )
+                .unwrap();
+        }
+    }
+
+    // ---- GKR corner sweep ----
+    if !corner_dispatch.is_empty() {
+        let gkr_ptr =
+            refill_buffer(&mut poly.cached_gkr_dispatch, &corner_dispatch, backend).as_ptr();
+        let shmem_bytes = (GKR_BLOCK_SIZE as usize / 32) * std::mem::size_of::<Ext>();
+        unsafe {
+            let args = args!(
+                gkr_ptr,
+                chip_layouts_ptr,
+                poly.chip_gkr_info_dev.as_ptr(),
+                trace_ptr,
+                poly.gkr_powers.as_ptr(),
+                partial_lagrange.as_ptr(),
+                poly.powers_of_lambda.as_ptr(),
+                rest_point_dim,
+                corner_partials_ptr
+            );
+            backend
+                .launch_kernel(
+                    zerocheck_gkr_corner_sweep_kb_kernel(),
+                    (corner_dispatch.len() as u32, 1, 1),
+                    (GKR_BLOCK_SIZE, 1, 1),
+                    &args,
+                    shmem_bytes,
+                )
+                .unwrap();
+        }
+    }
+
+    // ---- Device-side aggregation into 16 totals ----
+    //
+    // `totals[0..12]` are the node totals (constraint + geq), `totals[12..16]`
+    // the corner GKR totals.
+    let mut totals_buf: Tensor<Ext, TaskScope> =
+        Tensor::with_sizes_in([NUM_NODES + NUM_CORNERS], backend.clone());
+    unsafe {
+        totals_buf.assume_init();
+    }
+    {
+        const AGG_BLOCK_SIZE: u32 = 256;
+        let shmem_bytes = (AGG_BLOCK_SIZE as usize / 32) * std::mem::size_of::<Ext>();
+        unsafe {
+            let args = args!(
+                node_partials_ptr as *const Ext,
+                (node_slots as u32),
+                (NUM_NODES as u32),
+                totals_buf.as_mut_ptr()
+            );
+            backend
+                .launch_kernel(
+                    zerocheck_aggregate_partials_strided_kernel(),
+                    (NUM_NODES as u32, 1, 1),
+                    (AGG_BLOCK_SIZE, 1, 1),
+                    &args,
+                    shmem_bytes,
+                )
+                .unwrap();
+            let args = args!(
+                corner_partials_ptr as *const Ext,
+                (corner_slots as u32),
+                (NUM_CORNERS as u32),
+                totals_buf.as_mut_ptr().add(NUM_NODES)
+            );
+            backend
+                .launch_kernel(
+                    zerocheck_aggregate_partials_strided_kernel(),
+                    (NUM_CORNERS as u32, 1, 1),
+                    (AGG_BLOCK_SIZE, 1, 1),
+                    &args,
+                    shmem_bytes,
+                )
+                .unwrap();
+        }
+    }
+
+    // ---- Single host sync + copy of the 16 totals ----
+    let totals: Vec<Ext> = unsafe { totals_buf.into_buffer().copy_into_host_vec() };
+    drop(node_partials);
+    drop(corner_partials);
+
+    // ---- Assemble the grid ----
+    //
+    // Corner order: `c = 2x + y`, matching both the corner-sweep kernel's
+    // row offset within the quadruple and the CPU prover's corner sums.
+    let corner = &totals[NUM_NODES..];
+    let (gkr_00, gkr_01, gkr_10, gkr_11) = (corner[0], corner[1], corner[2], corner[3]);
+    let gkr_x = gkr_10 - gkr_00;
+    let gkr_y = gkr_01 - gkr_00;
+    let gkr_xy = gkr_11 - gkr_10 - gkr_01 + gkr_00;
+
+    let mut grid = [[Ext::zero(); 4]; 4];
+    grid[0][0] = gkr_00;
+    grid[0][1] = gkr_01;
+    grid[1][0] = gkr_10;
+    grid[1][1] = gkr_11;
+    for (e, &(ix, iy)) in ZEROCHECK_CONSTRAINT_NODES.iter().enumerate() {
+        let x = Ext::from_canonical_u32(ZEROCHECK_NODE_XS[ix]);
+        let y = Ext::from_canonical_u32(ZEROCHECK_NODE_XS[iy]);
+        let gkr_eval = gkr_00 + gkr_x * x + gkr_y * y + gkr_xy * (x * y);
+        grid[ix][iy] = totals[e] + gkr_eval;
+    }
+    grid
+}
+
+// ============================================================================
 // Fix-last-variable: fold trace data, update eq_adjustment.
 // ============================================================================
 
@@ -1924,6 +2249,108 @@ where
     // has already updated those; this one-launch step writes
     // `chip_layouts_dev[chip_idx]` for every per-chip kernel to consume —
     // no host involvement after the metadata launches.
+    let mut chip_layouts_dev = input.chip_layouts_dev;
+    launch_chip_layouts_kernel(&new_data, &input.chip_column_layouts_dev, &mut chip_layouts_dev);
+
+    ZeroCheckJaggedPoly {
+        data: Cow::Owned(new_data),
+        compiled: input.compiled,
+        machine_bytecode: input.machine_bytecode,
+        eq_adjustment,
+        zeta: rest,
+        claim,
+        padded_row_adjustment_host: input.padded_row_adjustment_host,
+        public_values: input.public_values,
+        powers_of_alpha: input.powers_of_alpha,
+        gkr_powers: input.gkr_powers,
+        powers_of_lambda: input.powers_of_lambda,
+        layout_tracker,
+        chip_column_layouts_dev: input.chip_column_layouts_dev,
+        chip_layouts_dev,
+        chip_alpha_offset: input.chip_alpha_offset,
+        seq_tiers: input.seq_tiers,
+        chip_geq_state_dev: input.chip_geq_state_dev,
+        chip_pad_adj_dev: input.chip_pad_adj_dev,
+        geq_chip_indices_dev: input.geq_chip_indices_dev,
+        n_geq_chips: input.n_geq_chips,
+        chip_gkr_info_dev: input.chip_gkr_info_dev,
+        gkr_active_chips: input.gkr_active_chips,
+        cached_seq_dispatch: input.cached_seq_dispatch,
+        cached_gkr_dispatch: input.cached_gkr_dispatch,
+        scan_block_counter,
+        scan_flags,
+        scan_values,
+    }
+}
+
+/// Fixes the last TWO variables in a single pass over the base-field trace —
+/// used by the fused first-two-rounds driver, which holds both challenges
+/// before any fold happens. Equivalent to two chained
+/// [`zerocheck_fix_last_variable`] calls without materializing the
+/// intermediate half-size extension trace.
+///
+/// `alpha_1` folds the last variable, `alpha_2` the second-to-last; `claim`
+/// is the round-2 claim (the second round message evaluated at `alpha_2`).
+pub(crate) fn zerocheck_fix_last_two_variables<'b>(
+    input: ZeroCheckJaggedPoly<'b, Felt>,
+    alpha_1: Ext,
+    alpha_2: Ext,
+    claim: Ext,
+) -> ZeroCheckJaggedPoly<'b, Ext> {
+    let (rest, last_two) = input.zeta.split_at(input.zeta.dimension() - 2);
+    let z_a = *last_two[0];
+    let z_b = *last_two[1];
+
+    let input_length = input.layout_tracker.total_length_pair();
+    let mut layout_tracker = input.layout_tracker;
+    layout_tracker.fold();
+    layout_tracker.fold();
+    let new_total_length = layout_tracker.total_length_pair() * 2;
+
+    let mut scan_block_counter = input.scan_block_counter;
+    let mut scan_flags = input.scan_flags;
+    let mut scan_values = input.scan_values;
+    let new_data = evaluate_jagged_fix_last_two_variables(
+        &input.data,
+        alpha_1,
+        alpha_2,
+        input_length,
+        new_total_length,
+        crate::primitives::FoldMetadataScratch {
+            block_counter: &mut scan_block_counter,
+            flags: &mut scan_flags,
+            scan_values: &mut scan_values,
+        },
+    );
+    // Both fixed eq factors, in fold order: the last coordinate against
+    // `alpha_1`, then the second-to-last against `alpha_2`.
+    let eq_1 = (Ext::one() - z_b) * (Ext::one() - alpha_1) + z_b * alpha_1;
+    let eq_2 = (Ext::one() - z_a) * (Ext::one() - alpha_2) + z_a * alpha_2;
+    let eq_adjustment = input.eq_adjustment * eq_1 * eq_2;
+
+    // Mutate the device-resident per-chip geq state in place, once per
+    // fixed variable (the recurrence is sequential in the challenges).
+    let n_chips = input.compiled.len() as u32;
+    if n_chips > 0 {
+        const BS: u32 = 128;
+        let n_blocks = n_chips.div_ceil(BS);
+        let scope = new_data.dense().backend();
+        for alpha in [alpha_1, alpha_2] {
+            unsafe {
+                let args = args!(input.chip_geq_state_dev.as_ptr(), n_chips, alpha);
+                scope
+                    .launch_kernel(
+                        zerocheck_fix_geq_state_kernel(),
+                        (n_blocks, 1, 1),
+                        (BS, 1, 1),
+                        &args,
+                        0,
+                    )
+                    .unwrap();
+            }
+        }
+    }
+
     let mut chip_layouts_dev = input.chip_layouts_dev;
     launch_chip_layouts_kernel(&new_data, &input.chip_column_layouts_dev, &mut chip_layouts_dev);
 
@@ -2098,37 +2525,136 @@ where
         claim,
     );
 
+    // Whether the fused first-two-rounds path applies: it needs at least two
+    // variables and only Sequential chunks (ColumnTile has no bivariate
+    // kernel — shards containing one fall back to the round-by-round path).
+    // `SP1_GPU_ZEROCHECK_LEGACY_FIRST_ROUNDS` forces the round-by-round path
+    // for A/B comparison.
+    let has_column_tile = main_poly
+        .compiled
+        .iter()
+        .any(|chip| chip.chunks.iter().any(|c| matches!(c.kind, ChunkKind::ColumnTile)));
+    let use_fused_first_rounds = max_log_row_count >= 2
+        && !has_column_tile
+        && std::env::var("SP1_GPU_ZEROCHECK_LEGACY_FIRST_ROUNDS").is_err();
+    if debug_timing {
+        tracing::info!(
+            "zerocheck: fused first rounds {} (has_column_tile={})",
+            if use_fused_first_rounds { "ON" } else { "OFF" },
+            has_column_tile,
+        );
+    }
+
+    let round_timing = std::env::var("SP1_GPU_ZEROCHECK_ROUND_TIMING").is_ok();
     let mut univariate_polys = vec![];
     let mut jagged_point: Point<Ext> = Point::from(vec![]);
     let t_eval_total = std::time::Instant::now();
     let mut total_fold = std::time::Duration::ZERO;
     let mut total_eval = std::time::Duration::ZERO;
     let mut total_chal = std::time::Duration::ZERO;
-    let t = std::time::Instant::now();
-    let mut result = evaluate_zerocheck(&mut main_poly);
-    if debug_timing {
-        total_eval += t.elapsed();
-    }
-    let t = std::time::Instant::now();
-    let (mut point, mut next_claim) = challenger_update(&result, challenger);
-    if debug_timing {
-        total_chal += t.elapsed();
-    }
-    univariate_polys.push(result);
-    jagged_point.add_dimension(point);
-    let t = std::time::Instant::now();
-    let mut next_poly = zerocheck_fix_last_variable(main_poly, point, next_claim);
-    if debug_timing {
-        total_fold += t.elapsed();
-    }
-    for _ in 0..max_log_row_count - 1 {
+
+    let (mut next_poly, mut next_claim, remaining_rounds) = if use_fused_first_rounds {
+        // Fused first two rounds: one bivariate pass over the base-field
+        // trace yields both round messages; the second requires no kernel
+        // launch at all.
         let t = std::time::Instant::now();
-        result = evaluate_zerocheck(&mut next_poly);
+        let grid = evaluate_zerocheck_bivariate(&mut main_poly);
         if debug_timing {
             total_eval += t.elapsed();
         }
+        if round_timing {
+            tracing::info!("zerocheck rounds 0-1 (fused bivariate): eval={:?}", t.elapsed());
+        }
+        let (_, last_two) = main_poly.zeta.split_at(main_poly.zeta.dimension() - 2);
+        let z_a = *last_two[0];
+        let z_b = *last_two[1];
+
         let t = std::time::Instant::now();
-        (point, next_claim) = challenger_update(&result, challenger);
+        let first_msg = zerocheck_first_round_message_from_grid::<Felt, Ext>(
+            &grid,
+            z_a,
+            z_b,
+            main_poly.eq_adjustment,
+        );
+        debug_assert_eq!(
+            first_msg.eval_one_plus_eval_zero(),
+            main_poly.claim,
+            "fused first round message inconsistent with the claim"
+        );
+        let (alpha, _claim_1) = challenger_update(&first_msg, challenger);
+        univariate_polys.push(first_msg);
+        jagged_point.add_dimension(alpha);
+
+        let second_msg = zerocheck_second_round_message_from_grid::<Felt, Ext>(
+            &grid,
+            z_a,
+            z_b,
+            main_poly.eq_adjustment,
+            alpha,
+        );
+        let (alpha_2, claim_2) = challenger_update(&second_msg, challenger);
+        univariate_polys.push(second_msg);
+        jagged_point.add_dimension(alpha_2);
+        if debug_timing {
+            total_chal += t.elapsed();
+        }
+
+        let t = std::time::Instant::now();
+        let next_poly = zerocheck_fix_last_two_variables(main_poly, alpha, alpha_2, claim_2);
+        if debug_timing {
+            total_fold += t.elapsed();
+        }
+        if round_timing {
+            // Drain the async double-fold so its cost is attributed here
+            // rather than to the next round's eval window.
+            next_poly.data.backend().synchronize_blocking().unwrap();
+            tracing::info!("zerocheck folds 0+1 (fused double-fold): drain={:?}", t.elapsed());
+        }
+        (next_poly, claim_2, max_log_row_count - 2)
+    } else {
+        let t = std::time::Instant::now();
+        let result = evaluate_zerocheck(&mut main_poly);
+        if debug_timing {
+            total_eval += t.elapsed();
+        }
+        if round_timing {
+            tracing::info!("zerocheck round 0: eval={:?}", t.elapsed());
+        }
+        let t = std::time::Instant::now();
+        let (point, next_claim) = challenger_update(&result, challenger);
+        if debug_timing {
+            total_chal += t.elapsed();
+        }
+        univariate_polys.push(result);
+        jagged_point.add_dimension(point);
+        let t = std::time::Instant::now();
+        let next_poly = zerocheck_fix_last_variable(main_poly, point, next_claim);
+        if debug_timing {
+            total_fold += t.elapsed();
+        }
+        if round_timing {
+            next_poly.data.backend().synchronize_blocking().unwrap();
+            tracing::info!("zerocheck fold 0: drain={:?}", t.elapsed());
+        }
+        (next_poly, next_claim, max_log_row_count - 1)
+    };
+
+    for round in 0..remaining_rounds {
+        let t = std::time::Instant::now();
+        let result = evaluate_zerocheck(&mut next_poly);
+        if debug_timing {
+            total_eval += t.elapsed();
+        }
+        if round_timing {
+            tracing::info!(
+                "zerocheck round {}: eval={:?}",
+                max_log_row_count - remaining_rounds + round,
+                t.elapsed()
+            );
+        }
+        let t = std::time::Instant::now();
+        let (point, claim) = challenger_update(&result, challenger);
+        next_claim = claim;
         if debug_timing {
             total_chal += t.elapsed();
         }
@@ -2138,6 +2664,14 @@ where
         next_poly = zerocheck_fix_last_variable(next_poly, point, next_claim);
         if debug_timing {
             total_fold += t.elapsed();
+        }
+        if round_timing {
+            next_poly.data.backend().synchronize_blocking().unwrap();
+            tracing::info!(
+                "zerocheck fold {}: drain={:?}",
+                max_log_row_count - remaining_rounds + round,
+                t.elapsed()
+            );
         }
     }
     if debug_timing {

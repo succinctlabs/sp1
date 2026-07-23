@@ -1576,9 +1576,7 @@ pub mod tests {
         run_zerocheck_and_verify(&chips, machine_compiled, &[1 << 16], &[], 16);
     }
 
-    #[test]
-    #[serial]
-    fn test_zerocheck_function_verify() {
+    fn zerocheck_function_verify_with_sizes(input_size: Vec<u32>) {
         let mut chips: BTreeSet<Chip<Felt, _>> = BTreeSet::new();
         chips.insert(Chip::new(ZerocheckTestChip::Chip1(ZerocheckTestChip1)));
         chips.insert(Chip::new(ZerocheckTestChip::Chip2(ZerocheckTestChip2)));
@@ -1598,7 +1596,6 @@ pub mod tests {
             let mut superset = vec![fake];
             superset.append(&mut machine_compiled);
             let machine_bytecode = Arc::new(upload_compiled_bytecode(superset, &t));
-            let input_size = get_input_sizes();
             let mut rng = rand::thread_rng();
             let public_values = vec![random_felt(&mut rng), random_felt(&mut rng)];
 
@@ -1679,6 +1676,24 @@ pub mod tests {
             );
         })
         .unwrap();
+    }
+
+    #[test]
+    #[serial]
+    fn test_zerocheck_function_verify() {
+        zerocheck_function_verify_with_sizes(get_input_sizes());
+    }
+
+    /// A tiny chip alongside large ones: exercises the fused
+    /// first-two-rounds dispatch with a quadruple count far below the tile
+    /// size and a small geq threshold. (Heights stay ≡ 0 mod 4 — a
+    /// pipeline-wide invariant of the jagged trace layout that the test
+    /// harness's `evaluate_jagged_columns` also relies on; the bivariate
+    /// kernels additionally guard partial quadruples defensively.)
+    #[test]
+    #[serial]
+    fn test_zerocheck_function_verify_tiny_chip() {
+        zerocheck_function_verify_with_sizes(vec![1456084, 1665180, 36]);
     }
 
     /// Zerocheck on real RISC-V traces. Builds the machine bytecode from the

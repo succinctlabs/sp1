@@ -15,6 +15,24 @@ __global__ void fixLastVariableJagged(
     }
 }
 
+// Folds the last two variables in one pass over the input (see
+// `fixLastTwoVariablesTwoPadding`); `n_quads` is the input pair count / 2.
+// Used by the zerocheck fused first-two-rounds, whose two challenges are
+// both known before any fold happens.
+template <typename F>
+__global__ void fixLastTwoVariablesJagged(
+    const JaggedMle<DenseBuffer<F>> inputJaggedMle,
+    JaggedMle<DenseBuffer<ext_t>> outputJaggedMle,
+    uint32_t n_quads,
+    ext_t alpha_1,
+    ext_t alpha_2) {
+
+    for (size_t q = blockIdx.x * blockDim.x + threadIdx.x; q < n_quads;
+         q += blockDim.x * gridDim.x) {
+        inputJaggedMle.fixLastTwoVariablesTwoPadding(outputJaggedMle, q, alpha_1, alpha_2);
+    }
+}
+
 __global__ void initializeJaggedInfo(
     JaggedMle<InfoBuffer> jaggedMle,
     const uint64_t* values,
@@ -55,6 +73,9 @@ extern "C" void* initialize_jagged_info() { return (void*)initializeJaggedInfo; 
 
 extern "C" void* fix_last_variable_jagged_felt() { return (void*)fixLastVariableJagged<felt_t>; }
 extern "C" void* fix_last_variable_jagged_ext() { return (void*)fixLastVariableJagged<ext_t>; }
+extern "C" void* fix_last_two_variables_jagged_felt() {
+    return (void*)fixLastTwoVariablesJagged<felt_t>;
+}
 extern "C" void* fix_last_variable_jagged_info() { return (void*)fixLastVariableJaggedInfo; }
 
 extern "C" void* jagged_eval_kernel_chunked_felt() { return (void*)jaggedEvalChunked<felt_t>; }
