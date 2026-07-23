@@ -41,6 +41,11 @@ rand_chacha = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt"] }
 slop-poseidon2 = { workspace = true }
 slop-jagged = { workspace = true }
+# Benchmark-only: enables p3-maybe-rayon's `parallel` feature (via the workspace dep, which sets it)
+# for slop-veil's own example/test/bench builds, so the CPU dot-product sweep can run multi-core.
+# The p3 DFT (encode) and p3-merkle-tree (commit) both gate their rayon on this feature; without it
+# they fall back to a single thread. As a dev-dependency it does NOT affect downstream SP1 builds.
+p3-maybe-rayon = { workspace = true }
 
 [[example]]
 name = "benchmark_sweep"
@@ -49,6 +54,10 @@ path = "benchmarking/benchmark_sweep.rs"
 [[example]]
 name = "hadamard_benchmark_sweep"
 path = "benchmarking/hadamard_benchmark_sweep.rs"
+
+[[example]]
+name = "dot_product_sweep"
+path = "benchmarking/dot_product_sweep.rs"
 
 [[test]]
 name = "benchmarking_tests"
