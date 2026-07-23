@@ -676,6 +676,7 @@ pub fn max_count(a: RecursionAirEventCount, b: RecursionAirEventCount) -> Recurs
     }
 }
 
+#[allow(clippy::mutable_key_type)]
 pub fn create_test_shape(
     cluster: &BTreeSet<Chip<SP1Field, RiscvAir<SP1Field>>>,
 ) -> SP1NormalizeInputShape {
@@ -1424,10 +1425,10 @@ mod tests {
     async fn test_find_apc_recursion_shape() {
         use std::sync::Arc;
 
-        use powdr_autoprecompiles::{adapter::ApcWithStats, PgoConfig};
+        use powdr_autoprecompiles::{adapter::ApcWithStats, PgoData, PgoType};
         use sp1_core_executor::Program;
         use sp1_core_machine::{
-            autoprecompiles::{execution_profile_from_program, sp1_powdr_config, CompiledProgram},
+            autoprecompiles::{execution_profile_from_program, sp1_configs, CompiledProgram},
             io::SP1Stdin,
         };
 
@@ -1450,9 +1451,9 @@ mod tests {
 
         let program = Arc::new(Program::from(&elf).expect("parse rsp-client elf"));
         let execution_profile = execution_profile_from_program(program, stdin.clone());
-        let config = sp1_powdr_config(12, 0);
-        let pgo_config = PgoConfig::Instruction(execution_profile);
-        let compiled_program = CompiledProgram::new(&elf, config, pgo_config);
+        let (generate, select) = sp1_configs(12, 0, PgoType::Instruction);
+        let pgo_data = PgoData::Instruction(execution_profile);
+        let compiled_program = CompiledProgram::new(&elf, generate, select, pgo_data);
         let apcs: Vec<_> = compiled_program
             .apcs_and_stats
             .into_iter()
