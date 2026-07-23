@@ -113,6 +113,11 @@ pub(crate) unsafe fn write(ctx: &mut impl SyscallContext, arg1: u64, arg2: u64) 
 
     let slice = bytes.as_slice();
     if fd == 1 || fd == 2 {
+        // Capture a bounded stderr tail (panic message + location) for debugging; stdout is
+        // not captured. The existing host-stderr printing below is preserved.
+        if fd == 2 {
+            ctx.record_stderr(slice);
+        }
         handle_output(ctx, fd, &String::from_utf8_lossy(slice));
         return None;
     } else if fd as u32 == FD_PUBLIC_VALUES {

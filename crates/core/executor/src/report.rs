@@ -37,6 +37,14 @@ pub struct ExecutionReport {
     pub exit_code: u64,
     /// The unnormalized gas, if it was calculated. Should not be accessed directly. Use `gas()` instead.
     pub(crate) gas: Option<u64>,
+    /// A bounded, lossy-UTF-8 tail of the guest program's `fd=2` (stderr) output captured
+    /// during execution. A guest panic writes its message and source location to stderr
+    /// before halting, so this carries debuggable context beyond a bare non-zero exit code.
+    /// `None` when the guest wrote nothing to stderr or on paths that do not capture it.
+    /// This is guest-controlled, untrusted text — bounded here, and must be sanitized and
+    /// re-bounded before any storage or display.
+    #[serde(default)]
+    pub stderr_tail: Option<String>,
 }
 
 impl ExecutionReport {
@@ -114,6 +122,12 @@ impl AddAssign for ExecutionReport {
 
         // The exit code value must either be `0` or the final exit code, so taking an `OR` works.
         self.exit_code |= rhs.exit_code;
+
+        // Keep the latest non-empty stderr tail; a guest panic is written in the final
+        // chunk before the halt.
+        if rhs.stderr_tail.is_some() {
+            self.stderr_tail = rhs.stderr_tail;
+        }
     }
 }
 

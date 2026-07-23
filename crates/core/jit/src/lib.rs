@@ -210,6 +210,9 @@ pub struct JitFunction<M> {
     /// A stream of public values from the program (global to entire program).
     pub public_values_stream: Vec<u8>,
 
+    /// Bounded tail of guest `fd=2` (stderr) output, captured for panic debugging.
+    pub stderr_tail: Vec<u8>,
+
     /// Memory structure,
     pub memory: M,
 
@@ -259,6 +262,7 @@ impl<M: JitMemory> JitFunction<M> {
             input_buffer: VecDeque::new(),
             hints: Vec::new(),
             public_values_stream: Vec::new(),
+            stderr_tail: Vec::new(),
             debug_sender: None,
             exit_code: 0,
             public_value_digest: [0; context::PUBLIC_VALUE_DIGEST_WORDS],
@@ -344,6 +348,7 @@ impl<M: JitMemory> JitFunction<M> {
             hints: NonNull::new_unchecked(&mut self.hints),
             maybe_unconstrained: None,
             public_values_stream: NonNull::new_unchecked(&mut self.public_values_stream),
+            stderr_tail: NonNull::new_unchecked(&mut self.stderr_tail),
             memory_fd: self.memory.as_raw_fd(),
             registers: self.registers,
             pc: self.pc,
@@ -406,6 +411,7 @@ impl<M: JitResetableMemory> JitFunction<M> {
         self.input_buffer = VecDeque::new();
         self.hints = Vec::new();
         self.public_values_stream = Vec::new();
+        self.stderr_tail = Vec::new();
         self.public_value_digest = [0; context::PUBLIC_VALUE_DIGEST_WORDS];
         self.memory.reset();
 

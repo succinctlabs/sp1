@@ -157,6 +157,15 @@ impl MinimalExecutorEnum {
         }
     }
 
+    /// Calls `stderr_tail` to respective `MinimalExecutor`.
+    #[must_use]
+    pub fn stderr_tail(&self) -> Option<String> {
+        match self {
+            Self::Supervisor(e) => e.stderr_tail(),
+            Self::User(e) => e.stderr_tail(),
+        }
+    }
+
     /// Calls `public_value_digest` to respective `MinimalExecutor`.
     #[must_use]
     pub fn public_value_digest(&self) -> [u32; sp1_jit::PUBLIC_VALUE_DIGEST_WORDS] {
