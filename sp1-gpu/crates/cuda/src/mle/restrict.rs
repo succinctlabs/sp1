@@ -92,7 +92,11 @@ impl<F: DeviceCopy + Field> DeviceMle<F> {
             DeviceTensor::with_sizes_in([num_polynomials, output_height], self.backend().clone());
 
         const BLOCK_SIZE: usize = 256;
-        const STRIDE: usize = 128;
+        // Elements per thread. At the previous value of 128, mid-sized MLEs (the logup eq
+        // fixes halve every round) ran on a handful of blocks; 16 keeps the GPU filled and
+        // measured -53% kernel time in the logup prove mix, flat at 2^22 and above where the
+        // kernel is bandwidth-bound.
+        const STRIDE: usize = 16;
         let grid_size_x = output_height.div_ceil(BLOCK_SIZE * STRIDE);
         let grid_size_y = num_polynomials;
         let grid_size = (grid_size_x, grid_size_y, 1);

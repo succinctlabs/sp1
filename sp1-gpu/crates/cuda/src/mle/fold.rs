@@ -34,7 +34,10 @@ where
         );
 
         const BLOCK_SIZE: usize = 256;
-        const STRIDE: usize = 16;
+        // Elements per thread. At the previous value of 16, mid-sized FRI folds ran on tens
+        // of blocks; 4 keeps the GPU filled and measured -18% kernel time across the
+        // production fold-size mix (stride 1 regresses at 2^22+ from launch overhead).
+        const STRIDE: usize = 4;
         let block_dim = BLOCK_SIZE;
         let grid_size_x = folded_num_non_zero_entries.div_ceil(BLOCK_SIZE * STRIDE);
         let grid_size_y = num_polynomials;
