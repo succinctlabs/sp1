@@ -11,11 +11,12 @@ use crate::{
         },
         syscall::{sp1_ecall_handler, SyscallRuntime},
     },
-    ExecutionError, ExecutionMode, Instruction, Opcode, Program, Register, RetainedEventsPreset,
-    SP1CoreOpts, SupervisorMode, SyscallCode, TrapError, UserMode, CLK_INC as CLK_INC_32, HALT_PC,
-    PC_INC as PC_INC_32,
+    Apc, ExecutionError, ExecutionMode, Instruction, Opcode, Program, Register,
+    RetainedEventsPreset, SP1CoreOpts, SupervisorMode, SyscallCode, TrapError, UserMode,
+    CLK_INC as CLK_INC_32, HALT_PC, PC_INC as PC_INC_32,
 };
 use hashbrown::HashMap;
+use powdr_autoprecompiles::execution::{ApcCall, ApcCandidates, ExecutionState};
 use results::{LoadResultSupervisor, StoreResultSupervisor};
 use rrs_lib::process_instruction;
 use std::{marker::PhantomData, mem::MaybeUninit, num::Wrapping, ptr::addr_of_mut, sync::Arc};
@@ -36,7 +37,8 @@ const PC_INC: u64 = PC_INC_32 as u64;
 /// A RISC-V VM that uses a [`MinimalTrace`] to oracle memory & page permission access.
 ///
 /// The type parameter `M` determines whether page protection checks are enabled.
-pub struct CoreVM<'a, M: ExecutionMode> {
+/// The type parameter `S` is the snapshot type carried by the APC candidate tracker.
+pub struct CoreVM<'a, M: ExecutionMode, S> {
     registers: [MemoryRecord; 32],
     /// The current clock of the VM.
     clk: u64,
@@ -68,11 +70,43 @@ pub struct CoreVM<'a, M: ExecutionMode> {
     transpiler: InstructionTranspiler,
     /// Decoded instruction cache.
     decoded_instruction_cache: HashMap<u32, Instruction>,
+    /// The candidate tracker for autoprecompiles.
+    pub apc_candidates: ApcCandidates<CoreExecutionState, Apc, S>,
     /// Phantom data for the execution mode.
     _mode: PhantomData<M>,
 }
 
-impl<'a, M: ExecutionMode> CoreVM<'a, M> {
+/// The execution state which is passed to the candidate checker
+pub struct CoreExecutionState {
+    pc: u64,
+    registers: [MemoryRecord; 32],
+    global_clk: u64,
+}
+
+impl ExecutionState for CoreExecutionState {
+    type RegisterAddress = u8;
+
+    type Value = u64;
+
+    fn pc(&self) -> Self::Value {
+        self.pc
+    }
+
+    fn reg(&self, addr: &Self::RegisterAddress) -> Self::Value {
+        self.registers[*addr as usize].value
+    }
+
+    fn value_limb(value: Self::Value, limb_index: usize) -> Self::Value {
+        // SP1 uses 16-bit limbs
+        value >> (limb_index * 16) & 0xffff
+    }
+
+    fn global_clk(&self) -> usize {
+        self.global_clk as usize
+    }
+}
+
+impl<'a, M: ExecutionMode, S> CoreVM<'a, M, S> {
     /// Create a [`CoreVM`] from a [`MinimalTrace`] and a [`Program`].
     pub fn new<T: MinimalTrace>(
         trace: &'a T,
@@ -111,6 +145,9 @@ impl<'a, M: ExecutionMode> CoreVM<'a, M> {
             assert_eq!(trace.pc_start(), program.pc_start_abs);
         }
 
+        let apc_candidates: ApcCandidates<CoreExecutionState, Apc, S> =
+            ApcCandidates::new(program.apcs.apc_by_index.clone());
+
         Self {
             registers,
             global_clk: 0,
@@ -128,6 +165,7 @@ impl<'a, M: ExecutionMode> CoreVM<'a, M> {
             proof_nonce,
             transpiler: InstructionTranspiler,
             decoded_instruction_cache: HashMap::new(),
+            apc_candidates,
             _mode: PhantomData,
         }
     }
@@ -163,7 +201,7 @@ impl<'a, M: ExecutionMode> CoreVM<'a, M> {
     #[inline]
     /// Increment the state of the VM by one cycle.
     /// Calling this method will update the pc and the clk to the next cycle.
-    pub fn advance(&mut self) -> CycleResult {
+    pub fn advance(&mut self, snapshot_callback: impl Fn() -> S) -> (CycleResult, Vec<ApcCall<S>>) {
         self.clk = self.next_clk;
         self.pc = self.next_pc;
 
@@ -172,18 +210,29 @@ impl<'a, M: ExecutionMode> CoreVM<'a, M> {
         self.next_pc = self.pc.wrapping_add(PC_INC);
         self.global_clk = self.global_clk.wrapping_add(1);
 
+        self.apc_candidates.check_conditions(
+            &CoreExecutionState {
+                pc: self.pc,
+                registers: self.registers,
+                global_clk: self.global_clk,
+            },
+            &snapshot_callback,
+        );
+
+        let outputs = self.apc_candidates.extract_calls();
+
         // Check if the program has halted.
         if self.pc == HALT_PC {
-            return CycleResult::Done(true);
+            return (CycleResult::Done(true), outputs);
         }
 
         // Check if the shard limit has been reached.
         if self.is_trace_end() {
-            return CycleResult::TraceEnd;
+            return (CycleResult::TraceEnd, outputs);
         }
 
         // Return that the program is still running.
-        CycleResult::Done(false)
+        (CycleResult::Done(false), outputs)
     }
 
     /// Execute an ALU instruction.
@@ -261,13 +310,7 @@ impl<'a, M: ExecutionMode> CoreVM<'a, M> {
                     (b as i64).wrapping_div(c as i64) as u64
                 }
             }
-            Opcode::DIVU => {
-                if c == 0 {
-                    u64::MAX
-                } else {
-                    b / c
-                }
-            }
+            Opcode::DIVU => b.checked_div(c).unwrap_or(u64::MAX),
             Opcode::REM => {
                 if c == 0 {
                     b
@@ -591,11 +634,26 @@ impl<'a, M: ExecutionMode> CoreVM<'a, M> {
     }
 }
 
-impl CoreVM<'_, SupervisorMode> {
+impl<S> CoreVM<'_, SupervisorMode, S> {
     /// Fetch the next instruction from the program.
     #[inline]
-    pub fn fetch(&mut self) -> Instruction {
-        *self.program.fetch(self.pc).unwrap()
+    pub fn fetch(&mut self, snapshot_callback: impl Fn() -> S) -> Instruction {
+        let snapshot_callback = &snapshot_callback;
+        let (i, apc_indices) = self.program.fetch_with_apcs(self.pc).unwrap();
+        if let Some(apc_indices) = apc_indices {
+            for apc in apc_indices {
+                let _ = self.apc_candidates.try_insert(
+                    &CoreExecutionState {
+                        pc: self.pc,
+                        registers: self.registers,
+                        global_clk: self.global_clk,
+                    },
+                    *apc,
+                    snapshot_callback,
+                );
+            }
+        }
+        *i
     }
 
     #[allow(clippy::inline_always)]
@@ -609,9 +667,11 @@ impl CoreVM<'_, SupervisorMode> {
             }
         };
 
+        let timestamp = self.timestamp(MemoryAccessPosition::Memory);
+
         MemoryReadRecord {
             value: record.value,
-            timestamp: self.timestamp(MemoryAccessPosition::Memory),
+            timestamp,
             prev_timestamp: record.clk,
             prev_page_prot_record: None,
         }
@@ -620,10 +680,12 @@ impl CoreVM<'_, SupervisorMode> {
     #[allow(clippy::inline_always)]
     #[inline(always)]
     fn mw(&mut self, read_record: MemoryReadRecord, value: u64) -> MemoryWriteRecord {
+        let timestamp = self.timestamp(MemoryAccessPosition::Memory);
+
         MemoryWriteRecord {
             prev_timestamp: read_record.prev_timestamp,
             prev_value: read_record.value,
-            timestamp: self.timestamp(MemoryAccessPosition::Memory),
+            timestamp,
             value,
             prev_page_prot_record: None,
         }
@@ -676,11 +738,28 @@ impl CoreVM<'_, SupervisorMode> {
     }
 }
 
-impl CoreVM<'_, UserMode> {
+impl<S> CoreVM<'_, UserMode, S> {
     /// Fetch the next instruction from the program.
     #[inline]
-    pub fn fetch(&mut self) -> Result<FetchResult, ExecutionError> {
-        if let Some(instruction) = self.program.fetch(self.pc) {
+    pub fn fetch(
+        &mut self,
+        snapshot_callback: impl Fn() -> S,
+    ) -> Result<FetchResult, ExecutionError> {
+        let snapshot_callback = &snapshot_callback;
+        if let Some((instruction, apc_indices)) = self.program.fetch_with_apcs(self.pc) {
+            if let Some(apc_indices) = apc_indices {
+                for apc in apc_indices {
+                    let _ = self.apc_candidates.try_insert(
+                        &CoreExecutionState {
+                            pc: self.pc,
+                            registers: self.registers,
+                            global_clk: self.global_clk,
+                        },
+                        *apc,
+                        snapshot_callback,
+                    );
+                }
+            }
             Ok(FetchResult {
                 pc: self.pc,
                 instruction: Some(*instruction),
@@ -860,7 +939,7 @@ impl CoreVM<'_, UserMode> {
     }
 }
 
-impl<M: ExecutionMode> CoreVM<'_, M> {
+impl<M: ExecutionMode, S> CoreVM<'_, M, S> {
     /// Read a value from a register, updating the register entry and returning the record.
     #[inline]
     fn rr(&mut self, register: Register, position: MemoryAccessPosition) -> MemoryReadRecord {
@@ -897,8 +976,8 @@ impl<M: ExecutionMode> CoreVM<'_, M> {
     /// Touch all the registers in the VM, bumping their clock to `self.clk - 1`.
     pub fn register_refresh(&mut self) -> [MemoryReadRecord; 32] {
         #[inline]
-        fn bump_register<N: ExecutionMode>(
-            vm: &mut CoreVM<N>,
+        fn bump_register<N: ExecutionMode, SS>(
+            vm: &mut CoreVM<N, SS>,
             register: usize,
         ) -> MemoryReadRecord {
             let prev_record = vm.registers[register];
@@ -915,6 +994,9 @@ impl<M: ExecutionMode> CoreVM<'_, M> {
         }
 
         tracing::trace!("register refresh to: {}", self.clk - 1);
+
+        // APCs are not compatible with register refreshing, so we abort all in progress candidates
+        self.apc_candidates.abort_in_progress();
 
         let mut out = [MaybeUninit::uninit(); 32];
         for (i, record) in out.iter_mut().enumerate() {
@@ -948,7 +1030,7 @@ impl<M: ExecutionMode> CoreVM<'_, M> {
     }
 }
 
-impl<M: ExecutionMode> CoreVM<'_, M> {
+impl<M: ExecutionMode, S> CoreVM<'_, M, S> {
     /// Get the current timestamp for a given memory access position.
     #[inline]
     #[must_use]
@@ -978,9 +1060,16 @@ impl<M: ExecutionMode> CoreVM<'_, M> {
 
         bump1 || bump2
     }
+
+    /// If any bump is required, abort all candidates in progress
+    pub fn check_bump(&mut self, instruction: &Instruction) {
+        if self.needs_bump_clk_high() || self.needs_state_bump(instruction) {
+            self.apc_candidates.abort_in_progress();
+        }
+    }
 }
 
-impl<'a, M: ExecutionMode> CoreVM<'a, M> {
+impl<'a, M: ExecutionMode, S> CoreVM<'a, M, S> {
     #[inline]
     #[must_use]
     /// Get the current clock, this clock is incremented by [`CLK_INC`] each cycle.

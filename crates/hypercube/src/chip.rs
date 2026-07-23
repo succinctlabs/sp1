@@ -184,7 +184,7 @@ where
 
     type Program = A::Program;
 
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         self.air.name()
     }
 
@@ -231,6 +231,10 @@ where
 
     fn included(&self, shard: &Self::Record) -> bool {
         self.air.included(shard)
+    }
+
+    fn customize_program(&self, program: Self::Program) -> Self::Program {
+        self.air.customize_program(program)
     }
 }
 

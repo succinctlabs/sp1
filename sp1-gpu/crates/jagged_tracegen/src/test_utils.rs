@@ -4,6 +4,8 @@
 //! generators (the [`random`] module), the source-aware Criterion bench dispatcher
 //! ([`bench_utils`]), and the async real-trace setup helper ([`tracegen_setup`]).
 
+#![allow(clippy::mutable_key_type)]
+
 /// Pure host-side random trace generators. Used by [`bench_utils`] to build the
 /// synthetic-source trace MLEs (random / JSON layout) before they're moved to the device.
 ///
@@ -667,7 +669,8 @@ pub mod bench_utils {
         match cluster {
             ChipCluster::Core => {
                 let add_chip = AddChip::<SupervisorMode> { _phantom: Default::default() };
-                let add_chip = RiscvAir::<Felt>::Add(add_chip);
+                let add_chip =
+                    RiscvAir::Riscv(sp1_core_machine::riscv::air::RiscvAir::<Felt>::Add(add_chip));
                 let add_chip = Chip::new(add_chip);
                 machine
                     .smallest_cluster(&BTreeSet::from_iter([add_chip]))
@@ -757,6 +760,16 @@ pub mod tracegen_setup {
         elf: &[u8],
         stdin: SP1Stdin,
     ) -> (Machine<Felt, RiscvAir<Felt>>, ExecutionRecord, Arc<Program>) {
+        let machine = RiscvAir::<Felt>::machine();
+        setup_with_machine(machine, elf, stdin).await
+    }
+
+    /// Like [`setup`], but with a custom machine (e.g. with APCs configured).
+    pub async fn setup_with_machine(
+        machine: Machine<Felt, RiscvAir<Felt>>,
+        elf: &[u8],
+        stdin: SP1Stdin,
+    ) -> (Machine<Felt, RiscvAir<Felt>>, ExecutionRecord, Arc<Program>) {
         let program =
             Arc::new(Program::from(elf).expect("Failed to load ELF - file may be corrupted"));
 
@@ -766,11 +779,11 @@ pub mod tracegen_setup {
             stdin,
             sp1_core_opts,
             [0; PROOF_NONCE_NUM_WORDS],
+            machine.clone(),
         )
         .expect("failed to generate records");
 
         let record = records[0].clone();
-        let machine = RiscvAir::<Felt>::machine();
 
         (machine, record, program)
     }

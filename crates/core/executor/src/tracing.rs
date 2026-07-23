@@ -10,6 +10,7 @@ use sp1_jit::MinimalTrace;
 use sp1_primitives::consts::PAGE_SIZE;
 
 use crate::{
+    autoprecompiles::ExecutionRecordSnapshotWithPc,
     events::{
         AluEvent, BranchEvent, InstructionDecodeEvent, InstructionFetchEvent, IntoMemoryRecord,
         JumpEvent, MemInstrEvent, MemoryAccessPosition, MemoryLocalEvent, MemoryReadRecord,
@@ -35,7 +36,7 @@ use crate::{
 /// The type parameter `M` determines whether page protection checks are enabled.
 pub struct TracingVM<'a, M: ExecutionMode> {
     /// The core VM.
-    pub core: CoreVM<'a, M>,
+    pub core: CoreVM<'a, M, ExecutionRecordSnapshotWithPc>,
     /// The local memory access for the CPU.
     pub local_memory_access: LocalMemoryAccess,
     /// The local page prot access for the CPU.
@@ -80,9 +81,13 @@ impl TracingVM<'_, SupervisorMode> {
     }
 
     /// Execute the next instruction at the current PC.
-    fn execute_instruction(&mut self) -> Result<CycleResult, ExecutionError> {
+    pub fn execute_instruction(&mut self) -> Result<CycleResult, ExecutionError> {
         let pc = self.core.pc();
-        let instruction = self.core.fetch();
+        // The snapshot callback is invoked lazily inside `fetch` only when an APC candidate
+        // is being inserted; cloning the record snapshot here is acceptable in that path.
+        let instruction = self
+            .core
+            .fetch(|| ExecutionRecordSnapshotWithPc { record: self.record.snapshot(), pc });
 
         let mr_record = None;
 
@@ -143,7 +148,16 @@ impl TracingVM<'_, SupervisorMode> {
             }
         }
 
-        Ok(self.core.advance())
+        self.core.check_bump(&instruction);
+
+        let next_pc = self.core.next_pc();
+        let (res, calls) = self.core.advance(|| ExecutionRecordSnapshotWithPc {
+            record: self.record.snapshot(),
+            pc: next_pc,
+        });
+        self.record.apply_calls(&calls);
+
+        Ok(res)
     }
 }
 
@@ -291,7 +305,10 @@ impl TracingVM<'_, UserMode> {
 
     /// Execute the next instruction at the current PC.
     fn execute_instruction(&mut self) -> Result<CycleResult, ExecutionError> {
-        let FetchResult { instruction, mr_record, pc, error } = self.core.fetch()?;
+        let pc_now = self.core.pc();
+        let FetchResult { instruction, mr_record, pc, error } = self.core.fetch(|| {
+            ExecutionRecordSnapshotWithPc { record: self.record.snapshot(), pc: pc_now }
+        })?;
 
         if let Some(error) = error {
             let trap_result = self.handle_error(error)?;
@@ -309,7 +326,13 @@ impl TracingVM<'_, UserMode> {
 
             self.emit_trap_exec_event(trap_result, page_prot_record);
             self.emit_trap_events(self.core.clk(), self.core.next_pc());
-            return Ok(self.core.advance());
+            let next_pc = self.core.next_pc();
+            let (res, calls) = self.core.advance(|| ExecutionRecordSnapshotWithPc {
+                record: self.record.snapshot(),
+                pc: next_pc,
+            });
+            self.record.apply_calls(&calls);
+            return Ok(res);
         }
 
         if instruction.is_none() {
@@ -376,7 +399,13 @@ impl TracingVM<'_, UserMode> {
             }
         }
 
-        Ok(self.core.advance())
+        let next_pc = self.core.next_pc();
+        let (res, calls) = self.core.advance(|| ExecutionRecordSnapshotWithPc {
+            record: self.record.snapshot(),
+            pc: next_pc,
+        });
+        self.record.apply_calls(&calls);
+        Ok(res)
     }
 }
 
@@ -904,7 +933,11 @@ impl<'a, M: ExecutionMode> TracingVM<'a, M> {
 
         // Actually execute the ecall.
         let EcallResult { a: _, a_record, b, b_record, c, c_record, error, sig_return_pc_record } =
-            CoreVM::<'a>::execute_ecall(&mut PrecompileMemory::new(self), instruction, code)?;
+            CoreVM::<'a, M, ExecutionRecordSnapshotWithPc>::execute_ecall(
+                &mut PrecompileMemory::new(self),
+                instruction,
+                code,
+            )?;
 
         if let Some(record) = sig_return_pc_record {
             self.local_memory_access.insert_record(b, record);
@@ -1364,12 +1397,13 @@ impl<M: ExecutionMode> TracingVM<'_, M> {
 
 impl<'a, M: ExecutionMode> SyscallRuntime<'a, M> for TracingVM<'a, M> {
     const TRACING: bool = true;
+    type Snapshot = ExecutionRecordSnapshotWithPc;
 
-    fn core(&self) -> &CoreVM<'a, M> {
+    fn core(&self) -> &CoreVM<'a, M, Self::Snapshot> {
         &self.core
     }
 
-    fn core_mut(&mut self) -> &mut CoreVM<'a, M> {
+    fn core_mut(&mut self) -> &mut CoreVM<'a, M, Self::Snapshot> {
         &mut self.core
     }
 
@@ -1568,12 +1602,13 @@ impl<'a, 'b, M: ExecutionMode> PrecompileMemory<'a, 'b, M> {
 
 impl<'a, M: ExecutionMode> SyscallRuntime<'a, M> for PrecompileMemory<'a, '_, M> {
     const TRACING: bool = true;
+    type Snapshot = ExecutionRecordSnapshotWithPc;
 
-    fn core(&self) -> &CoreVM<'a, M> {
+    fn core(&self) -> &CoreVM<'a, M, Self::Snapshot> {
         self.inner.core()
     }
 
-    fn core_mut(&mut self) -> &mut CoreVM<'a, M> {
+    fn core_mut(&mut self) -> &mut CoreVM<'a, M, Self::Snapshot> {
         self.inner.core_mut()
     }
 
@@ -1878,5 +1913,501 @@ impl<'a> TracingVMEnum<'a> {
             Self::Supervisor(vm) => vm.record,
             Self::User(vm) => vm.record,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use powdr_autoprecompiles::execution::{
+        OptimisticConstraint, OptimisticConstraints, OptimisticExpression, OptimisticLiteral,
+    };
+
+    use crate::{
+        utils::add_halt, Apc, CycleResult, ExecutionRecord, Instruction, MinimalExecutor, Opcode,
+        Program, Register, SP1Context, SP1CoreOpts, SupervisorMode, TracingVM,
+    };
+
+    fn run_tracing_vm(
+        program: Arc<Program>,
+        opts: SP1CoreOpts,
+        max_trace_size: u64,
+    ) -> (ExecutionRecord, [crate::events::MemoryRecord; 32], CycleResult) {
+        let mut minimal =
+            MinimalExecutor::<SupervisorMode>::tracing(program.clone(), max_trace_size);
+        let chunk = minimal.execute_chunk().expect("trace chunk");
+
+        let proof_nonce = SP1Context::default().proof_nonce;
+        let mut record =
+            ExecutionRecord::new(program.clone(), proof_nonce, opts.global_dependencies_opt);
+        let mut vm =
+            TracingVM::<SupervisorMode>::new(&chunk, program, opts, proof_nonce, &mut record);
+        let status = vm.execute().unwrap();
+
+        let registers = *vm.core.registers();
+        (record, registers, status)
+    }
+
+    #[test]
+    fn test_add_apc() {
+        // main:
+        //     addi x29, x0, 5
+        //     addi x30, x0, 37
+        //     add x31, x30, x29
+        //     addi x27, x0, 5
+        //     addi x28, x0, 37
+        //     add x26, x28, x27
+
+        // Note that compared to the `test_add` test, we use `Opcode::ADDI` instead of `Opcode::ADD`
+        // This is found somewhere else in the codebase
+        // Without this change, `Trace` mode fails.
+
+        let mut original_instructions = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 30, 0, 37, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
+            Instruction::new(Opcode::ADDI, 27, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 28, 0, 37, false, true),
+            Instruction::new(Opcode::ADD, 26, 28, 27, false, false),
+        ];
+        add_halt(&mut original_instructions);
+
+        let program_without_apcs = Program::new(original_instructions, 0, 0);
+
+        // Test with different APC ranges
+        for apc_range_and_cost in
+            [vec![], vec![(&(0, 2), 1), (&(3, 5), 1)], vec![(&(0, 1), 1), (&(3, 4), 1)]]
+                .into_iter()
+                .map(|v| {
+                    v.into_iter()
+                        .map(|(x, y)| {
+                            Apc::new(x, y, OptimisticConstraints::from_constraints(vec![]))
+                        })
+                        .collect::<Vec<_>>()
+                })
+        {
+            let should_execute_apcs = !apc_range_and_cost.is_empty();
+            // Here we set APC costs to a dummy [1, 1] if there are APCs
+            let program = if should_execute_apcs {
+                program_without_apcs.clone().with_apcs(apc_range_and_cost)
+            } else {
+                program_without_apcs.clone()
+            };
+
+            let program = Arc::new(program);
+            let (record, registers, status) =
+                run_tracing_vm(program, SP1CoreOpts::default(), 100_000);
+            assert!(status.is_done(), "TracingVM did not complete");
+
+            assert_eq!(registers[Register::X31 as usize].value, 42);
+            assert_eq!(registers[Register::X26 as usize].value, 42);
+            // Check that the APCs were executed iff there were any
+            assert_eq!(!record.apc_events.is_empty(), should_execute_apcs);
+        }
+    }
+
+    #[test]
+    fn test_apc_loop() {
+        // main:
+        //     addi x29, x0, 2
+        //     addi x30, x0, 0
+        // loop:
+        //     addi x30, x30, 1
+        //     addi x29, x29, -1
+        //     bne x29, x0, -8
+        //     addi x31, x30, 0
+        let mut instructions = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 2, false, true),
+            Instruction::new(Opcode::ADDI, 30, 0, 0, false, true),
+            Instruction::new(Opcode::ADDI, 30, 30, 1, false, true),
+            Instruction::new(Opcode::ADDI, 29, 29, u64::MAX, false, true),
+            Instruction::new(Opcode::BNE, 29, 0, 0u64.wrapping_sub(8), false, true),
+            Instruction::new(Opcode::ADDI, 31, 30, 0, false, true),
+        ];
+        add_halt(&mut instructions);
+
+        let program_without_apcs = Program::new(instructions, 0, 0);
+        let apc_range_and_cost = vec![Apc::new(&(2, 4), 1, OptimisticConstraints::empty())];
+        let program = Arc::new(program_without_apcs.with_apcs(apc_range_and_cost));
+        let (record, registers, status) = run_tracing_vm(program, SP1CoreOpts::default(), 100_000);
+        assert!(status.is_done(), "TracingVM did not complete");
+
+        assert_eq!(registers[Register::X30 as usize].value, 2);
+        assert_eq!(registers[Register::X31 as usize].value, 2);
+        assert_eq!(record.apc_events.len(), 2);
+    }
+
+    #[test]
+    fn test_failed_add_apc() {
+        // main:
+        //     addi x29, x0, 5
+        //     addi x30, x0, 37
+        //     add x31, x30, x29
+        //     addi x27, x0, 5
+        //     addi x28, x0, 37
+        //     add x26, x28, x27
+
+        let mut original_instructions = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 30, 0, 37, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
+            Instruction::new(Opcode::ADDI, 27, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 28, 0, 37, false, true),
+            Instruction::new(Opcode::ADD, 26, 28, 27, false, false),
+        ];
+        add_halt(&mut original_instructions);
+
+        let program_without_apcs = Program::new(original_instructions, 0, 0);
+
+        // A failling constraint that `x3[0] == 123`
+        let failing_optimistic_constraints = || {
+            OptimisticConstraints::from_constraints(vec![OptimisticConstraint {
+                left: OptimisticExpression::Literal(OptimisticLiteral {
+                    instr_idx: 0,
+                    val: powdr_autoprecompiles::execution::LocalOptimisticLiteral::RegisterLimb(
+                        3, 0,
+                    ),
+                }),
+                right: OptimisticExpression::Number(123),
+            }])
+        };
+
+        // Test with different APC ranges
+        for apc_range_and_cost in
+            [vec![], vec![(&(0, 2), 1), (&(3, 5), 1)], vec![(&(0, 1), 1), (&(3, 4), 1)]]
+                .into_iter()
+                .map(|v| {
+                    v.into_iter()
+                        .map(|(x, y)| Apc::new(x, y, failing_optimistic_constraints()))
+                        .collect::<Vec<_>>()
+                })
+        {
+            let should_execute_apcs = !apc_range_and_cost.is_empty();
+            // Here we set APC costs to a dummy [1, 1] if there are APCs
+            let program = if should_execute_apcs {
+                program_without_apcs.clone().with_apcs(apc_range_and_cost)
+            } else {
+                program_without_apcs.clone()
+            };
+
+            let (record, registers, status) =
+                run_tracing_vm(Arc::new(program), SP1CoreOpts::default(), 100_000);
+            assert!(status.is_done(), "TracingVM did not complete");
+            assert_eq!(registers[Register::X31 as usize].value, 42);
+            assert_eq!(registers[Register::X26 as usize].value, 42);
+            // Check that the APCs were executed iff there were any
+            assert!(record.apc_events.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_multiple_apc_conflict() {
+        // main:
+        //     addi x29, x0, 5
+        //     addi x30, x0, 37
+        //     add x31, x30, x29
+        //     addi x27, x0, 5
+        //     addi x28, x0, 37
+        //     add x26, x28, x27
+
+        let mut original_instructions = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 30, 0, 37, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
+            Instruction::new(Opcode::ADDI, 27, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 28, 0, 37, false, true),
+            Instruction::new(Opcode::ADD, 26, 28, 27, false, false),
+        ];
+        add_halt(&mut original_instructions);
+
+        let program_without_apcs = Program::new(original_instructions, 0, 0);
+
+        // Pass the same apc twice
+        for apc_range_and_cost in [vec![(&(0, 2), 1), (&(0, 2), 1)]].into_iter().map(|v| {
+            v.into_iter()
+                .map(|(x, y)| Apc::new(x, y, OptimisticConstraints::from_constraints(vec![])))
+                .collect::<Vec<_>>()
+        }) {
+            // Here we set APC costs to a dummy [1, 1] if there are APCs
+            let program = program_without_apcs.clone().with_apcs(apc_range_and_cost);
+
+            let (record, registers, status) =
+                run_tracing_vm(Arc::new(program), SP1CoreOpts::default(), 100_000);
+            assert!(status.is_done(), "TracingVM did not complete");
+            assert_eq!(registers[Register::X31 as usize].value, 42);
+            assert_eq!(registers[Register::X26 as usize].value, 42);
+            // Check that only the first apc was executed (priority is based on insertion order)
+            assert_eq!(record.apc_events.len(), 1);
+            assert_eq!(record.apc_events.get_events(0).unwrap().count, 1);
+            assert!(record.apc_events.get_events(1).is_none());
+        }
+    }
+
+    #[test]
+    fn test_multiple_apc_fallback() {
+        // main:
+        //     addi x29, x0, 5
+        //     addi x30, x0, 37
+        //     add x31, x30, x29
+        //     addi x27, x0, 5
+        //     addi x28, x0, 37
+        //     add x26, x28, x27
+
+        let mut original_instructions = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 30, 0, 37, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
+            Instruction::new(Opcode::ADDI, 27, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 28, 0, 37, false, true),
+            Instruction::new(Opcode::ADD, 26, 28, 27, false, false),
+        ];
+        add_halt(&mut original_instructions);
+
+        let program_without_apcs = Program::new(original_instructions, 0, 0);
+
+        // Pass A, B and AB
+        // Have AB fail at the last step (wrong pc) and make sure A and B are returned
+        let apc_range_and_cost = vec![
+            (
+                &(0, 4),
+                1,
+                OptimisticConstraints::from_constraints(vec![OptimisticConstraint {
+                    left: OptimisticExpression::Literal(OptimisticLiteral {
+                        instr_idx: 4,
+                        val: powdr_autoprecompiles::execution::LocalOptimisticLiteral::Pc,
+                    }),
+                    right: OptimisticExpression::Number(42),
+                }]),
+            ),
+            (&(0, 2), 1, OptimisticConstraints::empty()),
+            (&(2, 4), 1, OptimisticConstraints::empty()),
+        ]
+        .into_iter()
+        .map(|(range, cost, constraints)| Apc::new(range, cost, constraints));
+
+        let program = program_without_apcs.clone().with_apcs(apc_range_and_cost);
+
+        let (record, registers, status) =
+            run_tracing_vm(Arc::new(program), SP1CoreOpts::default(), 100_000);
+        assert!(status.is_done(), "TracingVM did not complete");
+        assert_eq!(registers[Register::X31 as usize].value, 42);
+        assert_eq!(registers[Register::X26 as usize].value, 42);
+        // Check that AB was not executed but A and B were
+        assert_eq!(record.apc_events.len(), 2);
+        assert!(record.apc_events.get_events(0).is_none());
+        assert_eq!(record.apc_events.get_events(1).unwrap().count, 1);
+        assert_eq!(record.apc_events.get_events(2).unwrap().count, 1);
+    }
+
+    #[test]
+    fn test_multiple_apc_fallback_branch_pc_constraint() {
+        // main:
+        //     addi x29, x0, 5
+        //     addi x30, x0, 37
+        //     beq x29, x30, +8
+        //     add x31, x30, x29
+        //     addi x27, x0, 5
+        //     addi x28, x0, 37
+        //     add x26, x28, x27
+
+        let mut original_instructions = vec![
+            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 30, 0, 37, false, true),
+            Instruction::new(Opcode::BEQ, 29, 30, 8, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
+            Instruction::new(Opcode::ADDI, 27, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 28, 0, 37, false, true),
+            Instruction::new(Opcode::ADD, 26, 28, 27, false, false),
+        ];
+        add_halt(&mut original_instructions);
+
+        let program_without_apcs = Program::new(original_instructions, 0, 0);
+
+        // Pass A, B and AB
+        // Have AB succeed and cancel A and B, with a pc constraint at the end of A.
+        let apc_range_and_cost = vec![
+            (
+                &(0, 7),
+                1,
+                OptimisticConstraints::from_constraints(vec![OptimisticConstraint {
+                    left: OptimisticExpression::Literal(OptimisticLiteral {
+                        instr_idx: 3,
+                        val: powdr_autoprecompiles::execution::LocalOptimisticLiteral::Pc,
+                    }),
+                    right: OptimisticExpression::Number(12),
+                }]),
+            ),
+            (&(0, 3), 1, OptimisticConstraints::empty()),
+            (&(3, 7), 1, OptimisticConstraints::empty()),
+        ]
+        .into_iter()
+        .map(|(range, cost, constraints)| Apc::new(range, cost, constraints));
+
+        let program = program_without_apcs.clone().with_apcs(apc_range_and_cost);
+
+        let (record, registers, status) =
+            run_tracing_vm(Arc::new(program), SP1CoreOpts::default(), 100_000);
+        assert!(status.is_done(), "TracingVM did not complete");
+        assert_eq!(registers[Register::X31 as usize].value, 42);
+        assert_eq!(registers[Register::X26 as usize].value, 42);
+        // Check that AB executed and A/B were cancelled.
+        assert_eq!(record.apc_events.len(), 1);
+        assert_eq!(record.apc_events.get_events(0).unwrap().count, 1);
+        assert!(record.apc_events.get_events(1).is_none());
+        assert!(record.apc_events.get_events(2).is_none());
+    }
+
+    #[test]
+    fn test_apc_state_bump_error() {
+        // This test verifies that when a state bump (bump2) occurs during an APC,
+        // the APC is properly rejected and a state_bump_error is recorded.
+        //
+        // There are two types of state bumps:
+        // - bump1: Clock overflow - triggers when clk's top 24 bits change (requires ~2M cycles)
+        // - bump2: PC overflow - triggers when PC crosses a 16-bit boundary (testable with pc_base)
+        //
+        // This test uses bump2 by setting pc_base = 0xFFF0, so instruction 3 (at PC 0xFFFC)
+        // will cause next_pc = 0x10000, crossing the 16-bit boundary.
+        //
+        // Instruction layout:
+        //   Index 0: PC = 0xFFF0
+        //   Index 1: PC = 0xFFF4
+        //   Index 2: PC = 0xFFF8
+        //   Index 3: PC = 0xFFFC -> next_pc = 0x10000 (bump2 triggers here!)
+        //   Index 4: PC = 0x10000
+        //   Index 5: PC = 0x10004
+        //   Index 6: PC = 0x10008
+        //   Index 7: PC = 0x1000C
+
+        let mut instructions: Vec<Instruction> = std::iter::repeat([
+            Instruction::new(Opcode::ADDI, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADDI, 30, 0, 8, false, true),
+            Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
+        ])
+        .flatten()
+        .take(12)
+        .collect();
+
+        add_halt(&mut instructions);
+
+        // Set pc_base = 0xFFF0 so that instruction 3 triggers bump2
+        let pc_base: u64 = 0xFFF0;
+        let program_without_apcs = Program::new(instructions, pc_base, pc_base);
+
+        // Create an APC covering instructions 0-7 which spans the bump point at index 3
+        let apc_range_and_cost =
+            vec![Apc::new(&(0, 7), 1, OptimisticConstraints::from_constraints(vec![]))];
+
+        let program = program_without_apcs.with_apcs(apc_range_and_cost);
+
+        let (record, _registers, status) =
+            run_tracing_vm(Arc::new(program), SP1CoreOpts::default(), 100_000);
+        assert!(status.is_done(), "TracingVM did not complete");
+        assert!(
+            record.apc_events.is_empty(),
+            "Expected APC to be rejected when a state bump occurs"
+        );
+    }
+
+    /// Build a program that runs a tight loop to cross the `clk_high` epoch boundary (clk >= 2^24),
+    /// then executes post-loop instructions. Post-loop starts at index 5.
+    ///
+    /// Layout:
+    ///   0: LUI x10, <upper>           ; load loop counter (~2.1M)
+    ///   1: ADDI x10, x10, <lower>     ; add lower bits
+    ///   2: ADDI x11, x0, 42           ; touch x11 BEFORE the epoch boundary
+    ///   3: ADDI x10, x10, -1          ; decrement counter (loop body)
+    ///   4: BNE x10, x0, -4            ; branch back to index 3 if x10 != 0
+    ///   5: ADDI x12, x11, 1           ; post-loop: read x11 (stale, last touched in epoch 0)
+    ///   6: ADDI x13, x12, 1           ; post-loop: another instruction
+    ///   7: ADDI x14, x13, 1           ; post-loop: another instruction
+    ///   8..11: halt
+    fn build_epoch_crossing_program() -> Program {
+        // We need ~2,097,152 cycles to cross the epoch boundary (2^24 / CLK_INC=8).
+        // Use 2,100,000 to be safe.
+        let loop_count: u64 = 2_100_000;
+        let upper = loop_count & !0xFFF; // upper bits for LUI
+        let lower = (loop_count & 0xFFF) as i32; // lower 12 bits for ADDI
+
+        // A word-aligned heap address touched before and after the epoch boundary, so a RAM
+        // access also crosses an epoch (in addition to the register crossing on x11).
+        let addr: u64 = 0x27654320;
+
+        let mut instructions = vec![
+            // Index 0: LUI x10, upper
+            Instruction::new(Opcode::LUI, 10, upper, 0, true, true),
+            // Index 1: ADDI x10, x10, lower
+            Instruction::new(Opcode::ADDI, 10, 10, lower as u64, false, true),
+            // Index 2: ADDI x11, x0, 42 — touch x11 before the epoch boundary
+            Instruction::new(Opcode::ADDI, 11, 0, 42, false, true),
+            // Index 3: SW x11, [addr] — touch RAM `addr` before the epoch boundary
+            Instruction::new(Opcode::SW, 11, 0, addr, false, true),
+            // Index 4: ADDI x10, x10, -1 — loop body (decrement)
+            Instruction::new(Opcode::ADDI, 10, 10, (-1i64) as u64, false, true),
+            // Index 5: BNE x10, x0, -4 — branch back to index 4
+            Instruction::new(Opcode::BNE, 10, 0, (-4i64) as u64, false, true),
+            // Index 6: LW x12, [addr] — post-loop: reads RAM `addr` (stale from epoch 0)
+            Instruction::new(Opcode::LW, 12, 0, addr, false, true),
+            // Index 7: ADDI x13, x11, 1 — post-loop: reads x11 (stale from epoch 0)
+            Instruction::new(Opcode::ADDI, 13, 11, 1, false, true),
+            // Index 8: ADDI x14, x13, 1
+            Instruction::new(Opcode::ADDI, 14, 13, 1, false, true),
+        ];
+
+        add_halt(&mut instructions);
+
+        Program::new(instructions, 0u64, 0u64)
+    }
+
+    #[test]
+    fn test_apc_memory_bump_tolerated() {
+        // An APC is *kept* (not aborted) when it accesses a register OR a RAM address whose
+        // previous timestamp is in a different clk_high epoch, even though the APC's own
+        // instructions don't cross an epoch boundary. The register crossing is routed to the
+        // shared `MemoryBump` chip (which re-anchors the register); the RAM crossing is
+        // represented natively by `compare_low` (no bump needed). Either way the block stays an
+        // APC instead of falling back to software.
+        //
+        // Setup: x11 and RAM `addr` are touched at indices 2-3 (epoch 0). After ~2.1M loop
+        // iterations the loop exits in epoch 1. Post-loop, index 6 reads `addr` and index 7
+        // reads x11 — both stale from epoch 0.
+        let program_without_apcs = build_epoch_crossing_program();
+
+        // APC covers post-loop instructions (indices 6-8), all within epoch 1: a RAM read
+        // (index 6) and a register read (index 7), each crossing an epoch relative to its last
+        // access in epoch 0. No clk_high boundary is crossed inside the block itself.
+        let apc = vec![Apc::new(&(6, 9), 1, OptimisticConstraints::from_constraints(vec![]))];
+        let program = program_without_apcs.with_apcs(apc);
+
+        let (record, registers, status) =
+            run_tracing_vm(Arc::new(program), SP1CoreOpts::default(), 10_000_000);
+        assert!(status.is_done(), "TracingVM did not complete");
+        // Verify the program computed correctly (x11=42, x12=42 loaded from addr, x13=43, x14=44)
+        assert_eq!(registers[11].value, 42);
+        assert_eq!(registers[12].value, 42);
+        assert_eq!(registers[13].value, 43);
+        assert_eq!(registers[14].value, 44);
+        // The APC is kept despite both the RAM crossing (index 6) and the register crossing
+        // (index 7): neither aborts the candidate.
+        assert!(
+            !record.apc_events.is_empty(),
+            "Expected APC to be kept (register + RAM epoch crossings are tolerated, not aborted)"
+        );
+        // The stale-register crossing is routed to the shared `MemoryBump` chip so the
+        // re-anchored register access balances on the memory bus. (The RAM crossing needs no
+        // bump — it is handled natively by `compare_low`.)
+        assert!(
+            !record.bump_memory_events.is_empty(),
+            "Expected a register bump event emitted to the MemoryBump chip for the crossing"
+        );
+        // ...and that bump must stay in the MAIN record: the APC chip fills its columns only from
+        // block-instruction chips, so a bump carved into the APC block record is silently dropped
+        // (the APC emits no MemoryBump interaction), which would leave the re-anchored register
+        // receive unmatched on the memory bus. Guard that no APC record carries a carved bump.
+        assert!(
+            record.apc_events.events.values().all(|e| e.record.bump_memory_events.is_empty()),
+            "APC block records must not carry carved bump events (they belong in the main record)"
+        );
     }
 }

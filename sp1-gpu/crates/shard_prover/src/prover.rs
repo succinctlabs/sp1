@@ -765,6 +765,8 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::mutable_key_type)]
+
     use super::*;
     use serial_test::serial;
     use slop_basefold::BasefoldVerifier;

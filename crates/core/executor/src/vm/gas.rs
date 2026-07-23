@@ -1,6 +1,6 @@
 use crate::{
     events::{MemoryRecord, NUM_PAGE_PROT_ENTRIES_PER_ROW_EXEC},
-    CompressedMemory, ExecutionReport, Instruction, Opcode, RiscvAirId, SyscallCode,
+    ApcCount, CompressedMemory, ExecutionReport, Instruction, Opcode, RiscvAirId, SyscallCode,
 };
 use enum_map::EnumMap;
 use hashbrown::{HashMap, HashSet};
@@ -26,6 +26,7 @@ pub struct ReportGenerator {
     is_last_page_prot_access_external: HashMap<u64, bool>,
 
     trace_cost_lookup: EnumMap<RiscvAirId, u64>,
+    apc_counts: Box<HashMap<u64, ApcCount>>,
 
     /// Running count of page prot entries.
     page_prot_entry_count: u64,
@@ -33,6 +34,11 @@ pub struct ReportGenerator {
 
     shard_start_clk: u64,
     exit_code: u64,
+}
+
+#[derive(Debug)]
+pub struct ReportGeneratorSnapshot {
+    pub opcode_counts: EnumMap<Opcode, u64>,
 }
 
 impl ReportGenerator {
@@ -57,7 +63,12 @@ impl ReportGenerator {
             enable_untrusted_programs,
             shard_start_clk,
             exit_code: 0,
+            apc_counts: Box::default(),
         }
+    }
+
+    pub fn snapshot(&self) -> ReportGeneratorSnapshot {
+        ReportGeneratorSnapshot { opcode_counts: self.opcode_counts }
     }
 
     /// Set the start clock of the shard.
@@ -105,6 +116,7 @@ impl ReportGenerator {
             touched_memory_addresses: 0,
             gas: Some(gas),
             exit_code: self.exit_code,
+            apc_counts: self.apc_counts.clone(),
         }
     }
 

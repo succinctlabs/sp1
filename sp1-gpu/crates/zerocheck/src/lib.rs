@@ -23,6 +23,7 @@ where
 
 #[cfg(test)]
 pub mod tests {
+    #![allow(clippy::mutable_key_type)]
     #![allow(clippy::print_stdout)]
     use itertools::Itertools;
     use rand::Rng;
@@ -143,7 +144,7 @@ pub mod tests {
         type Record = ExecutionRecord;
         type Program = Program;
 
-        fn name(&self) -> &'static str {
+        fn name(&self) -> &str {
             match self {
                 Self::Chip1(chip) => <ZerocheckTestChip1 as MachineAir<F>>::name(chip),
                 Self::Chip2(chip) => <ZerocheckTestChip2 as MachineAir<F>>::name(chip),

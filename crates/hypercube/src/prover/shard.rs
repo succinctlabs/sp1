@@ -510,6 +510,7 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
                 Point::from_usize(num_real_entries, self.inner.pcs_prover.max_log_row_count + 1);
             chip_heights.insert(air.name().to_string(), threshold_point);
             let name = air.name();
+            let preprocessed_trace = preprocessed_traces.get(name).cloned();
             let num_variables = main_trace.num_variables();
             assert_eq!(num_variables, self.inner.pcs_prover.max_log_row_count as u32);
 
@@ -555,7 +556,6 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
                 alpha_powers,
                 gkr_powers.clone(),
             );
-            let preprocessed_trace = preprocessed_traces.get(name).cloned();
 
             let chip_sumcheck_claim = main_opening
                 .evaluations()

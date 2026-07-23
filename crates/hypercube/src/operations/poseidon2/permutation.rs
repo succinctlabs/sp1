@@ -6,6 +6,7 @@ use std::{
 };
 
 use sp1_derive::AlignedBorrow;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     operations::poseidon2::{NUM_EXTERNAL_ROUNDS, NUM_INTERNAL_ROUNDS, WIDTH},
@@ -27,7 +28,7 @@ const fn make_col_map_degree3() -> Poseidon2Degree3Cols<usize> {
 }
 
 /// A column layout for a poseidon2 permutation with degree 3 constraints.
-#[derive(AlignedBorrow, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2Degree3Cols<T: Copy> {
     /// The Poseidon2 hasher state.
@@ -40,7 +41,7 @@ pub struct Poseidon2Degree3Cols<T: Copy> {
 pub const NUM_INTERNAL_ROUNDS_M1: usize = NUM_INTERNAL_ROUNDS - 1;
 
 /// A column layout for the intermediate states of a Poseidon2 AIR across all rounds.
-#[derive(AlignedBorrow, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2StateCols<T> {
     /// State for all external Poseidon2 rounds.

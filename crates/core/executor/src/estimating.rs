@@ -6,7 +6,7 @@ use std::{marker::PhantomData, sync::Arc};
 use crate::{
     events::{MemoryReadRecord, MemoryRecord, MemoryWriteRecord, PageProtRecord},
     vm::{
-        gas::ReportGenerator,
+        gas::{ReportGenerator, ReportGeneratorSnapshot},
         results::{
             AluResult, BranchResult, CycleResult, FetchResult, JumpResult, LoadResult,
             LoadResultSupervisor, MaybeImmediate, StoreResult, StoreResultSupervisor, TrapResult,
@@ -24,7 +24,7 @@ use crate::{
 /// The type parameter `M` determines whether page protection checks are enabled.
 pub struct GasEstimatingVM<'a, M: ExecutionMode> {
     /// The core VM.
-    pub core: CoreVM<'a, M>,
+    pub core: CoreVM<'a, M, ReportGeneratorSnapshot>,
     /// The gas calculator for the VM.
     pub gas_calculator: ReportGenerator,
     /// The index of the hint lens the next shard will use.
@@ -51,8 +51,8 @@ impl GasEstimatingVM<'_, SupervisorMode> {
     }
 
     /// Execute the next instruction at the current PC.
-    fn execute_instruction(&mut self) -> Result<CycleResult, ExecutionError> {
-        let instruction = self.core.fetch();
+    pub fn execute_instruction(&mut self) -> Result<CycleResult, ExecutionError> {
+        let instruction = self.core.fetch(|| self.gas_calculator.snapshot());
 
         match &instruction.opcode {
             Opcode::ADD
@@ -111,7 +111,15 @@ impl GasEstimatingVM<'_, SupervisorMode> {
             }
         }
 
-        Ok(self.core.advance())
+        self.core.check_bump(&instruction);
+
+        let (res, calls) = self.core.advance(|| self.gas_calculator.snapshot());
+
+        if !calls.is_empty() {
+            tracing::error!("Apc call application is not implemented for the `GasEstimatingVM`. Execution report will NOT take apcs into account");
+        }
+
+        Ok(res)
     }
 }
 
@@ -174,7 +182,8 @@ impl GasEstimatingVM<'_, UserMode> {
 
     /// Execute the next instruction at the current PC.
     fn execute_instruction(&mut self) -> Result<CycleResult, ExecutionError> {
-        let FetchResult { instruction, mr_record, pc, error } = self.core.fetch()?;
+        let FetchResult { instruction, mr_record, pc, error } =
+            self.core.fetch(|| self.gas_calculator.snapshot())?;
 
         if let Some(error) = error {
             self.handle_error(error)?;
@@ -186,7 +195,11 @@ impl GasEstimatingVM<'_, UserMode> {
             self.gas_calculator.handle_trap_exec_event();
             self.gas_calculator.handle_trap_events(self.core.needs_bump_clk_high());
             self.gas_calculator.update_page_chip_counts();
-            return Ok(self.core.advance());
+            let (res, calls) = self.core.advance(|| self.gas_calculator.snapshot());
+            if !calls.is_empty() {
+                tracing::error!("Apc call application is not implemented for the `GasEstimatingVM`. Execution report will NOT take apcs into account");
+            }
+            return Ok(res);
         }
 
         if instruction.is_none() {
@@ -264,7 +277,11 @@ impl GasEstimatingVM<'_, UserMode> {
         }
 
         self.gas_calculator.update_page_chip_counts();
-        Ok(self.core.advance())
+        let (res, calls) = self.core.advance(|| self.gas_calculator.snapshot());
+        if !calls.is_empty() {
+            tracing::error!("Apc call application is not implemented for the `GasEstimatingVM`. Execution report will NOT take apcs into account");
+        }
+        Ok(res)
     }
 }
 
@@ -452,7 +469,8 @@ impl<'a, M: ExecutionMode> GasEstimatingVM<'a, M> {
             self.hint_lens_idx += 1;
         }
 
-        let result = CoreVM::execute_ecall(self, instruction, code)?;
+        let result =
+            CoreVM::<'a, M, ReportGeneratorSnapshot>::execute_ecall(self, instruction, code)?;
 
         if let Some(error) = result.error {
             self.handle_error(error)?;
@@ -487,12 +505,13 @@ impl<'a, M: ExecutionMode> GasEstimatingVM<'a, M> {
 
 impl<'a, M: ExecutionMode> SyscallRuntime<'a, M> for GasEstimatingVM<'a, M> {
     const TRACING: bool = false;
+    type Snapshot = ReportGeneratorSnapshot;
 
-    fn core(&self) -> &CoreVM<'a, M> {
+    fn core(&self) -> &CoreVM<'a, M, Self::Snapshot> {
         &self.core
     }
 
-    fn core_mut(&mut self) -> &mut CoreVM<'a, M> {
+    fn core_mut(&mut self) -> &mut CoreVM<'a, M, Self::Snapshot> {
         &mut self.core
     }
 
