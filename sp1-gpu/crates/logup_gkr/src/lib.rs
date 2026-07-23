@@ -291,6 +291,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::mutable_key_type)]
     use crate::utils::{
         generate_test_data, get_polys_from_layer, jagged_first_gkr_layer_to_device,
         jagged_gkr_layer_to_device, jagged_gkr_layer_to_host, random_first_layer, GkrTestData,
