@@ -2,13 +2,13 @@ use std::time::Duration;
 
 use clap::Parser;
 #[cfg(feature = "apc")]
-use powdr_autoprecompiles::{adapter::ApcWithStats, PgoConfig};
+use powdr_autoprecompiles::{adapter::ApcWithStats, PgoData, PgoType};
 #[cfg(feature = "apc")]
 use sp1_core_executor::Program;
 use sp1_core_executor::SP1Context;
 #[cfg(feature = "apc")]
 use sp1_core_machine::autoprecompiles::{
-    execution_profile_from_program, sp1_powdr_config, CompiledProgram,
+    execution_profile_from_program, sp1_configs, CompiledProgram,
 };
 use sp1_gpu_perf::{get_program_and_input, Measurement};
 use sp1_gpu_prover::cuda_worker_builder_with_machine;
@@ -91,9 +91,9 @@ async fn main() {
         let program = Arc::new(Program::from(elf.as_slice()).expect("failed to parse elf"));
         // Use the exact same proving input for APC PGO.
         let execution_profile = execution_profile_from_program(program, stdin.clone());
-        let config = sp1_powdr_config(args.autoprecompiles, 0);
-        let pgo_config = PgoConfig::Instruction(execution_profile);
-        let compiled_program = CompiledProgram::new(&elf, config, pgo_config);
+        let (generate, select) = sp1_configs(args.autoprecompiles, 0, PgoType::Instruction);
+        let pgo_data = PgoData::Instruction(execution_profile);
+        let compiled_program = CompiledProgram::new(&elf, generate, select, pgo_data);
         let apcs: Vec<_> = compiled_program
             .apcs_and_stats
             .into_iter()
