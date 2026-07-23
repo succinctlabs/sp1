@@ -2,7 +2,7 @@
 //!
 //! Wraps the patched `bls12_381` crate. Layout per
 //! `zkvm_accelerators.h`: G1 = 96 bytes (Fp x || Fp y, BE), G2 = 192
-//! bytes (Fp2 x || Fp2 y, BE; Fp2 = c1 || c0). Scalar = 32 BE bytes.
+//! bytes (Fp2 x || Fp2 y, BE; Fp2 = c0 || c1). Scalar = 32 BE bytes.
 
 use crate::precompile::types::{
     Bls12381Fp, Bls12381Fp2, Bls12381G1MsmPair, Bls12381G1Point, Bls12381G2MsmPair,
@@ -14,15 +14,80 @@ use bls12_381::{
     multi_miller_loop, G1Affine, G1Projective, G2Affine, G2Prepared, G2Projective, Gt, Scalar,
 };
 
+/// The bls12_381's uncompressed point-at-infinity marker, bit 6 of byte 0.
+const INFINITY_FLAG: u8 = 1 << 6;
+
+/// EIP-2537 G1 (infinity = all zeros) to crate uncompressed (bit-6 flag).
+fn g1_from_abi(bytes: &[u8; 96]) -> [u8; 96] {
+    if bytes.iter().all(|&b| b == 0) {
+        let mut out = [0u8; 96];
+        out[0] = INFINITY_FLAG;
+        out
+    } else {
+        *bytes
+    }
+}
+
+/// Inverse of [`g1_from_abi`] for results.
+fn g1_to_abi(bytes: [u8; 96]) -> [u8; 96] {
+    if bytes[0] & INFINITY_FLAG != 0 {
+        [0u8; 96]
+    } else {
+        bytes
+    }
+}
+
+/// Swaps the c0 and c1 halves of each Fp2 coordinate; its own inverse.
+fn g2_swap_c0c1(bytes: &[u8; 192]) -> [u8; 192] {
+    let mut out = [0u8; 192];
+    out[0..48].copy_from_slice(&bytes[48..96]);
+    out[48..96].copy_from_slice(&bytes[0..48]);
+    out[96..144].copy_from_slice(&bytes[144..192]);
+    out[144..192].copy_from_slice(&bytes[96..144]);
+    out
+}
+
+/// EIP-2537 G2 (c0 || c1, infinity = all zeros) to crate (c1 || c0, bit-6 flag).
+fn g2_from_abi(bytes: &[u8; 192]) -> [u8; 192] {
+    if bytes.iter().all(|&b| b == 0) {
+        let mut out = [0u8; 192];
+        out[0] = INFINITY_FLAG;
+        out
+    } else {
+        g2_swap_c0c1(bytes)
+    }
+}
+
+/// Inverse of [`g2_from_abi`] for results.
+fn g2_to_abi(bytes: [u8; 192]) -> [u8; 192] {
+    if bytes[0] & INFINITY_FLAG != 0 {
+        [0u8; 192]
+    } else {
+        g2_swap_c0c1(&bytes)
+    }
+}
+
+/// Rejects coordinates carrying the crate's flag bits (values >= p): the crate
+/// masks them on the first coordinate and would accept `0x40||00..` as infinity.
+fn is_canonical_coords(bytes: &[u8]) -> bool {
+    bytes.chunks_exact(48).all(|coord| coord[0] & 0b1110_0000 == 0)
+}
+
 /// Full decode for MSM and pairing (precompiles 0x0c/0x0e/0x0f), where
 /// EIP-2537 requires the subgroup check in addition to the on-curve check.
 fn decode_g1(bytes: &[u8; 96]) -> Option<G1Affine> {
-    G1Affine::from_uncompressed(bytes).into_option()
+    if !is_canonical_coords(bytes) {
+        return None;
+    }
+    G1Affine::from_uncompressed(&g1_from_abi(bytes)).into_option()
 }
 
 /// See [`decode_g1`].
 fn decode_g2(bytes: &[u8; 192]) -> Option<G2Affine> {
-    G2Affine::from_uncompressed(bytes).into_option()
+    if !is_canonical_coords(bytes) {
+        return None;
+    }
+    G2Affine::from_uncompressed(&g2_from_abi(bytes)).into_option()
 }
 
 /// Decode for G1ADD (precompile 0x0b): encoding, field-element, and
@@ -30,22 +95,28 @@ fn decode_g2(bytes: &[u8; 192]) -> Option<G2Affine> {
 /// omits it for addition, and its test vectors include on-curve points
 /// outside the q-order subgroup that G1ADD must accept.
 fn decode_g1_on_curve(bytes: &[u8; 96]) -> Option<G1Affine> {
-    let p = G1Affine::from_uncompressed_unchecked(bytes).into_option()?;
+    if !is_canonical_coords(bytes) {
+        return None;
+    }
+    let p = G1Affine::from_uncompressed_unchecked(&g1_from_abi(bytes)).into_option()?;
     bool::from(p.is_on_curve()).then_some(p)
 }
 
 /// See [`decode_g1_on_curve`]; this is the G2ADD (precompile 0x0d) variant.
 fn decode_g2_on_curve(bytes: &[u8; 192]) -> Option<G2Affine> {
-    let p = G2Affine::from_uncompressed_unchecked(bytes).into_option()?;
+    if !is_canonical_coords(bytes) {
+        return None;
+    }
+    let p = G2Affine::from_uncompressed_unchecked(&g2_from_abi(bytes)).into_option()?;
     bool::from(p.is_on_curve()).then_some(p)
 }
 
 fn encode_g1(p: G1Projective, out: &mut [u8; 96]) {
-    *out = G1Affine::from(p).to_uncompressed();
+    *out = g1_to_abi(G1Affine::from(p).to_uncompressed());
 }
 
 fn encode_g2(p: G2Projective, out: &mut [u8; 192]) {
-    *out = G2Affine::from(p).to_uncompressed();
+    *out = g2_to_abi(G2Affine::from(p).to_uncompressed());
 }
 
 /// Decode a 32-byte big-endian integer into a `Scalar`, reducing modulo
@@ -168,6 +239,10 @@ pub unsafe extern "C" fn zkvm_bls12_pairing(
             Some(p) => p,
             None => return ZKVM_EFAIL,
         };
+        // Skip pair with either point at infinity (which contributes e = 1).
+        if bool::from(g1.is_identity()) || bool::from(g2.is_identity()) {
+            continue;
+        }
         g1s.push(g1);
         g2s.push(G2Prepared::from(g2));
     }
@@ -212,20 +287,46 @@ pub unsafe extern "C" fn zkvm_bls12_map_fp2_to_g2(
         return ZKVM_EFAIL;
     }
     let bytes = &(*field_element).data;
-    // Fp2 layout per zkvm_accelerators.h: 96 bytes = c1 (48 BE) || c0 (48 BE).
-    let c1 = match fp_from_be(bytes[0..48].try_into().unwrap()) {
+    // Fp2 layout per zkvm_accelerators.h: 96 bytes = c0 (48 BE) || c1 (48 BE).
+    let c0 = match fp_from_be(bytes[0..48].try_into().unwrap()) {
         Some(f) => f,
         None => return ZKVM_EFAIL,
     };
-    let c0 = match fp_from_be(bytes[48..96].try_into().unwrap()) {
+    let c1 = match fp_from_be(bytes[48..96].try_into().unwrap()) {
         Some(f) => f,
         None => return ZKVM_EFAIL,
     };
+    // A bls12_381 SWU bug sends u = 0 (and only u = 0) to infinity, so the
+    // finite image EIP-2537 expects is hardcoded (execution-spec `fp_0` vector).
+    if bool::from(c0.is_zero()) && bool::from(c1.is_zero()) {
+        (*result).data = MAP_FP2_TO_G2_ZERO;
+        return ZKVM_EOK;
+    }
     let fp2 = bls12_381::fp2::Fp2 { c0, c1 };
     let p = G2Projective::map_to_curve(&fp2).clear_cofactor();
     encode_g2(p, &mut (*result).data);
     ZKVM_EOK
 }
+
+/// EIP-2537 image of `map_fp2_to_g2(0)` in the C ABI G2 encoding.
+const MAP_FP2_TO_G2_ZERO: [u8; 192] = [
+    0x01, 0x83, 0x20, 0x89, 0x6e, 0xc9, 0xee, 0xf9, 0xd5, 0xe6, 0x19, 0x84, //
+    0x8d, 0xc2, 0x9c, 0xe2, 0x66, 0xf4, 0x13, 0xd0, 0x2d, 0xd3, 0x1d, 0x9b, //
+    0x9d, 0x44, 0xec, 0x0c, 0x79, 0xcd, 0x61, 0xf1, 0x8b, 0x07, 0x5d, 0xdb, //
+    0xa6, 0xd7, 0xbd, 0x20, 0xb7, 0xff, 0x27, 0xa4, 0xb3, 0x24, 0xbf, 0xce, //
+    0x0a, 0x67, 0xd1, 0x21, 0x18, 0xb5, 0xa3, 0x5b, 0xb0, 0x2d, 0x2e, 0x86, //
+    0xb3, 0xeb, 0xfa, 0x7e, 0x23, 0x41, 0x0d, 0xb9, 0x3d, 0xe3, 0x9f, 0xb0, //
+    0x6d, 0x70, 0x25, 0xfa, 0x95, 0xe9, 0x6f, 0xfa, 0x42, 0x8a, 0x7a, 0x27, //
+    0xc3, 0xae, 0x4d, 0xd4, 0xb4, 0x0b, 0xd2, 0x51, 0xac, 0x65, 0x88, 0x92, //
+    0x02, 0x60, 0xe0, 0x36, 0x44, 0xd1, 0xa2, 0xc3, 0x21, 0x25, 0x6b, 0x32, //
+    0x46, 0xba, 0xd2, 0xb8, 0x95, 0xca, 0xd1, 0x38, 0x90, 0xcb, 0xe6, 0xf8, //
+    0x5d, 0xf5, 0x51, 0x06, 0xa0, 0xd3, 0x34, 0x60, 0x4f, 0xb1, 0x43, 0xc7, //
+    0xa0, 0x42, 0xd8, 0x78, 0x00, 0x62, 0x71, 0x86, 0x5b, 0xc3, 0x59, 0x41, //
+    0x04, 0xc6, 0x97, 0x77, 0xa4, 0x3f, 0x0b, 0xda, 0x07, 0x67, 0x9d, 0x58, //
+    0x05, 0xe6, 0x3f, 0x18, 0xcf, 0x4e, 0x0e, 0x7c, 0x61, 0x12, 0xac, 0x7f, //
+    0x70, 0x26, 0x6d, 0x19, 0x9b, 0x4f, 0x76, 0xae, 0x27, 0xc6, 0x26, 0x9a, //
+    0x3c, 0xee, 0xbd, 0xae, 0x30, 0x80, 0x6e, 0x9a, 0x76, 0xaa, 0xdf, 0x5c, //
+];
 
 #[cfg(test)]
 mod tests {
@@ -263,8 +364,8 @@ mod tests {
         unreachable!("no on-curve non-subgroup G1 point among small x")
     }
 
-    /// G2 analog: y² = x³ + 4(u + 1), encoded per the crate layout
-    /// (x.c1 || x.c0 || y.c1 || y.c0, each 48 BE bytes).
+    /// G2 analog: y² = x³ + 4(u + 1), encoded per EIP-2537
+    /// (x.c0 || x.c1 || y.c0 || y.c1, each 48 BE bytes).
     fn non_subgroup_g2() -> [u8; 192] {
         let b = Fp2 { c0: fp_small(4), c1: fp_small(4) };
         for i in 1..=u8::MAX {
@@ -274,11 +375,11 @@ mod tests {
                 None => continue,
             };
             let mut bytes = [0u8; 192];
-            bytes[0..48].copy_from_slice(&x.c1.to_bytes());
-            bytes[48..96].copy_from_slice(&x.c0.to_bytes());
-            bytes[96..144].copy_from_slice(&y.c1.to_bytes());
-            bytes[144..192].copy_from_slice(&y.c0.to_bytes());
-            if G2Affine::from_uncompressed(&bytes).into_option().is_none() {
+            bytes[0..48].copy_from_slice(&x.c0.to_bytes());
+            bytes[48..96].copy_from_slice(&x.c1.to_bytes());
+            bytes[96..144].copy_from_slice(&y.c0.to_bytes());
+            bytes[144..192].copy_from_slice(&y.c1.to_bytes());
+            if G2Affine::from_uncompressed(&g2_from_abi(&bytes)).into_option().is_none() {
                 return bytes;
             }
         }
@@ -336,19 +437,40 @@ mod tests {
         assert_eq!(status, ZKVM_EFAIL);
     }
 
-    /// Adding the point at infinity (0x40 flag) to a non-subgroup point
+    /// Adding the point at infinity (all zeros) to a non-subgroup point
     /// returns the point unchanged.
     #[test]
     fn g1_add_non_subgroup_plus_infinity() {
         let bytes = non_subgroup_g1();
-        let mut inf = [0u8; 96];
-        inf[0] = 0x40;
         let p = ZkvmBytes96 { data: bytes };
-        let i = ZkvmBytes96 { data: inf };
+        let i = ZkvmBytes96 { data: [0u8; 96] };
         let mut out = ZkvmBytes96 { data: [0u8; 96] };
         let status = unsafe { zkvm_bls12_g1_add(&p, &i, &mut out) };
         assert_eq!(status, ZKVM_EOK);
         assert_eq!(out.data, bytes);
+    }
+
+    /// The crate's `0x40` infinity flag is non-canonical (>= p) and must be rejected.
+    #[test]
+    fn g1_add_rejects_infinity_flag_encoding() {
+        let mut flagged = [0u8; 96];
+        flagged[0] = 0x40;
+        let p = ZkvmBytes96 { data: flagged };
+        let g = ZkvmBytes96 { data: non_subgroup_g1() };
+        let mut out = ZkvmBytes96 { data: [0u8; 96] };
+        let status = unsafe { zkvm_bls12_g1_add(&p, &g, &mut out) };
+        assert_eq!(status, ZKVM_EFAIL);
+    }
+
+    /// `map_fp2_to_g2(0)` maps to a fixed finite point, not infinity.
+    #[test]
+    fn map_fp2_to_g2_zero_is_finite() {
+        let input = Bls12381Fp2 { data: [0u8; 96] };
+        let mut out = ZkvmBytes192 { data: [0u8; 192] };
+        let status = unsafe { zkvm_bls12_map_fp2_to_g2(&input, &mut out) };
+        assert_eq!(status, ZKVM_EOK);
+        assert_ne!(out.data, [0u8; 192]);
+        assert!(decode_g2(&out.data).is_some());
     }
 
     /// EIP-2537 G2ADD takes any on-curve point — no subgroup check.
@@ -360,8 +482,8 @@ mod tests {
         let status = unsafe { zkvm_bls12_g2_add(&p, &p, &mut out) };
         assert_eq!(status, ZKVM_EOK);
 
-        let a = G2Affine::from_uncompressed_unchecked(&bytes).unwrap();
-        let expected = G2Affine::from(G2Projective::from(a).double()).to_uncompressed();
+        let a = G2Affine::from_uncompressed_unchecked(&g2_from_abi(&bytes)).unwrap();
+        let expected = g2_to_abi(G2Affine::from(G2Projective::from(a).double()).to_uncompressed());
         assert_eq!(out.data, expected);
     }
 
