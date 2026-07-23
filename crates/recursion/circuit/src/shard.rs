@@ -444,7 +444,7 @@ mod tests {
 
     use super::*;
 
-    use sp1_primitives::{SP1Field, SP1GlobalContext};
+    use sp1_primitives::{SP1DiffusionMatrix, SP1Field, SP1GlobalContext};
     type GC = SP1GlobalContext;
     type C = InnerConfig;
     type A = RiscvAir<SP1Field>;
@@ -553,5 +553,233 @@ mod tests {
         Witnessable::<AsmConfig>::write(&shard_proof, &mut witness_stream);
 
         run_recursion_test_machines(program.clone(), witness_stream).await;
+    }
+
+    /// CPU micro-benchmark for the recursion program build/compile/execute pipeline.
+    ///
+    /// Run with:
+    /// ```sh
+    /// cargo test -p sp1-recursion-circuit --release bench_recursion_cpu -- --ignored --nocapture
+    /// ```
+    ///
+    /// The first run proves a fibonacci core shard and caches (vk, proof) in `/tmp`; later runs
+    /// reuse the cache. Iteration counts: `SP1_BENCH_COMPILE_ITERS` / `SP1_BENCH_EXEC_ITERS`.
+    #[tokio::test]
+    #[ignore = "benchmark; run manually with --ignored --nocapture"]
+    async fn bench_recursion_cpu() {
+        use std::{
+            collections::hash_map::DefaultHasher,
+            hash::Hasher,
+            time::{Duration, Instant},
+        };
+
+        use slop_algebra::extension::BinomialExtensionField;
+        use sp1_hypercube::{inner_perm, MachineRecord};
+        use sp1_recursion_executor::{Executor, D};
+
+        setup_logger();
+        let log_stacking_height = 21;
+        let max_log_row_count = 22;
+        let machine = RiscvAir::machine();
+        let verifier = ShardVerifier::from_basefold_parameters(
+            FriConfig::default_fri_config(),
+            log_stacking_height,
+            max_log_row_count,
+            machine.clone(),
+        );
+
+        // Obtain (vk, shard_proof), preferring the on-disk cache to skip core proving.
+        type CachedArtifacts = (
+            sp1_hypercube::MachineVerifyingKey<GC>,
+            sp1_hypercube::ShardProof<GC, sp1_hypercube::SP1PcsProofInner>,
+        );
+        let cache_path = std::env::temp_dir().join("sp1_recursion_cpu_bench_cache.bin");
+        let (vk, shard_proof): CachedArtifacts = match std::fs::read(&cache_path)
+            .ok()
+            .and_then(|bytes| bincode::deserialize(&bytes).ok())
+        {
+            Some(artifacts) => {
+                println!("using cached proof artifacts at {}", cache_path.display());
+                artifacts
+            }
+            None => {
+                println!("no cache found; proving one fibonacci core shard...");
+                let elf = test_artifacts::FIBONACCI_ELF;
+                let program = Arc::new(Program::from(&elf).unwrap());
+                let shard_prover =
+                    CpuShardProver::<SP1GlobalContext, SP1InnerPcs, SP1InnerPcsProver, _>::new(
+                        verifier.clone(),
+                    );
+                let prover = SimpleProver::new(verifier.clone(), shard_prover);
+                let (pk, vk) = prover.setup(program.clone()).await;
+                let pk = unsafe { pk.into_inner() };
+                let (proof, _) = prove_core(
+                    &prover,
+                    pk,
+                    program,
+                    SP1Stdin::default(),
+                    SP1CoreOpts::default(),
+                    SP1Context::default(),
+                )
+                .await
+                .unwrap();
+                let shard_proof = proof.shard_proofs[0].clone();
+                let _ = std::fs::write(
+                    &cache_path,
+                    bincode::serialize(&(vk.clone(), shard_proof.clone())).unwrap(),
+                );
+                (vk, shard_proof)
+            }
+        };
+
+        let machine_verifier = MachineVerifier::new(verifier.clone());
+        let shape = machine_verifier.shape_from_proof(&shard_proof);
+        let dummy_proof = dummy_shard_proof(
+            shape.shard_chips,
+            max_log_row_count,
+            FriConfig::default_fri_config(),
+            log_stacking_height as usize,
+            &[
+                shape.preprocessed_area >> log_stacking_height,
+                shape.main_area >> log_stacking_height,
+            ],
+            &[shape.preprocessed_padding_cols, shape.main_padding_cols],
+        );
+
+        // Builds the DSL block for verifying one shard, mirroring [`test_verify_shard`].
+        let build_verify_shard_block = || {
+            let mut initial_challenger = verifier.jagged_pcs_verifier.challenger();
+            vk.observe_into(&mut initial_challenger);
+
+            let mut builder = Builder::<C>::default();
+            let vk_variable = vk.read(&mut builder);
+            let shard_proof_variable = dummy_proof.read(&mut builder);
+
+            let basefold_verifier =
+                BasefoldVerifier::<GC>::new(FriConfig::default_fri_config(), NUM_SP1_COMMITMENTS);
+            let recursive_verifier = crate::basefold::RecursiveBasefoldVerifier::<C, GC> {
+                fri_config: basefold_verifier.fri_config,
+                tcs: RecursiveMerkleTreeTcs::<C, GC>(PhantomData),
+            };
+            let recursive_verifier =
+                RecursiveStackedPcsVerifier::new(recursive_verifier, log_stacking_height);
+
+            let recursive_jagged_verifier = RecursiveJaggedPcsVerifier::<GC, C> {
+                stacked_pcs_verifier: recursive_verifier,
+                max_log_row_count,
+                jagged_evaluator: RecursiveJaggedEvalSumcheckConfig::<GC>(PhantomData),
+            };
+
+            let stark_verifier = RecursiveShardVerifier::<GC, A, C> {
+                machine: RiscvAir::machine(),
+                pcs_verifier: recursive_jagged_verifier,
+                _phantom: std::marker::PhantomData,
+            };
+
+            let mut challenger_variable =
+                DuplexChallengerVariable::from_challenger(&mut builder, &initial_challenger);
+
+            stark_verifier.verify_shard(
+                &mut builder,
+                &vk_variable,
+                &shard_proof_variable,
+                &mut challenger_variable,
+            );
+
+            builder.into_root_block()
+        };
+
+        let iters: usize =
+            std::env::var("SP1_BENCH_COMPILE_ITERS").ok().and_then(|s| s.parse().ok()).unwrap_or(5);
+        let exec_iters: usize =
+            std::env::var("SP1_BENCH_EXEC_ITERS").ok().and_then(|s| s.parse().ok()).unwrap_or(10);
+
+        // Build + compile phase.
+        let mut build_times = Vec::new();
+        let mut compile_times = Vec::new();
+        let mut validated_program = None;
+        for i in 0..iters {
+            let t0 = Instant::now();
+            let block = build_verify_shard_block();
+            let build_time = t0.elapsed();
+
+            let t1 = Instant::now();
+            let mut compiler = AsmCompiler::default();
+            let root_program = compiler.compile_inner(block);
+            let compile_time = t1.elapsed();
+
+            build_times.push(build_time);
+            compile_times.push(compile_time);
+
+            if i == 0 {
+                // Validate once for correctness, and hash the program so optimization
+                // experiments can check output invariance.
+                let mut hasher = DefaultHasher::new();
+                hasher.write(&bincode::serialize(&root_program).unwrap());
+                let program_hash = hasher.finish();
+
+                let program = root_program.validate().unwrap();
+                println!(
+                    "program: {} instructions, total_memory={}, hash={program_hash:016x}",
+                    program.inner.iter().count(),
+                    program.total_memory,
+                );
+                println!("event counts: {:?}", program.event_counts);
+                validated_program = Some(program);
+            }
+        }
+        let program = Arc::new(validated_program.unwrap());
+
+        // Witness stream.
+        let mut witness_stream = Vec::new();
+        Witnessable::<AsmConfig>::write(&vk, &mut witness_stream);
+        Witnessable::<AsmConfig>::write(&shard_proof, &mut witness_stream);
+
+        // Execute phase.
+        let mut exec_times = Vec::new();
+        let mut record_summary = String::new();
+        for i in 0..exec_iters {
+            let mut executor = Executor::<
+                SP1Field,
+                BinomialExtensionField<SP1Field, D>,
+                SP1DiffusionMatrix,
+            >::new(program.clone(), inner_perm());
+            executor.witness_stream = witness_stream.clone().into();
+            let t0 = Instant::now();
+            executor.run().unwrap();
+            exec_times.push(t0.elapsed());
+            if i == 0 {
+                let mut stats = executor.record.stats().into_iter().collect::<Vec<_>>();
+                stats.sort();
+                record_summary = format!("{stats:?}");
+            }
+        }
+        println!("record: {record_summary}");
+
+        // Attribute the Poseidon2 share of execution: time the bare permutation at the
+        // program's event count (chained, mirroring the data dependencies of hash chains).
+        {
+            use slop_symmetric::Permutation;
+            let perm = inner_perm();
+            let n_perm = program.event_counts.poseidon2_wide_events;
+            let mut state = [SP1Field::zero(); 16];
+            let t0 = Instant::now();
+            for _ in 0..n_perm {
+                state = perm.permute(state);
+            }
+            let elapsed = t0.elapsed();
+            std::hint::black_box(state);
+            println!("poseidon2 probe: {n_perm} chained permutes in {elapsed:.3?}");
+        }
+
+        let report = |name: &str, times: &[Duration]| {
+            let min = times.iter().min().unwrap();
+            let sum: Duration = times.iter().sum();
+            let avg = sum / times.len() as u32;
+            println!("{name:>10}: min {min:>10.3?}   avg {avg:>10.3?}   ({times:.3?})");
+        };
+        report("build", &build_times);
+        report("compile", &compile_times);
+        report("execute", &exec_times);
     }
 }
