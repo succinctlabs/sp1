@@ -3,12 +3,14 @@ mod block;
 pub mod instruction;
 mod memory;
 mod opcode;
+mod poseidon2_batch;
 mod program;
 mod public_values;
 mod record;
 pub mod shape;
 
 pub use analyzed::AnalyzedInstruction;
+pub use poseidon2_batch::Poseidon2Batch8;
 pub use public_values::PV_DIGEST_NUM_WORDS;
 
 // Avoid triggering annoying branch of thiserror derive macro.
@@ -52,6 +54,17 @@ use std::{
 };
 use thiserror::Error;
 use tracing::debug_span;
+
+/// The minimum length of an adjacent independent `Poseidon2` run for the executor to use
+/// the batched (packed) permutation. Below this, scalar permutes are at least as fast.
+const MIN_POSEIDON2_BATCH: usize = 4;
+
+/// Whether the executor should batch adjacent independent `Poseidon2` instructions.
+/// Opt-in via `SP1_BATCH_POSEIDON2=1` while the feature is being evaluated.
+fn poseidon2_batching_enabled() -> bool {
+    static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ENABLED.get_or_init(|| std::env::var("SP1_BATCH_POSEIDON2").is_ok_and(|v| v == "1"))
+}
 
 /// The width of the Poseidon2 permutation.
 pub const PERMUTATION_WIDTH: usize = 16;
@@ -357,7 +370,7 @@ where
         Diffusion,
         PERMUTATION_WIDTH,
         POSEIDON2_SBOX_DEGREE,
-    >: CryptographicPermutation<[F; PERMUTATION_WIDTH]>,
+    >: CryptographicPermutation<[F; PERMUTATION_WIDTH]> + Poseidon2Batch8<F>,
 {
     pub fn new(
         program: Arc<RecursionProgram<F>>,
@@ -802,18 +815,40 @@ where
             last_trace: None,
         };
 
+        let batching = poseidon2_batching_enabled();
+
         for block in &program.seq_blocks {
             match block {
                 SeqBlock::Basic(basic_block) => {
-                    for analyzed_instruction in &basic_block.instrs {
+                    let instrs = &basic_block.instrs;
+                    let mut i = 0;
+                    while i < instrs.len() {
+                        if batching && matches!(instrs[i].inner(), Instruction::Poseidon2(_)) {
+                            let run = Self::poseidon2_batchable_run(instrs, i);
+                            if run >= MIN_POSEIDON2_BATCH {
+                                // SAFETY: The lanes are adjacent in program order and
+                                // pairwise independent (verified above), so executing them
+                                // as one batch respects the happens-before relation.
+                                unsafe {
+                                    Self::execute_poseidon2_batch(
+                                        &state.env,
+                                        record,
+                                        &instrs[i..i + run],
+                                    );
+                                }
+                                i += run;
+                                continue;
+                            }
+                        }
                         unsafe {
                             Self::execute_one(
                                 &mut state,
                                 record,
                                 witness_stream.as_deref_mut(),
-                                analyzed_instruction,
+                                &instrs[i],
                             )
                         }?;
+                        i += 1;
                     }
                 }
                 SeqBlock::Parallel(vec) => {
@@ -825,6 +860,72 @@ where
         }
 
         Ok(())
+    }
+
+    /// The length (at most 8) of the run of adjacent, pairwise-independent `Poseidon2`
+    /// instructions starting at `start`. Lanes are independent iff no lane's input address
+    /// is an output address of an earlier lane in the run; memory is write-once, so no
+    /// other hazard is possible within an adjacent run.
+    fn poseidon2_batchable_run(instrs: &[AnalyzedInstruction<F>], start: usize) -> usize {
+        let mut outputs = [0u32; 8 * PERMUTATION_WIDTH];
+        let mut k = 0;
+        'run: while k < 8 {
+            let Some(analyzed) = instrs.get(start + k) else { break };
+            let Instruction::Poseidon2(instr) = analyzed.inner() else { break };
+            let prior_outputs = &outputs[..k * PERMUTATION_WIDTH];
+            for addr in &instr.addrs.input {
+                if prior_outputs.contains(&addr.0.as_canonical_u32()) {
+                    break 'run;
+                }
+            }
+            for (i, addr) in instr.addrs.output.iter().enumerate() {
+                outputs[k * PERMUTATION_WIDTH + i] = addr.0.as_canonical_u32();
+            }
+            k += 1;
+        }
+        k
+    }
+
+    /// Executes a run of 2 to 8 adjacent, pairwise-independent `Poseidon2` instructions,
+    /// using the batched permutation when available.
+    ///
+    /// # Safety
+    ///
+    /// Same contract as [`Self::execute_one`] for each instruction in `run`; the lanes must
+    /// be pairwise independent as checked by [`Self::poseidon2_batchable_run`].
+    unsafe fn execute_poseidon2_batch(
+        env: &ExecEnv<F, Diffusion>,
+        record: &UnsafeRecord<F>,
+        run: &[AnalyzedInstruction<F>],
+    ) {
+        let mut inputs = [[F::zero(); PERMUTATION_WIDTH]; 8];
+        for (lane, analyzed) in run.iter().enumerate() {
+            let Instruction::Poseidon2(instr) = analyzed.inner() else { unreachable!() };
+            for (i, addr) in instr.addrs.input.iter().enumerate() {
+                inputs[lane][i] = env.memory.mr_unchecked(*addr).val[0];
+            }
+        }
+        // Fill the unused lanes with a copy so the packed permutation runs on initialized
+        // data; their outputs are discarded.
+        for lane in run.len()..8 {
+            inputs[lane] = inputs[0];
+        }
+
+        let mut outputs = inputs;
+        if !env.perm.permute_batch8(&mut outputs) {
+            for lane in 0..run.len() {
+                outputs[lane] = env.perm.permute(inputs[lane]);
+            }
+        }
+
+        for (lane, analyzed) in run.iter().enumerate() {
+            let Instruction::Poseidon2(instr) = analyzed.inner() else { unreachable!() };
+            for (i, addr) in instr.addrs.output.iter().enumerate() {
+                env.memory.mw_unchecked(*addr, Block::from(outputs[lane][i]));
+            }
+            UnsafeCell::raw_get(record.poseidon2_events[analyzed.offset].as_ptr())
+                .write(Poseidon2Event { input: inputs[lane], output: outputs[lane] });
+        }
     }
 
     /// Run the program.

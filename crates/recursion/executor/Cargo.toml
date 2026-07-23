@@ -12,6 +12,7 @@ rust-version = { workspace = true }
 
 [dependencies]
 slop-algebra = { workspace = true }
+slop-koala-bear = { workspace = true }
 slop-maybe-rayon = { workspace = true }
 slop-poseidon2 = { workspace = true }
 slop-symmetric = { workspace = true }

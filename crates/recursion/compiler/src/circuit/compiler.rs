@@ -657,6 +657,13 @@ where
             DslIr::CircuitV2Poseidon2PermuteKoalaBear(data) => {
                 f(self.poseidon2_permute(data.0, data.1))
             }
+            DslIr::CircuitV2BatchPoseidon2PermuteKoalaBear(data) => {
+                // Lower to 8 adjacent Poseidon2 instructions. The batch op guarantees the
+                // lanes are independent, so the executor may pack an adjacent run.
+                for (output, input) in *data {
+                    f(self.poseidon2_permute(output, input));
+                }
+            }
             DslIr::CircuitV2HintBitsF(output, value) => {
                 f(self.hint_bit_decomposition(value, output))
             }

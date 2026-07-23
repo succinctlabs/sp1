@@ -23,6 +23,12 @@ pub trait CircuitV2Builder<C: Config> {
         &mut self,
         state: [Felt<SP1Field>; PERMUTATION_WIDTH],
     ) -> [Felt<SP1Field>; PERMUTATION_WIDTH];
+    /// Permutes 8 independent states in one batch. The states must not depend on each
+    /// other's outputs; the executor may run the batch as one SIMD operation.
+    fn poseidon2_permute_v2_batch8(
+        &mut self,
+        states: [[Felt<SP1Field>; PERMUTATION_WIDTH]; 8],
+    ) -> [[Felt<SP1Field>; PERMUTATION_WIDTH]; 8];
     fn ext2felt_v2(&mut self, ext: Ext<SP1Field, SP1ExtensionField>) -> [Felt<SP1Field>; D];
     fn add_curve_v2(
         &mut self,
@@ -146,6 +152,18 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
         let output: [Felt<SP1Field>; PERMUTATION_WIDTH] = core::array::from_fn(|_| self.uninit());
         self.push_op(DslIr::CircuitV2Poseidon2PermuteKoalaBear(Box::new((output, array))));
         output
+    }
+
+    fn poseidon2_permute_v2_batch8(
+        &mut self,
+        states: [[Felt<SP1Field>; PERMUTATION_WIDTH]; 8],
+    ) -> [[Felt<SP1Field>; PERMUTATION_WIDTH]; 8] {
+        let outputs: [[Felt<SP1Field>; PERMUTATION_WIDTH]; 8] =
+            core::array::from_fn(|_| core::array::from_fn(|_| self.uninit()));
+        self.push_op(DslIr::CircuitV2BatchPoseidon2PermuteKoalaBear(Box::new(
+            core::array::from_fn(|i| (outputs[i], states[i])),
+        )));
+        outputs
     }
 
     /// Decomposes an ext into its felt coordinates.

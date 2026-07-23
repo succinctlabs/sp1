@@ -133,6 +133,17 @@ pub trait CircuitConfig: Config {
         input: [Felt<SP1Field>; PERMUTATION_WIDTH],
     ) -> [Felt<SP1Field>; PERMUTATION_WIDTH];
 
+    /// Permutes 8 independent states, which must not depend on each other's outputs.
+    ///
+    /// The default lowers to 8 scalar permutations; configs backed by the recursion VM
+    /// override this with a batched operation the executor can run as one SIMD batch.
+    fn poseidon2_permute_v2_batch8(
+        builder: &mut Builder<Self>,
+        states: [[Felt<SP1Field>; PERMUTATION_WIDTH]; 8],
+    ) -> [[Felt<SP1Field>; PERMUTATION_WIDTH]; 8] {
+        states.map(|state| Self::poseidon2_permute_v2(builder, state))
+    }
+
     fn poseidon2_compress_v2(
         builder: &mut Builder<Self>,
         input: impl IntoIterator<Item = Felt<SP1Field>>,
@@ -270,6 +281,13 @@ impl CircuitConfig for InnerConfig {
         input: [Felt<SP1Field>; PERMUTATION_WIDTH],
     ) -> [Felt<SP1Field>; PERMUTATION_WIDTH] {
         builder.poseidon2_permute_v2(input)
+    }
+
+    fn poseidon2_permute_v2_batch8(
+        builder: &mut Builder<Self>,
+        states: [[Felt<SP1Field>; PERMUTATION_WIDTH]; 8],
+    ) -> [[Felt<SP1Field>; PERMUTATION_WIDTH]; 8] {
+        builder.poseidon2_permute_v2_batch8(states)
     }
 }
 

@@ -8171,6 +8171,7 @@ dependencies = [
  "range-set-blaze",
  "serde",
  "slop-algebra 6.3.1",
+ "slop-koala-bear 6.3.1",
  "slop-maybe-rayon",
  "slop-poseidon2 6.3.1",
  "slop-symmetric 6.3.1",

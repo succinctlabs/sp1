@@ -105,3 +105,42 @@ pub fn verify<C: CircuitConfig, HV: FieldHasherVariable<C>>(
 
     HV::assert_digest_eq(builder, value, merkle_root);
 }
+
+/// Verifies 8 Merkle paths of equal length against the same root, walking the paths in
+/// lockstep so the compressions at each level form an independent 8-lane batch. Lane-wise
+/// identical to [`verify`].
+pub fn verify_batch8<C: CircuitConfig, HV: FieldHasherVariable<C>>(
+    builder: &mut Builder<C>,
+    paths: [Vec<HV::DigestVariable>; 8],
+    indices: [Vec<C::Bit>; 8],
+    values: [HV::DigestVariable; 8],
+    merkle_root: HV::DigestVariable,
+) {
+    // The scalar `verify` zips the path with the index bits, so each lane walks
+    // `min(path.len(), index.len())` levels; lockstep requires that count to be uniform.
+    let num_levels = paths[0].len().min(indices[0].len());
+    assert!(
+        paths
+            .iter()
+            .zip(indices.iter())
+            .all(|(path, index)| path.len().min(index.len()) == num_levels),
+        "batched Merkle verification requires equal path lengths"
+    );
+
+    let mut values = values;
+    for level in 0..num_levels {
+        let pairs: [[HV::DigestVariable; 2]; 8] = core::array::from_fn(|lane| {
+            // If the index is odd, swap the order of [value, sibling].
+            HV::select_chain_digest(
+                builder,
+                indices[lane][level],
+                [values[lane], paths[lane][level]],
+            )
+        });
+        values = HV::compress_batch8(builder, pairs);
+    }
+
+    for value in values {
+        HV::assert_digest_eq(builder, value, merkle_root);
+    }
+}

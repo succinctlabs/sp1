@@ -30,6 +30,15 @@ pub trait Poseidon2SP1FieldHasherVariable<C: CircuitConfig> {
         state: [Felt<SP1Field>; PERMUTATION_WIDTH],
     ) -> [Felt<SP1Field>; PERMUTATION_WIDTH];
 
+    /// Permutes 8 independent states, which must not depend on each other's outputs.
+    /// The default lowers to 8 scalar permutations.
+    fn poseidon2_permute_batch8(
+        builder: &mut Builder<C>,
+        states: [[Felt<SP1Field>; PERMUTATION_WIDTH]; 8],
+    ) -> [[Felt<SP1Field>; PERMUTATION_WIDTH]; 8] {
+        states.map(|state| Self::poseidon2_permute(builder, state))
+    }
+
     /// Applies the Poseidon2 hash function to the given array.
     ///
     /// Reference: [p3_symmetric::PaddingFreeSponge]
@@ -46,6 +55,31 @@ pub trait Poseidon2SP1FieldHasherVariable<C: CircuitConfig> {
         let digest: [Felt<SP1Field>; DIGEST_SIZE] = state[..DIGEST_SIZE].try_into().unwrap();
         digest
     }
+
+    /// Hashes 8 equal-length inputs in lockstep, so the permutations at each absorb step
+    /// form an independent 8-lane batch. Lane-wise identical to [`Self::poseidon2_hash`].
+    fn poseidon2_hash_batch8(
+        builder: &mut Builder<C>,
+        inputs: &[Vec<Felt<SP1Field>>; 8],
+    ) -> [[Felt<SP1Field>; DIGEST_SIZE]; 8] {
+        let len = inputs[0].len();
+        assert!(
+            inputs.iter().all(|input| input.len() == len),
+            "batched hash requires equal input lengths"
+        );
+        let mut states: [[Felt<SP1Field>; PERMUTATION_WIDTH]; 8] =
+            core::array::from_fn(|_| core::array::from_fn(|_| builder.eval(SP1Field::zero())));
+        let mut offset = 0;
+        while offset < len {
+            let chunk = (len - offset).min(HASH_RATE);
+            for (state, input) in states.iter_mut().zip(inputs.iter()) {
+                state[..chunk].copy_from_slice(&input[offset..offset + chunk]);
+            }
+            states = Self::poseidon2_permute_batch8(builder, states);
+            offset += chunk;
+        }
+        states.map(|state| state[..DIGEST_SIZE].try_into().unwrap())
+    }
 }
 
 pub trait FieldHasherVariable<C: CircuitConfig>: FieldHasher {
@@ -55,6 +89,24 @@ pub trait FieldHasherVariable<C: CircuitConfig>: FieldHasher {
 
     fn compress(builder: &mut Builder<C>, input: [Self::DigestVariable; 2])
         -> Self::DigestVariable;
+
+    /// Hashes 8 equal-length inputs, lane-wise identical to [`Self::hash`]. The default
+    /// hashes each lane separately; hashers backed by batchable permutations override this.
+    fn hash_batch8(
+        builder: &mut Builder<C>,
+        inputs: &[Vec<Felt<SP1Field>>; 8],
+    ) -> [Self::DigestVariable; 8] {
+        core::array::from_fn(|lane| Self::hash(builder, &inputs[lane]))
+    }
+
+    /// Compresses 8 digest pairs, lane-wise identical to [`Self::compress`]. The default
+    /// compresses each lane separately.
+    fn compress_batch8(
+        builder: &mut Builder<C>,
+        inputs: [[Self::DigestVariable; 2]; 8],
+    ) -> [Self::DigestVariable; 8] {
+        inputs.map(|pair| Self::compress(builder, pair))
+    }
 
     fn assert_digest_eq(builder: &mut Builder<C>, a: Self::DigestVariable, b: Self::DigestVariable);
 
@@ -96,6 +148,13 @@ impl<C: CircuitConfig> Poseidon2SP1FieldHasherVariable<C> for SP1InnerPcs {
     ) -> [Felt<SP1Field>; PERMUTATION_WIDTH] {
         C::poseidon2_permute_v2(builder, input)
     }
+
+    fn poseidon2_permute_batch8(
+        builder: &mut Builder<C>,
+        states: [[Felt<SP1Field>; PERMUTATION_WIDTH]; 8],
+    ) -> [[Felt<SP1Field>; PERMUTATION_WIDTH]; 8] {
+        C::poseidon2_permute_v2_batch8(builder, states)
+    }
 }
 
 impl<C: CircuitConfig> Poseidon2SP1FieldHasherVariable<C> for SP1GlobalContext {
@@ -104,6 +163,13 @@ impl<C: CircuitConfig> Poseidon2SP1FieldHasherVariable<C> for SP1GlobalContext {
         input: [Felt<SP1Field>; PERMUTATION_WIDTH],
     ) -> [Felt<SP1Field>; PERMUTATION_WIDTH] {
         C::poseidon2_permute_v2(builder, input)
+    }
+
+    fn poseidon2_permute_batch8(
+        builder: &mut Builder<C>,
+        states: [[Felt<SP1Field>; PERMUTATION_WIDTH]; 8],
+    ) -> [[Felt<SP1Field>; PERMUTATION_WIDTH]; 8] {
+        C::poseidon2_permute_v2_batch8(builder, states)
     }
 }
 
@@ -119,6 +185,25 @@ impl<C: CircuitConfig<Bit = Felt<SP1Field>>> FieldHasherVariable<C> for SP1Globa
         input: [Self::DigestVariable; 2],
     ) -> Self::DigestVariable {
         C::poseidon2_compress_v2(builder, input.into_iter().flatten())
+    }
+
+    fn hash_batch8(
+        builder: &mut Builder<C>,
+        inputs: &[Vec<Felt<SP1Field>>; 8],
+    ) -> [Self::DigestVariable; 8] {
+        <Self as Poseidon2SP1FieldHasherVariable<C>>::poseidon2_hash_batch8(builder, inputs)
+    }
+
+    fn compress_batch8(
+        builder: &mut Builder<C>,
+        inputs: [[Self::DigestVariable; 2]; 8],
+    ) -> [Self::DigestVariable; 8] {
+        let states: [[Felt<SP1Field>; PERMUTATION_WIDTH]; 8] = inputs.map(|[left, right]| {
+            core::array::from_fn(|i| if i < DIGEST_SIZE { left[i] } else { right[i - DIGEST_SIZE] })
+        });
+        let post =
+            <Self as Poseidon2SP1FieldHasherVariable<C>>::poseidon2_permute_batch8(builder, states);
+        post.map(|state| state[..DIGEST_SIZE].try_into().unwrap())
     }
 
     fn assert_digest_eq(

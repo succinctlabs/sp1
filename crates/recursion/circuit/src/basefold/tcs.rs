@@ -1,4 +1,8 @@
-use crate::{basefold::merkle_tree::verify, hash::FieldHasherVariable, CircuitConfig};
+use crate::{
+    basefold::merkle_tree::{verify, verify_batch8},
+    hash::FieldHasherVariable,
+    CircuitConfig,
+};
 use itertools::Itertools;
 use slop_algebra::AbstractField;
 use slop_tensor::Tensor;
@@ -55,7 +59,27 @@ where
             .chunks(chunk_size)
             .enumerate()
             .ir_par_map_collect::<Vec<_>, _, _>(builder, |builder, (i, chunk)| {
-                for (j, (index, path)) in chunk.iter().enumerate() {
+                // Verify the chunk's queries in groups of 8, hashing the opened rows and
+                // walking the Merkle paths in lockstep so the Poseidon2 permutations form
+                // independent 8-lane batches. The remainder uses the scalar path.
+                let mut group_start = 0;
+                while chunk.len() - group_start >= 8 {
+                    let values: [Vec<Felt<SP1Field>>; 8] = core::array::from_fn(|lane| {
+                        opening
+                            .values
+                            .get(i * chunk_size + group_start + lane)
+                            .unwrap()
+                            .as_slice()
+                            .to_vec()
+                    });
+                    let digests = M::hash_batch8(builder, &values);
+                    let paths = core::array::from_fn(|lane| chunk[group_start + lane].1.clone());
+                    let index_bits =
+                        core::array::from_fn(|lane| chunk[group_start + lane].0.clone());
+                    verify_batch8::<C, M>(builder, paths, index_bits, digests, opening.merkle_root);
+                    group_start += 8;
+                }
+                for (j, (index, path)) in chunk.iter().enumerate().skip(group_start) {
                     let claimed_values_slices =
                         opening.values.get(i * chunk_size + j).unwrap().as_slice().to_vec();
 

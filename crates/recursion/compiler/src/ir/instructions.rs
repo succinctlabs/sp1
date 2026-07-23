@@ -197,6 +197,10 @@ pub enum DslIr<C: Config> {
     CircuitPoseidon2PermuteKoalaBear(Box<[Felt<SP1Field>; 16]>),
     /// Permutates an array of SP1Field elements in the circuit using the skinny precompile.
     CircuitV2Poseidon2PermuteKoalaBear(Box<([Felt<SP1Field>; 16], [Felt<SP1Field>; 16])>),
+    /// Permutates 8 independent arrays of SP1Field elements in the circuit, as
+    /// `(output, input)` pairs. The inputs must not depend on any of the outputs. Lowered to
+    /// 8 adjacent `Poseidon2` instructions, which the executor may run as one SIMD batch.
+    CircuitV2BatchPoseidon2PermuteKoalaBear(Box<[([Felt<SP1Field>; 16], [Felt<SP1Field>; 16]); 8]>),
     /// Commits the public values.
     CircuitV2CommitPublicValues(Box<RecursionPublicValues<Felt<SP1Field>>>),
 

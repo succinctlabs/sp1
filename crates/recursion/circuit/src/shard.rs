@@ -774,7 +774,25 @@ mod tests {
             if i == 0 {
                 let mut stats = executor.record.stats().into_iter().collect::<Vec<_>>();
                 stats.sort();
-                record_summary = format!("{stats:?}");
+                // Hash the event vectors only: `public_values` is uninitialized when the
+                // program contains no `CommitPublicValues` instruction.
+                let record = &executor.record;
+                let mut hasher = DefaultHasher::new();
+                hasher.write(
+                    &bincode::serialize(&(
+                        &record.base_alu_events,
+                        &record.ext_alu_events,
+                        &record.mem_var_events,
+                        &record.ext_felt_conversion_events,
+                        &record.poseidon2_events,
+                        &record.poseidon2_linear_layer_events,
+                        &record.poseidon2_sbox_events,
+                        &record.select_events,
+                        &record.prefix_sum_checks_events,
+                    ))
+                    .unwrap(),
+                );
+                record_summary = format!("events hash={:016x} {stats:?}", hasher.finish());
             }
         }
         println!("record: {record_summary}");
