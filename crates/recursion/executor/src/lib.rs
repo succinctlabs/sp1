@@ -615,15 +615,9 @@ where
             }
             Instruction::HintBits(HintBitsInstr { ref output_addrs_mults, input_addr }) => {
                 let num = memory.mr_unchecked(input_addr).val[0].as_canonical_u32();
-                // Decompose the num into LE bits.
-                let bits = (0..output_addrs_mults.len())
-                    .map(|i| Block::from(F::from_canonical_u32((num >> i) & 1)))
-                    .collect::<Vec<_>>();
-
-                // Write the bits to the array at dst.
-                for (i, (bit, &(addr, _mult))) in
-                    bits.into_iter().zip(output_addrs_mults).enumerate()
-                {
+                // Decompose the num into LE bits and write them to the array at dst.
+                for (i, &(addr, _mult)) in output_addrs_mults.iter().enumerate() {
+                    let bit = Block::from(F::from_canonical_u32((num >> i) & 1));
                     memory.mw_unchecked(addr, bit);
 
                     // Write the event to the record.
