@@ -93,6 +93,9 @@ mprotect = [
   "sp1-hypercube/mprotect",
 ]
 apc = []
+# Opt-in: route APC optimization through the verified Lean apc-optimizer (powdr-side), still gated
+# at runtime by `POWDR_USE_LEAN_OPTIMIZER`. Mirrors powdr's `openvm` crate feature.
+lean-optimizer = ["powdr-autoprecompiles/lean-optimizer"]
 
 [lib]
 path = "src/lib.rs"

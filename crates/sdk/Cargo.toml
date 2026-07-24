@@ -126,6 +126,7 @@ mprotect = [
   "sp1-recursion-executor/mprotect",
 ]
 apc = ["experimental", "sp1-prover/apc"]
+lean-optimizer = ["sp1-prover/lean-optimizer"]
 profiling = [
   "sp1-core-executor/profiling",
   "sp1-core-executor-runner/profiling",

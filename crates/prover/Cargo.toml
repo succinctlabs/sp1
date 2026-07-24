@@ -119,6 +119,7 @@ mprotect = [
   "sp1-recursion-executor/mprotect",
 ]
 apc = ["experimental", "sp1-core-machine/apc"]
+lean-optimizer = ["sp1-core-machine/lean-optimizer"]
 
 [lints]
 workspace = true
