@@ -5488,7 +5488,7 @@ dependencies = [
 [[package]]
 name = "powdr-autoprecompiles"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=247d43704b67c921c452523110a5878d87dfe110#247d43704b67c921c452523110a5878d87dfe110"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=426dae41649e493572e837664843e109a7850443#426dae41649e493572e837664843e109a7850443"
 dependencies = [
  "deepsize2",
  "derivative",
@@ -5513,7 +5513,7 @@ dependencies = [
 [[package]]
 name = "powdr-constraint-solver"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=247d43704b67c921c452523110a5878d87dfe110#247d43704b67c921c452523110a5878d87dfe110"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=426dae41649e493572e837664843e109a7850443#426dae41649e493572e837664843e109a7850443"
 dependencies = [
  "auto_enums",
  "bitvec",
@@ -5530,7 +5530,7 @@ dependencies = [
 [[package]]
 name = "powdr-expression"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=247d43704b67c921c452523110a5878d87dfe110#247d43704b67c921c452523110a5878d87dfe110"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=426dae41649e493572e837664843e109a7850443#426dae41649e493572e837664843e109a7850443"
 dependencies = [
  "derive_more 2.1.1",
  "num-traits",
@@ -5542,12 +5542,12 @@ dependencies = [
 [[package]]
 name = "powdr-isa-utils"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=247d43704b67c921c452523110a5878d87dfe110#247d43704b67c921c452523110a5878d87dfe110"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=426dae41649e493572e837664843e109a7850443#426dae41649e493572e837664843e109a7850443"
 
 [[package]]
 name = "powdr-number"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=247d43704b67c921c452523110a5878d87dfe110#247d43704b67c921c452523110a5878d87dfe110"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=426dae41649e493572e837664843e109a7850443#426dae41649e493572e837664843e109a7850443"
 dependencies = [
  "ark-bn254 0.4.0",
  "ark-ff 0.4.2",
@@ -5570,7 +5570,7 @@ dependencies = [
 [[package]]
 name = "powdr-riscv-elf"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=247d43704b67c921c452523110a5878d87dfe110#247d43704b67c921c452523110a5878d87dfe110"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=426dae41649e493572e837664843e109a7850443#426dae41649e493572e837664843e109a7850443"
 dependencies = [
  "gimli 0.31.1",
  "goblin",
@@ -5587,7 +5587,7 @@ dependencies = [
 [[package]]
 name = "powdr-riscv-types"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=247d43704b67c921c452523110a5878d87dfe110#247d43704b67c921c452523110a5878d87dfe110"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=426dae41649e493572e837664843e109a7850443#426dae41649e493572e837664843e109a7850443"
 dependencies = [
  "powdr-isa-utils",
 ]
@@ -5595,7 +5595,7 @@ dependencies = [
 [[package]]
 name = "powdr-syscalls"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=247d43704b67c921c452523110a5878d87dfe110#247d43704b67c921c452523110a5878d87dfe110"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=426dae41649e493572e837664843e109a7850443#426dae41649e493572e837664843e109a7850443"
 
 [[package]]
 name = "powerfmt"
