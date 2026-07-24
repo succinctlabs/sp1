@@ -151,7 +151,7 @@ impl CudaTracegenAir<F> for GlobalChip {
                 };
             } else {
                 let block_dim = SCAN_KERNEL_LARGE_SECTION_SIZE / 2;
-                let num_blocks = n.div_ceil(block_dim);
+                let num_blocks = n.div_ceil(SCAN_KERNEL_LARGE_SECTION_SIZE);
                 // Create `scan_values` as an array consisting of a single zero cell followed by
                 // `num_blocks` uninitialized cells.
                 let mut scan_values =
