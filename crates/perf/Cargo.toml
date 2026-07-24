@@ -54,6 +54,7 @@ path = "src/bin/prover.rs"
 [features]
 bigint-rug = ["sp1-core-executor/bigint-rug"]
 native-gnark = ["sp1-sdk/native-gnark"]
+lean-optimizer = ["sp1-sdk/lean-optimizer"]
 network = ["sp1-sdk/network"]
 mprotect = [
   "sp1-core-executor/mprotect",

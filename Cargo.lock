@@ -5498,6 +5498,7 @@ dependencies = [
  "log",
  "metrics",
  "num-traits",
+ "powdr-autoprecompiles-lean-ffi",
  "powdr-constraint-solver",
  "powdr-expression",
  "powdr-number",
@@ -5510,6 +5511,12 @@ dependencies = [
  "tracing",
  "tracing-subscriber 0.3.23",
 ]
+
+[[package]]
+name = "powdr-autoprecompiles-lean-ffi"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "383e77d48d22d9c21b72a3c2161a634c6bb5689ffcf7b28f2d708cf809c7021b"
 
 [[package]]
 name = "powdr-constraint-solver"
