@@ -3025,7 +3025,7 @@ checksum = "0ce92ff622d6dadf7349484f42c93271a0d49b7cc4d466a936405bacbe10aa78"
 dependencies = [
  "cfg-if",
  "rustix",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4464,7 +4464,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -5488,7 +5488,7 @@ dependencies = [
 [[package]]
 name = "powdr-autoprecompiles"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=c608ac767040175ae839adfaeedfa6cc85e503af#c608ac767040175ae839adfaeedfa6cc85e503af"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=01c33a18a4bbd69d9cefa6a08d1dc309d182c29d#01c33a18a4bbd69d9cefa6a08d1dc309d182c29d"
 dependencies = [
  "deepsize2",
  "derivative",
@@ -5514,12 +5514,12 @@ dependencies = [
 [[package]]
 name = "powdr-autoprecompiles-lean-ffi"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=c608ac767040175ae839adfaeedfa6cc85e503af#c608ac767040175ae839adfaeedfa6cc85e503af"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=01c33a18a4bbd69d9cefa6a08d1dc309d182c29d#01c33a18a4bbd69d9cefa6a08d1dc309d182c29d"
 
 [[package]]
 name = "powdr-constraint-solver"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=c608ac767040175ae839adfaeedfa6cc85e503af#c608ac767040175ae839adfaeedfa6cc85e503af"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=01c33a18a4bbd69d9cefa6a08d1dc309d182c29d#01c33a18a4bbd69d9cefa6a08d1dc309d182c29d"
 dependencies = [
  "auto_enums",
  "bitvec",
@@ -5536,7 +5536,7 @@ dependencies = [
 [[package]]
 name = "powdr-expression"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=c608ac767040175ae839adfaeedfa6cc85e503af#c608ac767040175ae839adfaeedfa6cc85e503af"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=01c33a18a4bbd69d9cefa6a08d1dc309d182c29d#01c33a18a4bbd69d9cefa6a08d1dc309d182c29d"
 dependencies = [
  "derive_more 2.1.1",
  "num-traits",
@@ -5548,12 +5548,12 @@ dependencies = [
 [[package]]
 name = "powdr-isa-utils"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=c608ac767040175ae839adfaeedfa6cc85e503af#c608ac767040175ae839adfaeedfa6cc85e503af"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=01c33a18a4bbd69d9cefa6a08d1dc309d182c29d#01c33a18a4bbd69d9cefa6a08d1dc309d182c29d"
 
 [[package]]
 name = "powdr-number"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=c608ac767040175ae839adfaeedfa6cc85e503af#c608ac767040175ae839adfaeedfa6cc85e503af"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=01c33a18a4bbd69d9cefa6a08d1dc309d182c29d#01c33a18a4bbd69d9cefa6a08d1dc309d182c29d"
 dependencies = [
  "ark-bn254 0.4.0",
  "ark-ff 0.4.2",
@@ -5576,7 +5576,7 @@ dependencies = [
 [[package]]
 name = "powdr-riscv-elf"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=c608ac767040175ae839adfaeedfa6cc85e503af#c608ac767040175ae839adfaeedfa6cc85e503af"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=01c33a18a4bbd69d9cefa6a08d1dc309d182c29d#01c33a18a4bbd69d9cefa6a08d1dc309d182c29d"
 dependencies = [
  "gimli 0.31.1",
  "goblin",
@@ -5593,7 +5593,7 @@ dependencies = [
 [[package]]
 name = "powdr-riscv-types"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=c608ac767040175ae839adfaeedfa6cc85e503af#c608ac767040175ae839adfaeedfa6cc85e503af"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=01c33a18a4bbd69d9cefa6a08d1dc309d182c29d#01c33a18a4bbd69d9cefa6a08d1dc309d182c29d"
 dependencies = [
  "powdr-isa-utils",
 ]
@@ -5601,7 +5601,7 @@ dependencies = [
 [[package]]
 name = "powdr-syscalls"
 version = "0.1.4"
-source = "git+https://github.com/powdr-labs/powdr.git?rev=c608ac767040175ae839adfaeedfa6cc85e503af#c608ac767040175ae839adfaeedfa6cc85e503af"
+source = "git+https://github.com/powdr-labs/powdr.git?rev=01c33a18a4bbd69d9cefa6a08d1dc309d182c29d#01c33a18a4bbd69d9cefa6a08d1dc309d182c29d"
 
 [[package]]
 name = "powerfmt"
