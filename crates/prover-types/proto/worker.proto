@@ -122,6 +122,8 @@ message OpenRequest {
     string version = 4;
     string git_sha = 5;
     string image_tag = 6;
+    string gpu_name = 7;
+    uint64 gpu_memory_total_bytes = 8;
 }
 
 message ServerMessage {
@@ -299,6 +301,35 @@ message ClusterComponentInfo {
     string version = 2;
     string git_sha = 3;
     string image_tag = 4;
+}
+
+// Point-in-time GPU capacity and utilization for a cluster, built by the coordinator from
+// its in-memory worker registry. Cluster-internal; the fulfiller maps it onto the SPN
+// ClusterCapacitySnapshot wire type. All GPU time is in GPU-milliseconds.
+message ClusterCapacitySnapshot {
+    // Unix seconds on the coordinator's clock when this snapshot was built.
+    uint64 observed_at = 1;
+    // Unix seconds when this coordinator process started, i.e. when the monotonic counters
+    // below were last reset.
+    uint64 counters_since = 2;
+    // GPU worker nodes connected at `observed_at`; one GPU per node, so a device count.
+    uint32 gpu_nodes = 3;
+    // Monotonic integral of `gpu_nodes` over wall-clock time, in GPU-milliseconds.
+    uint64 gpu_available_ms_total = 4;
+    // Monotonic sum of per-task GPU permit-hold time, in GPU-milliseconds.
+    uint64 gpu_busy_ms_total = 5;
+    // One entry per distinct GPU model; `node_count` values sum to `gpu_nodes`.
+    repeated GpuClassCount gpus = 6;
+}
+
+// The number of connected GPU nodes sharing one GPU model.
+message GpuClassCount {
+    // Device name as reported by CUDA, e.g. "NVIDIA L4". Empty when unknown.
+    string name = 1;
+    // Total VRAM of that device in bytes. Zero when unknown.
+    uint64 memory_total_bytes = 2;
+    // Connected GPU nodes bound to a device with this (name, memory_total_bytes).
+    uint32 node_count = 3;
 }
 
 
