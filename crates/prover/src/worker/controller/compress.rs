@@ -781,8 +781,11 @@ mod test_utils {
 
     /// A re-delivered CoreExecute runs the full execution again and streams a second,
     /// identical set of shard proofs into the controller. The compress tree must ignore
-    /// the duplicates (except precompile shards, whose shared degenerate range merges
-    /// safely) and still reduce to completion instead of wedging.
+    /// the duplicates and still reduce to completion instead of wedging.
+    ///
+    /// Scope: the mocks report completion without proving anything, so this covers the
+    /// tree's shape, not proof validity. Duplicate precompile shards merge without
+    /// wedging it, but verification downstream would still reject them.
     #[tokio::test]
     async fn test_compress_tree_ignores_redelivered_core_proofs() {
         setup_logger();

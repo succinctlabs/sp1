@@ -150,35 +150,10 @@ where
         task_id: TaskId,
         request: CoreExecuteTaskRequest,
     ) -> Result<ExecutionOutput, TaskError> {
-        // The cluster delivers tasks at-least-once. `execution_output` is uploaded as
-        // the final step of a successful run, strictly after every shard proof has
-        // been spawned and streamed to the consumer — so if it exists, a prior
-        // delivery already completed this task, and re-executing would stream a
-        // duplicate set of shard proofs into the controller's compress tree.
-        let prior_output_exists = match self
-            .artifact_client
-            .exists(&request.execution_output, ArtifactType::UnspecifiedArtifactType)
-            .await
+        if let Some(output) =
+            recorded_execution_output(&self.artifact_client, &task_id, &request.execution_output)
+                .await?
         {
-            Ok(exists) => exists,
-            Err(e) => {
-                tracing::warn!(
-                    "failed to check for a prior execution output of task {}: {:?}; \
-                     falling back to re-execution",
-                    task_id,
-                    e
-                );
-                false
-            }
-        };
-        if prior_output_exists {
-            tracing::info!(
-                "CoreExecute task {} already completed by a prior delivery; \
-                 returning recorded output without re-executing",
-                task_id
-            );
-            let output =
-                self.artifact_client.download::<ExecutionOutput>(&request.execution_output).await?;
             return Ok(output);
         }
 
@@ -570,6 +545,39 @@ where
     }
 }
 
+/// The output of a prior delivery of this task, if one already finished it.
+///
+/// The cluster delivers tasks at-least-once, and this artifact is uploaded last,
+/// after every shard proof has been streamed — so its presence means re-executing
+/// would stream a second set. A failed lookup re-executes rather than failing the
+/// task: duplicates are recoverable, a lost proof is not.
+async fn recorded_execution_output<A: ArtifactClient>(
+    artifact_client: &A,
+    task_id: &TaskId,
+    execution_output: &Artifact,
+) -> Result<Option<ExecutionOutput>, TaskError> {
+    match artifact_client.exists(execution_output, ArtifactType::UnspecifiedArtifactType).await {
+        Ok(true) => {
+            tracing::info!(
+                "CoreExecute task {} already completed by a prior delivery; \
+                 returning recorded output without re-executing",
+                task_id
+            );
+            Ok(Some(artifact_client.download::<ExecutionOutput>(execution_output).await?))
+        }
+        Ok(false) => Ok(None),
+        Err(e) => {
+            tracing::warn!(
+                "failed to check for a prior execution output of task {}: {:?}; \
+                 falling back to re-execution",
+                task_id,
+                e
+            );
+            Ok(None)
+        }
+    }
+}
+
 /// Drops shard proofs that have already been streamed for this proof.
 ///
 /// A re-delivered `CoreExecute` runs alongside the original and streams a second
@@ -719,6 +727,39 @@ impl ControllerInputMetadata {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sp1_prover_types::InMemoryArtifactClient;
+
+    #[tokio::test]
+    async fn a_first_delivery_executes() {
+        let artifact_client = InMemoryArtifactClient::new();
+        let execution_output = artifact_client.create_artifact().unwrap();
+
+        let recorded =
+            recorded_execution_output(&artifact_client, &TaskId::new("t1"), &execution_output)
+                .await
+                .unwrap();
+
+        assert!(recorded.is_none());
+    }
+
+    #[tokio::test]
+    async fn a_redelivery_returns_the_recorded_output() {
+        let artifact_client = InMemoryArtifactClient::new();
+        let execution_output = artifact_client.create_artifact().unwrap();
+        // Uploaded last by the run that finished, after every shard proof was streamed.
+        artifact_client
+            .upload(&execution_output, ExecutionOutput { public_value_stream: vec![7], cycles: 42 })
+            .await
+            .unwrap();
+
+        let recorded =
+            recorded_execution_output(&artifact_client, &TaskId::new("t1"), &execution_output)
+                .await
+                .unwrap()
+                .expect("a finished delivery's output was not reused");
+
+        assert_eq!(recorded.cycles, 42);
+    }
 
     fn proof_data(task_id: &str, range: ShardRange) -> ProofData {
         ProofData {
@@ -762,8 +803,9 @@ mod tests {
     fn precompile_shards_are_exempt() {
         let mut filter = DuplicateShardFilter::default();
 
-        // They all carry the same degenerate range, so dropping by range would
-        // discard every precompile shard after the first.
+        // They share one degenerate range, so dropping by range would discard every
+        // precompile shard after the first. The cost: a redelivery's precompile
+        // duplicates get through, until they carry an identity of their own.
         assert!(!filter.seen(&proof_data("t1", ShardRange::precompile())));
         assert!(!filter.seen(&proof_data("t2", ShardRange::precompile())));
     }
