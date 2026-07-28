@@ -140,11 +140,46 @@ where
     /// Execute Risc-V program, and trigger shard proofs for each trace chunk.
     /// Run the core executor and deferred proof emitter for a `CoreExecute` task. Proof shards
     /// are streamed back to the consumer via the task's message channel.
+    ///
+    /// Idempotent under redelivery: if the execution output artifact already exists, a prior
+    /// delivery completed this task and the recorded output is returned without re-executing.
     pub async fn execute(
         &self,
         task_id: TaskId,
         request: CoreExecuteTaskRequest,
     ) -> Result<ExecutionOutput, TaskError> {
+        // The cluster delivers tasks at-least-once. `execution_output` is uploaded as
+        // the final step of a successful run, strictly after every shard proof has
+        // been spawned and streamed to the consumer — so if it exists, a prior
+        // delivery already completed this task, and re-executing would stream a
+        // duplicate set of shard proofs into the controller's compress tree.
+        let prior_output_exists = match self
+            .artifact_client
+            .exists(&request.execution_output, ArtifactType::UnspecifiedArtifactType)
+            .await
+        {
+            Ok(exists) => exists,
+            Err(e) => {
+                tracing::warn!(
+                    "failed to check for a prior execution output of task {}: {:?}; \
+                     falling back to re-execution",
+                    task_id,
+                    e
+                );
+                false
+            }
+        };
+        if prior_output_exists {
+            tracing::info!(
+                "CoreExecute task {} already completed by a prior delivery; \
+                 returning recorded output without re-executing",
+                task_id
+            );
+            let output =
+                self.artifact_client.download::<ExecutionOutput>(&request.execution_output).await?;
+            return Ok(output);
+        }
+
         let stdin_artifact_type =
             if request.stdin_private { ArtifactType::PrivateStdin } else { ArtifactType::Stdin };
         let stdin = self
