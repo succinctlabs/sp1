@@ -598,12 +598,15 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
         // Same lambda for the RLC of the zerocheck polynomials.
         let lambda = challenger.sample_ext_element::<GC::EF>();
 
-        // Compute the sumcheck proof for the zerocheck polynomials.
+        // Compute the sumcheck proof for the zerocheck polynomials with a two-round lookahead:
+        // the first two round messages are computed together from a single pass over the
+        // base-field traces (unless the traces are too short for two rounds).
+        let lookahead = self.inner.pcs_prover.max_log_row_count.clamp(1, 2);
         let (partial_sumcheck_proof, component_poly_evals) = reduce_sumcheck_to_evaluation(
             zerocheck_polys,
             challenger,
             chip_sumcheck_claims,
-            1,
+            lookahead,
             lambda,
         );
 

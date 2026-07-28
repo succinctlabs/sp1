@@ -8,6 +8,11 @@ use crate::{ComponentPoly, PartialSumcheckProof, SumcheckPoly, SumcheckPolyFirst
 /// Proves a sumcheck for any sumcheckable polynomial, by reducing it to a claim about the
 /// evaluation of the polynomial at a point.
 ///
+/// `t` is the lookahead depth of the first round (see [`SumcheckPolyFirstRound`]): the messages
+/// of the first `t` rounds are computed together by the first-round polynomials, typically from
+/// a single pass over their data. The transcript is independent of `t` — one message is sent and
+/// one challenge is sampled per variable.
+///
 ///  # Panics
 ///  Will panic if the polynomial has zero variables.
 pub fn reduce_sumcheck_to_evaluation<
@@ -29,8 +34,8 @@ pub fn reduce_sumcheck_to_evaluation<
     // Check that all the polynomials have the same number of variables.
     assert!(polys.iter().all(|poly| poly.num_variables() == num_variables));
 
-    // The first round will process the first t variables, so we need to ensure that there are at
-    // least t variables.
+    // The first-round polynomials compute the first t round messages together, so we need to
+    // ensure that there are at least t variables.
     assert!(num_variables >= t as u32);
 
     // The point at which the reduced sumcheck proof should be evaluated.
@@ -57,7 +62,7 @@ pub fn reduce_sumcheck_to_evaluation<
     let mut polys_cursor: Vec<_> =
         polys.into_iter().map(|poly| poly.fix_t_variables(alpha, t)).collect();
     // The multi-variate polynomial used at the start of each sumcheck round.
-    for _ in t..num_variables as usize {
+    for _ in 1..num_variables as usize {
         // Get the round claims from the last round's univariate poly messages.
         let round_claims = uni_polys.iter().map(|poly| poly.eval_at_point(*point.first().unwrap()));
 
