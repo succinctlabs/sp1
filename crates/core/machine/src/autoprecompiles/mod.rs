@@ -11,12 +11,12 @@ pub mod memory_bus_interaction;
 pub mod program;
 
 use powdr_autoprecompiles::{
-    adapter::{AdapterApcWithStats, PgoAdapter},
+    adapter::{detect_blocks, select_apcs, AdapterApcWithStats, PgoAdapter},
     blocks::collect_basic_blocks,
     empirical_constraints::EmpiricalConstraints,
     execution_profile::ExecutionProfile,
-    pgo::{CellPgo, InstructionPgo, NonePgo},
-    DegreeBound, PgoConfig, PowdrConfig,
+    pgo::{CellPgo, InstructionPgo, NonePgo, PgoType},
+    DegreeBound, GenerateConfig, PgoData, SelectConfig,
 };
 use serde::{Deserialize, Serialize};
 use sp1_build::BuildArgs;
@@ -49,10 +49,22 @@ pub type VmConfig<'a> = powdr_autoprecompiles::VmConfig<
 >;
 pub type Sp1Apc<F> = powdr_autoprecompiles::Apc<F, Sp1Instruction, u8, u64>;
 
-pub fn sp1_powdr_config(apc: u64, skip: u64) -> PowdrConfig {
-    let mut config = PowdrConfig::new(apc, skip, DEFAULT_DEGREE_BOUND);
-    config.apc_max_instructions = 1000;
-    config
+/// Build the `(generate, select)` config pair for an sp1 compilation.
+///
+/// The `apc_candidates` cap is resolved here via
+/// [`GenerateConfig::with_select_defaults`] (it depends on `pgo`), so the
+/// returned configs are complete — callers hand them straight to
+/// [`CompiledProgram::new`] with no further defaulting step to remember.
+pub fn sp1_configs(
+    autoprecompiles: u64,
+    skip: u64,
+    pgo: PgoType,
+) -> (GenerateConfig, SelectConfig) {
+    let select = SelectConfig::new(autoprecompiles, skip);
+    let generate = GenerateConfig::new(DEFAULT_DEGREE_BOUND)
+        .with_apc_max_instructions(1000)
+        .with_select_defaults(pgo, select);
+    (generate, select)
 }
 
 pub fn sp1_vm_config<'a>(handler: &'a Sp1InstructionHandler<SP1Field>) -> VmConfig<'a> {
@@ -82,11 +94,12 @@ pub fn build_elf_path(guest_path: &str, build_args: BuildArgs) -> String {
 
 pub fn compile_guest(
     guest_path: &str,
-    config: PowdrConfig,
-    pgo_config: PgoConfig,
+    generate: GenerateConfig,
+    select: SelectConfig,
+    pgo_data: PgoData,
 ) -> CompiledProgram {
     let elf = build_elf(guest_path);
-    CompiledProgram::new(&elf, config, pgo_config)
+    CompiledProgram::new(&elf, generate, select, pgo_data)
 }
 
 pub fn execution_profile_from_guest(guest_path: &str, stdin: SP1Stdin) -> ExecutionProfile {
@@ -111,7 +124,17 @@ pub struct CompiledProgram {
 }
 
 impl CompiledProgram {
-    pub fn new(elf: &[u8], config: PowdrConfig, pgo_config: PgoConfig) -> Self {
+    /// Build + rank candidates from the elf, then trim to `select`. `generate`
+    /// must already have its `apc_candidates` cap resolved — build the pair via
+    /// [`sp1_configs`], which applies [`GenerateConfig::with_select_defaults`].
+    /// The caller supplies the [`PgoData`] directly (an already-computed
+    /// [`ExecutionProfile`], or [`PgoData::None`]).
+    pub fn new(
+        elf: &[u8],
+        generate: GenerateConfig,
+        select: SelectConfig,
+        pgo_data: PgoData,
+    ) -> Self {
         let program = Sp1Program::from(Arc::new(Program::from(elf).unwrap()));
         let jumpdests = powdr_riscv_elf::rv64::compute_jumpdests_from_buffer(elf).jumpdests;
 
@@ -119,32 +142,32 @@ impl CompiledProgram {
         let vm_config = sp1_vm_config(&airs);
 
         // Currently we don't support the max_total_apc_columns option for cell PGO
-        assert!(!matches!(pgo_config, PgoConfig::Cell(_, Some(_))));
+        assert!(!matches!(pgo_data, PgoData::Cell(_, Some(_))));
 
-        // Collect basic blocks
         let blocks = collect_basic_blocks::<Sp1ApcAdapter>(&program, &jumpdests);
         tracing::info!("Got {} basic blocks from `collect_basic_blocks`", blocks.len());
 
-        // Create pgo adapter based on the config
-        let pgo_adapter: Box<dyn PgoAdapter<Adapter = Sp1ApcAdapter>> = match pgo_config {
-            PgoConfig::Cell(pgo_data, max_total_apc_columns) => {
+        let pgo_adapter: Box<dyn PgoAdapter<Adapter = Sp1ApcAdapter>> = match pgo_data {
+            PgoData::Cell(profile, max_total_apc_columns) => {
                 Box::new(CellPgo::<_, Sp1Candidate>::with_pgo_data_and_max_columns(
-                    pgo_data,
+                    profile,
                     max_total_apc_columns,
                 ))
             }
-            PgoConfig::Instruction(pgo_data) => Box::new(InstructionPgo::with_pgo_data(pgo_data)),
-            PgoConfig::None => Box::new(NonePgo::default()),
+            PgoData::Instruction(profile) => Box::new(InstructionPgo::with_pgo_data(profile)),
+            PgoData::None => Box::new(NonePgo::default()),
         };
 
-        // Generate APC
-        let apcs_and_stats = pgo_adapter.filter_blocks_and_create_apcs_with_pgo(
-            blocks,
-            &config,
+        // Build + rank, then trim to `select`.
+        let exec_blocks = detect_blocks(pgo_adapter.as_ref(), blocks, &generate);
+        let ranked = pgo_adapter.create_apcs_with_pgo(
+            exec_blocks,
+            &generate,
             vm_config,
             BTreeMap::new(),
             EmpiricalConstraints::default(),
         );
+        let apcs_and_stats = select_apcs::<Sp1ApcAdapter>(ranked, select);
 
         Self { apcs_and_stats }
     }

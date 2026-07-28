@@ -2,6 +2,8 @@
 //! (random / JSON / real) goes through [`with_trace_source`] with
 //! [`FullKind`]; see [`benches/README.md`] for details.
 
+#![allow(clippy::mutable_key_type)]
+
 use std::collections::BTreeMap;
 use std::sync::Arc;
 

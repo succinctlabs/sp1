@@ -23,6 +23,7 @@ where
 
 #[cfg(test)]
 pub mod tests {
+    #![allow(clippy::mutable_key_type)]
     #![allow(clippy::print_stdout)]
     use itertools::Itertools;
     use rand::Rng;

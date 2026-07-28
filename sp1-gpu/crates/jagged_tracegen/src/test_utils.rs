@@ -4,6 +4,8 @@
 //! generators (the [`random`] module), the source-aware Criterion bench dispatcher
 //! ([`bench_utils`]), and the async real-trace setup helper ([`tracegen_setup`]).
 
+#![allow(clippy::mutable_key_type)]
+
 /// Pure host-side random trace generators. Used by [`bench_utils`] to build the
 /// synthetic-source trace MLEs (random / JSON layout) before they're moved to the device.
 ///

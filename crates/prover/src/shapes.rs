@@ -676,6 +676,7 @@ pub fn max_count(a: RecursionAirEventCount, b: RecursionAirEventCount) -> Recurs
     }
 }
 
+#[allow(clippy::mutable_key_type)]
 pub fn create_test_shape(
     cluster: &BTreeSet<Chip<SP1Field, RiscvAir<SP1Field>>>,
 ) -> SP1NormalizeInputShape {

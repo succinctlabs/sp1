@@ -1,6 +1,6 @@
 use std::{
     collections::{BTreeMap, HashMap},
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 use itertools::Itertools;
@@ -14,8 +14,8 @@ use slop_air::{Air, AirBuilder, BaseAir, PairBuilder};
 use slop_algebra::PrimeField32;
 use slop_matrix::Matrix;
 use slop_maybe_rayon::prelude::{
-    IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
-    ParallelSlice, ParallelSliceMut,
+    IndexedParallelIterator, IntoParallelIterator, ParallelIterator, ParallelSlice,
+    ParallelSliceMut,
 };
 use sp1_core_executor::{
     events::ByteLookupEvent, opcode::ByteOpcode, ApcRange, ExecutionRecord, Program, RiscvAirId,
@@ -57,6 +57,20 @@ impl<F: PrimeField32> From<Arc<Sp1Apc<F>>> for CachedApc<F> {
     }
 }
 
+/// Cache of filled APC traces, keyed by `(proof_nonce, initial_timestamp)`.
+/// `generate_dependencies` fills the trace to evaluate the byte-bus interactions and stores it here
+/// so `generate_trace_into` can restore it instead of regenerating the identical trace. `Mutex`
+/// because the chip is shared via `Arc` across concurrent shard workers.
+#[derive(Default)]
+struct CachedTraces<F>(Mutex<HashMap<([u32; 4], u64), Vec<F>>>);
+
+// A derived `Debug` would dump the whole runtime trace cache, so only print the type name.
+impl<F> std::fmt::Debug for CachedTraces<F> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CachedTraces").finish_non_exhaustive()
+    }
+}
+
 #[derive(Debug)]
 pub struct ApcChip<F: PrimeField32> {
     /// The ID of the APC.
@@ -67,11 +81,19 @@ pub struct ApcChip<F: PrimeField32> {
     cached_apc: CachedApc<F>,
     /// A machine to generate traces for the APC. By construction, it will never have apcs itself.
     machine: Machine<F, RiscvAir<F>>,
+    /// Cache of filled APC traces (see [`CachedTraces`]).
+    cached_traces: CachedTraces<F>,
 }
 
 impl<F: PrimeField32> ApcChip<F> {
     pub fn new(apc: Arc<Sp1Apc<F>>, id: usize) -> Self {
-        Self { id, name: format!("APC_{id}"), cached_apc: apc.into(), machine: RiscvAir::machine() }
+        Self {
+            id,
+            name: format!("APC_{id}"),
+            cached_apc: apc.into(),
+            machine: RiscvAir::machine(),
+            cached_traces: CachedTraces::default(),
+        }
     }
 
     pub fn apc(&self) -> &Arc<Sp1Apc<F>> {
@@ -111,147 +133,31 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         _output: &mut Self::Record,
         buffer: &mut [std::mem::MaybeUninit<F>],
     ) {
-        // Get all events for the given APC ID
+        // Every APC chip runs `generate_dependencies` before `generate_trace_into` (the former runs
+        // for all chips during dependency generation), and it fills and caches this trace as a
+        // byproduct of byte-bus evaluation. So we only ever restore from that cache — there is no
+        // from-scratch path. A miss means the pipeline ran out of order.
         let events = input.get_apc_events(self.id).expect("APC events not found");
-
-        // Mapping from poly_id to contiguous index in apc
-        let apc_poly_id_to_index = self
-            .apc()
-            .machine
-            .main_columns()
-            .enumerate()
-            .map(|(index, c)| (c.id, index))
-            .collect::<BTreeMap<_, _>>();
-
-        // Get is_valid_index to manually fill with 1 for witness generation
-        let is_valid_column =
-            self.apc().machine.main_columns().find(|c| &*c.name == "is_valid").unwrap();
-        let is_valid_index = apc_poly_id_to_index[&is_valid_column.id];
-
-        // Generate traces for each included air in parallel
-        let chips_and_traces = self
-            .machine
-            .chips()
-            .into_par_iter()
-            .filter(|air| air.included(&events.record))
-            .map(|air| {
-                let trace = air.generate_trace(&events.record, &mut Default::default());
-                (air.air.id(), trace)
-            })
-            .collect::<BTreeMap<_, _>>();
-
-        // Get the AIR IDs for the original instructions
-        let original_instruction_air_ids = self
-            .apc()
-            .block
-            .instructions()
-            .map(|(_pc, instr)| {
-                try_instruction_type_to_air_id(InstructionType::from(instr.0))
-                    .expect("Invalid instruction as an original instruction in an APC: {instr.0:?}")
-            })
-            .collect::<Vec<_>>();
-
-        // Map from AIR ID to number of occurrences
-        let air_id_occurrences = original_instruction_air_ids.iter().counts();
-
-        // Vec of dummy trace row offset by original instruction index
-        let instruction_index_to_table_offset = original_instruction_air_ids
-            .iter()
-            .scan(HashMap::default(), |counts: &mut HashMap<RiscvAirId, usize>, air_id| {
-                let count = counts.entry(*air_id).or_default();
-                let current_count = *count;
-                *count += 1;
-                Some(current_count)
-            })
-            .collect::<Vec<_>>();
-
-        // Create slices of dummy values
-        let dummy_values_by_event = (0..events.count)
-            .into_par_iter()
-            .map(|event_index| {
-                original_instruction_air_ids
-                    .iter()
-                    .zip_eq(instruction_index_to_table_offset.iter())
-                    .map(|(air_id, offset)| {
-                        let dummy_table = chips_and_traces.get(air_id).unwrap();
-                        let dummy_width = dummy_table.width();
-                        let occurrence_per_event = *air_id_occurrences.get(air_id).unwrap();
-                        let start = (event_index * occurrence_per_event + offset) * dummy_width;
-                        let end = start + dummy_width;
-                        &dummy_table.values[start..end]
-                        // return slice so we don't allocate memory
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>();
-
-        // A vector of HashMap<dummy_trace_index, apc_trace_index> by instruction, empty HashMap if
-        // none maps to apc
-        let dummy_trace_index_to_apc_index_by_instruction: Vec<HashMap<usize, usize>> = self
-            .apc()
-            .subs
-            .iter()
-            .enumerate()
-            .map(|(instruction_index, substitutions)| {
-                // build a map only of the (dummy_index -> apc_index) pairs
-                let mut map = HashMap::new();
-                for sub in substitutions {
-                    let Substitution { original_poly_index, apc_poly_id } = sub;
-                    let apc_index = apc_poly_id_to_index.get(apc_poly_id).unwrap();
-                    tracing::trace!("Mapping dummy_index {original_poly_index} to apc_index {apc_index} for instruction {instruction_index}");
-                    map.insert(*original_poly_index, *apc_index);
-                }
-                tracing::trace!("Map for instruction {instruction_index}: {map:?}");
-                map
-            })
-            .collect();
-
-        assert_eq!(
-            self.apc().block.instructions().count(),
-            dummy_trace_index_to_apc_index_by_instruction.len()
-        );
-
-        let trace_width = self.width();
-
-        // Zero only padding rows (event rows are fully written by the substitution loop).
-        let padding_start = events.count * trace_width;
-        unsafe {
-            core::ptr::write_bytes(
-                buffer[padding_start..].as_mut_ptr(),
-                0,
-                buffer.len() - padding_start,
-            );
-        }
-
-        // Reinterpret buffer as initialized slice for filling.
-        // Safety: padding rows are zeroed above; event rows are fully written by
-        // substitutions (covering all main_columns) + the manual is_valid assignment.
-        let trace_values = unsafe {
-            std::slice::from_raw_parts_mut(buffer.as_mut_ptr().cast::<F>(), buffer.len())
-        };
-
-        // Fill in the trace values in parallel for each event row
-        trace_values[..events.count * trace_width]
-            .par_chunks_mut(trace_width)
-            .zip_eq(dummy_values_by_event.par_iter())
-            .for_each(|(trace_row, dummy_values_by_instruction)| {
-                for (instruction_index, dummy_slice) in
-                    dummy_values_by_instruction.iter().enumerate()
-                {
-                    let map = &dummy_trace_index_to_apc_index_by_instruction[instruction_index];
-                    // By caching `dummy_trace_index_to_apc_index_by_instruction`, we only loop over
-                    // the values that are assigned to the APC instead of all values in the dummy
-                    // trace
-                    for (dummy_index, apc_index) in map.iter() {
-                        trace_row[*apc_index] = dummy_slice[*dummy_index];
-                    }
-                }
-
-                // Manually set is_valid column to 1
-                trace_row[is_valid_index] = F::one();
-
-                tracing::trace!("Final row: {trace_row:?}");
+        let cached = self
+            .cached_traces
+            .0
+            .lock()
+            .unwrap()
+            .remove(&(input.public_values.proof_nonce, input.initial_timestamp))
+            .unwrap_or_else(|| {
+                panic!(
+                    "APC chip {} trace not cached: generate_dependencies must run before generate_trace_into",
+                    self.id
+                )
             });
+        let n = cached.len();
+        debug_assert_eq!(n, events.count * self.width());
+        // SAFETY: `n == cached.len()`, so the first `n` slots are filled from `cached` and the rest
+        // (padding rows) are zeroed. `MaybeUninit<F>` has the same layout as `F`.
+        unsafe {
+            core::ptr::copy_nonoverlapping(cached.as_ptr(), buffer.as_mut_ptr().cast::<F>(), n);
+            core::ptr::write_bytes(buffer[n..].as_mut_ptr(), 0, buffer.len() - n);
+        }
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
@@ -451,6 +357,14 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                 *output.byte_lookups.entry(*event).or_insert(0) += *count as usize;
             }
         }
+
+        // Cache the filled trace so `generate_trace_into` can restore it instead of regenerating
+        // the bit-identical trace. Moves `trace_values` (unused after this point).
+        self.cached_traces
+            .0
+            .lock()
+            .unwrap()
+            .insert((input.public_values.proof_nonce, input.initial_timestamp), trace_values);
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
