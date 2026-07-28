@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashSet, VecDeque},
+    collections::{BTreeMap, VecDeque},
     sync::{Arc, Mutex},
 };
 
@@ -15,6 +15,7 @@ use sp1_recursion_circuit::machine::SP1ShapedWitnessValues;
 use tokio::{sync::mpsc, task::JoinSet};
 use tracing::Instrument;
 
+use super::DuplicateShardFilter;
 use crate::{
     worker::{
         MessageReceiver, ProofData, RecursionProverData, ReduceTaskRequest, TaskContext, TaskError,
@@ -354,32 +355,12 @@ impl CompressTree {
             let core_proof_map = core_proof_map.clone();
             async move {
                 let mut num_core_proofs = 0;
-                // A re-delivered CoreExecute streams a second full set of shard proofs.
-                // The compress tree assumes disjoint ranges, so a duplicate range would
-                // corrupt it and wedge the reduction; keep only the first proof per range.
-                // Precompile shards all share the degenerate `ShardRange::precompile()`
-                // range, so they pass through; that never corrupts the tree. Duplicates
-                // of them are prevented upstream by the recovery guard in
-                // `SP1Controller::execute` — a slip-through fails the final reduce
-                // loudly instead of wedging.
-                let mut seen_ranges = HashSet::<ShardRange>::new();
-                let mut seen_task_ids = HashSet::<TaskId>::new();
+                // The compress tree assumes disjoint ranges, so a duplicate range
+                // corrupts it and wedges the reduction. An exempt precompile shard
+                // that slips through fails the final reduce loudly instead.
+                let mut duplicates = DuplicateShardFilter::default();
                 while let Some(proof_data) = core_proofs_rx.recv().await {
-                    if !seen_task_ids.insert(proof_data.task_id.clone()) {
-                        tracing::warn!(
-                            "skipping duplicate core proof message for task {}",
-                            proof_data.task_id
-                        );
-                        continue;
-                    }
-                    if proof_data.range != ShardRange::precompile()
-                        && !seen_ranges.insert(proof_data.range)
-                    {
-                        tracing::warn!(
-                            "skipping duplicate core proof for range {:?} (task {})",
-                            proof_data.range,
-                            proof_data.task_id
-                        );
+                    if duplicates.seen(&proof_data) {
                         continue;
                     }
                     core_proofs_subscriber
