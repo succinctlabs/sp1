@@ -5,10 +5,10 @@ use slop_tensor::Tensor;
 use sp1_gpu_cudart::{args, DeviceMle, TaskScope};
 use sp1_gpu_cudart::{TracegenPreprocessedRecursionSBoxKernel, TracegenRecursionSBoxKernel};
 use sp1_hypercube::air::MachineAir;
-use sp1_recursion_executor::Instruction;
+use sp1_recursion_executor::{Instruction, Poseidon2SBoxInstr};
 use sp1_recursion_machine::chips::poseidon2_helper::sbox::Poseidon2SBoxChip;
 
-use crate::{CudaTracegenAir, F};
+use crate::{CudaTracegenAir, PinnedStaging, F};
 
 impl CudaTracegenAir<F> for Poseidon2SBoxChip {
     fn supports_device_preprocessed_tracegen(&self) -> bool {
@@ -18,16 +18,19 @@ impl CudaTracegenAir<F> for Poseidon2SBoxChip {
     async fn generate_preprocessed_trace_device(
         &self,
         program: &Self::Program,
+        staging: PinnedStaging,
         scope: &TaskScope,
     ) -> Result<Option<DeviceMle<F>>, CopyError> {
-        let instrs = program
-            .inner
-            .iter()
-            .filter_map(|instruction| match instruction.inner() {
-                Instruction::Poseidon2SBox(instr) => Some(*instr),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
+        // Pre-bucketed by `bucket_preprocessed_device_instructions`; otherwise
+        // (overflow / no bucketing) stage the instructions here.
+        let instrs = staging.staged::<Poseidon2SBoxInstr<F>>().unwrap_or_else(|| {
+            staging.stage_iter(program.inner.iter().filter_map(|instruction| {
+                match instruction.inner() {
+                    Instruction::Poseidon2SBox(instr) => Some(*instr),
+                    _ => None,
+                }
+            }))
+        });
 
         let instrs_device = {
             let mut buf = Buffer::try_with_capacity_in(instrs.len(), scope.clone()).unwrap();
@@ -74,13 +77,14 @@ impl CudaTracegenAir<F> for Poseidon2SBoxChip {
         &self,
         input: &Self::Record,
         _: &mut Self::Record,
+        staging: PinnedStaging,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
-        let events = &input.poseidon2_sbox_events;
+        let events = staging.stage_slice(&input.poseidon2_sbox_events);
 
         let events_device = {
             let mut buf = Buffer::try_with_capacity_in(events.len(), scope.clone()).unwrap();
-            buf.extend_from_host_slice(events)?;
+            buf.extend_from_host_slice(&events)?;
             buf
         };
 
