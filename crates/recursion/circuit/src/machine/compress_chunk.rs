@@ -9,10 +9,7 @@ use itertools::Itertools;
 use slop_air::Air;
 use slop_algebra::AbstractField;
 use sp1_core_machine::riscv::MAX_LOG_NUMBER_OF_SHARDS;
-use sp1_hypercube::{
-    air::{MachineAir, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
-    DIGEST_SIZE,
-};
+use sp1_hypercube::air::{MachineAir, POSEIDON_NUM_WORDS};
 use sp1_primitives::{SP1Field, SP1GlobalContext};
 use sp1_recursion_compiler::ir::{Builder, Felt, IrIter};
 use sp1_recursion_executor::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS};
@@ -20,14 +17,10 @@ use sp1_recursion_executor::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS}
 use crate::{
     challenger::CanObserveVariable,
     machine::{
-        // assert_complete,
-        assert_recursion_public_values_valid,
-        recursion_public_values_digest,
-        root_public_values_digest,
-        InnerVal,
-        PublicValuesOutputDigest,
-        SP1CompressWithVKeyWitnessVariable,
-        SP1MerkleProofVerifier,
+        assert_chunk_complete, assert_common_child, assert_constant,
+        assert_recursion_public_values_valid, carry_forward, init_common_boundary,
+        recursion_public_values_digest, root_public_values_digest, InnerVal,
+        PublicValuesOutputDigest, SP1CompressWithVKeyWitnessVariable, SP1MerkleProofVerifier,
         SP1ShapedWitnessVariable,
     },
     shard::RecursiveShardVerifier,
@@ -74,23 +67,7 @@ where
 
         assert!(!vks_and_proofs.is_empty());
 
-        // Initialize the consistency check variables.
-        let mut sp1_vk_digest: [Felt<_>; DIGEST_SIZE] =
-            array::from_fn(|_| unsafe { MaybeUninit::zeroed().assume_init() });
-        let mut pc: [Felt<_>; 3] =
-            array::from_fn(|_| unsafe { MaybeUninit::zeroed().assume_init() });
-        let mut current_exit_code: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
         let mut current_timestamp: [Felt<_>; 4] = array::from_fn(|_| builder.uninit());
-
-        let mut committed_value_digest: [[Felt<_>; 4]; PV_DIGEST_NUM_WORDS] =
-            array::from_fn(|_| array::from_fn(|_| unsafe { MaybeUninit::zeroed().assume_init() }));
-        let mut deferred_proofs_digest: [Felt<_>; POSEIDON_NUM_WORDS] =
-            array::from_fn(|_| unsafe { MaybeUninit::zeroed().assume_init() });
-        let mut deferred_proof_index: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
-        let mut reconstruct_deferred_digest: [Felt<_>; POSEIDON_NUM_WORDS] =
-            core::array::from_fn(|_| unsafe { MaybeUninit::zeroed().assume_init() });
-        let mut commit_syscall: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
-        let mut commit_deferred_syscall: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
         let mut contains_first_shard: Felt<_> = builder.eval(SP1Field::zero());
         let mut num_included_shard: Felt<_> = builder.eval(SP1Field::zero());
         let mut shard_index: Felt<_> = builder.eval(SP1Field::zero());
@@ -105,8 +82,6 @@ where
         let mut reconstruct_global_challenge: [Felt<_>; 16] =
             array::from_fn(|_| unsafe { MaybeUninit::zeroed().assume_init() });
         let mut global_commitments_hash: [Felt<_>; 8] =
-            array::from_fn(|_| unsafe { MaybeUninit::zeroed().assume_init() });
-        let mut proof_nonce: [Felt<_>; 4] =
             array::from_fn(|_| unsafe { MaybeUninit::zeroed().assume_init() });
         let mut global_cumulative_sum: [Felt<_>; 4] =
             array::from_fn(|_| builder.eval(SP1Field::zero()));
@@ -177,73 +152,18 @@ where
             }
 
             if i == 0 {
-                // Assign the committed values and deferred proof digests.
-                compress_public_values.prev_committed_value_digest =
-                    current_public_values.prev_committed_value_digest;
-                committed_value_digest = current_public_values.prev_committed_value_digest;
+                init_common_boundary(compress_public_values, current_public_values);
 
-                compress_public_values.prev_deferred_proofs_digest =
-                    current_public_values.prev_deferred_proofs_digest;
-                deferred_proofs_digest = current_public_values.prev_deferred_proofs_digest;
-
-                // Initialize the deferred proof index.
-                compress_public_values.prev_deferred_proof =
-                    current_public_values.prev_deferred_proof;
-                deferred_proof_index = current_public_values.prev_deferred_proof;
-
-                // Initialize the chunk index.
                 prev_chunk_index = current_public_values.prev_chunk_index;
                 last_chunk_index = current_public_values.last_chunk_index;
-
-                // Initiallize start pc.
-                compress_public_values.pc_start = current_public_values.pc_start;
-                pc = current_public_values.pc_start;
-
-                // Initialize timestamp.
                 compress_public_values.initial_timestamp = current_public_values.initial_timestamp;
                 current_timestamp = current_public_values.initial_timestamp;
-
-                // Initialize the memory merkle root.
                 initial_memory_root = current_public_values.initial_memory_root;
                 last_memory_root = current_public_values.last_memory_root;
-
-                // Initialize the start of deferred digests.
-                compress_public_values.start_reconstruct_deferred_digest =
-                    current_public_values.start_reconstruct_deferred_digest;
-                reconstruct_deferred_digest =
-                    current_public_values.start_reconstruct_deferred_digest;
-
-                // Initialize exit code.
-                compress_public_values.prev_exit_code = current_public_values.prev_exit_code;
-                current_exit_code = current_public_values.prev_exit_code;
-
-                // Initialize `commit_syscall`.
-                compress_public_values.prev_commit_syscall =
-                    current_public_values.prev_commit_syscall;
-                commit_syscall = current_public_values.prev_commit_syscall;
-
-                // Initialize `commit_deferred_syscall`.
-                compress_public_values.prev_commit_deferred_syscall =
-                    current_public_values.prev_commit_deferred_syscall;
-                commit_deferred_syscall = current_public_values.prev_commit_deferred_syscall;
-
-                // Initialize the sp1_vk digest
-                compress_public_values.sp1_vk_digest = current_public_values.sp1_vk_digest;
-                sp1_vk_digest = current_public_values.sp1_vk_digest;
-
-                // Initialize the proof nonce.
-                compress_public_values.proof_nonce = current_public_values.proof_nonce;
-                proof_nonce = current_public_values.proof_nonce;
-
-                // Initialize the shard index.
                 compress_public_values.prev_shard_index = current_public_values.prev_shard_index;
                 shard_index = current_public_values.prev_shard_index;
-
-                // Initialize the number of merkle, execution shards.
                 num_merkle_shard = current_public_values.num_merkle_shard;
                 num_execution_shard = current_public_values.num_execution_shard;
-
-                // Initialize the global challenge state.
                 compress_public_values.start_reconstruct_global_challenge =
                     current_public_values.start_reconstruct_global_challenge;
                 reconstruct_global_challenge =
@@ -251,131 +171,50 @@ where
                 global_commitments_hash = current_public_values.global_commitments_hash;
             }
 
-            // Assert that the current values match the accumulated values and update them.
-            // Assert that the sp1_vk digest is always the same.
-            for (digest, current) in
-                sp1_vk_digest.iter().zip_eq(current_public_values.sp1_vk_digest)
-            {
-                builder.assert_felt_eq(*digest, current);
-            }
+            assert_common_child(builder, compress_public_values, current_public_values);
 
-            // Assert that the `prev_committed_value_digest` is equal to current one, then update.
-            for (word, current_word) in committed_value_digest
-                .iter()
-                .zip_eq(current_public_values.prev_committed_value_digest.iter())
-            {
-                for (limb, current_limb) in word.iter().zip_eq(current_word.iter()) {
-                    builder.assert_felt_eq(*limb, *current_limb);
-                }
-            }
-            committed_value_digest = current_public_values.committed_value_digest;
-
-            // Assert that the `prev_deferred_proofs_digest` is equal to current one, then update.
-            for (limb, current_limb) in deferred_proofs_digest
-                .iter()
-                .zip_eq(current_public_values.prev_deferred_proofs_digest.iter())
-            {
-                builder.assert_felt_eq(*limb, *current_limb);
-            }
-            deferred_proofs_digest = current_public_values.deferred_proofs_digest;
-
-            // Assert that the `prev_deferred_proof` is equal to the current one, then update.
-            builder.assert_felt_eq(deferred_proof_index, current_public_values.prev_deferred_proof);
-            deferred_proof_index = current_public_values.deferred_proof;
-
-            // Assert that the `prev_chunk_index` and `last_chunk_index` is equal.
-            builder.assert_felt_eq(prev_chunk_index, current_public_values.prev_chunk_index);
-            builder.assert_felt_eq(last_chunk_index, current_public_values.last_chunk_index);
-
-            // Assert that the start pc is equal to the current pc, then update.
-            for (limb, current_limb) in pc.iter().zip_eq(current_public_values.pc_start.iter()) {
-                builder.assert_felt_eq(*limb, *current_limb);
-            }
-            pc = current_public_values.next_pc;
-
-            // Verify that the timestamp is equal to the current one, then update.
-            for (limb, current_limb) in
-                current_timestamp.iter().zip_eq(current_public_values.initial_timestamp.iter())
-            {
-                builder.assert_felt_eq(*limb, *current_limb);
-            }
-            current_timestamp = current_public_values.last_timestamp;
-
-            // Assert that the initial memory root is the same.
-            for (digest, current) in
-                initial_memory_root.iter().zip_eq(current_public_values.initial_memory_root)
-            {
-                builder.assert_felt_eq(*digest, current);
-            }
-
-            // Assert that the last memory root is the same.
-            for (digest, current) in
-                last_memory_root.iter().zip_eq(current_public_values.last_memory_root)
-            {
-                builder.assert_felt_eq(*digest, current);
-            }
-
-            // Assert that the start deferred digest is equal to the current one, then update.
-            for (digest, current_digest) in reconstruct_deferred_digest
-                .iter()
-                .zip_eq(current_public_values.start_reconstruct_deferred_digest.iter())
-            {
-                builder.assert_felt_eq(*digest, *current_digest);
-            }
-            reconstruct_deferred_digest = current_public_values.end_reconstruct_deferred_digest;
-
-            // Assert that the `prev_exit_code` is equal to the current one, then update.
-            builder.assert_felt_eq(current_exit_code, current_public_values.prev_exit_code);
-            current_exit_code = current_public_values.exit_code;
-
-            // Assert that the `prev_commit_syscall` is equal to the current one, then update.
-            builder.assert_felt_eq(commit_syscall, current_public_values.prev_commit_syscall);
-            commit_syscall = current_public_values.commit_syscall;
-
-            // Assert that `prev_commit_deferred_syscall` is equal to the current one, then update.
-            builder.assert_felt_eq(
-                commit_deferred_syscall,
-                current_public_values.prev_commit_deferred_syscall,
+            // `prev_chunk_index`, `last_chunk_index` is constant across a chunk.
+            assert_constant(builder, prev_chunk_index, current_public_values.prev_chunk_index);
+            assert_constant(builder, last_chunk_index, current_public_values.last_chunk_index);
+            // The merkle roots are constant across a chunk.
+            assert_constant(
+                builder,
+                initial_memory_root,
+                current_public_values.initial_memory_root,
             );
-            commit_deferred_syscall = current_public_values.commit_deferred_syscall;
-
-            // Assert that the `prev_shard_index` is equal to the current one, then update.
-            builder.assert_felt_eq(shard_index, current_public_values.prev_shard_index);
-            shard_index = current_public_values.last_shard_index;
-
-            // Assert that the `num_merkle_shard` and `num_execution_shard` is identical.
-            builder.assert_felt_eq(num_merkle_shard, current_public_values.num_merkle_shard);
-            builder.assert_felt_eq(num_execution_shard, current_public_values.num_execution_shard);
-
-            // Assert that the start reconstruct global challenge is correct.
-            for (digest, current_digest) in reconstruct_global_challenge
-                .iter()
-                .zip_eq(current_public_values.start_reconstruct_global_challenge.iter())
-            {
-                builder.assert_felt_eq(*digest, *current_digest);
-            }
-            reconstruct_global_challenge = current_public_values.end_reconstruct_global_challenge;
-
-            // Assert that the `global_commitments_hash` is identical.
-            for (digest, current) in
-                global_commitments_hash.iter().zip_eq(current_public_values.global_commitments_hash)
-            {
-                builder.assert_felt_eq(*digest, current);
-            }
-
-            // Assert that the sp1_vk digest is always the same.
-            for (digest, current) in
-                sp1_vk_digest.iter().zip_eq(current_public_values.sp1_vk_digest)
-            {
-                builder.assert_felt_eq(*digest, current);
-            }
-
-            // Assert that the `proof_nonce` is equal to the current one, then update.
-            for (limb, current_limb) in
-                proof_nonce.iter().zip_eq(current_public_values.proof_nonce.iter())
-            {
-                builder.assert_felt_eq(*limb, *current_limb);
-            }
+            assert_constant(builder, last_memory_root, current_public_values.last_memory_root);
+            // The number of merkle shard and execution shard is constant across a chunk.
+            assert_constant(builder, num_merkle_shard, current_public_values.num_merkle_shard);
+            assert_constant(
+                builder,
+                num_execution_shard,
+                current_public_values.num_execution_shard,
+            );
+            // The global commitments hash is constant across a chunk.
+            assert_constant(
+                builder,
+                global_commitments_hash,
+                current_public_values.global_commitments_hash,
+            );
+            // Timestamp, shard index, global challenge reconstruction propagates.
+            carry_forward(
+                builder,
+                &mut current_timestamp,
+                current_public_values.initial_timestamp,
+                current_public_values.last_timestamp,
+            );
+            carry_forward(
+                builder,
+                &mut shard_index,
+                current_public_values.prev_shard_index,
+                current_public_values.last_shard_index,
+            );
+            carry_forward(
+                builder,
+                &mut reconstruct_global_challenge,
+                current_public_values.start_reconstruct_global_challenge,
+                current_public_values.end_reconstruct_global_challenge,
+            );
         }
 
         // Range check the accumulated number of included shards.
@@ -387,53 +226,24 @@ where
             SP1Field::zero(),
         );
 
-        // Update the global values from the last accumulated values.
-        // Set the `committed_value_digest`.
-        compress_public_values.committed_value_digest = committed_value_digest;
-        // Set the `deferred_proofs_digest`.
-        compress_public_values.deferred_proofs_digest = deferred_proofs_digest;
-        // Set next_pc to be the last pc.
-        compress_public_values.next_pc = pc;
-        // Set the timestamp to be the last timestamp.
+        // Set the final public values.
         compress_public_values.last_timestamp = current_timestamp;
-        // Set the start reconstruct deferred digest to be the last reconstruct deferred digest.
-        compress_public_values.end_reconstruct_deferred_digest = reconstruct_deferred_digest;
-        // Set the deferred proof index to be the last deferred proof index.
-        compress_public_values.deferred_proof = deferred_proof_index;
-        // Set the chunk indices.
         compress_public_values.prev_chunk_index = prev_chunk_index;
         compress_public_values.last_chunk_index = last_chunk_index;
-        // Set sp1_vk digest to the one from the proof values.
-        compress_public_values.sp1_vk_digest = sp1_vk_digest;
-        // Reflect the vk root.
         compress_public_values.vk_root = vk_root;
-        // Set the memory root.
         compress_public_values.initial_memory_root = initial_memory_root;
         compress_public_values.last_memory_root = last_memory_root;
-        // Set the shard index.
         compress_public_values.last_shard_index = shard_index;
-        // Set the number of merkle and execution shards.
         compress_public_values.num_merkle_shard = num_merkle_shard;
         compress_public_values.num_execution_shard = num_execution_shard;
-        // Set the global challenge related public values.
         compress_public_values.end_reconstruct_global_challenge = reconstruct_global_challenge;
         compress_public_values.global_commitments_hash = global_commitments_hash;
-        // Set the global cumulative sum.
         compress_public_values.global_cumulative_sum = global_cumulative_sum;
-        // Assign the `contains_first_shard` flag.
         compress_public_values.contains_first_shard = contains_first_shard;
-        // Assign the `num_included_shard` value.
         compress_public_values.num_included_shard = num_included_shard;
-        // The witness flag marks chunk completeness; a within-chunk proof is never is_complete.
+        // A within-chunk proof is never complete; the witness flag marks chunk completeness.
         compress_public_values.is_complete = builder.eval(SP1Field::zero());
         compress_public_values.is_chunk_complete = is_complete;
-        // Set the exit code.
-        compress_public_values.exit_code = current_exit_code;
-        // Set the `commit_syscall` flag.
-        compress_public_values.commit_syscall = commit_syscall;
-        // Set the `commit_deferred_syscall` flag.
-        compress_public_values.commit_deferred_syscall = commit_deferred_syscall;
-        compress_public_values.proof_nonce = proof_nonce;
         // Set the digest according to the previous values.
         compress_public_values.digest = match kind {
             PublicValuesOutputDigest::Reduce => {
@@ -447,8 +257,8 @@ where
             }
         };
 
-        // If the proof is complete, make completeness assertions.
-        // assert_complete(builder, compress_public_values, is_complete);
+        // Check if the chunk is complete.
+        assert_chunk_complete(builder, compress_public_values, is_complete);
 
         SP1GlobalContext::commit_recursion_public_values(builder, *compress_public_values);
     }

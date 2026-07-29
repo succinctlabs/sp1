@@ -650,6 +650,7 @@ impl MachineRecord for ExecutionRecord {
 
         Self::eval_state(public_values, builder);
         Self::eval_first_execution_shard(public_values, builder);
+        Self::eval_trace_chunk(public_values, builder);
         Self::eval_exit_code(public_values, builder);
         Self::eval_committed_value_digest(public_values, builder);
         Self::eval_deferred_proofs_digest(public_values, builder);
@@ -802,12 +803,16 @@ impl ExecutionRecord {
         // If the shard is not execution shard, assert that timestamp and pc remains equal.
         let is_execution_shard = public_values.is_execution_shard.into();
         builder.assert_bool(is_execution_shard.clone());
-        builder
-            .when_not(is_execution_shard.clone())
-            .assert_eq(initial_timestamp_low.clone(), last_timestamp_low.clone());
-        builder
-            .when_not(is_execution_shard.clone())
-            .assert_eq(initial_timestamp_high.clone(), last_timestamp_high.clone());
+        // Merkle shard has `initial_timestamp == 1`.
+        builder.when_not(public_values.is_execution_shard).assert_all_eq(
+            public_values.initial_timestamp,
+            [AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::one()],
+        );
+        // Merkle shard has `last_timestamp == 1`.
+        builder.when_not(public_values.is_execution_shard).assert_all_eq(
+            public_values.last_timestamp,
+            [AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::one()],
+        );
         builder
             .when_not(is_execution_shard.clone())
             .assert_all_eq(public_values.pc_start, public_values.next_pc);
@@ -869,13 +874,23 @@ impl ExecutionRecord {
         // Check `is_first_shard` is boolean.
         builder.assert_bool(public_values.is_first_shard.into());
 
+        // If `is_first_shard` is true, `trace_chunk_idx == shard_index == 0`.
+        builder
+            .when(public_values.is_first_shard.into())
+            .assert_zero(public_values.trace_chunk_idx);
+        builder.when(public_values.is_first_shard.into()).assert_zero(public_values.shard_index);
+
+        // If `trace_chunk_idx == shard_index == 0`, `is_first_shard` is true.
+        builder
+            .when(public_values.is_trace_chunk_idx_zero)
+            .when(public_values.is_shard_index_zero)
+            .assert_one(public_values.is_first_shard);
+
         // Timestamp constraints.
         builder.when(public_values.is_shard_index_zero.into()).assert_all_eq(
             public_values.initial_timestamp,
             [AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::one()],
         );
-
-        // If `is_first_shard` is true, assert the initial boundary conditions.
 
         // Check `prev_committed_value_digest == 0`.
         for i in 0..PV_DIGEST_NUM_WORDS {
@@ -901,6 +916,90 @@ impl ExecutionRecord {
         builder
             .when(public_values.is_first_shard.into())
             .assert_zero(public_values.prev_commit_deferred_syscall);
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn eval_trace_chunk<AB: SP1AirBuilder>(
+        public_values: &PublicValues<
+            [AB::PublicVar; 4],
+            [AB::PublicVar; 3],
+            [AB::PublicVar; 4],
+            AB::PublicVar,
+        >,
+        builder: &mut AB,
+    ) {
+        // Number of merkle shards is at least `1` and at most `2^15`.
+        builder.send_byte(
+            AB::Expr::from_canonical_u32(ByteOpcode::Range as u32),
+            public_values.num_merkle_shard.into() - AB::Expr::one(),
+            AB::Expr::from_canonical_u32(15),
+            AB::Expr::zero(),
+            AB::Expr::one(),
+        );
+        // Number of execution shards is at least `1` and at most `2^15`.
+        builder.send_byte(
+            AB::Expr::from_canonical_u32(ByteOpcode::Range as u32),
+            public_values.num_execution_shard.into() - AB::Expr::one(),
+            AB::Expr::from_canonical_u32(15),
+            AB::Expr::zero(),
+            AB::Expr::one(),
+        );
+
+        // Shard index is a u16 that is at most `num_merkle_shard + num_execution_shard - 1`.
+        builder.send_byte(
+            AB::Expr::from_canonical_u32(ByteOpcode::Range as u32),
+            public_values.shard_index,
+            AB::Expr::from_canonical_u32(16),
+            AB::Expr::zero(),
+            AB::Expr::one(),
+        );
+        builder.send_byte(
+            AB::Expr::from_canonical_u32(ByteOpcode::Range as u32),
+            public_values.num_merkle_shard.into() + public_values.num_execution_shard.into()
+                - AB::Expr::one()
+                - public_values.shard_index.into(),
+            AB::Expr::from_canonical_u32(16),
+            AB::Expr::zero(),
+            AB::Expr::one(),
+        );
+
+        // Run the `IsZero` gadget on `trace_chunk_idx`.
+        builder.assert_eq(
+            public_values.trace_chunk_idx.into() * public_values.inv_trace_chunk_idx.into(),
+            AB::Expr::one() - public_values.is_trace_chunk_idx_zero.into(),
+        );
+        builder.assert_zero(
+            public_values.trace_chunk_idx.into() * public_values.is_trace_chunk_idx_zero.into(),
+        );
+
+        // Run the `IsZero` gadget on `shard_index`.
+        builder.assert_eq(
+            public_values.shard_index.into() * public_values.inv_shard_index.into(),
+            AB::Expr::one() - public_values.is_shard_index_zero.into(),
+        );
+        builder.assert_zero(
+            public_values.shard_index.into() * public_values.is_shard_index_zero.into(),
+        );
+
+        // Constrain `is_execution_shard == 0` implies `0 <= shard_index < num_merkle_shard`.
+        builder.send_byte(
+            AB::Expr::from_canonical_u32(ByteOpcode::Range as u32),
+            public_values.num_merkle_shard.into()
+                - AB::Expr::one()
+                - public_values.shard_index.into(),
+            AB::Expr::from_canonical_u32(15),
+            AB::Expr::zero(),
+            AB::Expr::one() - public_values.is_execution_shard.into(),
+        );
+
+        // Constrain `is_execution_shard == 1` implies `num_merkle_shard <= shard_index`.
+        builder.send_byte(
+            AB::Expr::from_canonical_u32(ByteOpcode::Range as u32),
+            public_values.shard_index.into() - public_values.num_merkle_shard.into(),
+            AB::Expr::from_canonical_u32(15),
+            AB::Expr::zero(),
+            public_values.is_execution_shard.into(),
+        );
     }
 
     #[allow(clippy::type_complexity)]
@@ -1072,6 +1171,14 @@ impl ExecutionRecord {
         >,
         builder: &mut AB,
     ) {
+        // Check `inv_num_shards = 1 / (num_merkle_shard + num_execution_shard)`.
+        builder.assert_eq(
+            public_values.inv_num_shards.into()
+                * (public_values.num_merkle_shard.into()
+                    + public_values.num_execution_shard.into()),
+            AB::Expr::one(),
+        );
+
         builder.send_merkle_traversal(
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -1155,14 +1262,6 @@ impl ExecutionRecord {
         let initial_timestamp_low = (state.initial_timestamp & 0xFFFFFF) as u32;
         let last_timestamp_high = (state.last_timestamp >> 24) as u32;
         let last_timestamp_low = (state.last_timestamp & 0xFFFFFF) as u32;
-
-        state.initial_timestamp_inv = if state.initial_timestamp == 1 {
-            0
-        } else {
-            F::from_canonical_u32(initial_timestamp_high + initial_timestamp_low - 1)
-                .inverse()
-                .as_canonical_u32()
-        };
 
         state.last_timestamp_inv = if state.last_timestamp == 1 {
             0

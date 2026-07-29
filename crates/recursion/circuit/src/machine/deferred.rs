@@ -238,12 +238,14 @@ where
         deferred_public_values.start_reconstruct_global_challenge = core::array::from_fn(|_| zero);
         deferred_public_values.end_reconstruct_global_challenge = core::array::from_fn(|_| zero);
         deferred_public_values.global_commitments_hash = core::array::from_fn(|_| zero);
-        deferred_public_values.is_chunk_complete = zero;
+        // A deferred leaf is a sealed unit with a zero global cumulative sum (set below), so it is
+        // marked chunk-complete: `compress_global` folds only chunk-complete children.
+        deferred_public_values.is_chunk_complete = one;
         deferred_public_values.global_cumulative_sum = core::array::from_fn(|_| zero);
         // Set the memory roots.
         deferred_public_values.initial_memory_root = initial_memory_root;
         deferred_public_values.last_memory_root = initial_memory_root;
-        // Set the exit code to be zero for now.
+        // Set the exit code to be zero.
         deferred_public_values.prev_exit_code = zero;
         deferred_public_values.exit_code = zero;
         // Set the `commit_syscall` and `commit_deferred_syscall` flags to zero.

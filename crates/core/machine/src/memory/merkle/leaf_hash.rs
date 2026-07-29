@@ -3,11 +3,16 @@ use core::{
     mem::{size_of, MaybeUninit},
 };
 
+use hashbrown::HashMap;
+use itertools::Itertools;
 use slop_air::{Air, AirBuilder, BaseAir, GlobalBuilder, PairBuilder};
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_matrix::Matrix;
-use slop_maybe_rayon::prelude::{IndexedParallelIterator, ParallelIterator, ParallelSliceMut};
-use sp1_core_executor::{ExecutionRecord, Program};
+use slop_maybe_rayon::prelude::*;
+use sp1_core_executor::{
+    events::{ByteLookupEvent, ByteRecord},
+    ByteOpcode, ExecutionRecord, Program,
+};
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::{
     air::{AirInteraction, InteractionScope, MachineAir},
@@ -21,7 +26,11 @@ use sp1_hypercube::{
 };
 use sp1_jit::MERKLE_PAGE_WORDS;
 
-use crate::{air::SP1CoreAirBuilder, utils::next_multiple_of_32};
+use crate::{
+    air::{SP1CoreAirBuilder, SP1Operation},
+    operations::{IsZeroOperation, IsZeroOperationInput},
+    utils::next_multiple_of_32,
+};
 
 /// The sponge rate.
 pub const RATE: usize = 8;
@@ -93,6 +102,9 @@ pub struct LeafHashGlobalCols<T: Copy> {
     /// The timestamp for the third word, as `[high, low]`.
     pub timestamp_3: [T; 2],
 
+    /// Indicator that `page_id == 0` (a register page), driving the reality/stride pattern.
+    pub is_page_id_zero: IsZeroOperation<T>,
+
     /// Whether this row is padding or not.
     pub is_real: T,
 }
@@ -106,6 +118,9 @@ pub struct LeafHashMainCols<T: Copy> {
 
     /// The 8 element capacity.
     pub state_in: [T; DIGEST_WIDTH],
+
+    /// Indicator that `block == BLOCKS_PER_HASH - 1` (the final permutation of the page hash).
+    pub is_last_block_check: IsZeroOperation<T>,
 }
 
 /// The number of global columns in the [`LeafHashChip`].
@@ -171,6 +186,63 @@ impl<F: PrimeField32> MachineAir<F> for LeafHashChip {
         let nb_rows = Self::pages_to_hash(input).len() * BLOCKS_PER_HASH;
         let size_log2 = input.fixed_log2_rows::<F, Self>(self);
         Some(next_multiple_of_32(nb_rows, size_log2))
+    }
+
+    fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
+        let payload = match input.merkle_proof_record.as_ref() {
+            Some(r) => &r.payload,
+            None => return,
+        };
+        let n_hashes = payload.pages.len() * 2;
+        if n_hashes == 0 {
+            return;
+        }
+        let hashes = Self::pages_to_hash(input);
+        let chunk_size = std::cmp::max(n_hashes / num_cpus::get(), 1);
+        let blu_batches = (0..n_hashes)
+            .into_par_iter()
+            .chunks(chunk_size)
+            .map(|hs| {
+                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                for h in hs {
+                    let page_id = payload.page_ids[h / 2];
+                    let page = hashes[h];
+                    for b in 0..BLOCKS_PER_HASH {
+                        blu.add_bit_range_check((page_id & 0x1F) as u16, 5);
+                        blu.add_bit_range_check(((page_id >> 5) & 0xFFFF) as u16, 16);
+                        blu.add_bit_range_check(((page_id >> 21) & 0xFF) as u16, 8);
+                        blu.add_byte_lookup_event(ByteLookupEvent {
+                            opcode: ByteOpcode::LTU,
+                            a: 1,
+                            b: b as u8,
+                            c: BLOCKS_PER_HASH as u8,
+                        });
+                        blu.add_byte_lookup_event(ByteLookupEvent {
+                            opcode: ByteOpcode::LTU,
+                            a: (b < 11) as u16,
+                            b: b as u8,
+                            c: 11,
+                        });
+                        blu.add_byte_lookup_event(ByteLookupEvent {
+                            opcode: ByteOpcode::LTU,
+                            a: (b < 10) as u16,
+                            b: b as u8,
+                            c: 10,
+                        });
+
+                        let base = b * WORDS_PER_BLOCK;
+                        let e1 = page[base];
+                        let e2 = page.get(base + 1).copied().unwrap_or(0);
+                        let e3 = page.get(base + 2).copied().unwrap_or(0);
+                        blu.add_u16_range_checks_field(&Word::<F>::from(e1).0);
+                        blu.add_u16_range_checks_field(&Word::<F>::from(e2).0);
+                        blu.add_u8_range_checks(&e3.to_le_bytes());
+                    }
+                }
+                blu
+            })
+            .collect::<Vec<_>>();
+        output.add_byte_lookup_events_from_maps(blu_batches.iter().collect_vec());
     }
 
     fn global_width(&self) -> usize {
@@ -245,6 +317,7 @@ impl<F: PrimeField32> MachineAir<F> for LeafHashChip {
                     cols.memory_multiplicity =
                         core::array::from_fn(|k| if real[k] { sign } else { F::zero() });
 
+                    cols.is_page_id_zero.populate(page_id as u64);
                     cols.is_real = F::one();
                 }
             },
@@ -293,6 +366,9 @@ impl<F: PrimeField32> MachineAir<F> for LeafHashChip {
                     let cols: &mut LeafHashMainCols<F> = row.borrow_mut();
                     cols.poseidon2 = op;
                     cols.state_in = state_in[8..16].try_into().unwrap();
+                    cols.is_last_block_check.populate_from_field_element(
+                        F::from_canonical_usize(b) - F::from_canonical_usize(BLOCKS_PER_HASH - 1),
+                    );
                 }
             },
         );
@@ -335,9 +411,129 @@ where
         // `is_real == 0` => `is_last_block == 0`.
         builder.when_not(global.is_real).assert_zero(global.is_last_block);
 
-        // TODO(rkm): range check value_1, value_2, value_3
-        // TODO(rkm): check is_init == 1 => timestamp == 0
-        // TODO(rkm): check 0 <= block < 86, and is_last_block == (block == 85)
+        // Constrain `is_last_block == (block == BLOCKS_PER_HASH - 1)`.
+        IsZeroOperation::<AB::F>::eval(
+            builder,
+            IsZeroOperationInput::new(
+                global.block.into() - AB::Expr::from_canonical_usize(BLOCKS_PER_HASH - 1),
+                main.is_last_block_check,
+                global.is_real.into(),
+            ),
+        );
+        builder
+            .when(global.is_real)
+            .assert_eq(global.is_last_block, main.is_last_block_check.result);
+
+        // Constrain `0 <= block < BLOCKS_PER_HASH`.
+        builder.send_byte(
+            AB::Expr::from_canonical_u32(ByteOpcode::LTU as u32),
+            AB::Expr::one(),
+            global.block,
+            AB::Expr::from_canonical_usize(BLOCKS_PER_HASH),
+            global.is_real,
+        );
+
+        // On init, the timestamps are zero.
+        for ts in [global.timestamp_1, global.timestamp_2, global.timestamp_3] {
+            builder.when(global.is_init).assert_zero(ts[0]);
+            builder.when(global.is_init).assert_zero(ts[1]);
+        }
+
+        // Decompose `page_id` into the (5, 16, 8)-bit limbs and range check.
+        builder.assert_eq(
+            global.page_id.into(),
+            global.page_id_0_5.into()
+                + global.page_id_5_21.into() * AB::Expr::from_canonical_u32(1 << 5)
+                + global.page_id_21_29.into() * AB::Expr::from_canonical_u32(1 << 21),
+        );
+        builder.send_byte(
+            AB::Expr::from_canonical_u32(ByteOpcode::Range as u32),
+            global.page_id_0_5,
+            AB::Expr::from_canonical_u32(5),
+            AB::Expr::zero(),
+            global.is_real,
+        );
+        builder.send_byte(
+            AB::Expr::from_canonical_u32(ByteOpcode::Range as u32),
+            global.page_id_5_21,
+            AB::Expr::from_canonical_u32(16),
+            AB::Expr::zero(),
+            global.is_real,
+        );
+        builder.send_byte(
+            AB::Expr::from_canonical_u32(ByteOpcode::Range as u32),
+            global.page_id_21_29,
+            AB::Expr::from_canonical_u32(8),
+            AB::Expr::zero(),
+            global.is_real,
+        );
+
+        // Range check `value_1, value_2, value_3` accordingly.
+        builder.slice_range_check_u16(&global.value_1.0, global.is_real);
+        builder.slice_range_check_u16(&global.value_2.0, global.is_real);
+        builder.slice_range_check_u8(&global.value_3, global.is_real);
+
+        // Constrain `is_reg = [page_id == 0]`.
+        IsZeroOperation::<AB::F>::eval(
+            builder,
+            IsZeroOperationInput::new(
+                global.page_id.into(),
+                global.is_page_id_zero,
+                global.is_real.into(),
+            ),
+        );
+        let is_reg: AB::Expr = global.is_page_id_zero.result.into();
+
+        // Constrain `block_lt_11 = [block < 11]`.
+        builder.send_byte(
+            AB::Expr::from_canonical_u32(ByteOpcode::LTU as u32),
+            global.block_lt_11,
+            global.block,
+            AB::Expr::from_canonical_u32(11),
+            global.is_real,
+        );
+        // Constrain `block_lt_10 = [block < 10]`.
+        builder.send_byte(
+            AB::Expr::from_canonical_u32(ByteOpcode::LTU as u32),
+            global.block_lt_10,
+            global.block,
+            AB::Expr::from_canonical_u32(10),
+            global.is_real,
+        );
+
+        // If `is_reg` is true, `step == 1`. If not, `step == 8`.
+        // Therefore, `step == 8 - 7 * is_reg`.
+        let one = AB::Expr::one();
+        builder.when(global.is_real).assert_eq(
+            global.step.into(),
+            AB::Expr::from_canonical_u32(8) - is_reg.clone() * AB::Expr::from_canonical_u32(7),
+        );
+        // Constrain that `offset = block * step`.
+        builder
+            .when(global.is_real)
+            .assert_eq(global.offset.into(), global.block.into() * global.step.into());
+
+        // The multiplicity is equal to the following.
+        // If `is_reg == 1`, `[block_lt_11, block_lt_11, block_lt_10]`.
+        // If `is_reg == 0`, `[1, 1 - is_last_block, 1 - is_last_block]`.
+        // This is with sign `2 * is_init - 1`, `+1` for init, `-1` for finalize.
+        let block_lt_10: AB::Expr = global.block_lt_10.into();
+        let block_lt_11: AB::Expr = global.block_lt_11.into();
+        let is_last: AB::Expr = global.is_last_block.into();
+        let real = [
+            is_reg.clone() * block_lt_11.clone() + (global.is_real - is_reg.clone()),
+            is_reg.clone() * block_lt_11
+                + (global.is_real - is_reg.clone()) * (global.is_real - is_last.clone()),
+            is_reg.clone() * block_lt_10 + (global.is_real - is_reg) * (global.is_real - is_last),
+        ];
+        let sign = global.is_init.into() * AB::Expr::two() - one;
+        for (k, real_k) in real.into_iter().enumerate() {
+            builder
+                .when(global.is_real)
+                .assert_eq(global.memory_multiplicity[k].into() * sign.clone(), real_k);
+            // If `is_real` is false, then the multiplicities are all zero.
+            builder.when_not(global.is_real).assert_zero(global.memory_multiplicity[k]);
+        }
 
         // The permutation round transitions.
         for r in 0..NUM_EXTERNAL_ROUNDS {
@@ -391,7 +587,7 @@ where
             InteractionScope::Local,
         );
 
-        // Receive/Send the 3 memory values of this block.
+        // Handle the memory interactions accordingly.
         let words: [[AB::Expr; 4]; 3] = [
             global.value_1.0.map(Into::into),
             global.value_2.0.map(Into::into),

@@ -282,8 +282,7 @@ async fn main() {
                 );
 
                 // `commitments_hash` is observed by the normalize verifier, so it must hash the same
-                // commitments the core proof observed (mirrors `get_normalize_witness`). The roots /
-                // shard index / num shards are not constrained by the program, so they stay dummy.
+                // commitments the core proof observed (mirrors `get_normalize_witness`).
                 let commitments =
                     commitments.as_ref().expect("normalize phase set the commitments");
                 let (hasher, _) = SP1GlobalContext::default_hasher_and_compressor();
@@ -293,17 +292,12 @@ async fn main() {
                     SP1NormalizeWitnessValues {
                         vk: vk.clone(),
                         shard_proofs: vec![proof],
-                        is_complete: false,
                         vk_root: [SP1Field::zero(); DIGEST_SIZE],
                         reconstruct_deferred_digest: [SP1Field::zero(); 8],
                         num_deferred_proofs: SP1Field::zero(),
                         commitments_hash: SP1GlobalContext::digest_to_elements(&commitments_hash)
                             .try_into()
                             .expect("commitments hash has DIGEST_SIZE elements"),
-                        prev_root: [SP1Field::zero(); DIGEST_SIZE],
-                        cur_root: [SP1Field::zero(); DIGEST_SIZE],
-                        shard_index: SP1Field::zero(),
-                        num_shards: SP1Field::zero(),
                         // First (only) shard: the running hash starts from the zero state.
                         prev_hasher_state: [SP1Field::zero(); PERMUTATION_WIDTH],
                     };

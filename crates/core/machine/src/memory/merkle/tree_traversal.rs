@@ -3,12 +3,17 @@ use core::{
     mem::{size_of, MaybeUninit},
 };
 
+use hashbrown::HashMap;
+use itertools::Itertools;
 use slop_air::{Air, AirBuilder, BaseAir, GlobalBuilder, PairBuilder};
-use slop_algebra::{AbstractField, PrimeField32};
+use slop_algebra::{AbstractField, Field, PrimeField32};
 use slop_matrix::Matrix;
-use slop_maybe_rayon::prelude::{IndexedParallelIterator, ParallelIterator, ParallelSliceMut};
+use slop_maybe_rayon::prelude::*;
 use slop_merkle_tree::batch_update::Row;
-use sp1_core_executor::{ExecutionRecord, Program};
+use sp1_core_executor::{
+    events::{ByteLookupEvent, ByteRecord},
+    ByteOpcode, ExecutionRecord, Program,
+};
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::{
     air::{InteractionScope, MachineAir},
@@ -20,7 +25,11 @@ use sp1_hypercube::{
     },
 };
 
-use crate::{air::SP1CoreAirBuilder, utils::next_multiple_of_32};
+use crate::{
+    air::{SP1CoreAirBuilder, SP1Operation},
+    operations::{IsZeroOperation, IsZeroOperationInput},
+    utils::next_multiple_of_32,
+};
 
 /// The width of a merkle node digest, in KoalaBear field elements.
 pub const DIGEST_WIDTH: usize = 8;
@@ -66,6 +75,18 @@ pub struct MerkleTreeTraversalGlobalCols<T: Copy> {
 pub struct MerkleTreeTraversalMainCols<T: Copy> {
     /// The Poseidon2 permutation.
     pub poseidon2: Poseidon2Operation<T>,
+
+    /// The low 16 bits of the index.
+    pub idx_low_16: T,
+
+    /// The high-limb bit budget for `idx < 2^height` (`= max(height - 16, 0)`).
+    pub k_hi: T,
+
+    /// Indicator that `height == 0`.
+    pub is_height_zero: IsZeroOperation<T>,
+
+    /// Indicator that `height == H - 1` (the children are leaves).
+    pub is_child_leaf: IsZeroOperation<T>,
 }
 
 /// The number of global columns in the [`MerkleTreeTraversalChip`].
@@ -135,6 +156,12 @@ impl MerkleTreeTraversalChip {
         perm_input[..DIGEST_WIDTH].copy_from_slice(&digest_to_field(&row.l));
         perm_input[DIGEST_WIDTH..].copy_from_slice(&digest_to_field(&row.r));
         cols.poseidon2 = populate_perm_deg3(perm_input, None);
+        cols.idx_low_16 = F::from_canonical_u64(row.idx & 0xFFFF);
+        cols.k_hi = F::from_canonical_usize(row.height.saturating_sub(16));
+        cols.is_height_zero.populate(row.height as u64);
+        cols.is_child_leaf.populate_from_field_element(
+            F::from_canonical_usize(row.height) - F::from_canonical_u32(28),
+        );
     }
 }
 
@@ -153,14 +180,39 @@ impl<F: PrimeField32> MachineAir<F> for MerkleTreeTraversalChip {
         Some(next_multiple_of_32(nb_rows, size_log2))
     }
 
-    // TODO(rkm): add accordingly once the AIRs are done
-    // fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-    //     let proof = input.merkle_proof_record.as_ref().map(|r| &r.proof);
-    //     let n_rows = proof.map_or(0, |p| p.n_rows());
-    //     if n_rows == 0 {
-    //         return;
-    //     }
-    // }
+    fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
+        let proof = input.merkle_proof_record.as_ref().map(|r| &r.proof);
+        let n_rows = proof.map_or(0, |p| p.n_rows());
+        if n_rows == 0 {
+            return;
+        }
+        let proof = proof.unwrap();
+        let chunk_size = std::cmp::max(n_rows / num_cpus::get(), 1);
+        let blu_batches = (0..n_rows)
+            .into_par_iter()
+            .chunks(chunk_size)
+            .map(|idxs| {
+                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                for i in idxs {
+                    let row = proof.row(i);
+                    let k_hi = row.height.saturating_sub(16);
+                    let k_lo = row.height - k_hi;
+                    // `height < H = 29`.
+                    blu.add_byte_lookup_event(ByteLookupEvent {
+                        opcode: ByteOpcode::LTU,
+                        a: 1,
+                        b: row.height as u8,
+                        c: 29,
+                    });
+                    // `idx < 2^height` via the two 16-bit-boundary limbs.
+                    blu.add_bit_range_check((row.idx & 0xFFFF) as u16, k_lo as u8);
+                    blu.add_bit_range_check((row.idx >> 16) as u16, k_hi as u8);
+                }
+                blu
+            })
+            .collect::<Vec<_>>();
+        output.add_byte_lookup_events_from_maps(blu_batches.iter().collect_vec());
+    }
 
     fn global_width(&self) -> usize {
         NUM_MERKLE_TREE_TRAVERSAL_GLOBAL_COLS
@@ -287,6 +339,7 @@ where
             builder.when(global.is_real).assert_eq(perm_output[i], global.t[i]);
         }
 
+        // Receive the merkle traversal interaction for the parent node.
         builder.receive_merkle_traversal(
             global.height,
             global.idx,
@@ -296,6 +349,7 @@ where
             InteractionScope::Global,
         );
 
+        // Send the merkle traversal interaction for the left child node.
         builder.send_merkle_traversal(
             global.height + AB::Expr::one(),
             global.idx * AB::Expr::two(),
@@ -305,6 +359,7 @@ where
             InteractionScope::Global,
         );
 
+        // Send the merkle traversal interaction for the right child node.
         builder.send_merkle_traversal(
             global.height + AB::Expr::one(),
             global.idx * AB::Expr::two() + AB::Expr::one(),
@@ -314,8 +369,94 @@ where
             InteractionScope::Global,
         );
 
-        // TODO: constrain `0 <= idx < 2^height` and `height < H`.
-        // TODO: constrain the tag-validity table relating (tag1, tag2, tag3) to
-        // (mult, height) — i.e. which tags each row is allowed to carry / cancel against.
+        // Run `IsZeroOperation`: `is_height_zero = (height == 0)`.
+        IsZeroOperation::<AB::F>::eval(
+            builder,
+            IsZeroOperationInput::new(
+                global.height.into(),
+                main.is_height_zero,
+                global.is_real.into(),
+            ),
+        );
+        // Run `IsZeroOperation`: `is_child_leaf = (height == 28)`.
+        IsZeroOperation::<AB::F>::eval(
+            builder,
+            IsZeroOperationInput::new(
+                global.height.into() - AB::Expr::from_canonical_u32(28),
+                main.is_child_leaf,
+                global.is_real.into(),
+            ),
+        );
+        let z = main.is_height_zero.result;
+        let w = main.is_child_leaf.result;
+
+        // If `z == 1` and `mult == 1`, then `tag1 == InitRoot == 0`
+        // If `z == 0` and `mult == 1`, then `tag1 == InitInternal == 1`.
+        // If `z == 1` and `mult == -1`, then `tag1 == FinalRoot == 3`.
+        // If `z == 0` and `mult == -1`, then `tag1 == FinalInternal == 4`.
+        // In all cases, `tag1 == (1 - z) + 3 * (1 - mult) / 2`.
+        builder.when(global.is_real).assert_eq(
+            global.tag1.into() * AB::Expr::two(),
+            AB::Expr::from_canonical_u32(5)
+                - global.mult.into() * AB::Expr::from_canonical_u32(3)
+                - z.into() * AB::Expr::two(),
+        );
+
+        // If `w == 1` and `mult == 1`, then `tag2, tag3 == InitLeave or Shared == 2 or 6`.
+        // If `w == 0` and `mult == 1`, then `tag2, tag3 == InitInternal or Shared == 1 or 6`.
+        // If `w == 1` and `mult == -1`, then `tag2, tag3 == FinalLeave or Shared == 5 or 6`.
+        // If `w == 0` and `mult == -1`, then `tag2, tag3 == FinalInternal or Shared == 4 or 6`.
+        // In all cases, `tag2, tag3 == (1 + w + 3 / 2 * (1 - mult)) or 6`.
+        let target = AB::Expr::from_canonical_u32(5)
+            - global.mult.into() * AB::Expr::from_canonical_u32(3)
+            + w.into() * AB::Expr::two();
+        for tag in [global.tag2, global.tag3] {
+            builder.when(global.is_real).assert_zero(
+                (tag.into() * AB::Expr::two() - target.clone())
+                    * (tag.into() - AB::Expr::from_canonical_u32(6)),
+            );
+        }
+
+        // Check that `0 <= height < H = 29`.
+        builder.send_byte(
+            AB::Expr::from_canonical_u32(ByteOpcode::LTU as u32),
+            AB::Expr::one(),
+            global.height,
+            AB::Expr::from_canonical_u32(29),
+            global.is_real,
+        );
+
+        // Now we check that `0 <= idx < 2^height`.
+        // First, set `idx_low_16` as the low 16 bits, and `idx_high` as the high bits.
+        let idx_high = (global.idx.into() - main.idx_low_16.into())
+            * AB::F::from_canonical_u32(1 << 16).inverse();
+
+        // We enforce `k_hi = max(height - 16, 0)`.
+        // First, check that `k_hi == 0` or `k_hi == height - 16`.
+        builder.assert_zero(
+            main.k_hi.into()
+                * (main.k_hi.into() - (global.height.into() - AB::Expr::from_canonical_u32(16))),
+        );
+
+        // Range check that `0 <= idx_low_16 < 2^(height - k_hi)`.
+        // This enforces `0 <= height - k_hi <= 16`, so `height >= 16` means `k_hi = height - 16`.
+        // The later range check also enforces `0 <= k_hi <= 16`. Therefore, we have
+        // `0 <= height < 16` => `k_hi == 0`, `idx_low_16 < 2^height`, `idx_high == 0`.
+        // `16 <= height < 29` =>`k_hi == height - 16`, `idx_low_16 < 2^16`, `idx_high < 2^k_hi`.
+        // Which shows `0 <= idx < 2^height` accordingly.
+        builder.send_byte(
+            AB::Expr::from_canonical_u32(ByteOpcode::Range as u32),
+            main.idx_low_16,
+            global.height.into() - main.k_hi.into(),
+            AB::Expr::zero(),
+            global.is_real,
+        );
+        builder.send_byte(
+            AB::Expr::from_canonical_u32(ByteOpcode::Range as u32),
+            idx_high.clone(),
+            main.k_hi,
+            AB::Expr::zero(),
+            global.is_real,
+        );
     }
 }

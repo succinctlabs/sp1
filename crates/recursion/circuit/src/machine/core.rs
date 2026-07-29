@@ -25,7 +25,7 @@ use sp1_recursion_executor::{
 use crate::{
     challenger::CanObserveVariable,
     hash::Poseidon2SP1FieldHasherVariable,
-    machine::{assert_complete, recursion_public_values_digest},
+    machine::recursion_public_values_digest,
     shard::{MachineVerifyingKeyVariable, RecursiveShardVerifier, ShardProofVariable},
     zerocheck::RecursiveVerifierConstraintFolder,
     CircuitConfig, SP1FieldConfigVariable,
@@ -36,19 +36,10 @@ pub struct SP1RecursionWitnessVariable<C: CircuitConfig, SC: SP1FieldConfigVaria
     pub shard_proofs: Vec<ShardProofVariable<C, SC>>,
     pub reconstruct_deferred_digest: [Felt<SP1Field>; DIGEST_SIZE],
     pub num_deferred_proofs: Felt<SP1Field>,
-    pub is_complete: Felt<SP1Field>,
     pub vk_root: [Felt<SP1Field>; DIGEST_SIZE],
     /// `H = hash_iter(commitments)` over the chunk's ordered global commitments; observing it
     /// re-derives the chunk's shared global challenge in-circuit.
     pub commitments_hash: [Felt<SP1Field>; DIGEST_SIZE],
-    /// The chunk's previous merkle root (chunk-invariant).
-    pub prev_root: [Felt<SP1Field>; DIGEST_SIZE],
-    /// The chunk's current merkle root (chunk-invariant).
-    pub cur_root: [Felt<SP1Field>; DIGEST_SIZE],
-    /// This shard's index within its trace chunk.
-    pub shard_index: Felt<SP1Field>,
-    /// The number of shards in this shard's trace chunk.
-    pub num_shards: Felt<SP1Field>,
     /// Running Poseidon2 state before this shard folds its global commitment into the chunk's
     /// running commitments hash. `[0; PERMUTATION_WIDTH]` for the first shard in the chunk.
     pub prev_hasher_state: [Felt<SP1Field>; PERMUTATION_WIDTH],
@@ -61,22 +52,12 @@ pub struct SP1RecursionWitnessVariable<C: CircuitConfig, SC: SP1FieldConfigVaria
 pub struct SP1NormalizeWitnessValues<GC: IopCtx, Proof> {
     pub vk: MachineVerifyingKey<GC>,
     pub shard_proofs: Vec<ShardProof<GC, Proof>>,
-    pub is_complete: bool,
     pub vk_root: [GC::F; DIGEST_SIZE],
     pub reconstruct_deferred_digest: [GC::F; 8],
     pub num_deferred_proofs: GC::F,
     /// `H = hash_iter(commitments)` over the chunk's ordered global commitments. Populate from
-    /// `chunk_ctx` as the precomputed hash, not the commitment list (a variable-length list can't
-    /// live in a fixed circuit shape).
+    /// `chunk_ctx` as the precomputed hash, not the commitment list.
     pub commitments_hash: [GC::F; DIGEST_SIZE],
-    /// The chunk's previous merkle root (chunk-invariant).
-    pub prev_root: [GC::F; DIGEST_SIZE],
-    /// The chunk's current merkle root (chunk-invariant).
-    pub cur_root: [GC::F; DIGEST_SIZE],
-    /// This shard's index within its trace chunk.
-    pub shard_index: GC::F,
-    /// The number of shards in this shard's trace chunk.
-    pub num_shards: GC::F,
     /// Running Poseidon2 state before this shard folds its global commitment into the chunk's
     /// running commitments hash. `[0; PERMUTATION_WIDTH]` for the first shard in the chunk.
     pub prev_hasher_state: [GC::F; PERMUTATION_WIDTH],
@@ -137,7 +118,6 @@ where
         let SP1RecursionWitnessVariable {
             vk,
             shard_proofs,
-            is_complete,
             vk_root,
             reconstruct_deferred_digest,
             num_deferred_proofs,
@@ -275,7 +255,7 @@ where
             recursion_public_values.global_cumulative_sum = global_cumulative_sum;
             recursion_public_values.contains_first_shard = public_values.is_first_shard;
             recursion_public_values.num_included_shard = builder.eval(SP1Field::one());
-            recursion_public_values.is_complete = is_complete;
+            recursion_public_values.is_complete = builder.eval(SP1Field::zero());
             recursion_public_values.prev_exit_code = public_values.prev_exit_code;
             recursion_public_values.exit_code = public_values.exit_code;
             recursion_public_values.prev_commit_syscall = public_values.prev_commit_syscall;
@@ -292,15 +272,13 @@ where
             recursion_public_values.start_reconstruct_global_challenge = prev_hasher_state;
             recursion_public_values.end_reconstruct_global_challenge = next_hasher_state;
             recursion_public_values.global_commitments_hash = commitments_hash;
-            recursion_public_values.is_chunk_complete = is_complete;
+            recursion_public_values.is_chunk_complete = builder.eval(SP1Field::zero());
 
             // Calculate the digest and set it in the public values.
             recursion_public_values.digest = recursion_public_values_digest::<C, SP1GlobalContext>(
                 builder,
                 recursion_public_values,
             );
-
-            assert_complete(builder, recursion_public_values, is_complete);
 
             SP1GlobalContext::commit_recursion_public_values(builder, *recursion_public_values);
         }

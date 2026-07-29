@@ -163,7 +163,9 @@ pub(crate) fn merkle_record(n_pages: usize) -> ExecutionRecord {
         proof_record.proof.prev_root.map(|x| x.as_canonical_u32());
     record.public_values.merkle_root = proof_record.proof.cur_root.map(|x| x.as_canonical_u32());
     record.public_values.num_merkle_shard = 1;
-    record.public_values.inv_num_shards = 1;
+    record.public_values.num_execution_shard = 1;
+    record.public_values.inv_num_shards = (1 << 30) - (1 << 23) + 1;
+    record.public_values.is_first_shard = 1;
     record.merkle_proof_record = Some(proof_record);
     record
 }
@@ -231,7 +233,7 @@ mod tests {
     /// The `LeafHash` and `MerkleTreeTraversal` buses fully cancel.
     #[test]
     fn merkle_pipeline_bus_balances() {
-        let record = merkle_record(2000);
+        let mut record = merkle_record(2000);
 
         let lh = Chip::new(LeafHashChip::new());
         let ctrl = Chip::new(LeafHashControlChip::new());
@@ -239,6 +241,7 @@ mod tests {
 
         let kinds = [InteractionKind::LeafHash, InteractionKind::MerkleTreeTraversal];
         let mut totals = BusTotals::new();
+        record.public_values.inv_num_shards = 1;
         for_chip_traces(&lh, &record, &kinds, &mut totals);
         for_chip_traces(&ctrl, &record, &kinds, &mut totals);
         for_chip_traces(&tt, &record, &kinds, &mut totals);
@@ -380,6 +383,7 @@ mod tests {
         let mut record = merkle_record(8);
         record.program = program.clone();
         record.public_values.update_initialized_state(0, false, None, None);
+        record.finalize_public_values::<SP1Field>();
         machine.generate_dependencies(std::iter::once(&mut record), None);
 
         let verifier = ShardVerifier::from_basefold_parameters(

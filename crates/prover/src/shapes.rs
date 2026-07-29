@@ -149,16 +149,10 @@ impl SP1NormalizeInputShape {
         SP1NormalizeWitnessValues {
             vk: vk.vk,
             shard_proofs,
-            is_complete: false,
             vk_root: [SP1Field::zero(); DIGEST_SIZE],
             reconstruct_deferred_digest: [SP1Field::zero(); 8],
             num_deferred_proofs: SP1Field::zero(),
-            // Shape placeholder: the chunk-context fields don't affect the cached program shape.
             commitments_hash: [SP1Field::zero(); DIGEST_SIZE],
-            prev_root: [SP1Field::zero(); DIGEST_SIZE],
-            cur_root: [SP1Field::zero(); DIGEST_SIZE],
-            shard_index: SP1Field::zero(),
-            num_shards: SP1Field::zero(),
             prev_hasher_state: [SP1Field::zero(); PERMUTATION_WIDTH],
         }
     }

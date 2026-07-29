@@ -6,7 +6,10 @@ use core::{
 use slop_air::{Air, BaseAir};
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_matrix::Matrix;
-use sp1_core_executor::{events::PrecompileEvent, ExecutionRecord, Program, SyscallCode};
+use sp1_core_executor::{
+    events::{ByteRecord, PrecompileEvent},
+    ByteOpcode, ExecutionRecord, Program, SyscallCode,
+};
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::{
     air::{AirInteraction, InteractionScope, MachineAir},
@@ -109,6 +112,15 @@ impl<F: PrimeField32> MachineAir<F> for HintReadControlChip {
         }
     }
 
+    fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
+        for (_, event) in input.get_precompile_events(SyscallCode::HINT_READ).iter() {
+            let PrecompileEvent::HintRead(event) = event else { unreachable!() };
+            let slack = (8 * event.len_bytes.div_ceil(8) - event.len_bytes) as u16;
+            output.add_bit_range_check(slack, 3);
+            output.add_bit_range_check(event.len_bytes.div_ceil(8) as u16, 16);
+        }
+    }
+
     fn included(&self, shard: &Self::Record) -> bool {
         if let Some(shape) = shard.shape.as_ref() {
             shape.included::<F, _>(self)
@@ -174,6 +186,24 @@ where
                 InteractionKind::HintRead,
             ),
             InteractionScope::Local,
+        );
+
+        // Check `num_words` is a valid `u16`.
+        builder.send_byte(
+            AB::Expr::from_canonical_u32(ByteOpcode::Range as u32),
+            local.num_words.into(),
+            AB::Expr::from_canonical_u32(16),
+            AB::Expr::zero(),
+            local.is_real,
+        );
+
+        // Check `num_words == ceil(len_bytes / 8)` by `0 <= 8 * num_words - len_bytes < 8`.
+        builder.send_byte(
+            AB::Expr::from_canonical_u32(ByteOpcode::Range as u32),
+            local.num_words.into() * AB::Expr::from_canonical_u32(8) - local.len_bytes.into(),
+            AB::Expr::from_canonical_u32(3),
+            AB::Expr::zero(),
+            local.is_real,
         );
     }
 }

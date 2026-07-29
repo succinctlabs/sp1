@@ -92,10 +92,7 @@ pub struct PublicValues<W1, W2, W3, T> {
     /// Whether `COMMIT_DEFERRED` syscall has been called up to this shard.
     pub commit_deferred_syscall: T,
 
-    /// The inverse to show that `initial_timestamp != 1` in the shards that aren't the first one.
-    pub initial_timestamp_inv: T,
-
-    /// The inverse to show that `last_timestamp != 1` in all shards.
+    /// The inverse to show that `last_timestamp != 1` in all execution shards.
     pub last_timestamp_inv: T,
 
     /// Whether or not the current shard is an execution shard.
@@ -151,7 +148,7 @@ pub struct PublicValues<W1, W2, W3, T> {
     pub proof_nonce: [T; PROOF_NONCE_NUM_WORDS],
 
     /// This field is here to ensure that the size of the public values struct is a multiple of 8.
-    pub empty: [T; 6],
+    pub empty: [T; 7],
 }
 
 impl PublicValues<u32, u64, u64, u32> {
@@ -207,7 +204,6 @@ impl PublicValues<u32, u64, u64, u32> {
         state.is_timestamp_high_eq = 1;
         state.is_timestamp_low_eq = 1;
         state.is_execution_shard = 0;
-        state.initial_timestamp_inv = 0;
         state.last_timestamp_inv = 0;
         state.is_untrusted_programs_enabled = enable_untrusted_programs as u32;
         #[cfg(feature = "mprotect")]
@@ -229,7 +225,6 @@ impl PublicValues<u32, u64, u64, u32> {
         self.is_timestamp_high_eq = state.is_timestamp_high_eq;
         self.is_timestamp_low_eq = state.is_timestamp_low_eq;
         self.last_timestamp_inv = state.last_timestamp_inv;
-        self.initial_timestamp_inv = state.initial_timestamp_inv;
         self.is_execution_shard = state.is_execution_shard;
         self.is_untrusted_programs_enabled = state.is_untrusted_programs_enabled;
         #[cfg(feature = "mprotect")]
@@ -258,7 +253,6 @@ impl PublicValues<u32, u64, u64, u32> {
         self.is_timestamp_high_eq = 1;
         self.is_timestamp_low_eq = 1;
         self.is_execution_shard = 0;
-        self.initial_timestamp_inv = 0;
         self.last_timestamp_inv = 0;
         self.is_untrusted_programs_enabled = enable_untrusted_programs as u32;
         #[cfg(feature = "mprotect")]
@@ -294,7 +288,6 @@ impl PublicValues<u32, u64, u64, u32> {
         self.is_timestamp_high_eq = 1;
         self.is_timestamp_low_eq = 1;
         self.is_execution_shard = 0;
-        self.initial_timestamp_inv = 0;
         self.last_timestamp_inv = 0;
         self.prev_committed_value_digest = committed_value_digest;
         self.committed_value_digest = committed_value_digest;
@@ -442,7 +435,6 @@ impl<F: AbstractField> From<PublicValues<u32, u64, u64, u32>>
             commit_syscall,
             prev_commit_deferred_syscall,
             commit_deferred_syscall,
-            initial_timestamp_inv,
             last_timestamp_inv,
             is_execution_shard,
             is_first_shard,
@@ -532,7 +524,6 @@ impl<F: AbstractField> From<PublicValues<u32, u64, u64, u32>>
         let prev_commit_deferred_syscall = F::from_canonical_u32(prev_commit_deferred_syscall);
         let commit_deferred_syscall = F::from_canonical_u32(commit_deferred_syscall);
 
-        let initial_timestamp_inv = F::from_canonical_u32(initial_timestamp_inv);
         let last_timestamp_inv = F::from_canonical_u32(last_timestamp_inv);
 
         let is_first_shard = F::from_canonical_u32(is_first_shard);
@@ -583,7 +574,6 @@ impl<F: AbstractField> From<PublicValues<u32, u64, u64, u32>>
             commit_syscall,
             prev_commit_deferred_syscall,
             commit_deferred_syscall,
-            initial_timestamp_inv,
             last_timestamp_inv,
             is_execution_shard,
             is_first_shard,

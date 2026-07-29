@@ -8,9 +8,8 @@ use crate::{
     shapes::{SP1NormalizeCache, SP1RecursionProofShape, DEFAULT_ARITY},
     verify::WRAP_VK_BYTES,
     worker::{
-        ChunkChallengeCtx, CommonProverInput, DeferredInputs, NormalizeProgramCompiler,
-        ProverMetrics, RangeProofs, RawTaskRequest, RecursionStages, TaskContext, TaskError,
-        TaskMetadata, WrapAirProverInit,
+        ChunkChallengeCtx, CommonProverInput, NormalizeProgramCompiler, ProverMetrics, RangeProofs,
+        RawTaskRequest, RecursionStages, TaskContext, TaskError, TaskMetadata, WrapAirProverInit,
     },
     ComposeScope, RecursionSC, SP1CircuitWitness, SP1ProverComponents,
 };
@@ -927,24 +926,12 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
         common_input: &CommonProverInput,
         proof: &ShardProof<SP1GlobalContext, SP1PcsProofInner>,
         chunk_ctx: &ChunkChallengeCtx,
-        is_complete: bool,
-        is_precompile: bool,
     ) -> SP1NormalizeWitnessValues<SP1GlobalContext, SP1PcsProofInner> {
         // Use the final deferred digest from common_input for reconstruct_deferred_digest.
-        // This is needed because:
-        // - For core and global memory shards: deferred_proofs_digest equals
-        //   common_input.deferred_digest and the number of deferred proofs accumulated so far is
-        //   the total number of deferred proofs.
-        // - For precompile shards: they are ordered first in the deferred tree so their number
-        //   of accumulated deferred proofs is 0 and deferred_proofs_digest is the initial digest
-        let (num_deferred_proofs, reconstruct_deferred_digest) = if is_precompile {
-            (SP1Field::zero(), DeferredInputs::initial_deferred_digest())
-        } else {
-            (
-                SP1Field::from_canonical_usize(common_input.num_deferred_proofs),
-                common_input.deferred_digest.map(SP1Field::from_canonical_u32),
-            )
-        };
+        let (num_deferred_proofs, reconstruct_deferred_digest) = (
+            SP1Field::from_canonical_usize(common_input.num_deferred_proofs),
+            common_input.deferred_digest.map(SP1Field::from_canonical_u32),
+        );
         // `H = hash_iter(commitments)` binds the chunk's shared global challenge, mirroring
         // `observe_global_challenge`. The circuit re-derives the challenge by observing `H`.
         let (hasher, _) = SP1GlobalContext::default_hasher_and_compressor();
@@ -960,17 +947,12 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
         SP1NormalizeWitnessValues {
             vk: common_input.vk.vk.clone(),
             shard_proofs: vec![proof.clone()],
-            is_complete,
             vk_root: self.recursion_vk_root(),
             reconstruct_deferred_digest,
             num_deferred_proofs,
             commitments_hash: SP1GlobalContext::digest_to_elements(&commitments_hash)
                 .try_into()
                 .expect("commitments hash has DIGEST_SIZE elements"),
-            prev_root: chunk_ctx.prev_root.map(SP1Field::from_canonical_u32),
-            cur_root: chunk_ctx.cur_root.map(SP1Field::from_canonical_u32),
-            shard_index: SP1Field::from_canonical_u32(chunk_ctx.shard_index),
-            num_shards: SP1Field::from_canonical_u32(chunk_ctx.num_shards),
             prev_hasher_state,
         }
     }
@@ -1046,7 +1028,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents> RecursionStages for SP1Recursion
         Box::pin(async move {
             let program =
                 self.prover_data.normalize.program_for_proof(common.vk.clone(), &core_proof);
-            let witness = self.get_normalize_witness(common, &core_proof, chunk_ctx, false, false);
+            let witness = self.get_normalize_witness(common, &core_proof, chunk_ctx);
             self.prove_recursion_proof(program, SP1CircuitWitness::Core(witness), out).await
         })
     }

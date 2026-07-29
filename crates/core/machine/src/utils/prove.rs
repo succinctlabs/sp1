@@ -143,7 +143,9 @@ where
         }
         let num_execution_shards = (chunk_records.len() - num_merkle_shards as usize) as u32;
 
-        chunk_records[0].public_values.is_first_shard = 1;
+        if chunk_idx == 0 {
+            chunk_records[0].public_values.is_first_shard = 1;
+        }
         // Chunk metadata + the chunk's bracketing merkle roots, on every shard.
         for record in chunk_records.iter_mut() {
             record.trace_chunk_idx = chunk_idx as u32;

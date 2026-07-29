@@ -89,27 +89,17 @@ impl Witnessable<InnerConfig> for SP1NormalizeWitnessValues<SP1GlobalContext, SP
         let vk = self.vk.read(builder);
         let shard_proofs = self.shard_proofs.read(builder);
         let reconstruct_deferred_digest = self.reconstruct_deferred_digest.read(builder);
-        let is_complete = InnerVal::from_bool(self.is_complete).read(builder);
         let vk_root = self.vk_root.read(builder);
         let num_deferred_proofs = self.num_deferred_proofs.read(builder);
         let commitments_hash = self.commitments_hash.read(builder);
-        let prev_root = self.prev_root.read(builder);
-        let cur_root = self.cur_root.read(builder);
-        let shard_index = self.shard_index.read(builder);
-        let num_shards = self.num_shards.read(builder);
         let prev_hasher_state = self.prev_hasher_state.read(builder);
         SP1RecursionWitnessVariable {
             vk,
             shard_proofs,
-            is_complete,
             reconstruct_deferred_digest,
             vk_root,
             num_deferred_proofs,
             commitments_hash,
-            prev_root,
-            cur_root,
-            shard_index,
-            num_shards,
             prev_hasher_state,
         }
     }
@@ -118,14 +108,9 @@ impl Witnessable<InnerConfig> for SP1NormalizeWitnessValues<SP1GlobalContext, SP
         self.vk.write(witness);
         self.shard_proofs.write(witness);
         self.reconstruct_deferred_digest.write(witness);
-        self.is_complete.write(witness);
         self.vk_root.write(witness);
         self.num_deferred_proofs.write(witness);
         self.commitments_hash.write(witness);
-        self.prev_root.write(witness);
-        self.cur_root.write(witness);
-        self.shard_index.write(witness);
-        self.num_shards.write(witness);
         self.prev_hasher_state.write(witness);
     }
 }

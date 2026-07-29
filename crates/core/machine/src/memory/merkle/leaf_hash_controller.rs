@@ -129,6 +129,7 @@ where
         let local = global.row_slice(0);
         let local: &LeafHashControlCols<AB::Var> = (*local).borrow();
 
+        // Check `is_real` to be boolean.
         builder.assert_bool(local.is_real);
 
         // Send the leaf hash request for the initial contents.
@@ -140,6 +141,7 @@ where
             local.is_real,
             InteractionScope::Local,
         );
+        // Receive the leaf hash result for the initial contents.
         builder.receive_leaf_hash(
             local.page_id,
             AB::Expr::one(),
@@ -158,6 +160,7 @@ where
             local.is_real,
             InteractionScope::Local,
         );
+        // Receive the leaf hash result for the final values.
         builder.receive_leaf_hash(
             local.page_id,
             AB::Expr::zero(),
@@ -167,6 +170,7 @@ where
             InteractionScope::Local,
         );
 
+        // Handle the `InitLeave` part of the merkle tree traversal.
         builder.receive_merkle_traversal(
             AB::Expr::from_canonical_u32(29),
             local.page_id,
@@ -176,6 +180,7 @@ where
             InteractionScope::Global,
         );
 
+        // Handle the `FinalLeave` part of the merkle tree traversal.
         builder.send_merkle_traversal(
             AB::Expr::from_canonical_u32(29),
             local.page_id,
