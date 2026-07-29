@@ -190,7 +190,7 @@ pub struct ApcChip<F: PrimeField32> {
     /// The name of this APC
     name: String,
     /// The cached APC.
-    cached_apc: CachedApc<F>,
+    cached_apc: Arc<CachedApc<F>>,
     /// A machine to generate traces for the APC. By construction, it will never have apcs itself.
     machine: Machine<F, RiscvAir<F>>,
     /// Cache of filled APC traces (see [`CachedTraces`]).
@@ -202,7 +202,7 @@ impl<F: PrimeField32> ApcChip<F> {
         Self {
             id,
             name: format!("APC_{id}"),
-            cached_apc: apc.into(),
+            cached_apc: Arc::new(apc.into()),
             machine: RiscvAir::machine(),
             cached_traces: CachedTraces::default(),
         }
