@@ -9,10 +9,10 @@ use slop_multilinear::{Mle, MleEval, MultilinearPcsChallenger, Point};
 
 use crate::{
     air::{InteractionScope, MachineAir},
-    beta_seed_dim_for_scope, prove_gkr_round,
+    beta_seed_dim_for_scope, global_output_sum, prove_gkr_round,
     prover::{Record, Traces},
-    pv_interaction_max_arity, Chip, ChipEvaluation, LogUpGkrVerifier, LogupGkrCpuCircuit,
-    LogupGkrCpuTraceGenerator, ShardContext, GKR_GRINDING_BITS,
+    pv_interaction_max_arity, transition_fold, Chip, ChipEvaluation, LogUpGkrVerifier,
+    LogupGkrCpuCircuit, LogupGkrCpuTraceGenerator, ShardContext, GKR_GRINDING_BITS,
 };
 
 use super::{LogUpEvaluations, LogUpGkrOutput, LogupGkrProof, LogupGkrRoundProof};
@@ -45,11 +45,31 @@ impl<GC: IopCtx, SC: ShardContext<GC>> GkrProverImpl<GC, SC> {
         challenger: &mut GC::Challenger,
     ) -> (Point<GC::EF>, Vec<LogupGkrRoundProof<GC::EF>>) {
         let mut round_proofs = Vec::new();
-        // Follow the GKR protocol layer by layer.
+        // Follow the GKR protocol layer by layer. On a machine with a global round, the first
+        // `num_local_layers` rounds prove the local-only interaction tree; the transition fold
+        // then splices the exposed global outputs into the claim before the round consuming the
+        // "one entry per interaction" layer and the row rounds below it.
+        let num_local_layers = circuit.num_local_layers;
+        let mut transition = circuit.transition.take();
+        let mut layers_proved = 0;
         let mut numerator_eval = numerator_value;
         let mut denominator_eval = denominator_value;
         let mut eval_point = eval_point;
         while let Some(layer) = circuit.next_layer() {
+            if layers_proved == num_local_layers {
+                if let Some(transition) = transition.take() {
+                    transition_fold::<GC>(
+                        transition.k_local,
+                        transition.k_full,
+                        &transition.global_outputs,
+                        &mut eval_point,
+                        &mut numerator_eval,
+                        &mut denominator_eval,
+                        challenger,
+                    );
+                }
+            }
+            layers_proved += 1;
             let round_proof =
                 prove_gkr_round(layer, &eval_point, numerator_eval, denominator_eval, challenger);
             // Observe the prover message.
@@ -99,10 +119,6 @@ impl<GC: IopCtx, SC: ShardContext<GC>> GkrProverImpl<GC, SC> {
             .map(|_| challenger.sample_ext_element::<GC::EF>())
             .collect::<Point<_>>();
         let pv_challenge = challenger.sample_ext_element::<GC::EF>();
-
-        let num_interactions =
-            chips.iter().map(|chip| chip.sends().len() + chip.receives().len()).sum::<usize>();
-        let num_interaction_variables = num_interactions.next_power_of_two().ilog2();
 
         #[cfg(sp1_debug_constraints)]
         {
@@ -166,7 +182,7 @@ impl<GC: IopCtx, SC: ShardContext<GC>> GkrProverImpl<GC, SC> {
         let has_global_round = global_challenges.is_some();
 
         // Run the GKR circuit and get the output.
-        let (output, circuit) = {
+        let (output, circuit, global_interaction_outputs) = {
             let _span = tracing::debug_span!("generate GKR circuit").entered();
             self.trace_generator.generate_gkr_circuit(
                 chips,
@@ -184,25 +200,29 @@ impl<GC: IopCtx, SC: ShardContext<GC>> GkrProverImpl<GC, SC> {
         let host_numerator = numerator.to_host().unwrap();
         let host_denominator = denominator.to_host().unwrap();
 
+        // Observe the circuit output and the exposed global-interaction outputs, at the same
+        // transcript positions as the verifier (before the first evaluation point).
         challenger.observe_variable_length_extension_slice(host_numerator.guts().as_slice());
         challenger.observe_variable_length_extension_slice(host_denominator.guts().as_slice());
+        for (global_numerator, global_denominator) in &global_interaction_outputs {
+            challenger.observe_ext_element(*global_numerator);
+            challenger.observe_ext_element(*global_denominator);
+        }
         let output_host =
             LogUpGkrOutput { numerator: host_numerator, denominator: host_denominator };
 
-        // The global cumulative sum exposed by the shard.
+        // The global cumulative sum exposed by the shard: the sum of the exposed
+        // global-interaction fractions, plus the global-scope public-value digest. The verifier
+        // binds each exposed output to the committed traces through the transition fold, and
+        // recomputes this aggregate.
         let global_cumulative_sum = global_pv_digest.map(|global_pv_digest| {
-            let interaction_scopes = chips
-                .iter()
-                .flat_map(|chip| chip.sends().iter().chain(chip.receives().iter()))
-                .map(|interaction| interaction.scope)
-                .collect::<Vec<_>>();
-            let (_, global_output_sum) = output_host.cumulative_sums_by_scope(&interaction_scopes);
-            global_output_sum + global_pv_digest
+            global_output_sum(&global_interaction_outputs) + global_pv_digest
         });
 
-        // TODO: instead calculate from number of interactions.
+        // The circuit output is the top `level-1` layer: a single pair of fractions (one
+        // variable).
         let initial_number_of_variables = numerator.num_variables();
-        assert_eq!(initial_number_of_variables, num_interaction_variables + 1);
+        assert_eq!(initial_number_of_variables, 1);
         let first_eval_point = challenger.sample_point::<GC::EF>(initial_number_of_variables);
 
         // Follow the GKR protocol layer by layer.
@@ -273,8 +293,13 @@ impl<GC: IopCtx, SC: ShardContext<GC>> GkrProverImpl<GC, SC> {
         let logup_evaluations =
             LogUpEvaluations { point: eval_point, chip_openings: chip_evaluations };
 
-        let proof =
-            LogupGkrProof { circuit_output: output_host, round_proofs, logup_evaluations, witness };
+        let proof = LogupGkrProof {
+            circuit_output: output_host,
+            global_interaction_outputs,
+            round_proofs,
+            logup_evaluations,
+            witness,
+        };
 
         (proof, global_cumulative_sum)
     }

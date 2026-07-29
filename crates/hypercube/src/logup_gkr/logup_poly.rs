@@ -126,33 +126,40 @@ impl<K: ExtensionField<F>, F: Field> SumcheckPolyFirstRound<K> for LogupRoundPol
                         .map(|mle| mle.fix_last_variable(alpha))
                         .collect();
 
-                    let mut numerator_0_interactions: Vec<_> = numerator_0
-                        .into_iter()
-                        .flat_map(|mle| mle.eval_at::<K>(&Point::from(vec![])).to_vec())
-                        .collect();
-                    numerator_0_interactions
-                        .resize(1 << layer.num_interaction_variables, K::zero());
-
-                    let mut numerator_1_interactions: Vec<_> = numerator_1
-                        .into_iter()
-                        .flat_map(|mle| mle.eval_at::<K>(&Point::from(vec![])).to_vec())
-                        .collect();
-                    numerator_1_interactions
-                        .resize(1 << layer.num_interaction_variables, K::zero());
-
-                    let mut denominator_0_interactions: Vec<_> = denominator_0
-                        .into_iter()
-                        .flat_map(|mle| mle.eval_at::<K>(&Point::from(vec![])).to_vec())
-                        .collect();
-                    denominator_0_interactions
-                        .resize(1 << layer.num_interaction_variables, K::one());
-
-                    let mut denominator_1_interactions: Vec<_> = denominator_1
-                        .into_iter()
-                        .flat_map(|mle| mle.eval_at::<K>(&Point::from(vec![])).to_vec())
-                        .collect();
-                    denominator_1_interactions
-                        .resize(1 << layer.num_interaction_variables, K::one());
+                    // Scatter each table's per-column values into the grouped interaction order
+                    // (the table's local block range chained with its global block range);
+                    // uncovered slots keep the padding values.
+                    let size = 1 << layer.num_interaction_variables;
+                    let mut numerator_0_interactions = vec![K::zero(); size];
+                    let mut numerator_1_interactions = vec![K::zero(); size];
+                    let mut denominator_0_interactions = vec![K::one(); size];
+                    let mut denominator_1_interactions = vec![K::one(); size];
+                    for (
+                        numerator_0,
+                        numerator_1,
+                        denominator_0,
+                        denominator_1,
+                        (local_range, global_range),
+                    ) in itertools::izip!(
+                        numerator_0,
+                        numerator_1,
+                        denominator_0,
+                        denominator_1,
+                        layer.interaction_ranges
+                    ) {
+                        let scatter = |mle: &slop_multilinear::PaddedMle<K>, out: &mut [K]| {
+                            let values = mle.eval_at::<K>(&Point::from(vec![])).to_vec();
+                            for (column, grouped) in
+                                local_range.clone().chain(global_range.clone()).enumerate()
+                            {
+                                out[grouped] = values[column];
+                            }
+                        };
+                        scatter(&numerator_0, &mut numerator_0_interactions);
+                        scatter(&numerator_1, &mut numerator_1_interactions);
+                        scatter(&denominator_0, &mut denominator_0_interactions);
+                        scatter(&denominator_1, &mut denominator_1_interactions);
+                    }
 
                     let numerator_0_mle = Arc::new(Mle::from(numerator_0_interactions));
                     let denominator_0_mle = Arc::new(Mle::from(denominator_0_interactions));
@@ -209,6 +216,7 @@ impl<K: ExtensionField<F>, F: Field> SumcheckPolyFirstRound<K> for LogupRoundPol
                         denominator_0,
                         numerator_1,
                         denominator_1,
+                        interaction_ranges: layer.interaction_ranges,
                         num_row_variables: layer.num_row_variables - 1,
                         num_interaction_variables: layer.num_interaction_variables,
                     };
@@ -322,13 +330,17 @@ impl<K: ExtensionField<F>, F: Field> SumcheckPolyFirstRound<K> for LogupRoundPol
                 let eq_interaction = self.eq_interaction.clone();
                 let lambda = self.lambda;
 
-                let mut interaction_offset = 0;
+                let interaction_ranges = layer.interaction_ranges.clone();
                 let mut eval_0 = K::zero();
                 let mut eval_half = K::zero();
                 let mut eq_sum = K::zero();
-                for (numerator_0, numerator_1, denominator_0, denominator_1) in
-                    itertools::izip!(numerator_0, numerator_1, denominator_0, denominator_1)
-                {
+                for (numerator_0, numerator_1, denominator_0, denominator_1, ranges) in itertools::izip!(
+                    numerator_0,
+                    numerator_1,
+                    denominator_0,
+                    denominator_1,
+                    interaction_ranges
+                ) {
                     if let Some(inner) = numerator_0.inner() {
                         assert!(numerator_0.num_variables() > 0);
                         let numerator_1_inner = numerator_1.inner().as_ref().unwrap();
@@ -338,6 +350,15 @@ impl<K: ExtensionField<F>, F: Field> SumcheckPolyFirstRound<K> for LogupRoundPol
                         // );
                         let denominator_0_inner = denominator_0.inner().as_ref().unwrap();
                         let denominator_1_inner = denominator_1.inner().as_ref().unwrap();
+                        // The table's eq weights at its grouped interaction indices: the local
+                        // block range chained with the global block range.
+                        let (local_range, global_range) = &ranges;
+                        let eq = eq_interaction.guts().as_slice();
+                        let chip_weights = eq[local_range.clone()]
+                            .iter()
+                            .chain(eq[global_range.clone()].iter())
+                            .copied()
+                            .collect::<Vec<K>>();
                         let (eval_0_chip, eval_half_chip, eq_sum_chip) =
                             inner
                                 .guts()
@@ -367,11 +388,7 @@ impl<K: ExtensionField<F>, F: Field> SumcheckPolyFirstRound<K> for LogupRoundPol
                                         (((numer_0_row, numer_1_row), denom_0_row), denom_1_row),
                                         eq_row_chunk,
                                     )| {
-                                        let eq_interactions_chip = eq_interaction.guts().as_slice()
-                                            [interaction_offset
-                                                ..interaction_offset
-                                                    + numerator_0.num_polynomials()]
-                                            .par_iter();
+                                        let eq_interactions_chip = chip_weights.par_iter();
 
                                         let (numer_0_row_0, numer_0_row_1) =
                                             numer_0_row.split_at(numerator_0.num_polynomials());
@@ -509,8 +526,6 @@ impl<K: ExtensionField<F>, F: Field> SumcheckPolyFirstRound<K> for LogupRoundPol
                         eval_half += eval_half_chip;
                         eq_sum += eq_sum_chip;
                     }
-                    interaction_offset += numerator_0.num_polynomials();
-                    // println!("interaction_offset: {:?}", interaction_offset);
                 }
 
                 (eval_0, eval_half, eq_sum)
@@ -646,11 +661,23 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
+        // Sequential all-local grouped ranges (equivalent to the per-chip concatenation order).
+        let mut offset = 0;
+        let interaction_ranges = interaction_counts
+            .iter()
+            .map(|count| {
+                let local_range = offset..offset + count;
+                offset = local_range.end;
+                (local_range, offset..offset)
+            })
+            .collect::<Vec<_>>();
+
         LogUpGkrCpuLayer {
             numerator_0: padded_numerator_0,
             denominator_0: padded_denominator_0,
             numerator_1: padded_numerator_1,
             denominator_1: padded_denominator_1,
+            interaction_ranges,
             num_row_variables,
             num_interaction_variables,
         }
@@ -1149,6 +1176,7 @@ mod tests {
             let next_layer = match layers.last().unwrap() {
                 GkrCircuitLayer::Layer(layer) => trace_generator.layer_transition(layer),
                 GkrCircuitLayer::FirstLayer(layer) => trace_generator.layer_transition(layer),
+                GkrCircuitLayer::InteractionLayer(_) => unreachable!(),
             };
             layers.push(GkrCircuitLayer::Layer(next_layer));
         }

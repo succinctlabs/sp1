@@ -4,12 +4,13 @@ use std::{
     sync::Arc,
 };
 
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use slop_alloc::{Buffer, HasBackend};
 use slop_multilinear::Point;
 use slop_tensor::Tensor;
 use sp1_gpu_cudart::{
-    args, sys::kernels::logup_gkr_populate_last_circuit_layer, DeviceBuffer, DevicePoint, TaskScope,
+    args,
+    sys::kernels::{logup_gkr_populate_last_circuit_layer, logup_gkr_populate_padding_columns},
+    DeviceBuffer, DevicePoint, TaskScope,
 };
 use sp1_hypercube::{air::MachineAir, Chip};
 use tracing::instrument;
@@ -39,24 +40,75 @@ pub fn generate_first_layer<'a>(
 ) -> FirstGkrLayer {
     let num_row_variables = input_data.num_row_variables - 1;
 
-    // interaction_row_counts iterates through the traces by chip order, and returns column sizes for each interaction.
-    let interaction_row_counts =
-        tracing::trace_span!("row counts and start indices").in_scope(|| {
-            input_data
-                .all_interactions
-                .par_iter()
-                .filter(|(name, _)| input_data.chip_set.contains(*name))
-                .flat_map(|(name, interactions)| {
-                    let real_height = input_data.poly_height(name).unwrap();
-                    // For padding reasons, `height` always needs to be at least 2.
-                    let height = std::cmp::max(real_height, 8);
-                    // Divide by 2 because each row has even height, so we only store length / 2.
-                    // Divide by 2 again because numerator(x, 0) and numerator(x, 1) are stored separately.
-                    let height = height.div_ceil(4);
-                    vec![height as u32; interactions.num_interactions]
-                })
-                .collect::<Vec<_>>()
-        });
+    // The shard's chips with interactions, in name order, each with its per-interaction column
+    // height.
+    let chip_interactions = input_data
+        .all_interactions
+        .iter()
+        .filter(|(name, interactions)| {
+            input_data.chip_set.contains(*name) && interactions.num_interactions > 0
+        })
+        .map(|(name, interactions)| {
+            let real_height = input_data.poly_height(name).unwrap();
+            // For padding reasons, `height` always needs to be at least 2.
+            let height = std::cmp::max(real_height, 8);
+            // Divide by 2 because each row has even height, so we only store length / 2.
+            // Divide by 2 again because numerator(x, 0) and numerator(x, 1) are stored separately.
+            let height = height.div_ceil(4) as u32;
+            (name, interactions, height)
+        })
+        .collect::<Vec<_>>();
+
+    // The grouped interaction-dimension shape, mirroring the native verifier's derivation: the
+    // local-scope interactions form the low block `[0, num_local)`, the slots
+    // `[num_local, 2^k_local)` are padding, and the global-scope interactions form the block
+    // starting at `2^k_local` (above the local tree's padding slots), followed by padding up to
+    // `2^k_full`. Columns are numbered by grouped index. The gap columns are materialized as
+    // height-2 `(0, 1)` padding columns (like a fully-padded chip's), keeping dense position
+    // equal to grouped index — the last-layer conversion to a dense interactions layer indexes
+    // `eqInteraction` positionally. The tail beyond the last column flows through the
+    // pre-existing eq-correction padding accounting.
+    let num_local = chip_interactions
+        .iter()
+        .map(|(_, interactions, _)| interactions.num_local_interactions)
+        .sum::<usize>();
+    let num_global = chip_interactions
+        .iter()
+        .map(|(_, interactions, _)| {
+            interactions.num_interactions - interactions.num_local_interactions
+        })
+        .sum::<usize>();
+    let k_local = num_local.next_power_of_two().ilog2().max(1) as usize;
+    let k_full = if num_global > 0 {
+        ((1usize << k_local) + num_global).next_power_of_two().ilog2() as usize
+    } else {
+        k_local
+    };
+    let global_block_start = 1usize << k_local;
+    let num_columns = global_block_start + num_global;
+
+    // interaction_row_counts[g] is the column height of grouped interaction `g`; each chip's
+    // grouped column offsets are its contiguous slices of the local and global blocks.
+    let mut interaction_row_counts = vec![0u32; num_columns];
+    let mut local_offset = 0usize;
+    let mut global_offset = 0usize;
+    let chip_offsets = chip_interactions
+        .iter()
+        .map(|(_, interactions, height)| {
+            let chip_num_local = interactions.num_local_interactions;
+            let chip_num_global = interactions.num_interactions - chip_num_local;
+            let local_col_offset = local_offset;
+            let global_col_offset = global_block_start + global_offset;
+            interaction_row_counts[local_col_offset..local_col_offset + chip_num_local]
+                .fill(*height);
+            interaction_row_counts[global_col_offset..global_col_offset + chip_num_global]
+                .fill(*height);
+            local_offset += chip_num_local;
+            global_offset += chip_num_global;
+            (local_col_offset, global_col_offset)
+        })
+        .collect::<Vec<_>>();
+    interaction_row_counts[num_local..global_block_start].fill(2);
 
     // interaction_start_indices is a prefix sum of interaction_row_counts.
     let interaction_start_indices = once(0)
@@ -82,13 +134,12 @@ pub fn generate_first_layer<'a>(
     let global_betas = DevicePoint::new(global_beta).partial_lagrange();
 
     // Generate traces per chip, sorted by chip name.
-    let mut interaction_offset = 0;
-    for (name, interactions) in
-        input_data.all_interactions.iter().filter(|(name, _)| input_data.chip_set.contains(*name))
+    for ((name, interactions, _), (local_col_offset, global_col_offset)) in
+        chip_interactions.iter().zip(chip_offsets)
     {
         let alpha = input_data.alpha;
         let global_alpha = input_data.global_alpha;
-        let interactions = interactions.clone();
+        let interactions = (*interactions).clone();
         let num_interactions = interactions.num_interactions;
         let interaction_start_indices = unsafe { interaction_start_indices.owned_unchecked() };
         let mut interaction_data = unsafe { interaction_data.owned_unchecked() };
@@ -131,7 +182,8 @@ pub fn generate_first_layer<'a>(
                 betas.guts().as_ptr(),
                 global_alpha,
                 global_betas.guts().as_ptr(),
-                interaction_offset,
+                local_col_offset,
+                global_col_offset,
                 real_height,
                 height,
                 is_padding
@@ -146,8 +198,34 @@ pub fn generate_first_layer<'a>(
                 )
                 .unwrap();
         }
+    }
 
-        interaction_offset += num_interactions;
+    // Materialize the local tree's padding columns (the gap `[num_local, 2^k_local)`) as `(0, 1)`
+    // padding data, identical to a fully-padded chip's columns.
+    let num_gap_columns = global_block_start - num_local;
+    if num_gap_columns > 0 {
+        const BLOCK_SIZE: usize = 256;
+        let grid_size = (num_gap_columns.div_ceil(BLOCK_SIZE), 1, 1);
+        unsafe {
+            let args = args!(
+                interaction_start_indices.as_ptr(),
+                interaction_data.as_mut_ptr(),
+                numerator.as_mut_ptr(),
+                denominator.as_mut_ptr(),
+                num_local,
+                num_gap_columns,
+                height
+            );
+            backend
+                .launch_kernel(
+                    logup_gkr_populate_padding_columns(),
+                    grid_size,
+                    BLOCK_SIZE,
+                    &args,
+                    0,
+                )
+                .unwrap();
+        }
     }
 
     unsafe {
@@ -169,7 +247,7 @@ pub fn generate_first_layer<'a>(
         interaction_row_counts_dev,
     );
 
-    let num_interaction_variables = interaction_offset.next_power_of_two().ilog2();
+    let num_interaction_variables = k_full as u32;
 
     FirstGkrLayer { jagged_mle, num_row_variables, num_interaction_variables }
 }

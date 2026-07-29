@@ -8,7 +8,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use crate::{air::InteractionScope, prover::Traces, Interaction};
 
-use super::{LogUpGkrCpuLayer, LogUpGkrOutput, LogupGkrCpuTraceGenerator};
+use super::{ChipInteractions, LogUpGkrCpuLayer, LogUpGkrOutput, LogupGkrCpuTraceGenerator};
 
 pub(crate) fn generate_interaction_vals<F: Field, EF: ExtensionField<F>>(
     interaction: &Interaction<F>,
@@ -41,59 +41,38 @@ impl<F: Field, EF: ExtensionField<F>, A> LogupGkrCpuTraceGenerator<F, EF, A> {
         &self,
         last_layer: &LogUpGkrCpuLayer<EF, EF>,
     ) -> LogUpGkrOutput<EF> {
-        let numerator_0 = last_layer.numerator_0.clone();
-        let numerator_1 = last_layer.numerator_1.clone();
-        let denominator_0 = last_layer.denominator_0.clone();
-        let denominator_1 = last_layer.denominator_1.clone();
-
-        let mut numerator_0_interactions: Vec<EF> = numerator_0
-            .into_iter()
-            .flat_map(|mle| {
-                let n00 = mle.fix_last_variable(EF::zero());
-                let n01 = mle.fix_last_variable(EF::one());
-                let n00_int = n00.eval_at::<EF>(&Point::from(vec![])).to_vec();
-                let n01_int = n01.eval_at::<EF>(&Point::from(vec![])).to_vec();
-                n00_int.iter().interleave(n01_int.iter()).copied().collect::<Vec<_>>()
-            })
-            .collect();
-        numerator_0_interactions
-            .resize(1 << (last_layer.num_interaction_variables + 1), EF::zero());
-        let mut numerator_1_interactions: Vec<EF> = numerator_1
-            .into_iter()
-            .flat_map(|mle| {
-                let n10 = mle.fix_last_variable(EF::zero());
-                let n11 = mle.fix_last_variable(EF::one());
-                let n10_int = n10.eval_at::<EF>(&Point::from(vec![])).to_vec();
-                let n11_int = n11.eval_at::<EF>(&Point::from(vec![])).to_vec();
-                n10_int.iter().interleave(n11_int.iter()).copied().collect::<Vec<_>>()
-            })
-            .collect();
-        numerator_1_interactions
-            .resize(1 << (last_layer.num_interaction_variables + 1), EF::zero());
-        let mut denominator_0_interactions: Vec<EF> = denominator_0
-            .into_iter()
-            .flat_map(|mle| {
-                let d00 = mle.fix_last_variable(EF::zero());
-                let d01 = mle.fix_last_variable(EF::one());
-                let d00_int = d00.eval_at::<EF>(&Point::from(vec![])).to_vec();
-                let d01_int = d01.eval_at::<EF>(&Point::from(vec![])).to_vec();
-                d00_int.iter().interleave(d01_int.iter()).copied().collect::<Vec<_>>()
-            })
-            .collect();
-        denominator_0_interactions
-            .resize(1 << (last_layer.num_interaction_variables + 1), EF::one());
-        let mut denominator_1_interactions: Vec<EF> = denominator_1
-            .into_iter()
-            .flat_map(|mle| {
-                let d10 = mle.fix_last_variable(EF::zero());
-                let d11 = mle.fix_last_variable(EF::one());
-                let d10_int = d10.eval_at::<EF>(&Point::from(vec![])).to_vec();
-                let d11_int = d11.eval_at::<EF>(&Point::from(vec![])).to_vec();
-                d10_int.iter().interleave(d11_int.iter()).copied().collect::<Vec<_>>()
-            })
-            .collect();
-        denominator_1_interactions
-            .resize(1 << (last_layer.num_interaction_variables + 1), EF::one());
+        // Scatter each table's per-column values into the grouped interaction order: column `c`'s
+        // two interleaved slots land at `(2g, 2g + 1)` where `g` is the column's grouped index
+        // (the table's local block range chained with its global block range). Uncovered slots
+        // (the gap below `2^k_local` and the tail) keep the padding values.
+        let size = 1 << (last_layer.num_interaction_variables + 1);
+        let mut numerator_0_interactions = vec![EF::zero(); size];
+        let mut numerator_1_interactions = vec![EF::zero(); size];
+        let mut denominator_0_interactions = vec![EF::one(); size];
+        let mut denominator_1_interactions = vec![EF::one(); size];
+        for (numerator_0, numerator_1, denominator_0, denominator_1, (local_range, global_range)) in itertools::izip!(
+            &last_layer.numerator_0,
+            &last_layer.numerator_1,
+            &last_layer.denominator_0,
+            &last_layer.denominator_1,
+            &last_layer.interaction_ranges
+        ) {
+            let scatter = |mle: &PaddedMle<EF>, out: &mut [EF]| {
+                let at_0 =
+                    mle.fix_last_variable(EF::zero()).eval_at::<EF>(&Point::from(vec![])).to_vec();
+                let at_1 =
+                    mle.fix_last_variable(EF::one()).eval_at::<EF>(&Point::from(vec![])).to_vec();
+                for (column, grouped) in local_range.clone().chain(global_range.clone()).enumerate()
+                {
+                    out[2 * grouped] = at_0[column];
+                    out[2 * grouped + 1] = at_1[column];
+                }
+            };
+            scatter(numerator_0, &mut numerator_0_interactions);
+            scatter(numerator_1, &mut numerator_1_interactions);
+            scatter(denominator_0, &mut denominator_0_interactions);
+            scatter(denominator_1, &mut denominator_1_interactions);
+        }
 
         let (numerator, denominator): (Vec<_>, Vec<_>) = numerator_0_interactions
             .iter()
@@ -111,14 +90,16 @@ impl<F: Field, EF: ExtensionField<F>, A> LogupGkrCpuTraceGenerator<F, EF, A> {
     #[allow(clippy::too_many_lines)]
     #[allow(clippy::unused_self)]
     #[allow(clippy::needless_pass_by_value)]
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn generate_first_layer(
         &self,
-        interactions: &BTreeMap<String, Vec<(&Interaction<F>, bool)>>,
+        interactions: &BTreeMap<String, ChipInteractions<F>>,
         main_traces: &Traces<F, CpuBackend>,
         global_traces: &Traces<F, CpuBackend>,
         preprocessed_traces: &Traces<F, CpuBackend>,
         local_challenges: (EF, Point<EF>),
         global_challenges: Option<(EF, Point<EF>)>,
+        num_interaction_variables: usize,
     ) -> LogUpGkrCpuLayer<F, EF> {
         let first_trace = main_traces
             .values()
@@ -131,14 +112,14 @@ impl<F: Field, EF: ExtensionField<F>, A> LogupGkrCpuTraceGenerator<F, EF, A> {
         let mut denominator_0 = Vec::new();
         let mut numerator_1 = Vec::new();
         let mut denominator_1 = Vec::new();
+        let mut interaction_ranges = Vec::new();
         let (alpha, beta_seed) = local_challenges;
         let betas = Mle::partial_lagrange(&beta_seed).guts().as_slice().to_vec();
         // The global challenge pair, expanded; present iff the machine has a global round.
         let global_alpha_betas = global_challenges.map(|(global_alpha, global_beta_seed)| {
             (global_alpha, Mle::partial_lagrange(&global_beta_seed).guts().as_slice().to_vec())
         });
-        let mut total_interactions = 0;
-        for (name, interactions) in interactions.iter() {
+        for (name, (interactions, ranges)) in interactions.iter() {
             let main_trace = main_traces.get(name.as_str()).cloned();
             let global_trace = global_traces.get(name.as_str()).cloned();
             let height = main_trace
@@ -149,10 +130,8 @@ impl<F: Field, EF: ExtensionField<F>, A> LogupGkrCpuTraceGenerator<F, EF, A> {
 
             let preprocessed_trace = preprocessed_traces.get(name.as_str()).cloned();
             let num_interactions = interactions.len();
-            if num_interactions == 0 {
-                continue;
-            }
-            total_interactions += num_interactions;
+            assert!(num_interactions > 0, "interaction-free chips must be filtered by the caller");
+            interaction_ranges.push(ranges.clone());
             let mut numer_evals = vec![F::zero(); height * num_interactions];
             let mut denom_evals = vec![EF::one(); height * num_interactions];
 
@@ -227,14 +206,14 @@ impl<F: Field, EF: ExtensionField<F>, A> LogupGkrCpuTraceGenerator<F, EF, A> {
             numerator_1.push(numer_1);
             denominator_1.push(denom_1);
         }
-        let num_interaction_variables = total_interactions.next_power_of_two().ilog2();
 
         LogUpGkrCpuLayer {
             numerator_0,
             denominator_0,
             numerator_1,
             denominator_1,
-            num_interaction_variables: num_interaction_variables as usize,
+            interaction_ranges,
+            num_interaction_variables,
             num_row_variables: (num_row_variables - 1) as usize,
         }
     }
@@ -363,6 +342,7 @@ impl<F: Field, EF: ExtensionField<F>, A> LogupGkrCpuTraceGenerator<F, EF, A> {
             denominator_0,
             numerator_1,
             denominator_1,
+            interaction_ranges: layer.interaction_ranges.clone(),
             num_interaction_variables: layer.num_interaction_variables,
             num_row_variables: layer.num_row_variables - 1,
         }
@@ -394,10 +374,12 @@ mod tests {
         PaddedMle::padded_with_zeros(Arc::new(mle), num_variables)
     }
 
-    /// Pins the output-layer slot layout used by `cumulative_sums_by_scope`: slots `2j, 2j + 1`
-    /// of the circuit output belong to flat interaction `j` (chips in name order, sends then
-    /// receives, interaction-free chips skipped), and each interaction's two slots sum to its
-    /// total fraction over the trace rows, fingerprinted with the challenge pair of its scope.
+    /// Pins the grouped slot layout of the base (row-tree output) layer: slots `2g, 2g + 1`
+    /// belong to grouped interaction `g` — the local-scope interactions at `[0, num_local)`
+    /// (chips in name order, within a chip locals in sends-then-receives order), the slots
+    /// `[num_local, 2^k_local)` padding, the global-scope interactions from `2^k_local` — and
+    /// each interaction's two slots sum to its total fraction over the trace rows, fingerprinted
+    /// with the challenge pair of its scope. Interaction-free chips are filtered out.
     #[test]
     #[allow(clippy::too_many_lines)]
     fn test_output_layer_scope_split() {
@@ -465,14 +447,30 @@ mod tests {
             InteractionScope::Global,
         );
 
+        // The grouped shape: `num_local = 3`, `num_global = 2`, `k_local = 2`, and the global
+        // block starts at `2^k_local = 4`, so `k_full = ceil(log2(4 + 2)) = 3`. Within a chip the
+        // interactions are grouped locals-first: A's columns are
+        // `[a_send_local, a_receive_local, a_send_global]` at grouped indices `{0, 1, 4}`, B's
+        // are `[b_send_local, b_receive_global]` at `{2, 5}`. Chip "C" is interaction-free and
+        // filtered out.
+        let k_local = 2;
+        let k_full = 3;
+        let global_block_start = 1 << k_local;
         let interactions = BTreeMap::from([
             (
                 "A".to_string(),
-                vec![(&a_send_local, true), (&a_send_global, true), (&a_receive_local, false)],
+                (
+                    vec![(&a_send_local, true), (&a_receive_local, false), (&a_send_global, true)],
+                    (0..2, 4..5),
+                ),
             ),
-            ("B".to_string(), vec![(&b_send_local, true), (&b_receive_global, false)]),
-            ("C".to_string(), vec![]),
+            (
+                "B".to_string(),
+                (vec![(&b_send_local, true), (&b_receive_global, false)], (2..3, 5..6)),
+            ),
         ]);
+        // The grouped index of every real interaction, in map iteration order.
+        let grouped_indices = [0usize, 1, 4, 2, 5];
 
         let alpha = EF::from_canonical_u32(3);
         let beta_seed = Point::from(vec![EF::from_canonical_u32(5)]);
@@ -489,22 +487,28 @@ mod tests {
             &preprocessed_traces,
             (alpha, beta_seed.clone()),
             Some((global_alpha, global_beta_seed.clone())),
+            k_full,
         );
         let mut layer = GkrCircuitLayer::FirstLayer(first_layer);
         let last_layer = loop {
             let next = match &layer {
                 GkrCircuitLayer::FirstLayer(layer) => generator.layer_transition(layer),
                 GkrCircuitLayer::Layer(layer) => generator.layer_transition(layer),
+                GkrCircuitLayer::InteractionLayer(_) => unreachable!(),
             };
             if next.num_row_variables == 1 {
                 break next;
             }
             layer = GkrCircuitLayer::Layer(next);
         };
-        let output = generator.extract_outputs(&last_layer);
+        let base = generator.extract_outputs(&last_layer);
+        let base_numerator = base.numerator.guts().as_slice();
+        let base_denominator = base.denominator.guts().as_slice();
+        assert_eq!(base_numerator.len(), 1 << (k_full + 1));
 
         // Compute each interaction's expected total fraction directly from the trace rows,
-        // selecting the challenge pair by scope.
+        // selecting the challenge pair by scope, and check it against the interaction's two
+        // grouped base slots.
         let betas = Mle::partial_lagrange(&beta_seed).guts().as_slice().to_vec();
         let global_betas = Mle::partial_lagrange(&global_beta_seed).guts().as_slice().to_vec();
         let row = |trace: &Traces<F, CpuBackend>, name: &str, r: usize| -> Vec<F> {
@@ -515,18 +519,24 @@ mod tests {
         };
         let mut expected_local = EF::zero();
         let mut expected_global = EF::zero();
-        let mut scopes = Vec::new();
-        for (name, interactions) in &interactions {
+        let mut grouped = grouped_indices.iter();
+        for (name, (interactions, _)) in &interactions {
             let height = main_traces
                 .get(name)
                 .or_else(|| global_traces.get(name))
                 .unwrap()
                 .num_real_entries();
             for (interaction, is_send) in interactions {
-                scopes.push(interaction.scope);
+                let g = *grouped.next().unwrap();
                 let (alpha, betas) = match interaction.scope {
-                    InteractionScope::Local => (alpha, betas.as_slice()),
-                    InteractionScope::Global => (global_alpha, global_betas.as_slice()),
+                    InteractionScope::Local => {
+                        assert!(g < 3);
+                        (alpha, betas.as_slice())
+                    }
+                    InteractionScope::Global => {
+                        assert!(g >= global_block_start);
+                        (global_alpha, global_betas.as_slice())
+                    }
                 };
                 let mut total = EF::zero();
                 for r in 0..height {
@@ -541,30 +551,32 @@ mod tests {
                     );
                     total += EF::from_base(numer) / denom;
                 }
+                // The interaction's two grouped slots sum to its total fraction.
+                let slot_sum = base_numerator[2 * g] / base_denominator[2 * g]
+                    + base_numerator[2 * g + 1] / base_denominator[2 * g + 1];
+                assert_eq!(slot_sum, total, "interaction at grouped index {g}");
                 match interaction.scope {
                     InteractionScope::Local => expected_local += total,
                     InteractionScope::Global => expected_global += total,
                 }
             }
         }
-        assert_eq!(scopes.len(), 5);
+        assert!(grouped.next().is_none());
         assert!(!expected_local.is_zero());
         assert!(!expected_global.is_zero());
 
-        let (local_sum, global_sum) = output.cumulative_sums_by_scope(&scopes);
-        assert_eq!(local_sum, expected_local);
-        assert_eq!(global_sum, expected_global);
+        // The uncovered slots — the gap `[num_local, 2^k_local)` and the tail — hold exactly the
+        // padding values (numerator zero, denominator one).
+        for g in [3, 6, 7] {
+            assert_eq!(base_numerator[2 * g], EF::zero());
+            assert_eq!(base_numerator[2 * g + 1], EF::zero());
+            assert_eq!(base_denominator[2 * g], EF::one());
+            assert_eq!(base_denominator[2 * g + 1], EF::one());
+        }
 
-        // The split sums account for the entire output layer: the padding slots are exactly
-        // (numerator zero, denominator one).
-        let total_sum = output
-            .numerator
-            .guts()
-            .as_slice()
-            .iter()
-            .zip(output.denominator.guts().as_slice().iter())
-            .map(|(n, d)| *n / *d)
-            .sum::<EF>();
-        assert_eq!(total_sum, local_sum + global_sum);
+        // The whole layer's fraction sum splits into the local and global stream sums.
+        let total_sum =
+            base_numerator.iter().zip(base_denominator.iter()).map(|(n, d)| *n / *d).sum::<EF>();
+        assert_eq!(total_sum, expected_local + expected_global);
     }
 }

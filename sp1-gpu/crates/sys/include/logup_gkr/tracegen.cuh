@@ -45,4 +45,7 @@ struct Interactions {
     bool* is_global;
 
     size_t num_interactions;
+    // The number of local-scope interactions; the arrays hold the chip's local-scope
+    // interactions first, so positional index `j` is local iff `j < num_local_interactions`.
+    size_t num_local_interactions;
 };

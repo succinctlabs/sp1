@@ -4,7 +4,9 @@
 
 extern "C" void* logup_gkr_circuit_transition();
 extern "C" void* logup_gkr_populate_last_circuit_layer();
+extern "C" void* logup_gkr_populate_padding_columns();
 extern "C" void* logup_gkr_extract_output();
+extern "C" void* logup_gkr_build_interaction_layer();
 
 // i is between 0 and length(colIndex). Assumes that length(colIndex) is even.
 // This method is only available for DenseData types that support circuit transitions

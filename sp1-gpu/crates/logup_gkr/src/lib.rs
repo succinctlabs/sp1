@@ -9,20 +9,21 @@ use std::{
 use slop_algebra::AbstractField;
 use slop_alloc::HasBackend;
 use slop_challenger::{CanObserve, FieldChallenger, IopCtx, VariableLengthChallenger};
-use slop_multilinear::{MleEval, MultilinearPcsChallenger, Point};
+use slop_multilinear::{Mle, MleEval, MultilinearPcsChallenger, Point};
+use slop_tensor::Tensor;
 use sp1_gpu_basefold::{DeviceGrindingChallenger, GrindingPowCudaProver};
-use sp1_gpu_cudart::{DevicePoint, TaskScope};
+use sp1_gpu_cudart::{DeviceMle, DevicePoint, TaskScope};
 use tracing::instrument;
 
 use sp1_hypercube::{
     air::{InteractionScope, MachineAir},
-    beta_seed_dim_for_scope,
+    beta_seed_dim_for_scope, global_output_sum,
     prover::Record,
-    pv_interaction_max_arity, Chip, ChipEvaluation, LogUpEvaluations, LogUpGkrOutput,
+    pv_interaction_max_arity, transition_fold, Chip, ChipEvaluation, LogUpEvaluations,
     LogUpGkrVerifier, LogupGkrProof, LogupGkrRoundProof, ShardContext, GKR_GRINDING_BITS,
 };
 
-use crate::execution::DeviceLogUpGkrOutput;
+use crate::execution::{build_interaction_layers, InteractionLayers};
 use sp1_gpu_utils::traces::JaggedTraceMle;
 use sp1_gpu_utils::{Ext, Felt};
 use sp1_gpu_zerocheck::primitives::round_batch_evaluations;
@@ -104,6 +105,47 @@ fn prove_first_round<C: FieldChallenger<Felt>>(
     // Produce the sumcheck proof.
     let (sumcheck_proof, openings) =
         sumcheck::first_round_sumcheck(sumcheck_poly, challenger, claim);
+    let [numerator_0, numerator_1, denominator_0, denominator_1] = openings.try_into().unwrap();
+    LogupGkrRoundProof { numerator_0, numerator_1, denominator_0, denominator_1, sumcheck_proof }
+}
+
+/// Proves a single interaction-combining GKR round on the device.
+///
+/// After the row tree finishes, the interaction dimension is combined with its own standalone GKR
+/// rounds (reducing the `2^(k_full + 1)` base toward the 2-entry circuit output). Each such round
+/// is a degree-3 sumcheck over a fully-materialized power-of-two `[4, 2^v]` interaction layer
+/// with no row dimension, so it reuses the device `materialized_round_sumcheck` (whose
+/// `InteractionsLayer` path is exercised via `sum_as_poly`/`fix_and_sum`/`fix_last_variable`).
+fn prove_interaction_round<C: FieldChallenger<Felt>>(
+    layer: Tensor<Ext, TaskScope>,
+    eval_point: &Point<Ext>,
+    numerator_eval: Ext,
+    denominator_eval: Ext,
+    challenger: &mut C,
+) -> LogupGkrRoundProof<Ext> {
+    let lambda = challenger.sample_ext_element::<Ext>();
+    let claim = numerator_eval * lambda + denominator_eval;
+
+    let backend = layer.backend().clone();
+    let point = DevicePoint::from_host(eval_point, &backend).unwrap().into_inner();
+    let eq_interaction = DevicePoint::new(point).partial_lagrange();
+    // A 0-variable row eq (a single `1`). It is never read in the `InteractionsLayer` sumcheck
+    // path; only its `num_variables() == 0` matters, so the round has exactly
+    // `eval_point.dimension()` variables.
+    let eq_row = DeviceMle::from_host(&Mle::from(vec![Ext::one()]), &backend).unwrap();
+
+    let sumcheck_poly = LogupRoundPolynomial {
+        layer: PolynomialLayer::InteractionsLayer(layer),
+        eq_row,
+        eq_interaction,
+        lambda,
+        eq_adjustment: Ext::one(),
+        padding_adjustment: Ext::one(),
+        point: eval_point.clone(),
+    };
+
+    let (sumcheck_proof, openings) =
+        sumcheck::materialized_round_sumcheck(sumcheck_poly, challenger, claim);
     let [numerator_0, numerator_1, denominator_0, denominator_1] = openings.try_into().unwrap();
     LogupGkrRoundProof { numerator_0, numerator_1, denominator_0, denominator_1, sumcheck_proof }
 }
@@ -228,12 +270,33 @@ where
     let (global_alpha, global_beta_seed) =
         global_challenges.clone().unwrap_or_else(|| (alpha, beta_seed.clone()));
 
-    let num_interactions =
-        chips.iter().map(|chip| chip.sends().len() + chip.receives().len()).sum::<usize>();
-    let num_interaction_variables = num_interactions.next_power_of_two().ilog2();
+    // The grouped interaction-dimension shape, mirroring the native verifier's derivation: the
+    // local-scope interactions form the low block `[0, num_local)`, the slots
+    // `[num_local, 2^k_local)` are padding, and the global-scope interactions form the block
+    // starting at `2^k_local`, followed by padding up to `2^k_full`.
+    let num_local = chips
+        .iter()
+        .flat_map(|chip| chip.sends().iter().chain(chip.receives().iter()))
+        .filter(|interaction| interaction.scope == InteractionScope::Local)
+        .count();
+    let num_global =
+        chips.iter().map(|chip| chip.sends().len() + chip.receives().len()).sum::<usize>()
+            - num_local;
+    assert!(
+        has_global_round || num_global == 0,
+        "global-scope interactions require a global round"
+    );
+    let k_local = num_local.next_power_of_two().ilog2().max(1) as usize;
+    let k_full = if num_global > 0 {
+        ((1usize << k_local) + num_global).next_power_of_two().ilog2() as usize
+    } else {
+        k_local
+    };
 
-    // Run the GKR circuit and get the output.
-    let (output, circuit) = generate_gkr_circuit(
+    // Run the GKR circuit and get the base output: the device circuit reduces the row dimension
+    // all the way down but leaves the interaction dimension un-combined, so `base_output` holds
+    // the `2^(k_full + 1)` per-interaction fraction pairs in grouped order.
+    let (base_output, circuit) = generate_gkr_circuit(
         chips,
         all_interactions,
         jagged_trace_data,
@@ -243,50 +306,97 @@ where
         backend,
     );
 
-    let DeviceLogUpGkrOutput { numerator, denominator } = &output;
+    // Tree-combine the interaction dimension on the device: `il_0` gives the "one entry per
+    // interaction" layer, the exposed global outputs are suffix-copied to the host from its
+    // global block, and the local tree reduces its `2^k_local` prefix to the 2-entry circuit
+    // output.
+    let InteractionLayers { mut layers, output: output_host, global_interaction_outputs } =
+        build_interaction_layers(base_output, k_full, k_local, num_global);
+    assert_eq!(layers.len(), k_local);
 
-    // Copy the output to host and observe the claims.
-    let host_numerator = numerator.to_host().unwrap();
-    let host_denominator = denominator.to_host().unwrap();
-    challenger
-        .observe_variable_length_extension_slice(host_numerator.guts().as_buffer().as_slice());
-    challenger
-        .observe_variable_length_extension_slice(host_denominator.guts().as_buffer().as_slice());
+    // Observe the circuit output and the exposed global-interaction outputs, at the same
+    // transcript positions as the verifier (before the first evaluation point).
+    challenger.observe_variable_length_extension_slice(output_host.numerator.guts().as_slice());
+    challenger.observe_variable_length_extension_slice(output_host.denominator.guts().as_slice());
+    for (global_numerator, global_denominator) in &global_interaction_outputs {
+        challenger.observe_ext_element(*global_numerator);
+        challenger.observe_ext_element(*global_denominator);
+    }
 
-    let output_host = LogUpGkrOutput { numerator: host_numerator, denominator: host_denominator };
+    // The global cumulative sum exposed by the shard: the sum of the exposed global-interaction
+    // fractions, plus the global-scope public-value digest. The verifier binds each exposed
+    // output to the committed traces through the transition fold, and recomputes this aggregate.
+    let global_cumulative_sum = global_pv_digest
+        .map(|global_pv_digest| global_output_sum(&global_interaction_outputs) + global_pv_digest);
 
-    // The shard's global cumulative sum: the global-scope partial sum of the output layer plus the
-    // global-scope public-value digest. The verifier recomputes this and binds it to the proof.
-    let global_cumulative_sum = global_pv_digest.map(|global_pv_digest| {
-        let interaction_scopes = chips
-            .iter()
-            .flat_map(|chip| chip.sends().iter().chain(chip.receives().iter()))
-            .map(|interaction| interaction.scope)
-            .collect::<Vec<_>>();
-        let (_, global_output_sum) = output_host.cumulative_sums_by_scope(&interaction_scopes);
-        global_output_sum + global_pv_digest
-    });
-
-    // TODO: instead calculate from number of interactions.
-    let initial_number_of_variables = numerator.num_variables();
-    assert_eq!(initial_number_of_variables, num_interaction_variables + 1);
+    // The circuit output is the top `level-1` layer: a single pair of fractions (one variable).
+    let initial_number_of_variables = output_host.numerator.num_variables();
+    assert_eq!(initial_number_of_variables, 1);
     let first_eval_point = challenger.sample_point::<Ext>(initial_number_of_variables);
 
-    // Follow the GKR protocol layer by layer.
-    let first_point =
-        DevicePoint::from_host(&first_eval_point, numerator.backend()).unwrap().into_inner();
-    let first_point_eq = DevicePoint::new(first_point).partial_lagrange();
-    let first_numerator_eval = numerator.eval_at_eq(&first_point_eq).to_host_vec().unwrap()[0];
-    let first_denominator_eval = denominator.eval_at_eq(&first_point_eq).to_host_vec().unwrap()[0];
+    // Compute the first claims from the (size-2) circuit output on the host.
+    let mut numerator_eval = output_host.numerator.blocking_eval_at(&first_eval_point)[0];
+    let mut denominator_eval = output_host.denominator.blocking_eval_at(&first_eval_point)[0];
+    let mut eval_point = first_eval_point;
 
-    let (eval_point, round_proofs) = prove_gkr_circuit(
-        first_numerator_eval,
-        first_denominator_eval,
-        first_eval_point,
+    // Prove the interaction-combining rounds on the device, back-to-front (the layer under the
+    // circuit output first), so reverse the finest-children-first build order. On a global
+    // round, the transition fold splices the exposed global outputs into the claim right before
+    // the round consuming the "one entry per interaction" layer (the last interaction round);
+    // with no global interactions it is a transcript no-op at the same position.
+    layers.reverse();
+    let num_interaction_rounds = layers.len();
+    let mut round_proofs = Vec::with_capacity(num_interaction_rounds + num_row_variables as usize);
+    for (i, layer) in layers.into_iter().enumerate() {
+        if has_global_round && i == num_interaction_rounds - 1 {
+            transition_fold::<GC>(
+                k_local,
+                k_full,
+                &global_interaction_outputs,
+                &mut eval_point,
+                &mut numerator_eval,
+                &mut denominator_eval,
+                challenger,
+            );
+        }
+
+        let round_proof = prove_interaction_round(
+            layer,
+            &eval_point,
+            numerator_eval,
+            denominator_eval,
+            challenger,
+        );
+
+        // Observe the prover message.
+        challenger.observe_ext_element::<Ext>(round_proof.numerator_0);
+        challenger.observe_ext_element::<Ext>(round_proof.numerator_1);
+        challenger.observe_ext_element::<Ext>(round_proof.denominator_0);
+        challenger.observe_ext_element::<Ext>(round_proof.denominator_1);
+
+        // Thread the running claim to the next round.
+        eval_point = round_proof.sumcheck_proof.point_and_eval.0.clone();
+        let last_coordinate = challenger.sample_ext_element::<Ext>();
+        numerator_eval = round_proof.numerator_0
+            + (round_proof.numerator_1 - round_proof.numerator_0) * last_coordinate;
+        denominator_eval = round_proof.denominator_0
+            + (round_proof.denominator_1 - round_proof.denominator_0) * last_coordinate;
+        eval_point.add_dimension_back(last_coordinate);
+
+        round_proofs.push(round_proof);
+    }
+
+    // After the interaction rounds `eval_point` has `k_full + 1` coordinates — exactly the input
+    // the first (device) row round consumes. Prove the row rounds on the device and append them.
+    let (eval_point, row_round_proofs) = prove_gkr_circuit(
+        numerator_eval,
+        denominator_eval,
+        eval_point,
         circuit,
         challenger,
         recompute_first_layer,
     );
+    round_proofs.extend(row_round_proofs);
 
     // Get the evaluations for each chip at the evaluation point of the last round.
     // We accomplish this by doing jagged fix last variable on the evaluation point.
@@ -354,8 +464,13 @@ where
 
     let logup_evaluations = LogUpEvaluations { point: eval_point, chip_openings: chip_evaluations };
 
-    let proof =
-        LogupGkrProof { circuit_output: output_host, round_proofs, logup_evaluations, witness };
+    let proof = LogupGkrProof {
+        circuit_output: output_host,
+        global_interaction_outputs,
+        round_proofs,
+        logup_evaluations,
+        witness,
+    };
     (proof, global_cumulative_sum)
 }
 
@@ -712,6 +827,25 @@ mod tests {
             // Assert the prover and verifier have the same challenger state.
             let verifier_challenge: Ext = verifier_challenger.sample_ext_element();
             assert_eq!(verifier_challenge, prover_challenge);
+
+            // Tampering with an exposed global-interaction output must be rejected: the
+            // transition fold binds the exposed values to the committed traces (mirrors
+            // `test_two_stream_gkr_rounds_tampered_global_output` in `sp1-hypercube`).
+            assert!(!proof.global_interaction_outputs.is_empty());
+            let mut tampered_proof = proof.clone();
+            tampered_proof.global_interaction_outputs[0].0 += Ext::one();
+            let mut tampered_challenger = base_challenger.clone();
+            sp1_hypercube::LogUpGkrVerifier::<TestGC, SP1SC<TestGC, RiscvAir<Felt>>>::verify_logup_gkr(
+                shard_chips,
+                &degrees,
+                CORE_MAX_LOG_ROW_COUNT as usize,
+                Some(&global_challenges),
+                global_cumulative_sum,
+                &tampered_proof,
+                &public_values,
+                &mut tampered_challenger,
+            )
+            .unwrap_err();
         })
         .unwrap();
     }

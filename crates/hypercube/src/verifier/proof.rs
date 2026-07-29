@@ -242,6 +242,7 @@ pub fn create_dummy_recursion_proof(
             numerator: Mle::new(empty_tensor.clone()),
             denominator: Mle::new(empty_tensor),
         },
+        global_interaction_outputs: vec![],
         round_proofs: vec![],
         logup_evaluations: LogUpEvaluations {
             point: Point::from_usize(0, 1),

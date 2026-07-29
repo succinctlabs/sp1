@@ -40,6 +40,9 @@ pub struct InteractionsRaw<F> {
     pub is_global: *const bool,
 
     pub num_interactions: usize,
+    /// The number of local-scope interactions; the arrays hold the chip's local-scope
+    /// interactions first, so positional index `j` is local iff `j < num_local_interactions`.
+    pub num_local_interactions: usize,
 }
 
 impl<F: Field> From<PairCol> for PairColDevice<F> {
@@ -93,6 +96,9 @@ pub struct Interactions<F, A: Backend> {
     pub is_global: Buffer<bool, A>,
 
     pub num_interactions: usize,
+    /// The number of local-scope interactions; the chip's interactions are packed local-scope
+    /// first, so positional index `j` is local iff `j < num_local_interactions`.
+    pub num_local_interactions: usize,
 }
 
 impl<F: Field> Interactions<F, CpuBackend> {
@@ -114,16 +120,18 @@ impl<F: Field> Interactions<F, CpuBackend> {
         let mut curr_values_col_weight_ptr = 0;
         let mut curr_mult_ptr = 0;
 
-        // Put all of the interactions (for both send/receives) into a single list.
-        // The ordering of the interactions is important to match with the CPU prover's ordering.
-        // It should be local sends, local receives.
-        let interactions = {
-            let sends = sends.iter().map(move |i| (i, true));
-            let receives = receives.iter().map(move |i| (i, false));
-            sends.chain(receives)
-        };
+        // Put all of the interactions (for both send/receives) into a single list, in the
+        // grouped within-chip order that must match the CPU prover's: the local-scope
+        // interactions first, then the global-scope ones (a stable partition of
+        // `sends ++ receives`, so each scope keeps its sends-then-receives order).
+        let (locals, globals): (Vec<_>, Vec<_>) = sends
+            .iter()
+            .map(|i| (i, true))
+            .chain(receives.iter().map(|i| (i, false)))
+            .partition(|(interaction, _)| interaction.scope == InteractionScope::Local);
+        let num_local_interactions = locals.len();
 
-        for (interaction, is_send_flag) in interactions {
+        for (interaction, is_send_flag) in locals.into_iter().chain(globals) {
             // Register the values
             values_ptr.push(curr_values_ptr);
             for value in interaction.values.iter() {
@@ -168,6 +176,7 @@ impl<F: Field> Interactions<F, CpuBackend> {
             is_send: is_send.into(),
             is_global: is_global.into(),
             num_interactions,
+            num_local_interactions,
         }
     }
 }
@@ -186,6 +195,7 @@ impl<F: Field> Interactions<F, TaskScope> {
             is_send: self.is_send.as_ptr(),
             is_global: self.is_global.as_ptr(),
             num_interactions: self.num_interactions,
+            num_local_interactions: self.num_local_interactions,
         }
     }
 }
@@ -214,6 +224,7 @@ impl<F: Field> Interactions<F, CpuBackend> {
         let device_is_global = DeviceBuffer::from_host(&self.is_global, backend)?.into_inner();
 
         let num_interactions = self.num_interactions;
+        let num_local_interactions = self.num_local_interactions;
 
         Ok(Interactions {
             values_ptr: device_values_ptr,
@@ -227,6 +238,7 @@ impl<F: Field> Interactions<F, CpuBackend> {
             is_send: device_is_send,
             is_global: device_is_global,
             num_interactions,
+            num_local_interactions,
         })
     }
 }

@@ -87,7 +87,8 @@ __global__ void populateLastCircuitLayer(
     ext_t* const betaLocal,
     ext_t alphaGlobal,
     ext_t* const betaGlobal,
-    size_t interactionOffset,
+    size_t localColOffset,
+    size_t globalColOffset,
     size_t traceHeight,
     size_t outputHeight,
     bool is_padding) {
@@ -108,7 +109,12 @@ __global__ void populateLastCircuitLayer(
 
         for (size_t j = blockIdx.y * blockDim.y + threadIdx.y; j < numInteractions;
              j += blockDim.y * gridDim.y) {
-            size_t colIdx = j + interactionOffset;
+            // Columns are numbered by grouped interaction index: the chip's local-scope
+            // interactions (packed first) map into the local block at `localColOffset`, and its
+            // global-scope interactions map into the global block at `globalColOffset` (which
+            // starts at `2^k_local`, above the local tree's padding slots).
+            size_t numLocal = interactions.num_local_interactions;
+            size_t colIdx = j < numLocal ? localColOffset + j : globalColOffset + (j - numLocal);
             size_t startIdx = startIndices[colIdx] << 1;
 
             size_t restrictedIndex = startIdx + i;
@@ -163,6 +169,38 @@ __global__ void populateLastCircuitLayer(
     }
 }
 
+/// Materializes the local tree's padding columns `[firstCol, firstCol + numCols)` (the grouped
+/// slots between the local block and `2^k_local`): each is a half-height-2 column of `(0, 1)`
+/// padding values, identical to a fully-padded chip's columns. Materializing them keeps dense
+/// position equal to grouped column index, which the last-layer conversion to a dense
+/// interactions layer indexes `eqInteraction` by.
+__global__ void populatePaddingColumns(
+    const uint32_t* startIndices,
+    uint32_t* colIndex,
+    felt_t* numeratorValues,
+    ext_t* denominatorValues,
+    size_t firstCol,
+    size_t numCols,
+    size_t outputHeight) {
+    for (size_t c = blockIdx.x * blockDim.x + threadIdx.x; c < numCols;
+         c += blockDim.x * gridDim.x) {
+        size_t colIdx = firstCol + c;
+        size_t halfStart = startIndices[colIdx];
+        size_t fullStart = halfStart << 1;
+        FirstLayerCircuitValues values = FirstLayerCircuitValues::paddingValues();
+        values.store(numeratorValues, denominatorValues, fullStart, outputHeight);
+        values.store(numeratorValues, denominatorValues, fullStart + 1, outputHeight);
+        values.store(numeratorValues, denominatorValues, fullStart + 2, outputHeight);
+        values.store(numeratorValues, denominatorValues, fullStart + 3, outputHeight);
+        colIndex[halfStart] = colIdx;
+        colIndex[halfStart + 1] = colIdx;
+    }
+}
+
 extern "C" void* logup_gkr_populate_last_circuit_layer() {
     return (void*)populateLastCircuitLayer;
+}
+
+extern "C" void* logup_gkr_populate_padding_columns() {
+    return (void*)populatePaddingColumns;
 }

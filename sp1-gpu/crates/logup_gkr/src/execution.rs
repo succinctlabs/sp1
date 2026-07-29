@@ -1,11 +1,14 @@
 use slop_alloc::{Buffer, HasBackend};
+use slop_multilinear::Mle;
 use sp1_gpu_cudart::{
     args,
     sys::kernels::{
-        logup_gkr_circuit_transition, logup_gkr_extract_output, logup_gkr_first_layer_transition,
+        logup_gkr_build_interaction_layer, logup_gkr_circuit_transition, logup_gkr_extract_output,
+        logup_gkr_first_layer_transition,
     },
-    DeviceMle,
+    DeviceBuffer, DeviceMle, TaskScope,
 };
+use sp1_hypercube::{GlobalInteractionOutput, LogUpGkrOutput};
 
 use slop_tensor::Tensor;
 
@@ -135,12 +138,16 @@ pub struct DeviceLogUpGkrOutput<Ext> {
 }
 
 /// Takes as input the input layer p_0, p_1, q_0, q_1, after finishing the circuit section and
-/// doing all of the row variables.
+/// doing all of the row variables. Produces the base of `2^(num_interaction_variables + 1)`
+/// fractions in grouped interaction order: slots `(2g, 2g + 1)` hold grouped interaction `g`'s
+/// two last-row-variable halves, and every uncovered slot (the gap below `2^k_local` and the
+/// tail) holds the `(0, 1)` padding values.
 pub fn extract_outputs(
     layer: &GkrLayer,
     num_interaction_variables: u32,
 ) -> DeviceLogUpGkrOutput<Ext> {
     let output_height = 1 << (num_interaction_variables + 1);
+    let num_columns = layer.jagged_mle.column_heights().len();
     let backend = layer.jagged_mle.backend();
 
     let mut numerator = DeviceMle::uninit(1, output_height, backend);
@@ -160,10 +167,128 @@ pub fn extract_outputs(
             layer.jagged_mle.as_raw(),
             numerator.guts_mut().as_mut_ptr(),
             denominator.guts_mut().as_mut_ptr(),
+            num_columns,
             grid_height
         );
         backend.launch_kernel(logup_gkr_extract_output(), grid_size, block_dim, &args, 0).unwrap();
     }
 
     DeviceLogUpGkrOutput { numerator, denominator }
+}
+
+/// The device interaction-combining layers together with the host-side values extracted from the
+/// combination: the 2-entry circuit output and the exposed global-interaction outputs.
+pub struct InteractionLayers {
+    /// One dense `[4, half]` interaction layer (`n0 || n1 || d0 || d1`) per combine step, in
+    /// build order: `il_0` (over the full `2^(k_full + 1)` base) first, then the local-tree
+    /// levels, finest children first. The rounds are proved back-to-front.
+    pub layers: Vec<Tensor<Ext, TaskScope>>,
+    /// The 2-entry circuit output (the top of the proved local tree).
+    pub output: LogUpGkrOutput<Ext>,
+    /// The exposed global-scope interaction outputs `o_full[2^k_local + i]`, `i < num_global`,
+    /// in grouped (block) order.
+    pub global_interaction_outputs: Vec<GlobalInteractionOutput<Ext>>,
+}
+
+/// Copy `len` elements of a single-polynomial device MLE starting at `start` to the host.
+fn copy_range_to_host(mle: &DeviceMle<Ext>, start: usize, len: usize) -> Vec<Ext> {
+    let mut staging = DeviceBuffer::<Ext>::with_capacity_in(len, mle.backend().clone());
+    staging.extend_from_device_slice(&mle.guts().view().as_buffer()[start..start + len]).unwrap();
+    staging.to_host().unwrap()
+}
+
+/// Combine one interaction-dimension level: fold the interleaved pairs `(2j, 2j + 1)` of the
+/// leading `2 * half` entries of `numerator`/`denominator` into their `half` fraction sums,
+/// materializing the child pairs into a dense `[4, half]` interaction layer.
+fn combine_interaction_level(
+    numerator: &DeviceMle<Ext>,
+    denominator: &DeviceMle<Ext>,
+    half: usize,
+) -> (Tensor<Ext, TaskScope>, DeviceMle<Ext>, DeviceMle<Ext>) {
+    let backend = numerator.backend().clone();
+
+    let mut layer = Tensor::<Ext, _>::with_sizes_in([4, half], backend.clone());
+    let mut next_numerator = DeviceMle::uninit(1, half, &backend);
+    let mut next_denominator = DeviceMle::uninit(1, half, &backend);
+
+    const BLOCK_SIZE: usize = 256;
+    let grid_size = (half.div_ceil(BLOCK_SIZE), 1, 1);
+
+    unsafe {
+        layer.assume_init();
+        next_numerator.assume_init();
+        next_denominator.assume_init();
+        let args = args!(
+            numerator.guts().as_ptr(),
+            denominator.guts().as_ptr(),
+            layer.as_mut_ptr(),
+            next_numerator.guts_mut().as_mut_ptr(),
+            next_denominator.guts_mut().as_mut_ptr(),
+            half
+        );
+        backend
+            .launch_kernel(logup_gkr_build_interaction_layer(), grid_size, BLOCK_SIZE, &args, 0)
+            .unwrap();
+    }
+
+    (layer, next_numerator, next_denominator)
+}
+
+/// Tree-combines the interaction dimension of the `2^(k_full + 1)` grouped base on the device:
+/// one combine step over the full base gives the "one entry per interaction" layer `o_full`
+/// (whose gap and tail are exactly `(0, 1)`); the exposed global-interaction outputs are
+/// suffix-copied to the host from `o_full`'s global block; and the local tree then combines the
+/// `2^k_local` prefix of `o_full` down to the 2-entry circuit output. Without a global round,
+/// `k_full == k_local` and the prefix is the whole of `o_full`.
+pub fn build_interaction_layers(
+    base: DeviceLogUpGkrOutput<Ext>,
+    k_full: usize,
+    k_local: usize,
+    num_global: usize,
+) -> InteractionLayers {
+    let DeviceLogUpGkrOutput { numerator, denominator } = base;
+
+    // `il_0`: combine the interleaved base pairs into `o_full`.
+    let (il_0, o_full_numerator, o_full_denominator) =
+        combine_interaction_level(&numerator, &denominator, 1 << k_full);
+
+    // Suffix-copy only the `2 * num_global` exposed elements of `o_full`'s global block, which
+    // starts at `2^k_local`.
+    let global_block_start = 1usize << k_local;
+    let global_interaction_outputs = if num_global == 0 {
+        Vec::new()
+    } else {
+        let global_numerators =
+            copy_range_to_host(&o_full_numerator, global_block_start, num_global);
+        let global_denominators =
+            copy_range_to_host(&o_full_denominator, global_block_start, num_global);
+        global_numerators.into_iter().zip(global_denominators).collect()
+    };
+
+    // The local tree: `k_local - 1` combine steps over the `2^k_local` prefix (whose gap already
+    // carries the `(0, 1)` padding). The first step reads only the prefix of the oversized
+    // `o_full`; every later level is exact-sized.
+    let mut layers = Vec::with_capacity(k_local);
+    layers.push(il_0);
+    let mut cur_numerator = o_full_numerator;
+    let mut cur_denominator = o_full_denominator;
+    let mut len = 1usize << k_local;
+    while len > 2 {
+        let half = len / 2;
+        let (layer, next_numerator, next_denominator) =
+            combine_interaction_level(&cur_numerator, &cur_denominator, half);
+        layers.push(layer);
+        cur_numerator = next_numerator;
+        cur_denominator = next_denominator;
+        len = half;
+    }
+
+    // The circuit output is the leading pair of the final level (all of it after at least one
+    // combine step; the 2-entry prefix of `o_full` when `k_local == 1`).
+    let output = LogUpGkrOutput {
+        numerator: Mle::from(copy_range_to_host(&cur_numerator, 0, 2)),
+        denominator: Mle::from(copy_range_to_host(&cur_denominator, 0, 2)),
+    };
+
+    InteractionLayers { layers, output, global_interaction_outputs }
 }

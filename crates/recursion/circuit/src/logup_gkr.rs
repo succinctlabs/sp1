@@ -93,7 +93,13 @@ where
         public_values: &[Felt<SP1Field>],
         challenger: &mut SC::FriChallengerVariable,
     ) {
-        let LogupGkrProof { circuit_output, round_proofs, logup_evaluations, witness } = proof;
+        let LogupGkrProof {
+            circuit_output,
+            global_interaction_outputs,
+            round_proofs,
+            logup_evaluations,
+            witness,
+        } = proof;
         let LogUpGkrOutput { numerator, denominator } = circuit_output;
 
         // Check proof of work (grinding to find a number that hashes to have
@@ -126,55 +132,77 @@ where
         let cumulative_sum = -local_pv_digest;
         builder.cycle_tracker_v2_exit();
 
+        // The scope of every interaction of the shard, and the grouped interaction-dimension
+        // shape, mirroring the native verifier's derivation: the local-scope interactions form
+        // the low block `[0, num_local)`, the slots `[num_local, 2^k_local)` are padding, and the
+        // global-scope interactions form the block starting at `2^k_local` (see the native
+        // `transition_fold` for why the global block must not start below `2^k_local`), followed
+        // by padding up to `2^k_full`.
+        let interaction_scopes = shard_chips
+            .iter()
+            .flat_map(|c| c.sends().iter().chain(c.receives().iter()))
+            .map(|i| i.scope)
+            .collect::<Vec<_>>();
+        let has_global_round = global_challenge.is_some();
+        let num_local =
+            interaction_scopes.iter().filter(|scope| **scope == InteractionScope::Local).count();
+        let num_global = interaction_scopes.len() - num_local;
+        let k_local = num_local.next_power_of_two().ilog2().max(1) as usize;
+        let k_full = if num_global > 0 {
+            ((1usize << k_local) + num_global).next_power_of_two().ilog2() as usize
+        } else {
+            k_local
+        };
+        let global_block_start = 1usize << k_local;
+        let num_interaction_rounds = if has_global_round { k_local } else { k_full };
+
+        // The circuit output is the top `level-1` layer: a single pair of fractions. The shape is
+        // fixed for the proof, so this is a host-side structural check.
+        assert_eq!(numerator.guts().dimensions.sizes(), [2, 1]);
+        assert_eq!(denominator.guts().dimensions.sizes(), [2, 1]);
+
         // Observe the output claims.
         challenger.observe_variable_length_extension_slice(builder, numerator.guts().as_slice());
         challenger.observe_variable_length_extension_slice(builder, denominator.guts().as_slice());
 
-        // Verify the local cumulative sum against the public-value digest; on a global round, also
-        // bind the claimed global cumulative sum to the recomputed one. The output layer has two
-        // entries per interaction, ordered as `shard_chips.flat_map(sends ++ receives)`.
-        if global_challenge.is_some() {
-            let interaction_scopes = shard_chips
-                .iter()
-                .flat_map(|c| c.sends().iter().chain(c.receives().iter()))
-                .map(|i| i.scope)
-                .collect::<Vec<_>>();
-            let numerators = numerator.guts().as_slice();
-            let denominators = denominator.guts().as_slice();
-            let mut local_sum = SymbolicExt::<SP1Field, SP1ExtensionField>::zero();
-            let mut global_sum = SymbolicExt::<SP1Field, SP1ExtensionField>::zero();
-            for (j, scope) in interaction_scopes.iter().enumerate() {
-                let value = numerators[2 * j] / denominators[2 * j]
-                    + numerators[2 * j + 1] / denominators[2 * j + 1];
-                match scope {
-                    InteractionScope::Local => local_sum += value,
-                    InteractionScope::Global => global_sum += value,
-                }
-            }
-            builder.assert_ext_eq(local_sum, cumulative_sum);
-            if let Some(global_cumulative_sum) = global_cumulative_sum {
-                builder.assert_ext_eq(global_cumulative_sum, global_sum + global_pv_digest);
-            }
-        } else {
-            let output_cumulative_sum = numerator
-                .guts()
-                .as_slice()
-                .iter()
-                .zip_eq(denominator.guts().as_slice().iter())
-                .map(|(n, d)| *n / *d)
-                .sum::<SymbolicExt<SP1Field, SP1ExtensionField>>();
-            builder.assert_ext_eq(output_cumulative_sum, cumulative_sum);
+        // Observe the exposed global-interaction outputs at the same transcript position as the
+        // prover (before the first evaluation point). Their count is fixed by the shard's global
+        // interactions, and they are bound to the committed traces below through the transition
+        // fold and the remaining rounds.
+        assert_eq!(global_interaction_outputs.len(), num_global);
+        for (global_numerator, global_denominator) in global_interaction_outputs {
+            challenger.observe_ext_element(builder, *global_numerator);
+            challenger.observe_ext_element(builder, *global_denominator);
         }
 
-        // Calculate the interaction number.
-        let num_of_interactions =
-            shard_chips.iter().map(|c| c.sends().len() + c.receives().len()).sum::<usize>();
-        let number_of_interaction_variables = num_of_interactions.next_power_of_two().ilog2();
+        // Combine the two output fractions into the final numerator/denominator and verify the
+        // local cumulative sum with a single division. The in-circuit divisions implicitly reject
+        // zero denominators (no inverse witness exists).
+        let output_numerator = numerator.guts().as_slice();
+        let output_denominator = denominator.guts().as_slice();
+        let local_output_sum = (output_numerator[0] * output_denominator[1]
+            + output_numerator[1] * output_denominator[0])
+            / (output_denominator[0] * output_denominator[1]);
+        builder.assert_ext_eq(local_output_sum, cumulative_sum);
 
-        // Assert that the size of the first layer matches the expected one.
-        let initial_number_of_variables = number_of_interaction_variables + 1;
-        // let initial_number_of_variables = numerator.num_variables();
-        // assert_eq!(initial_number_of_variables, number_of_interaction_variables + 1);
+        // Bind the claimed global cumulative sum (a proof output; its cross-shard cancellation is
+        // checked elsewhere) to the exposed global outputs plus the global public-value digest.
+        if let Some(global_cumulative_sum) = global_cumulative_sum {
+            let global_sum = global_interaction_outputs
+                .iter()
+                .map(|(n, d)| *n / *d)
+                .sum::<SymbolicExt<SP1Field, SP1ExtensionField>>();
+            builder.assert_ext_eq(global_cumulative_sum, global_sum + global_pv_digest);
+        }
+
+        // The circuit output has one variable; the round count covers the interaction rounds (the
+        // local-only tree and the round consuming the "one entry per interaction" layer on a
+        // global round, else the full tree) plus the row rounds.
+        let initial_number_of_variables = 1;
+        assert_eq!(round_proofs.len(), num_interaction_rounds + max_log_row_count - 1);
+        // On a global round, the transition fold is applied right before the round that consumes
+        // the "one entry per interaction" layer (after the `k_local - 1` local tree rounds).
+        let local_rounds = num_interaction_rounds - 1;
 
         // Sample the first evaluation point.
         let first_eval_point = challenger.sample_point(builder, initial_number_of_variables);
@@ -187,7 +215,91 @@ where
             &evaluate_mle_ext(builder, denominator.clone(), first_eval_point.clone())[0],
         );
         let mut eval_point = first_eval_point;
-        for round_proof in round_proofs.iter() {
+        for (i, round_proof) in round_proofs.iter().enumerate() {
+            // On a global round, splice the exposed global outputs into the claim at the boundary
+            // between the local-only tree and the full circuit below it. Mirrors the native
+            // `transition_fold`: sample the `k_full - k_local` fresh high interaction bits,
+            // prepend them to the point, and fold the exposed outputs in at the global block
+            // starting at `2^k_local`. (With no global interactions the fold is a transcript
+            // no-op and is skipped.)
+            if has_global_round && i == local_rounds && num_global > 0 {
+                let num_extra = k_full - k_local;
+                let z_extra = (0..num_extra)
+                    .map(|_| challenger.sample_ext(builder))
+                    .collect::<Vec<Ext<SP1Field, SP1ExtensionField>>>();
+                let eq_factor = z_extra
+                    .iter()
+                    .map(|z| SymbolicExt::<SP1Field, SP1ExtensionField>::one() - *z)
+                    .product::<SymbolicExt<SP1Field, SP1ExtensionField>>();
+                // `z_full = z_extra (the high interaction bits) ++ z_local`.
+                let mut z_full = Point::from_iter(z_extra);
+                z_full.extend(&eval_point);
+                let mut new_numerator = eq_factor * numerator_eval;
+                let mut new_denominator = SymbolicExt::<SP1Field, SP1ExtensionField>::one()
+                    + eq_factor
+                        * (denominator_eval - SymbolicExt::<SP1Field, SP1ExtensionField>::one());
+                if num_extra > 1 {
+                    let eq = slop_multilinear::partial_lagrange_blocking(
+                        &IntoSymbolic::<C>::as_symbolic(&z_full),
+                    )
+                    .into_buffer()
+                    .into_vec();
+                    for (j, (global_numerator, global_denominator)) in
+                        global_interaction_outputs.iter().enumerate()
+                    {
+                        let weight = eq[global_block_start + j];
+                        new_numerator += weight * *global_numerator;
+                        new_denominator += weight
+                            * (*global_denominator
+                                - SymbolicExt::<SP1Field, SP1ExtensionField>::one());
+                    }
+                    let new_numerator: Ext<SP1Field, SP1ExtensionField> =
+                        builder.eval(new_numerator);
+                    let new_denominator: Ext<SP1Field, SP1ExtensionField> =
+                        builder.eval(new_denominator);
+                    numerator_eval = new_numerator.into();
+                    denominator_eval = new_denominator.into();
+                    eval_point = z_full;
+                } else {
+                    // An optimization for the case when `global_outputs.len()` is much less than `2^k_local`.
+                    // In that case, the entire range of global outputs, has the `z_extra` bit fixed at 1.
+                    // Moreover, only the lowest `var_diff` bits vary, while the rest are fixed at 0.
+                    let var_diff = k_local
+                        - global_interaction_outputs.len().next_power_of_two().ilog2() as usize;
+                    let (constant_vars, suffix) = z_full.split_at(var_diff + 1);
+                    let (z_fixed_at_one, vars_fixed_at_zero) = constant_vars.split_at(1);
+                    let prefix: SymbolicExt<_, _> = z_fixed_at_one
+                        .iter()
+                        .map(|x| IntoSymbolic::<C>::as_symbolic(x))
+                        .chain(
+                            vars_fixed_at_zero
+                                .iter()
+                                .map(|x| SymbolicExt::one() - IntoSymbolic::<C>::as_symbolic(x)),
+                        )
+                        .product();
+                    let eq = slop_multilinear::partial_lagrange_blocking(
+                        &IntoSymbolic::<C>::as_symbolic(&suffix),
+                    )
+                    .into_buffer()
+                    .into_vec();
+                    for (j, (global_numerator, global_denominator)) in
+                        global_interaction_outputs.iter().enumerate()
+                    {
+                        let weight = prefix * eq[j];
+                        new_numerator += weight * *global_numerator;
+                        new_denominator += weight
+                            * (*global_denominator
+                                - SymbolicExt::<SP1Field, SP1ExtensionField>::one());
+                    }
+                    let new_numerator: Ext<SP1Field, SP1ExtensionField> =
+                        builder.eval(new_numerator);
+                    let new_denominator: Ext<SP1Field, SP1ExtensionField> =
+                        builder.eval(new_denominator);
+                    numerator_eval = new_numerator.into();
+                    denominator_eval = new_denominator.into();
+                    eval_point = z_full;
+                }
+            }
             // Get the batching challenge for combining the claims.
             let lambda = challenger.sample_ext(builder);
             // Check that the claimed sum is consistent with the previous round values.
@@ -227,8 +339,9 @@ where
         }
 
         // Verify that the last layer evaluations are consistent with the evaluations of the traces.
-        let (interaction_point, trace_point) =
-            eval_point.split_at(number_of_interaction_variables as usize);
+        // The leaf layer always carries the full interaction dimension (`k_full`), regardless of
+        // the smaller local-only tree above the transition fold.
+        let (interaction_point, trace_point) = eval_point.split_at(k_full);
         // Assert that the number of trace variables matches the expected one.
         let trace_variables = trace_point.dimension();
         assert_eq!(trace_variables, max_log_row_count);
@@ -241,10 +354,12 @@ where
 
         // Compute the expected opening of the last layer numerator and denominator values from the
         // trace openings.
-        let mut numerator_values =
-            Vec::<SymbolicExt<SP1Field, SP1ExtensionField>>::with_capacity(num_of_interactions);
-        let mut denominator_values =
-            Vec::<SymbolicExt<SP1Field, SP1ExtensionField>>::with_capacity(num_of_interactions);
+        let mut numerator_values = Vec::<SymbolicExt<SP1Field, SP1ExtensionField>>::with_capacity(
+            interaction_scopes.len(),
+        );
+        let mut denominator_values = Vec::<SymbolicExt<SP1Field, SP1ExtensionField>>::with_capacity(
+            interaction_scopes.len(),
+        );
         let mut point_extended = IntoSymbolic::<C>::as_symbolic(point);
 
         let alpha = IntoSymbolic::<C>::as_symbolic(&alpha);
@@ -335,6 +450,37 @@ where
                 denominator_values.push(denominator_eval);
             }
         }
+        // Regroup the per-interaction values into the circuit's grouped order: the local block,
+        // padding up to `2^k_local`, then the global block. Without a global round this is the
+        // identity.
+        let mut grouped_numerator = vec![
+            SymbolicExt::<SP1Field, SP1ExtensionField>::zero();
+            global_block_start + num_global
+        ];
+        let mut grouped_denominator = vec![
+            SymbolicExt::<SP1Field, SP1ExtensionField>::one();
+            global_block_start + num_global
+        ];
+        let (mut local_index, mut global_index) = (0, 0);
+        for (scope, (numerator_value, denominator_value)) in interaction_scopes
+            .iter()
+            .zip_eq(numerator_values.iter().zip_eq(denominator_values.iter()))
+        {
+            let grouped = match scope {
+                InteractionScope::Local => {
+                    local_index += 1;
+                    local_index - 1
+                }
+                InteractionScope::Global => {
+                    global_index += 1;
+                    global_block_start + global_index - 1
+                }
+            };
+            grouped_numerator[grouped] = *numerator_value;
+            grouped_denominator[grouped] = *denominator_value;
+        }
+        let mut numerator_values = grouped_numerator;
+        let mut denominator_values = grouped_denominator;
         // Convert the values to a multilinear polynomials.
         // Pad the numerator values with zeros.
         numerator_values.resize(1 << interaction_point.dimension(), SymbolicExt::zero());
@@ -446,13 +592,21 @@ impl<C: CircuitConfig, T1: Witnessable<C>, T2: Witnessable<C>> Witnessable<C>
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let circuit_output = self.circuit_output.read(builder);
+        let global_interaction_outputs = self.global_interaction_outputs.read(builder);
         let round_proofs = self.round_proofs.read(builder);
         let logup_evaluations = self.logup_evaluations.read(builder);
         let witness = self.witness.read(builder);
-        Self::WitnessVariable { circuit_output, round_proofs, logup_evaluations, witness }
+        Self::WitnessVariable {
+            circuit_output,
+            global_interaction_outputs,
+            round_proofs,
+            logup_evaluations,
+            witness,
+        }
     }
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
         self.circuit_output.write(witness);
+        self.global_interaction_outputs.write(witness);
         self.round_proofs.write(witness);
         self.logup_evaluations.write(witness);
         self.witness.write(witness);
