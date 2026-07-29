@@ -161,8 +161,6 @@ extern "C" {
     pub fn logup_gkr_fix_and_sum_interactions_layer() -> KernelPtr;
 
     // ******** Jagged sumcheck kernels ********
-    pub fn jagged_sum_as_poly() -> KernelPtr;
-    pub fn jagged_fix_and_sum() -> KernelPtr;
     pub fn jagged_two_round_sum_as_poly() -> KernelPtr;
     pub fn jagged_double_fix_and_sum() -> KernelPtr;
     pub fn padded_hadamard_fix_and_sum() -> KernelPtr;

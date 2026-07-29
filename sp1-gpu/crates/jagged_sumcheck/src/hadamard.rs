@@ -171,26 +171,32 @@ where
         backend.launch_kernel(kernel(), grid_size_x, BLOCK_SIZE, &args, shared_mem).unwrap();
     }
 
-    // Sum the univariate evals and interpolate into a degree-2 univariate
+    let uni_poly = interpolate_round_poly(univariate_evals, claim);
+
+    (Mle::new(base_output), Mle::new(ext_output), uni_poly)
+}
+
+/// Sum the per-block `(eval_zero, eval_half)` partial evaluations produced by a
+/// fix-and-sum kernel and interpolate the round's degree-2 univariate polynomial.
+fn interpolate_round_poly(
+    univariate_evals: Tensor<Ext, TaskScope>,
+    claim: Ext,
+) -> UnivariatePolynomial<Ext> {
     let univariate_evals = DeviceTensor::from_raw(univariate_evals);
     let host_evals = univariate_evals.sum_dim(1).to_host().unwrap();
 
-    let [component_eval_zero, component_eval_half] = host_evals.as_slice().try_into().unwrap();
-    let eval_zero = component_eval_zero;
-    let eval_half = component_eval_half;
+    let [eval_zero, eval_half] = host_evals.as_slice().try_into().unwrap();
 
     let eval_one = claim - eval_zero;
 
-    let uni_poly = interpolate_univariate_polynomial(
+    interpolate_univariate_polynomial(
         &[
             Ext::from_canonical_u16(0),
             Ext::from_canonical_u16(1),
             Ext::from_canonical_u16(2).inverse(),
         ],
         &[eval_zero, eval_one, eval_half * Felt::from_canonical_u16(4).inverse()],
-    );
-
-    (Mle::new(base_output), Mle::new(ext_output), uni_poly)
+    )
 }
 
 /// A simpler hadamard sumcheck. Avoids using the complex slop traits, and prioritizes a simple, readable implementation.
