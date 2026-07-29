@@ -7,9 +7,12 @@ use itertools::Itertools;
 use powdr_autoprecompiles::{
     blocks::PcStep,
     expression::{AlgebraicExpression, AlgebraicReference},
+    trace_handler::{resolve_computation_method, DummyCoord, ResolvedMethod},
     Substitution,
 };
+use powdr_constraint_solver::constraint_system::ComputationMethod;
 use powdr_expression::{AlgebraicBinaryOperator, AlgebraicUnaryOperator};
+use powdr_number::ExpressionConvertible;
 use slop_air::{Air, AirBuilder, BaseAir, PairBuilder};
 use slop_algebra::PrimeField32;
 use slop_matrix::Matrix;
@@ -183,11 +186,6 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             .map(|(index, c)| (c.id, index))
             .collect::<BTreeMap<_, _>>();
 
-        // Get is_valid_index to manually fill with 1 for witness generation
-        let is_valid_column =
-            self.apc().machine.main_columns().find(|c| &*c.name == "is_valid").unwrap();
-        let is_valid_index = apc_poly_id_to_index[&is_valid_column.id];
-
         // Generate traces for each included air in parallel
         let chips_and_traces = self
             .machine
@@ -257,9 +255,13 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                 let mut map = HashMap::new();
                 for sub in substitutions {
                     let Substitution { original_poly_index, apc_poly_id } = sub;
-                    let apc_index = apc_poly_id_to_index.get(apc_poly_id).unwrap();
-                    tracing::trace!("Mapping dummy_index {original_poly_index} to apc_index {apc_index} for instruction {instruction_index}");
-                    map.insert(*original_poly_index, *apc_index);
+                    // Optimizer-removed columns (referenced only by derived-column methods) have no
+                    // APC index; skip them in the copy map — the derived-column pass below reads
+                    // them straight from the dummy trace.
+                    if let Some(apc_index) = apc_poly_id_to_index.get(apc_poly_id) {
+                        tracing::trace!("Mapping dummy_index {original_poly_index} to apc_index {apc_index} for instruction {instruction_index}");
+                        map.insert(*original_poly_index, *apc_index);
+                    }
                 }
                 tracing::trace!("Map for instruction {instruction_index}: {map:?}");
                 map
@@ -270,6 +272,37 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             self.apc().block.instructions().count(),
             dummy_trace_index_to_apc_index_by_instruction.len()
         );
+
+        // Map every substituted column's poly id to its dummy-trace coordinate, using the full
+        // instruction index (matching `dummy_values_by_event`). Includes optimizer-removed columns,
+        // which have no APC index but are referenced by the derived-column methods resolved below.
+        let apc_poly_id_to_dummy_index: BTreeMap<u64, DummyCoord> = self
+            .apc()
+            .subs
+            .iter()
+            .enumerate()
+            .flat_map(|(instruction, subs)| {
+                subs.iter().map(move |sub| {
+                    (sub.apc_poly_id, DummyCoord { instruction, index: sub.original_poly_index })
+                })
+            })
+            .collect();
+
+        // Resolve the `is_new` derived columns (`is_valid`, plus any from the Lean optimizer's
+        // re-encoding) to methods whose references point straight at dummy-trace coordinates.
+        let columns_to_compute: Vec<(usize, ResolvedMethod<F>)> = self
+            .apc()
+            .machine
+            .derived_columns
+            .iter()
+            .filter(|d| d.is_new)
+            .map(|d| {
+                (
+                    apc_poly_id_to_index[&d.variable.id],
+                    resolve_computation_method(&d.computation_method, &apc_poly_id_to_dummy_index),
+                )
+            })
+            .collect();
 
         // Allocate final trace values
         let trace_width = self.width();
@@ -300,8 +333,13 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                         }
                     }
 
-                    // Manually set is_valid column to 1
-                    trace_row[is_valid_index] = F::one();
+                    // Fill `is_new` derived columns (including `is_valid`), reading inputs straight
+                    // from this event's dummy rows (covers optimizer-removed columns). Must run
+                    // before the byte-bus eval below, which may reference these columns.
+                    for (apc_index, method) in &columns_to_compute {
+                        trace_row[*apc_index] =
+                            evaluate_computation_method(method, dummy_values_by_instruction);
+                    }
 
                     tracing::trace!("Final row: {trace_row:?}");
 
@@ -518,5 +556,35 @@ impl<'a, F: PrimeField32> RowEvaluator<'a, F> {
             algebraic_var.id as usize
         };
         self.row[index]
+    }
+}
+
+/// Evaluate a derived column's `ComputationMethod` whose references have been resolved to
+/// dummy-trace coordinates, reading inputs straight from `dummy_rows` (which covers optimizer-
+/// removed columns).
+fn evaluate_computation_method<F: PrimeField32>(
+    method: &ResolvedMethod<F>,
+    dummy_rows: &[&[F]],
+) -> F {
+    let eval = |e: &powdr_expression::AlgebraicExpression<F, DummyCoord>| {
+        e.to_expression(&|n| *n, &|coord: &DummyCoord| dummy_rows[coord.instruction][coord.index])
+    };
+    match method {
+        ComputationMethod::Constant(c) => *c,
+        ComputationMethod::QuotientOrZero(e1, e2) => {
+            let divisor = eval(e2);
+            if divisor.is_zero() {
+                F::zero()
+            } else {
+                divisor.inverse() * eval(e1)
+            }
+        }
+        ComputationMethod::IfEqZero(condition, then, else_) => {
+            if eval(condition).is_zero() {
+                evaluate_computation_method(then, dummy_rows)
+            } else {
+                evaluate_computation_method(else_, dummy_rows)
+            }
+        }
     }
 }
