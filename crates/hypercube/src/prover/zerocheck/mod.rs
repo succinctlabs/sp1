@@ -1,10 +1,12 @@
 //! Zerocheck Sumcheck polynomial.
 
+mod first_two_rounds;
 mod fix_last_variable;
 mod sum_as_poly;
 
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::OnceLock};
 
+pub use first_two_rounds::*;
 pub use fix_last_variable::*;
 use slop_air::Air;
 use slop_algebra::{ExtensionField, Field, UnivariatePolynomial};
@@ -45,6 +47,14 @@ pub struct ZeroCheckPoly<K, F, EF, A> {
     /// A virtual materialization keeping track the geq polynomial which is used to adjust the sums
     /// for airs in which the zero row doesn't satisfy the constraints.
     pub virtual_geq: VirtualGeq<K>,
+
+    /// The bivariate grid evaluations backing the fused first two rounds (lookahead `t = 2`),
+    /// computed lazily by the first-round message and consumed when the first challenge is fixed.
+    /// `None` inside the lock marks a fully padded chip, whose round messages are zero.
+    pub(crate) bivariate_evals: OnceLock<Option<ZerocheckBivariateEvals<EF>>>,
+    /// The round message interpolated ahead of time from the bivariate grid, making the second
+    /// round of a lookahead sumcheck free of any pass over the trace.
+    pub(crate) lookahead_message: Option<UnivariatePolynomial<EF>>,
 }
 
 impl<K: Field, F: Field, EF: ExtensionField<F>, AirData> ZeroCheckPoly<K, F, EF, AirData> {
@@ -70,6 +80,8 @@ impl<K: Field, F: Field, EF: ExtensionField<F>, AirData> ZeroCheckPoly<K, F, EF,
             geq_value,
             padded_row_adjustment,
             virtual_geq,
+            bivariate_evals: OnceLock::new(),
+            lookahead_message: None,
         }
     }
 }
@@ -130,8 +142,11 @@ where
         alpha: EF,
         t: usize,
     ) -> Self::NextRoundPoly {
-        debug_assert_eq!(t, 1);
-        zerocheck_fix_last_variable(poly, alpha)
+        match t {
+            1 => zerocheck_fix_last_variable(poly, alpha),
+            2 => zerocheck_fix_last_variable_with_lookahead(poly, alpha),
+            _ => panic!("the zerocheck polynomial supports a lookahead of at most two rounds"),
+        }
     }
 
     #[inline]
@@ -140,9 +155,12 @@ where
         claim: Option<EF>,
         t: usize,
     ) -> UnivariatePolynomial<EF> {
-        debug_assert_eq!(t, 1);
-        debug_assert!(poly.num_variables() > 0);
-        zerocheck_sum_as_poly_in_last_variable::<F, F, EF, A, true>(poly, claim)
+        debug_assert!(poly.num_variables() >= t as u32);
+        match t {
+            1 => zerocheck_sum_as_poly_in_last_variable::<F, F, EF, A, true>(poly, claim),
+            2 => zerocheck_sum_as_poly_in_last_two_variables(poly, claim),
+            _ => panic!("the zerocheck polynomial supports a lookahead of at most two rounds"),
+        }
     }
 }
 
@@ -166,6 +184,17 @@ where
         claim: Option<EF>,
     ) -> UnivariatePolynomial<EF> {
         debug_assert!(poly.num_variables() > 0);
+        // A polynomial produced with a lookahead already carries this round's message.
+        if let Some(message) = &poly.lookahead_message {
+            if let Some(claim) = claim {
+                debug_assert_eq!(
+                    message.eval_one_plus_eval_zero(),
+                    claim,
+                    "lookahead round message inconsistent with the claim"
+                );
+            }
+            return message.clone();
+        }
         zerocheck_sum_as_poly_in_last_variable::<EF, F, EF, A, false>(poly, claim)
     }
 }

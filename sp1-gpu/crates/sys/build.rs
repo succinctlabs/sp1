@@ -230,7 +230,11 @@ fn main() {
     println!("cargo:rustc-link-search=native={}/lib", dst.display());
     println!("cargo:rustc-link-lib=static=sys-cuda");
 
-    // Add CUDA library search paths
+    // Add CUDA library search paths. Track the env var so switching
+    // `CUDA_PATH` re-emits the link-search lines — otherwise a stale cached
+    // path (e.g. `/usr/local/cuda` pointing at a newer toolkit than nvcc)
+    // fails to link with undefined cudart symbols.
+    println!("cargo:rerun-if-env-changed=CUDA_PATH");
     if let Ok(cuda_path) = env::var("CUDA_PATH") {
         println!("cargo:rustc-link-search=native={cuda_path}/lib64");
         println!("cargo:rustc-link-search=native={cuda_path}/lib");
