@@ -6,6 +6,7 @@ use sp1_hypercube::Machine;
 use sp1_primitives::SP1Field;
 
 use crate::{
+    components::machine_has_apcs,
     shapes::SP1RecursionProofShape,
     worker::{
         SP1ControllerConfig, SP1CoreProverConfig, SP1DeferredProverConfig, SP1ProverConfig,
@@ -141,8 +142,11 @@ impl SP1WorkerConfig {
             .ok()
             .and_then(|s| s.parse::<usize>().ok())
             .unwrap_or(DEFAULT_MAX_COMPOSE_ARITY);
-        let reduce_shape =
-            SP1RecursionProofShape::retrieve_or_compute_reduce_shape(machine, max_compose_arity);
+        let reduce_shape = SP1RecursionProofShape::compress_proof_shape_from_arity(
+            max_compose_arity,
+            machine_has_apcs(&machine),
+        )
+        .expect("max compose arity not supported");
 
         let recursion_prover_config = SP1RecursionProverConfig::new(
             num_prepare_reduce_workers,
@@ -153,6 +157,7 @@ impl SP1WorkerConfig {
             recursion_prover_buffer_size,
             max_compose_arity,
             verify_intermediates,
+            machine,
             reduce_shape,
         );
 

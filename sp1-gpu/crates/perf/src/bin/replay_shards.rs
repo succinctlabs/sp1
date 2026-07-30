@@ -15,6 +15,7 @@ use sp1_hypercube::{
 };
 use sp1_primitives::{SP1ExtensionField, SP1Field, SP1GlobalContext};
 use sp1_prover::{
+    machine_has_apcs,
     recursion::recursive_verifier,
     shapes::{SP1RecursionProofShape, DEFAULT_ARITY},
     worker::get_normalize_program,
@@ -187,11 +188,12 @@ async fn main() {
                 core_verifier.shard_verifier(),
             );
             let (normalize_prover, compress_verifier) =
-                recursion_prover_and_verifier(t.clone()).await;
-            let reduce_shape = SP1RecursionProofShape::retrieve_or_compute_reduce_shape(
-                machine.clone(),
+                recursion_prover_and_verifier(t.clone(), &machine).await;
+            let reduce_shape = SP1RecursionProofShape::compress_proof_shape_from_arity(
                 DEFAULT_ARITY,
-            );
+                machine_has_apcs(&machine),
+            )
+            .expect("default arity not supported");
             Some((recursive_core_verifier, compress_verifier, normalize_prover, reduce_shape))
         } else {
             None

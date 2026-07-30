@@ -10,9 +10,9 @@ use sp1_hypercube::{
 use sp1_primitives::{io::SP1PublicValues, SP1Field};
 use sp1_verifier::SP1Proof;
 
-#[cfg(not(feature = "mprotect"))]
+#[cfg(not(any(feature = "mprotect", feature = "experimental")))]
 use crate::verify::VerifierRecursionVks;
-#[cfg(feature = "mprotect")]
+#[cfg(any(feature = "mprotect", feature = "experimental"))]
 use crate::{recursion::RecursionVks, worker::DEFAULT_MAX_COMPOSE_ARITY};
 use crate::{
     verify::SP1Verifier,
@@ -61,15 +61,26 @@ impl SP1LightNode {
         // Initializing the merkle tree is blocking, so we need to spawn in on a blocking task.
         tokio::task::spawn_blocking(move || {
             // Get a core prover for the light node to be able to do the setup step
-            let core_verifier = CpuSP1ProverComponents::core_verifier(machine.clone());
+            let core_verifier = CpuSP1ProverComponents::core_verifier(&machine);
             let core_air_prover =
                 Arc::new(CpuShardProver::new(core_verifier.shard_verifier().clone()));
             let permits = ProverSemaphore::new(1);
 
-            #[cfg(feature = "mprotect")]
-            let verifier_vks =
-                RecursionVks::new(None, DEFAULT_MAX_COMPOSE_ARITY, false).to_verifier_vks();
-            #[cfg(not(feature = "mprotect"))]
+            // Mirror the prover-side vk_verification logic in worker/builder.rs (auto-disable
+            // under APC machines) and cpu_worker_builder_with_machine (auto-disable under
+            // mprotect). Keeping these in sync lets the light node's verifier_vks match the
+            // full node's recursion_vks (see `test_light_node`). When vk_verification is
+            // false, RecursionVks::new returns a dummy tree whose root differs from the real
+            // bundled vk_map.bin, so the light verifier must compute the real tree whenever
+            // the prover side keeps vk_verification on.
+            #[cfg(any(feature = "mprotect", feature = "experimental"))]
+            let verifier_vks = {
+                let vk_verification =
+                    !cfg!(feature = "mprotect") && !crate::components::machine_has_apcs(&machine);
+                RecursionVks::new(None, DEFAULT_MAX_COMPOSE_ARITY, vk_verification)
+                    .to_verifier_vks()
+            };
+            #[cfg(not(any(feature = "mprotect", feature = "experimental")))]
             let verifier_vks = VerifierRecursionVks::default();
             let verifier = SP1Verifier::new_with_machine(verifier_vks, machine);
             // Create a new core node for the light node
@@ -82,7 +93,7 @@ impl SP1LightNode {
     }
 
     pub async fn setup(&self, elf: &[u8]) -> anyhow::Result<SP1VerifyingKey> {
-        let program = Program::from(elf)
+        let program = Program::custom(elf, self.inner.core.machine())
             .map_err(|e| anyhow::anyhow!("failed to disassemble program: {}", e))?;
         let program = Arc::new(program);
         let (_, vk) = self.inner.core_air_prover.setup(program, self.inner.permits.clone()).await;

@@ -45,7 +45,18 @@ impl<C: SP1ProverComponents> SP1WorkerBuilder<C> {
 
     pub fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         // Note: the config is uniquely determined by the machine. We still cache it here.
-        let config = SP1WorkerConfig::new(machine.clone());
+        #[allow(unused_mut)]
+        let mut config = SP1WorkerConfig::new(machine.clone());
+
+        // APC machines use a modified vk that the production vk_root constant doesn't cover, so
+        // vk verification is skipped. Non-APC machines keep the standard vk_root check, which the
+        // downloaded gnark artifacts depend on.
+        // TODO: Change this once vk verification is implemented for the modified vk.
+        #[cfg(feature = "experimental")]
+        if crate::components::machine_has_apcs(&machine) {
+            config.prover_config.recursion_prover_config =
+                config.prover_config.recursion_prover_config.without_vk_verification();
+        }
 
         Self {
             machine,
@@ -334,10 +345,10 @@ pub fn cpu_worker_builder_with_machine(
     // Get the core options.
     let opts = SP1CoreOpts::default();
 
-    let core_verifier = CpuSP1ProverComponents::core_verifier(machine.clone());
+    let core_verifier = CpuSP1ProverComponents::core_verifier(&machine);
     let core_air_prover = Arc::new(CpuShardProver::new(core_verifier.shard_verifier().clone()));
 
-    let recursion_verifier = CpuSP1ProverComponents::compress_verifier();
+    let recursion_verifier = CpuSP1ProverComponents::compress_verifier(&machine);
     let recursion_air_prover =
         Arc::new(CpuShardProver::new(recursion_verifier.shard_verifier().clone()));
 

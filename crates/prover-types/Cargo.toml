@@ -17,6 +17,7 @@ hashbrown.workspace = true
 mti.workspace = true
 prost.workspace = true
 serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
 sp1-core-machine = { workspace = true }
 sp1-hypercube = { workspace = true }
 sp1-primitives = { workspace = true }

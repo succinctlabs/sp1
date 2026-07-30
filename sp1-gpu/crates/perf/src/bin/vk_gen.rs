@@ -74,10 +74,7 @@ async fn main() {
 
         // Create all circuit shapes.
         let shapes = sp1_prover::shapes::create_all_input_shapes(
-            CpuSP1ProverComponents::core_verifier(machine.clone())
-                .shard_verifier()
-                .machine()
-                .shape(),
+            CpuSP1ProverComponents::core_verifier(&machine).shard_verifier().machine().shape(),
             DEFAULT_ARITY,
         );
 
@@ -91,7 +88,7 @@ async fn main() {
 
         for proof in &core_proof {
             let shape = SP1RecursionProgramShape::Normalize(
-                CpuSP1ProverComponents::core_verifier(machine.clone()).shape_from_proof(proof),
+                CpuSP1ProverComponents::core_verifier(&machine).shape_from_proof(proof),
             );
 
             let index = shapes.iter().position(|s| *s == shape).expect("Shape not found in shapes");

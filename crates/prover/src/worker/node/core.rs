@@ -45,7 +45,7 @@ impl SP1NodeCore {
         stdin: SP1Stdin,
         context: SP1Context<'static>,
     ) -> anyhow::Result<(SP1PublicValues, [u8; 32], ExecutionReport)> {
-        let program = Program::from(elf)
+        let program = Program::custom(elf, self.machine())
             .map_err(|e| anyhow::anyhow!("failed to dissassemble program: {}", e))?;
         let program = Arc::new(program);
         let (public_values, public_value_digest, report) = execute_with_options_and_machine(
@@ -87,6 +87,10 @@ impl SP1NodeCore {
 
     pub fn vk_verification(&self) -> bool {
         self.inner.verifier.vk_verification()
+    }
+
+    pub fn supports_snark_wrap(&self) -> bool {
+        self.inner.verifier.supports_snark_wrap()
     }
 
     pub fn allowed_vk_height(&self) -> usize {

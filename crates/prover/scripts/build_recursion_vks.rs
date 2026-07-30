@@ -29,6 +29,7 @@ async fn main() {
 
     let maybe_range = start.and_then(|s| end.map(|e| (s..e).collect::<Vec<usize>>()));
     let maybe_either = maybe_range.map(Either::Left);
+    // TODO: This should take the apcs into account. Now it uses vanilla riscv.
     let machine = RiscvAir::machine();
     let node =
         SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder_with_machine(machine))
