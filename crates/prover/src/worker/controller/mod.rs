@@ -25,7 +25,7 @@ use sp1_core_executor::SP1CoreOpts;
 use sp1_core_executor_runner::MinimalExecutorRunner;
 use sp1_core_machine::{executor::ExecutionOutput, io::SP1Stdin};
 use sp1_hypercube::{
-    air::{PublicValues, PROOF_NONCE_NUM_WORDS},
+    air::{PublicValues, ShardRange, PROOF_NONCE_NUM_WORDS},
     SP1PcsProofInner, SP1VerifyingKey, ShardProof,
 };
 use sp1_primitives::{io::SP1PublicValues, SP1GlobalContext};
@@ -33,7 +33,7 @@ use sp1_prover_types::{
     network_base_types::ProofMode, Artifact, ArtifactClient, ArtifactType, TaskStatus, TaskType,
 };
 use sp1_verifier::{ProofFromNetwork, SP1Proof};
-use std::{borrow::Borrow, sync::Arc};
+use std::{borrow::Borrow, collections::HashSet, sync::Arc};
 use tokio::{
     sync::{oneshot, Mutex, MutexGuard},
     task::JoinSet,
@@ -140,11 +140,23 @@ where
     /// Execute Risc-V program, and trigger shard proofs for each trace chunk.
     /// Run the core executor and deferred proof emitter for a `CoreExecute` task. Proof shards
     /// are streamed back to the consumer via the task's message channel.
+    ///
+    /// Redelivery-safe on both sides: if the execution output artifact already exists, a prior
+    /// delivery finished this task and its recorded output is returned without re-executing. A
+    /// redelivery that overlaps the original still streams a second set of shard proofs, which
+    /// the consumers drop by range.
     pub async fn execute(
         &self,
         task_id: TaskId,
         request: CoreExecuteTaskRequest,
     ) -> Result<ExecutionOutput, TaskError> {
+        if let Some(output) =
+            recorded_execution_output(&self.artifact_client, &task_id, &request.execution_output)
+                .await?
+        {
+            return Ok(output);
+        }
+
         let stdin_artifact_type =
             if request.stdin_private { ArtifactType::PrivateStdin } else { ArtifactType::Stdin };
         let stdin = self
@@ -533,6 +545,76 @@ where
     }
 }
 
+/// The output of a prior delivery of this task, if one already finished it.
+///
+/// The cluster delivers tasks at-least-once, and this artifact is uploaded last,
+/// after every shard proof has been streamed — so its presence means re-executing
+/// would stream a second set. A failed lookup re-executes rather than failing the
+/// task: duplicates are recoverable, a lost proof is not.
+async fn recorded_execution_output<A: ArtifactClient>(
+    artifact_client: &A,
+    task_id: &TaskId,
+    execution_output: &Artifact,
+) -> Result<Option<ExecutionOutput>, TaskError> {
+    match artifact_client.exists(execution_output, ArtifactType::UnspecifiedArtifactType).await {
+        Ok(true) => {
+            tracing::info!(
+                "CoreExecute task {} already completed by a prior delivery; \
+                 returning recorded output without re-executing",
+                task_id
+            );
+            Ok(Some(artifact_client.download::<ExecutionOutput>(execution_output).await?))
+        }
+        Ok(false) => Ok(None),
+        Err(e) => {
+            tracing::warn!(
+                "failed to check for a prior execution output of task {}: {:?}; \
+                 falling back to re-execution",
+                task_id,
+                e
+            );
+            Ok(None)
+        }
+    }
+}
+
+/// Drops shard proofs that have already been streamed for this proof.
+///
+/// A re-delivered `CoreExecute` runs alongside the original and streams a second
+/// full set of shard proofs. Both consumers assume one proof per range, so the
+/// second set has to be dropped rather than accepted.
+///
+/// Precompile shards are exempt: they all share the degenerate
+/// `ShardRange::precompile()` range, so range is no longer an identity for them.
+/// Duplicates of those are prevented upstream by the recovery guard in
+/// [`SP1Controller::execute`].
+#[derive(Default)]
+struct DuplicateShardFilter {
+    task_ids: HashSet<TaskId>,
+    ranges: HashSet<ShardRange>,
+}
+
+impl DuplicateShardFilter {
+    /// True once this proof has been seen, by task or by range.
+    fn seen(&mut self, proof_data: &ProofData) -> bool {
+        // Guards against the transport itself: the message channel retries
+        // forever and the coordinator replays its buffer on reconnect.
+        if !self.task_ids.insert(proof_data.task_id.clone()) {
+            tracing::warn!("skipping duplicate proof message for task {}", proof_data.task_id);
+            return true;
+        }
+        if proof_data.range != ShardRange::precompile() && !self.ranges.insert(proof_data.range) {
+            tracing::warn!(
+                "skipping duplicate proof for range {:?} (task {})",
+                proof_data.range,
+                proof_data.task_id
+            );
+            return true;
+        }
+        false
+    }
+}
+
 async fn collect_core_proofs(
     worker_client: impl WorkerClient,
     artifact_client: impl ArtifactClient,
@@ -542,7 +624,12 @@ async fn collect_core_proofs(
 ) -> Result<(), TaskError> {
     let subscriber = worker_client.subscriber(context.proof_id.clone()).await?.per_task();
     let mut shard_proofs = Vec::new();
+    // Here a duplicate lands in the core proof itself, which the verifier rejects.
+    let mut duplicates = DuplicateShardFilter::default();
     while let Some(proof_data) = core_proof_rx.recv().await {
+        if duplicates.seen(&proof_data) {
+            continue;
+        }
         let ProofData { task_id, proof, .. } = proof_data;
         let status = subscriber.wait_task(task_id.clone()).await?;
         if status != TaskStatus::Succeeded {
@@ -634,5 +721,92 @@ impl ControllerInputMetadata {
         } else {
             ArtifactType::Stdin
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sp1_prover_types::InMemoryArtifactClient;
+
+    #[tokio::test]
+    async fn a_first_delivery_executes() {
+        let artifact_client = InMemoryArtifactClient::new();
+        let execution_output = artifact_client.create_artifact().unwrap();
+
+        let recorded =
+            recorded_execution_output(&artifact_client, &TaskId::new("t1"), &execution_output)
+                .await
+                .unwrap();
+
+        assert!(recorded.is_none());
+    }
+
+    #[tokio::test]
+    async fn a_redelivery_returns_the_recorded_output() {
+        let artifact_client = InMemoryArtifactClient::new();
+        let execution_output = artifact_client.create_artifact().unwrap();
+        // Uploaded last by the run that finished, after every shard proof was streamed.
+        artifact_client
+            .upload(&execution_output, ExecutionOutput { public_value_stream: vec![7], cycles: 42 })
+            .await
+            .unwrap();
+
+        let recorded =
+            recorded_execution_output(&artifact_client, &TaskId::new("t1"), &execution_output)
+                .await
+                .unwrap()
+                .expect("a finished delivery's output was not reused");
+
+        assert_eq!(recorded.cycles, 42);
+    }
+
+    fn proof_data(task_id: &str, range: ShardRange) -> ProofData {
+        ProofData {
+            task_id: TaskId::new(task_id),
+            range,
+            proof: Artifact::from(task_id.to_string()),
+        }
+    }
+
+    fn shard(timestamp: u64) -> ShardRange {
+        ShardRange { timestamp_range: (timestamp, timestamp + 1), ..Default::default() }
+    }
+
+    #[test]
+    fn distinct_shards_pass_through() {
+        let mut filter = DuplicateShardFilter::default();
+
+        assert!(!filter.seen(&proof_data("t1", shard(1))));
+        assert!(!filter.seen(&proof_data("t2", shard(2))));
+    }
+
+    #[test]
+    fn a_re_executed_shard_is_dropped() {
+        let mut filter = DuplicateShardFilter::default();
+        filter.seen(&proof_data("t1", shard(1)));
+
+        // Re-execution proves the same range under a new task, so the task id
+        // says nothing — the range is what identifies the shard.
+        assert!(filter.seen(&proof_data("t2", shard(1))));
+    }
+
+    #[test]
+    fn a_redelivered_message_is_dropped() {
+        let mut filter = DuplicateShardFilter::default();
+        filter.seen(&proof_data("t1", shard(1)));
+
+        assert!(filter.seen(&proof_data("t1", shard(1))));
+    }
+
+    #[test]
+    fn precompile_shards_are_exempt() {
+        let mut filter = DuplicateShardFilter::default();
+
+        // They share one degenerate range, so dropping by range would discard every
+        // precompile shard after the first. The cost: a redelivery's precompile
+        // duplicates get through, until they carry an identity of their own.
+        assert!(!filter.seen(&proof_data("t1", ShardRange::precompile())));
+        assert!(!filter.seen(&proof_data("t2", ShardRange::precompile())));
     }
 }
