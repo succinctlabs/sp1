@@ -3,6 +3,7 @@ use slop_algebra::{AbstractExtensionField, UnivariatePolynomial};
 use slop_challenger::FieldChallenger;
 use sp1_gpu_utils::{Ext, Felt};
 
+pub mod grid;
 pub mod primitives;
 pub mod prover;
 

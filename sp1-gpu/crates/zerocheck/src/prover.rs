@@ -49,15 +49,16 @@ use sp1_gpu_cudart::sys::runtime::KernelPtr;
 use sp1_gpu_cudart::{args, DeviceBuffer, DeviceCopy, DevicePoint, TaskScope};
 use sp1_gpu_utils::{Ext, Felt, JaggedTraceMle};
 use sp1_hypercube::air::MachineAir;
-use sp1_hypercube::prover::{
-    zerocheck_first_round_message_from_grid, zerocheck_second_round_message_from_grid,
-    ZerocheckAir, ZEROCHECK_CONSTRAINT_NODES, ZEROCHECK_NODE_XS,
-};
+use sp1_hypercube::prover::ZerocheckAir;
 use sp1_hypercube::{
     AirOpenedValues, Chip, ChipEvaluation, ChipOpenedValues, LogUpEvaluations, ShardOpenedValues,
 };
 
 use crate::challenger_update;
+use crate::grid::{
+    zerocheck_first_round_message_from_grid, zerocheck_second_round_message_from_grid,
+    ZEROCHECK_CONSTRAINT_NODES, ZEROCHECK_NODE_XS,
+};
 use crate::primitives::{
     evaluate_jagged_fix_last_two_variables, evaluate_jagged_fix_last_variable,
     JaggedFixLastVariableKernel,
