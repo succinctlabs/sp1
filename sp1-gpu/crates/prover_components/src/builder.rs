@@ -38,8 +38,11 @@ pub fn local_gpu_opts() -> SP1CoreOpts {
         panic!("Unsupported GPU memory: {gpu_memory_gb}, must be at least 24GB");
     }
 
-    let shard_threshold =
-        if gpu_memory_gb <= 30 { ELEMENT_THRESHOLD - (1 << 25) } else { ELEMENT_THRESHOLD };
+    let shard_threshold = if gpu_memory_gb <= 30 {
+        ELEMENT_THRESHOLD - (1 << 26) - (1 << 25)
+    } else {
+        ELEMENT_THRESHOLD
+    };
 
     tracing::debug!("Shard threshold: {shard_threshold}");
     opts.sharding_threshold.element_threshold = shard_threshold;
