@@ -86,6 +86,18 @@ pub struct MarketPrice {
     pub as_of: u64,
 }
 
+pub(super) fn parse_fulfillment_status(
+    raw_status: i32,
+    request_id: B256,
+) -> Result<FulfillmentStatus> {
+    FulfillmentStatus::try_from(raw_status).with_context(|| {
+        format!(
+            "unsupported fulfillment status {raw_status} while getting proof request status for request 0x{}",
+            hex::encode(request_id)
+        )
+    })
+}
+
 /// A client for interacting with the network.
 #[derive(Clone)]
 pub struct NetworkClient {
@@ -567,7 +579,7 @@ impl NetworkClient {
             }
         };
 
-        let status = FulfillmentStatus::try_from(res.fulfillment_status())?;
+        let status = parse_fulfillment_status(res.fulfillment_status(), request_id)?;
         let proof = match status {
             FulfillmentStatus::Fulfilled => {
                 let proof_uri =
@@ -1035,6 +1047,8 @@ mod test {
 
     use crate::network::{proto::base_types, signer::NetworkSigner, NetworkMode, RESERVED_RPC_URL};
 
+    use super::parse_fulfillment_status;
+
     #[derive(Clone)]
     struct ReservedProofDetailsFixture(base_types::GetProofRequestDetailsResponse);
 
@@ -1087,6 +1101,20 @@ mod test {
         let private_key = hex::encode(alloy_signer_local::PrivateKeySigner::random().to_bytes());
         let signer = NetworkSigner::local(&private_key).unwrap();
         let _ = super::NetworkClient::new(signer, RESERVED_RPC_URL, NetworkMode::Reserved);
+    }
+
+    #[test]
+    fn fulfillment_status_parser_handles_known_and_unknown_values() {
+        let request_id = B256::from([0xab; 32]);
+
+        for raw_status in 0..=6 {
+            let status = parse_fulfillment_status(raw_status, request_id).unwrap();
+            assert_eq!(status as i32, raw_status);
+        }
+
+        let error = parse_fulfillment_status(7, request_id).unwrap_err().to_string();
+        assert!(error.contains("unsupported fulfillment status 7"));
+        assert!(error.contains(&format!("0x{}", hex::encode(request_id))));
     }
 
     #[tokio::test]
