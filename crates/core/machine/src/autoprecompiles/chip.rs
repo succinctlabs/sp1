@@ -7,9 +7,13 @@ use itertools::Itertools;
 use powdr_autoprecompiles::{
     blocks::PcStep,
     expression::{AlgebraicExpression, AlgebraicReference},
+    symbolic_machine::SymbolicBusInteraction,
+    trace_handler::{resolve_computation_method, DummyCoord, ResolvedMethod},
     Substitution,
 };
+use powdr_constraint_solver::constraint_system::ComputationMethod;
 use powdr_expression::{AlgebraicBinaryOperator, AlgebraicUnaryOperator};
+use powdr_number::ExpressionConvertible;
 use slop_air::{Air, AirBuilder, BaseAir, PairBuilder};
 use slop_algebra::PrimeField32;
 use slop_matrix::Matrix;
@@ -41,6 +45,26 @@ struct CachedApc<F: PrimeField32> {
     apc: Arc<Sp1Apc<F>>,
     /// The cached columns of the APC.
     columns: Vec<AlgebraicReference>,
+    /// Mapping from APC poly ID to contiguous witness index.
+    apc_poly_id_to_index: BTreeMap<u64, usize>,
+    /// Number of occurrences of each AIR ID in the APC block.
+    air_id_occurrences: HashMap<RiscvAirId, usize>,
+    /// Cached metadata indexed by original APC instruction.
+    instructions: Vec<CachedInstruction>,
+    /// Resolved derived columns that are computed from dummy-trace coordinates.
+    columns_to_compute: Vec<(usize, ResolvedMethod<F>)>,
+    /// APC byte-bus interactions, pre-filtered once at chip construction.
+    byte_bus_interactions: Vec<SymbolicBusInteraction<F>>,
+}
+
+#[derive(Debug)]
+struct CachedInstruction {
+    /// AIR ID for this original APC instruction.
+    air_id: RiscvAirId,
+    /// Occurrence offset of this instruction within its AIR's dummy trace.
+    table_offset: usize,
+    /// Copy list from dummy-trace index to APC-trace index for this instruction.
+    copy_pairs: Vec<(usize, usize)>,
 }
 
 impl<F: PrimeField32> CachedApc<F> {
@@ -53,7 +77,95 @@ impl<F: PrimeField32> CachedApc<F> {
 impl<F: PrimeField32> From<Arc<Sp1Apc<F>>> for CachedApc<F> {
     fn from(apc: Arc<Sp1Apc<F>>) -> Self {
         let columns = apc.machine.main_columns().collect();
-        Self { apc, columns }
+        let apc_poly_id_to_index = apc
+            .machine
+            .main_columns()
+            .enumerate()
+            .map(|(index, c)| (c.id, index))
+            .collect::<BTreeMap<_, _>>();
+
+        let original_instruction_air_ids = apc
+            .block
+            .instructions()
+            .map(|(_pc, instr)| {
+                try_instruction_type_to_air_id(InstructionType::from(instr.0))
+                    .expect("Invalid instruction as an original instruction in an APC: {instr.0:?}")
+            })
+            .collect::<Vec<_>>();
+
+        let air_id_occurrences = original_instruction_air_ids.iter().copied().counts();
+
+        let instructions = apc
+            .block
+            .instructions()
+            .zip_eq(apc.subs.iter())
+            .scan(
+                HashMap::default(),
+                |counts: &mut HashMap<RiscvAirId, usize>, ((_, instr), substitutions)| {
+                    let air_id = try_instruction_type_to_air_id(InstructionType::from(instr.0))
+                        .expect(
+                            "Invalid instruction as an original instruction in an APC: {instr.0:?}",
+                        );
+                    let count = counts.entry(air_id).or_default();
+                    let table_offset = *count;
+                    *count += 1;
+
+                    let copy_pairs = substitutions
+                        .iter()
+                        .filter_map(|sub| {
+                            let Substitution { original_poly_index, apc_poly_id } = sub;
+                            apc_poly_id_to_index
+                                .get(apc_poly_id)
+                                .map(|apc_index| (*original_poly_index, *apc_index))
+                        })
+                        .collect::<Vec<_>>();
+
+                    Some(CachedInstruction { air_id, table_offset, copy_pairs })
+                },
+            )
+            .collect::<Vec<_>>();
+
+        let apc_poly_id_to_dummy_index = apc
+            .subs
+            .iter()
+            .enumerate()
+            .flat_map(|(instruction, subs)| {
+                subs.iter().map(move |sub| {
+                    (sub.apc_poly_id, DummyCoord { instruction, index: sub.original_poly_index })
+                })
+            })
+            .collect::<BTreeMap<_, _>>();
+
+        let columns_to_compute = apc
+            .machine
+            .derived_columns
+            .iter()
+            .filter(|d| d.is_new)
+            .map(|d| {
+                (
+                    apc_poly_id_to_index[&d.variable.id],
+                    resolve_computation_method(&d.computation_method, &apc_poly_id_to_dummy_index),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        let byte_bus_interactions = apc
+            .machine
+            .bus_interactions
+            .iter()
+            .filter(|bus_interaction| bus_interaction.id == InteractionKind::Byte as u64)
+            .cloned()
+            .collect();
+
+        Self {
+            apc,
+            columns,
+            apc_poly_id_to_index,
+            air_id_occurrences,
+            instructions,
+            columns_to_compute,
+            byte_bus_interactions,
+        }
     }
 }
 
@@ -78,7 +190,7 @@ pub struct ApcChip<F: PrimeField32> {
     /// The name of this APC
     name: String,
     /// The cached APC.
-    cached_apc: CachedApc<F>,
+    cached_apc: Arc<CachedApc<F>>,
     /// A machine to generate traces for the APC. By construction, it will never have apcs itself.
     machine: Machine<F, RiscvAir<F>>,
     /// Cache of filled APC traces (see [`CachedTraces`]).
@@ -90,7 +202,7 @@ impl<F: PrimeField32> ApcChip<F> {
         Self {
             id,
             name: format!("APC_{id}"),
-            cached_apc: apc.into(),
+            cached_apc: Arc::new(apc.into()),
             machine: RiscvAir::machine(),
             cached_traces: CachedTraces::default(),
         }
@@ -174,20 +286,6 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         }
         let events = events.unwrap();
 
-        // Mapping from poly_id to contiguous index in apc
-        let apc_poly_id_to_index = self
-            .apc()
-            .machine
-            .main_columns()
-            .enumerate()
-            .map(|(index, c)| (c.id, index))
-            .collect::<BTreeMap<_, _>>();
-
-        // Get is_valid_index to manually fill with 1 for witness generation
-        let is_valid_column =
-            self.apc().machine.main_columns().find(|c| &*c.name == "is_valid").unwrap();
-        let is_valid_index = apc_poly_id_to_index[&is_valid_column.id];
-
         // Generate traces for each included air in parallel
         let chips_and_traces = self
             .machine
@@ -200,43 +298,20 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             })
             .collect::<BTreeMap<_, _>>();
 
-        // Get the AIR IDs for the original instructions
-        let original_instruction_air_ids = self
-            .apc()
-            .block
-            .instructions()
-            .map(|(_pc, instr)| {
-                try_instruction_type_to_air_id(InstructionType::from(instr.0))
-                    .expect("Invalid instruction as an original instruction in an APC: {instr.0:?}")
-            })
-            .collect::<Vec<_>>();
-
-        // Map from AIR ID to number of occurrences
-        let air_id_occurrences = original_instruction_air_ids.iter().counts();
-
-        // Vec of dummy trace row offset by original instruction index
-        let instruction_index_to_table_offset = original_instruction_air_ids
-            .iter()
-            .scan(HashMap::default(), |counts: &mut HashMap<RiscvAirId, usize>, air_id| {
-                let count = counts.entry(*air_id).or_default();
-                let current_count = *count;
-                *count += 1;
-                Some(current_count)
-            })
-            .collect::<Vec<_>>();
-
         // Create slices of dummy values
         let dummy_values_by_event = (0..events.count)
             .into_par_iter()
             .map(|event_index| {
-                original_instruction_air_ids
+                self.cached_apc
+                    .instructions
                     .iter()
-                    .zip_eq(instruction_index_to_table_offset.iter())
-                    .map(|(air_id, offset)| {
-                        let dummy_table = chips_and_traces.get(air_id).unwrap();
+                    .map(|instruction| {
+                        let dummy_table = chips_and_traces.get(&instruction.air_id).unwrap();
                         let dummy_width = dummy_table.width();
-                        let occurrence_per_event = *air_id_occurrences.get(air_id).unwrap();
-                        let start = (event_index * occurrence_per_event + offset) * dummy_width;
+                        let occurrence_per_event =
+                            *self.cached_apc.air_id_occurrences.get(&instruction.air_id).unwrap();
+                        let start = (event_index * occurrence_per_event + instruction.table_offset)
+                            * dummy_width;
                         let end = start + dummy_width;
                         &dummy_table.values[start..end]
                         // return slice so we don't allocate memory
@@ -244,32 +319,6 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
-
-        // A vector of HashMap<dummy_trace_index, apc_trace_index> by instruction, empty HashMap if
-        // none maps to apc
-        let dummy_trace_index_to_apc_index_by_instruction: Vec<HashMap<usize, usize>> = self
-            .apc()
-            .subs
-            .iter()
-            .enumerate()
-            .map(|(instruction_index, substitutions)| {
-                // build a map only of the (dummy_index -> apc_index) pairs
-                let mut map = HashMap::new();
-                for sub in substitutions {
-                    let Substitution { original_poly_index, apc_poly_id } = sub;
-                    let apc_index = apc_poly_id_to_index.get(apc_poly_id).unwrap();
-                    tracing::trace!("Mapping dummy_index {original_poly_index} to apc_index {apc_index} for instruction {instruction_index}");
-                    map.insert(*original_poly_index, *apc_index);
-                }
-                tracing::trace!("Map for instruction {instruction_index}: {map:?}");
-                map
-            })
-            .collect();
-
-        assert_eq!(
-            self.apc().block.instructions().count(),
-            dummy_trace_index_to_apc_index_by_instruction.len()
-        );
 
         // Allocate final trace values
         let trace_width = self.width();
@@ -288,33 +337,34 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
                 for (trace_row, dummy_values_by_instruction) in
                     trace_chunk.chunks_mut(trace_width).zip_eq(dummy_chunk.iter())
                 {
-                    for (dummy_slice, map) in dummy_values_by_instruction
-                        .iter()
-                        .zip(&dummy_trace_index_to_apc_index_by_instruction)
+                    for (dummy_slice, instruction) in
+                        dummy_values_by_instruction.iter().zip(&self.cached_apc.instructions)
                     {
                         // By caching `dummy_trace_index_to_apc_index_by_instruction`, we only loop
                         // over the values that are assigned to the APC instead of all values in the
                         // dummy trace
-                        for (dummy_index, apc_index) in map.iter() {
+                        for (dummy_index, apc_index) in &instruction.copy_pairs {
                             trace_row[*apc_index] = dummy_slice[*dummy_index];
                         }
                     }
 
-                    // Manually set is_valid column to 1
-                    trace_row[is_valid_index] = F::one();
+                    // Fill `is_new` derived columns (including `is_valid`), reading inputs straight
+                    // from this event's dummy rows (covers optimizer-removed columns). Must run
+                    // before the byte-bus eval below, which may reference these columns.
+                    for (apc_index, method) in &self.cached_apc.columns_to_compute {
+                        trace_row[*apc_index] =
+                            evaluate_computation_method(method, dummy_values_by_instruction);
+                    }
 
                     tracing::trace!("Final row: {trace_row:?}");
 
                     // Replay side effects as events
                     // Only need to do this for byte lookup bus, as other buses are implicitly
                     // balanced via main trace values rather than via events
-                    let evaluator = RowEvaluator::new(trace_row, Some(&apc_poly_id_to_index));
+                    let evaluator =
+                        RowEvaluator::new(trace_row, Some(&self.cached_apc.apc_poly_id_to_index));
 
-                    for bus_interaction in
-                        self.apc().machine.bus_interactions.iter().filter(|bus_interaction| {
-                            bus_interaction.id == InteractionKind::Byte as u64
-                        })
-                    {
+                    for bus_interaction in &self.cached_apc.byte_bus_interactions {
                         let mult = evaluator.eval_expr(&bus_interaction.mult).as_canonical_u32();
                         let mut args = bus_interaction
                             .args
@@ -518,5 +568,35 @@ impl<'a, F: PrimeField32> RowEvaluator<'a, F> {
             algebraic_var.id as usize
         };
         self.row[index]
+    }
+}
+
+/// Evaluate a derived column's `ComputationMethod` whose references have been resolved to
+/// dummy-trace coordinates, reading inputs straight from `dummy_rows` (which covers optimizer-
+/// removed columns).
+fn evaluate_computation_method<F: PrimeField32>(
+    method: &ResolvedMethod<F>,
+    dummy_rows: &[&[F]],
+) -> F {
+    let eval = |e: &powdr_expression::AlgebraicExpression<F, DummyCoord>| {
+        e.to_expression(&|n| *n, &|coord: &DummyCoord| dummy_rows[coord.instruction][coord.index])
+    };
+    match method {
+        ComputationMethod::Constant(c) => *c,
+        ComputationMethod::QuotientOrZero(e1, e2) => {
+            let divisor = eval(e2);
+            if divisor.is_zero() {
+                F::zero()
+            } else {
+                divisor.inverse() * eval(e1)
+            }
+        }
+        ComputationMethod::IfEqZero(condition, then, else_) => {
+            if eval(condition).is_zero() {
+                evaluate_computation_method(then, dummy_rows)
+            } else {
+                evaluate_computation_method(else_, dummy_rows)
+            }
+        }
     }
 }
