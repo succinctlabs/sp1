@@ -126,7 +126,7 @@ jobs:
       - name: Install go
         uses: actions/setup-go@v5
         with:
-          go-version: "^1.22.1"
+          go-version-file: "crates/recursion/gnark-ffi/go/go.mod"
 
       - name: Check go installation
         run: |
@@ -273,8 +273,8 @@ jobs:
       - name: Install go
         uses: actions/setup-go@v5
         with:
-          go-version: "^1.22.1"
-          
+          go-version-file: "crates/recursion/gnark-ffi/go/go.mod"
+
       - name: Check go installation
         run: |
           go version
