@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use super::prove::NetworkProveBuilder;
 use crate::{
     network::{
-        client::NetworkClient,
+        client::{parse_fulfillment_status, NetworkClient},
         proto::{
             types::{
                 ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, ProofMode, ProofRequest,
@@ -414,7 +414,7 @@ impl NetworkProver {
         let maybe_proof: Option<SP1ProofWithPublicValues> = maybe_proof.map(Into::into);
 
         let execution_status = ExecutionStatus::try_from(status.execution_status()).unwrap();
-        let fulfillment_status = FulfillmentStatus::try_from(status.fulfillment_status()).unwrap();
+        let fulfillment_status = parse_fulfillment_status(status.fulfillment_status(), request_id)?;
 
         let current_time =
             std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();

@@ -29,12 +29,12 @@ use sp1_hypercube::{
     air::{PublicValues, PROOF_NONCE_NUM_WORDS},
     SP1PcsProofInner, SP1VerifyingKey, ShardProof,
 };
-use sp1_primitives::{io::SP1PublicValues, SP1GlobalContext};
+use sp1_primitives::{io::SP1PublicValues, SP1Field, SP1GlobalContext};
 use sp1_prover_types::{
     network_base_types::ProofMode, Artifact, ArtifactClient, ArtifactType, TaskStatus, TaskType,
 };
 use sp1_verifier::{ProofFromNetwork, SP1Proof};
-use std::{borrow::Borrow, sync::Arc};
+use std::{borrow::Borrow, collections::HashSet, sync::Arc};
 use tokio::{
     sync::{mpsc, oneshot, Mutex, MutexGuard},
     task::JoinSet,
@@ -140,12 +140,22 @@ where
     /// Execute Risc-V program, and trigger shard proofs for each trace chunk.
     /// Run the core executor and deferred proof emitter for a `CoreExecute` task. Proof shards
     /// are streamed back to the consumer via the task's message channel.
+    ///
+    /// Returns without executing if a prior delivery of this task already finished. The caller
+    /// records the output — see [`record_execution_output`] for why it cannot be done here.
     pub async fn execute(
         &self,
         task_id: TaskId,
         request: CoreExecuteTaskRequest,
         chunk_tx: mpsc::Sender<SpliceChunkTask<W>>,
     ) -> Result<ExecutionOutput, TaskError> {
+        if let Some(output) =
+            recorded_execution_output(&self.artifact_client, &task_id, &request.execution_output)
+                .await?
+        {
+            return Ok(output);
+        }
+
         let stdin_artifact_type =
             if request.stdin_private { ArtifactType::PrivateStdin } else { ArtifactType::Stdin };
         let stdin = self
@@ -212,7 +222,6 @@ where
                 )));
             }
         }
-        self.artifact_client.upload(&request.execution_output, &output).await?;
         Ok(output)
     }
 
@@ -535,6 +544,113 @@ where
     }
 }
 
+/// The output of a prior delivery of this task, if one already finished it.
+///
+/// The cluster delivers tasks at-least-once. A failed lookup re-executes rather than failing the
+/// task: duplicates are recoverable, a lost proof is not.
+async fn recorded_execution_output<A: ArtifactClient>(
+    artifact_client: &A,
+    task_id: &TaskId,
+    execution_output: &Artifact,
+) -> Result<Option<ExecutionOutput>, TaskError> {
+    match artifact_client.exists(execution_output, ArtifactType::UnspecifiedArtifactType).await {
+        Ok(true) => {
+            tracing::info!(
+                "CoreExecute task {} already completed by a prior delivery; \
+                 returning recorded output without re-executing",
+                task_id
+            );
+            Ok(Some(artifact_client.download::<ExecutionOutput>(execution_output).await?))
+        }
+        Ok(false) => Ok(None),
+        Err(e) => {
+            tracing::warn!(
+                "failed to check for a prior execution output of task {}: {:?}; \
+                 falling back to re-execution",
+                task_id,
+                e
+            );
+            Ok(None)
+        }
+    }
+}
+
+/// Mark a `CoreExecute` task as finished by recording its output.
+///
+/// [`recorded_execution_output`] reads this artifact's presence as "a prior delivery already
+/// streamed every proof", so it must be written only once that is true. [`SP1Controller::execute`]
+/// returns while the chunk consumer is still proving the tail chunks, so the caller writes it after
+/// joining both.
+pub(crate) async fn record_execution_output<A: ArtifactClient>(
+    artifact_client: &A,
+    execution_output: &Artifact,
+    output: &ExecutionOutput,
+) -> Result<(), TaskError> {
+    artifact_client.upload(execution_output, output).await?;
+    Ok(())
+}
+
+/// Where a shard proof sits in the proof's canonical shard order, which is also its identity:
+/// one proof per (trace chunk, kind, index). `ShardRange` is not an identity — every merkle shard
+/// is sent with `ShardRange::default()`.
+fn shard_identity(public_values: &[SP1Field]) -> (u32, u8, u32) {
+    let public_values: &PublicValues<[_; 4], [_; 3], [_; 4], _> = public_values.borrow();
+    proof_sort_key(
+        public_values.trace_chunk_idx.as_canonical_u32(),
+        1 - public_values.is_execution_shard.as_canonical_u32(),
+        public_values.shard_index.as_canonical_u32(),
+    )
+}
+
+/// What identifies a streamed proof within one proof request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum ProofKey {
+    /// A deferred leaf, by its index in `SP1Stdin.proofs`.
+    Deferred(u64),
+    /// A core or merkle shard proof, by [`shard_identity`].
+    Shard((u32, u8, u32)),
+    /// A per-chunk recursion proof, by the chunk it covers.
+    Chunk(ChunkRange),
+}
+
+/// Drops proofs that have already been streamed for this proof request.
+///
+/// Two things produce duplicates. A re-delivered `CoreExecute` runs the whole execution again
+/// alongside the original and streams a second set of proofs under fresh task ids. The transport
+/// itself replays: the message channel retries forever and the coordinator replays its buffer on
+/// reconnect. Every consumer assumes one proof per identity, so the second copy has to be dropped.
+#[derive(Default)]
+struct DuplicateProofFilter {
+    task_ids: HashSet<TaskId>,
+    keys: HashSet<ProofKey>,
+}
+
+impl DuplicateProofFilter {
+    /// True once this proof has been seen, by task or by identity.
+    fn seen(&mut self, proof_data: &ProofData) -> bool {
+        let key = match proof_data {
+            ProofData::Artifact { task_id, range, .. } => {
+                // Task-backed, so the task id catches a replayed message; the deferred index
+                // below catches a re-execution, which resubmits the same index under a new task.
+                if !self.task_ids.insert(task_id.clone()) {
+                    tracing::warn!("skipping duplicate proof message for task {}", task_id);
+                    return true;
+                }
+                ProofKey::Deferred(range.deferred_proof_range.0)
+            }
+            ProofData::InMemory { proof, .. } => {
+                ProofKey::Shard(shard_identity(&proof.public_values))
+            }
+            ProofData::ChunkProof { chunk_range, .. } => ProofKey::Chunk(*chunk_range),
+        };
+        if !self.keys.insert(key) {
+            tracing::warn!("skipping duplicate proof for {:?}", key);
+            return true;
+        }
+        false
+    }
+}
+
 async fn collect_core_proofs(
     worker_client: impl WorkerClient,
     artifact_client: impl ArtifactClient,
@@ -544,7 +660,12 @@ async fn collect_core_proofs(
 ) -> Result<(), TaskError> {
     let subscriber = worker_client.subscriber(context.proof_id.clone()).await?.per_task();
     let mut shard_proofs = Vec::new();
+    // A duplicate here lands in the core proof itself, which the verifier rejects.
+    let mut duplicates = DuplicateProofFilter::default();
     while let Some(proof_data) = core_proof_rx.recv().await {
+        if duplicates.seen(&proof_data) {
+            continue;
+        }
         let proof = match proof_data {
             ProofData::Artifact { task_id, proof, .. } => {
                 let status = subscriber.wait_task(task_id.clone()).await?;
@@ -571,15 +692,7 @@ async fn collect_core_proofs(
         };
         shard_proofs.push(proof);
     }
-    shard_proofs.sort_by_key(|shard_proof| {
-        let public_values: &PublicValues<[_; 4], [_; 3], [_; 4], _> =
-            shard_proof.public_values.as_slice().borrow();
-        proof_sort_key(
-            public_values.trace_chunk_idx.as_canonical_u32(),
-            1 - public_values.is_execution_shard.as_canonical_u32(),
-            public_values.shard_index.as_canonical_u32(),
-        )
-    });
+    shard_proofs.sort_by_key(|shard_proof| shard_identity(&shard_proof.public_values));
 
     artifact_client.upload(&result_artifact, shard_proofs).await?;
 
@@ -655,5 +768,121 @@ impl ControllerInputMetadata {
         } else {
             ArtifactType::Stdin
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use sp1_hypercube::air::ShardRange;
+    use sp1_prover_types::InMemoryArtifactClient;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn a_first_delivery_executes() {
+        let artifact_client = InMemoryArtifactClient::new();
+        let execution_output = artifact_client.create_artifact().unwrap();
+
+        let recorded =
+            recorded_execution_output(&artifact_client, &TaskId::new("t1"), &execution_output)
+                .await
+                .unwrap();
+
+        assert!(recorded.is_none());
+    }
+
+    #[tokio::test]
+    async fn a_redelivery_returns_the_recorded_output() {
+        let artifact_client = InMemoryArtifactClient::new();
+        let execution_output = artifact_client.create_artifact().unwrap();
+        // Recorded by the delivery that finished, after every proof was streamed.
+        record_execution_output(
+            &artifact_client,
+            &execution_output,
+            &ExecutionOutput { public_value_stream: vec![7], cycles: 42 },
+        )
+        .await
+        .unwrap();
+
+        let recorded =
+            recorded_execution_output(&artifact_client, &TaskId::new("t1"), &execution_output)
+                .await
+                .unwrap()
+                .expect("a finished delivery's output was not reused");
+
+        assert_eq!(recorded.cycles, 42);
+    }
+
+    fn chunk_proof(idx: u32, artifact: &str) -> ProofData {
+        ProofData::ChunkProof {
+            chunk_range: ChunkRange::single(idx),
+            proof: Artifact::from(artifact.to_string()),
+        }
+    }
+
+    fn deferred_proof(task_id: &str, index: u64) -> ProofData {
+        ProofData::Artifact {
+            task_id: TaskId::new(task_id),
+            range: ShardRange::deferred(index, index + 1),
+            proof: Artifact::from(task_id.to_string()),
+        }
+    }
+
+    #[test]
+    fn distinct_chunks_pass_through() {
+        let mut filter = DuplicateProofFilter::default();
+
+        assert!(!filter.seen(&chunk_proof(0, "a")));
+        assert!(!filter.seen(&chunk_proof(1, "b")));
+    }
+
+    #[test]
+    fn a_re_executed_chunk_is_dropped() {
+        let mut filter = DuplicateProofFilter::default();
+        filter.seen(&chunk_proof(0, "a"));
+
+        // Re-execution proves the same chunk into a fresh artifact, so only the chunk
+        // index identifies it.
+        assert!(filter.seen(&chunk_proof(0, "b")));
+    }
+
+    #[test]
+    fn a_redelivered_deferred_message_is_dropped() {
+        let mut filter = DuplicateProofFilter::default();
+        filter.seen(&deferred_proof("t1", 0));
+
+        assert!(filter.seen(&deferred_proof("t1", 0)));
+    }
+
+    #[test]
+    fn a_re_submitted_deferred_leaf_is_dropped() {
+        let mut filter = DuplicateProofFilter::default();
+        filter.seen(&deferred_proof("t1", 0));
+
+        // Re-execution resubmits the same deferred index under a new task, so the task id
+        // says nothing — the index is what identifies the leaf.
+        assert!(filter.seen(&deferred_proof("t2", 0)));
+        assert!(!filter.seen(&deferred_proof("t3", 1)));
+    }
+
+    #[test]
+    fn merkle_shards_of_one_chunk_have_distinct_identities() {
+        // They are all sent with `ShardRange::default()`, so keying on the range would
+        // discard every merkle shard after the first.
+        let identity = |chunk: u32, is_execution: u32, index: u32| {
+            shard_identity(
+                &PublicValues::<u32, u64, u64, u32> {
+                    trace_chunk_idx: chunk,
+                    is_execution_shard: is_execution,
+                    shard_index: index,
+                    ..Default::default()
+                }
+                .to_vec::<SP1Field>(),
+            )
+        };
+
+        assert_ne!(identity(0, 0, 0), identity(0, 0, 1));
+        assert_ne!(identity(0, 0, 0), identity(1, 0, 0));
+        assert_ne!(identity(0, 0, 0), identity(0, 1, 0));
     }
 }

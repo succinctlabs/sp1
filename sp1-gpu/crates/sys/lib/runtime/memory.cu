@@ -2,6 +2,7 @@
 
 #include "runtime/exception.cuh"
 #include <cstdint>
+#include <cstdio>
 
 extern "C" rustCudaError_t cuda_malloc(void** devPtr, size_t size) {
     CUDA_OK(cudaMalloc(devPtr, size));
@@ -35,6 +36,15 @@ extern "C" rustCudaError_t cuda_host_unregister(void* hostPtr) {
 
 extern "C" rustCudaError_t cuda_mem_get_info(size_t* free, size_t* total) {
     CUDA_OK(cudaMemGetInfo(free, total));
+    return CUDA_SUCCESS_CSL;
+}
+
+extern "C" rustCudaError_t cuda_get_device_name(char* name, size_t len) {
+    int device = 0;
+    CUDA_OK(cudaGetDevice(&device));
+    cudaDeviceProp prop;
+    CUDA_OK(cudaGetDeviceProperties(&prop, device));
+    std::snprintf(name, len, "%s", prop.name);
     return CUDA_SUCCESS_CSL;
 }
 

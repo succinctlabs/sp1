@@ -738,10 +738,15 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
         Ok(wrap_prover.clone())
     }
 
-    pub async fn run_shrink_wrap(&self, request: RawTaskRequest) -> Result<(), TaskError> {
+    pub async fn run_shrink_wrap(
+        &self,
+        request: RawTaskRequest,
+    ) -> Result<TaskMetadata, TaskError> {
         let RawTaskRequest { inputs, outputs, .. } = request;
         let [compress_proof_artifact] = inputs.try_into().unwrap();
         let [wrap_proof_artifact] = outputs.try_into().unwrap();
+
+        let metrics = ProverMetrics::new();
 
         let compress_proof = self
             .artifact_client
@@ -751,7 +756,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
 
         let shrink_proof = self
             .shrink_prover
-            .prove(compress_proof)
+            .prove(compress_proof, &metrics)
             .instrument(tracing::info_span!("prove shrink"))
             .await?;
 
@@ -759,8 +764,10 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
             .in_scope(|| self.shrink_prover.verify(&shrink_proof))?;
 
         let wrap_prover = self.wrap_prover().await?;
-        let wrap_proof =
-            wrap_prover.prove(shrink_proof).instrument(tracing::info_span!("prove wrap")).await?;
+        let wrap_proof = wrap_prover
+            .prove(shrink_proof, &metrics)
+            .instrument(tracing::info_span!("prove wrap"))
+            .await?;
 
         tracing::debug_span!("verify wrap proof").in_scope(|| wrap_prover.verify(&wrap_proof))?;
 
@@ -769,7 +776,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
             .instrument(tracing::debug_span!("upload wrap proof"))
             .await?;
 
-        Ok(())
+        Ok(metrics.to_metadata())
     }
 
     pub async fn run_groth16(&self, request: RawTaskRequest) -> Result<(), TaskError> {
@@ -1247,6 +1254,7 @@ impl<C: SP1ProverComponents> ShrinkProver<C> {
     async fn prove(
         &self,
         compressed_proof: SP1RecursionProof<SP1GlobalContext, SP1PcsProofInner>,
+        metrics: &ProverMetrics,
     ) -> Result<SP1RecursionProof<SP1GlobalContext, SP1PcsProofInner>, TaskError> {
         let execution_record = {
             let mut runtime =
@@ -1275,7 +1283,7 @@ impl<C: SP1ProverComponents> ShrinkProver<C> {
             runtime.record
         };
 
-        let (vk, proof, _permit) = self
+        let (vk, proof, permit) = self
             .prover
             .setup_and_prove_shard(
                 self.program.clone(),
@@ -1284,6 +1292,9 @@ impl<C: SP1ProverComponents> ShrinkProver<C> {
                 self.permits.clone(),
             )
             .await;
+        let duration = permit.release();
+        metrics.increment_permit_time(duration);
+
         let vk_merkle_proof = self.prover_data.recursion_vks.open(&vk)?.1;
         Ok(SP1RecursionProof { vk: self.verifying_key.clone(), proof, vk_merkle_proof })
     }
@@ -1351,6 +1362,7 @@ impl<C: SP1ProverComponents> WrapProver<C> {
     pub async fn prove(
         &self,
         shrunk_proof: SP1RecursionProof<SP1GlobalContext, SP1PcsProofInner>,
+        metrics: &ProverMetrics,
     ) -> Result<SP1WrapProof<SP1OuterGlobalContext, SP1PcsProofOuter>, TaskError> {
         let execution_record = {
             let mut runtime =
@@ -1368,7 +1380,7 @@ impl<C: SP1ProverComponents> WrapProver<C> {
             runtime.record
         };
 
-        let (_, proof, _permit) = self
+        let (_, proof, permit) = self
             .prover
             .setup_and_prove_shard(
                 self.program.clone(),
@@ -1377,6 +1389,8 @@ impl<C: SP1ProverComponents> WrapProver<C> {
                 self.permits.clone(),
             )
             .await;
+        let duration = permit.release();
+        metrics.increment_permit_time(duration);
 
         Ok(SP1WrapProof { vk: self.verifying_key.clone(), proof })
     }

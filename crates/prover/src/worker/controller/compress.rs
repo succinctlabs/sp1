@@ -8,6 +8,7 @@ use sp1_prover_types::{Artifact, ArtifactClient, ArtifactId, ArtifactType, TaskS
 use sp1_recursion_circuit::machine::SP1ShapedWitnessValues;
 use tokio::sync::mpsc;
 
+use super::DuplicateProofFilter;
 use crate::{
     worker::{
         ChunkRange, ProofData, RecursionProverData, ReduceTaskRequest, TaskContext, TaskError,
@@ -312,57 +313,65 @@ impl CompressTree {
         let mut deferred_pending: usize = 0;
         // The is_complete reduce that yields the root; the reduction is done when its task finishes.
         let mut root_task: Option<TaskId> = None;
+        let mut duplicates = DuplicateProofFilter::default();
 
         loop {
             tokio::select! {
-                maybe_proof = core_proofs_rx.recv(), if !stream_closed => match maybe_proof {
-                    Some(ProofData::ChunkProof { chunk_range, proof }) => {
-                        num_chunks += 1;
-                        // Deferred leaves occupy [0, num_deferred); shift each chunk past them so
-                        // chunk j keys at [num_deferred + j, num_deferred + j + 1).
-                        let chunk_range = ChunkRange {
-                            start: chunk_range.start + num_deferred,
-                            end: chunk_range.end + num_deferred,
-                        };
-                        let node = RecursionProof { chunk_range, proof };
-                        // A newer chunk proof arrived, so the previously-held one is not the last;
-                        // release it into the tree.
-                        if let Some(prev) = held.replace(node) {
-                            pending_tasks += 1;
-                            proof_tx.send(prev).map_err(|_| channel_closed())?;
+                maybe_proof = core_proofs_rx.recv(), if !stream_closed => {
+                    // The tree is keyed by chunk index, so a duplicate would overwrite the original
+                    // and inflate the chunk count — drop it before it reaches the tree.
+                    if maybe_proof.as_ref().is_some_and(|proof| duplicates.seen(proof)) {
+                        continue;
+                    }
+                    match maybe_proof {
+                        Some(ProofData::ChunkProof { chunk_range, proof }) => {
+                            num_chunks += 1;
+                            // Deferred leaves occupy [0, num_deferred); shift each chunk past them so
+                            // chunk j keys at [num_deferred + j, num_deferred + j + 1).
+                            let chunk_range = ChunkRange {
+                                start: chunk_range.start + num_deferred,
+                                end: chunk_range.end + num_deferred,
+                            };
+                            let node = RecursionProof { chunk_range, proof };
+                            // A newer chunk proof arrived, so the previously-held one is not the last;
+                            // release it into the tree.
+                            if let Some(prev) = held.replace(node) {
+                                pending_tasks += 1;
+                                proof_tx.send(prev).map_err(|_| channel_closed())?;
+                            }
                         }
-                    }
-                    // A deferred leaf is task-backed: its `RecursionDeferred` proof exists only once
-                    // that task succeeds. Subscribe and fold it in on success (in the event arm); it
-                    // keys ahead of chunk 0 at [i, i + 1) for deferred index i, so the reduce feeds
-                    // deferred[0..n] before chunk 0.
-                    Some(ProofData::Artifact { task_id, range, proof }) => {
-                        let idx = range.deferred_proof_range.0 as u32;
-                        let node = RecursionProof { chunk_range: ChunkRange::single(idx), proof };
-                        deferred_map.insert(task_id.clone(), node);
-                        subscriber.subscribe(task_id).map_err(|_| {
-                            TaskError::Fatal(anyhow::anyhow!("subscriber closed"))
-                        })?;
-                        deferred_pending += 1;
-                    }
-                    Some(ProofData::InMemory { .. }) => {
-                        return Err(TaskError::Fatal(anyhow::anyhow!(
-                            "in-memory shard proofs never reach the across-chunk tree (compress \
-                             mode emits ChunkProof per chunk)"
-                        )));
-                    }
-                    // Executor done: the chunk count, and thus the full range, are now known.
-                    None => {
-                        stream_closed = true;
-                        let Some(last) = held.take() else {
+                        // A deferred leaf is task-backed: its `RecursionDeferred` proof exists only once
+                        // that task succeeds. Subscribe and fold it in on success (in the event arm); it
+                        // keys ahead of chunk 0 at [i, i + 1) for deferred index i, so the reduce feeds
+                        // deferred[0..n] before chunk 0.
+                        Some(ProofData::Artifact { task_id, range, proof }) => {
+                            let idx = range.deferred_proof_range.0 as u32;
+                            let node = RecursionProof { chunk_range: ChunkRange::single(idx), proof };
+                            deferred_map.insert(task_id.clone(), node);
+                            subscriber.subscribe(task_id).map_err(|_| {
+                                TaskError::Fatal(anyhow::anyhow!("subscriber closed"))
+                            })?;
+                            deferred_pending += 1;
+                        }
+                        Some(ProofData::InMemory { .. }) => {
                             return Err(TaskError::Fatal(anyhow::anyhow!(
-                                "across-chunk tree received no chunk proofs"
+                                "in-memory shard proofs never reach the across-chunk tree (compress \
+                                 mode emits ChunkProof per chunk)"
                             )));
-                        };
-                        full_range =
-                            Some(ChunkRange { start: 0, end: num_deferred + num_chunks });
-                        pending_tasks += 1;
-                        proof_tx.send(last).map_err(|_| channel_closed())?;
+                        }
+                        // Executor done: the chunk count, and thus the full range, are now known.
+                        None => {
+                            stream_closed = true;
+                            let Some(last) = held.take() else {
+                                return Err(TaskError::Fatal(anyhow::anyhow!(
+                                    "across-chunk tree received no chunk proofs"
+                                )));
+                            };
+                            full_range =
+                                Some(ChunkRange { start: 0, end: num_deferred + num_chunks });
+                            pending_tasks += 1;
+                            proof_tx.send(last).map_err(|_| channel_closed())?;
+                        }
                     }
                 },
                 Some(node) = proof_rx.recv() => {
@@ -451,6 +460,18 @@ impl CompressTree {
                         if is_complete {
                             root_task = Some(task_id);
                         }
+                    }
+                    // Once `full_range` is set the executor has closed the stream, so
+                    // `pending_tasks` and `deferred_pending` together cover every proof that can
+                    // still arrive. With neither outstanding and the full range unreached, the
+                    // tree can never progress — fail now rather than wait out the proof deadline.
+                    if pending_tasks == 0 && deferred_pending == 0 && full_range.is_some() {
+                        return Err(TaskError::Fatal(anyhow::anyhow!(
+                            "across-chunk tree wedged with no pending work: full_range={:?}, \
+                             tree ranges={:?}",
+                            full_range,
+                            self.map.values().map(|p| p.chunk_range).collect::<Vec<_>>()
+                        )));
                     }
                 }
                 Some((task_id, status)) = event_stream.recv() => {
@@ -571,6 +592,128 @@ mod tests {
             .unwrap_or_else(|_| panic!("across-chunk tree hung for {num_chunks} chunks"))
             .unwrap_or_else(|e| panic!("across-chunk tree failed for {num_chunks} chunks: {e:?}"));
         }
+    }
+
+    /// Task-duration ranges for `mock_worker_client`, which needs an entry for every task type it
+    /// dispatches.
+    fn random_intervals() -> HashMap<TaskType, std::ops::Range<Duration>> {
+        HashMap::from([
+            (TaskType::Controller, Duration::from_millis(1)..Duration::from_millis(5)),
+            (TaskType::SetupVkey, Duration::from_millis(1)..Duration::from_millis(5)),
+            (TaskType::RecursionReduce, Duration::from_millis(5)..Duration::from_millis(20)),
+            (TaskType::RecursionDeferred, Duration::from_millis(5)..Duration::from_millis(20)),
+            (TaskType::ShrinkWrap, Duration::from_millis(1)..Duration::from_millis(5)),
+            (TaskType::PlonkWrap, Duration::from_millis(1)..Duration::from_millis(5)),
+            (TaskType::Groth16Wrap, Duration::from_millis(1)..Duration::from_millis(5)),
+            (TaskType::ExecuteOnly, Duration::from_millis(1)..Duration::from_millis(5)),
+            (TaskType::CoreExecute, Duration::from_millis(1)..Duration::from_millis(5)),
+        ])
+    }
+
+    /// A re-delivered `CoreExecute` re-proves every chunk and streams a second set of chunk proofs.
+    /// The tree keys by chunk index, so an accepted duplicate would overwrite the original and
+    /// inflate the chunk count, leaving the full range unreachable. It must reduce to one root.
+    #[tokio::test]
+    async fn test_across_chunk_tree_drops_redelivered_chunk_proofs() {
+        setup_logger();
+
+        for num_chunks in [1u32, 2, 5] {
+            let worker_client = mock_worker_client(random_intervals());
+            let artifact_client = InMemoryArtifactClient::new();
+            let mut tree = CompressTree::new(ACROSS_CHUNK_ARITY);
+
+            let context = TaskContext {
+                proof_id: ProofId::new("test_across_chunk_tree_redelivery"),
+                parent_id: None,
+                parent_context: None,
+                requester_id: RequesterId::new("test_across_chunk_tree_redelivery"),
+            };
+
+            let (core_proofs_tx, core_proofs_rx) = mpsc::unbounded_channel::<ProofData>();
+
+            tokio::task::spawn({
+                let artifact_client = artifact_client.clone();
+                async move {
+                    // Two full passes over the same chunk indices. The second pass uploads fresh
+                    // artifacts, exactly as a re-execution would.
+                    for _ in 0..2 {
+                        for idx in 0..num_chunks {
+                            let proof = artifact_client.create_artifact().unwrap();
+                            core_proofs_tx
+                                .send(ProofData::ChunkProof {
+                                    chunk_range: ChunkRange::single(idx),
+                                    proof,
+                                })
+                                .unwrap();
+                        }
+                    }
+                }
+            });
+
+            let output = artifact_client.create_artifact().unwrap();
+
+            tokio::time::timeout(
+                Duration::from_secs(30),
+                tree.reduce_proofs(
+                    context,
+                    output,
+                    0,
+                    core_proofs_rx,
+                    &artifact_client,
+                    &worker_client,
+                ),
+            )
+            .await
+            .unwrap_or_else(|_| panic!("across-chunk tree hung on {num_chunks} redelivered chunks"))
+            .unwrap_or_else(|e| panic!("across-chunk tree failed for {num_chunks} chunks: {e:?}"));
+        }
+    }
+
+    /// A chunk proof lost in transit leaves a gap the tree can never bridge, while the chunk count
+    /// still advances the full range past it. Nothing can arrive to fix that, so the tree must fail
+    /// immediately instead of waiting out the proof deadline.
+    #[tokio::test]
+    async fn test_across_chunk_tree_fails_fast_on_a_missing_chunk() {
+        setup_logger();
+
+        let worker_client = mock_worker_client(random_intervals());
+        let artifact_client = InMemoryArtifactClient::new();
+        let mut tree = CompressTree::new(ACROSS_CHUNK_ARITY);
+
+        let context = TaskContext {
+            proof_id: ProofId::new("test_across_chunk_tree_fail_fast"),
+            parent_id: None,
+            parent_context: None,
+            requester_id: RequesterId::new("test_across_chunk_tree_fail_fast"),
+        };
+
+        let (core_proofs_tx, core_proofs_rx) = mpsc::unbounded_channel::<ProofData>();
+        for idx in [0, 2] {
+            let proof = artifact_client.create_artifact().unwrap();
+            core_proofs_tx
+                .send(ProofData::ChunkProof { chunk_range: ChunkRange::single(idx), proof })
+                .unwrap();
+        }
+        drop(core_proofs_tx);
+
+        let output = artifact_client.create_artifact().unwrap();
+
+        let result = tokio::time::timeout(
+            Duration::from_secs(30),
+            tree.reduce_proofs(
+                context,
+                output,
+                0,
+                core_proofs_rx,
+                &artifact_client,
+                &worker_client,
+            ),
+        )
+        .await
+        .expect("across-chunk tree hung — the fail-fast did not fire");
+
+        let err = result.expect_err("a gap in the chunk indices must fail, not complete");
+        assert!(err.to_string().contains("across-chunk tree wedged"), "unexpected error: {err}");
     }
 
     /// The across-chunk tree ingests deferred (`ProofData::Artifact`) leaves and orders them ahead
