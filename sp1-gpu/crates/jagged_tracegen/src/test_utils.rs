@@ -95,14 +95,15 @@ pub mod random {
     ///
     /// Every chip is guaranteed at least one 32-row block; downstream consumers like
     /// `round_batch_evaluations` walk the column index expecting one evaluation per
-    /// non-zero-height column and underflow if any chip is left empty. Panics if
-    /// `total_area` is too small to give every chip its minimum allocation. After the
-    /// floor allocation, the remaining budget is distributed greedily: pick a random
-    /// fitting chip and give it a random number of 32-row blocks until no chip fits in
-    /// the leftover.
-    ///
-    /// Each chip's height is also capped at `1 << max_log_row_count` to match the
-    /// shard prover's per-chip row-count assertion.
+    /// non-zero-height column and underflow if any chip is left empty. No chip exceeds
+    /// `2^max_log_row_count` rows — real tracegen splits shards to maintain that bound,
+    /// and the prover relies on it (e.g. column evaluation points have
+    /// `max_log_row_count` variables, so taller columns read past the end of the eq
+    /// table). Panics if `total_area` is too small to give every chip its minimum
+    /// allocation, or too large to fit under the per-chip cap. After the floor
+    /// allocation, the remaining budget is distributed greedily: pick a random fitting
+    /// chip and give it a random number of 32-row blocks until no chip fits in the
+    /// leftover.
     pub fn generate_random_heights<R: Rng>(
         rng: &mut R,
         layout: &AbstractChipLayout,
@@ -110,7 +111,9 @@ pub mod random {
         max_log_row_count: u32,
     ) -> AbstractChipLayoutWithHeights {
         const ALIGN: usize = 32;
-        let max_height: usize = 1usize << max_log_row_count;
+
+        let max_height = 1usize << max_log_row_count;
+        assert!(max_height >= ALIGN, "max_log_row_count must allow at least {ALIGN} rows");
 
         let entries = layout.entries();
 
@@ -138,13 +141,21 @@ pub mod random {
                 break;
             }
             let i = candidates[rng.gen_range(0..candidates.len())];
-            let max_blocks_by_area = remaining / (row_costs[i] * ALIGN as u64);
-            let max_blocks_by_height = ((max_height - heights[i]) / ALIGN) as u64;
-            let max_blocks = max_blocks_by_area.min(max_blocks_by_height);
+            let max_blocks = (remaining / (row_costs[i] * ALIGN as u64))
+                .min(((max_height - heights[i]) / ALIGN) as u64);
             let blocks = rng.gen_range(1..=max_blocks);
             heights[i] += blocks as usize * ALIGN;
             remaining -= blocks * row_costs[i] * ALIGN as u64;
         }
+
+        // The loop ends legitimately when the leftover is smaller than any chip's 32-row
+        // block. If a chip could still afford a block, the height cap is what stopped us
+        // — fail loudly instead of returning a trace silently smaller than requested.
+        assert!(
+            (0..entries.len()).all(|i| row_costs[i] * ALIGN as u64 > remaining),
+            "total_area = {total_area} cannot be placed with every chip capped at \
+             2^{max_log_row_count} rows ({remaining} area left over)",
+        );
 
         AbstractChipLayoutWithHeights::new(
             entries.iter().zip(heights).map(|((n, p, m), h)| (n.clone(), *p, *m, h)).collect(),
@@ -208,7 +219,8 @@ pub mod random {
 
     /// Generate a random [`JaggedTraceMle`] whose total dense size (preprocessed +
     /// main, before stacking-height padding) is approximately `total_area` field
-    /// elements, partitioned randomly among `chips` via [`generate_random_heights`].
+    /// elements, partitioned randomly among `chips` via [`generate_random_heights`]
+    /// with per-chip heights capped at `2^max_log_row_count`.
     ///
     /// Requires log_stacking_height as an input to compute padding for the preprocessed
     /// and main regions.

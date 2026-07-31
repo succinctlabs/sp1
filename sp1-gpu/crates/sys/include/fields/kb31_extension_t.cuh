@@ -3,7 +3,7 @@
 #include "fields/kb31_t.cuh"
 #include "fields/ptx.cuh"
 
-static constexpr size_t W_INT = 3; // The value of W in the kb31 field, used for multiplication
+static constexpr uint32_t W_INT = 3; // The value of W in the kb31 field, used for multiplication
 
 class kb31_extension_t {
   public:
@@ -11,7 +11,10 @@ class kb31_extension_t {
     static constexpr kb31_t W = kb31_t{3};
     static const uint32_t MOD = 0x7f000001u;
     static constexpr uint32_t M = 0x7effffffu;
-    static constexpr uint32_t MUL2_32 = 0x01fffffe; // 2^32 = 2^25 - 2
+    static constexpr uint32_t MUL2_32 = 0x01fffffe; // 2^32 mod MOD = 2^25 - 2
+    // W * (2^32 mod MOD): folds the high half of a wrap-around column in one wide mad.
+    // Fits in 27 bits, which keeps the fold accumulations in operator*= below 2^64.
+    static constexpr uint32_t W_X_MUL2_32 = W_INT * MUL2_32;
 
     kb31_t value[D];
 
@@ -132,7 +135,24 @@ class kb31_extension_t {
         mad_wide(a5, x2, y3, a5);
         mul_wide(a6, x3, y3);
 
-        // Reduction step to zero the top 4 bits in each accumulator
+        // Fold the X^4 = W wrap-around into columns 0..2: a_k += W * a_{k+4} (mod MOD).
+        // Split a_{k+4} = 2^32 * h + l; then W * a_{k+4} = W * l + W_X_MUL2_32 * h (mod MOD),
+        // two single-instruction wide mads per column. Worst case (all inputs < MOD) peaks
+        // at column 2 below 1.38e19 < 2^64, so the accumulators cannot overflow.
+
+        unpack(l4, h4, a4);
+        mad_wide(a0, l4, W_INT, a0);
+        mad_wide(a0, h4, W_X_MUL2_32, a0);
+        unpack(l5, h5, a5);
+        mad_wide(a1, l5, W_INT, a1);
+        mad_wide(a1, h5, W_X_MUL2_32, a1);
+        unpack(l6, h6, a6);
+        mad_wide(a2, l6, W_INT, a2);
+        mad_wide(a2, h6, W_X_MUL2_32, a2);
+
+        // One reduction pass: a_k = 2^32 * h + l -> h * MUL2_32 + l < 2^57, which keeps the
+        // Montgomery mad below clear of u64 overflow and bounds each Montgomery-reduced
+        // value by MOD + MUL2_32 (before the final subtractions).
 
         unpack(l0, h0, a0);
         l = l0;
@@ -150,41 +170,6 @@ class kb31_extension_t {
         l = l3;
         pack(w, l, h);
         mad_wide(a3, h3, MUL2_32, w);
-        unpack(l4, h4, a4);
-        l = l4;
-        pack(w, l, h);
-        mad_wide(a4, h4, MUL2_32, w);
-        unpack(l5, h5, a5);
-        l = l5;
-        pack(w, l, h);
-        mad_wide(a5, h5, MUL2_32, w);
-        unpack(l6, h6, a6);
-        l = l6;
-        pack(w, l, h);
-        mad_wide(a6, h6, MUL2_32, w);
-
-        unpack(l4, h4, a4);
-        unpack(l5, h5, a5);
-        unpack(l6, h6, a6);
-
-        mad_lo(a0, a4, W_INT, a0);
-        mad_lo(a1, a5, W_INT, a1);
-        mad_lo(a2, a6, W_INT, a2);
-
-        // Avoid overflow in Montgomery reduction
-
-        unpack(l0, h0, a0);
-        l = l0;
-        pack(w, l, h);
-        mad_wide(a0, h0, MUL2_32, w);
-        unpack(l1, h1, a1);
-        l = l1;
-        pack(w, l, h);
-        mad_wide(a1, h1, MUL2_32, w);
-        unpack(l2, h2, a2);
-        l = l2;
-        pack(w, l, h);
-        mad_wide(a2, h2, MUL2_32, w);
 
         unpack(l0, h0, a0);
         unpack(l1, h1, a1);
@@ -255,6 +240,9 @@ class kb31_extension_t {
     }
 
     __device__ __forceinline__ kb31_extension_t frobenius() {
+        // z0 = W^((MOD-1)/4). Limb i is scaled by z0^(i+1) rather than z0^i, so this
+        // returns z0 * a^MOD, not a^MOD. frobeniusInverse() applies it three times,
+        // picking up a total factor z0^3 that cancels in f * g^{-1}.
         kb31_t z0 = kb31_t(2113994754);
         kb31_t z = z0;
         kb31_extension_t result;
@@ -277,7 +265,8 @@ class kb31_extension_t {
         for (size_t i = 1; i < D; i++) {
             g += a.value[i] * b.value[4 - i];
         }
-        g *= kb31_t(11);
+        // Constant term of a * b in F_p[X]/(X^4 - W) is a_0*b_0 + W*(a_1*b_3 + a_2*b_2 + a_3*b_1).
+        g *= W;
         g += a.value[0] * b.value[0];
         return f * g.reciprocal();
     }
@@ -349,7 +338,24 @@ class kb31_extension_t {
         mad_wide(a5, x2, y3, a5);
         mul_wide(a6, x3, y3);
 
-        // Reduction step to zero the top 4 bits in each accumulator
+        // Fold the X^4 = W wrap-around into columns 0..2: a_k += W * a_{k+4} (mod MOD).
+        // Split a_{k+4} = 2^32 * h + l; then W * a_{k+4} = W * l + W_X_MUL2_32 * h (mod MOD),
+        // two single-instruction wide mads per column. Worst case (all inputs < MOD) peaks
+        // at column 2 below 1.38e19 < 2^64, so the accumulators cannot overflow.
+
+        unpack(l4, h4, a4);
+        mad_wide(a0, l4, W_INT, a0);
+        mad_wide(a0, h4, W_X_MUL2_32, a0);
+        unpack(l5, h5, a5);
+        mad_wide(a1, l5, W_INT, a1);
+        mad_wide(a1, h5, W_X_MUL2_32, a1);
+        unpack(l6, h6, a6);
+        mad_wide(a2, l6, W_INT, a2);
+        mad_wide(a2, h6, W_X_MUL2_32, a2);
+
+        // One reduction pass: a_k = 2^32 * h + l -> h * MUL2_32 + l < 2^57, which keeps the
+        // Montgomery mad below clear of u64 overflow and bounds each Montgomery-reduced
+        // value by MOD + MUL2_32 (before the final subtractions).
 
         unpack(l0, h0, a0);
         l = l0;
@@ -367,41 +373,6 @@ class kb31_extension_t {
         l = l3;
         pack(w, l, h);
         mad_wide(a3, h3, MUL2_32, w);
-        unpack(l4, h4, a4);
-        l = l4;
-        pack(w, l, h);
-        mad_wide(a4, h4, MUL2_32, w);
-        unpack(l5, h5, a5);
-        l = l5;
-        pack(w, l, h);
-        mad_wide(a5, h5, MUL2_32, w);
-        unpack(l6, h6, a6);
-        l = l6;
-        pack(w, l, h);
-        mad_wide(a6, h6, MUL2_32, w);
-
-        unpack(l4, h4, a4);
-        unpack(l5, h5, a5);
-        unpack(l6, h6, a6);
-
-        mad_lo(a0, a4, W_INT, a0);
-        mad_lo(a1, a5, W_INT, a1);
-        mad_lo(a2, a6, W_INT, a2);
-
-        // Avoid overflow in Montgomery reduction
-
-        unpack(l0, h0, a0);
-        l = l0;
-        pack(w, l, h);
-        mad_wide(a0, h0, MUL2_32, w);
-        unpack(l1, h1, a1);
-        l = l1;
-        pack(w, l, h);
-        mad_wide(a1, h1, MUL2_32, w);
-        unpack(l2, h2, a2);
-        l = l2;
-        pack(w, l, h);
-        mad_wide(a2, h2, MUL2_32, w);
 
         unpack(l0, h0, a0);
         unpack(l1, h1, a1);
@@ -425,7 +396,10 @@ class kb31_extension_t {
         unpack(l2, x2, a2);
         unpack(l3, x3, a3);
 
-        // Add the zero-value before final reductions
+        // Add the zero-value before the final reductions. Each x_k above is bounded by
+        // MOD + MUL2_32 and zero < MOD, so x_k + zero <= 2^32 - 1 exactly: this u32 add
+        // cannot wrap, but there is no slack. Loosening the reduction bounds above (e.g.
+        // dropping the reduction pass) overflows this add.
 
         add(x0, x0, zero.value[0].val);
         add(x1, x1, zero.value[1].val);
@@ -474,7 +448,8 @@ class kb31_extension_t {
         mul_wide(a2, x2, y0);
         mul_wide(a3, x3, y0);
 
-        // Reduction step to zero the top 4 bits in each accumulator
+        // One reduction pass: a_k = 2^32 * h + l -> h * MUL2_32 + l < 2^55, bounding each
+        // Montgomery-reduced value by MOD + MUL2_32 so the x0 + zero add below cannot wrap.
 
         unpack(l0, h0, a0);
         l = l0;
