@@ -181,6 +181,7 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                             // is behind (backpressure preserved).
                             let (chunk_tx, chunk_rx) =
                                 mpsc::channel(controller.splicing_buffer_size());
+                            let execution_output = req.execution_output.clone();
                             // Run the controller (JIT → chunk_tx) and the
                             // node consumer (chunk_rx → prove → drain)
                             // concurrently; the consumer's drain joins
@@ -192,7 +193,25 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                                 crate::worker::drive_chunk_consumer(engine, chunk_rx),
                             );
                             match (exec_result, consumer_result) {
-                                (Ok(_), Ok(())) => true,
+                                (Ok(output), Ok(())) => {
+                                    // Only now has every proof been streamed, which is what the
+                                    // redelivery guard reads this artifact's presence to mean.
+                                    match crate::worker::record_execution_output(
+                                        &controller.artifact_client,
+                                        &execution_output,
+                                        &output,
+                                    )
+                                    .await
+                                    {
+                                        Ok(()) => true,
+                                        Err(e) => {
+                                            tracing::error!(
+                                                "CoreExecute: recording execution output failed: {e:?}"
+                                            );
+                                            false
+                                        }
+                                    }
+                                }
                                 (exec, consumer) => {
                                     if let Err(e) = consumer {
                                         tracing::error!(
