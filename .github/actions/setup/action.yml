@@ -122,6 +122,14 @@ runs:
         echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
         echo "CARGO_INCREMENTAL=0" >> $GITHUB_ENV
 
+    # `rustup override set` (below) persists the override in ~/.rustup/settings.toml, which is
+    # cached with a key shared by ALL jobs. A job that restores a cache saved by a job that set
+    # an override (e.g. nightly) would silently run that toolchain instead of the one pinned in
+    # rust-toolchain.toml. Clear any override inherited from the cache before proceeding.
+    - name: Clear stale rustup override restored from cache
+      shell: bash
+      run: rustup override unset 2>/dev/null || true
+
     - name: Override toolchain
       if: inputs.rustup_override != null
       shell: bash
