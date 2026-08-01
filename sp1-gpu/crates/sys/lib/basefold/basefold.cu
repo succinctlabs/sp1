@@ -9,7 +9,9 @@ __global__ void batchKernel(F* input, EF* output, EF* betaPowers, size_t height,
          rowIdx += blockDim.x * gridDim.x) {
         EF accumulator = EF::zero();
         for (size_t colIdx = 0; colIdx < width; colIdx++) {
-            accumulator += input[colIdx * height + rowIdx] * betaPowers[colIdx];
+            // EF on the left: `base * ext` has no overload, so it would promote the base value and
+            // run the full extension multiply instead of the 4-wide-mad `ext * base` path.
+            accumulator += betaPowers[colIdx] * input[colIdx * height + rowIdx];
         }
         output[rowIdx] += accumulator;
     }

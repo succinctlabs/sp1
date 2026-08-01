@@ -72,7 +72,7 @@ __global__ void zerocheck_gkr_sweep(
             }
             if (row_idx < row_limit) {
                 ext_t eq = ext_t::load(partial_lagrange, row_idx);
-                thread_acc += acc * (eq * lambda);
+                thread_acc += acc * eq;
             }
         }
     } else {
@@ -96,7 +96,7 @@ __global__ void zerocheck_gkr_sweep(
             ext_t row_total = cg::reduce(warp, lane_sum, cg::plus<ext_t>());
             if (lane == 0 && row_idx < row_limit) {
                 ext_t eq = ext_t::load(partial_lagrange, row_idx);
-                thread_acc += row_total * (eq * lambda);
+                thread_acc += row_total * eq;
             }
         }
     }
@@ -108,7 +108,9 @@ __global__ void zerocheck_gkr_sweep(
     auto tile_warp = cg::tiled_partition<32>(block);
     ext_t block_sum = partialBlockReduce(block, tile_warp, thread_acc, shared);
     if (threadIdx.x == 0) {
-        ext_t::store(partials, blockIdx.x * 3 + (uint32_t)e, block_sum);
+        // `lambda` is block-uniform, so it factors out of the whole block sum instead of costing
+        // an extension multiply per row.
+        ext_t::store(partials, blockIdx.x * 3 + (uint32_t)e, block_sum * lambda);
     }
 }
 

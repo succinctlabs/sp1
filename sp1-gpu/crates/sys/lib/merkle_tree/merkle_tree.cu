@@ -21,11 +21,65 @@ __global__ void leafHash(
     }
 }
 
+// Leaf hashing that absorbs a whole RATE block at a time.
+//
+// The generic `leafHash` above absorbs one element per call through `HasherState::data[index]`
+// with a runtime `index`. Consuming RATE elements at once makes every state index compile-time
+// constant and lets the RATE loads issue together. Measured ~2.6% faster than the generic path on
+// the main-trace commit; note that both versions compile to `REG:40, LOCAL:0`, so the gain is not
+// from avoiding a local-memory spill as one might expect.
+//
+// Same sponge as the generic version: rate lanes are overwritten (not added), the capacity carries
+// across blocks, and a trailing partial block leaves lanes `[rem, RATE)` holding the previous state
+// before the final permutation.
+template <typename Hasher_t, typename HashParams>
+__global__ void leafHashPacked(
+    Hasher_t hasher,
+    const typename HashParams::F_t* __restrict__ input,
+    typename HashParams::F_t (*digests)[HashParams::DIGEST_WIDTH],
+    size_t widths,
+    size_t tree_height) {
+    using F_t = typename HashParams::F_t;
+    using FDW_t = poseidon2::FDW_t<HashParams>;
+    constexpr int WIDTH = HashParams::WIDTH;
+    constexpr int RATE = HashParams::RATE;
+
+    const size_t matrixHeight = (size_t)1 << tree_height;
+    for (size_t idx = (blockIdx.x * blockDim.x) + threadIdx.x; idx < matrixHeight;
+         idx += blockDim.x * gridDim.x) {
+        __align__(16) F_t state[WIDTH];
+#pragma unroll
+        for (int i = 0; i < WIDTH; i++) {
+            state[i].set_to_zero();
+        }
+
+        const F_t* column = input + idx;
+        size_t j = 0;
+        for (; j + RATE <= widths; j += RATE) {
+#pragma unroll
+            for (int k = 0; k < RATE; k++) {
+                state[k] = column[(j + k) * matrixHeight];
+            }
+            hasher.permute(state, state);
+        }
+        const size_t rem = widths - j;
+        if (rem != 0) {
+#pragma unroll
+            for (int k = 0; k < RATE; k++) {
+                if ((size_t)k < rem) {
+                    state[k] = column[(j + k) * matrixHeight];
+                }
+            }
+            hasher.permute(state, state);
+        }
+
+        *reinterpret_cast<FDW_t*>(digests[idx + (matrixHeight - 1)]) =
+            *reinterpret_cast<FDW_t*>(state);
+    }
+}
+
 extern "C" void* leaf_hash_merkle_tree_koala_bear_16_kernel() {
-    return (void*)leafHash<
-        poseidon2::KoalaBearHasher,
-        poseidon2_kb31_16::KoalaBear,
-        poseidon2::KoalaBearHasherState>;
+    return (void*)leafHashPacked<poseidon2::KoalaBearHasher, poseidon2_kb31_16::KoalaBear>;
 }
 
 extern "C" void* leaf_hash_merkle_tree_bn254_kernel() {
