@@ -232,13 +232,9 @@ impl NetworkProverBuilder {
             Some(tee_signers) => tee_signers,
 
             #[cfg(feature = "tee-2fa")]
-            None => crate::network::retry::retry_operation(
-                || async { crate::network::tee::get_tee_signers().await.map_err(Into::into) },
-                Some(crate::network::retry::DEFAULT_RETRY_TIMEOUT),
-                "get tee signers",
-            )
-            .await
-            .expect("Failed to get TEE signers"),
+            None => panic!(
+                "tee-2fa is enabled but no TEE signers were pinned via .tee_signers(). Fetching signers from the TEE server at build time is not a trust root, a compromised or impersonated server can supply an attacker-controlled signer set. Pin signers explicitly from a trusted config or on-chain source, or call network::tee::get_tee_signers() yourself and verify the result out-of-band before passing it in."
+            ),
 
             #[cfg(not(feature = "tee-2fa"))]
             None => vec![],
@@ -268,5 +264,16 @@ mod tests {
         assert!(builder.hosted);
         // Hosted proving always runs in reserved mode.
         assert_eq!(builder.network_mode, Some(NetworkMode::Reserved));
+    }
+
+    #[cfg(feature = "tee-2fa")]
+    #[tokio::test]
+    #[should_panic(expected = "tee-2fa is enabled but no TEE signers were pinned")]
+    async fn test_build_panics_without_pinned_tee_signers() {
+        // Well-known Anvil/Foundry default test private key (public, not a secret).
+        let _ = NetworkProverBuilder::new()
+            .private_key("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
+            .build()
+            .await;
     }
 }
