@@ -1,7 +1,7 @@
 use sp1_gpu_cudart::{
     args,
     sys::kernels::{
-        jagged_double_fix_and_sum, jagged_two_round_sum_as_poly,
+        jagged_two_round_fix_and_sum, jagged_two_round_sum_as_poly,
         mle_fix_last_variable_koala_bear_ext_ext_zero_padding, padded_hadamard_fix_and_sum,
     },
     DeviceBuffer, DeviceMle, DeviceTensor, TaskScope,
@@ -179,7 +179,13 @@ fn fix_two_and_sum_first_rounds<'a>(
             alpha_2
         );
         backend
-            .launch_kernel(jagged_double_fix_and_sum(), grid_size_x, BLOCK_SIZE, &args, shared_mem)
+            .launch_kernel(
+                jagged_two_round_fix_and_sum(),
+                grid_size_x,
+                BLOCK_SIZE,
+                &args,
+                shared_mem,
+            )
             .unwrap();
     }
 

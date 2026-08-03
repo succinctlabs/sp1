@@ -44,7 +44,7 @@ static __device__ __forceinline__ Values addValues(const Values& a, const Values
 // baseIdx .. baseIdx+3), without materializing the intermediate layer.
 template <typename DenseData>
 static __device__ __forceinline__ CircuitValues
-doubleFoldQuad(const DenseData& denseData, size_t baseIdx, ext_t alpha1, ext_t alpha2) {
+twoRoundFoldQuad(const DenseData& denseData, size_t baseIdx, ext_t alpha1, ext_t alpha2) {
     auto v00 = loadLayerValues(denseData, baseIdx);
     auto v01 = loadLayerValues(denseData, baseIdx + 1);
     auto v10 = loadLayerValues(denseData, baseIdx + 2);
@@ -138,7 +138,7 @@ __global__ void logupGkrTwoRoundSumLayer(
 // the trailing pads (the second fold over the intermediate's pads plus the twice-folded
 // metadata's own pads) together with the colIndex entries the tail completes.
 template <typename DenseData>
-__global__ void logupGkrDoubleFixAndSumLayer(
+__global__ void logupGkrTwoRoundFixAndSumLayer(
     ext_t* __restrict__ univariate_result,
     const JaggedMle<DenseData> inputJaggedMle,
     JaggedMle<JaggedGkrLayer> outputJaggedMle,
@@ -176,7 +176,7 @@ __global__ void logupGkrDoubleFixAndSumLayer(
         size_t outStartElems = outputJaggedMle.startIndices[colIdx] << 1;
         size_t restrictedIndex = outStartElems + quadRow;
 
-        CircuitValues valuesZero = doubleFoldQuad(inputJaggedMle.denseData, q << 2, alpha1, alpha2);
+        CircuitValues valuesZero = twoRoundFoldQuad(inputJaggedMle.denseData, q << 2, alpha1, alpha2);
         valuesZero.store(
             outputJaggedMle.denseData.layer,
             restrictedIndex,
@@ -184,14 +184,14 @@ __global__ void logupGkrDoubleFixAndSumLayer(
 
         CircuitValues valuesOne;
         if (quadRow + 1 < realQuads) {
-            valuesOne = doubleFoldQuad(inputJaggedMle.denseData, (q + 1) << 2, alpha1, alpha2);
+            valuesOne = twoRoundFoldQuad(inputJaggedMle.denseData, (q + 1) << 2, alpha1, alpha2);
             valuesOne.store(
                 outputJaggedMle.denseData.layer,
                 restrictedIndex + 1,
                 outputJaggedMle.denseData.height);
             outputJaggedMle.colIndex[restrictedIndex >> 1] = colIdx;
         } else {
-            // The double fold over the intermediate layer's pads is exactly the padding
+            // The two-round fold over the intermediate layer's pads is exactly the padding
             // value; the tail below materializes it.
             valuesOne = CircuitValues::paddingValues();
         }
@@ -253,10 +253,10 @@ extern "C" void* logup_gkr_two_round_sum_first_layer() {
     return (void*)logupGkrTwoRoundSumLayer<JaggedFirstGkrLayer>;
 }
 
-extern "C" void* logup_gkr_double_fix_and_sum_circuit_layer() {
-    return (void*)logupGkrDoubleFixAndSumLayer<JaggedGkrLayer>;
+extern "C" void* logup_gkr_two_round_fix_and_sum_circuit_layer() {
+    return (void*)logupGkrTwoRoundFixAndSumLayer<JaggedGkrLayer>;
 }
 
-extern "C" void* logup_gkr_double_fix_and_sum_first_layer() {
-    return (void*)logupGkrDoubleFixAndSumLayer<JaggedFirstGkrLayer>;
+extern "C" void* logup_gkr_two_round_fix_and_sum_first_layer() {
+    return (void*)logupGkrTwoRoundFixAndSumLayer<JaggedFirstGkrLayer>;
 }

@@ -83,7 +83,7 @@ __global__ void jaggedTwoRoundSumAsPoly(
 // Folds the first two sumcheck challenges in one pass, materializing the (p, q) pair at a
 // quarter of the dense size (instead of half after one fold), and accumulates the round-3
 // univariate evaluations from the folded values while they are still in registers.
-__global__ void jaggedDoubleFixAndSum(
+__global__ void jaggedTwoRoundFixAndSum(
     ext_t* evaluations,
     const JaggedMle<JaggedSumcheckData> inputJaggedMle,
     ext_t* output_p,
@@ -214,6 +214,6 @@ __global__ void paddedHadamardFixAndSum(
 
 extern "C" void* jagged_two_round_sum_as_poly() { return (void*)jaggedTwoRoundSumAsPoly; }
 
-extern "C" void* jagged_double_fix_and_sum() { return (void*)jaggedDoubleFixAndSum; }
+extern "C" void* jagged_two_round_fix_and_sum() { return (void*)jaggedTwoRoundFixAndSum; }
 
 extern "C" void* padded_hadamard_fix_and_sum() { return (void*)paddedHadamardFixAndSum; }

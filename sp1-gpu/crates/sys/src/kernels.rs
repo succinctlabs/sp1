@@ -193,12 +193,12 @@ extern "C" {
     // Logup GKR kernels - Two-round lookahead kernels
     pub fn logup_gkr_two_round_sum_circuit_layer() -> KernelPtr;
     pub fn logup_gkr_two_round_sum_first_layer() -> KernelPtr;
-    pub fn logup_gkr_double_fix_and_sum_circuit_layer() -> KernelPtr;
-    pub fn logup_gkr_double_fix_and_sum_first_layer() -> KernelPtr;
+    pub fn logup_gkr_two_round_fix_and_sum_circuit_layer() -> KernelPtr;
+    pub fn logup_gkr_two_round_fix_and_sum_first_layer() -> KernelPtr;
 
     // ******** Jagged sumcheck kernels ********
     pub fn jagged_two_round_sum_as_poly() -> KernelPtr;
-    pub fn jagged_double_fix_and_sum() -> KernelPtr;
+    pub fn jagged_two_round_fix_and_sum() -> KernelPtr;
     pub fn padded_hadamard_fix_and_sum() -> KernelPtr;
 
     // Populate restrict eq

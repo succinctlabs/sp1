@@ -4,7 +4,7 @@
 #include <stdio.h>
 
 extern "C" void* jagged_two_round_sum_as_poly();
-extern "C" void* jagged_double_fix_and_sum();
+extern "C" void* jagged_two_round_fix_and_sum();
 
 struct Hadamard {
     ext_t* p;

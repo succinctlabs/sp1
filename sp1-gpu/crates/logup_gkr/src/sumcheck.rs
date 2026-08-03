@@ -15,8 +15,6 @@ use sp1_gpu_cudart::{
     args,
     sys::{
         kernels::{
-            logup_gkr_double_fix_and_sum_circuit_layer as double_fix_and_sum_circuit_layer_kernel,
-            logup_gkr_double_fix_and_sum_first_layer as double_fix_and_sum_first_layer_kernel,
             logup_gkr_first_sum_as_poly_circuit_layer as first_sum_as_poly_layer_circuit_layer_kernel,
             logup_gkr_fix_and_sum_circuit_layer as fix_and_sum_circuit_layer_kernel,
             logup_gkr_fix_and_sum_first_layer as fix_and_sum_first_layer_kernel,
@@ -26,6 +24,8 @@ use sp1_gpu_cudart::{
             logup_gkr_fix_last_variable_last_circuit_layer as fix_last_row_last_circuit_layer_kernel,
             logup_gkr_sum_as_poly_circuit_layer as sum_as_poly_circuit_layer_kernel,
             logup_gkr_sum_as_poly_first_layer as sum_as_poly_first_layer_kernel,
+            logup_gkr_two_round_fix_and_sum_circuit_layer as two_round_fix_and_sum_circuit_layer_kernel,
+            logup_gkr_two_round_fix_and_sum_first_layer as two_round_fix_and_sum_first_layer_kernel,
             logup_gkr_two_round_sum_circuit_layer as two_round_sum_circuit_layer_kernel,
             logup_gkr_two_round_sum_first_layer as two_round_sum_first_layer_kernel,
         },
@@ -218,7 +218,7 @@ fn two_round_univariates<C: FieldChallenger<Felt>>(
 /// the next circuit layer at a quarter of the input height (the jagged metadata advanced
 /// two folds), and accumulates the third-round univariate evaluations from the doubly-folded
 /// values. `eq_row` must already be folded by both challenges.
-fn double_fix_and_sum<D: DenseData<TaskScope>>(
+fn two_round_fix_and_sum<D: DenseData<TaskScope>>(
     jagged_mle: &JaggedMle<D, TaskScope>,
     height: usize,
     eq_row: &DeviceMle<Ext>,
@@ -282,7 +282,7 @@ fn double_fix_and_sum<D: DenseData<TaskScope>>(
 }
 
 // returns (round-3 univariate, next round polynomial)
-fn double_fix_and_sum_circuit_layer(
+fn two_round_fix_and_sum_circuit_layer(
     poly: LogupRoundPolynomial,
     alpha_1: Ext,
     alpha_2: Ext,
@@ -312,14 +312,14 @@ fn double_fix_and_sum_circuit_layer(
     let eq_row = eq_row.fix_last_variable_constant_padding(alpha_1, Ext::zero());
     let eq_row = eq_row.fix_last_variable_constant_padding(alpha_2, Ext::zero());
 
-    let (output_jagged_mle, univariate_evals) = double_fix_and_sum(
+    let (output_jagged_mle, univariate_evals) = two_round_fix_and_sum(
         &circuit.jagged_mle,
         circuit.jagged_mle.dense_data.height,
         &eq_row,
         &eq_interaction,
         lambda,
         (alpha_1, alpha_2),
-        double_fix_and_sum_circuit_layer_kernel,
+        two_round_fix_and_sum_circuit_layer_kernel,
     );
 
     let output_layer = GkrLayer {
@@ -343,7 +343,7 @@ fn double_fix_and_sum_circuit_layer(
 }
 
 // returns (round-3 univariate, next round polynomial)
-fn double_fix_and_sum_first_layer(
+fn two_round_fix_and_sum_first_layer(
     poly: FirstLayerPolynomial,
     alpha_1: Ext,
     alpha_2: Ext,
@@ -362,14 +362,14 @@ fn double_fix_and_sum_first_layer(
     let eq_row = eq_row.fix_last_variable_constant_padding(alpha_1, Ext::zero());
     let eq_row = eq_row.fix_last_variable_constant_padding(alpha_2, Ext::zero());
 
-    let (output_jagged_mle, univariate_evals) = double_fix_and_sum(
+    let (output_jagged_mle, univariate_evals) = two_round_fix_and_sum(
         &layer.jagged_mle,
         layer.jagged_mle.dense_data.height,
         &eq_row,
         &eq_interaction,
         lambda,
         (alpha_1, alpha_2),
-        double_fix_and_sum_first_layer_kernel,
+        two_round_fix_and_sum_first_layer_kernel,
     );
 
     let output_layer = GkrLayer {
@@ -962,7 +962,8 @@ where
             &mut univariate_poly_msgs,
             &mut point,
         );
-        let (uni_poly, next_poly) = double_fix_and_sum_first_layer(poly, alpha_1, alpha_2, claim_3);
+        let (uni_poly, next_poly) =
+            two_round_fix_and_sum_first_layer(poly, alpha_1, alpha_2, claim_3);
         let alpha = process_univariate_polynomial(
             uni_poly,
             challenger,
@@ -1069,7 +1070,7 @@ pub fn materialized_round_sumcheck<C: FieldChallenger<Felt>>(
             &mut point,
         );
         let (uni_poly, next_poly) =
-            double_fix_and_sum_circuit_layer(poly, alpha_1, alpha_2, claim_3);
+            two_round_fix_and_sum_circuit_layer(poly, alpha_1, alpha_2, claim_3);
         poly = next_poly;
         let alpha = process_univariate_polynomial(
             uni_poly,
