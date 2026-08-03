@@ -478,8 +478,7 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                                 .prover_engine()
                                 .run_shrink_wrap(request.clone())
                                 .instrument(span)
-                                .await
-                                .map(|_| TaskMetadata::default());
+                                .await;
                             TaskOutput::handle_worker_result(Ok(result), &task_tx, proof_id, id, request, TaskType::ShrinkWrap);
                         }
                         Some(output) = task_rx.recv() => {

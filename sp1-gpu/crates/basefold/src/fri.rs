@@ -151,36 +151,32 @@ where
                 .unwrap();
         }
 
-        let mut batch_coefficients = batching_coefficients.as_buffer().to_vec();
-        for codeword in codewords.iter() {
-            let batch_size = codeword.sizes()[0];
-            let mut powers = batch_coefficients;
-            batch_coefficients = powers.split_off(batch_size);
-            let powers_device = DeviceBuffer::from_host(&Buffer::from(powers.clone()), &scope)
-                .unwrap()
-                .into_inner();
-
-            let block_dim = 256;
-            let grid_dim = codeword_size.div_ceil(block_dim);
-            let codeword_args = args!(
-                codeword.as_ptr(),
-                batch_codeword.as_mut_ptr(),
-                powers_device.as_ptr(),
-                codeword_size,
-                batch_size
+        let block_dim = 256;
+        let mut batch_mle_flattened = Mle::new(Tensor::<GC::F, TaskScope>::zeros_in(
+            [<GC::EF as AbstractExtensionField<GC::F>>::D, 1 << num_variables],
+            scope.clone(),
+        ));
+        let grid_dim = (1usize << num_variables).div_ceil(block_dim);
+        unsafe {
+            let args = args!(
+                batch_mle.guts().as_ptr(),
+                batch_mle_flattened.guts_mut().as_mut_ptr(),
+                1usize << num_variables
             );
-            unsafe {
-                scope
-                    .launch_kernel(
-                        TaskScope::batch_rs_codeword_kernel(),
-                        grid_dim,
-                        block_dim,
-                        &codeword_args,
-                        0,
-                    )
-                    .unwrap();
-            }
+            batch_mle_flattened.assume_init();
+            batch_codeword.assume_init();
+            scope
+                .launch_kernel(TaskScope::flatten_to_base_kernel(), grid_dim, block_dim, &args, 0)
+                .unwrap();
         }
+        let encoder = SpparkDftKoalaBear::default();
+        encode_batch(
+            encoder,
+            self.config.log_blowup as u32,
+            batch_mle_flattened.guts().as_view(),
+            &mut batch_codeword,
+        )
+        .unwrap();
 
         // Compute the batched evaluation claim.
         let batch_eval_claim = evaluation_claims

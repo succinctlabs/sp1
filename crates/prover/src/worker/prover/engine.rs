@@ -12,7 +12,7 @@ use crate::{
         CoreProveSubmitHandle, RawTaskRequest, RecursionVkWorker, ReduceSubmitHandle,
         SP1CoreProver, SP1CoreProverConfig, SP1DeferredProver, SP1DeferredProverConfig,
         SP1DeferredSubmitHandle, SP1RecursionProver, SP1RecursionProverConfig, SetupSubmitHandle,
-        SetupTask, TaskError, TaskId, WorkerClient,
+        SetupTask, TaskError, TaskId, TaskMetadata, WorkerClient,
     },
     SP1ProverComponents, WrapProverBuilder,
 };
@@ -129,7 +129,10 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1ProverEngine
         self.deferred_prover.submit(request).await
     }
 
-    pub async fn run_shrink_wrap(&self, request: RawTaskRequest) -> Result<(), TaskError> {
+    pub async fn run_shrink_wrap(
+        &self,
+        request: RawTaskRequest,
+    ) -> Result<TaskMetadata, TaskError> {
         self.recursion_prover.run_shrink_wrap(request).await
     }
 
