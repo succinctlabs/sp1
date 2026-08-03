@@ -7,6 +7,7 @@
 // doesn't matter).
 
 #include "zerocheck/geq_corrections.cuh"
+#include "zerocheck/bivariate.cuh"
 #include "zerocheck/sequential.cuh"
 #include "config.cuh"
 #include "sum_and_reduce/reduce.cuh"
@@ -138,6 +139,100 @@ __global__ void zerocheck_geq_corrections(
     }
 }
 
+// ============================================================================
+// geq_corrections_bivariate — the padded-row correction for the fused
+// first-two-rounds evaluation.
+//
+// Rows are consumed in quadruples; the geq indicator restricted to a
+// quadruple is bilinear in the last two variables, so its eq-weighted sum is
+// determined by the four corner sums
+//   A_c = Σ_quad eq[quad] · g(4·quad + c),   c = 2X + Y ∈ {0, 1, 2, 3},
+// where `g(idx)` is the VirtualGeq vector value (0 below the threshold,
+// eq+geq at it, geq above it). Thread 0 bilinearly extends the corner sums
+// to the 12 non-boolean grid nodes and writes `−λ · pad_adj · S(node)`,
+// aligned with the constraint kernel's node order. The boolean corners get
+// NO correction: there the padded rows' constraint values are not summed by
+// any kernel, and the two cancel exactly.
+// ============================================================================
+__global__ void zerocheck_geq_corrections_bivariate(
+    const uint32_t* __restrict__ geq_chip_indices,
+    uint32_t n_geq_chips,
+    const VirtualGeqState* __restrict__ geq_state,
+    const ext_t* __restrict__ chip_pad_adj,
+    const ext_t* __restrict__ powers_of_lambda,
+    const ChipLayout* __restrict__ chip_layouts,
+    const ext_t* __restrict__ partial_lagrange,
+    uint32_t rest_point_dim,
+    ext_t* __restrict__ partials  // 12 slots per geq chip, laid out as [idx][e]
+) {
+    (void)n_geq_chips;
+    const uint32_t out_idx = blockIdx.x;
+    const uint32_t chip_idx = geq_chip_indices[out_idx];
+    const VirtualGeqState s = geq_state[chip_idx];
+    const ext_t pad_adj = ext_t::load(chip_pad_adj, chip_idx);
+    const ext_t lambda = ext_t::load(powers_of_lambda, chip_idx);
+    const ChipLayout lay = chip_layouts[chip_idx];
+
+    // Effective quadruple span for this chip — must match the constraint
+    // kernel's dispatch (ceil(height / 4) quadruples). Fully virtual
+    // quadruples beyond it cancel identically and are summed by neither.
+    const uint32_t quad_limit = 1u << rest_point_dim;
+    const uint32_t chip_quad_count = (lay.height + 3u) / 4u;
+    const uint32_t in_limit = chip_quad_count < quad_limit ? chip_quad_count : quad_limit;
+
+    ext_t t00 = ext_t::zero();
+    ext_t t01 = ext_t::zero();
+    ext_t t10 = ext_t::zero();
+    ext_t t11 = ext_t::zero();
+    for (uint32_t quad_idx = threadIdx.x; quad_idx < in_limit; quad_idx += blockDim.x) {
+        ext_t lagr = ext_t::load(partial_lagrange, quad_idx);
+        const uint32_t base_idx = quad_idx << 2;
+#pragma unroll
+        for (uint32_t c = 0; c < 4u; c++) {
+            const uint32_t idx = base_idx | c;
+            ext_t contrib = ext_t::zero();
+            if (idx > s.threshold) {
+                contrib = lagr * s.geq_coefficient;
+            } else if (idx == s.threshold) {
+                contrib = lagr * (s.geq_coefficient + s.eq_coefficient);
+            }
+            switch (c) {
+            case 0: t00 += contrib; break;
+            case 1: t01 += contrib; break;
+            case 2: t10 += contrib; break;
+            default: t11 += contrib; break;
+            }
+        }
+    }
+
+    extern __shared__ unsigned char smem[];
+    ext_t* shared = reinterpret_cast<ext_t*>(smem);
+    auto block = cg::this_thread_block();
+    auto tile = cg::tiled_partition<32>(block);
+
+    ext_t a00 = partialBlockReduce(block, tile, t00, shared);
+    block.sync();
+    ext_t a01 = partialBlockReduce(block, tile, t01, shared);
+    block.sync();
+    ext_t a10 = partialBlockReduce(block, tile, t10, shared);
+    block.sync();
+    ext_t a11 = partialBlockReduce(block, tile, t11, shared);
+
+    if (threadIdx.x == 0) {
+        const ext_t coeff = lambda * pad_adj;
+        const ext_t ax = a10 - a00;
+        const ext_t ay = a01 - a00;
+        const ext_t axy = (a11 - a10) - ay;
+        const uint32_t base = out_idx * (uint32_t)BIVARIATE_NUM_NODES;
+        for (int e = 0; e < BIVARIATE_NUM_NODES; e++) {
+            const BivariateNode nd = bivariate_node(e);
+            ext_t S = a00 + mul_small_pow2(ax, nd.cx) + mul_small_pow2(ay, nd.cy)
+                + mul_small_pow2(axy, nd.cxy);
+            ext_t::store(partials, base + (uint32_t)e, ext_t::zero() - coeff * S);
+        }
+    }
+}
+
 }  // namespace
 
 extern "C" void* zerocheck_fix_geq_state_kernel() {
@@ -146,4 +241,8 @@ extern "C" void* zerocheck_fix_geq_state_kernel() {
 
 extern "C" void* zerocheck_geq_corrections_kernel() {
     return (void*)zerocheck_geq_corrections;
+}
+
+extern "C" void* zerocheck_geq_corrections_bivariate_kernel() {
+    return (void*)zerocheck_geq_corrections_bivariate;
 }

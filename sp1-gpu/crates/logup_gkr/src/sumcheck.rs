@@ -13,18 +13,25 @@ use slop_tensor::Tensor;
 use sp1_gpu_cudart::DevicePoint;
 use sp1_gpu_cudart::{
     args,
-    sys::kernels::{
-        logup_gkr_first_sum_as_poly_circuit_layer as first_sum_as_poly_layer_circuit_layer_kernel,
-        logup_gkr_fix_and_sum_circuit_layer as fix_and_sum_circuit_layer_kernel,
-        logup_gkr_fix_and_sum_first_layer as fix_and_sum_first_layer_kernel,
-        logup_gkr_fix_and_sum_interactions_layer as fix_and_sum_interactions_layer_kernel,
-        logup_gkr_fix_and_sum_last_circuit_layer as fix_and_sum_last_circuit_layer_kernel,
-        logup_gkr_fix_last_variable_interactions_layer as fix_last_variable_interactions_layer_kernel,
-        logup_gkr_fix_last_variable_last_circuit_layer as fix_last_row_last_circuit_layer_kernel,
-        logup_gkr_sum_as_poly_circuit_layer as sum_as_poly_circuit_layer_kernel,
-        logup_gkr_sum_as_poly_first_layer as sum_as_poly_first_layer_kernel,
+    sys::{
+        kernels::{
+            logup_gkr_first_sum_as_poly_circuit_layer as first_sum_as_poly_layer_circuit_layer_kernel,
+            logup_gkr_fix_and_sum_circuit_layer as fix_and_sum_circuit_layer_kernel,
+            logup_gkr_fix_and_sum_first_layer as fix_and_sum_first_layer_kernel,
+            logup_gkr_fix_and_sum_interactions_layer as fix_and_sum_interactions_layer_kernel,
+            logup_gkr_fix_and_sum_last_circuit_layer as fix_and_sum_last_circuit_layer_kernel,
+            logup_gkr_fix_last_variable_interactions_layer as fix_last_variable_interactions_layer_kernel,
+            logup_gkr_fix_last_variable_last_circuit_layer as fix_last_row_last_circuit_layer_kernel,
+            logup_gkr_sum_as_poly_circuit_layer as sum_as_poly_circuit_layer_kernel,
+            logup_gkr_sum_as_poly_first_layer as sum_as_poly_first_layer_kernel,
+            logup_gkr_two_round_fix_and_sum_circuit_layer as two_round_fix_and_sum_circuit_layer_kernel,
+            logup_gkr_two_round_fix_and_sum_first_layer as two_round_fix_and_sum_first_layer_kernel,
+            logup_gkr_two_round_sum_circuit_layer as two_round_sum_circuit_layer_kernel,
+            logup_gkr_two_round_sum_first_layer as two_round_sum_first_layer_kernel,
+        },
+        runtime::KernelPtr,
     },
-    DeviceBuffer, DeviceTensor, TaskScope,
+    DeviceBuffer, DeviceMle, DeviceTensor, TaskScope,
 };
 
 use crate::{
@@ -36,7 +43,7 @@ use crate::{
 };
 use rayon::prelude::*;
 use slop_sumcheck::partially_verify_sumcheck_proof;
-use sp1_gpu_utils::{DenseData, Ext, Felt, JaggedMle};
+use sp1_gpu_utils::{fold_jagged_metadata_dev, DenseData, Ext, Felt, JaggedMle};
 
 pub fn get_component_poly_evals(poly: &LogupRoundPolynomial) -> Vec<Ext> {
     match &poly.layer {
@@ -90,6 +97,299 @@ fn finalize_univariate(
         ],
         &[eval_zero, eval_one, eval_half, Ext::zero()],
     )
+}
+
+/// One pass over a circuit or leaf layer accumulating the two-round polynomial
+/// `h(X, Y) = Σ_i eq·(λ·(n₀d₁ + n₁d₀) + d₀d₁)` on the grid `{0, 1, ½}²`, where `Y` is the
+/// round-1 (last) row variable and `X` the round-2 variable. Returns the 8 grid values in
+/// the kernel's order — `h(1, 1)` is omitted since it is deduced from the round claim, and
+/// midpoint entries carry the unscaled sums (2³ per half axis, 2⁶ for the center) — followed
+/// by the eq masses of the materialized rows at `Y = 0` and `Y = 1`, which the host-side
+/// padding corrections of both rounds need.
+fn two_round_sum_as_poly<D: DenseData<TaskScope>>(
+    jagged_mle: &JaggedMle<D, TaskScope>,
+    height: usize,
+    eq_row: &DeviceMle<Ext>,
+    eq_interaction: &DeviceMle<Ext>,
+    lambda: Ext,
+    kernel: unsafe extern "C" fn() -> KernelPtr,
+) -> [Ext; 10] {
+    let scope = jagged_mle.backend();
+
+    const BLOCK_SIZE: usize = 256;
+    const STRIDE: usize = 32;
+    // Each iteration consumes one quad (two pairs).
+    let grid_dim = height.div_ceil(BLOCK_SIZE * STRIDE * 2);
+    let mut output = Tensor::<Ext, TaskScope>::with_sizes_in([10, grid_dim], scope.clone());
+
+    let num_tiles = BLOCK_SIZE.checked_div(STRIDE).unwrap_or(1);
+    let shared_mem = num_tiles * std::mem::size_of::<Ext>();
+
+    unsafe {
+        output.assume_init();
+        let args = args!(
+            output.as_mut_ptr(),
+            jagged_mle.as_raw(),
+            eq_row.guts().as_ptr(),
+            eq_interaction.guts().as_ptr(),
+            lambda
+        );
+        scope.launch_kernel(kernel(), grid_dim, BLOCK_SIZE, &args, shared_mem).unwrap();
+    }
+
+    let evals = DeviceTensor::from_raw(output).sum_dim(1).to_host().unwrap();
+    evals.as_slice().try_into().unwrap()
+}
+
+/// Derives the first two round messages from the two-round grid, mirroring
+/// [`finalize_univariate`]'s corrections for each variable. The eq factor of each round's
+/// variable vanishes at its root `b = (1−z)/(1−2z)`, so the grid row `h(·, b_Y)` and column
+/// `h(b_X, ·)` are identically zero: round 1 interpolates the row sums `h(0, Y) + h(1, Y)`
+/// over `[0, 1, ½, b_Y]`, and round 2 interpolates each grid column there and evaluates at
+/// `α₁`, reproducing exactly the sums the skipped single-round kernel would have computed
+/// over the `α₁`-folded layer. Returns `(α₁, α₂, g₂(α₂))`.
+fn two_round_univariates<C: FieldChallenger<Felt>>(
+    grid: [Ext; 10],
+    z: (Ext, Ext),
+    adjustments: (Ext, Ext),
+    claim: Ext,
+    challenger: &mut C,
+    univariate_poly_msgs: &mut Vec<UnivariatePolynomial<Ext>>,
+    point: &mut Vec<Ext>,
+) -> (Ext, Ext, Ext) {
+    let [h_0_0, h_0_1, h_0_half, h_1_0, h_1_half, h_half_0, h_half_1, h_half_half, eq_y0, eq_y1] =
+        grid;
+    let (z_y, z_x) = z;
+    let (eq_adjustment, padding_adjustment) = adjustments;
+
+    let half = Ext::from_canonical_u16(2).inverse();
+    let inv_eight = Ext::from_canonical_u16(8).inverse();
+
+    // Round 1: `g₁(Y) = h(0, Y) + h(1, Y)`, corrected by the eq mass of the virtual padded
+    // rows (whose denominators are one) exactly as in `finalize_univariate`.
+    let eq_correction = padding_adjustment - (eq_y0 + eq_y1);
+    let eval_zero = (h_0_0 + h_1_0 + eq_correction * (Ext::one() - z_y)) * eq_adjustment;
+    let eval_half = (h_0_half + h_1_half + eq_correction * Ext::from_canonical_u16(4))
+        * inv_eight
+        * eq_adjustment;
+    let b_y = (Ext::one() - z_y) / (Ext::one() - z_y.double());
+    let eval_one = claim - eval_zero;
+    let uni_poly = interpolate_univariate_polynomial(
+        &[Ext::zero(), Ext::one(), half, b_y],
+        &[eval_zero, eval_one, eval_half, Ext::zero()],
+    );
+    let alpha_1 = process_univariate_polynomial(uni_poly, challenger, univariate_poly_msgs, point);
+    let round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha_1);
+
+    // Round 2: `g₂(X) = h(X, α₁)`. Every materialized summand of a grid column carries the
+    // `Y`-eq factor, so the columns also vanish at `b_Y`. The `X = ½` column keeps its 2³
+    // scale so the corrections below match `finalize_univariate` verbatim.
+    let grid_points = [Ext::zero(), Ext::one(), half, b_y];
+    let column_at_alpha_1 = |v_0: Ext, v_1: Ext, v_half: Ext| {
+        interpolate_univariate_polynomial(&grid_points, &[v_0, v_1, v_half, Ext::zero()])
+            .eval_at_point(alpha_1)
+    };
+    let folded_eval_zero = column_at_alpha_1(h_0_0, h_0_1, h_0_half * inv_eight);
+    let folded_eval_half = column_at_alpha_1(h_half_0, h_half_1, h_half_half * inv_eight);
+
+    // The state updates the skipped single round would have applied: the folded eq row's
+    // mass over the materialized rows is the `α₁`-interpolation of the `Y = 0` / `Y = 1`
+    // masses, and the padding adjustment picks up the `eq(z_y, α₁)` factor.
+    let padding_adjustment =
+        padding_adjustment * (z_y * alpha_1 + (Ext::one() - z_y) * (Ext::one() - alpha_1));
+    let eq_sum = eq_y0 + alpha_1 * (eq_y1 - eq_y0);
+    let eq_correction = padding_adjustment - eq_sum;
+    let eval_zero = (folded_eval_zero + eq_correction * (Ext::one() - z_x)) * eq_adjustment;
+    let eval_half =
+        (folded_eval_half + eq_correction * Ext::from_canonical_u16(4)) * inv_eight * eq_adjustment;
+    let b_x = (Ext::one() - z_x) / (Ext::one() - z_x.double());
+    let eval_one = round_claim - eval_zero;
+    let uni_poly = interpolate_univariate_polynomial(
+        &[Ext::zero(), Ext::one(), half, b_x],
+        &[eval_zero, eval_one, eval_half, Ext::zero()],
+    );
+    let alpha_2 = process_univariate_polynomial(uni_poly, challenger, univariate_poly_msgs, point);
+    let round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha_2);
+
+    (alpha_1, alpha_2, round_claim)
+}
+
+/// Folds the first two sumcheck challenges into the layer in a single pass, materializing
+/// the next circuit layer at a quarter of the input height (the jagged metadata advanced
+/// two folds), and accumulates the third-round univariate evaluations from the doubly-folded
+/// values. `eq_row` must already be folded by both challenges.
+fn two_round_fix_and_sum<D: DenseData<TaskScope>>(
+    jagged_mle: &JaggedMle<D, TaskScope>,
+    height: usize,
+    eq_row: &DeviceMle<Ext>,
+    eq_interaction: &DeviceMle<Ext>,
+    lambda: Ext,
+    alphas: (Ext, Ext),
+    kernel: unsafe extern "C" fn() -> KernelPtr,
+) -> (JaggedMle<JaggedGkrLayer, TaskScope>, Tensor<Ext, TaskScope>) {
+    let backend = jagged_mle.backend();
+
+    // Advance the jagged metadata two folds; the intermediate layer is never materialized.
+    let (_, mid_column_heights, _) = fold_jagged_metadata_dev(jagged_mle.column_heights());
+    let (output_interaction_start_indices, output_interaction_row_counts, output_height_u32) =
+        fold_jagged_metadata_dev(&mid_column_heights);
+    let output_height = output_height_u32 as usize;
+
+    // Create the doubly-folded layer.
+    let output_layer: Tensor<Ext, TaskScope> =
+        Tensor::with_sizes_in([4, 1, output_height * 2], backend.clone());
+    let output_col_index: Buffer<u32, TaskScope> =
+        Buffer::with_capacity_in(output_height, backend.clone());
+
+    let output_jagged_layer = JaggedGkrLayer::new(output_layer, output_height);
+    let mut output_jagged_mle = JaggedMle::new(
+        output_jagged_layer,
+        output_col_index,
+        output_interaction_start_indices,
+        output_interaction_row_counts,
+    );
+
+    // populate the new layer
+    const BLOCK_SIZE: usize = 256;
+    const STRIDE: usize = 32;
+    let grid_size_x = height.div_ceil(BLOCK_SIZE * STRIDE);
+    let grid_size = (grid_size_x, 1, 1);
+
+    let mut univariate_evals =
+        Tensor::<Ext, TaskScope>::with_sizes_in([3, grid_size_x], backend.clone());
+    let num_tiles = BLOCK_SIZE.checked_div(32).unwrap_or(1);
+    let shared_mem = num_tiles * std::mem::size_of::<Ext>();
+
+    let (alpha_1, alpha_2) = alphas;
+    unsafe {
+        univariate_evals.assume_init();
+        output_jagged_mle.dense_data.assume_init();
+        output_jagged_mle.col_index.assume_init();
+        let args = args!(
+            univariate_evals.as_mut_ptr(),
+            jagged_mle.as_raw(),
+            output_jagged_mle.as_mut_raw(),
+            alpha_1,
+            alpha_2,
+            eq_row.guts().as_ptr(),
+            eq_interaction.guts().as_ptr(),
+            lambda
+        );
+        backend.launch_kernel(kernel(), grid_size, BLOCK_SIZE, &args, shared_mem).unwrap();
+    }
+
+    (output_jagged_mle, univariate_evals)
+}
+
+// returns (round-3 univariate, next round polynomial)
+fn two_round_fix_and_sum_circuit_layer(
+    poly: LogupRoundPolynomial,
+    alpha_1: Ext,
+    alpha_2: Ext,
+    claim: Ext,
+) -> (UnivariatePolynomial<Ext>, LogupRoundPolynomial) {
+    let LogupRoundPolynomial {
+        layer,
+        eq_row,
+        eq_interaction,
+        lambda,
+        mut point,
+        eq_adjustment,
+        padding_adjustment,
+    } = poly;
+    let PolynomialLayer::CircuitLayer(circuit) = layer else {
+        unreachable!("the two-round lookahead only runs on circuit layers")
+    };
+
+    // Remove the last two coordinates from the point and apply both rounds' updates.
+    let z_y = point.remove_last_coordinate();
+    let z_x = point.remove_last_coordinate();
+    let padding_adjustment = padding_adjustment
+        * (z_y * alpha_1 + (Ext::one() - z_y) * (Ext::one() - alpha_1))
+        * (z_x * alpha_2 + (Ext::one() - z_x) * (Ext::one() - alpha_2));
+
+    // Fold the eq_row by both challenges before the kernel reads it.
+    let eq_row = eq_row.fix_last_variable_constant_padding(alpha_1, Ext::zero());
+    let eq_row = eq_row.fix_last_variable_constant_padding(alpha_2, Ext::zero());
+
+    let (output_jagged_mle, univariate_evals) = two_round_fix_and_sum(
+        &circuit.jagged_mle,
+        circuit.jagged_mle.dense_data.height,
+        &eq_row,
+        &eq_interaction,
+        lambda,
+        (alpha_1, alpha_2),
+        two_round_fix_and_sum_circuit_layer_kernel,
+    );
+
+    let output_layer = GkrLayer {
+        jagged_mle: output_jagged_mle,
+        num_row_variables: circuit.num_row_variables - 2,
+        num_interaction_variables: circuit.num_interaction_variables,
+    };
+
+    let poly = LogupRoundPolynomial {
+        layer: PolynomialLayer::CircuitLayer(output_layer),
+        eq_row,
+        eq_interaction,
+        lambda,
+        point,
+        eq_adjustment,
+        padding_adjustment,
+    };
+
+    let univariate = finalize_univariate(&poly, univariate_evals, claim);
+    (univariate, poly)
+}
+
+// returns (round-3 univariate, next round polynomial)
+fn two_round_fix_and_sum_first_layer(
+    poly: FirstLayerPolynomial,
+    alpha_1: Ext,
+    alpha_2: Ext,
+    claim: Ext,
+) -> (UnivariatePolynomial<Ext>, LogupRoundPolynomial) {
+    let FirstLayerPolynomial { layer, eq_row, eq_interaction, lambda, mut point } = poly;
+
+    // Remove the last two coordinates from the point and apply both rounds' updates (the
+    // leaf starts from a unit padding adjustment, cf. `fix_and_sum_first_layer`).
+    let z_y = point.remove_last_coordinate();
+    let z_x = point.remove_last_coordinate();
+    let padding_adjustment = (z_y * alpha_1 + (Ext::one() - z_y) * (Ext::one() - alpha_1))
+        * (z_x * alpha_2 + (Ext::one() - z_x) * (Ext::one() - alpha_2));
+
+    // Fold the eq_row by both challenges before the kernel reads it.
+    let eq_row = eq_row.fix_last_variable_constant_padding(alpha_1, Ext::zero());
+    let eq_row = eq_row.fix_last_variable_constant_padding(alpha_2, Ext::zero());
+
+    let (output_jagged_mle, univariate_evals) = two_round_fix_and_sum(
+        &layer.jagged_mle,
+        layer.jagged_mle.dense_data.height,
+        &eq_row,
+        &eq_interaction,
+        lambda,
+        (alpha_1, alpha_2),
+        two_round_fix_and_sum_first_layer_kernel,
+    );
+
+    let output_layer = GkrLayer {
+        jagged_mle: output_jagged_mle,
+        num_row_variables: layer.num_row_variables - 2,
+        num_interaction_variables: layer.num_interaction_variables,
+    };
+
+    let result_poly = LogupRoundPolynomial {
+        layer: PolynomialLayer::CircuitLayer(output_layer),
+        eq_row,
+        eq_interaction,
+        lambda,
+        point,
+        eq_adjustment: Ext::one(),
+        padding_adjustment,
+    };
+
+    let univariate = finalize_univariate(&result_poly, univariate_evals, claim);
+    (univariate, result_poly)
 }
 
 /// Evaluates the first layer polynomial and eq polynomial at 0 and 1/2.
@@ -635,23 +935,72 @@ where
     // The univariate poly messages.  This will be a rlc of the polys' univariate polys.
     let mut univariate_poly_msgs: Vec<UnivariatePolynomial<Ext>> = vec![];
 
-    let uni_poly = sum_as_poly_first_layer(&poly, claim);
+    // The leaf gets the two-round lookahead whenever it is tall enough: its first fold
+    // materializes the first all-extension layer, so folding both challenges at once
+    // halves that allocation on top of saving a pass over the leaf.
+    let use_lookahead = poly.layer.num_row_variables > 2;
 
-    let mut alpha =
-        process_univariate_polynomial(uni_poly, challenger, &mut univariate_poly_msgs, &mut point);
+    let (mut alpha, mut poly, rounds_processed) = if use_lookahead {
+        let grid = two_round_sum_as_poly(
+            &poly.layer.jagged_mle,
+            poly.layer.jagged_mle.dense_data.height,
+            &poly.eq_row,
+            &poly.eq_interaction,
+            poly.lambda,
+            two_round_sum_first_layer_kernel,
+        );
+        let mut last_coordinates = poly.point.iter().rev();
+        let z_y = *last_coordinates.next().unwrap();
+        let z_x = *last_coordinates.next().unwrap();
+        // The leaf polynomial starts with unit eq and padding adjustments.
+        let (alpha_1, alpha_2, claim_3) = two_round_univariates(
+            grid,
+            (z_y, z_x),
+            (Ext::one(), Ext::one()),
+            claim,
+            challenger,
+            &mut univariate_poly_msgs,
+            &mut point,
+        );
+        let (uni_poly, next_poly) =
+            two_round_fix_and_sum_first_layer(poly, alpha_1, alpha_2, claim_3);
+        let alpha = process_univariate_polynomial(
+            uni_poly,
+            challenger,
+            &mut univariate_poly_msgs,
+            &mut point,
+        );
+        (alpha, next_poly, 3)
+    } else {
+        let uni_poly = sum_as_poly_first_layer(&poly, claim);
 
-    let round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(*point.first().unwrap());
+        let alpha = process_univariate_polynomial(
+            uni_poly,
+            challenger,
+            &mut univariate_poly_msgs,
+            &mut point,
+        );
 
-    let (mut uni_poly, mut poly) = fix_and_sum_first_layer(poly, alpha, round_claim);
+        let round_claim =
+            univariate_poly_msgs.last().unwrap().eval_at_point(*point.first().unwrap());
 
-    alpha =
-        process_univariate_polynomial(uni_poly, challenger, &mut univariate_poly_msgs, &mut point);
+        let (uni_poly, next_poly) = fix_and_sum_first_layer(poly, alpha, round_claim);
 
-    for _ in 2..num_variables as usize {
+        let alpha = process_univariate_polynomial(
+            uni_poly,
+            challenger,
+            &mut univariate_poly_msgs,
+            &mut point,
+        );
+        (alpha, next_poly, 2)
+    };
+
+    for _ in rounds_processed..num_variables as usize {
         // Get the round claims from the last round's univariate poly messages.
         let round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha);
 
-        (uni_poly, poly) = fix_and_sum_materialized_round(poly, alpha, round_claim);
+        let (uni_poly, next_poly) = fix_and_sum_materialized_round(poly, alpha, round_claim);
+        poly = next_poly;
 
         alpha = process_univariate_polynomial(
             uni_poly,
@@ -688,31 +1037,81 @@ pub fn materialized_round_sumcheck<C: FieldChallenger<Felt>>(
     let mut point = Vec::with_capacity(num_variables as usize);
     let mut univariate_poly_msgs = Vec::with_capacity(num_variables as usize);
 
-    // First round: compute initial univariate polynomial
-    let uni_poly = sum_as_poly_materialized_round(&poly, claim);
-    let alpha =
-        process_univariate_polynomial(uni_poly, challenger, &mut univariate_poly_msgs, &mut point);
+    // The first two rounds of a tall enough circuit layer are fused: one pass over the
+    // layer yields both round messages, and a second pass folds both challenges at once,
+    // materializing the next layer at a quarter (instead of half) of the input height.
+    let use_lookahead = matches!(
+        &poly.layer,
+        PolynomialLayer::CircuitLayer(circuit) if circuit.num_row_variables > 2
+    );
 
-    // Early return for single variable case
-    if num_variables == 1 {
-        poly = fix_last_variable_materialized_round(poly, alpha);
-        let eval = univariate_poly_msgs[0].eval_at_point(alpha);
-        let component_poly_evals = get_component_poly_evals(&poly);
-
-        return (
-            PartialSumcheckProof {
-                univariate_polys: univariate_poly_msgs,
-                claimed_sum: claim,
-                point_and_eval: (point.into(), eval),
-            },
-            component_poly_evals,
+    let mut round_claim;
+    let rounds_processed;
+    if use_lookahead {
+        let PolynomialLayer::CircuitLayer(circuit) = &poly.layer else { unreachable!() };
+        let grid = two_round_sum_as_poly(
+            &circuit.jagged_mle,
+            circuit.jagged_mle.dense_data.height,
+            &poly.eq_row,
+            &poly.eq_interaction,
+            poly.lambda,
+            two_round_sum_circuit_layer_kernel,
         );
+        let mut last_coordinates = poly.point.iter().rev();
+        let z_y = *last_coordinates.next().unwrap();
+        let z_x = *last_coordinates.next().unwrap();
+        let (alpha_1, alpha_2, claim_3) = two_round_univariates(
+            grid,
+            (z_y, z_x),
+            (poly.eq_adjustment, poly.padding_adjustment),
+            claim,
+            challenger,
+            &mut univariate_poly_msgs,
+            &mut point,
+        );
+        let (uni_poly, next_poly) =
+            two_round_fix_and_sum_circuit_layer(poly, alpha_1, alpha_2, claim_3);
+        poly = next_poly;
+        let alpha = process_univariate_polynomial(
+            uni_poly,
+            challenger,
+            &mut univariate_poly_msgs,
+            &mut point,
+        );
+        round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha);
+        rounds_processed = 3;
+    } else {
+        // First round: compute initial univariate polynomial
+        let uni_poly = sum_as_poly_materialized_round(&poly, claim);
+        let alpha = process_univariate_polynomial(
+            uni_poly,
+            challenger,
+            &mut univariate_poly_msgs,
+            &mut point,
+        );
+
+        // Early return for single variable case
+        if num_variables == 1 {
+            poly = fix_last_variable_materialized_round(poly, alpha);
+            let eval = univariate_poly_msgs[0].eval_at_point(alpha);
+            let component_poly_evals = get_component_poly_evals(&poly);
+
+            return (
+                PartialSumcheckProof {
+                    univariate_polys: univariate_poly_msgs,
+                    claimed_sum: claim,
+                    point_and_eval: (point.into(), eval),
+                },
+                component_poly_evals,
+            );
+        }
+
+        round_claim = univariate_poly_msgs[0].eval_at_point(alpha);
+        rounds_processed = 1;
     }
 
     // Process remaining rounds
-    let mut round_claim = univariate_poly_msgs[0].eval_at_point(alpha);
-
-    for _round in 1..num_variables as usize {
+    for _round in rounds_processed..num_variables as usize {
         let (uni_poly, next_poly) = fix_and_sum_materialized_round(poly, point[0], round_claim);
         poly = next_poly;
 
