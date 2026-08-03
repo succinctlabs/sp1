@@ -124,6 +124,11 @@ message OpenRequest {
     string image_tag = 6;
     string gpu_name = 7;
     uint64 gpu_memory_total_bytes = 8;
+    // Where this worker runs, as an opaque label the coordinator groups workers
+    // by. Workers derive it from their own environment rather than being told,
+    // so the value is whatever identifies a site in that deployment. Unset means
+    // the worker could not determine one.
+    optional string location = 9;
 }
 
 message ServerMessage {
