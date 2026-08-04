@@ -1,8 +1,8 @@
+use crate::utils::pad_rows_core;
 use crate::{
     air::{SP1CoreAirBuilder, SP1Operation},
     memory::PageProtAccessCols,
     operations::{LtOperationUnsigned, LtOperationUnsignedInput},
-    utils::next_multiple_of_32,
 };
 use core::borrow::Borrow;
 use slop_air::{Air, AirBuilder, BaseAir};
@@ -86,8 +86,7 @@ impl<F: PrimeField32> MachineAir<F> for MProtectChip {
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
         let nb_rows = input.get_precompile_events(SyscallCode::MPROTECT).len();
-        let size_log2 = input.fixed_log2_rows::<F, _>(self);
-        let padded_nb_rows = next_multiple_of_32(nb_rows, size_log2);
+        let padded_nb_rows = pad_rows_core(nb_rows);
         Some(padded_nb_rows)
     }
 

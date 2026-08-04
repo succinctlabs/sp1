@@ -1,9 +1,9 @@
+use crate::utils::pad_rows_core;
 use std::{
     borrow::{Borrow, BorrowMut},
     mem::{size_of, MaybeUninit},
 };
 
-use crate::utils::next_multiple_of_32;
 use slop_air::{Air, BaseAir};
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_matrix::Matrix;
@@ -88,8 +88,7 @@ impl<F: PrimeField32> MachineAir<F> for PageProtLocalChip {
             assert!(count == 0);
         }
         let nb_rows = nb_rows(count);
-        let size_log2 = input.fixed_log2_rows::<F, _>(self);
-        Some(next_multiple_of_32(nb_rows, size_log2))
+        Some(pad_rows_core(nb_rows))
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
