@@ -3,8 +3,8 @@
 #include "config.cuh"
 #include <stdio.h>
 
-extern "C" void* jagged_sum_as_poly();
-extern "C" void* jagged_fix_and_sum();
+extern "C" void* jagged_two_round_sum_as_poly();
+extern "C" void* jagged_two_round_fix_and_sum();
 
 struct Hadamard {
     ext_t* p;
@@ -62,11 +62,9 @@ struct JaggedSumcheckData {
     /// Half of the length of the base vlaues.
     size_t height;
 
-    // Fixes last variable with no concern for padding, since the inputs are guaranteed to be
-    // multiples of 16.
-    __forceinline__ __device__ void fixLastVariable(
-        Hadamard* output,
-        size_t restrictedIdx,
+    // Fixes the last variable with no concern for padding, since the inputs are guaranteed
+    // to be multiples of 16, returning the restricted (p, q) values instead of storing them.
+    __forceinline__ __device__ Pair fixLastVariableValue(
         size_t baseZeroIdx,
         size_t eqZColIdx,
         size_t eqZRowZeroIdx,
@@ -87,7 +85,6 @@ struct JaggedSumcheckData {
 
         ext_t value_p = alpha.interpolateLinear(baseOne, baseZero);
 
-        output->p[restrictedIdx] = value_p;
-        output->q[restrictedIdx] = value_q;
+        return Pair{value_p, value_q};
     }
 };
