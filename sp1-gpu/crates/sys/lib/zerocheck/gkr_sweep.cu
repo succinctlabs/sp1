@@ -108,8 +108,6 @@ __global__ void zerocheck_gkr_sweep(
     auto tile_warp = cg::tiled_partition<32>(block);
     ext_t block_sum = partialBlockReduce(block, tile_warp, thread_acc, shared);
     if (threadIdx.x == 0) {
-        // `lambda` is block-uniform, so it factors out of the whole block sum instead of costing
-        // an extension multiply per row.
         ext_t::store(partials, blockIdx.x * 3 + (uint32_t)e, block_sum * lambda);
     }
 }

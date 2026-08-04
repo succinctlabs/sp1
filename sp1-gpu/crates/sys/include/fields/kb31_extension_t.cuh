@@ -221,10 +221,7 @@ class kb31_extension_t {
         return a *= b;
     }
 
-    // Base on the left. Without this overload `base * ext` is not an exact match for anything, so
-    // overload resolution promotes the base value through the (non-explicit) kb31_t constructor and
-    // runs the full extension multiply — 16 wide muls plus the X^4 = W fold — where 4 wide muls
-    // would do. Multiplication is commutative, so forwarding to `ext *= base` is the same value.
+    // Implemented so that `base * ext` is not inefficient.
     friend __device__ __forceinline__ kb31_extension_t
     operator*(const kb31_t a, kb31_extension_t b) {
         return b *= a;

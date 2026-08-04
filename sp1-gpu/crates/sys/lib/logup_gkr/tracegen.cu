@@ -29,9 +29,7 @@ __device__ __forceinline__ GkrInput interactionValue(
     // Initialize the denominator and beta powers.
     ext_t denominator = alpha;
 
-    // Every term of the denominator is a base-field value, so the accumulators stay in the base
-    // field and the beta scaling uses the `ext * base` overload (4 wide mads). Promoting to ext_t
-    // first would cost 4 adds per term plus a full extension multiply per beta.
+    // Add argument index to the denominator.
     denominator += betas[0] * interactions.arg_indices[index];
 
     // Add the interaction values.

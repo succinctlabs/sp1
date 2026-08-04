@@ -21,17 +21,8 @@ __global__ void leafHash(
     }
 }
 
-// Leaf hashing that absorbs a whole RATE block at a time.
-//
-// The generic `leafHash` above absorbs one element per call through `HasherState::data[index]`
-// with a runtime `index`. Consuming RATE elements at once makes every state index compile-time
-// constant and lets the RATE loads issue together. Measured ~2.6% faster than the generic path on
-// the main-trace commit; note that both versions compile to `REG:40, LOCAL:0`, so the gain is not
-// from avoiding a local-memory spill as one might expect.
-//
-// Same sponge as the generic version: rate lanes are overwritten (not added), the capacity carries
-// across blocks, and a trailing partial block leaves lanes `[rem, RATE)` holding the previous state
-// before the final permutation.
+// Leaf hashing that absorbs a whole RATE block at a time. Consuming RATE elements at once makes 
+// every state index compile-time constant and lets the RATE loads issue together.
 template <typename Hasher_t, typename HashParams>
 __global__ void leafHashPacked(
     Hasher_t hasher,
@@ -115,27 +106,98 @@ extern "C" void* compress_merkle_tree_bn254_kernel() {
 }
 
 
+// Walks the stored levels of a (possibly truncated) tree. For a truncated tree the caller
+// shifts the leaf indices down to the stored leaf level (`index_shift`) and offsets the
+// output past the recomputed bottom siblings (`path_offset`); `path_stride` stays full.
 template <typename Hasher_t, typename HashParams, typename HasherState_t>
 __global__ void computePaths(
     typename HashParams::F_t (*paths)[HashParams::DIGEST_WIDTH],
+    size_t path_stride,
+    size_t path_offset,
     size_t* indices,
+    size_t index_shift,
     size_t numIndices,
     typename HashParams::F_t (*digests)[HashParams::DIGEST_WIDTH],
-    size_t tree_height) {
+    size_t stored_height) {
     for (int i = (blockIdx.x * blockDim.x) + threadIdx.x; i < numIndices;
          i += blockDim.x * gridDim.x) {
-        size_t idx = (1 << tree_height) - 1 + indices[i];
-        for (int k = 0; k < tree_height; k++) {
+        size_t idx = ((size_t)1 << stored_height) - 1 + (indices[i] >> index_shift);
+        for (int k = 0; k < stored_height; k++) {
             size_t siblingIdx = ((idx - 1) ^ 1) + 1;
             size_t parentIdx = (idx - 1) >> 1;
             typename HashParams::F_t* digest = digests[siblingIdx];
-            typename HashParams::F_t* path_digest = paths[i * tree_height + k];
+            typename HashParams::F_t* path_digest = paths[i * path_stride + path_offset + k];
 #pragma unroll
             for (int j = 0; j < HashParams::DIGEST_WIDTH; j++) {
                 path_digest[j] = digest[j];
             }
             idx = parentIdx;
         }
+    }
+}
+
+// Recomputes the bottom `bottom_levels` path siblings of each query from the leaf data.
+// One block per query: the block re-hashes the query's 2^bottom_levels-leaf subtree into
+// shared memory and reduces it level by level.
+template <typename Hasher_t, typename HashParams, typename HasherState_t>
+__global__ void recomputeBottomPaths(
+    Hasher_t hasher,
+    kb31_t* input,
+    typename HashParams::F_t (*paths)[HashParams::DIGEST_WIDTH],
+    size_t* indices,
+    size_t numIndices,
+    size_t widths,
+    size_t tree_height,
+    size_t bottom_levels) {
+    using FDW_t = poseidon2::FDW_t<HashParams>;
+    static_assert(
+        sizeof(FDW_t) == HashParams::DIGEST_WIDTH * sizeof(typename HashParams::F_t),
+        "digest slots must be tightly packed");
+    extern __shared__ unsigned char smemRaw[];
+    FDW_t* nodes = reinterpret_cast<FDW_t*>(smemRaw);
+
+    size_t matrixHeight = (size_t)1 << tree_height;
+    size_t subtreeLeaves = (size_t)1 << bottom_levels;
+
+    for (size_t q = blockIdx.x; q < numIndices; q += gridDim.x) {
+        size_t leafIdx = indices[q];
+        size_t base = (leafIdx >> bottom_levels) << bottom_levels;
+        size_t local = leafIdx - base;
+
+        for (size_t t = threadIdx.x; t < subtreeLeaves; t += blockDim.x) {
+            HasherState_t state;
+            state.absorbRow(hasher, input, base + t, widths, matrixHeight);
+            state.finalize(hasher, nodes[t].v);
+        }
+        __syncthreads();
+
+        size_t levelBase = 0;
+        size_t levelLen = subtreeLeaves;
+        for (size_t k = 0; k < bottom_levels; k++) {
+            if (threadIdx.x == 0) {
+                FDW_t* sibling = &nodes[levelBase + ((local >> k) ^ 1)];
+                typename HashParams::F_t* path_digest = paths[q * tree_height + k];
+#pragma unroll
+                for (int j = 0; j < HashParams::DIGEST_WIDTH; j++) {
+                    path_digest[j] = sibling->v[j];
+                }
+            }
+            if (k + 1 == bottom_levels) {
+                break;
+            }
+            size_t nextBase = levelBase + levelLen;
+            for (size_t t = threadIdx.x; t < (levelLen >> 1); t += blockDim.x) {
+                hasher.compress(
+                    nodes[levelBase + 2 * t].v,
+                    nodes[levelBase + 2 * t + 1].v,
+                    nodes[nextBase + t].v);
+            }
+            __syncthreads();
+            levelBase = nextBase;
+            levelLen >>= 1;
+        }
+        // The next query reuses the shared slots; make sure this query's reads are done.
+        __syncthreads();
     }
 }
 
@@ -150,6 +212,20 @@ extern "C" void* compute_paths_merkle_tree_koala_bear_16_kernel() {
 extern "C" void* compute_paths_merkle_tree_bn254_kernel() {
     return (void*)
         computePaths<poseidon2::Bn254Hasher, poseidon2_bn254_3::Bn254, poseidon2::Bn254HasherState>;
+}
+
+extern "C" void* recompute_bottom_paths_merkle_tree_koala_bear_16_kernel() {
+    return (void*)recomputeBottomPaths<
+        poseidon2::KoalaBearHasher,
+        poseidon2_kb31_16::KoalaBear,
+        poseidon2::KoalaBearHasherState>;
+}
+
+extern "C" void* recompute_bottom_paths_merkle_tree_bn254_kernel() {
+    return (void*)recomputeBottomPaths<
+        poseidon2::Bn254Hasher,
+        poseidon2_bn254_3::Bn254,
+        poseidon2::Bn254HasherState>;
 }
 
 

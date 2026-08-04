@@ -186,8 +186,6 @@ __global__ void zerocheck_fused_sequential(
 
     ext_t block_sum = partialBlockReduce(block, tile_warp, thread_acc, shared);
     if (threadIdx.x == 0) {
-        // `lambda` depends only on the block's chip, so it factors out of the whole block sum
-        // instead of costing an extension multiply per row.
         ext_t lambda = ext_t::load(powers_of_lambda, stc.chip_idx);
         // Output layout: eval point e of block.x lives at (block.x * 3 + e).
         ext_t::store(partials, blockIdx.x * 3 + (uint32_t)e, block_sum * lambda);
