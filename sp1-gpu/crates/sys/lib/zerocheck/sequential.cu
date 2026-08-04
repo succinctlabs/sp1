@@ -278,7 +278,9 @@ __global__ void zerocheck_fused_sequential_bivariate(
                 stc, consts, public_values, powers_of_alpha, regs, [&](LeafRef leaf) {
                     size_t base = (leaf.source == LEAF_SOURCE_MAIN_LOCAL)
                                       ? lay.main_ptr
-                                      : lay.preprocessed_ptr;
+                                      : (leaf.source == LEAF_SOURCE_GLOBAL_LOCAL)
+                                            ? lay.global_ptr
+                                            : lay.preprocessed_ptr;
                     return interp_load_quad(
                         trace_data, base, leaf.col, lay.height, quad_idx, full_quad, node);
                 });

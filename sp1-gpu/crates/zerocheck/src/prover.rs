@@ -2038,7 +2038,7 @@ pub(crate) fn evaluate_zerocheck_bivariate(
     let gkr_tile: u32 = GKR_BLOCK_SIZE * ROWS_PER_THREAD;
     let mut corner_dispatch: Vec<BlockDispatchC> = Vec::new();
     for chip in poly.compiled.iter() {
-        if chip.main_width + chip.prep_width == 0 {
+        if chip.main_width + chip.prep_width + chip.global_width == 0 {
             continue;
         }
         let quad_count =
@@ -2612,11 +2612,6 @@ where
     // Whether the fused first-two-rounds path applies: it needs at least two
     // variables and only Sequential chunks (ColumnTile has no bivariate
     // kernel — shards containing one fall back to the round-by-round path).
-    // The bivariate kernels (leaf dispatch, GKR corner sweep) also don't yet
-    // dispatch `LEAF_SOURCE_GLOBAL_LOCAL` or sweep `gkr_global_width` — a
-    // shard with a global-AIR chip (e.g. `MemoryLocal`) would silently read
-    // global columns from the wrong trace offset, so those shards fall back
-    // too until the bivariate path gains global-column support.
     // `SP1_GPU_ZEROCHECK_LEGACY_FIRST_ROUNDS` forces the round-by-round path
     // for A/B comparison.
     let has_column_tile = main_poly
@@ -2625,7 +2620,6 @@ where
         .any(|chip| chip.chunks.iter().any(|c| matches!(c.kind, ChunkKind::ColumnTile)));
     let use_fused_first_rounds = max_log_row_count >= 2
         && !has_column_tile
-        && !has_global_round
         && std::env::var("SP1_GPU_ZEROCHECK_LEGACY_FIRST_ROUNDS").is_err();
     if debug_timing {
         tracing::info!(

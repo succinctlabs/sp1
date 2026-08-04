@@ -184,7 +184,7 @@ __global__ void zerocheck_gkr_corner_sweep(
     constexpr int WARPS_PER_BLOCK = GKR_SWEEP_BLOCK_SIZE / WARP_SIZE;
     auto block = cg::this_thread_block();
 
-    const uint32_t total_width = gkr.main_width + gkr.prep_width;
+    const uint32_t total_width = gkr.main_width + gkr.prep_width + gkr.global_width;
     ext_t thread_acc[BIVARIATE_NUM_CORNERS] = {
         ext_t::zero(), ext_t::zero(), ext_t::zero(), ext_t::zero()};
     if (total_width <= (uint32_t)WARP_SIZE) {
@@ -206,6 +206,12 @@ __global__ void zerocheck_gkr_corner_sweep(
                 ext_t power = ext_t::load(gkr_powers, gkr.main_width + i);
                 corner_accumulate(
                     trace_data, lay.preprocessed_ptr, i, lay.height, quad_idx, power, acc);
+            }
+            // Global columns last, in `main, prep, global` order.
+            for (uint32_t i = 0; i < gkr.global_width; i++) {
+                ext_t power = ext_t::load(gkr_powers, gkr.main_width + gkr.prep_width + i);
+                corner_accumulate(
+                    trace_data, lay.global_ptr, i, lay.height, quad_idx, power, acc);
             }
             const ext_t w = ext_t::load(partial_lagrange, quad_idx) * lambda;
 #pragma unroll
@@ -235,6 +241,12 @@ __global__ void zerocheck_gkr_corner_sweep(
                 ext_t power = ext_t::load(gkr_powers, gkr.main_width + col);
                 corner_accumulate(
                     trace_data, lay.preprocessed_ptr, col, lay.height, quad_idx, power, lane_sum);
+            }
+            // Global columns last, in `main, prep, global` order.
+            for (uint32_t col = (uint32_t)lane; col < gkr.global_width; col += WARP_SIZE) {
+                ext_t power = ext_t::load(gkr_powers, gkr.main_width + gkr.prep_width + col);
+                corner_accumulate(
+                    trace_data, lay.global_ptr, col, lay.height, quad_idx, power, lane_sum);
             }
             const ext_t w = ext_t::load(partial_lagrange, quad_idx) * lambda;
 #pragma unroll

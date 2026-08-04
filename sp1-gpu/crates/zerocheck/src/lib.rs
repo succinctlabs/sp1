@@ -63,7 +63,9 @@ pub mod tests {
     use sp1_gpu_utils::{Ext, Felt, JaggedTraceMle, TestGC, TraceDenseData, TraceOffset};
 
     use super::primitives::evaluate_jagged_columns;
-    use super::prover::{compile_chips, upload_compiled_bytecode, zerocheck, CompiledChip};
+    use super::prover::{
+        compile_chips, upload_compiled_bytecode, zerocheck, CompiledChip, CompiledChunk,
+    };
     use sp1_gpu_air::ir::ChunkBudget;
 
     use core::{borrow::Borrow, mem::size_of};
@@ -1714,12 +1716,17 @@ pub mod tests {
         /// global-only (`width()==0`), global 2. Constraint: `global[0]`
         /// boolean. Mirrors the `MemoryLocal` shape.
         GlobalOnly,
+        /// prep 1, global 2, main 2 — like `Mixed`, but every constraint is
+        /// degree 2 (`global[0] == main[0]²`, `global[1] == main[1] *
+        /// prep[0]`) so nothing lowers to ColumnTile, letting a shard of
+        /// these take the fused first-two-rounds path.
+        SeqMixed,
     }
 
     impl<F> BaseAir<F> for GlobalZerocheckTestChip {
         fn width(&self) -> usize {
             match self {
-                Self::Mixed => 2,
+                Self::Mixed | Self::SeqMixed => 2,
                 Self::GlobalOnly => 0,
             }
         }
@@ -1733,21 +1740,19 @@ pub mod tests {
             match self {
                 Self::Mixed => "GlobalMixed",
                 Self::GlobalOnly => "GlobalOnly",
+                Self::SeqMixed => "GlobalSeqMixed",
             }
         }
 
         fn preprocessed_width(&self) -> usize {
             match self {
-                Self::Mixed => 1,
+                Self::Mixed | Self::SeqMixed => 1,
                 Self::GlobalOnly => 0,
             }
         }
 
         fn global_width(&self) -> usize {
-            match self {
-                Self::Mixed => 2,
-                Self::GlobalOnly => 2,
-            }
+            2
         }
 
         fn num_rows(&self, _: &Self::Record) -> Option<usize> {
@@ -1797,6 +1802,25 @@ pub mod tests {
                     let g0: AB::Expr = global[0].into();
                     builder.assert_zero(g0.clone() * (g0 - AB::Expr::one()));
                 }
+                Self::SeqMixed => {
+                    let main = builder.main();
+                    let main = main.row_slice(0);
+                    let global = builder.global();
+                    let global = global.row_slice(0);
+                    let prep = builder.preprocessed();
+                    let prep = prep.row_slice(0);
+                    let m0: AB::Expr = main[0].into();
+                    let m1: AB::Expr = main[1].into();
+                    let g0: AB::Expr = global[0].into();
+                    let g1: AB::Expr = global[1].into();
+                    let p0: AB::Expr = prep[0].into();
+                    // global[0] == main[0]²: degree 2 mixing global and
+                    // main (→ Sequential, unlike `Mixed`'s linear version).
+                    builder.assert_zero(g0 - m0.clone() * m0);
+                    // global[1] == main[1] * prep[0]: degree-2 across all
+                    // three groups (→ Sequential).
+                    builder.assert_zero(g1 - m1 * p0);
+                }
             }
         }
     }
@@ -1818,6 +1842,12 @@ pub mod tests {
                 let g0 = Felt::from_canonical_u32(rng.next_u32() % 2);
                 let g1 = random_felt(rng);
                 (vec![], vec![g0, g1], vec![])
+            }
+            GlobalZerocheckTestChip::SeqMixed => {
+                let p0 = random_felt(rng);
+                let m0 = random_felt(rng);
+                let m1 = random_felt(rng);
+                (vec![p0], vec![m0 * m0, m1 * p0], vec![m0, m1])
             }
         }
     }
@@ -2029,6 +2059,159 @@ pub mod tests {
             // the sumcheck rather than ignored.
             let mut corrupted = opened_values.clone();
             corrupted.chips.get_mut("GlobalMixed").unwrap().global.local[0] += Ext::one();
+            let prev_hook = std::panic::take_hook();
+            std::panic::set_hook(Box::new(|_| {}));
+            let corrupt_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                crate::tests::verify_zerocheck(
+                    &chips,
+                    &corrupted,
+                    &logup_evaluations,
+                    zerocheck_proof.clone(),
+                    &[],
+                    &mut challenger.clone(),
+                    log_rows as usize,
+                );
+            }));
+            std::panic::set_hook(prev_hook);
+            assert!(corrupt_result.is_err(), "verification accepted a corrupted global opening",);
+
+            let mut challenger_verifier = challenger.clone();
+            crate::tests::verify_zerocheck(
+                &chips,
+                &opened_values,
+                &logup_evaluations,
+                zerocheck_proof,
+                &[],
+                &mut challenger_verifier,
+                log_rows as usize,
+            );
+        })
+        .unwrap();
+    }
+
+    /// Global-AIR shard through the FUSED first-two-rounds path. Same
+    /// three-section setup as `test_zerocheck_global_round`, but with
+    /// Sequential-only chips (`SeqMixed` + `GlobalOnly`) so `zerocheck`
+    /// takes the bivariate fast path — exercising the bivariate leaf
+    /// dispatch's `LEAF_SOURCE_GLOBAL_LOCAL` case and the GKR corner
+    /// sweep's global-column loops. The same shard is then proven again
+    /// with `SP1_GPU_ZEROCHECK_LEGACY_FIRST_ROUNDS` forcing the
+    /// round-by-round path, and the two transcripts must be identical.
+    #[test]
+    #[serial]
+    fn test_zerocheck_global_round_fused() {
+        let mut chips: BTreeSet<Chip<Felt, _>> = BTreeSet::new();
+        chips.insert(Chip::new(GlobalZerocheckTestChip::SeqMixed));
+        chips.insert(Chip::new(GlobalZerocheckTestChip::GlobalOnly));
+        let machine_compiled = compile_chips(&chips, ChunkBudget::recommended());
+        // The fused path only runs for Sequential-only shards; if a future
+        // chunker change re-routed one of these constraints to ColumnTile,
+        // this test would silently degrade to the round-by-round path.
+        assert!(
+            machine_compiled
+                .iter()
+                .all(|chip| chip.chunks.iter().all(|c| matches!(c, CompiledChunk::Sequential(_)))),
+            "expected Sequential-only lowering for the fused-path global chips",
+        );
+        let chips_vec = chips.iter().cloned().collect::<Vec<_>>();
+        let log_rows = 16u32;
+        let rows = 1u32 << log_rows;
+
+        run_sync_in_place(move |t| {
+            let machine_bytecode = Arc::new(upload_compiled_bytecode(machine_compiled, &t));
+            let trace_mle = get_input_with_global(&chips_vec, rows);
+            let trace_mle = Arc::new(trace_mle.into_device(&t));
+
+            let mut challenger = TestGC::default_challenger();
+            challenger.observe(Felt::from_canonical_u32(0x2013));
+            challenger.observe(Felt::from_canonical_u32(0x2016));
+            let _lambda: Ext = challenger.sample();
+
+            let mut challenger_prover = challenger.clone();
+            let batching_challenge = challenger_prover.sample_ext_element();
+            let gkr_opening_batch_randomness = challenger_prover.sample_ext_element();
+
+            let mut rng = rand::thread_rng();
+            let zeta = Point::<Ext>::rand(&mut rng, log_rows);
+            let individual_column_evals = evaluate_jagged_columns(&trace_mle, zeta.clone());
+
+            let mut preprocessed_ptr = 0usize;
+            let mut global_ptr = trace_mle.dense_data.preprocessed_cols;
+            let mut main_ptr =
+                trace_mle.dense_data.preprocessed_cols + trace_mle.dense_data.global_cols;
+            let mut chip_openings: BTreeMap<String, ChipEvaluation<Ext>> = BTreeMap::new();
+            for chip in chips_vec.iter() {
+                let pw = chip.preprocessed_width();
+                let gw = chip.global_width();
+                let mw = chip.width();
+                let chip_eval = ChipEvaluation {
+                    preprocessed_trace_evaluations: MleEval::new(Tensor::from(
+                        individual_column_evals[preprocessed_ptr..preprocessed_ptr + pw].to_vec(),
+                    )),
+                    main_trace_evaluations: MleEval::new(Tensor::from(
+                        individual_column_evals[main_ptr..main_ptr + mw].to_vec(),
+                    )),
+                    global_trace_evaluations: MleEval::new(Tensor::from(
+                        individual_column_evals[global_ptr..global_ptr + gw].to_vec(),
+                    )),
+                };
+                chip_openings.insert(
+                    <GlobalZerocheckTestChip as MachineAir<SP1Field>>::name(&chip.air).to_string(),
+                    chip_eval,
+                );
+                preprocessed_ptr += pw;
+                global_ptr += gw;
+                main_ptr += mw;
+            }
+            let logup_evaluations = LogUpEvaluations { point: zeta, chip_openings };
+
+            // Fused-path proof (the default with Sequential-only chips).
+            let mut fused_challenger = challenger_prover.clone();
+            let (opened_values, zerocheck_proof) = zerocheck(
+                &chips,
+                &machine_bytecode,
+                trace_mle.as_ref(),
+                batching_challenge,
+                gkr_opening_batch_randomness,
+                &logup_evaluations,
+                vec![],
+                &mut fused_challenger,
+                log_rows,
+            );
+
+            // Round-by-round proof of the same shard: the fused path must be
+            // transcript-identical to it.
+            std::env::set_var("SP1_GPU_ZEROCHECK_LEGACY_FIRST_ROUNDS", "1");
+            let mut legacy_challenger = challenger_prover.clone();
+            let (legacy_opened_values, legacy_proof) = zerocheck(
+                &chips,
+                &machine_bytecode,
+                trace_mle.as_ref(),
+                batching_challenge,
+                gkr_opening_batch_randomness,
+                &logup_evaluations,
+                vec![],
+                &mut legacy_challenger,
+                log_rows,
+            );
+            std::env::remove_var("SP1_GPU_ZEROCHECK_LEGACY_FIRST_ROUNDS");
+
+            assert_eq!(
+                zerocheck_proof.univariate_polys, legacy_proof.univariate_polys,
+                "fused round messages diverge from the round-by-round path",
+            );
+            assert_eq!(zerocheck_proof.claimed_sum, legacy_proof.claimed_sum);
+            assert_eq!(zerocheck_proof.point_and_eval, legacy_proof.point_and_eval);
+            for (name, opening) in opened_values.chips.iter() {
+                let legacy_opening = legacy_opened_values.chips.get(name).unwrap();
+                assert_eq!(opening.preprocessed.local, legacy_opening.preprocessed.local);
+                assert_eq!(opening.global.local, legacy_opening.global.local);
+                assert_eq!(opening.main.local, legacy_opening.main.local);
+            }
+
+            // Negative: corrupting a global opening must break verification.
+            let mut corrupted = opened_values.clone();
+            corrupted.chips.get_mut("GlobalSeqMixed").unwrap().global.local[0] += Ext::one();
             let prev_hook = std::panic::take_hook();
             std::panic::set_hook(Box::new(|_| {}));
             let corrupt_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
