@@ -209,6 +209,7 @@ pub async fn execute_with_options_and_machine(
         memory_limit,
         trace_chunk_slots,
     );
+    minimal_executor.set_io_options(context.io_options.clone());
 
     // Feed stdin buffers to the executor
     for buf in buffer {

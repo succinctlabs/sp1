@@ -1,8 +1,43 @@
+use crate::IoOptions;
 use sp1_jit::{RiscRegister, SyscallContext};
 use sp1_primitives::consts::fd::{
     FD_BLS12_381_INVERSE, FD_BLS12_381_SQRT, FD_ECRECOVER_HOOK, FD_EDDECOMPRESS, FD_FP_INV,
     FD_FP_SQRT, FD_HINT, FD_PUBLIC_VALUES, FD_RSA_MUL_MOD,
 };
+use std::cell::RefCell;
+
+thread_local! {
+    static IO_OPTIONS: RefCell<IoOptions> = const { RefCell::new(IoOptions::new()) };
+}
+
+struct IoOptionsGuard(IoOptions);
+
+impl Drop for IoOptionsGuard {
+    fn drop(&mut self) {
+        IO_OPTIONS.with(|current| current.replace(std::mem::take(&mut self.0)));
+    }
+}
+
+/// Run a closure with guest output redirected on the current executor thread.
+pub fn with_io_options<T>(io_options: &IoOptions, f: impl FnOnce() -> T) -> T {
+    let previous = IO_OPTIONS.with(|current| current.replace(io_options.clone()));
+    let _guard = IoOptionsGuard(previous);
+    f()
+}
+
+fn redirect_output(fd: u64, line: &str) -> bool {
+    IO_OPTIONS.with(|io_options| {
+        let io_options = io_options.borrow();
+        let sender = if fd == 1 { &io_options.stdout } else { &io_options.stderr };
+        let Some(sender) = sender else {
+            return false;
+        };
+
+        let mut bytes = line.as_bytes().to_vec();
+        bytes.push(b'\n');
+        sender.send(bytes).is_ok()
+    })
+}
 
 #[cfg(feature = "profiling")]
 mod cycle_tracker {
@@ -68,15 +103,15 @@ fn handle_output(ctx: &mut impl SyscallContext, fd: u64, content: &str) {
                     }
                     _ => {}
                 }
-            } else {
-                // Non-cycle-tracker output - print as before
+            } else if !redirect_output(fd, line) {
                 eprintln!("stdout: {line}");
             }
         }
     } else {
-        // stderr - just print
         for line in content.lines() {
-            eprintln!("stderr: {line}");
+            if !redirect_output(fd, line) {
+                eprintln!("stderr: {line}");
+            }
         }
     }
 }
@@ -85,7 +120,9 @@ fn handle_output(ctx: &mut impl SyscallContext, fd: u64, content: &str) {
 fn handle_output(_ctx: &mut impl SyscallContext, fd: u64, content: &str) {
     let prefix = if fd == 1 { "stdout" } else { "stderr" };
     for line in content.lines() {
-        eprintln!("{prefix}: {line}");
+        if !redirect_output(fd, line) {
+            eprintln!("{prefix}: {line}");
+        }
     }
 }
 

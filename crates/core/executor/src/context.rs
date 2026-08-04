@@ -2,7 +2,7 @@ use crate::hook::{hookify, BoxedHook, HookEnv, HookRegistry};
 use core::mem::take;
 use hashbrown::HashMap;
 use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
-use std::io::Write;
+use std::sync::mpsc::SyncSender;
 
 use sp1_primitives::consts::fd::LOWEST_ALLOWED_FD;
 
@@ -85,7 +85,7 @@ pub struct SP1Context<'a> {
     pub proof_nonce: [u32; PROOF_NONCE_NUM_WORDS],
 
     /// The IO options for the [`SP1Executor`].
-    pub io_options: IoOptions<'a>,
+    pub io_options: IoOptions,
 }
 
 impl Default for SP1Context<'_> {
@@ -103,8 +103,7 @@ pub struct SP1ContextBuilder<'a> {
     calculate_gas: bool,
     expected_exit_code: Option<StatusCode>,
     proof_nonce: [u32; 4],
-    // TODO remove the lifetime here, change stdout and stderr options to accept channels.
-    io_options: IoOptions<'a>,
+    io_options: IoOptions,
 }
 
 impl Default for SP1ContextBuilder<'_> {
@@ -237,15 +236,19 @@ impl<'a> SP1ContextBuilder<'a> {
         self
     }
 
-    /// Set the `stdout` writer.
-    pub fn stdout<W: IoWriter>(&mut self, writer: &'a mut W) -> &mut Self {
-        self.io_options.stdout = Some(writer);
+    /// Redirect guest `stdout` to a bounded channel.
+    ///
+    /// The receiver must be drained while execution is running.
+    pub fn stdout(&mut self, sender: SyncSender<Vec<u8>>) -> &mut Self {
+        self.io_options.stdout = Some(sender);
         self
     }
 
-    /// Set the `stderr` writer.
-    pub fn stderr<W: IoWriter>(&mut self, writer: &'a mut W) -> &mut Self {
-        self.io_options.stderr = Some(writer);
+    /// Redirect guest `stderr` to a bounded channel.
+    ///
+    /// The receiver must be drained while execution is running.
+    pub fn stderr(&mut self, sender: SyncSender<Vec<u8>>) -> &mut Self {
+        self.io_options.stderr = Some(sender);
         self
     }
 
@@ -265,36 +268,23 @@ impl<'a> SP1ContextBuilder<'a> {
 
 /// The IO options for the [`SP1Executor`].
 ///
-/// This struct is used to redirect the `stdout` and `stderr` of the [`SP1Executor`].
-///
-/// Note: Cloning this type will not clone the writers.
-#[derive(Default)]
-pub struct IoOptions<'a> {
-    /// A writer to redirect `stdout` to.
-    pub stdout: Option<&'a mut dyn IoWriter>,
-    /// A writer to redirect `stderr` to.
-    pub stderr: Option<&'a mut dyn IoWriter>,
+/// This struct redirects guest `stdout` and `stderr` to bounded channels.
+/// Receivers must be drained while execution is running.
+#[derive(Clone, Default)]
+pub struct IoOptions {
+    /// A channel for guest `stdout` lines.
+    pub stdout: Option<SyncSender<Vec<u8>>>,
+    /// A channel for guest `stderr` lines.
+    pub stderr: Option<SyncSender<Vec<u8>>>,
 }
 
-impl IoOptions<'_> {
-    /// Create a new [`IoOptions`] with no writers.
+impl IoOptions {
+    /// Create a new [`IoOptions`] with no output channels.
     #[must_use]
     pub const fn new() -> Self {
         Self { stdout: None, stderr: None }
     }
 }
-impl Clone for IoOptions<'_> {
-    fn clone(&self) -> Self {
-        IoOptions { stdout: None, stderr: None }
-    }
-}
-
-/// A trait for [`Write`] types to be used in the executor.
-///
-/// This trait is generically implemented for any [`Write`] + [`Send`] type.
-pub trait IoWriter: Write + Send + Sync {}
-
-impl<W: Write + Send + Sync> IoWriter for W {}
 
 #[cfg(test)]
 mod tests {

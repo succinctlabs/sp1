@@ -14,6 +14,9 @@ mod postprocess;
 mod precompiles;
 mod write;
 
+#[doc(hidden)]
+pub use write::with_io_options;
+
 #[cfg(test)]
 mod tests;
 
