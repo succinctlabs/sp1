@@ -3,6 +3,7 @@ use slop_algebra::Field;
 use std::collections::BTreeSet;
 
 use crate::{air::MachineAir, Chip, MachineRecord};
+use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 
 /// A shape for a machine.
 #[derive_where(Debug; A: MachineAir<F>)]
@@ -106,7 +107,27 @@ where
             })
             .collect::<Vec<_>>();
 
+        // APC chips are independent pure producers, so run them in parallel and merge; the rest stay
+        // sequential (Byte/Range/Global consume the byte/global events earlier chips accumulate into
+        // `record`).
+        let (apc_chips, chips): (Vec<_>, Vec<_>) =
+            chips.into_iter().partition(|chip| chip.name().starts_with("APC_"));
+
         records.for_each(|record| {
+            if !apc_chips.is_empty() {
+                let record_ref: &A::Record = record;
+                let mut apc_records: Vec<A::Record> = apc_chips
+                    .par_iter()
+                    .map(|chip| {
+                        let mut output = A::Record::default();
+                        chip.generate_dependencies(record_ref, &mut output);
+                        output
+                    })
+                    .collect();
+                for r in &mut apc_records {
+                    record.append(r);
+                }
+            }
             chips.iter().for_each(|chip| {
                 let mut output = A::Record::default();
                 chip.generate_dependencies(record, &mut output);
