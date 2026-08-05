@@ -1,8 +1,8 @@
 use futures::{stream::FuturesUnordered, StreamExt};
 use slop_futures::pipeline::{AsyncEngine, AsyncWorker, Pipeline, SubmitHandle};
 use sp1_core_executor::{
-    ExecutionError, ExecutionReport, GasEstimatingVMEnum, Program, SP1Context, SP1CoreOpts,
-    SP1RecursionProof,
+    ExecutionError, ExecutionReport, GasEstimatingVMEnum, OutputConsumers, Program, SP1Context,
+    SP1CoreOpts, SP1RecursionProof,
 };
 use sp1_core_executor_runner::MinimalExecutorRunner;
 use sp1_core_machine::io::SP1Stdin;
@@ -141,13 +141,34 @@ pub async fn execute_with_options(
     opts: SP1CoreOpts,
     executor_config: SP1ExecutorConfig,
 ) -> anyhow::Result<(SP1PublicValues, [u8; 32], ExecutionReport)> {
-    execute_with_options_and_machine(
+    execute_with_options_and_output(
+        program,
+        stdin,
+        context,
+        opts,
+        executor_config,
+        OutputConsumers::default(),
+    )
+    .await
+}
+
+/// Execute a program with guest output redirected to owned consumers.
+pub async fn execute_with_options_and_output(
+    program: Arc<Program>,
+    stdin: SP1Stdin,
+    context: SP1Context<'static>,
+    opts: SP1CoreOpts,
+    executor_config: SP1ExecutorConfig,
+    output_consumers: OutputConsumers,
+) -> anyhow::Result<(SP1PublicValues, [u8; 32], ExecutionReport)> {
+    execute_with_options_and_machine_and_output(
         program,
         stdin,
         context,
         opts,
         executor_config,
         RiscvAir::machine(),
+        output_consumers,
     )
     .await
 }
@@ -160,6 +181,27 @@ pub async fn execute_with_options_and_machine(
     opts: SP1CoreOpts,
     executor_config: SP1ExecutorConfig,
     machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+) -> anyhow::Result<(SP1PublicValues, [u8; 32], ExecutionReport)> {
+    execute_with_options_and_machine_and_output(
+        program,
+        stdin,
+        context,
+        opts,
+        executor_config,
+        machine,
+        OutputConsumers::default(),
+    )
+    .await
+}
+
+pub(crate) async fn execute_with_options_and_machine_and_output(
+    program: Arc<Program>,
+    stdin: SP1Stdin,
+    context: SP1Context<'static>,
+    opts: SP1CoreOpts,
+    executor_config: SP1ExecutorConfig,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+    output_consumers: OutputConsumers,
 ) -> anyhow::Result<(SP1PublicValues, [u8; 32], ExecutionReport)> {
     // The return values of the spawned tasks.
     enum ExecutorOutput {
@@ -209,7 +251,7 @@ pub async fn execute_with_options_and_machine(
         memory_limit,
         trace_chunk_slots,
     );
-    minimal_executor.set_io_options(context.io_options.clone());
+    minimal_executor.set_output_consumers(output_consumers);
 
     // Feed stdin buffers to the executor
     for buf in buffer {

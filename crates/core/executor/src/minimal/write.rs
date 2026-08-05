@@ -1,4 +1,4 @@
-use crate::IoOptions;
+use crate::OutputConsumers;
 use sp1_jit::{RiscRegister, SyscallContext};
 use sp1_primitives::consts::fd::{
     FD_BLS12_381_INVERSE, FD_BLS12_381_SQRT, FD_ECRECOVER_HOOK, FD_EDDECOMPRESS, FD_FP_INV,
@@ -7,28 +7,28 @@ use sp1_primitives::consts::fd::{
 use std::cell::RefCell;
 
 thread_local! {
-    static IO_OPTIONS: RefCell<IoOptions> = const { RefCell::new(IoOptions::new()) };
+    static OUTPUT_CONSUMERS: RefCell<OutputConsumers> = RefCell::new(OutputConsumers::default());
 }
 
-struct IoOptionsGuard(IoOptions);
+struct OutputConsumersGuard(OutputConsumers);
 
-impl Drop for IoOptionsGuard {
+impl Drop for OutputConsumersGuard {
     fn drop(&mut self) {
-        IO_OPTIONS.with(|current| current.replace(std::mem::take(&mut self.0)));
+        OUTPUT_CONSUMERS.with(|current| current.replace(std::mem::take(&mut self.0)));
     }
 }
 
 /// Run a closure with guest output redirected on the current executor thread.
-pub fn with_io_options<T>(io_options: &IoOptions, f: impl FnOnce() -> T) -> T {
-    let previous = IO_OPTIONS.with(|current| current.replace(io_options.clone()));
-    let _guard = IoOptionsGuard(previous);
+pub fn with_output_consumers<T>(consumers: &OutputConsumers, f: impl FnOnce() -> T) -> T {
+    let previous = OUTPUT_CONSUMERS.with(|current| current.replace(consumers.clone()));
+    let _guard = OutputConsumersGuard(previous);
     f()
 }
 
 fn redirect_output(fd: u64, line: &str) -> bool {
-    IO_OPTIONS.with(|io_options| {
-        let io_options = io_options.borrow();
-        let sender = if fd == 1 { &io_options.stdout } else { &io_options.stderr };
+    OUTPUT_CONSUMERS.with(|consumers| {
+        let consumers = consumers.borrow();
+        let sender = if fd == 1 { &consumers.stdout } else { &consumers.stderr };
         let Some(sender) = sender else {
             return false;
         };

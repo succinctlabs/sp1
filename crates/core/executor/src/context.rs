@@ -2,7 +2,7 @@ use crate::hook::{hookify, BoxedHook, HookEnv, HookRegistry};
 use core::mem::take;
 use hashbrown::HashMap;
 use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
-use std::sync::mpsc::SyncSender;
+use std::{io::Write, sync::mpsc::SyncSender};
 
 use sp1_primitives::consts::fd::LOWEST_ALLOWED_FD;
 
@@ -85,7 +85,7 @@ pub struct SP1Context<'a> {
     pub proof_nonce: [u32; PROOF_NONCE_NUM_WORDS],
 
     /// The IO options for the [`SP1Executor`].
-    pub io_options: IoOptions,
+    pub io_options: IoOptions<'a>,
 }
 
 impl Default for SP1Context<'_> {
@@ -103,7 +103,7 @@ pub struct SP1ContextBuilder<'a> {
     calculate_gas: bool,
     expected_exit_code: Option<StatusCode>,
     proof_nonce: [u32; 4],
-    io_options: IoOptions,
+    io_options: IoOptions<'a>,
 }
 
 impl Default for SP1ContextBuilder<'_> {
@@ -236,19 +236,15 @@ impl<'a> SP1ContextBuilder<'a> {
         self
     }
 
-    /// Redirect guest `stdout` to a bounded channel.
-    ///
-    /// The receiver must be drained while execution is running.
-    pub fn stdout(&mut self, sender: SyncSender<Vec<u8>>) -> &mut Self {
-        self.io_options.stdout = Some(sender);
+    /// Set the `stdout` writer.
+    pub fn stdout<W: IoWriter>(&mut self, writer: &'a mut W) -> &mut Self {
+        self.io_options.stdout = Some(writer);
         self
     }
 
-    /// Redirect guest `stderr` to a bounded channel.
-    ///
-    /// The receiver must be drained while execution is running.
-    pub fn stderr(&mut self, sender: SyncSender<Vec<u8>>) -> &mut Self {
-        self.io_options.stderr = Some(sender);
+    /// Set the `stderr` writer.
+    pub fn stderr<W: IoWriter>(&mut self, writer: &'a mut W) -> &mut Self {
+        self.io_options.stderr = Some(writer);
         self
     }
 
@@ -268,22 +264,47 @@ impl<'a> SP1ContextBuilder<'a> {
 
 /// The IO options for the [`SP1Executor`].
 ///
-/// This struct redirects guest `stdout` and `stderr` to bounded channels.
-/// Receivers must be drained while execution is running.
-#[derive(Clone, Default)]
-pub struct IoOptions {
-    /// A channel for guest `stdout` lines.
-    pub stdout: Option<SyncSender<Vec<u8>>>,
-    /// A channel for guest `stderr` lines.
-    pub stderr: Option<SyncSender<Vec<u8>>>,
+/// This struct is used to redirect the `stdout` and `stderr` of the [`SP1Executor`].
+///
+/// Note: Cloning this type will not clone the writers.
+#[derive(Default)]
+pub struct IoOptions<'a> {
+    /// A writer to redirect `stdout` to.
+    pub stdout: Option<&'a mut dyn IoWriter>,
+    /// A writer to redirect `stderr` to.
+    pub stderr: Option<&'a mut dyn IoWriter>,
 }
 
-impl IoOptions {
-    /// Create a new [`IoOptions`] with no output channels.
+impl IoOptions<'_> {
+    /// Create a new [`IoOptions`] with no writers.
     #[must_use]
     pub const fn new() -> Self {
         Self { stdout: None, stderr: None }
     }
+}
+
+impl Clone for IoOptions<'_> {
+    fn clone(&self) -> Self {
+        Self::new()
+    }
+}
+
+/// A trait for [`Write`] types to be used in the executor.
+///
+/// This trait is generically implemented for any [`Write`] + [`Send`] type.
+pub trait IoWriter: Write + Send + Sync {}
+
+impl<W: Write + Send + Sync> IoWriter for W {}
+
+/// Owned consumers for guest `stdout` and `stderr`.
+///
+/// Receivers must be drained while execution is running.
+#[derive(Clone, Default)]
+pub struct OutputConsumers {
+    /// A channel for guest `stdout` lines.
+    pub stdout: Option<SyncSender<Vec<u8>>>,
+    /// A channel for guest `stderr` lines.
+    pub stderr: Option<SyncSender<Vec<u8>>>,
 }
 
 #[cfg(test)]
@@ -296,6 +317,18 @@ mod tests {
             SP1Context::builder().build();
         assert!(hook_registry.is_none());
         assert!(cycle_limit.is_none());
+    }
+
+    #[test]
+    fn writer_api_remains_compatible() {
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        let mut builder = SP1Context::builder();
+        builder.stdout(&mut stdout).stderr(&mut stderr);
+
+        let context = builder.build();
+        assert!(context.io_options.stdout.is_some());
+        assert!(context.io_options.stderr.is_some());
     }
 
     #[test]

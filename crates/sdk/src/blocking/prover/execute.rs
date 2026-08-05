@@ -1,7 +1,9 @@
 use crate::StatusCode;
 
 use super::Prover;
-use sp1_core_executor::{ExecutionError, ExecutionReport, HookEnv, SP1ContextBuilder};
+use sp1_core_executor::{
+    ExecutionError, ExecutionReport, HookEnv, OutputConsumers, SP1ContextBuilder,
+};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::{io::SP1PublicValues, Elf};
 use std::sync::mpsc::SyncSender;
@@ -12,11 +14,18 @@ pub struct ExecuteRequest<'a, P: Prover> {
     pub(crate) elf: Elf,
     pub(crate) stdin: SP1Stdin,
     pub(crate) context_builder: SP1ContextBuilder<'static>,
+    pub(crate) output_consumers: OutputConsumers,
 }
 
 impl<'a, P: Prover> ExecuteRequest<'a, P> {
     pub(crate) fn new(prover: &'a P, elf: Elf, stdin: SP1Stdin) -> Self {
-        Self { prover, elf, stdin, context_builder: SP1ContextBuilder::new() }
+        Self {
+            prover,
+            elf,
+            stdin,
+            context_builder: SP1ContextBuilder::new(),
+            output_consumers: OutputConsumers::default(),
+        }
     }
 
     /// Add a executor [`sp1_core_executor::Hook`] into the context.
@@ -153,7 +162,7 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     /// The receiver must be drained while execution is running.
     #[must_use]
     pub fn stdout(mut self, sender: SyncSender<Vec<u8>>) -> Self {
-        self.context_builder.stdout(sender);
+        self.output_consumers.stdout = Some(sender);
         self
     }
 
@@ -162,16 +171,21 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
     /// The receiver must be drained while execution is running.
     #[must_use]
     pub fn stderr(mut self, sender: SyncSender<Vec<u8>>) -> Self {
-        self.context_builder.stderr(sender);
+        self.output_consumers.stderr = Some(sender);
         self
     }
 
     pub fn run(self) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
-        let Self { prover, elf, stdin, mut context_builder } = self;
+        let Self { prover, elf, stdin, mut context_builder, output_consumers } = self;
         let inner = prover.inner();
         let context = context_builder.build();
-        let (pv, _, report) = crate::blocking::block_on(inner.execute(&elf, stdin, context))
-            .map_err(|e| ExecutionError::Other(e.to_string()))?;
+        let (pv, _, report) = crate::blocking::block_on(inner.execute_with_output(
+            &elf,
+            stdin,
+            context,
+            output_consumers,
+        ))
+        .map_err(|e| ExecutionError::Other(e.to_string()))?;
         Ok((pv, report))
     }
 }
