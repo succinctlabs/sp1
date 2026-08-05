@@ -44,8 +44,8 @@ pub fn local_gpu_opts() -> SP1CoreOpts {
     opts.sharding_threshold.element_threshold = shard_threshold;
 
     opts.global_dependencies_opt = true;
-
     opts.recompute_gkr_trace = false;
+    opts.drop_ldes = gpu_memory_gb <= 30;
 
     opts
 }
@@ -67,7 +67,15 @@ pub async fn core_prover_and_verifier(
         opts.sharding_threshold.element_threshold as usize + (1 << CORE_LOG_STACKING_HEIGHT);
     let core_verifier = SP1CudaProverComponents::core_verifier(machine);
     (
-        new_cuda_prover(&core_verifier, num_elts, 4, opts.recompute_gkr_trace, true, scope).await,
+        new_cuda_prover(
+            &core_verifier,
+            num_elts,
+            4,
+            opts.recompute_gkr_trace,
+            opts.drop_ldes,
+            scope,
+        )
+        .await,
         core_verifier,
     )
 }

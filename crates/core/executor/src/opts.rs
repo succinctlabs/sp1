@@ -86,6 +86,8 @@ pub struct SP1CoreOpts {
     pub global_dependencies_opt: bool,
     /// Recompute GKR trace
     pub recompute_gkr_trace: bool,
+    /// Drop committed codewords after the commit phase and re-encode them at the query phase.
+    pub drop_ldes: bool,
 }
 
 impl Default for SP1CoreOpts {
@@ -144,6 +146,7 @@ impl Default for SP1CoreOpts {
             retained_events_presets,
             global_dependencies_opt: false,
             recompute_gkr_trace: false,
+            drop_ldes: false,
         }
     }
 }
