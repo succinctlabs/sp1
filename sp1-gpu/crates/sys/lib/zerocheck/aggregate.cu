@@ -47,8 +47,40 @@ __global__ void zerocheck_aggregate_partials(
     }
 }
 
+// Strided variant for the fused first-two-rounds buffers: every producer
+// writes `stride` consecutive slots per group ([group][e] layout), and block
+// `e` of this kernel sums slot `e` of every group into `totals[e]`. Launched
+// with gridDim.x == stride.
+__global__ void zerocheck_aggregate_partials_strided(
+    const ext_t* __restrict__ partials,
+    uint32_t total_slots,
+    uint32_t stride,
+    ext_t* __restrict__ totals  // `stride` ext_t outputs
+) {
+    const uint32_t e = blockIdx.x;
+    const uint32_t n_groups = total_slots / stride;
+    ext_t acc = ext_t::zero();
+    for (uint32_t b = threadIdx.x; b < n_groups; b += blockDim.x) {
+        acc += ext_t::load(partials, b * stride + e);
+    }
+
+    extern __shared__ unsigned char smem[];
+    ext_t* shared = reinterpret_cast<ext_t*>(smem);
+    auto block = cg::this_thread_block();
+    auto tile = cg::tiled_partition<32>(block);
+
+    ext_t total = partialBlockReduce(block, tile, acc, shared);
+    if (threadIdx.x == 0) {
+        ext_t::store(totals, e, total);
+    }
+}
+
 }  // namespace
 
 extern "C" void* zerocheck_aggregate_partials_kernel() {
     return (void*)zerocheck_aggregate_partials;
+}
+
+extern "C" void* zerocheck_aggregate_partials_strided_kernel() {
+    return (void*)zerocheck_aggregate_partials_strided;
 }

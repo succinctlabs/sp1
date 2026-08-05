@@ -89,6 +89,67 @@ struct JaggedMle {
         return restrictedIndex;
     }
 
+    // Folds the last TWO variables in one pass: `q` enumerates input
+    // QUADRUPLES (pairs 2q, 2q+1; elements 4q .. 4q+3), each producing one
+    // output element — exactly the composition of two `fixLastVariableTwoPadding`
+    // folds, without materializing the intermediate.
+    //
+    // Requires every column's pair-height to be EVEN (equivalently, element
+    // heights ≡ 0 mod 4 — the invariant the jagged trace layout maintains).
+    // Then no quadruple straddles a column boundary, the first fold needs no
+    // padding at all, and the second fold's out-of-range inputs are the
+    // intermediate's zero pads, so the output for `j ≥ h/2` is exactly zero.
+    // The last quadruple of each column writes the trailing zero pads for the
+    // region `[h/2, 2·hp2)` (hp2 = the twice-folded pair height, matching the
+    // `h.div_ceil(4)*2` metadata recurrence applied twice) and the output
+    // colIndex entries the padded pairs need.
+    __forceinline__ __device__ void fixLastTwoVariablesTwoPadding(
+        JaggedMle<OutputDenseData>& output, size_t q, ext_t alpha_1, ext_t alpha_2) const {
+        size_t pairIdx = q << 1;
+        size_t colIdx = this->colIndex[pairIdx];
+        size_t startIdx = this->startIndices[colIdx];
+        size_t interactionHeight = this->startIndices[colIdx + 1] - startIdx;
+
+        // Fail loudly if the even-pair-height invariant is broken — the quad
+        // enumeration below would silently mix columns otherwise.
+        if (interactionHeight & 1) {
+            __trap();
+        }
+
+        size_t pairRow = pairIdx - startIdx;
+        size_t quadRow = pairRow >> 1;
+
+        size_t outStartElems = output.startIndices[colIdx] << 1;
+        size_t restrictedIndex = outStartElems + quadRow;
+        this->denseData.fixLastTwoVariables(
+            output.denseData, restrictedIndex, pairIdx << 1, alpha_1, alpha_2);
+
+        // Mirrors the single fold's rule: the writer completing an output
+        // pair records its column. `outStartElems` is even, so the parity of
+        // `restrictedIndex` is the parity of `quadRow`.
+        if (quadRow & 1) {
+            output.colIndex[restrictedIndex >> 1] = colIdx;
+        }
+
+        // The last quadruple writes the zero tail: the second fold's outputs
+        // over the intermediate's pads (j in [h/2, hp1)) plus the second
+        // fold's own pads (j in [hp1, 2·hp2)), and the colIndex entries for
+        // every output pair the tail completes.
+        size_t realQuads = interactionHeight >> 1;
+        bool isLast = quadRow == realQuads - 1;
+        if (isLast) {
+            size_t hp1 = ((interactionHeight + 3) >> 2) << 1;
+            size_t hp2 = ((hp1 + 3) >> 2) << 1;
+            size_t totalElems = hp2 << 1;
+            for (size_t t = realQuads; t < totalElems; t++) {
+                this->denseData.pad(output.denseData, outStartElems + t);
+                if ((outStartElems + t) & 1) {
+                    output.colIndex[(outStartElems + t) >> 1] = colIdx;
+                }
+            }
+        }
+    }
+
     __forceinline__ __device__ size_t
     fixLastVariableTwoPaddingInfo(JaggedMle<OutputDenseData>& output, size_t i) const {
         size_t colIdx = this->colIndex[i];
