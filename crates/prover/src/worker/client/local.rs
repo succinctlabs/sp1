@@ -36,7 +36,12 @@ pub struct LocalWorkerClientInner {
     artifact_index: ProofArtifacts,
     input_task_queues: HashMap<TaskType, mpsc::Sender<(TaskId, RawTaskRequest)>>,
     task_channels: RwLock<HashMap<TaskId, MessageChannelState>>,
+    /// Resubmission counts per logical task (proof + type + output artifact). Pruned by
+    /// `cleanup`.
+    retry_counts: RwLock<HashMap<String, u8>>,
 }
+
+const MAX_LOCAL_TASK_RETRIES: u8 = 3;
 
 impl LocalWorkerClientInner {
     fn create_id() -> TaskId {
@@ -70,8 +75,14 @@ impl LocalWorkerClientInner {
         let db = Arc::new(RwLock::new(HashMap::new()));
         let proof_index = Arc::new(RwLock::new(HashMap::new()));
         let task_channels = RwLock::new(HashMap::new());
-        let inner =
-            Self { db, proof_index, artifact_index, input_task_queues: task_queues, task_channels };
+        let inner = Self {
+            db,
+            proof_index,
+            artifact_index,
+            input_task_queues: task_queues,
+            task_channels,
+            retry_counts: RwLock::new(HashMap::new()),
+        };
         (inner, LocalWorkerClientChannels { task_receivers: task_outputs })
     }
 }
@@ -122,11 +133,37 @@ impl LocalWorkerClient {
         Ok(())
     }
 
+    /// Re-submits a retryable task, with bounded attempts per logical task. Returns
+    /// `Ok(None)` once the retry budget is exhausted.
+    pub async fn resubmit_task(
+        &self,
+        kind: TaskType,
+        task: RawTaskRequest,
+    ) -> anyhow::Result<Option<TaskId>> {
+        let key = format!(
+            "{}:{}:{}",
+            task.context.proof_id,
+            kind.as_str_name(),
+            task.outputs.first().map(|a| a.0.as_str()).unwrap_or("")
+        );
+        {
+            let mut counts = self.inner.retry_counts.write().await;
+            let count = counts.entry(key).or_insert(0);
+            if *count >= MAX_LOCAL_TASK_RETRIES {
+                return Ok(None);
+            }
+            *count += 1;
+        }
+        self.submit_task(kind, task).await.map(Some)
+    }
+
     /// Delete the artifacts a completed proof leaked - whatever is still tracked
     /// for it (most were already deleted inline during proving and pruned from
     /// the shared index). The worker client shares the index but holds no
     /// artifact-client handle, so the owner - `SP1LocalNode` - passes one in.
     pub async fn cleanup(&self, proof_id: &ProofId, artifact_client: &impl ArtifactClient) {
+        let proof_prefix = format!("{proof_id}:");
+        self.inner.retry_counts.write().await.retain(|key, _| !key.starts_with(&proof_prefix));
         let leftovers: Vec<Artifact> = self
             .inner
             .artifact_index
