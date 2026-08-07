@@ -605,8 +605,10 @@ fn publish_circuit_artifacts(staging_dir: tempfile::TempDir, build_dir: &Path) -
         .truncate(false)
         .open(&lock_path)
         .with_context(|| format!("failed to open install lock at {}", lock_path.display()))?;
+    // std::fs::File::lock requires Rust 1.89. Use fd-lock while the MSRV is 1.88.
+    let mut install_lock = fd_lock::RwLock::new(lock_file);
     // Keep the lock file in place so every process continues to lock the same inode.
-    lock_file.lock().with_context(|| {
+    let _install_guard = install_lock.write().with_context(|| {
         format!("failed to lock circuit artifact install at {}", lock_path.display())
     })?;
 
@@ -702,7 +704,8 @@ mod tests {
             .truncate(false)
             .open(cache_dir.path().join(".v6.1.0.lock"))
             .unwrap();
-        lock_file.lock().unwrap();
+        let mut install_lock = fd_lock::RwLock::new(lock_file);
+        let install_guard = install_lock.write().unwrap();
 
         let (started_tx, started_rx) = std::sync::mpsc::sync_channel(0);
         let (finished_tx, finished_rx) = std::sync::mpsc::sync_channel(0);
@@ -714,7 +717,7 @@ mod tests {
         started_rx.recv().unwrap();
         assert!(finished_rx.recv_timeout(std::time::Duration::from_millis(100)).is_err());
 
-        drop(lock_file);
+        drop(install_guard);
         finished_rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap().unwrap();
         publish_thread.join().unwrap();
     }
