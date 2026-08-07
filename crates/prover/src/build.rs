@@ -496,8 +496,38 @@ pub async fn try_install_circuit_artifacts(artifacts_type: &str) -> Result<PathB
 /// to the directory specified by [`build_dir`].
 #[allow(clippy::needless_pass_by_value)]
 pub async fn install_circuit_artifacts(build_dir: PathBuf, artifacts_type: &str) -> Result<()> {
+    // A half-written build_dir reads as a finished install, so download into a staging
+    // dir and rename it into place. Processes that share one cache pick separate
+    // staging dirs: tempdir_in claims each name with an exclusive create.
+    let parent = build_dir.parent().ok_or_else(|| anyhow!("no parent for {:?}", build_dir))?;
+    let name = build_dir.file_name().ok_or_else(|| anyhow!("no name for {:?}", build_dir))?;
+    std::fs::create_dir_all(parent)?;
+    let staging_dir = tempfile::Builder::new()
+        .prefix(&format!("{}.incomplete.", name.to_string_lossy()))
+        .tempdir_in(parent)?;
+
+    // A failure here drops the staging dir, which deletes the partial download.
+    download_circuit_artifacts(staging_dir.path(), artifacts_type).await?;
+
+    let staging_path = staging_dir.keep();
+    if std::fs::rename(&staging_path, &build_dir).is_err() {
+        // Another process installed the same artifacts first.
+        std::fs::remove_dir_all(&staging_path)?;
+        if !build_dir.exists() {
+            return Err(anyhow!(
+                "failed to move {} to {}",
+                staging_path.display(),
+                build_dir.display()
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+async fn download_circuit_artifacts(build_dir: &Path, artifacts_type: &str) -> Result<()> {
     // Create the build directory.
-    std::fs::create_dir_all(&build_dir)?;
+    std::fs::create_dir_all(build_dir)?;
 
     // Download the artifacts.
     let download_url =
