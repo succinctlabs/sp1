@@ -151,6 +151,18 @@ runs:
           echo "pkg-config and libssl-dev are already installed."
         fi
 
+    # Lean toolchain (elan) — `--all-features` enables the `lean-optimizer` feature, whose
+    # FFI build script (powdr-autoprecompiles-lean-ffi) runs `lake build` on the apc-optimizer
+    # at build time, so `lake` must be on PATH. elan defers the actual Lean toolchain download
+    # to first `lake build`, so this step is cheap for jobs that don't compile the feature.
+    - name: Install Lean toolchain (elan)
+      shell: bash
+      run: |
+        if ! command -v lake &> /dev/null; then
+          curl -sSfL https://elan.lean-lang.org/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+        fi
+
     - name: Install GPU dependencies
       if: inputs.setup_gpu == 'true'
       shell: bash
