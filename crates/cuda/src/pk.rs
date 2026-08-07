@@ -60,7 +60,7 @@ impl Drop for SessionKey {
         let client = self.client.clone();
         let id = std::mem::take(&mut self.id);
 
-        tokio::spawn(async move {
+        crate::client::spawn_cleanup_task(async move {
             if let Err(e) = client.destroy(id).await {
                 tracing::error!("Failed to destroy session key: {}", e);
             }

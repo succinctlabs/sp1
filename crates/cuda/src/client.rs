@@ -7,6 +7,7 @@ use sp1_prover::worker::ProofFromNetwork;
 use sp1_prover_types::network_base_types::ProofMode;
 use std::{
     collections::HashMap,
+    future::Future,
     path::{Path, PathBuf},
     sync::{Arc, LazyLock, Weak},
     time::Duration,
@@ -218,12 +219,71 @@ impl Drop for CudaClientInner {
     fn drop(&mut self) {
         let stream = self.stream.take().expect("stream already taken");
 
-        tokio::spawn(async move {
+        spawn_cleanup_task(async move {
             let mut stream = stream.lock().await;
 
             if let Err(e) = stream.shutdown().await {
                 tracing::error!("Failed to shutdown the stream: {}", e);
             }
         });
+    }
+}
+
+pub(crate) fn spawn_cleanup_task<F>(future: F)
+where
+    F: Future<Output = ()> + Send + 'static,
+{
+    if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        handle.spawn(future);
+        return;
+    }
+
+    let thread =
+        std::thread::Builder::new().name("sp1-cuda-cleanup".to_string()).spawn(move || {
+            let runtime = match tokio::runtime::Builder::new_current_thread().enable_all().build() {
+                Ok(runtime) => runtime,
+                Err(err) => {
+                    tracing::error!("Failed to create Tokio runtime for CUDA cleanup: {}", err);
+                    return;
+                }
+            };
+
+            runtime.block_on(future);
+        });
+
+    if let Err(err) = thread {
+        tracing::error!("Failed to spawn CUDA cleanup thread: {}", err);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::spawn_cleanup_task;
+    use std::time::Duration;
+
+    #[test]
+    fn spawn_cleanup_task_works_without_runtime() {
+        let (tx, rx) = std::sync::mpsc::channel();
+
+        spawn_cleanup_task(async move {
+            tx.send(()).expect("cleanup signal should send");
+        });
+
+        rx.recv_timeout(Duration::from_secs(5))
+            .expect("cleanup task should finish without a Tokio runtime");
+    }
+
+    #[tokio::test]
+    async fn spawn_cleanup_task_works_with_runtime() {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+
+        spawn_cleanup_task(async move {
+            tx.send(()).expect("cleanup signal should send");
+        });
+
+        tokio::time::timeout(Duration::from_secs(5), rx)
+            .await
+            .expect("cleanup task should finish on the current Tokio runtime")
+            .expect("cleanup signal should be received");
     }
 }
