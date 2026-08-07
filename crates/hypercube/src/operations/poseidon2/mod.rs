@@ -2,6 +2,7 @@
 
 use permutation::Poseidon2Degree3Cols;
 use sp1_derive::AlignedBorrow;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 pub mod air;
 pub mod permutation;
@@ -26,7 +27,7 @@ pub const NUM_ROUNDS: usize = NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS;
 pub const NUM_POSEIDON2_OPERATION_COLUMNS: usize = std::mem::size_of::<Poseidon2Operation<u8>>();
 
 /// A set of columns needed to compute the Poseidon2 operation.
-#[derive(AlignedBorrow, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2Operation<T: Copy> {
     /// The permutation.

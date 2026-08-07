@@ -26,6 +26,7 @@ pub fn setup_logger() {
             .add_directive("p3_dft=off".parse().unwrap())
             .add_directive("p3_challenger=off".parse().unwrap());
 
+        let log_format = std::env::var("RUST_LOG_FORMAT").unwrap_or_else(|_| "text".to_string());
         // if the RUST_LOGGER environment variable is set, use it to determine which logger to
         // configure (tracing_forest or tracing_subscriber)
         // otherwise, default to 'forest'
@@ -35,15 +36,20 @@ pub fn setup_logger() {
                 Registry::default().with(env_filter).with(ForestLayer::default()).init();
             }
             "flat" => {
-                tracing_subscriber::fmt::Subscriber::builder()
+                let builder = tracing_subscriber::fmt::Subscriber::builder()
                     .compact()
                     .with_file(false)
                     .with_target(false)
                     .with_thread_names(false)
                     .with_env_filter(env_filter)
-                    .with_span_events(FmtSpan::CLOSE)
-                    .finish()
-                    .init();
+                    .with_span_events(FmtSpan::CLOSE);
+
+                match log_format.as_str() {
+                    "json" => {
+                        builder.json().with_current_span(true).flatten_event(true).finish().init()
+                    }
+                    _ => builder.finish().init(),
+                }
             }
             _ => {
                 panic!("Invalid logger type: {logger_type}");

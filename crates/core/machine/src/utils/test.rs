@@ -111,12 +111,20 @@ pub async fn run_test_core(
     let (pk, vk) =
         prover.setup(program.clone()).instrument(tracing::debug_span!("setup").or_current()).await;
     let pk = unsafe { pk.into_inner() };
+    let machine = RiscvAir::machine();
 
-    let (proof, _) =
-        prove_core(&prover, pk, program, inputs, SP1CoreOpts::default(), SP1Context::default())
-            .instrument(tracing::debug_span!("prove core"))
-            .await
-            .unwrap();
+    let (proof, _) = prove_core(
+        &prover,
+        pk,
+        program,
+        inputs,
+        SP1CoreOpts::default(),
+        SP1Context::default(),
+        machine,
+    )
+    .instrument(tracing::debug_span!("prove core"))
+    .await
+    .unwrap();
 
     prover.verify(&vk, &proof)?;
     Ok(proof)

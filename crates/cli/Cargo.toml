@@ -33,6 +33,7 @@ futures = { workspace = true }
 [features]
 default = ["full"]
 full = ["dep:sp1-build", "dep:sp1-sdk"]
+apc = ["sp1-sdk/apc"]
 
 [[bin]]
 name = "cargo-prove"

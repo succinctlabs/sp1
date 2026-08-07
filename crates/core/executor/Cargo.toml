@@ -16,6 +16,9 @@ sp1-primitives = { workspace = true }
 sp1-curves = { workspace = true }
 sp1-hypercube = { workspace = true }
 
+# powdr
+powdr-autoprecompiles.workspace = true
+
 # slop (replaced p3 dependencies)
 slop-algebra = { workspace = true }
 slop-maybe-rayon = { workspace = true }
@@ -47,6 +50,7 @@ deepsize2 = { workspace = true }
 memmap2 = { workspace = true }
 cfg-if = { workspace = true }
 object = { workspace = true }
+derive-where = { workspace = true }
 
 # profiling
 rustc-demangle = { workspace = true, optional = true }

@@ -49,11 +49,11 @@ clap = { workspace = true, features = ["derive", "env"] }
 anyhow = { workspace = true }
 dirs = { workspace = true }
 tokio = { workspace = true, features = [
-    "macros",
-    "rt",
-    "sync",
-    "fs",
-    "process",
+  "macros",
+  "rt",
+  "sync",
+  "fs",
+  "process",
 ] }
 futures = { workspace = true }
 serial_test = { workspace = true }
@@ -117,6 +117,7 @@ mprotect = [
   "sp1-recursion-circuit/mprotect",
   "sp1-recursion-executor/mprotect",
 ]
+apc = ["experimental", "sp1-core-machine/apc"]
 
 [lints]
 workspace = true

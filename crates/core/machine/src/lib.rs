@@ -19,6 +19,7 @@ extern crate static_assertions;
 pub mod adapter;
 pub mod air;
 pub mod alu;
+pub mod autoprecompiles;
 pub mod bytes;
 pub mod control_flow;
 pub mod executor;

@@ -35,10 +35,11 @@ mod uint256_ops;
 
 pub trait SyscallRuntime<'a, M: ExecutionMode> {
     const TRACING: bool;
+    type Snapshot;
 
-    fn core(&self) -> &CoreVM<'a, M>;
+    fn core(&self) -> &CoreVM<'a, M, Self::Snapshot>;
 
-    fn core_mut(&mut self) -> &mut CoreVM<'a, M>;
+    fn core_mut(&mut self) -> &mut CoreVM<'a, M, Self::Snapshot>;
 
     #[allow(clippy::too_many_arguments)]
     fn syscall_event(
@@ -305,14 +306,15 @@ pub trait SyscallRuntime<'a, M: ExecutionMode> {
     }
 }
 
-impl<'a, M: ExecutionMode> SyscallRuntime<'a, M> for CoreVM<'a, M> {
+impl<'a, M: ExecutionMode, S> SyscallRuntime<'a, M> for CoreVM<'a, M, S> {
     const TRACING: bool = false;
+    type Snapshot = S;
 
-    fn core(&self) -> &CoreVM<'a, M> {
+    fn core(&self) -> &CoreVM<'a, M, Self::Snapshot> {
         self
     }
 
-    fn core_mut(&mut self) -> &mut CoreVM<'a, M> {
+    fn core_mut(&mut self) -> &mut CoreVM<'a, M, Self::Snapshot> {
         self
     }
 }

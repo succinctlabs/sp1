@@ -1,16 +1,15 @@
 use std::{borrow::Borrow, collections::BTreeMap, io, sync::Arc};
 
 use crate::executor::trace_chunk;
-use crate::riscv::RiscvAir;
 use hashbrown::HashSet;
 use thiserror::Error;
 
 use slop_algebra::PrimeField32;
 use slop_challenger::IopCtx;
 use sp1_hypercube::{
-    air::{PublicValues, PROOF_NONCE_NUM_WORDS},
+    air::{MachineAir, PublicValues, PROOF_NONCE_NUM_WORDS},
     prover::{AirProver, PcsProof, ProvingKey, SimpleProver},
-    MachineProof, MachineRecord, ShardContext,
+    Machine, MachineProof, MachineRecord, ShardContext,
 };
 
 use crate::io::SP1Stdin;
@@ -36,11 +35,11 @@ pub fn generate_records<F>(
     stdin: SP1Stdin,
     opts: SP1CoreOpts,
     proof_nonce: [u32; PROOF_NONCE_NUM_WORDS],
+    machine: Machine<F, impl MachineAir<F, Record = ExecutionRecord>>,
 ) -> Result<(Vec<ExecutionRecord>, u64), SP1CoreProverError>
 where
     F: PrimeField32,
 {
-    let machine = RiscvAir::<F>::machine();
     let split_opts = SplitOpts::new(&opts, program.instructions.len(), false);
 
     // Phase 1: Run MinimalExecutorRunner to generate trace chunks
@@ -215,15 +214,17 @@ pub async fn prove_core<GC, SC, PC>(
     stdin: SP1Stdin,
     opts: SP1CoreOpts,
     context: SP1Context<'static>,
+    machine: Machine<GC::F, SC::Air>,
 ) -> Result<(MachineProof<GC, PcsProof<GC, SC>>, u64), SP1CoreProverError>
 where
     GC: IopCtx,
-    SC: ShardContext<GC, Air = RiscvAir<GC::F>>,
+    SC: ShardContext<GC>,
     PC: AirProver<GC, SC>,
     GC::F: PrimeField32,
+    SC::Air: MachineAir<GC::F, Record = ExecutionRecord>,
 {
     let (all_records, cycles) =
-        generate_records::<GC::F>(program, stdin, opts, context.proof_nonce)?;
+        generate_records::<GC::F>(program, stdin, opts, context.proof_nonce, machine)?;
 
     // Prove records sequentially
     let mut shard_proofs = BTreeMap::new();

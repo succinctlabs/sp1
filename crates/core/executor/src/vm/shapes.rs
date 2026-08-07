@@ -1,11 +1,19 @@
-use enum_map::EnumMap;
+use derive_where::derive_where;
+use enum_map::{EnumArray, EnumMap};
 use hashbrown::{HashMap, HashSet};
-use std::{marker::PhantomData, str::FromStr};
+use itertools::Itertools;
+use powdr_autoprecompiles::execution::ApcCall;
 
 use crate::{
-    events::NUM_PAGE_PROT_ENTRIES_PER_ROW_EXEC, vm::memory::CompressedMemory, ExecutionMode,
-    Instruction, Opcode, RiscvAirId, ShardingThreshold, SupervisorMode, SyscallCode, UserMode,
-    BYTE_NUM_ROWS, RANGE_NUM_ROWS,
+    events::NUM_PAGE_PROT_ENTRIES_PER_ROW_EXEC, vm::memory::CompressedMemory, ApcCost,
+    ExecutionMode, Instruction, Opcode, RiscvAirId, ShardingThreshold, SupervisorMode, SyscallCode,
+    UserMode, BYTE_NUM_ROWS, RANGE_NUM_ROWS,
+};
+use std::{
+    collections::BTreeMap,
+    marker::PhantomData,
+    ops::{Index, IndexMut},
+    str::FromStr,
 };
 
 /// The maximum trace area from padding with next multiple of 32.
@@ -37,9 +45,9 @@ pub struct ShapeChecker<M: ExecutionMode> {
     /// The maximum trace size and table height to allow.
     sharding_threshold: ShardingThreshold,
     /// The heights (number) of each air id seen.
-    heights: EnumMap<RiscvAirId, u64>,
+    heights: EventCounts<RiscvAirId>,
     /// The costs (trace area) of  of each air id seen.
-    costs: EnumMap<RiscvAirId, u64>,
+    costs: EventCosts,
     // The number of local memory accesses during this cycle.
     pub(crate) local_mem_counts: u64,
     /// The number of local page prot accesses during this cycle.
@@ -52,26 +60,118 @@ pub struct ShapeChecker<M: ExecutionMode> {
     shard_distinct_instructions: HashSet<u32>,
 }
 
+/// The number of events/instructions executed.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive_where(Default)]
+pub struct EventCounts<T>
+where
+    T: EnumArray<u64>,
+    <T as EnumArray<u64>>::Array: Clone,
+{
+    /// The number of core instructions executed.
+    pub core: EnumMap<T, u64>,
+    /// The number of APCs executed, indexed by contiguous APC id.
+    pub apc: BTreeMap<usize, u64>,
+}
+
+impl<T> EventCounts<T>
+where
+    T: EnumArray<u64>,
+    <T as EnumArray<u64>>::Array: Clone,
+{
+    /// Compute the maximum height of all airs
+    fn max(&self) -> u64 {
+        *self.core.values().chain(self.apc.values()).max().unwrap()
+    }
+}
+
+impl<T> Index<T> for EventCounts<T>
+where
+    T: EnumArray<u64>,
+    <T as EnumArray<u64>>::Array: Clone,
+{
+    type Output = u64;
+
+    fn index(&self, index: T) -> &Self::Output {
+        &self.core[index]
+    }
+}
+
+impl<T> IndexMut<T> for EventCounts<T>
+where
+    T: EnumArray<u64>,
+    <T as EnumArray<u64>>::Array: Clone,
+{
+    fn index_mut(&mut self, index: T) -> &mut Self::Output {
+        &mut self.core[index]
+    }
+}
+
+impl Index<RiscvAirId> for EventCosts {
+    type Output = u64;
+
+    fn index(&self, index: RiscvAirId) -> &Self::Output {
+        &self.core[index]
+    }
+}
+
+impl IndexMut<RiscvAirId> for EventCosts {
+    fn index_mut(&mut self, index: RiscvAirId) -> &mut Self::Output {
+        &mut self.core[index]
+    }
+}
+
+/// The costs of the program.
+#[derive(Clone, Default, Debug, PartialEq, Eq)]
+pub struct EventCosts {
+    /// The costs of the core instructions, mostly calculated as the number of columns but
+    /// different for syscall instructions.
+    pub core: EnumMap<RiscvAirId, u64>,
+    /// The costs of the APCs, calculated as the number of columns, indexed by contiguous APC id.
+    pub apc: Vec<ApcCost>,
+}
+
+#[derive(Debug)]
+pub struct ShapeCheckerSnapshot {
+    /// The heights (number) of each core air id seen.
+    core_heights: EnumMap<RiscvAirId, u64>,
+}
+
 impl<M: ExecutionMode> ShapeChecker<M> {
-    pub fn new(program_len: u64, shard_start_clk: u64, elem_threshold: ShardingThreshold) -> Self {
-        let costs: HashMap<String, usize> =
+    pub fn new(
+        program_len: u64,
+        apc_costs: Vec<ApcCost>,
+        shard_start_clk: u64,
+        elem_threshold: ShardingThreshold,
+    ) -> Self {
+        let core_costs: HashMap<String, usize> =
             serde_json::from_str(include_str!("../artifacts/rv64im_costs.json")).unwrap();
-        let costs: EnumMap<RiscvAirId, u64> =
-            costs.into_iter().map(|(k, v)| (RiscvAirId::from_str(&k).unwrap(), v as u64)).collect();
+        let costs = EventCosts {
+            core: core_costs
+                .into_iter()
+                .map(|(k, v)| (RiscvAirId::from_str(&k).unwrap(), v as u64))
+                .collect(),
+            apc: apc_costs,
+        };
 
         let preprocessed_trace_area = program_len.next_multiple_of(32) * costs[RiscvAirId::Program]
             + BYTE_NUM_ROWS * costs[RiscvAirId::Byte]
             + RANGE_NUM_ROWS * costs[RiscvAirId::Range];
 
+        let worst_case_apc_padding: u64 = costs.apc.iter().map(|width| 31 * width).sum();
+
         Self {
             _mode: PhantomData,
             program_len,
-            trace_area: preprocessed_trace_area + MAXIMUM_PADDING_AREA + MAXIMUM_CYCLE_AREA,
+            trace_area: preprocessed_trace_area
+                + MAXIMUM_PADDING_AREA
+                + MAXIMUM_CYCLE_AREA
+                + worst_case_apc_padding,
             max_height: 0,
             is_commit_on: false,
             syscall_sent: false,
             shard_start_clk,
-            heights: EnumMap::default(),
+            heights: EventCounts::default(),
             sharding_threshold: elem_threshold,
             costs,
             // Assume that all registers will be touched in each shard.
@@ -92,6 +192,26 @@ impl<M: ExecutionMode> ShapeChecker<M> {
             self.trace_area += self.costs[RiscvAirId::InstructionDecode];
             self.heights[RiscvAirId::InstructionDecode] += 1;
         }
+    }
+
+    pub fn snapshot(&self) -> ShapeCheckerSnapshot {
+        ShapeCheckerSnapshot { core_heights: self.heights.core }
+    }
+
+    #[cfg(test)]
+    pub fn count_apc_events(&self) -> u64 {
+        self.heights.apc.values().sum::<u64>()
+    }
+
+    pub fn apply_apc_calls(&mut self, calls: &[ApcCall<ShapeCheckerSnapshot>]) {
+        if calls.is_empty() {
+            return;
+        }
+        for call in calls {
+            self.apply_apc_call(call);
+        }
+        // Recompute the max height
+        self.max_height = self.heights.max();
     }
 
     #[inline]
@@ -228,7 +348,12 @@ impl<M: ExecutionMode> ShapeChecker<M> {
     /// Set the start clock of the shard.
     #[inline]
     pub fn reset(&mut self, clk: u64) {
-        *self = Self::new(self.program_len, clk, self.sharding_threshold);
+        *self = Self::new(
+            self.program_len,
+            std::mem::take(&mut self.costs.apc),
+            clk,
+            self.sharding_threshold,
+        );
     }
 
     /// Check if the shard limit has been reached.
@@ -241,6 +366,37 @@ impl<M: ExecutionMode> ShapeChecker<M> {
         !self.is_commit_on
             && (self.trace_area >= self.sharding_threshold.element_threshold
                 || self.max_height >= self.sharding_threshold.height_threshold)
+    }
+
+    pub(crate) fn apply_apc_call(&mut self, call: &ApcCall<ShapeCheckerSnapshot>) {
+        // For each core air, reduce the height by the amount it increased by during the call.
+        for ((air_id, l), (from, to)) in self
+            .heights
+            .core
+            .iter_mut()
+            .zip_eq(call.from.core_heights.values().zip_eq(call.to.core_heights.values()))
+        {
+            let rows_to_remove = to - from;
+
+            // MemoryLocal: one row per unique address touched in a shard.
+            // Global: two rows per MemoryLocal event (receive initial, send final value).
+            // Both still produce real trace rows for APC-handled instructions because
+            // extract_records moves memory events to the APC sub-record, and
+            // get_local_mem_events() chains them back into the main event stream.
+            if matches!(air_id, RiscvAirId::Global | RiscvAirId::MemoryLocal) {
+                continue;
+            }
+
+            // Reduce the height
+            *l -= rows_to_remove;
+            // Reduce the trace area
+            self.trace_area -= rows_to_remove * self.costs[air_id];
+        }
+
+        // Increase the height of this apc by 1
+        *self.heights.apc.entry(call.apc_id).or_default() += 1;
+        // Increase the trace area by a row whose width is the cost of the apc
+        self.trace_area += self.costs.apc[call.apc_id];
     }
 }
 

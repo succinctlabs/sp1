@@ -12,6 +12,8 @@
 //! lets a regression land on the right side (kernel work vs. the per-round CPU/Fiat-Shamir
 //! loop) instead of being hidden in a combined number.
 
+#![allow(clippy::mutable_key_type)]
+
 use std::collections::BTreeMap;
 use std::sync::Arc;
 

@@ -114,4 +114,9 @@ where
             });
         });
     }
+
+    /// Customizes the program using each chip.
+    pub fn customize_program(&self, program: A::Program) -> A::Program {
+        self.chips.iter().fold(program, |program, chip| chip.customize_program(program))
+    }
 }
