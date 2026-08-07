@@ -267,7 +267,12 @@ pub async fn execute_with_options_and_machine(
     // Spawn a blocking task to run the minimal executor.
     let final_vm_state_clone = final_vm_state.clone();
     join_set.spawn_blocking(move || {
-        while let Some(chunk) = minimal_executor.try_execute_chunk()? {
+        let started_at = std::time::Instant::now();
+        let mut chunk_count = 0usize;
+        while let Some(chunk) = minimal_executor
+            .try_execute_chunk()
+            .map_err(|e| anyhow::anyhow!("Execute chunk failed: {e}"))?
+        {
             let handle = gas_engine
                 .blocking_submit(GasExecutingTask {
                     chunk,
@@ -275,7 +280,18 @@ pub async fn execute_with_options_and_machine(
                 })
                 .map_err(|e| anyhow::anyhow!("Gas engine submission failed: {}", e))?;
             handle_sender.send(handle)?;
+            chunk_count += 1;
         }
+
+        if minimal_trace_chunk_threshold.is_some() && chunk_count == 0 {
+            let elapsed = started_at.elapsed().as_secs_f64();
+            return Err(anyhow::anyhow!(
+                "executor produced zero trace chunks in {elapsed:.3}s (global_clk={}, is_done={})",
+                minimal_executor.global_clk(),
+                minimal_executor.is_done(),
+            ));
+        }
+
         tracing::debug!("minimal executor finished in {} cycles", minimal_executor.global_clk());
 
         // Extract cycle tracker data before consuming the executor
