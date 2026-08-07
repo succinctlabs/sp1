@@ -510,11 +510,11 @@ pub async fn install_circuit_artifacts(build_dir: PathBuf, artifacts_type: &str)
     download_circuit_artifacts(staging_dir.path(), artifacts_type).await?;
 
     let staging_path = staging_dir.keep();
-    if std::fs::rename(&staging_path, &build_dir).is_err() {
-        // Another process installed the same artifacts first.
+    if let Err(err) = std::fs::rename(&staging_path, &build_dir) {
         std::fs::remove_dir_all(&staging_path)?;
+        // If build_dir exists, another process installed the artifacts first.
         if !build_dir.exists() {
-            return Err(anyhow!(
+            return Err(err).context(format!(
                 "failed to move {} to {}",
                 staging_path.display(),
                 build_dir.display()
@@ -525,16 +525,15 @@ pub async fn install_circuit_artifacts(build_dir: PathBuf, artifacts_type: &str)
     Ok(())
 }
 
-async fn download_circuit_artifacts(build_dir: &Path, artifacts_type: &str) -> Result<()> {
-    // Create the build directory.
-    std::fs::create_dir_all(build_dir)?;
+async fn download_circuit_artifacts(target_dir: &Path, artifacts_type: &str) -> Result<()> {
+    std::fs::create_dir_all(target_dir)?;
 
     // Download the artifacts.
     let download_url =
         format!("{CIRCUIT_ARTIFACTS_URL_BASE}/{SP1_CIRCUIT_VERSION}-{artifacts_type}.tar.gz");
 
     // Create a file in the build directory to store the tar.
-    let tar_path = build_dir.join("artifacts.tar.gz");
+    let tar_path = target_dir.join("artifacts.tar.gz");
 
     // Create a tokio friendly file to write the tarball to.
     let mut file = tokio::fs::File::create(&tar_path).await?;
@@ -548,21 +547,21 @@ async fn download_circuit_artifacts(build_dir: &Path, artifacts_type: &str) -> R
     let tar_path_str = tar_path
         .to_str()
         .ok_or_else(|| anyhow!("failed to convert path to string: {:?}", tar_path))?;
-    let build_dir_str = build_dir
+    let target_dir_str = target_dir
         .to_str()
-        .ok_or_else(|| anyhow!("failed to convert path to string: {:?}", build_dir))?;
+        .ok_or_else(|| anyhow!("failed to convert path to string: {:?}", target_dir))?;
 
     let res =
-        Command::new("tar").args(["-Pxzf", tar_path_str, "-C", build_dir_str]).output().await?;
+        Command::new("tar").args(["-Pxzf", tar_path_str, "-C", target_dir_str]).output().await?;
 
     // Remove the tarball after extraction.
     tokio::fs::remove_file(&tar_path).await?;
 
     if !res.status.success() {
-        return Err(anyhow!("failed to extract tarball to {}, err: {:?}", build_dir_str, res));
+        return Err(anyhow!("failed to extract tarball to {}, err: {:?}", target_dir_str, res));
     }
 
-    eprintln!("[sp1] downloaded {} to {}", download_url, build_dir_str);
+    eprintln!("[sp1] downloaded {} to {}", download_url, target_dir_str);
     Ok(())
 }
 
