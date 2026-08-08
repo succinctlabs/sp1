@@ -1,7 +1,7 @@
 use base64::{engine::general_purpose::URL_SAFE, Engine};
 use sp1_core_executor::{
-    ExecutionError, MinimalTranspiler, Opcode, Program, UnsafeMemory, DEFAULT_MEMORY_LIMIT,
-    DEFAULT_TRACE_CHUNK_SLOTS,
+    ExecutionError, MinimalTranspiler, Opcode, OutputConsumers, Program, UnsafeMemory,
+    DEFAULT_MEMORY_LIMIT, DEFAULT_TRACE_CHUNK_SLOTS,
 };
 use sp1_core_executor_runner_binary::{Input, Output};
 use sp1_jit::{
@@ -37,6 +37,7 @@ pub struct MinimalExecutorRunner {
 
     process: Option<(Child, JoinHandle<()>, Arc<MonitorState>)>,
     output: Option<Result<Output, ExecutionError>>,
+    output_consumers: OutputConsumers,
 
     global_clk: u64,
     clk: u64,
@@ -74,7 +75,21 @@ impl MinimalExecutorRunner {
         };
         let (memory, consumer) = create(&input);
 
-        Self { input, consumer, memory, process: None, output: None, global_clk: 0, clk: 0 }
+        Self {
+            input,
+            consumer,
+            memory,
+            process: None,
+            output: None,
+            output_consumers: OutputConsumers::default(),
+            global_clk: 0,
+            clk: 0,
+        }
+    }
+
+    /// Redirect guest output to the configured channels.
+    pub fn set_output_consumers(&mut self, consumers: OutputConsumers) {
+        self.output_consumers = consumers;
     }
 
     /// Create a new minimal executor with no tracing or debugging.
@@ -143,10 +158,13 @@ impl MinimalExecutorRunner {
             // from the start also preserves its diagnostics if it dies before reading input.
             let stderr = child.stderr.take().expect("open stderr");
             let id = self.input.id.clone();
+            let output_consumers = self.output_consumers.clone();
             let log_handle = thread::spawn(move || {
                 let reader = BufReader::new(stderr);
                 for l in reader.lines().map_while(Result::ok) {
-                    tracing::debug!("CHILD {}: {}", id, l);
+                    if !redirect_output(&output_consumers, &l) {
+                        tracing::debug!("CHILD {}: {}", id, l);
+                    }
                 }
             });
 
@@ -410,6 +428,23 @@ impl MinimalExecutorRunner {
         self.global_clk = 0;
         self.clk = 0;
     }
+}
+
+fn redirect_output(consumers: &OutputConsumers, line: &str) -> bool {
+    let (sender, content) = if let Some(content) = line.strip_prefix("stdout: ") {
+        (&consumers.stdout, content)
+    } else if let Some(content) = line.strip_prefix("stderr: ") {
+        (&consumers.stderr, content)
+    } else {
+        return false;
+    };
+    let Some(sender) = sender else {
+        return false;
+    };
+
+    let mut bytes = content.as_bytes().to_vec();
+    bytes.push(b'\n');
+    sender.send(bytes).is_ok()
 }
 
 // Create partial field variables, so the common logic can be shared

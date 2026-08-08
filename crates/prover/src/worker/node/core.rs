@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use sp1_core_executor::{ExecutionReport, Program, SP1Context, SP1CoreOpts};
+use sp1_core_executor::{ExecutionReport, OutputConsumers, Program, SP1Context, SP1CoreOpts};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{Machine, SP1VerifyingKey};
@@ -10,7 +10,7 @@ use tracing::instrument;
 
 use crate::{
     verify::{SP1Verifier, VerifierRecursionVks},
-    worker::{execute_with_options_and_machine, SP1ExecutorConfig},
+    worker::{execute_with_options_and_machine_and_output, SP1ExecutorConfig},
     SP1CoreProofData,
 };
 
@@ -45,18 +45,30 @@ impl SP1NodeCore {
         stdin: SP1Stdin,
         context: SP1Context<'static>,
     ) -> anyhow::Result<(SP1PublicValues, [u8; 32], ExecutionReport)> {
+        self.execute_with_output(elf, stdin, context, OutputConsumers::default()).await
+    }
+
+    pub async fn execute_with_output(
+        &self,
+        elf: &[u8],
+        stdin: SP1Stdin,
+        context: SP1Context<'static>,
+        output_consumers: OutputConsumers,
+    ) -> anyhow::Result<(SP1PublicValues, [u8; 32], ExecutionReport)> {
         let program = Program::from(elf)
             .map_err(|e| anyhow::anyhow!("failed to dissassemble program: {}", e))?;
         let program = Arc::new(program);
-        let (public_values, public_value_digest, report) = execute_with_options_and_machine(
-            program,
-            stdin,
-            context,
-            self.inner.opts.clone(),
-            SP1ExecutorConfig::default(),
-            self.machine().clone(),
-        )
-        .await?;
+        let (public_values, public_value_digest, report) =
+            execute_with_options_and_machine_and_output(
+                program,
+                stdin,
+                context,
+                self.inner.opts.clone(),
+                SP1ExecutorConfig::default(),
+                self.machine().clone(),
+                output_consumers,
+            )
+            .await?;
         Ok((public_values, public_value_digest, report))
     }
 

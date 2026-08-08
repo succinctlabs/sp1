@@ -2,7 +2,7 @@ use crate::hook::{hookify, BoxedHook, HookEnv, HookRegistry};
 use core::mem::take;
 use hashbrown::HashMap;
 use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
-use std::io::Write;
+use std::{io::Write, sync::mpsc::SyncSender};
 
 use sp1_primitives::consts::fd::LOWEST_ALLOWED_FD;
 
@@ -103,7 +103,6 @@ pub struct SP1ContextBuilder<'a> {
     calculate_gas: bool,
     expected_exit_code: Option<StatusCode>,
     proof_nonce: [u32; 4],
-    // TODO remove the lifetime here, change stdout and stderr options to accept channels.
     io_options: IoOptions<'a>,
 }
 
@@ -283,9 +282,10 @@ impl IoOptions<'_> {
         Self { stdout: None, stderr: None }
     }
 }
+
 impl Clone for IoOptions<'_> {
     fn clone(&self) -> Self {
-        IoOptions { stdout: None, stderr: None }
+        Self::new()
     }
 }
 
@@ -295,6 +295,17 @@ impl Clone for IoOptions<'_> {
 pub trait IoWriter: Write + Send + Sync {}
 
 impl<W: Write + Send + Sync> IoWriter for W {}
+
+/// Owned consumers for guest `stdout` and `stderr`.
+///
+/// Receivers must be drained while execution is running.
+#[derive(Clone, Default)]
+pub struct OutputConsumers {
+    /// A channel for guest `stdout` lines.
+    pub stdout: Option<SyncSender<Vec<u8>>>,
+    /// A channel for guest `stderr` lines.
+    pub stderr: Option<SyncSender<Vec<u8>>>,
+}
 
 #[cfg(test)]
 mod tests {
@@ -306,6 +317,18 @@ mod tests {
             SP1Context::builder().build();
         assert!(hook_registry.is_none());
         assert!(cycle_limit.is_none());
+    }
+
+    #[test]
+    fn writer_api_remains_compatible() {
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        let mut builder = SP1Context::builder();
+        builder.stdout(&mut stdout).stderr(&mut stderr);
+
+        let context = builder.build();
+        assert!(context.io_options.stdout.is_some());
+        assert!(context.io_options.stderr.is_some());
     }
 
     #[test]

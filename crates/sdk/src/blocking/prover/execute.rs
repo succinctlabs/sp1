@@ -1,9 +1,12 @@
 use crate::StatusCode;
 
 use super::Prover;
-use sp1_core_executor::{ExecutionError, ExecutionReport, HookEnv, SP1ContextBuilder};
+use sp1_core_executor::{
+    ExecutionError, ExecutionReport, HookEnv, OutputConsumers, SP1ContextBuilder,
+};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::{io::SP1PublicValues, Elf};
+use std::sync::mpsc::SyncSender;
 
 /// A request for executing a program.
 pub struct ExecuteRequest<'a, P: Prover> {
@@ -11,11 +14,18 @@ pub struct ExecuteRequest<'a, P: Prover> {
     pub(crate) elf: Elf,
     pub(crate) stdin: SP1Stdin,
     pub(crate) context_builder: SP1ContextBuilder<'static>,
+    pub(crate) output_consumers: OutputConsumers,
 }
 
 impl<'a, P: Prover> ExecuteRequest<'a, P> {
     pub(crate) fn new(prover: &'a P, elf: Elf, stdin: SP1Stdin) -> Self {
-        Self { prover, elf, stdin, context_builder: SP1ContextBuilder::new() }
+        Self {
+            prover,
+            elf,
+            stdin,
+            context_builder: SP1ContextBuilder::new(),
+            output_consumers: OutputConsumers::default(),
+        }
     }
 
     /// Add a executor [`sp1_core_executor::Hook`] into the context.
@@ -147,53 +157,35 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
         self
     }
 
-    // todo!(n): workaround this
-    // /// Override the default stdout of the guest program.
-    // ///
-    // /// # Example
-    // /// ```rust,no_run
-    // /// use sp1_sdk::{include_elf, Prover, ProverClient, SP1Stdin};
-    // ///
-    // /// let mut stdout = Vec::new();
-    // ///
-    // /// let elf = &[1, 2, 3];
-    // /// let stdin = SP1Stdin::new();
-    // ///
-    // /// let client = ProverClient::builder().cpu().build();
-    // /// client.execute(elf, &stdin).stdout(&mut stdout).run();
-    // /// ```
-    // #[must_use]
-    // pub fn stdout<W: IoWriter>(mut self, writer: &'a mut W) -> Self {
-    //     self.context_builder.stdout(writer);
-    //     self
-    // }
+    /// Redirect guest `stdout` to a bounded channel.
+    ///
+    /// The receiver must be drained while execution is running.
+    #[must_use]
+    pub fn stdout(mut self, sender: SyncSender<Vec<u8>>) -> Self {
+        self.output_consumers.stdout = Some(sender);
+        self
+    }
 
-    // /// Override the default stdout of the guest program.
-    // ///
-    // /// # Example
-    // /// ```rust,no_run
-    // /// use sp1_sdk::{include_elf, Prover, ProverClient, SP1Stdin};
-    // ///
-    // /// let mut stderr = Vec::new();
-    // ///
-    // /// let elf = &[1, 2, 3];
-    // /// let stdin = SP1Stdin::new();
-    // ///
-    // /// let client = ProverClient::builder().cpu().build();
-    // /// client.execute(elf, &stdin).stderr(&mut stderr).run();
-    // /// ```
-    // #[must_use]
-    // pub fn stderr<W: IoWriter>(mut self, writer: &'a mut W) -> Self {
-    //     self.context_builder.stderr(writer);
-    //     self
-    // }
+    /// Redirect guest `stderr` to a bounded channel.
+    ///
+    /// The receiver must be drained while execution is running.
+    #[must_use]
+    pub fn stderr(mut self, sender: SyncSender<Vec<u8>>) -> Self {
+        self.output_consumers.stderr = Some(sender);
+        self
+    }
 
     pub fn run(self) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
-        let Self { prover, elf, stdin, mut context_builder } = self;
+        let Self { prover, elf, stdin, mut context_builder, output_consumers } = self;
         let inner = prover.inner();
         let context = context_builder.build();
-        let (pv, _, report) = crate::blocking::block_on(inner.execute(&elf, stdin, context))
-            .map_err(|e| ExecutionError::Other(e.to_string()))?;
+        let (pv, _, report) = crate::blocking::block_on(inner.execute_with_output(
+            &elf,
+            stdin,
+            context,
+            output_consumers,
+        ))
+        .map_err(|e| ExecutionError::Other(e.to_string()))?;
         Ok((pv, report))
     }
 }
