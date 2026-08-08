@@ -431,6 +431,9 @@ const DEV_CIRCUIT_ARTIFACTS_S3_BUCKET: &str = "sp1-circuit-artifacts-dev";
 /// The base URL for the S3 bucket containing the circuit artifacts.
 pub const CIRCUIT_ARTIFACTS_URL_BASE: &str = "https://sp1-circuits.s3-us-east-2.amazonaws.com";
 
+/// Created after the circuit artifact archive has been extracted successfully.
+const CIRCUIT_ARTIFACTS_COMPLETE_FILE: &str = ".complete";
+
 /// Whether use the development mode for the circuit artifacts.
 pub(crate) fn use_development_mode() -> bool {
     // TODO: Change this after v6.0.0 binary release
@@ -471,15 +474,15 @@ pub async fn try_install_circuit_artifacts(artifacts_type: &str) -> Result<PathB
         return Err(anyhow!("unsupported artifacts type: {}", artifacts_type));
     };
 
-    if build_dir.exists() {
+    if circuit_artifacts_installed(&build_dir) {
         tracing::info!(
-            "[sp1] {} circuit artifacts already seem to exist at {}. if you want to re-download them, delete the directory",
+            "[sp1] {} circuit artifacts are already installed at {}. if you want to re-download them, delete the directory",
             artifacts_type,
             build_dir.display()
         );
     } else {
         tracing::info!(
-            "[sp1] {} circuit artifacts for version {} do not exist at {}. downloading...",
+            "[sp1] {} circuit artifacts for version {} are missing or incomplete at {}. downloading...",
             artifacts_type,
             SP1_CIRCUIT_VERSION,
             build_dir.display()
@@ -496,15 +499,31 @@ pub async fn try_install_circuit_artifacts(artifacts_type: &str) -> Result<PathB
 /// to the directory specified by [`build_dir`].
 #[allow(clippy::needless_pass_by_value)]
 pub async fn install_circuit_artifacts(build_dir: PathBuf, artifacts_type: &str) -> Result<()> {
-    // Create the build directory.
-    std::fs::create_dir_all(&build_dir)?;
+    // A half-written build_dir reads as a finished install, so download into a staging
+    // dir and rename it into place. Processes that share one cache pick separate
+    // staging dirs: tempdir_in claims each name with an exclusive create.
+    let parent = build_dir.parent().ok_or_else(|| anyhow!("no parent for {:?}", build_dir))?;
+    let name = build_dir.file_name().ok_or_else(|| anyhow!("no name for {:?}", build_dir))?;
+    std::fs::create_dir_all(parent)?;
+    let staging_dir = tempfile::Builder::new()
+        .prefix(&format!("{}.incomplete.", name.to_string_lossy()))
+        .tempdir_in(parent)?;
+
+    // A failure here drops the staging dir, which deletes the partial download.
+    download_circuit_artifacts(staging_dir.path(), artifacts_type).await?;
+
+    publish_circuit_artifacts(staging_dir, &build_dir)
+}
+
+async fn download_circuit_artifacts(target_dir: &Path, artifacts_type: &str) -> Result<()> {
+    std::fs::create_dir_all(target_dir)?;
 
     // Download the artifacts.
     let download_url =
         format!("{CIRCUIT_ARTIFACTS_URL_BASE}/{SP1_CIRCUIT_VERSION}-{artifacts_type}.tar.gz");
 
     // Create a file in the build directory to store the tar.
-    let tar_path = build_dir.join("artifacts.tar.gz");
+    let tar_path = target_dir.join("artifacts.tar.gz");
 
     // Create a tokio friendly file to write the tarball to.
     let mut file = tokio::fs::File::create(&tar_path).await?;
@@ -518,21 +537,21 @@ pub async fn install_circuit_artifacts(build_dir: PathBuf, artifacts_type: &str)
     let tar_path_str = tar_path
         .to_str()
         .ok_or_else(|| anyhow!("failed to convert path to string: {:?}", tar_path))?;
-    let build_dir_str = build_dir
+    let target_dir_str = target_dir
         .to_str()
-        .ok_or_else(|| anyhow!("failed to convert path to string: {:?}", build_dir))?;
+        .ok_or_else(|| anyhow!("failed to convert path to string: {:?}", target_dir))?;
 
     let res =
-        Command::new("tar").args(["-Pxzf", tar_path_str, "-C", build_dir_str]).output().await?;
+        Command::new("tar").args(["-Pxzf", tar_path_str, "-C", target_dir_str]).output().await?;
 
     // Remove the tarball after extraction.
     tokio::fs::remove_file(&tar_path).await?;
 
     if !res.status.success() {
-        return Err(anyhow!("failed to extract tarball to {}, err: {:?}", build_dir_str, res));
+        return Err(anyhow!("failed to extract tarball to {}, err: {:?}", target_dir_str, res));
     }
 
-    eprintln!("[sp1] downloaded {} to {}", download_url, build_dir_str);
+    eprintln!("[sp1] downloaded {} to {}", download_url, target_dir_str);
     Ok(())
 }
 
@@ -571,6 +590,56 @@ pub async fn download_file(
     Ok(())
 }
 
+fn publish_circuit_artifacts(staging_dir: tempfile::TempDir, build_dir: &Path) -> Result<()> {
+    // The marker moves into place with the directory, so readers never observe a completed
+    // installation until extraction has succeeded.
+    std::fs::write(staging_dir.path().join(CIRCUIT_ARTIFACTS_COMPLETE_FILE), [])?;
+
+    let parent = build_dir.parent().ok_or_else(|| anyhow!("no parent for {:?}", build_dir))?;
+    let name = build_dir.file_name().ok_or_else(|| anyhow!("no name for {:?}", build_dir))?;
+    let lock_path = parent.join(format!(".{}.lock", name.to_string_lossy()));
+    let lock_file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&lock_path)
+        .with_context(|| format!("failed to open install lock at {}", lock_path.display()))?;
+    // std::fs::File::lock requires Rust 1.89. Use fd-lock while the MSRV is 1.88.
+    let mut install_lock = fd_lock::RwLock::new(lock_file);
+    // Keep the lock file in place so every process continues to lock the same inode.
+    let _install_guard = install_lock.write().with_context(|| {
+        format!("failed to lock circuit artifact install at {}", lock_path.display())
+    })?;
+
+    if circuit_artifacts_installed(build_dir) {
+        return Ok(());
+    }
+
+    if build_dir.exists() {
+        std::fs::remove_dir_all(build_dir)?;
+    }
+
+    let staging_path = staging_dir.keep();
+    if let Err(err) = std::fs::rename(&staging_path, build_dir) {
+        std::fs::remove_dir_all(&staging_path)?;
+        // If the marker exists, another process installed the artifacts first.
+        if !circuit_artifacts_installed(build_dir) {
+            return Err(err).context(format!(
+                "failed to move {} to {}",
+                staging_path.display(),
+                build_dir.display()
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+fn circuit_artifacts_installed(build_dir: &Path) -> bool {
+    build_dir.join(CIRCUIT_ARTIFACTS_COMPLETE_FILE).is_file()
+}
+
 #[cfg(test)]
 mod tests {
     #[cfg(not(feature = "mprotect"))]
@@ -586,6 +655,72 @@ mod tests {
         verify::WRAP_VK_BYTES,
         worker::{cpu_worker_builder_with_machine, SP1LocalNodeBuilder},
     };
+
+    #[test]
+    fn publish_replaces_incomplete_circuit_artifacts() {
+        let cache_dir = tempfile::tempdir().unwrap();
+        let build_dir = cache_dir.path().join("v6.1.0");
+        std::fs::create_dir(&build_dir).unwrap();
+        std::fs::write(build_dir.join("partial"), []).unwrap();
+
+        let staging_dir = tempfile::tempdir_in(cache_dir.path()).unwrap();
+        std::fs::write(staging_dir.path().join("artifact"), b"complete").unwrap();
+
+        super::publish_circuit_artifacts(staging_dir, &build_dir).unwrap();
+
+        assert!(super::circuit_artifacts_installed(&build_dir));
+        assert_eq!(std::fs::read(build_dir.join("artifact")).unwrap(), b"complete");
+        assert!(!build_dir.join("partial").exists());
+    }
+
+    #[test]
+    fn publish_preserves_completed_circuit_artifacts() {
+        let cache_dir = tempfile::tempdir().unwrap();
+        let build_dir = cache_dir.path().join("v6.1.0");
+
+        let winning_staging_dir = tempfile::tempdir_in(cache_dir.path()).unwrap();
+        std::fs::write(winning_staging_dir.path().join("winner"), []).unwrap();
+        super::publish_circuit_artifacts(winning_staging_dir, &build_dir).unwrap();
+
+        let losing_staging_dir = tempfile::tempdir_in(cache_dir.path()).unwrap();
+        std::fs::write(losing_staging_dir.path().join("loser"), []).unwrap();
+        super::publish_circuit_artifacts(losing_staging_dir, &build_dir).unwrap();
+
+        assert!(build_dir.join("winner").exists());
+        assert!(!build_dir.join("loser").exists());
+    }
+
+    #[test]
+    fn publish_waits_for_install_lock() {
+        let cache_dir = tempfile::tempdir().unwrap();
+        let build_dir = cache_dir.path().join("v6.1.0");
+        let staging_dir = tempfile::tempdir_in(cache_dir.path()).unwrap();
+        std::fs::write(staging_dir.path().join("artifact"), []).unwrap();
+
+        let lock_file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(cache_dir.path().join(".v6.1.0.lock"))
+            .unwrap();
+        let mut install_lock = fd_lock::RwLock::new(lock_file);
+        let install_guard = install_lock.write().unwrap();
+
+        let (started_tx, started_rx) = std::sync::mpsc::sync_channel(0);
+        let (finished_tx, finished_rx) = std::sync::mpsc::sync_channel(0);
+        let publish_thread = std::thread::spawn(move || {
+            started_tx.send(()).unwrap();
+            finished_tx.send(super::publish_circuit_artifacts(staging_dir, &build_dir)).unwrap();
+        });
+
+        started_rx.recv().unwrap();
+        assert!(finished_rx.recv_timeout(std::time::Duration::from_millis(100)).is_err());
+
+        drop(install_guard);
+        finished_rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap().unwrap();
+        publish_thread.join().unwrap();
+    }
 
     /// Uploads the dev artifact directory matching `{prefix}-{suffix}` to S3, where
     /// `prefix` is the first 16 hex chars of `sha256(crates/prover/wrap_vk.bin)`.
