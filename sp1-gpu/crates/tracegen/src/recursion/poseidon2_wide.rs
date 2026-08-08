@@ -7,10 +7,10 @@ use sp1_gpu_cudart::{
     TracegenPreprocessedRecursionPoseidon2WideKernel, TracegenRecursionPoseidon2WideKernel,
 };
 use sp1_hypercube::air::MachineAir;
-use sp1_recursion_executor::Instruction;
+use sp1_recursion_executor::{Instruction, Poseidon2Instr};
 use sp1_recursion_machine::chips::poseidon2_wide::Poseidon2WideChip;
 
-use crate::{CudaTracegenAir, F};
+use crate::{CudaTracegenAir, PinnedStaging, F};
 
 impl<const DEGREE: usize> CudaTracegenAir<F> for Poseidon2WideChip<DEGREE> {
     fn supports_device_preprocessed_tracegen(&self) -> bool {
@@ -20,16 +20,19 @@ impl<const DEGREE: usize> CudaTracegenAir<F> for Poseidon2WideChip<DEGREE> {
     async fn generate_preprocessed_trace_device(
         &self,
         program: &Self::Program,
+        staging: PinnedStaging,
         scope: &TaskScope,
     ) -> Result<Option<DeviceMle<F>>, CopyError> {
-        let instrs = program
-            .inner
-            .iter() // Faster than using `rayon` for some reason. Maybe vectorization?
-            .filter_map(|instruction| match instruction.inner() {
-                Instruction::Poseidon2(instr) => Some(**instr),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
+        // Pre-bucketed by `bucket_preprocessed_device_instructions`; otherwise
+        // (overflow / no bucketing) stage the instructions here.
+        let instrs = staging.staged::<Poseidon2Instr<F>>().unwrap_or_else(|| {
+            staging.stage_iter(program.inner.iter().filter_map(|instruction| {
+                match instruction.inner() {
+                    Instruction::Poseidon2(instr) => Some(**instr),
+                    _ => None,
+                }
+            }))
+        });
 
         let instrs_device = {
             let mut buf = Buffer::try_with_capacity_in(instrs.len(), scope.clone()).unwrap();
@@ -76,16 +79,17 @@ impl<const DEGREE: usize> CudaTracegenAir<F> for Poseidon2WideChip<DEGREE> {
         &self,
         input: &Self::Record,
         _: &mut Self::Record,
+        staging: PinnedStaging,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
         debug_assert!(DEGREE == 3 || DEGREE == 9);
         let sbox_state = DEGREE == 3;
 
-        let events = &input.poseidon2_events;
+        let events = staging.stage_slice(&input.poseidon2_events);
 
         let events_device = {
             let mut buf = Buffer::try_with_capacity_in(events.len(), scope.clone()).unwrap();
-            buf.extend_from_host_slice(events)?;
+            buf.extend_from_host_slice(&events)?;
             buf
         };
 
