@@ -693,15 +693,8 @@ mod tests {
             let (old_global_commitment, old_global_prover_data) =
                 old_prover.commit_mles(interleaved_message_global.clone()).unwrap();
 
-            let dst = Tensor::<Felt, TaskScope>::with_sizes_in(
-                [
-                    new_traces.0.dense().global_size() >> LOG_STACKING_HEIGHT,
-                    1 << (LOG_STACKING_HEIGHT as usize + verifier.inner.fri_config.log_blowup()),
-                ],
-                scope.clone(),
-            );
             let (new_global_commit, new_global_prover_data) = new_cuda_prover
-                .encode_and_commit(TraceSection::Global, false, &new_traces, dst)
+                .encode_and_commit(TraceSection::Global, false, &new_traces)
                 .unwrap();
             assert_eq!(new_global_commit, old_global_commitment);
 
