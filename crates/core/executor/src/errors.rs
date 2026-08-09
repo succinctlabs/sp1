@@ -69,9 +69,17 @@ pub enum ExecutionError {
     #[error("Trap occurred without proper handling")]
     UnhandledTrap(TrapError),
 
-    /// SP1 program consumes too much memory.
+    /// SP1 program consumes too much memory. Raised in-process when the executor's own
+    /// accounting exceeds the configured budget — deterministic for a given program+input.
     #[error("SP1 program consumes too much memory")]
     TooMuchMemory(),
+
+    /// The runner's RSS monitor killed the child executor for exceeding the memory limit.
+    /// Carries the sampled resident memory in MB. RSS samples are host-dependent (huge-page
+    /// accounting, kernel counters), so unlike [`ExecutionError::TooMuchMemory`] one kill is
+    /// not proof the program is over budget.
+    #[error("executor child killed by memory monitor (measured {0} MB)")]
+    KilledByMemoryMonitor(u64),
 
     /// The child executor process was killed by an external signal (e.g. the OS / cgroup
     /// OOM-killer), not by exceeding its own memory budget. Kept distinct from
