@@ -635,9 +635,8 @@ mod tests {
 
             assert_eq!(new_preprocessed_commit, old_preprocessed_commitment);
 
-            let (new_main_commit, new_main_prover_data) = new_cuda_prover
-                .encode_and_commit(TraceSection::Main, false, &new_traces)
-                .unwrap();
+            let (new_main_commit, new_main_prover_data) =
+                new_cuda_prover.encode_and_commit(TraceSection::Main, false, &new_traces).unwrap();
             let message = old_traces
                 .main_trace_data
                 .traces

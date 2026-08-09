@@ -25,9 +25,7 @@ pub fn commit_multilinears<GC: IopCtx<F = Felt, EF = Ext>, P: CudaTcsProver<GC>>
 > {
     let dense = jagged_trace_mle.dense();
     let (index, padding) = match section {
-        TraceSection::Preprocessed => {
-            (&dense.preprocessed_table_index, dense.preprocessed_padding)
-        }
+        TraceSection::Preprocessed => (&dense.preprocessed_table_index, dense.preprocessed_padding),
         TraceSection::Global => (&dense.global_table_index, dense.global_padding),
         TraceSection::Main => (&dense.main_table_index, dense.main_padding),
     };
