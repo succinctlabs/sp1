@@ -12,6 +12,8 @@ const MAX_SHARD_SIZE: usize = 1 << 24;
 pub const ELEMENT_THRESHOLD: u64 = (1 << 28) + (1 << 27);
 /// The height threshold for a shard.
 pub const HEIGHT_THRESHOLD: u64 = 1 << 22;
+/// Whether shards default to the full [`ELEMENT_THRESHOLD`] on 24 GB-class GPUs.
+pub const DEFAULT_FULL_SIZE_SHARDS: bool = false;
 /// The maximum size of a minimal trace chunk in terms of memory entries.
 ///
 /// 16,777,216 entries × 16 B/entry = 256 MiB per chunk. With
@@ -86,6 +88,12 @@ pub struct SP1CoreOpts {
     pub global_dependencies_opt: bool,
     /// Recompute GKR trace
     pub recompute_gkr_trace: bool,
+    /// Drop committed codewords after the commit phase and re-encode them at the query phase.
+    #[serde(default)]
+    pub drop_ldes: bool,
+    /// Use full-size shards on 24 GB-class GPUs. See [`DEFAULT_FULL_SIZE_SHARDS`].
+    #[serde(default)]
+    pub full_size_shards: bool,
 }
 
 impl Default for SP1CoreOpts {
@@ -126,6 +134,11 @@ impl Default for SP1CoreOpts {
 
         let sharding_threshold = ShardingThreshold { element_threshold, height_threshold };
 
+        let full_size_shards = env::var("FULL_SIZE_SHARDS").map_or_else(
+            |_| DEFAULT_FULL_SIZE_SHARDS,
+            |s| s.parse::<bool>().unwrap_or(DEFAULT_FULL_SIZE_SHARDS),
+        );
+
         let mut retained_events_presets = HashSet::new();
         retained_events_presets.insert(RetainedEventsPreset::Bls12381Field);
         retained_events_presets.insert(RetainedEventsPreset::Bn254Field);
@@ -144,6 +157,8 @@ impl Default for SP1CoreOpts {
             retained_events_presets,
             global_dependencies_opt: false,
             recompute_gkr_trace: false,
+            drop_ldes: false,
+            full_size_shards,
         }
     }
 }
