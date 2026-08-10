@@ -423,7 +423,7 @@ where
 
                 while let Some((chunk, dirty_pages)) = minimal_executor
                     .try_execute_chunk_with_dirty_pages()
-                    .map_err(|e| anyhow::anyhow!("failed to execute chunk: {e}"))?
+                    .map_err(classify_chunk_error)?
                 {
                     if let Some(cycle_limit) = cycle_limit {
                         let last_clk = chunk.global_clk_end();
@@ -610,5 +610,44 @@ mod tests {
             }
             _ => panic!("expected ChunkProof variant after round-trip"),
         }
+    }
+}
+
+/// Classifies a chunk-execution failure for the task retry policy.
+///
+/// A monitor kill acts on one host-dependent RSS sample and an external SIGKILL on host
+/// memory pressure — neither proves the program is over budget, so both are retryable
+/// (the scheduler bounds attempts). Everything else, including the in-process
+/// [`ExecutionError::TooMuchMemory`] budget check, is deterministic for the program and
+/// fails the proof immediately.
+fn classify_chunk_error(e: ExecutionError) -> TaskError {
+    let err = anyhow::anyhow!("failed to execute chunk: {e}");
+    match e {
+        ExecutionError::KilledByMemoryMonitor(_) | ExecutionError::ChildKilled() => {
+            TaskError::Retryable(err)
+        }
+        _ => TaskError::Fatal(err),
+    }
+}
+
+#[cfg(test)]
+mod classify_chunk_error_tests {
+    use super::*;
+
+    fn is_retryable(e: ExecutionError) -> bool {
+        matches!(classify_chunk_error(e), TaskError::Retryable(_))
+    }
+
+    #[test]
+    fn monitor_and_external_kills_are_retryable() {
+        assert!(is_retryable(ExecutionError::KilledByMemoryMonitor(25600)));
+        assert!(is_retryable(ExecutionError::ChildKilled()));
+    }
+
+    #[test]
+    fn deterministic_errors_stay_fatal() {
+        assert!(!is_retryable(ExecutionError::TooMuchMemory()));
+        assert!(!is_retryable(ExecutionError::Other("boom".to_string())));
+        assert!(!is_retryable(ExecutionError::Unimplemented()));
     }
 }

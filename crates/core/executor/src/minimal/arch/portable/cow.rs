@@ -114,7 +114,7 @@ enum Limiter {
 impl Limiter {
     fn new(memory_limit: Option<u64>) -> Self {
         match memory_limit {
-            // Convert memory limit from bytes to entries
+            // Convert memory limit from bytes to 8-byte entries
             Some(memory_limit) => Self::Limit { current: 0, limit: (memory_limit / 8) as usize },
             None => Self::NoLimit,
         }

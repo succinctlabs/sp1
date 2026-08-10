@@ -1,12 +1,10 @@
 use std::{iter::once, sync::Arc};
 
 use slop_algebra::AbstractField;
-use slop_alloc::HasBackend;
 use slop_challenger::IopCtx;
 use slop_jagged::JaggedProverData;
 use slop_stacked::StackedProverData;
 use slop_symmetric::{CryptographicHasher, PseudoCompressionFunction as _};
-use slop_tensor::Tensor;
 use sp1_gpu_basefold::{CudaStackedPcsProverData, FriCudaProver};
 use sp1_gpu_cudart::TaskScope;
 use sp1_gpu_merkle_tree::{CudaTcsProver, SingleLayerMerkleTreeProverError};
@@ -26,22 +24,11 @@ pub fn commit_multilinears<GC: IopCtx<F = Felt, EF = Ext>, P: CudaTcsProver<GC>>
     SingleLayerMerkleTreeProverError,
 > {
     let dense = jagged_trace_mle.dense();
-    let (index, padding, section_size) = match section {
-        TraceSection::Preprocessed => {
-            (&dense.preprocessed_table_index, dense.preprocessed_padding, dense.preprocessed_offset)
-        }
-        TraceSection::Global => {
-            (&dense.global_table_index, dense.global_padding, dense.global_size())
-        }
-        TraceSection::Main => (&dense.main_table_index, dense.main_padding, dense.main_size()),
+    let (index, padding) = match section {
+        TraceSection::Preprocessed => (&dense.preprocessed_table_index, dense.preprocessed_padding),
+        TraceSection::Global => (&dense.global_table_index, dense.global_padding),
+        TraceSection::Main => (&dense.main_table_index, dense.main_padding),
     };
-    let dst = Tensor::<Felt, TaskScope>::with_sizes_in(
-        [
-            section_size >> basefold_prover.log_height,
-            1 << (basefold_prover.log_height as usize + basefold_prover.config.log_blowup()),
-        ],
-        dense.dense.backend().clone(),
-    );
     let (mut row_counts, mut column_counts) = (
         index.values().map(|x| x.poly_size).collect::<Vec<_>>(),
         index.values().map(|x| x.num_polys).collect::<Vec<_>>(),
@@ -50,7 +37,7 @@ pub fn commit_multilinears<GC: IopCtx<F = Felt, EF = Ext>, P: CudaTcsProver<GC>>
     let drop_traces = drop_main_traces && section == TraceSection::Main;
 
     let (commitment, data) =
-        basefold_prover.encode_and_commit(section, drop_traces, jagged_trace_mle, dst)?;
+        basefold_prover.encode_and_commit(section, drop_traces, jagged_trace_mle)?;
 
     let num_added_cols = padding.div_ceil(1 << max_log_row_count).max(1);
 
