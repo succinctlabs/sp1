@@ -86,6 +86,9 @@ pub struct SP1Context<'a> {
 
     /// The IO options for the [`SP1Executor`].
     pub io_options: IoOptions<'a>,
+
+    /// Owned consumers for guest `stdout` and `stderr`.
+    pub output_consumers: OutputConsumers,
 }
 
 impl Default for SP1Context<'_> {
@@ -104,6 +107,7 @@ pub struct SP1ContextBuilder<'a> {
     expected_exit_code: Option<StatusCode>,
     proof_nonce: [u32; 4],
     io_options: IoOptions<'a>,
+    output_consumers: OutputConsumers,
 }
 
 impl Default for SP1ContextBuilder<'_> {
@@ -136,6 +140,7 @@ impl<'a> SP1ContextBuilder<'a> {
             expected_exit_code: None,
             proof_nonce: [0, 0, 0, 0], // Default to zeros, will be set by SDK
             io_options: IoOptions::new(),
+            output_consumers: OutputConsumers { stdout: None, stderr: None },
         }
     }
 
@@ -180,6 +185,7 @@ impl<'a> SP1ContextBuilder<'a> {
             calculate_gas,
             proof_nonce,
             io_options: take(&mut self.io_options),
+            output_consumers: take(&mut self.output_consumers),
             expected_exit_code: self.expected_exit_code.unwrap_or(StatusCode::SUCCESS),
         }
     }
@@ -248,6 +254,18 @@ impl<'a> SP1ContextBuilder<'a> {
         self
     }
 
+    /// Redirect guest `stdout` to a bounded channel.
+    pub fn stdout_channel(&mut self, sender: SyncSender<Vec<u8>>) -> &mut Self {
+        self.output_consumers.stdout = Some(sender);
+        self
+    }
+
+    /// Redirect guest `stderr` to a bounded channel.
+    pub fn stderr_channel(&mut self, sender: SyncSender<Vec<u8>>) -> &mut Self {
+        self.output_consumers.stderr = Some(sender);
+        self
+    }
+
     /// Set the expected exit code of the program.
     pub fn expected_exit_code(&mut self, code: StatusCode) -> &mut Self {
         self.expected_exit_code = Some(code);
@@ -285,7 +303,7 @@ impl IoOptions<'_> {
 
 impl Clone for IoOptions<'_> {
     fn clone(&self) -> Self {
-        Self::new()
+        IoOptions { stdout: None, stderr: None }
     }
 }
 
