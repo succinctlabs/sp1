@@ -30,17 +30,16 @@ __device__ __forceinline__ GkrInput interactionValue(
     ext_t denominator = alpha;
 
     // Add argument index to the denominator.
-    ext_t argumentIndex = ext_t(interactions.arg_indices[index]);
-    denominator += betas[0] * argumentIndex;
+    denominator += betas[0] * interactions.arg_indices[index];
 
     // Add the interaction values.
     for (size_t k = interactions.values_ptr[index]; k < interactions.values_ptr[index + 1]; k++) {
-        ext_t acc = ext_t(interactions.values_constants[k]);
+        felt_t acc = interactions.values_constants[k];
         for (size_t l = interactions.values_col_weights_ptr[k];
              l < interactions.values_col_weights_ptr[k + 1];
              l++) {
             acc +=
-                ext_t(interactions.values_col_weights[l].get(preprocessed, main, rowIdx, height));
+                interactions.values_col_weights[l].get(preprocessed, main, rowIdx, height);
         }
         denominator += betas[k - interactions.values_ptr[index] + 1] * acc;
     }

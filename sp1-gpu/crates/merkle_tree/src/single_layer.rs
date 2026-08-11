@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, os::raw::c_void};
+use std::marker::PhantomData;
 
 use slop_algebra::{AbstractField, Field};
 use slop_alloc::CpuBackend;
@@ -17,6 +17,8 @@ use sp1_gpu_cudart::{
             compute_openings_merkle_tree_koala_bear_16_kernel,
             compute_paths_merkle_tree_bn254_kernel, compute_paths_merkle_tree_koala_bear_16_kernel,
             leaf_hash_merkle_tree_bn254_kernel, leaf_hash_merkle_tree_koala_bear_16_kernel,
+            recompute_bottom_paths_merkle_tree_bn254_kernel,
+            recompute_bottom_paths_merkle_tree_koala_bear_16_kernel,
         },
         runtime::{Dim3, KernelPtr},
     },
@@ -25,7 +27,7 @@ use sp1_gpu_cudart::{
 use sp1_primitives::{SP1ExtensionField, SP1Field, SP1GlobalContext};
 use thiserror::Error;
 
-use crate::{MerkleTree, MerkleTreeHasher};
+use crate::{MerkleTree, MerkleTreeHasher, MERKLE_TRUNCATED_LEVELS, MIN_TRUNCATED_HEIGHT};
 
 /// # Safety
 ///
@@ -37,6 +39,8 @@ pub unsafe trait MerkleTreeSingleLayerKernels<GC: IopCtx>: 'static + Send + Sync
     fn compress_layer_kernel() -> KernelPtr;
 
     fn compute_paths_kernel() -> KernelPtr;
+
+    fn recompute_bottom_paths_kernel() -> KernelPtr;
 
     fn compute_openings_kernel() -> KernelPtr;
 }
@@ -74,9 +78,12 @@ pub trait CudaTcsProver<GC: IopCtx>: Send + Sync + 'static {
         tensor: &Tensor<GC::F, TaskScope>,
     ) -> Result<(GC::Digest, MerkleTreeProverData<GC::Digest>), ProverError>;
 
+    /// `leaf_tensor` must hold the values the tree was committed from. Truncated trees rehash
+    /// the queried leaves' subtrees from it to reproduce the bottom path siblings.
     fn prove_openings_at_indices(
         &self,
         data: &MerkleTreeProverData<GC::Digest>,
+        leaf_tensor: &Tensor<GC::F, TaskScope>,
         indices: &[usize],
     ) -> Result<MerkleTreeTcsProof<GC::Digest>, ProverError>;
 
@@ -139,6 +146,16 @@ where
             }
         }
 
+        // Keep only the top levels; the bottom ones are rehashed from `tensor` per query.
+        // The full tree lives only for the duration of this commit.
+        if height >= MIN_TRUNCATED_HEIGHT {
+            let stored_height = height - MERKLE_TRUNCATED_LEVELS;
+            let stored_len = (1usize << (stored_height + 1)) - 1;
+            let mut digests = Buffer::with_capacity_in(stored_len, scope.clone());
+            digests.extend_from_device_slice(&tree.digests[..stored_len])?;
+            tree = MerkleTree { digests, height, stored_height };
+        }
+
         let (hasher, compressor) = GC::default_hasher_and_compressor();
 
         // Copy root digest from device to host synchronously
@@ -159,14 +176,18 @@ where
     fn prove_openings_at_indices(
         &self,
         data: &MerkleTreeProverData<GC::Digest>,
+        leaf_tensor: &Tensor<GC::F, TaskScope>,
         indices: &[usize],
     ) -> Result<MerkleTreeTcsProof<GC::Digest>, ProverError> {
+        let tree = &data.0;
+        let height = tree.height;
+        let bottom = tree.truncated_levels();
+        assert_eq!(leaf_tensor.sizes()[1], 1 << height, "leaf tensor does not match the tree");
+        assert_eq!(leaf_tensor.sizes()[0], data.3, "leaf tensor does not match the tree");
         let paths = {
-            let scope = data.0.backend();
-            let mut paths = Tensor::<GC::Digest, _>::with_sizes_in(
-                [indices.len(), data.0.height],
-                scope.clone(),
-            );
+            let scope = tree.backend();
+            let mut paths =
+                Tensor::<GC::Digest, _>::with_sizes_in([indices.len(), height], scope.clone());
             let mut indices_buffer =
                 Buffer::<usize, _>::with_capacity_in(indices.len(), scope.clone());
             indices_buffer.extend_from_host_slice(indices)?;
@@ -174,15 +195,42 @@ where
             unsafe {
                 paths.assume_init();
 
+                if bottom > 0 {
+                    // Rehash each query's bottom subtree from the leaf data.
+                    let subtree = 1usize << bottom;
+                    let shared_mem = (2 * subtree - 2) * std::mem::size_of::<GC::Digest>();
+                    let width = leaf_tensor.sizes()[0];
+                    let args = args!(
+                        self.hasher_device.as_raw(),
+                        leaf_tensor.as_ptr(),
+                        paths.as_mut_ptr(),
+                        indices.as_ptr(),
+                        indices.len(),
+                        width,
+                        height,
+                        bottom
+                    );
+                    scope.launch_kernel(
+                        K::recompute_bottom_paths_kernel(),
+                        indices.len(),
+                        subtree.min(256),
+                        &args,
+                        shared_mem,
+                    )?;
+                }
+
                 let block_dim = 256;
                 let grid_dim = indices.len().div_ceil(block_dim);
-                let args = [
-                    &(paths.as_mut_ptr()) as *const _ as *mut c_void,
-                    &(indices.as_ptr()) as *const _ as *mut c_void,
-                    &indices.len() as *const usize as _,
-                    &(data.0.digests.as_ptr()) as *const _ as *mut c_void,
-                    (&data.0.height) as *const usize as _,
-                ];
+                let args = args!(
+                    paths.as_mut_ptr(),
+                    height,
+                    bottom,
+                    indices.as_ptr(),
+                    bottom,
+                    indices.len(),
+                    tree.digests.as_ptr(),
+                    tree.stored_height
+                );
                 scope.launch_kernel(K::compute_paths_kernel(), grid_dim, block_dim, &args, 0)?;
             }
             paths
@@ -340,6 +388,11 @@ unsafe impl MerkleTreeSingleLayerKernels<SP1GlobalContext> for Poseidon2SP1Field
     }
 
     #[inline]
+    fn recompute_bottom_paths_kernel() -> KernelPtr {
+        unsafe { recompute_bottom_paths_merkle_tree_koala_bear_16_kernel() }
+    }
+
+    #[inline]
     fn compute_openings_kernel() -> KernelPtr {
         unsafe { compute_openings_merkle_tree_koala_bear_16_kernel() }
     }
@@ -361,6 +414,11 @@ unsafe impl MerkleTreeSingleLayerKernels<BNGC<SP1Field, SP1ExtensionField>>
     #[inline]
     fn compute_paths_kernel() -> KernelPtr {
         unsafe { compute_paths_merkle_tree_bn254_kernel() }
+    }
+
+    #[inline]
+    fn recompute_bottom_paths_kernel() -> KernelPtr {
+        unsafe { recompute_bottom_paths_merkle_tree_bn254_kernel() }
     }
 
     #[inline]
@@ -471,8 +529,13 @@ mod tests {
                 &indices,
             );
 
-            let new_proof =
-                tensor_prover.prove_openings_at_indices(&new_cuda_prover_data, &indices).unwrap();
+            let new_proof = tensor_prover
+                .prove_openings_at_indices(
+                    &new_cuda_prover_data,
+                    &new_traces.dense().preprocessed_tensor(LOG_STACKING_HEIGHT),
+                    &indices,
+                )
+                .unwrap();
 
             assert_eq!(new_proof.merkle_root, old_proof.merkle_root);
             assert_eq!(new_proof.log_tensor_height, old_proof.log_tensor_height);
@@ -515,8 +578,13 @@ mod tests {
                 &indices,
             );
 
-            let new_proof =
-                tensor_prover.prove_openings_at_indices(&new_cuda_prover_data, &indices).unwrap();
+            let new_proof = tensor_prover
+                .prove_openings_at_indices(
+                    &new_cuda_prover_data,
+                    &new_traces.dense().main_tensor(LOG_STACKING_HEIGHT),
+                    &indices,
+                )
+                .unwrap();
 
             assert_eq!(new_proof.merkle_root, old_proof.merkle_root);
             assert_eq!(new_proof.log_tensor_height, old_proof.log_tensor_height);

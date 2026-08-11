@@ -663,9 +663,31 @@ impl TaskOutput {
             }
             TaskStatus::FailedRetryable => {
                 let task = task_data.unwrap();
-                let res = worker_client.submit_task(task_type, task).await;
-                if let Err(e) = res {
-                    tracing::error!("Failed to submit retry, task: {:?}, error: {:?}", task_id, e);
+                match worker_client.resubmit_task(task_type, task).await {
+                    Ok(Some(_)) => {}
+                    Ok(None) => {
+                        tracing::error!(
+                            "task {:?} exhausted its retry budget, failing it",
+                            task_id
+                        );
+                        let res = worker_client
+                            .update_task_status(task_id.clone(), TaskStatus::FailedFatal)
+                            .await;
+                        if let Err(e) = res {
+                            tracing::error!(
+                                "Failed to fail retry-exhausted task {:?}: {:?}",
+                                task_id,
+                                e
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!(
+                            "Failed to submit retry, task: {:?}, error: {:?}",
+                            task_id,
+                            e
+                        );
+                    }
                 }
             }
             TaskStatus::FailedFatal => {

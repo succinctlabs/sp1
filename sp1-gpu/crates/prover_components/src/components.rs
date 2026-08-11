@@ -60,7 +60,8 @@ pub async fn new_cuda_prover<GC, PC>(
     verifier: &sp1_hypercube::MachineVerifier<GC, SP1SC<GC, PC::Air>>,
     max_trace_size: usize,
     num_workers: usize,
-    _recompute_first_layer: bool,
+    recompute_first_layer: bool,
+    drop_ldes: bool,
     scope: TaskScope,
 ) -> CudaShardProver<GC, PC>
 where
@@ -110,10 +111,7 @@ where
         max_trace_size,
         scope,
         all_interactions,
-        // Lookahead experiment: keep the GKR leaf layer and the trace codewords resident
-        // instead of recomputing them — the fused first-two-rounds shrank the fold
-        // transients enough to afford it.
-        false,
-        false,
+        recompute_first_layer,
+        drop_ldes,
     )
 }

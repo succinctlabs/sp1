@@ -74,7 +74,11 @@ fn test_using_too_much_memory() {
     }
 
     let result = run(&mut runner);
-    assert_eq!(result, Some(ExecutionError::TooMuchMemory()));
+    // Portable builds trip the in-process limiter; native builds are killed by the RSS monitor.
+    assert!(matches!(
+        result,
+        Some(ExecutionError::TooMuchMemory() | ExecutionError::KilledByMemoryMonitor(_))
+    ));
 }
 
 #[test]

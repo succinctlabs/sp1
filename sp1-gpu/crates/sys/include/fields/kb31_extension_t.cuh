@@ -221,6 +221,12 @@ class kb31_extension_t {
         return a *= b;
     }
 
+    // Implemented so that `base * ext` is not inefficient.
+    friend __device__ __forceinline__ kb31_extension_t
+    operator*(const kb31_t a, kb31_extension_t b) {
+        return b *= a;
+    }
+
     __device__ __forceinline__ kb31_extension_t& operator/=(const kb31_extension_t b) {
         *this *= b.reciprocal();
         return *this;

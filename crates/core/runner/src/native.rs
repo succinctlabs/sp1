@@ -17,7 +17,7 @@ use std::{
     process::{Child, Command, Stdio},
     ptr::NonNull,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         Arc,
     },
     thread::{self, JoinHandle},
@@ -35,9 +35,7 @@ pub struct MinimalExecutorRunner {
     memory: SharedMemory,
     consumer: Option<ShmTraceRing>,
 
-    // The flag is set by the memory monitor when it SIGKILLs the child for exceeding its RSS
-    // budget, so that kill can be told apart from an external (OOM-killer) one.
-    process: Option<(Child, JoinHandle<()>, Arc<AtomicBool>)>,
+    process: Option<(Child, JoinHandle<()>, Arc<MonitorState>)>,
     output: Option<Result<Output, ExecutionError>>,
     output_consumers: OutputConsumers,
 
@@ -149,7 +147,7 @@ impl MinimalExecutorRunner {
 
         if self.process.is_none() {
             // Start the process
-            let (mut child, killed_by_monitor) = spawn_restricted(
+            let (mut child, monitor) = spawn_restricted(
                 Command::new(crate::binary::get_binary_path()),
                 self.input.memory_limit,
             )
@@ -185,17 +183,18 @@ impl MinimalExecutorRunner {
                 // in case it didn't, so the reap can't block; then collect its exit status and logs.
                 let _ = child.kill();
                 let status = child.wait().expect("wait for child to exit");
+                monitor.stop.store(true, Ordering::SeqCst);
                 let _ = log_handle.join();
                 let error = if status.success() {
                     ExecutionError::Other(format!("failed sending input to child: {send_err}"))
                 } else {
-                    child_exit_error(&status, &killed_by_monitor)
+                    child_exit_error(&status, &monitor)
                 };
                 self.output = Some(Err(error.clone()));
                 return Err(error);
             }
 
-            self.process = Some((child, log_handle, killed_by_monitor));
+            self.process = Some((child, log_handle, monitor));
         }
 
         if let Some(consumer) = &self.consumer {
@@ -215,7 +214,8 @@ impl MinimalExecutorRunner {
                     }
                     TraceResult::Crashed(details) => {
                         // Process logs, they might provide insight into why the program crashed.
-                        let (_, log_thread, _) = self.process.take().unwrap();
+                        let (_, log_thread, monitor) = self.process.take().unwrap();
+                        monitor.stop.store(true, Ordering::SeqCst);
                         log_thread.join().expect("wait for log thread to finish");
                         let opcode = match details.operation {
                             1 => Opcode::LD,
@@ -247,13 +247,14 @@ impl MinimalExecutorRunner {
                                 return Ok(None);
                             }
                             // The child terminates with some errors. We still want to process logs.
-                            let (_, log_thread, killed_by_monitor) = self.process.take().unwrap();
+                            let (_, log_thread, monitor) = self.process.take().unwrap();
+                            monitor.stop.store(true, Ordering::SeqCst);
                             log_thread.join().expect("wait for log thread to finish");
                             // Child process is terminated, let's find out why
                             if status.signal() == Some(libc::SIGBUS) {
                                 tracing::warn!("SIGBUS signal is received, there is a chance /dev/shm is full!");
                             }
-                            let error = child_exit_error(&status, &killed_by_monitor);
+                            let error = child_exit_error(&status, &monitor);
                             self.output = Some(Err(error.clone()));
                             return Err(error);
                         }
@@ -271,7 +272,7 @@ impl MinimalExecutorRunner {
 
     fn wait_for_success(&mut self) -> Result<(), ExecutionError> {
         // SP1 program terminates, wait for output and terminate child process.
-        let (mut child, log_thread, killed_by_monitor) = self.process.take().unwrap();
+        let (mut child, log_thread, monitor) = self.process.take().unwrap();
         let stdout = child.stdout.take().expect("open stdout");
         let mut stdout_reader = BufReader::new(stdout);
 
@@ -279,6 +280,7 @@ impl MinimalExecutorRunner {
         // closes the pipe (EOF) rather than blocking.
         let output: Result<Output, _> = bincode::deserialize_from(&mut stdout_reader);
         let status = child.wait().expect("wait for child to exit");
+        monitor.stop.store(true, Ordering::SeqCst);
         log_thread.join().expect("wait for log thread to finish");
 
         match output {
@@ -291,7 +293,7 @@ impl MinimalExecutorRunner {
             // Non-tracing runner has no crash handler, so map the exit signal to a
             // typed cause here instead of panicking (mirrors the Timeout branch).
             _ => {
-                let error = child_exit_error(&status, &killed_by_monitor);
+                let error = child_exit_error(&status, &monitor);
                 self.output = Some(Err(error.clone()));
                 Err(error)
             }
@@ -413,7 +415,8 @@ impl MinimalExecutorRunner {
     }
 
     pub fn reset(&mut self) {
-        if let Some((mut child, _, _)) = self.process.take() {
+        if let Some((mut child, _, monitor)) = self.process.take() {
+            monitor.stop.store(true, Ordering::SeqCst);
             child.kill().expect("running child cannot be killed");
         }
         self.output = None;
@@ -466,18 +469,28 @@ fn create(input: &Input) -> (SharedMemory, Option<ShmTraceRing>) {
     (memory, consumer)
 }
 
+/// State shared between the RSS monitor thread and the parent's child-reaping paths.
+///
+/// `killed` attributes a `SIGKILL` to our monitor; `rss_bytes` is the RSS reading that
+/// triggered the kill. `stop` is set by the parent when it reaps or kills the child,
+/// narrowing the window in which the monitor could kill a recycled PID.
+struct MonitorState {
+    killed: AtomicBool,
+    rss_bytes: AtomicU64,
+    stop: AtomicBool,
+}
+
 /// Maps a dead child's exit status to a typed [`ExecutionError`] instead of panicking.
 ///
-/// A `SIGKILL` is split by `killed_by_monitor`: if our RSS monitor sent it, the program
-/// exceeded its budget ([`ExecutionError::TooMuchMemory`]); otherwise it was an external
-/// kill, e.g. the OS OOM-killer ([`ExecutionError::ChildKilled`]).
-fn child_exit_error(
-    status: &std::process::ExitStatus,
-    killed_by_monitor: &AtomicBool,
-) -> ExecutionError {
+/// A `SIGKILL` is split by `monitor.killed`: if our RSS monitor sent it, the sampled RSS
+/// exceeded the limit ([`ExecutionError::KilledByMemoryMonitor`]); otherwise it was an
+/// external kill, e.g. the OS OOM-killer ([`ExecutionError::ChildKilled`]).
+fn child_exit_error(status: &std::process::ExitStatus, monitor: &MonitorState) -> ExecutionError {
     match (status.code(), status.signal()) {
-        (_, Some(libc::SIGKILL)) if killed_by_monitor.load(Ordering::SeqCst) => {
-            ExecutionError::TooMuchMemory()
+        (_, Some(libc::SIGKILL)) if monitor.killed.load(Ordering::SeqCst) => {
+            ExecutionError::KilledByMemoryMonitor(
+                monitor.rss_bytes.load(Ordering::SeqCst) / 1024 / 1024,
+            )
         }
         (_, Some(libc::SIGKILL)) => ExecutionError::ChildKilled(),
         (_, Some(libc::SIGILL)) => ExecutionError::Unimplemented(),
@@ -491,7 +504,7 @@ fn child_exit_error(
 fn spawn_restricted(
     mut cmd: Command,
     limit_bytes: u64,
-) -> std::io::Result<(Child, Arc<AtomicBool>)> {
+) -> std::io::Result<(Child, Arc<MonitorState>)> {
     cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
 
     // Disable core dumps for the child by temporarily zeroing RLIMIT_CORE in the
@@ -509,8 +522,12 @@ fn spawn_restricted(
     }?;
     let child_pid = child.id();
 
-    let killed_by_monitor = Arc::new(AtomicBool::new(false));
-    let monitor_flag = killed_by_monitor.clone();
+    let monitor_state = Arc::new(MonitorState {
+        killed: AtomicBool::new(false),
+        rss_bytes: AtomicU64::new(0),
+        stop: AtomicBool::new(false),
+    });
+    let monitor = monitor_state.clone();
 
     // Start the Background Memory Monitor (The Enforcer)
     thread::spawn(move || {
@@ -519,6 +536,10 @@ fn spawn_restricted(
         let poll_interval = Duration::from_millis(MEMORY_MONITOR_INTERAL_MILLIS);
 
         loop {
+            if monitor.stop.load(Ordering::SeqCst) {
+                break; // The parent is done with the child; a later poll could hit a recycled PID.
+            }
+
             // Refresh only this specific process for performance
             if !sys.refresh_process(pid) {
                 break; // Process is finished or gone
@@ -528,7 +549,7 @@ fn spawn_restricted(
                 // .memory() returns the Resident Set Size (RSS) in bytes
                 let current_rss = proc.memory();
 
-                if current_rss > limit_bytes {
+                if current_rss > limit_bytes && !monitor.stop.load(Ordering::SeqCst) {
                     tracing::warn!(
                         "Monitor: PID {} exceeded limit ({} MB > {} MB). Sending SIGKILL.",
                         child_pid,
@@ -536,8 +557,10 @@ fn spawn_restricted(
                         limit_bytes / 1024 / 1024
                     );
 
-                    // Flag before killing so the kill is attributable to us, not the OOM-killer.
-                    monitor_flag.store(true, Ordering::SeqCst);
+                    // Record the reading and flag before killing so the kill is attributable
+                    // to us, not the OOM-killer.
+                    monitor.rss_bytes.store(current_rss, Ordering::SeqCst);
+                    monitor.killed.store(true, Ordering::SeqCst);
                     // Kill the process immediately
                     unsafe {
                         libc::kill(child_pid as i32, libc::SIGKILL);
@@ -548,12 +571,13 @@ fn spawn_restricted(
             thread::sleep(poll_interval);
         }
     });
-    Ok((child, killed_by_monitor))
+    Ok((child, monitor_state))
 }
 
 impl Drop for MinimalExecutorRunner {
     fn drop(&mut self) {
-        if let Some((mut child, _, _)) = self.process.take() {
+        if let Some((mut child, _, monitor)) = self.process.take() {
+            monitor.stop.store(true, Ordering::SeqCst);
             let _ = child.kill();
         }
     }
@@ -562,39 +586,47 @@ impl Drop for MinimalExecutorRunner {
 #[cfg(test)]
 mod child_exit_error_tests {
     use super::child_exit_error;
+    use super::MonitorState;
     use sp1_core_executor::ExecutionError;
     use std::os::unix::process::ExitStatusExt;
     use std::process::ExitStatus;
-    use std::sync::atomic::AtomicBool;
+    use std::sync::atomic::{AtomicBool, AtomicU64};
 
     // A wait()-style status for a process killed by `signal` (low 7 bits on Unix).
     fn signaled(signal: i32) -> ExitStatus {
         ExitStatus::from_raw(signal)
     }
 
+    fn monitor(killed: bool, rss_bytes: u64) -> MonitorState {
+        MonitorState {
+            killed: AtomicBool::new(killed),
+            rss_bytes: AtomicU64::new(rss_bytes),
+            stop: AtomicBool::new(false),
+        }
+    }
+
     #[test]
-    fn sigkill_by_our_monitor_is_too_much_memory() {
-        let flag = AtomicBool::new(true); // our RSS monitor sent the SIGKILL
+    fn sigkill_by_our_monitor_carries_the_rss_reading() {
+        // Our RSS monitor sent the SIGKILL at a 25 GiB reading.
         assert!(matches!(
-            child_exit_error(&signaled(libc::SIGKILL), &flag),
-            ExecutionError::TooMuchMemory()
+            child_exit_error(&signaled(libc::SIGKILL), &monitor(true, 25 * 1024 * 1024 * 1024)),
+            ExecutionError::KilledByMemoryMonitor(25600)
         ));
     }
 
     #[test]
     fn external_sigkill_is_child_killed() {
-        let flag = AtomicBool::new(false); // OOM-killer / external SIGKILL
+        // OOM-killer / external SIGKILL
         assert!(matches!(
-            child_exit_error(&signaled(libc::SIGKILL), &flag),
+            child_exit_error(&signaled(libc::SIGKILL), &monitor(false, 0)),
             ExecutionError::ChildKilled()
         ));
     }
 
     #[test]
     fn sigill_is_unimplemented() {
-        let flag = AtomicBool::new(false);
         assert!(matches!(
-            child_exit_error(&signaled(libc::SIGILL), &flag),
+            child_exit_error(&signaled(libc::SIGILL), &monitor(false, 0)),
             ExecutionError::Unimplemented()
         ));
     }
