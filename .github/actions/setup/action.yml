@@ -27,9 +27,11 @@ runs:
   steps:
     - name: Set up git private repo access
       shell: bash
+      env:
+        PULL_TOKEN: ${{ inputs.pull_token }}
       run: |
-        git config --global url."https://${{ inputs.pull_token }}@github.com/".insteadOf ssh://git@github.com
-        git config --global url."https://${{ inputs.pull_token }}@github.com".insteadOf https://github.com
+        git config --global url."https://${PULL_TOKEN}@github.com/".insteadOf ssh://git@github.com
+        git config --global url."https://${PULL_TOKEN}@github.com".insteadOf https://github.com
 
     - name: Install Go 1.22
       uses: actions/setup-go@v5
