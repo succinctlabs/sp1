@@ -2,7 +2,8 @@ use crate::hook::{hookify, BoxedHook, HookEnv, HookRegistry};
 use core::mem::take;
 use hashbrown::HashMap;
 use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
-use std::{io::Write, sync::mpsc::SyncSender};
+use std::io::Write;
+use tokio::sync::watch;
 
 use sp1_primitives::consts::fd::LOWEST_ALLOWED_FD;
 
@@ -254,14 +255,18 @@ impl<'a> SP1ContextBuilder<'a> {
         self
     }
 
-    /// Redirect guest `stdout` to a bounded channel.
-    pub fn stdout_channel(&mut self, sender: SyncSender<Vec<u8>>) -> &mut Self {
+    /// Publish the latest 2 KiB snapshot of guest `stdout`.
+    ///
+    /// Keep a receiver alive through execution, then clone its value after execution completes.
+    pub fn stdout_channel(&mut self, sender: watch::Sender<String>) -> &mut Self {
         self.output_consumers.stdout = Some(sender);
         self
     }
 
-    /// Redirect guest `stderr` to a bounded channel.
-    pub fn stderr_channel(&mut self, sender: SyncSender<Vec<u8>>) -> &mut Self {
+    /// Publish the latest 2 KiB snapshot of guest `stderr`.
+    ///
+    /// Keep a receiver alive through execution, then clone its value after execution completes.
+    pub fn stderr_channel(&mut self, sender: watch::Sender<String>) -> &mut Self {
         self.output_consumers.stderr = Some(sender);
         self
     }
@@ -314,15 +319,15 @@ pub trait IoWriter: Write + Send + Sync {}
 
 impl<W: Write + Send + Sync> IoWriter for W {}
 
-/// Owned consumers for guest `stdout` and `stderr`.
+/// Publishers for the latest 2 KiB guest `stdout` and `stderr` snapshots.
 ///
-/// Receivers must be drained while execution is running.
+/// Receivers should clone values promptly because a live borrow can delay the publisher.
 #[derive(Clone, Default)]
 pub struct OutputConsumers {
-    /// A channel for guest `stdout` lines.
-    pub stdout: Option<SyncSender<Vec<u8>>>,
-    /// A channel for guest `stderr` lines.
-    pub stderr: Option<SyncSender<Vec<u8>>>,
+    /// Publishes the latest retained guest `stdout`.
+    pub stdout: Option<watch::Sender<String>>,
+    /// Publishes the latest retained guest `stderr`.
+    pub stderr: Option<watch::Sender<String>>,
 }
 
 #[cfg(test)]

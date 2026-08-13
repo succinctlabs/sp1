@@ -7,8 +7,8 @@ use sp1_primitives::{io::SP1PublicValues, Elf};
 use std::{
     future::{Future, IntoFuture},
     pin::Pin,
-    sync::mpsc::SyncSender,
 };
+use tokio::sync::watch;
 
 /// A request for executing a program.
 pub struct ExecuteRequest<'a, P: Prover> {
@@ -161,20 +161,20 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
         self
     }
 
-    /// Redirect guest `stdout` to a bounded channel.
+    /// Publish the latest 2 KiB snapshot of guest `stdout`.
     ///
-    /// The receiver must be drained while execution is running.
+    /// Keep a receiver alive through execution, then clone its value after execution completes.
     #[must_use]
-    pub fn stdout(mut self, sender: SyncSender<Vec<u8>>) -> Self {
+    pub fn stdout(mut self, sender: watch::Sender<String>) -> Self {
         self.context_builder.stdout_channel(sender);
         self
     }
 
-    /// Redirect guest `stderr` to a bounded channel.
+    /// Publish the latest 2 KiB snapshot of guest `stderr`.
     ///
-    /// The receiver must be drained while execution is running.
+    /// Keep a receiver alive through execution, then clone its value after execution completes.
     #[must_use]
-    pub fn stderr(mut self, sender: SyncSender<Vec<u8>>) -> Self {
+    pub fn stderr(mut self, sender: watch::Sender<String>) -> Self {
         self.context_builder.stderr_channel(sender);
         self
     }

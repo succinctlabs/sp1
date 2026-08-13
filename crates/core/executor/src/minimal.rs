@@ -15,7 +15,7 @@ mod precompiles;
 mod write;
 
 #[doc(hidden)]
-pub use write::with_output_consumers;
+pub use write::{publish_output_line, with_output_consumers};
 
 #[cfg(test)]
 mod tests;

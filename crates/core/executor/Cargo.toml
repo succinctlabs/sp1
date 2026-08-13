@@ -34,6 +34,7 @@ num = { workspace = true }
 typenum = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }
 strum = { workspace = true, features = ["derive"] }
 hex = { workspace = true }
 bytemuck = { workspace = true }

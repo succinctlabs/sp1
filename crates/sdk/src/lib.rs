@@ -106,12 +106,11 @@ mod tests {
         let elf = test_artifacts::PANIC_ELF;
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
-        let (stderr_tx, stderr_rx) = std::sync::mpsc::sync_channel(64);
+        let (stderr_tx, stderr_rx) = tokio::sync::watch::channel(String::new());
         let (_, report) = client.execute(elf, stdin).stderr(stderr_tx).await.unwrap();
         assert_eq!(report.exit_code, 1);
 
-        let stderr = stderr_rx.try_iter().flatten().collect::<Vec<_>>();
-        let stderr = String::from_utf8(stderr).unwrap();
+        let stderr = stderr_rx.borrow().clone();
         assert!(stderr.contains("panicked at panic/src/main.rs:9:5"), "stderr: {stderr}");
         assert!(stderr.contains("assertion `left == right` failed"), "stderr: {stderr}");
     }
@@ -290,13 +289,13 @@ mod tests {
         utils::setup_logger();
         let client = ProverClient::builder().cpu().build().await;
         let elf = test_artifacts::HELLO_WORLD_ELF;
-        let (stdout_tx, stdout_rx) = std::sync::mpsc::sync_channel(8);
+        let (stdout_tx, stdout_rx) = tokio::sync::watch::channel(String::new());
 
         let stdin = SP1Stdin::new();
         let _ = client.execute(elf, stdin).stdout(stdout_tx).await.unwrap();
 
-        let stdout = stdout_rx.try_iter().flatten().collect::<Vec<_>>();
-        assert_eq!(stdout, b"Hello, world!\n");
+        let stdout = stdout_rx.borrow().clone();
+        assert_eq!(stdout, "Hello, world!\n");
     }
 
     #[tokio::test]

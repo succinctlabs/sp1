@@ -1,7 +1,7 @@
 use base64::{engine::general_purpose::URL_SAFE, Engine};
 use sp1_core_executor::{
-    ExecutionError, MinimalTranspiler, Opcode, OutputConsumers, Program, UnsafeMemory,
-    DEFAULT_MEMORY_LIMIT, DEFAULT_TRACE_CHUNK_SLOTS,
+    publish_output_line, ExecutionError, MinimalTranspiler, Opcode, OutputConsumers, Program,
+    UnsafeMemory, DEFAULT_MEMORY_LIMIT, DEFAULT_TRACE_CHUNK_SLOTS,
 };
 use sp1_core_executor_runner_binary::{Input, Output};
 use sp1_jit::{
@@ -442,9 +442,7 @@ fn redirect_output(consumers: &OutputConsumers, line: &str) -> bool {
         return false;
     };
 
-    let mut bytes = content.as_bytes().to_vec();
-    bytes.push(b'\n');
-    sender.send(bytes).is_ok()
+    publish_output_line(sender, content)
 }
 
 // Create partial field variables, so the common logic can be shared
