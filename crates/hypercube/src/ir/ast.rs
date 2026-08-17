@@ -280,50 +280,48 @@ impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
                     };
                     bindings.push(LeanBinding { id: bind_id_of(result), text, deps: refs_vec(&[*a, *b]) });
                 }
-                OpExpr::Send(interaction, _) => match interaction.kind {
-                    InteractionKind::Byte
-                    | InteractionKind::State
-                    | InteractionKind::Memory
-                    | InteractionKind::Program => {
-                        interactions.push((
-                            format!(
-                                "⟨.send, {}, {}⟩",
-                                interaction.to_lean_string(mapping),
-                                interaction.multiplicity.to_lean_string(mapping)
-                            ),
+                OpExpr::Send(interaction, scope) => {
+                    let direction = match scope {
+                        InteractionScope::Local => "send",
+                        InteractionScope::Global => "sendGlobal",
+                    };
+                    interactions.push((
+                        format!(
+                            "⟨.{}, {}, {}⟩",
+                            direction,
+                            interaction.to_lean_string(mapping),
+                            interaction.multiplicity.to_lean_string(mapping),
+                        ),
+                        refs_of_interaction(interaction),
+                    ));
+                    if matches!(interaction.kind, InteractionKind::Byte) {
+                        channel_calls.push((
+                            byte_channel_call(interaction, mapping),
                             refs_of_interaction(interaction),
                         ));
-                        if matches!(interaction.kind, InteractionKind::Byte) {
-                            channel_calls.push((
-                                byte_channel_call(interaction, mapping),
-                                refs_of_interaction(interaction),
-                            ));
-                        }
                     }
-                    _ => {}
-                },
-                OpExpr::Receive(interaction, _) => match interaction.kind {
-                    InteractionKind::Byte
-                    | InteractionKind::State
-                    | InteractionKind::Memory
-                    | InteractionKind::Program => {
-                        interactions.push((
-                            format!(
-                                "⟨.receive, {}, {}⟩",
-                                interaction.to_lean_string(mapping),
-                                interaction.multiplicity.to_lean_string(mapping),
-                            ),
+                }
+                OpExpr::Receive(interaction, scope) => {
+                    let direction = match scope {
+                        InteractionScope::Local => "receive",
+                        InteractionScope::Global => "receiveGlobal",
+                    };
+                    interactions.push((
+                        format!(
+                            "⟨.{}, {}, {}⟩",
+                            direction,
+                            interaction.to_lean_string(mapping),
+                            interaction.multiplicity.to_lean_string(mapping),
+                        ),
+                        refs_of_interaction(interaction),
+                    ));
+                    if matches!(interaction.kind, InteractionKind::Byte) {
+                        channel_calls.push((
+                            byte_channel_call(interaction, mapping),
                             refs_of_interaction(interaction),
                         ));
-                        if matches!(interaction.kind, InteractionKind::Byte) {
-                            channel_calls.push((
-                                byte_channel_call(interaction, mapping),
-                                refs_of_interaction(interaction),
-                            ));
-                        }
                     }
-                    _ => {}
-                },
+                }
                 OpExpr::Call(decl) => {
                     // Build the trailing ` <inputs…>` shared by `.asserts`/`.interactions`/`.value`,
                     // along with the bindings those inputs read (drives DCE of each call term).

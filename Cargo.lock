@@ -7080,6 +7080,8 @@ dependencies = [
  "clap",
  "serde_json",
  "slop-air",
+ "slop-algebra 6.4.0",
+ "sp1-core-executor",
  "sp1-core-machine",
  "sp1-hypercube",
  "sp1-primitives 6.4.0",

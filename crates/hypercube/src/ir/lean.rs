@@ -167,7 +167,40 @@ impl<F: Field> AirInteraction<ExprRef<F>> {
             InteractionKind::Program => ".program",
             InteractionKind::Byte => ".byte",
             InteractionKind::State => ".state",
-            _ => todo!(),
+            kind => {
+                let raw_kind = match kind {
+                    InteractionKind::Syscall => "syscall",
+                    InteractionKind::Global => "global",
+                    InteractionKind::ShaExtend => "shaExtend",
+                    InteractionKind::ShaCompress => "shaCompress",
+                    InteractionKind::Keccak => "keccak",
+                    InteractionKind::GlobalAccumulation => "globalAccumulation",
+                    InteractionKind::MemoryGlobalInitControl => "memoryGlobalInitControl",
+                    InteractionKind::MemoryGlobalFinalizeControl => {
+                        "memoryGlobalFinalizeControl"
+                    }
+                    InteractionKind::InstructionFetch => "instructionFetch",
+                    InteractionKind::InstructionDecode => "instructionDecode",
+                    InteractionKind::PageProt => "pageProt",
+                    InteractionKind::PageProtAccess => "pageProtAccess",
+                    InteractionKind::PageProtGlobalInitControl => {
+                        "pageProtGlobalInitControl"
+                    }
+                    InteractionKind::PageProtGlobalFinalizeControl => {
+                        "pageProtGlobalFinalizeControl"
+                    }
+                    _ => unreachable!(),
+                };
+                res.push_str(&format!(".raw .{raw_kind} ["));
+                for (idx, val) in self.values.iter().enumerate() {
+                    if idx != 0 {
+                        res.push_str(", ");
+                    }
+                    res.push_str(&val.to_lean_string(input_mapping));
+                }
+                res.push_str("])");
+                return res;
+            }
         };
         res.push_str(kind_str);
 

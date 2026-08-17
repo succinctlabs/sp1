@@ -96,7 +96,8 @@ impl<F: Field> ExprRef<F> {
                 format!("(({base} : F)⁻¹)")
             }
             ExprRef::IrVar(IrVar::InputArg(idx)) => input_mapping.get(idx).unwrap().clone(),
-            ExprRef::IrVar(IrVar::Public(idx)) => format!("public_value () {idx}"),
+            ExprRef::IrVar(IrVar::Preprocessed(idx)) => format!("preprocessed[{idx}]"),
+            ExprRef::IrVar(IrVar::Public(idx)) => format!("publicValues[{idx}]"),
             _ => todo!(),
         }
     }

@@ -32,6 +32,15 @@ pub enum IrVar<F> {
     Preprocessed(usize),
     Main(usize),
     Constant(F),
+    /// Symbolic inverse of a small canonical-u32 base. Mirrors the variant in
+    /// `crates/hypercube/src/ir/var.rs` so this parallel AST tree stays in
+    /// sync; Lean emission for both renders `((base : Fin KB)⁻¹)`.
+    InverseConstant {
+        /// The pre-image — Lean emission writes `(base : Fin KB)⁻¹`.
+        base: u32,
+        /// The eagerly-computed inverse field element.
+        value: F,
+    },
     InputArg(usize),
     OutputArg(usize),
 }
@@ -43,6 +52,7 @@ impl<F: Field> Display for IrVar<F> {
             IrVar::Preprocessed(i) => write!(f, "Preprocessed({i})"),
             IrVar::Main(i) => write!(f, "Main({i})"),
             IrVar::Constant(c) => write!(f, "{c}"),
+            IrVar::InverseConstant { base, .. } => write!(f, "({base} : Fin KB)⁻¹"),
             IrVar::InputArg(i) => write!(f, "Input({i})"),
             IrVar::OutputArg(i) => write!(f, "Output({i})"),
         }
@@ -63,6 +73,7 @@ impl<F: Field> IrVar<F> {
                 }
             }
             IrVar::Constant(c) => format!("{c}"),
+            IrVar::InverseConstant { base, .. } => format!("(({base} : Fin KB)⁻¹)"),
             IrVar::Public(i) => format!("Public[{i}]"),
             IrVar::Preprocessed(i) => format!("Preprocessed[{i}]"),
             IrVar::OutputArg(i) => format!("Output[{i}]"),
@@ -453,15 +464,17 @@ where
 
     pub fn to_output_lean_type(&self) -> String {
         if self.output.is_empty() {
-            "SP1ConstraintList".to_string()
+            "SP1ConstraintList (Fin KB)".to_string()
         } else {
             assert_eq!(self.output.len(), 1);
             match self.output.first().unwrap() {
-                Ty::Word(_) => "Word KoalaBear × SP1ConstraintList".to_string(),
-                Ty::Expr(_) => "KoalaBear × SP1ConstraintList".to_string(),
-                Ty::ArrWordSize(_) => "Vector KoalaBear WORD_SIZE × SP1ConstraintList".to_string(),
+                Ty::Word(_) => "Word (Fin KB) × SP1ConstraintList (Fin KB)".to_string(),
+                Ty::Expr(_) => "(Fin KB) × SP1ConstraintList (Fin KB)".to_string(),
+                Ty::ArrWordSize(_) => {
+                    "Vector (Fin KB) WORD_SIZE × SP1ConstraintList (Fin KB)".to_string()
+                }
                 Ty::ArrWordByteSize(_) => {
-                    "Vector KoalaBear WORD_BYTE_SIZE × SP1ConstraintList".to_string()
+                    "Vector (Fin KB) WORD_BYTE_SIZE × SP1ConstraintList (Fin KB)".to_string()
                 }
                 _ => unimplemented!(),
             }
@@ -657,8 +670,8 @@ where
 impl<Expr, ExprExt> Ty<Expr, ExprExt> {
     pub fn to_lean_type(&self) -> String {
         match self {
-            Ty::Expr(_) => "KoalaBear".to_string(),
-            Ty::Word(_) => "Word KoalaBear".to_string(),
+            Ty::Expr(_) => "(Fin KB)".to_string(),
+            Ty::Word(_) => "Word (Fin KB)".to_string(),
             Ty::AddOperation(_) => "AddOperation".to_string(),
             Ty::SubOperation(_) => "SubOperation".to_string(),
             Ty::BitwiseU16Operation(_) => "BitwiseU16Operation".to_string(),
@@ -668,8 +681,8 @@ impl<Expr, ExprExt> Ty<Expr, ExprExt> {
             Ty::U16MSBOperation(_) => "U16MSBOperation".to_string(),
             Ty::LtOperationUnsigned(_) => "LtOperationUnsigned".to_string(),
             Ty::LtOperationSigned(_) => "LtOperationSigned".to_string(),
-            Ty::ArrWordSize(_) => "Vector KoalaBear 4".to_string(),
-            Ty::ArrWordByteSize(_) => "Vector KoalaBear 2".to_string(),
+            Ty::ArrWordSize(_) => "Vector (Fin KB) 4".to_string(),
+            Ty::ArrWordByteSize(_) => "Vector (Fin KB) 2".to_string(),
             Ty::RTypeReader(_) => "RTypeReader".to_string(),
             Ty::ALUTypeReader(_) => "ALUTypeReader".to_string(),
             Ty::CPUState(_) => "CPUState".to_string(),
@@ -905,7 +918,7 @@ impl<F: Field, EF: ExtensionField<F>> OpExpr<ExprRef<F>, ExprExtRef<EF>> {
                     BinOp::Sub => "-",
                     BinOp::Mul => "*",
                 };
-                Some(format!("let {} : KoalaBear := {} {} {}", result_str, a_str, op_str, b_str))
+                Some(format!("let {} : Fin KB := {} {} {}", result_str, a_str, op_str, b_str))
             }
             OpExpr::BinOpExt(op, result, a, b) => {
                 // Extension field operations - similar to BinOp
@@ -934,7 +947,7 @@ impl<F: Field, EF: ExtensionField<F>> OpExpr<ExprRef<F>, ExprExtRef<EF>> {
             OpExpr::Neg(result, a) => {
                 let result_str = result.to_lean(is_operation, input_mapping);
                 let a_str = a.to_lean(is_operation, input_mapping);
-                Some(format!("let {} : KoalaBear := -{}", result_str, a_str))
+                Some(format!("let {} : Fin KB := -{}", result_str, a_str))
             }
             OpExpr::NegExt(result, a) => {
                 let result_str = result.to_lean(is_operation, input_mapping);
@@ -952,7 +965,7 @@ impl<F: Field, EF: ExtensionField<F>> OpExpr<ExprRef<F>, ExprExtRef<EF>> {
             OpExpr::Assign(a, b) => {
                 let a_str = a.to_lean(is_operation, input_mapping);
                 let b_str = b.to_lean(is_operation, input_mapping);
-                Some(format!("let {} : KoalaBear := {}", a_str, b_str))
+                Some(format!("let {} : Fin KB := {}", a_str, b_str))
             }
             OpExpr::Call(_func) => {
                 // Function calls will be handled separately in the AST level
@@ -1126,7 +1139,7 @@ impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
                     let cs: String = format!("CS{}", extra_constraints.len());
 
                     if func.output.is_empty() {
-                        result.push_str(&format!("let {cs} : SP1ConstraintList := "));
+                        result.push_str(&format!("let {cs} : SP1ConstraintList (Fin KB) := "));
                     } else {
                         result.push_str("let ⟨");
                         result.push_str(&func.to_lean_output(false));
