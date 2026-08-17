@@ -28,10 +28,32 @@ impl<F: Field, EF: ExtensionField<F>> Shape<ExprRef<F>, ExprExtRef<EF>> {
                     "{{ {} }}",
                     fields
                         .iter()
-                        .map(|(field_name, field_val)| format!(
-                            "{field_name} := {}",
-                            field_val.to_lean_constructor(mapping)
-                        ))
+                        .flat_map(|(field_name, field_val)| {
+                            // An array-of-struct field is flattened to `name_0 := …, name_1 := …`
+                            // (matching the flattened struct definition in
+                            // `Shape::collect_lean_struct_defs` and body paths in `map_input`);
+                            // array-of-scalar stays a single `name := #v[…]`.
+                            match field_val.as_ref() {
+                                Shape::Array(elems)
+                                    if matches!(
+                                        elems.first().map(|e| e.as_ref()),
+                                        Some(Shape::Struct(..))
+                                    ) =>
+                                {
+                                    elems
+                                        .iter()
+                                        .enumerate()
+                                        .map(|(i, e)| {
+                                            format!("{field_name}_{i} := {}", e.to_lean_constructor(mapping))
+                                        })
+                                        .collect::<Vec<_>>()
+                                }
+                                _ => vec![format!(
+                                    "{field_name} := {}",
+                                    field_val.to_lean_constructor(mapping)
+                                )],
+                            }
+                        })
                         .join(", ")
                 )
             }
@@ -52,6 +74,33 @@ impl<F: Field, EF: ExtensionField<F>> Shape<ExprRef<F>, ExprExtRef<EF>> {
                 format!("⟨⟨[{}]⟩, _⟩", vals.iter().map(|x| x.to_lean_destructor()).join(", "))
             }
             Shape::Struct(_, _) => todo!("why would you need to destruct a struct"),
+        }
+    }
+
+    /// The output value's leaf variable names, in flattened column order. Used to bind a call's
+    /// returned value by index (`tmp.1[k]`) rather than by a structural `⟨⟨[..]⟩, _⟩` destructure
+    /// of the `Vector`, which does not elaborate. Mirrors [`Self::to_lean_destructor`]'s flat
+    /// treatment of `Word`/`Array` leaves.
+    pub fn output_leaves(&self) -> Vec<String> {
+        match self {
+            Shape::Expr(expr) => vec![expr.to_lean_string(&HashMap::default())],
+            Shape::Word(word) => {
+                word.iter().map(|x| x.to_lean_string(&HashMap::default())).collect()
+            }
+            Shape::Array(vals) => vals.iter().flat_map(|x| x.output_leaves()).collect(),
+            _ => unimplemented!("output_leaves only supports Expr/Word/Array outputs"),
+        }
+    }
+
+    /// Like [`Self::output_leaves`] but returning the leaf [`ExprRef`]s instead of their rendered
+    /// names, so callers can both render a leaf (`expr_to_lean_string`) and read its SSA index (to
+    /// form the binding id that drives per-function dead-code elimination).
+    pub fn output_leaf_refs(&self) -> Vec<ExprRef<F>> {
+        match self {
+            Shape::Expr(expr) => vec![*expr],
+            Shape::Word(word) => word.to_vec(),
+            Shape::Array(vals) => vals.iter().flat_map(|x| x.output_leaf_refs()).collect(),
+            _ => unimplemented!("output_leaf_refs only supports Expr/Word/Array outputs"),
         }
     }
 
@@ -82,20 +131,20 @@ impl<F: Field, EF: ExtensionField<F>> Shape<ExprRef<F>, ExprExtRef<EF>> {
                 for (i, val) in vals.iter().enumerate() {
                     match val {
                         ExprRef::IrVar(IrVar::InputArg(idx)) => {
-                            // In Mathlib, c[i] means some permutation stuff...
-                            if prefix == "c" {
-                                input_mapping.insert(*idx, format!("cc[{i}]"));
-                            } else {
-                                input_mapping.insert(*idx, format!("{prefix}[{i}]"));
-                            }
+                            input_mapping.insert(*idx, format!("{prefix}[{i}]"));
                         }
                         _ => unimplemented!("map_input must be backed by Input(x)"),
                     }
                 }
             }
             Shape::Array(vals) => {
+                // Array-of-struct fields are flattened to `prefix_i` separate struct fields (see
+                // `Shape::collect_lean_struct_defs`); array-of-scalar keeps `prefix[i]` indexing.
+                let flatten = matches!(vals.first().map(|v| v.as_ref()), Some(Shape::Struct(..)));
                 for (i, val) in vals.iter().enumerate() {
-                    val.map_input(format!("{prefix}[{i}]"), input_mapping);
+                    let path =
+                        if flatten { format!("{prefix}_{i}") } else { format!("{prefix}[{i}]") };
+                    val.map_input(path, input_mapping);
                 }
             }
             Shape::Struct(_, fields) => {

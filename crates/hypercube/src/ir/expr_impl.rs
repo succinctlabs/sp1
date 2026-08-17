@@ -3,10 +3,12 @@ use std::{
     ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign},
 };
 
-use slop_algebra::{extension::BinomialExtensionField, AbstractExtensionField, AbstractField};
+use slop_algebra::{
+    extension::BinomialExtensionField, AbstractExtensionField, AbstractField, Field, PrimeField32,
+};
 use sp1_primitives::SP1Field;
 
-use crate::ir::{BinOp, ExprExtRef, ExprRef, GLOBAL_AST};
+use crate::ir::{BinOp, ExprExtRef, ExprRef, GLOBAL_AST, IrVar};
 
 pub(crate) type F = SP1Field;
 pub(crate) type EF = BinomialExtensionField<SP1Field, 4>;
@@ -134,9 +136,29 @@ impl Product for Expr {
     }
 }
 
+/// Recognize the precomputed inverse of a small canonical-u32 base. Used by
+/// `From<F> for Expr` so the constraint compiler tags eagerly-computed
+/// inverses symbolically when emitting Lean — the chip operation code (which
+/// is shared with the prover) keeps its `from_canonical_u32(N).inverse()`
+/// pattern, but the resulting Lean output is `((base : Fin KB)⁻¹)` instead
+/// of the KoalaBear-specific literal.
+fn recognize_inverse_base(value: F) -> Option<u32> {
+    const KNOWN_BASES: &[u32] = &[4, 8, 64, 256, 65536];
+    let v = value.as_canonical_u32();
+    KNOWN_BASES.iter().copied().find(|&base| {
+        let base_val = F::from_canonical_u32(base);
+        base_val.as_canonical_u32() != v
+            && base_val.inverse().as_canonical_u32() == v
+    })
+}
+
 impl From<F> for Expr {
     fn from(f: F) -> Self {
-        Expr::IrVar(crate::ir::IrVar::Constant(f))
+        if let Some(base) = recognize_inverse_base(f) {
+            Expr::IrVar(IrVar::InverseConstant { base, value: f })
+        } else {
+            Expr::IrVar(IrVar::Constant(f))
+        }
     }
 }
 
