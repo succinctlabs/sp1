@@ -14,7 +14,7 @@ use sp1_core_executor::{
     events::{AluEvent, ByteLookupEvent, ByteRecord},
     ExecutionRecord, Opcode, Program, CLK_INC, PC_INC,
 };
-use sp1_derive::AlignedBorrow;
+use sp1_derive::{AlignedBorrow, IntoShape};
 use sp1_hypercube::{air::MachineAir, Word};
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
@@ -42,7 +42,7 @@ pub struct SubwChip<M: TrustMode> {
 }
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, StructReflection, Default, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Default, Clone, Copy, IntoShape)]
 #[repr(C)]
 pub struct SubwCols<T, M: TrustMode> {
     /// The current shard, timestamp, program counter of the CPU.

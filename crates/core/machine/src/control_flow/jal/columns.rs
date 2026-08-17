@@ -3,7 +3,7 @@ use crate::{
     operations::AddOperation,
     SupervisorMode, TrustMode, UserMode,
 };
-use sp1_derive::AlignedBorrow;
+use sp1_derive::{AlignedBorrow, IntoShape};
 use std::mem::size_of;
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
@@ -12,7 +12,7 @@ pub const NUM_JAL_COLS_SUPERVISOR: usize = size_of::<JalColumns<u8, SupervisorMo
 /// The number of main trace columns for `JalChip` in User mode.
 pub const NUM_JAL_COLS_USER: usize = size_of::<JalColumns<u8, UserMode>>();
 
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection, IntoShape)]
 #[repr(C)]
 pub struct JalColumns<T, M: TrustMode> {
     /// The current shard, timestamp, program counter of the CPU.

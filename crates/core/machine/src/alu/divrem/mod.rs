@@ -13,7 +13,7 @@ use sp1_core_executor::{
     is_unsigned_64bit_operation, is_unsigned_word_operation, is_word_operation, ExecutionRecord,
     Opcode, Program, CLK_INC, PC_INC,
 };
-use sp1_derive::AlignedBorrow;
+use sp1_derive::{AlignedBorrow, IntoShape};
 use sp1_hypercube::{air::MachineAir, Word};
 use sp1_primitives::consts::WORD_SIZE;
 use struct_reflection::{StructReflection, StructReflectionHelper};
@@ -51,7 +51,7 @@ pub struct DivRemChip<M: TrustMode> {
 }
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, StructReflection, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Default, Debug, Clone, Copy, IntoShape)]
 #[repr(C)]
 pub struct DivRemCols<T, M: TrustMode> {
     /// The current shard, timestamp, program counter of the CPU.

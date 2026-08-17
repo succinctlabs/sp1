@@ -20,7 +20,7 @@ use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord, MemInstrEvent, MemoryAccessPosition},
     ExecutionRecord, Opcode, Program, CLK_INC, PC_INC,
 };
-use sp1_derive::AlignedBorrow;
+use sp1_derive::{AlignedBorrow, IntoShape};
 use sp1_hypercube::{
     air::{BaseAirBuilder, MachineAir},
     Word,
@@ -42,7 +42,7 @@ pub const NUM_STORE_BYTE_COLS_SUPERVISOR: usize = size_of::<StoreByteColumns<u8,
 pub const NUM_STORE_BYTE_COLS_USER: usize = size_of::<StoreByteColumns<u8, UserMode>>();
 
 /// The column layout for memory store byte instructions.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection, IntoShape)]
 #[repr(C)]
 pub struct StoreByteColumns<T, M: TrustMode> {
     /// The current shard, timestamp, program counter of the CPU.

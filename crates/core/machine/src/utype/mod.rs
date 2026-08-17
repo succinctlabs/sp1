@@ -8,7 +8,7 @@ use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord},
     ExecutionRecord, Opcode, Program, CLK_INC, PC_INC,
 };
-use sp1_derive::AlignedBorrow;
+use sp1_derive::{AlignedBorrow, IntoShape};
 
 use sp1_hypercube::{air::MachineAir, Word};
 use sp1_primitives::consts::WORD_SIZE;
@@ -50,7 +50,7 @@ impl<F, M: TrustMode> BaseAir<F> for UTypeChip<M> {
 }
 
 /// The column layout for UType instructions.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection, IntoShape)]
 #[repr(C)]
 pub struct UTypeColumns<T, M: TrustMode> {
     /// The current shard, timestamp, program counter of the CPU.

@@ -7,7 +7,7 @@ use struct_reflection::{StructReflection, StructReflectionHelper};
 use crate::operations::U16toU8Operation;
 
 /// Memory Access Timestamp
-#[derive(AlignedBorrow, StructReflection, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Default, Debug, Clone, Copy, IntoShape)]
 #[repr(C)]
 pub struct MemoryAccessTimestamp<T> {
     /// The previous timestamp's high 24 bits that this memory access is being read from.
@@ -27,7 +27,7 @@ pub struct MemoryAccessTimestamp<T> {
 }
 
 /// Memory Access Columns
-#[derive(AlignedBorrow, StructReflection, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Default, Debug, Clone, Copy, IntoShape)]
 #[repr(C)]
 pub struct MemoryAccessCols<T> {
     pub prev_value: Word<T>,
@@ -35,7 +35,7 @@ pub struct MemoryAccessCols<T> {
 }
 
 /// Memory Access Columns for u8 limbs
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Default, Debug, Clone, Copy, IntoShape)]
 #[repr(C)]
 pub struct MemoryAccessColsU8<T> {
     pub memory_access: MemoryAccessCols<T>,
@@ -68,7 +68,7 @@ pub struct RegisterAccessCols<T> {
 }
 
 /// Page Permission Access Columns, when the shard and previous shard are known to be equal
-#[derive(AlignedBorrow, StructReflection, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Default, Debug, Clone, Copy, IntoShape)]
 #[repr(C)]
 pub struct PageProtAccessCols<T> {
     pub prev_prot_bitmap: T,

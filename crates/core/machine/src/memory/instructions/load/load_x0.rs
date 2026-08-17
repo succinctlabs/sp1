@@ -20,7 +20,7 @@ use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord, MemInstrEvent, MemoryAccessPosition},
     ExecutionRecord, Opcode, Program, CLK_INC, PC_INC,
 };
-use sp1_derive::AlignedBorrow;
+use sp1_derive::{AlignedBorrow, IntoShape};
 use sp1_hypercube::air::MachineAir;
 use sp1_primitives::consts::PROT_READ;
 use std::{
@@ -39,7 +39,7 @@ pub const NUM_LOAD_X0_COLS_SUPERVISOR: usize = size_of::<LoadX0Columns<u8, Super
 pub const NUM_LOAD_X0_COLS_USER: usize = size_of::<LoadX0Columns<u8, UserMode>>();
 
 /// The column layout for memory load instructions with `op_a = x0`.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection, IntoShape)]
 #[repr(C)]
 pub struct LoadX0Columns<T, M: TrustMode> {
     /// The current shard, timestamp, program counter of the CPU.
