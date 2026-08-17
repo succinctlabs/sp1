@@ -8,7 +8,7 @@ use slop_algebra::{
 };
 use sp1_primitives::SP1Field;
 
-use crate::ir::{BinOp, ExprExtRef, ExprRef, GLOBAL_AST, IrVar};
+use crate::ir::{BinOp, ExprExtRef, ExprRef, IrVar, GLOBAL_AST};
 
 pub(crate) type F = SP1Field;
 pub(crate) type EF = BinomialExtensionField<SP1Field, 4>;
@@ -147,8 +147,7 @@ fn recognize_inverse_base(value: F) -> Option<u32> {
     let v = value.as_canonical_u32();
     KNOWN_BASES.iter().copied().find(|&base| {
         let base_val = F::from_canonical_u32(base);
-        base_val.as_canonical_u32() != v
-            && base_val.inverse().as_canonical_u32() == v
+        base_val.as_canonical_u32() != v && base_val.inverse().as_canonical_u32() == v
     })
 }
 

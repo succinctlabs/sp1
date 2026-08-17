@@ -123,7 +123,10 @@ fn collect_struct_defs_skip(
                         if matches!(elems.first().map(|e| e.as_ref()), Some(Shape::Struct(..))) =>
                     {
                         for (i, elem) in elems.iter().enumerate() {
-                            def.push_str(&format!("  {field_name}_{i} : {}\n", elem.to_lean_type()));
+                            def.push_str(&format!(
+                                "  {field_name}_{i} : {}\n",
+                                elem.to_lean_type()
+                            ));
                         }
                     }
                     _ => def.push_str(&format!("  {field_name} : {}\n", field.to_lean_type())),
@@ -628,10 +631,8 @@ fn compile_chip(chip_name: &str, output_format: &OutputFormat, reuse_struct: &[S
             // A chip body is always `Shape::Unit` → no `value` def, just `asserts`/`interactions`.
             let mut params = vec![("cols".to_string(), cols_shape.to_lean_type())];
             if is_flat_system_table {
-                params.push((
-                    "preprocessed".to_string(),
-                    format!("(Vector F {preprocessed_width})"),
-                ));
+                params
+                    .push(("preprocessed".to_string(), format!("(Vector F {preprocessed_width})")));
                 params
                     .push(("publicValues".to_string(), format!("(Vector F {num_public_values})")));
             }

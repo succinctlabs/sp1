@@ -62,9 +62,17 @@ impl<Expr, ExprExt> Shape<Expr, ExprExt> {
                     // but not a `Vector (<NestedStruct> F) n`. Body field paths are flattened to
                     // match in `Shape::map_input`. Array-of-scalar stays a `Vector`.
                     match field.as_ref() {
-                        Shape::Array(elems) if matches!(elems.first().map(|e| e.as_ref()), Some(Shape::Struct(..))) => {
+                        Shape::Array(elems)
+                            if matches!(
+                                elems.first().map(AsRef::as_ref),
+                                Some(Shape::Struct(..))
+                            ) =>
+                        {
                             for (i, elem) in elems.iter().enumerate() {
-                                def.push_str(&format!("  {field_name}_{i} : {}\n", elem.to_lean_type()));
+                                def.push_str(&format!(
+                                    "  {field_name}_{i} : {}\n",
+                                    elem.to_lean_type()
+                                ));
                             }
                         }
                         _ => def.push_str(&format!("  {field_name} : {}\n", field.to_lean_type())),

@@ -36,7 +36,7 @@ impl<F: Field, EF: ExtensionField<F>> Shape<ExprRef<F>, ExprExtRef<EF>> {
                             match field_val.as_ref() {
                                 Shape::Array(elems)
                                     if matches!(
-                                        elems.first().map(|e| e.as_ref()),
+                                        elems.first().map(AsRef::as_ref),
                                         Some(Shape::Struct(..))
                                     ) =>
                                 {
@@ -44,7 +44,10 @@ impl<F: Field, EF: ExtensionField<F>> Shape<ExprRef<F>, ExprExtRef<EF>> {
                                         .iter()
                                         .enumerate()
                                         .map(|(i, e)| {
-                                            format!("{field_name}_{i} := {}", e.to_lean_constructor(mapping))
+                                            format!(
+                                                "{field_name}_{i} := {}",
+                                                e.to_lean_constructor(mapping)
+                                            )
                                         })
                                         .collect::<Vec<_>>()
                                 }
@@ -140,7 +143,7 @@ impl<F: Field, EF: ExtensionField<F>> Shape<ExprRef<F>, ExprExtRef<EF>> {
             Shape::Array(vals) => {
                 // Array-of-struct fields are flattened to `prefix_i` separate struct fields (see
                 // `Shape::collect_lean_struct_defs`); array-of-scalar keeps `prefix[i]` indexing.
-                let flatten = matches!(vals.first().map(|v| v.as_ref()), Some(Shape::Struct(..)));
+                let flatten = matches!(vals.first().map(AsRef::as_ref), Some(Shape::Struct(..)));
                 for (i, val) in vals.iter().enumerate() {
                     let path =
                         if flatten { format!("{prefix}_{i}") } else { format!("{prefix}[{i}]") };
@@ -176,16 +179,12 @@ impl<F: Field> AirInteraction<ExprRef<F>> {
                     InteractionKind::Keccak => "keccak",
                     InteractionKind::GlobalAccumulation => "globalAccumulation",
                     InteractionKind::MemoryGlobalInitControl => "memoryGlobalInitControl",
-                    InteractionKind::MemoryGlobalFinalizeControl => {
-                        "memoryGlobalFinalizeControl"
-                    }
+                    InteractionKind::MemoryGlobalFinalizeControl => "memoryGlobalFinalizeControl",
                     InteractionKind::InstructionFetch => "instructionFetch",
                     InteractionKind::InstructionDecode => "instructionDecode",
                     InteractionKind::PageProt => "pageProt",
                     InteractionKind::PageProtAccess => "pageProtAccess",
-                    InteractionKind::PageProtGlobalInitControl => {
-                        "pageProtGlobalInitControl"
-                    }
+                    InteractionKind::PageProtGlobalInitControl => "pageProtGlobalInitControl",
                     InteractionKind::PageProtGlobalFinalizeControl => {
                         "pageProtGlobalFinalizeControl"
                     }

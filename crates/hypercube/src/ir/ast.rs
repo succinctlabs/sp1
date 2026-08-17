@@ -265,7 +265,11 @@ impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
                 OpExpr::Neg(a, b) => {
                     bindings.push(LeanBinding {
                         id: bind_id_of(a),
-                        text: format!("{} : F := -{}", a.expr_to_lean_string(), b.to_lean_string(mapping)),
+                        text: format!(
+                            "{} : F := -{}",
+                            a.expr_to_lean_string(),
+                            b.to_lean_string(mapping)
+                        ),
                         deps: refs_vec(&[*b]),
                     });
                 }
@@ -278,7 +282,11 @@ impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
                         BinOp::Sub => format!("{result_str} : F := {a_str} - {b_str}"),
                         BinOp::Mul => format!("{result_str} : F := {a_str} * {b_str}"),
                     };
-                    bindings.push(LeanBinding { id: bind_id_of(result), text, deps: refs_vec(&[*a, *b]) });
+                    bindings.push(LeanBinding {
+                        id: bind_id_of(result),
+                        text,
+                        deps: refs_vec(&[*a, *b]),
+                    });
                 }
                 OpExpr::Send(interaction, scope) => {
                     let direction = match scope {
@@ -379,7 +387,10 @@ impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
                             for (k, leaf) in decl.output.output_leaf_refs().iter().enumerate() {
                                 bindings.push(LeanBinding {
                                     id: bind_id_of(leaf),
-                                    text: format!("{} := __call{calls}_v[{k}]", leaf.expr_to_lean_string()),
+                                    text: format!(
+                                        "{} := __call{calls}_v[{k}]",
+                                        leaf.expr_to_lean_string()
+                                    ),
                                     deps: vec![BindId::CallVal(calls)],
                                 });
                             }
