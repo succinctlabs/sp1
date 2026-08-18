@@ -1,0 +1,12 @@
+{"witgenFile": "Jal.witgen.json",
+ "wireVersion": 1,
+ "operationCounts": {"witness": 2, "lookup": 0, "interact": 18, "assert": 21},
+ "name": "Jal",
+ "localLength": 8,
+ "lean": "SP1Clean.JalChip.circuit",
+ "inputWidth": 23,
+ "hints": [],
+ "hintPolicy":
+ "a missing table, wrong width, or out-of-range row reads as the all-zero vector; padding rows rely on this default",
+ "field": {"name": "KoalaBear", "modulus": 2130706433},
+ "data": []}

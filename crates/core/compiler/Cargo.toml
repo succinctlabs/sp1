@@ -25,3 +25,6 @@ serde_json = { workspace = true }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+witgen-interp = { path = "witgen-interp" }

@@ -1,0 +1,3111 @@
+{"version": 1,
+ "operations":
+ [{"assert":
+   {"type": "mul",
+    "rhs":
+    {"type": "add",
+     "rhs":
+     {"type": "mul",
+      "rhs": {"value": 1, "type": "const"},
+      "lhs": {"value": 2130706432, "type": "const"}},
+     "lhs": {"type": "var", "index": 0}},
+    "lhs": {"type": "var", "index": 0}}},
+  {"interact":
+   {"multiplicity":
+    {"type": "mul",
+     "rhs": {"type": "var", "index": 0},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "message":
+    [{"value": 6, "type": "const"},
+     {"type": "mul",
+      "rhs": {"value": 1864368129, "type": "const"},
+      "lhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"value": 1, "type": "const"},
+        "lhs": {"value": 2130706432, "type": "const"}},
+       "lhs": {"type": "var", "index": 3}}},
+     {"value": 13, "type": "const"},
+     {"value": 0, "type": "const"}],
+    "channel": "SP1Byte"}},
+  {"interact":
+   {"multiplicity":
+    {"type": "mul",
+     "rhs": {"type": "var", "index": 0},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "message":
+    [{"value": 3, "type": "const"},
+     {"value": 0, "type": "const"},
+     {"type": "var", "index": 2},
+     {"value": 0, "type": "const"}],
+    "channel": "SP1Byte"}},
+  {"interact":
+   {"multiplicity":
+    {"type": "mul",
+     "rhs": {"type": "var", "index": 0},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "message":
+    [{"type": "var", "index": 1},
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"value": 65536, "type": "const"},
+       "lhs": {"type": "var", "index": 2}},
+      "lhs": {"type": "var", "index": 3}},
+     {"type": "var", "index": 4},
+     {"type": "var", "index": 5},
+     {"type": "var", "index": 6}],
+    "channel": "SP1State"}},
+  {"interact":
+   {"multiplicity": {"type": "var", "index": 0},
+    "message":
+    [{"type": "var", "index": 1},
+     {"type": "add",
+      "rhs": {"value": 8, "type": "const"},
+      "lhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"value": 65536, "type": "const"},
+        "lhs": {"type": "var", "index": 2}},
+       "lhs": {"type": "var", "index": 3}}},
+     {"type": "add",
+      "rhs": {"value": 4, "type": "const"},
+      "lhs": {"type": "var", "index": 4}},
+     {"type": "var", "index": 5},
+     {"type": "var", "index": 6}],
+    "channel": "SP1State"}},
+  {"witness": 4,
+   "code":
+   {"steps":
+    [{"value":
+      {"width": 2,
+       "type": "hintGet",
+       "table": "shift_left_flags",
+       "row": {"value": 0, "type": "const"},
+       "col": 0},
+      "sort": "field"},
+     {"value": {"type": "expr", "expr": {"type": "var", "index": 16}},
+      "sort": "field"},
+     {"value": {"type": "val", "arg": {"type": "localVar", "index": 1}},
+      "sort": "u64"},
+     {"value": {"type": "expr", "expr": {"type": "var", "index": 26}},
+      "sort": "field"},
+     {"value": {"type": "val", "arg": {"type": "localVar", "index": 3}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"value": 16, "type": "const"},
+       "lhs": {"type": "localVar", "index": 4}},
+      "sort": "u64"},
+     {"value":
+      {"type": "shiftRight",
+       "rhs": {"type": "localVar", "index": 5},
+       "lhs": {"value": 65536, "type": "const"}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"type": "localVar", "index": 6},
+       "lhs": {"type": "localVar", "index": 2}},
+      "sort": "u64"},
+     {"value":
+      {"type": "shiftLeft",
+       "rhs": {"type": "localVar", "index": 5},
+       "lhs": {"value": 1, "type": "const"}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mul",
+       "rhs": {"type": "localVar", "index": 8},
+       "lhs": {"type": "localVar", "index": 7}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 9}},
+      "sort": "field"},
+     {"value":
+      {"type": "shiftRight",
+       "rhs": {"value": 4, "type": "const"},
+       "lhs": {"type": "localVar", "index": 4}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"value": 2, "type": "const"},
+       "lhs": {"type": "localVar", "index": 11}},
+      "sort": "u64"},
+     {"value":
+      {"type": "shiftRight",
+       "rhs": {"value": 5, "type": "const"},
+       "lhs": {"type": "localVar", "index": 4}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"value": 2, "type": "const"},
+       "lhs": {"type": "localVar", "index": 13}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mul",
+       "rhs": {"type": "localVar", "index": 14},
+       "lhs": {"value": 2, "type": "const"}},
+      "sort": "u64"},
+     {"value":
+      {"type": "ite",
+       "then": {"value": 1, "type": "const"},
+       "else": {"value": 0, "type": "const"},
+       "cond":
+       {"type": "eq",
+        "rhs": {"value": 1, "type": "const"},
+        "lhs": {"type": "localVar", "index": 0}}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mul",
+       "rhs": {"type": "localVar", "index": 16},
+       "lhs": {"type": "localVar", "index": 15}},
+      "sort": "u64"},
+     {"value":
+      {"type": "add",
+       "rhs": {"type": "localVar", "index": 17},
+       "lhs": {"type": "localVar", "index": 12}},
+      "sort": "u64"},
+     {"value":
+      {"type": "listGet",
+       "items":
+       [{"type": "localVar", "index": 10},
+        {"value": 0, "type": "const"},
+        {"value": 0, "type": "const"},
+        {"value": 0, "type": "const"}],
+       "index": {"type": "localVar", "index": 18}},
+      "sort": "field"},
+     {"value":
+      {"width": 2,
+       "type": "hintGet",
+       "table": "shift_left_flags",
+       "row": {"value": 0, "type": "const"},
+       "col": 1},
+      "sort": "field"},
+     {"value":
+      {"type": "ite",
+       "then": {"type": "localVar", "index": 10},
+       "else": {"value": 0, "type": "const"},
+       "cond":
+       {"type": "u64Eq",
+        "rhs": {"value": 0, "type": "const"},
+        "lhs": {"type": "localVar", "index": 18}}},
+      "sort": "field"},
+     {"value":
+      {"type": "ite",
+       "then": {"type": "localVar", "index": 21},
+       "else": {"value": 0, "type": "const"},
+       "cond":
+       {"type": "eq",
+        "rhs": {"value": 1, "type": "const"},
+        "lhs": {"type": "localVar", "index": 20}}},
+      "sort": "field"},
+     {"value":
+      {"type": "ite",
+       "then": {"type": "localVar", "index": 19},
+       "else": {"type": "localVar", "index": 22},
+       "cond":
+       {"type": "eq",
+        "rhs": {"value": 1, "type": "const"},
+        "lhs": {"type": "localVar", "index": 0}}},
+      "sort": "field"},
+     {"value": {"type": "expr", "expr": {"type": "var", "index": 17}},
+      "sort": "field"},
+     {"value": {"type": "val", "arg": {"type": "localVar", "index": 24}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"type": "localVar", "index": 6},
+       "lhs": {"type": "localVar", "index": 25}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mul",
+       "rhs": {"type": "localVar", "index": 8},
+       "lhs": {"type": "localVar", "index": 26}},
+      "sort": "u64"},
+     {"value":
+      {"type": "div",
+       "rhs": {"type": "localVar", "index": 6},
+       "lhs": {"type": "localVar", "index": 2}},
+      "sort": "u64"},
+     {"value":
+      {"type": "add",
+       "rhs": {"type": "localVar", "index": 28},
+       "lhs": {"type": "localVar", "index": 27}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 29}},
+      "sort": "field"},
+     {"value":
+      {"type": "listGet",
+       "items":
+       [{"type": "localVar", "index": 30},
+        {"type": "localVar", "index": 10},
+        {"value": 0, "type": "const"},
+        {"value": 0, "type": "const"}],
+       "index": {"type": "localVar", "index": 18}},
+      "sort": "field"},
+     {"value":
+      {"type": "ite",
+       "then": {"type": "localVar", "index": 30},
+       "else": {"type": "localVar", "index": 10},
+       "cond":
+       {"type": "u64Eq",
+        "rhs": {"value": 0, "type": "const"},
+        "lhs": {"type": "localVar", "index": 18}}},
+      "sort": "field"},
+     {"value":
+      {"type": "ite",
+       "then": {"type": "localVar", "index": 32},
+       "else": {"value": 0, "type": "const"},
+       "cond":
+       {"type": "eq",
+        "rhs": {"value": 1, "type": "const"},
+        "lhs": {"type": "localVar", "index": 20}}},
+      "sort": "field"},
+     {"value":
+      {"type": "ite",
+       "then": {"type": "localVar", "index": 31},
+       "else": {"type": "localVar", "index": 33},
+       "cond":
+       {"type": "eq",
+        "rhs": {"value": 1, "type": "const"},
+        "lhs": {"type": "localVar", "index": 0}}},
+      "sort": "field"},
+     {"value": {"type": "expr", "expr": {"type": "var", "index": 18}},
+      "sort": "field"},
+     {"value": {"type": "val", "arg": {"type": "localVar", "index": 35}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"type": "localVar", "index": 6},
+       "lhs": {"type": "localVar", "index": 36}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mul",
+       "rhs": {"type": "localVar", "index": 8},
+       "lhs": {"type": "localVar", "index": 37}},
+      "sort": "u64"},
+     {"value":
+      {"type": "div",
+       "rhs": {"type": "localVar", "index": 6},
+       "lhs": {"type": "localVar", "index": 25}},
+      "sort": "u64"},
+     {"value":
+      {"type": "add",
+       "rhs": {"type": "localVar", "index": 39},
+       "lhs": {"type": "localVar", "index": 38}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 40}},
+      "sort": "field"},
+     {"value":
+      {"type": "listGet",
+       "items":
+       [{"type": "localVar", "index": 41},
+        {"type": "localVar", "index": 30},
+        {"type": "localVar", "index": 10},
+        {"value": 0, "type": "const"}],
+       "index": {"type": "localVar", "index": 18}},
+      "sort": "field"},
+     {"value": {"type": "val", "arg": {"type": "localVar", "index": 32}},
+      "sort": "u64"},
+     {"value":
+      {"type": "div",
+       "rhs": {"value": 32768, "type": "const"},
+       "lhs": {"type": "localVar", "index": 43}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 44}},
+      "sort": "field"},
+     {"value":
+      {"type": "mul",
+       "rhs": {"value": 65535, "type": "const"},
+       "lhs": {"type": "localVar", "index": 45}},
+      "sort": "field"},
+     {"value":
+      {"type": "ite",
+       "then": {"type": "localVar", "index": 46},
+       "else": {"value": 0, "type": "const"},
+       "cond":
+       {"type": "eq",
+        "rhs": {"value": 1, "type": "const"},
+        "lhs": {"type": "localVar", "index": 20}}},
+      "sort": "field"},
+     {"value":
+      {"type": "ite",
+       "then": {"type": "localVar", "index": 42},
+       "else": {"type": "localVar", "index": 47},
+       "cond":
+       {"type": "eq",
+        "rhs": {"value": 1, "type": "const"},
+        "lhs": {"type": "localVar", "index": 0}}},
+      "sort": "field"},
+     {"value": {"type": "expr", "expr": {"type": "var", "index": 19}},
+      "sort": "field"},
+     {"value": {"type": "val", "arg": {"type": "localVar", "index": 49}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"type": "localVar", "index": 6},
+       "lhs": {"type": "localVar", "index": 50}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mul",
+       "rhs": {"type": "localVar", "index": 8},
+       "lhs": {"type": "localVar", "index": 51}},
+      "sort": "u64"},
+     {"value":
+      {"type": "div",
+       "rhs": {"type": "localVar", "index": 6},
+       "lhs": {"type": "localVar", "index": 36}},
+      "sort": "u64"},
+     {"value":
+      {"type": "add",
+       "rhs": {"type": "localVar", "index": 53},
+       "lhs": {"type": "localVar", "index": 52}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 54}},
+      "sort": "field"},
+     {"value":
+      {"type": "listGet",
+       "items":
+       [{"type": "localVar", "index": 55},
+        {"type": "localVar", "index": 41},
+        {"type": "localVar", "index": 30},
+        {"type": "localVar", "index": 10}],
+       "index": {"type": "localVar", "index": 18}},
+      "sort": "field"},
+     {"value":
+      {"type": "ite",
+       "then": {"type": "localVar", "index": 56},
+       "else": {"type": "localVar", "index": 47},
+       "cond":
+       {"type": "eq",
+        "rhs": {"value": 1, "type": "const"},
+        "lhs": {"type": "localVar", "index": 0}}},
+      "sort": "field"}],
+    "output":
+    {"type": "elements",
+     "elements":
+     [{"type": "localVar", "index": 23},
+      {"type": "localVar", "index": 34},
+      {"type": "localVar", "index": 48},
+      {"type": "localVar", "index": 57}]}}},
+  {"witness": 6,
+   "code":
+   {"steps":
+    [{"value": {"type": "expr", "expr": {"type": "var", "index": 26}},
+      "sort": "field"},
+     {"value": {"type": "val", "arg": {"type": "localVar", "index": 0}},
+      "sort": "u64"},
+     {"value":
+      {"type": "shiftRight",
+       "rhs": {"value": 0, "type": "const"},
+       "lhs": {"type": "localVar", "index": 1}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"value": 2, "type": "const"},
+       "lhs": {"type": "localVar", "index": 2}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 3}},
+      "sort": "field"},
+     {"value":
+      {"type": "shiftRight",
+       "rhs": {"value": 1, "type": "const"},
+       "lhs": {"type": "localVar", "index": 1}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"value": 2, "type": "const"},
+       "lhs": {"type": "localVar", "index": 5}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 6}},
+      "sort": "field"},
+     {"value":
+      {"type": "shiftRight",
+       "rhs": {"value": 2, "type": "const"},
+       "lhs": {"type": "localVar", "index": 1}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"value": 2, "type": "const"},
+       "lhs": {"type": "localVar", "index": 8}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 9}},
+      "sort": "field"},
+     {"value":
+      {"type": "shiftRight",
+       "rhs": {"value": 3, "type": "const"},
+       "lhs": {"type": "localVar", "index": 1}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"value": 2, "type": "const"},
+       "lhs": {"type": "localVar", "index": 11}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 12}},
+      "sort": "field"},
+     {"value":
+      {"type": "shiftRight",
+       "rhs": {"value": 4, "type": "const"},
+       "lhs": {"type": "localVar", "index": 1}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"value": 2, "type": "const"},
+       "lhs": {"type": "localVar", "index": 14}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 15}},
+      "sort": "field"},
+     {"value":
+      {"type": "shiftRight",
+       "rhs": {"value": 5, "type": "const"},
+       "lhs": {"type": "localVar", "index": 1}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"value": 2, "type": "const"},
+       "lhs": {"type": "localVar", "index": 17}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 18}},
+      "sort": "field"}],
+    "output":
+    {"type": "elements",
+     "elements":
+     [{"type": "localVar", "index": 4},
+      {"type": "localVar", "index": 7},
+      {"type": "localVar", "index": 10},
+      {"type": "localVar", "index": 13},
+      {"type": "localVar", "index": 16},
+      {"type": "localVar", "index": 19}]}}},
+  {"witness": 3,
+   "code":
+   {"steps":
+    [{"value": {"type": "expr", "expr": {"type": "var", "index": 26}},
+      "sort": "field"},
+     {"value": {"type": "val", "arg": {"type": "localVar", "index": 0}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"value": 4, "type": "const"},
+       "lhs": {"type": "localVar", "index": 1}},
+      "sort": "u64"},
+     {"value":
+      {"type": "shiftLeft",
+       "rhs": {"type": "localVar", "index": 2},
+       "lhs": {"value": 1, "type": "const"}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 3}},
+      "sort": "field"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"value": 8, "type": "const"},
+       "lhs": {"type": "localVar", "index": 1}},
+      "sort": "u64"},
+     {"value":
+      {"type": "shiftLeft",
+       "rhs": {"type": "localVar", "index": 5},
+       "lhs": {"value": 1, "type": "const"}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 6}},
+      "sort": "field"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"value": 16, "type": "const"},
+       "lhs": {"type": "localVar", "index": 1}},
+      "sort": "u64"},
+     {"value":
+      {"type": "shiftLeft",
+       "rhs": {"type": "localVar", "index": 8},
+       "lhs": {"value": 1, "type": "const"}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 9}},
+      "sort": "field"}],
+    "output":
+    {"type": "elements",
+     "elements":
+     [{"type": "localVar", "index": 4},
+      {"type": "localVar", "index": 7},
+      {"type": "localVar", "index": 10}]}}},
+  {"witness": 4,
+   "code":
+   {"steps":
+    [{"value": {"type": "expr", "expr": {"type": "var", "index": 26}},
+      "sort": "field"},
+     {"value": {"type": "val", "arg": {"type": "localVar", "index": 0}},
+      "sort": "u64"},
+     {"value":
+      {"type": "shiftRight",
+       "rhs": {"value": 4, "type": "const"},
+       "lhs": {"type": "localVar", "index": 1}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"value": 2, "type": "const"},
+       "lhs": {"type": "localVar", "index": 2}},
+      "sort": "u64"},
+     {"value":
+      {"type": "shiftRight",
+       "rhs": {"value": 5, "type": "const"},
+       "lhs": {"type": "localVar", "index": 1}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"value": 2, "type": "const"},
+       "lhs": {"type": "localVar", "index": 4}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mul",
+       "rhs": {"type": "localVar", "index": 5},
+       "lhs": {"value": 2, "type": "const"}},
+      "sort": "u64"},
+     {"value":
+      {"width": 2,
+       "type": "hintGet",
+       "table": "shift_left_flags",
+       "row": {"value": 0, "type": "const"},
+       "col": 0},
+      "sort": "field"},
+     {"value":
+      {"type": "ite",
+       "then": {"value": 1, "type": "const"},
+       "else": {"value": 0, "type": "const"},
+       "cond":
+       {"type": "eq",
+        "rhs": {"value": 1, "type": "const"},
+        "lhs": {"type": "localVar", "index": 7}}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mul",
+       "rhs": {"type": "localVar", "index": 8},
+       "lhs": {"type": "localVar", "index": 6}},
+      "sort": "u64"},
+     {"value":
+      {"type": "add",
+       "rhs": {"type": "localVar", "index": 9},
+       "lhs": {"type": "localVar", "index": 3}},
+      "sort": "u64"},
+     {"value":
+      {"width": 2,
+       "type": "hintGet",
+       "table": "shift_left_flags",
+       "row": {"value": 0, "type": "const"},
+       "col": 1},
+      "sort": "field"},
+     {"value":
+      {"type": "add",
+       "rhs": {"type": "localVar", "index": 11},
+       "lhs": {"type": "localVar", "index": 7}},
+      "sort": "field"},
+     {"value":
+      {"type": "ite",
+       "then": {"type": "localVar", "index": 12},
+       "else": {"value": 0, "type": "const"},
+       "cond":
+       {"type": "u64Eq",
+        "rhs": {"value": 0, "type": "const"},
+        "lhs": {"type": "localVar", "index": 10}}},
+      "sort": "field"},
+     {"value":
+      {"type": "ite",
+       "then": {"type": "localVar", "index": 12},
+       "else": {"value": 0, "type": "const"},
+       "cond":
+       {"type": "u64Eq",
+        "rhs": {"value": 1, "type": "const"},
+        "lhs": {"type": "localVar", "index": 10}}},
+      "sort": "field"},
+     {"value":
+      {"type": "ite",
+       "then": {"type": "localVar", "index": 12},
+       "else": {"value": 0, "type": "const"},
+       "cond":
+       {"type": "u64Eq",
+        "rhs": {"value": 2, "type": "const"},
+        "lhs": {"type": "localVar", "index": 10}}},
+      "sort": "field"},
+     {"value":
+      {"type": "ite",
+       "then": {"type": "localVar", "index": 12},
+       "else": {"value": 0, "type": "const"},
+       "cond":
+       {"type": "u64Eq",
+        "rhs": {"value": 3, "type": "const"},
+        "lhs": {"type": "localVar", "index": 10}}},
+      "sort": "field"}],
+    "output":
+    {"type": "elements",
+     "elements":
+     [{"type": "localVar", "index": 13},
+      {"type": "localVar", "index": 14},
+      {"type": "localVar", "index": 15},
+      {"type": "localVar", "index": 16}]}}},
+  {"witness": 4,
+   "code":
+   {"steps":
+    [{"value": {"type": "expr", "expr": {"type": "var", "index": 16}},
+      "sort": "field"},
+     {"value": {"type": "val", "arg": {"type": "localVar", "index": 0}},
+      "sort": "u64"},
+     {"value": {"type": "expr", "expr": {"type": "var", "index": 26}},
+      "sort": "field"},
+     {"value": {"type": "val", "arg": {"type": "localVar", "index": 2}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"value": 16, "type": "const"},
+       "lhs": {"type": "localVar", "index": 3}},
+      "sort": "u64"},
+     {"value":
+      {"type": "shiftRight",
+       "rhs": {"type": "localVar", "index": 4},
+       "lhs": {"value": 65536, "type": "const"}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"type": "localVar", "index": 5},
+       "lhs": {"type": "localVar", "index": 1}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 6}},
+      "sort": "field"},
+     {"value": {"type": "expr", "expr": {"type": "var", "index": 17}},
+      "sort": "field"},
+     {"value": {"type": "val", "arg": {"type": "localVar", "index": 8}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"type": "localVar", "index": 5},
+       "lhs": {"type": "localVar", "index": 9}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 10}},
+      "sort": "field"},
+     {"value": {"type": "expr", "expr": {"type": "var", "index": 18}},
+      "sort": "field"},
+     {"value": {"type": "val", "arg": {"type": "localVar", "index": 12}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"type": "localVar", "index": 5},
+       "lhs": {"type": "localVar", "index": 13}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 14}},
+      "sort": "field"},
+     {"value": {"type": "expr", "expr": {"type": "var", "index": 19}},
+      "sort": "field"},
+     {"value": {"type": "val", "arg": {"type": "localVar", "index": 16}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"type": "localVar", "index": 5},
+       "lhs": {"type": "localVar", "index": 17}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 18}},
+      "sort": "field"}],
+    "output":
+    {"type": "elements",
+     "elements":
+     [{"type": "localVar", "index": 7},
+      {"type": "localVar", "index": 11},
+      {"type": "localVar", "index": 15},
+      {"type": "localVar", "index": 19}]}}},
+  {"witness": 4,
+   "code":
+   {"steps":
+    [{"value": {"type": "expr", "expr": {"type": "var", "index": 16}},
+      "sort": "field"},
+     {"value": {"type": "val", "arg": {"type": "localVar", "index": 0}},
+      "sort": "u64"},
+     {"value": {"type": "expr", "expr": {"type": "var", "index": 26}},
+      "sort": "field"},
+     {"value": {"type": "val", "arg": {"type": "localVar", "index": 2}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"value": 16, "type": "const"},
+       "lhs": {"type": "localVar", "index": 3}},
+      "sort": "u64"},
+     {"value":
+      {"type": "shiftRight",
+       "rhs": {"type": "localVar", "index": 4},
+       "lhs": {"value": 65536, "type": "const"}},
+      "sort": "u64"},
+     {"value":
+      {"type": "div",
+       "rhs": {"type": "localVar", "index": 5},
+       "lhs": {"type": "localVar", "index": 1}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 6}},
+      "sort": "field"},
+     {"value": {"type": "expr", "expr": {"type": "var", "index": 17}},
+      "sort": "field"},
+     {"value": {"type": "val", "arg": {"type": "localVar", "index": 8}},
+      "sort": "u64"},
+     {"value":
+      {"type": "div",
+       "rhs": {"type": "localVar", "index": 5},
+       "lhs": {"type": "localVar", "index": 9}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 10}},
+      "sort": "field"},
+     {"value": {"type": "expr", "expr": {"type": "var", "index": 18}},
+      "sort": "field"},
+     {"value": {"type": "val", "arg": {"type": "localVar", "index": 12}},
+      "sort": "u64"},
+     {"value":
+      {"type": "div",
+       "rhs": {"type": "localVar", "index": 5},
+       "lhs": {"type": "localVar", "index": 13}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 14}},
+      "sort": "field"},
+     {"value": {"type": "expr", "expr": {"type": "var", "index": 19}},
+      "sort": "field"},
+     {"value": {"type": "val", "arg": {"type": "localVar", "index": 16}},
+      "sort": "u64"},
+     {"value":
+      {"type": "div",
+       "rhs": {"type": "localVar", "index": 5},
+       "lhs": {"type": "localVar", "index": 17}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 18}},
+      "sort": "field"}],
+    "output":
+    {"type": "elements",
+     "elements":
+     [{"type": "localVar", "index": 7},
+      {"type": "localVar", "index": 11},
+      {"type": "localVar", "index": 15},
+      {"type": "localVar", "index": 19}]}}},
+  {"witness": 4,
+   "code":
+   {"steps":
+    [{"value": {"type": "expr", "expr": {"type": "var", "index": 16}},
+      "sort": "field"},
+     {"value": {"type": "val", "arg": {"type": "localVar", "index": 0}},
+      "sort": "u64"},
+     {"value": {"type": "expr", "expr": {"type": "var", "index": 26}},
+      "sort": "field"},
+     {"value": {"type": "val", "arg": {"type": "localVar", "index": 2}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"value": 16, "type": "const"},
+       "lhs": {"type": "localVar", "index": 3}},
+      "sort": "u64"},
+     {"value":
+      {"type": "shiftRight",
+       "rhs": {"type": "localVar", "index": 4},
+       "lhs": {"value": 65536, "type": "const"}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"type": "localVar", "index": 5},
+       "lhs": {"type": "localVar", "index": 1}},
+      "sort": "u64"},
+     {"value":
+      {"type": "shiftLeft",
+       "rhs": {"type": "localVar", "index": 4},
+       "lhs": {"value": 1, "type": "const"}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mul",
+       "rhs": {"type": "localVar", "index": 7},
+       "lhs": {"type": "localVar", "index": 6}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 8}},
+      "sort": "field"},
+     {"value": {"type": "expr", "expr": {"type": "var", "index": 17}},
+      "sort": "field"},
+     {"value": {"type": "val", "arg": {"type": "localVar", "index": 10}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"type": "localVar", "index": 5},
+       "lhs": {"type": "localVar", "index": 11}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mul",
+       "rhs": {"type": "localVar", "index": 7},
+       "lhs": {"type": "localVar", "index": 12}},
+      "sort": "u64"},
+     {"value":
+      {"type": "div",
+       "rhs": {"type": "localVar", "index": 5},
+       "lhs": {"type": "localVar", "index": 1}},
+      "sort": "u64"},
+     {"value":
+      {"type": "add",
+       "rhs": {"type": "localVar", "index": 14},
+       "lhs": {"type": "localVar", "index": 13}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 15}},
+      "sort": "field"},
+     {"value": {"type": "expr", "expr": {"type": "var", "index": 18}},
+      "sort": "field"},
+     {"value": {"type": "val", "arg": {"type": "localVar", "index": 17}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"type": "localVar", "index": 5},
+       "lhs": {"type": "localVar", "index": 18}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mul",
+       "rhs": {"type": "localVar", "index": 7},
+       "lhs": {"type": "localVar", "index": 19}},
+      "sort": "u64"},
+     {"value":
+      {"type": "div",
+       "rhs": {"type": "localVar", "index": 5},
+       "lhs": {"type": "localVar", "index": 11}},
+      "sort": "u64"},
+     {"value":
+      {"type": "add",
+       "rhs": {"type": "localVar", "index": 21},
+       "lhs": {"type": "localVar", "index": 20}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 22}},
+      "sort": "field"},
+     {"value": {"type": "expr", "expr": {"type": "var", "index": 19}},
+      "sort": "field"},
+     {"value": {"type": "val", "arg": {"type": "localVar", "index": 24}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"type": "localVar", "index": 5},
+       "lhs": {"type": "localVar", "index": 25}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mul",
+       "rhs": {"type": "localVar", "index": 7},
+       "lhs": {"type": "localVar", "index": 26}},
+      "sort": "u64"},
+     {"value":
+      {"type": "div",
+       "rhs": {"type": "localVar", "index": 5},
+       "lhs": {"type": "localVar", "index": 18}},
+      "sort": "u64"},
+     {"value":
+      {"type": "add",
+       "rhs": {"type": "localVar", "index": 28},
+       "lhs": {"type": "localVar", "index": 27}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 29}},
+      "sort": "field"}],
+    "output":
+    {"type": "elements",
+     "elements":
+     [{"type": "localVar", "index": 9},
+      {"type": "localVar", "index": 16},
+      {"type": "localVar", "index": 23},
+      {"type": "localVar", "index": 30}]}}},
+  {"witness": 1,
+   "code":
+   {"steps":
+    [{"value":
+      {"width": 2,
+       "type": "hintGet",
+       "table": "shift_left_flags",
+       "row": {"value": 0, "type": "const"},
+       "col": 1},
+      "sort": "field"},
+     {"value":
+      {"width": 2,
+       "type": "hintGet",
+       "table": "shift_left_flags",
+       "row": {"value": 0, "type": "const"},
+       "col": 0},
+      "sort": "field"},
+     {"value": {"type": "expr", "expr": {"type": "var", "index": 17}},
+      "sort": "field"},
+     {"value": {"type": "val", "arg": {"type": "localVar", "index": 2}},
+      "sort": "u64"},
+     {"value": {"type": "expr", "expr": {"type": "var", "index": 26}},
+      "sort": "field"},
+     {"value": {"type": "val", "arg": {"type": "localVar", "index": 4}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"value": 16, "type": "const"},
+       "lhs": {"type": "localVar", "index": 5}},
+      "sort": "u64"},
+     {"value":
+      {"type": "shiftRight",
+       "rhs": {"type": "localVar", "index": 6},
+       "lhs": {"value": 65536, "type": "const"}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"type": "localVar", "index": 7},
+       "lhs": {"type": "localVar", "index": 3}},
+      "sort": "u64"},
+     {"value":
+      {"type": "shiftLeft",
+       "rhs": {"type": "localVar", "index": 6},
+       "lhs": {"value": 1, "type": "const"}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mul",
+       "rhs": {"type": "localVar", "index": 9},
+       "lhs": {"type": "localVar", "index": 8}},
+      "sort": "u64"},
+     {"value": {"type": "expr", "expr": {"type": "var", "index": 16}},
+      "sort": "field"},
+     {"value": {"type": "val", "arg": {"type": "localVar", "index": 11}},
+      "sort": "u64"},
+     {"value":
+      {"type": "div",
+       "rhs": {"type": "localVar", "index": 7},
+       "lhs": {"type": "localVar", "index": 12}},
+      "sort": "u64"},
+     {"value":
+      {"type": "add",
+       "rhs": {"type": "localVar", "index": 13},
+       "lhs": {"type": "localVar", "index": 10}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 14}},
+      "sort": "field"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"type": "localVar", "index": 7},
+       "lhs": {"type": "localVar", "index": 12}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mul",
+       "rhs": {"type": "localVar", "index": 9},
+       "lhs": {"type": "localVar", "index": 16}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 17}},
+      "sort": "field"},
+     {"value":
+      {"type": "shiftRight",
+       "rhs": {"value": 4, "type": "const"},
+       "lhs": {"type": "localVar", "index": 5}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"value": 2, "type": "const"},
+       "lhs": {"type": "localVar", "index": 19}},
+      "sort": "u64"},
+     {"value":
+      {"type": "shiftRight",
+       "rhs": {"value": 5, "type": "const"},
+       "lhs": {"type": "localVar", "index": 5}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mod",
+       "rhs": {"value": 2, "type": "const"},
+       "lhs": {"type": "localVar", "index": 21}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mul",
+       "rhs": {"type": "localVar", "index": 22},
+       "lhs": {"value": 2, "type": "const"}},
+      "sort": "u64"},
+     {"value":
+      {"type": "ite",
+       "then": {"value": 1, "type": "const"},
+       "else": {"value": 0, "type": "const"},
+       "cond":
+       {"type": "eq",
+        "rhs": {"value": 1, "type": "const"},
+        "lhs": {"type": "localVar", "index": 1}}},
+      "sort": "u64"},
+     {"value":
+      {"type": "mul",
+       "rhs": {"type": "localVar", "index": 24},
+       "lhs": {"type": "localVar", "index": 23}},
+      "sort": "u64"},
+     {"value":
+      {"type": "add",
+       "rhs": {"type": "localVar", "index": 25},
+       "lhs": {"type": "localVar", "index": 20}},
+      "sort": "u64"},
+     {"value":
+      {"type": "listGet",
+       "items":
+       [{"type": "localVar", "index": 15},
+        {"type": "localVar", "index": 18},
+        {"value": 0, "type": "const"},
+        {"value": 0, "type": "const"}],
+       "index": {"type": "localVar", "index": 26}},
+      "sort": "field"},
+     {"value":
+      {"type": "ite",
+       "then": {"type": "localVar", "index": 15},
+       "else": {"type": "localVar", "index": 18},
+       "cond":
+       {"type": "u64Eq",
+        "rhs": {"value": 0, "type": "const"},
+        "lhs": {"type": "localVar", "index": 26}}},
+      "sort": "field"},
+     {"value":
+      {"type": "ite",
+       "then": {"type": "localVar", "index": 28},
+       "else": {"value": 0, "type": "const"},
+       "cond":
+       {"type": "eq",
+        "rhs": {"value": 1, "type": "const"},
+        "lhs": {"type": "localVar", "index": 0}}},
+      "sort": "field"},
+     {"value":
+      {"type": "ite",
+       "then": {"type": "localVar", "index": 27},
+       "else": {"type": "localVar", "index": 29},
+       "cond":
+       {"type": "eq",
+        "rhs": {"value": 1, "type": "const"},
+        "lhs": {"type": "localVar", "index": 1}}},
+      "sort": "field"},
+     {"value": {"type": "val", "arg": {"type": "localVar", "index": 30}},
+      "sort": "u64"},
+     {"value":
+      {"type": "div",
+       "rhs": {"value": 32768, "type": "const"},
+       "lhs": {"type": "localVar", "index": 31}},
+      "sort": "u64"},
+     {"value": {"type": "ofU64", "arg": {"type": "localVar", "index": 32}},
+      "sort": "field"},
+     {"value":
+      {"type": "ite",
+       "then": {"type": "localVar", "index": 33},
+       "else": {"value": 0, "type": "const"},
+       "cond":
+       {"type": "eq",
+        "rhs": {"value": 1, "type": "const"},
+        "lhs": {"type": "localVar", "index": 0}}},
+      "sort": "field"}],
+    "output":
+    {"type": "elements", "elements": [{"type": "localVar", "index": 34}]}}},
+  {"witness": 3,
+   "code":
+   {"steps":
+    [{"value":
+      {"width": 2,
+       "type": "hintGet",
+       "table": "shift_left_flags",
+       "row": {"value": 0, "type": "const"},
+       "col": 0},
+      "sort": "field"},
+     {"value":
+      {"width": 2,
+       "type": "hintGet",
+       "table": "shift_left_flags",
+       "row": {"value": 0, "type": "const"},
+       "col": 1},
+      "sort": "field"},
+     {"value": {"type": "expr", "expr": {"type": "var", "index": 32}},
+      "sort": "field"},
+     {"value":
+      {"type": "mul",
+       "rhs": {"type": "localVar", "index": 2},
+       "lhs": {"type": "localVar", "index": 1}},
+      "sort": "field"}],
+    "output":
+    {"type": "elements",
+     "elements":
+     [{"type": "localVar", "index": 0},
+      {"type": "localVar", "index": 1},
+      {"type": "localVar", "index": 3}]}}},
+  {"interact":
+   {"multiplicity":
+    {"type": "mul",
+     "rhs": {"type": "var", "index": 64},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "message":
+    [{"value": 6, "type": "const"},
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"value": 65536, "type": "const"},
+        "lhs": {"type": "var", "index": 62}},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs":
+      {"type": "mul",
+       "rhs": {"type": "var", "index": 34},
+       "lhs": {"value": 2, "type": "const"}}},
+     {"value": 16, "type": "const"},
+     {"value": 0, "type": "const"}],
+    "channel": "SP1Byte"}},
+  {"assert":
+   {"type": "mul",
+    "rhs":
+    {"type": "add",
+     "rhs":
+     {"type": "mul",
+      "rhs": {"value": 1, "type": "const"},
+      "lhs": {"value": 2130706432, "type": "const"}},
+     "lhs": {"type": "var", "index": 64}},
+    "lhs": {"type": "var", "index": 64}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"value": 1, "type": "const"},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs": {"type": "var", "index": 62}},
+     "lhs": {"type": "var", "index": 62}}}},
+  {"assert":
+   {"type": "mul",
+    "rhs":
+    {"type": "add",
+     "rhs":
+     {"type": "mul",
+      "rhs": {"value": 1, "type": "const"},
+      "lhs": {"value": 2130706432, "type": "const"}},
+     "lhs":
+     {"type": "add",
+      "rhs": {"type": "var", "index": 64},
+      "lhs": {"type": "var", "index": 63}}},
+    "lhs":
+    {"type": "add",
+     "rhs": {"type": "var", "index": 64},
+     "lhs": {"type": "var", "index": 63}}}},
+  {"interact":
+   {"multiplicity":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs": {"type": "var", "index": 64},
+      "lhs": {"type": "var", "index": 63}},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "message":
+    [{"value": 6, "type": "const"},
+     {"type": "var", "index": 13},
+     {"value": 16, "type": "const"},
+     {"value": 0, "type": "const"}],
+    "channel": "SP1Byte"}},
+  {"interact":
+   {"multiplicity":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs": {"type": "var", "index": 64},
+      "lhs": {"type": "var", "index": 63}},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "message":
+    [{"value": 3, "type": "const"},
+     {"value": 0, "type": "const"},
+     {"type": "mul",
+      "rhs": {"value": 2130673921, "type": "const"},
+      "lhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"type": "var", "index": 13},
+        "lhs": {"value": 2130706432, "type": "const"}},
+       "lhs":
+       {"type": "add",
+        "rhs":
+        {"type": "mul",
+         "rhs": {"value": 1, "type": "const"},
+         "lhs": {"value": 2130706432, "type": "const"}},
+        "lhs":
+        {"type": "add",
+         "rhs":
+         {"type": "mul",
+          "rhs": {"type": "var", "index": 12},
+          "lhs": {"value": 2130706432, "type": "const"}},
+         "lhs":
+         {"type": "add",
+          "rhs": {"value": 4, "type": "const"},
+          "lhs":
+          {"type": "add",
+           "rhs":
+           {"type": "mul",
+            "rhs": {"value": 65536, "type": "const"},
+            "lhs": {"type": "var", "index": 2}},
+           "lhs": {"type": "var", "index": 3}}}}}}},
+     {"value": 0, "type": "const"}],
+    "channel": "SP1Byte"}},
+  {"assert":
+   {"type": "mul",
+    "rhs":
+    {"type": "add",
+     "rhs":
+     {"type": "mul",
+      "rhs": {"value": 1, "type": "const"},
+      "lhs": {"value": 2130706432, "type": "const"}},
+     "lhs":
+     {"type": "add",
+      "rhs": {"type": "var", "index": 64},
+      "lhs": {"type": "var", "index": 63}}},
+    "lhs":
+    {"type": "add",
+     "rhs": {"type": "var", "index": 64},
+     "lhs": {"type": "var", "index": 63}}}},
+  {"interact":
+   {"multiplicity":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs": {"type": "var", "index": 64},
+      "lhs": {"type": "var", "index": 63}},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "message":
+    [{"value": 6, "type": "const"},
+     {"type": "var", "index": 21},
+     {"value": 16, "type": "const"},
+     {"value": 0, "type": "const"}],
+    "channel": "SP1Byte"}},
+  {"interact":
+   {"multiplicity":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs": {"type": "var", "index": 64},
+      "lhs": {"type": "var", "index": 63}},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "message":
+    [{"value": 3, "type": "const"},
+     {"value": 0, "type": "const"},
+     {"type": "mul",
+      "rhs": {"value": 2130673921, "type": "const"},
+      "lhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"type": "var", "index": 21},
+        "lhs": {"value": 2130706432, "type": "const"}},
+       "lhs":
+       {"type": "add",
+        "rhs":
+        {"type": "mul",
+         "rhs": {"value": 1, "type": "const"},
+         "lhs": {"value": 2130706432, "type": "const"}},
+        "lhs":
+        {"type": "add",
+         "rhs":
+         {"type": "mul",
+          "rhs": {"type": "var", "index": 20},
+          "lhs": {"value": 2130706432, "type": "const"}},
+         "lhs":
+         {"type": "add",
+          "rhs": {"value": 3, "type": "const"},
+          "lhs":
+          {"type": "add",
+           "rhs":
+           {"type": "mul",
+            "rhs": {"value": 65536, "type": "const"},
+            "lhs": {"type": "var", "index": 2}},
+           "lhs": {"type": "var", "index": 3}}}}}}},
+     {"value": 0, "type": "const"}],
+    "channel": "SP1Byte"}},
+  {"assert":
+   {"type": "mul",
+    "rhs":
+    {"type": "add",
+     "rhs":
+     {"type": "mul",
+      "rhs": {"value": 1, "type": "const"},
+      "lhs": {"value": 2130706432, "type": "const"}},
+     "lhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"type": "var", "index": 32},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs":
+      {"type": "add",
+       "rhs": {"type": "var", "index": 64},
+       "lhs": {"type": "var", "index": 63}}}},
+    "lhs":
+    {"type": "add",
+     "rhs":
+     {"type": "mul",
+      "rhs": {"type": "var", "index": 32},
+      "lhs": {"value": 2130706432, "type": "const"}},
+     "lhs":
+     {"type": "add",
+      "rhs": {"type": "var", "index": 64},
+      "lhs": {"type": "var", "index": 63}}}}},
+  {"interact":
+   {"multiplicity":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"type": "var", "index": 32},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs":
+      {"type": "add",
+       "rhs": {"type": "var", "index": 64},
+       "lhs": {"type": "var", "index": 63}}},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "message":
+    [{"value": 6, "type": "const"},
+     {"type": "var", "index": 31},
+     {"value": 16, "type": "const"},
+     {"value": 0, "type": "const"}],
+    "channel": "SP1Byte"}},
+  {"interact":
+   {"multiplicity":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"type": "var", "index": 32},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs":
+      {"type": "add",
+       "rhs": {"type": "var", "index": 64},
+       "lhs": {"type": "var", "index": 63}}},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "message":
+    [{"value": 3, "type": "const"},
+     {"value": 0, "type": "const"},
+     {"type": "mul",
+      "rhs": {"value": 2130673921, "type": "const"},
+      "lhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"type": "var", "index": 31},
+        "lhs": {"value": 2130706432, "type": "const"}},
+       "lhs":
+       {"type": "add",
+        "rhs":
+        {"type": "mul",
+         "rhs": {"value": 1, "type": "const"},
+         "lhs": {"value": 2130706432, "type": "const"}},
+        "lhs":
+        {"type": "add",
+         "rhs":
+         {"type": "mul",
+          "rhs": {"type": "var", "index": 30},
+          "lhs": {"value": 2130706432, "type": "const"}},
+         "lhs":
+         {"type": "add",
+          "rhs": {"value": 2, "type": "const"},
+          "lhs":
+          {"type": "add",
+           "rhs":
+           {"type": "mul",
+            "rhs": {"value": 65536, "type": "const"},
+            "lhs": {"type": "var", "index": 2}},
+           "lhs": {"type": "var", "index": 3}}}}}}},
+     {"value": 0, "type": "const"}],
+    "channel": "SP1Byte"}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"value": 1, "type": "const"},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs": {"type": "var", "index": 14}},
+     "lhs": {"type": "var", "index": 14}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs": {"type": "var", "index": 32},
+     "lhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"value": 1, "type": "const"},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs":
+      {"type": "add",
+       "rhs": {"type": "var", "index": 64},
+       "lhs": {"type": "var", "index": 63}}}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"value": 1, "type": "const"},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"type": "var", "index": 32},
+        "lhs": {"value": 2130706432, "type": "const"}},
+       "lhs":
+       {"type": "add",
+        "rhs": {"type": "var", "index": 64},
+        "lhs": {"type": "var", "index": 63}}}},
+     "lhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"type": "var", "index": 32},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs":
+      {"type": "add",
+       "rhs": {"type": "var", "index": 64},
+       "lhs": {"type": "var", "index": 63}}}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"type": "var", "index": 22},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs": {"type": "var", "index": 26}},
+     "lhs": {"type": "var", "index": 32}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"type": "var", "index": 23},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs": {"type": "var", "index": 27}},
+     "lhs": {"type": "var", "index": 32}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"type": "var", "index": 24},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs": {"type": "var", "index": 28}},
+     "lhs": {"type": "var", "index": 32}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"type": "var", "index": 25},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs": {"type": "var", "index": 29}},
+     "lhs": {"type": "var", "index": 32}}}},
+  {"assert":
+   {"type": "mul",
+    "rhs":
+    {"type": "add",
+     "rhs":
+     {"type": "mul",
+      "rhs": {"value": 1, "type": "const"},
+      "lhs": {"value": 2130706432, "type": "const"}},
+     "lhs":
+     {"type": "add",
+      "rhs": {"type": "var", "index": 64},
+      "lhs": {"type": "var", "index": 63}}},
+    "lhs":
+    {"type": "add",
+     "rhs": {"type": "var", "index": 64},
+     "lhs": {"type": "var", "index": 63}}}},
+  {"interact":
+   {"multiplicity":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs": {"type": "var", "index": 64},
+      "lhs": {"type": "var", "index": 63}},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "message":
+    [{"type": "var", "index": 4},
+     {"type": "var", "index": 5},
+     {"type": "var", "index": 6},
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"value": 21, "type": "const"},
+       "lhs": {"type": "var", "index": 64}},
+      "lhs":
+      {"type": "mul",
+       "rhs": {"value": 6, "type": "const"},
+       "lhs": {"type": "var", "index": 63}}},
+     {"type": "var", "index": 7},
+     {"type": "var", "index": 15},
+     {"value": 0, "type": "const"},
+     {"value": 0, "type": "const"},
+     {"value": 0, "type": "const"},
+     {"type": "var", "index": 22},
+     {"type": "var", "index": 23},
+     {"type": "var", "index": 24},
+     {"type": "var", "index": 25},
+     {"type": "var", "index": 14},
+     {"value": 0, "type": "const"},
+     {"type": "var", "index": 32}],
+    "channel": "SP1Program"}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs": {"type": "var", "index": 33},
+     "lhs": {"type": "var", "index": 14}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs": {"type": "var", "index": 34},
+     "lhs": {"type": "var", "index": 14}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs": {"type": "var", "index": 35},
+     "lhs": {"type": "var", "index": 14}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs": {"type": "var", "index": 36},
+     "lhs": {"type": "var", "index": 14}}}},
+  {"interact":
+   {"multiplicity":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs": {"type": "var", "index": 64},
+      "lhs": {"type": "var", "index": 63}},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "message":
+    [{"type": "var", "index": 1},
+     {"type": "var", "index": 12},
+     {"type": "var", "index": 7},
+     {"value": 0, "type": "const"},
+     {"value": 0, "type": "const"},
+     {"type": "var", "index": 8},
+     {"type": "var", "index": 9},
+     {"type": "var", "index": 10},
+     {"type": "var", "index": 11}],
+    "channel": "SP1Memory"}},
+  {"interact":
+   {"multiplicity":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs": {"type": "var", "index": 64},
+      "lhs": {"type": "var", "index": 63}},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "message":
+    [{"type": "var", "index": 1},
+     {"type": "var", "index": 20},
+     {"type": "var", "index": 15},
+     {"value": 0, "type": "const"},
+     {"value": 0, "type": "const"},
+     {"type": "var", "index": 16},
+     {"type": "var", "index": 17},
+     {"type": "var", "index": 18},
+     {"type": "var", "index": 19}],
+    "channel": "SP1Memory"}},
+  {"interact":
+   {"multiplicity":
+    {"type": "add",
+     "rhs": {"type": "var", "index": 64},
+     "lhs": {"type": "var", "index": 63}},
+    "message":
+    [{"type": "var", "index": 1},
+     {"type": "add",
+      "rhs": {"value": 3, "type": "const"},
+      "lhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"value": 65536, "type": "const"},
+        "lhs": {"type": "var", "index": 2}},
+       "lhs": {"type": "var", "index": 3}}},
+     {"type": "var", "index": 15},
+     {"value": 0, "type": "const"},
+     {"value": 0, "type": "const"},
+     {"type": "var", "index": 16},
+     {"type": "var", "index": 17},
+     {"type": "var", "index": 18},
+     {"type": "var", "index": 19}],
+    "channel": "SP1Memory"}},
+  {"interact":
+   {"multiplicity":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"type": "var", "index": 32},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs":
+      {"type": "add",
+       "rhs": {"type": "var", "index": 64},
+       "lhs": {"type": "var", "index": 63}}},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "message":
+    [{"type": "var", "index": 1},
+     {"type": "var", "index": 30},
+     {"type": "var", "index": 22},
+     {"value": 0, "type": "const"},
+     {"value": 0, "type": "const"},
+     {"type": "var", "index": 26},
+     {"type": "var", "index": 27},
+     {"type": "var", "index": 28},
+     {"type": "var", "index": 29}],
+    "channel": "SP1Memory"}},
+  {"interact":
+   {"multiplicity":
+    {"type": "add",
+     "rhs":
+     {"type": "mul",
+      "rhs": {"type": "var", "index": 32},
+      "lhs": {"value": 2130706432, "type": "const"}},
+     "lhs":
+     {"type": "add",
+      "rhs": {"type": "var", "index": 64},
+      "lhs": {"type": "var", "index": 63}}},
+    "message":
+    [{"type": "var", "index": 1},
+     {"type": "add",
+      "rhs": {"value": 2, "type": "const"},
+      "lhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"value": 65536, "type": "const"},
+        "lhs": {"type": "var", "index": 2}},
+       "lhs": {"type": "var", "index": 3}}},
+     {"type": "var", "index": 22},
+     {"value": 0, "type": "const"},
+     {"value": 0, "type": "const"},
+     {"type": "var", "index": 26},
+     {"type": "var", "index": 27},
+     {"type": "var", "index": 28},
+     {"type": "var", "index": 29}],
+    "channel": "SP1Memory"}},
+  {"interact":
+   {"multiplicity":
+    {"type": "add",
+     "rhs": {"type": "var", "index": 64},
+     "lhs": {"type": "var", "index": 63}},
+    "message":
+    [{"type": "var", "index": 1},
+     {"type": "add",
+      "rhs": {"value": 4, "type": "const"},
+      "lhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"value": 65536, "type": "const"},
+        "lhs": {"type": "var", "index": 2}},
+       "lhs": {"type": "var", "index": 3}}},
+     {"type": "var", "index": 7},
+     {"value": 0, "type": "const"},
+     {"value": 0, "type": "const"},
+     {"type": "var", "index": 33},
+     {"type": "var", "index": 34},
+     {"type": "var", "index": 35},
+     {"type": "var", "index": 36}],
+    "channel": "SP1Memory"}},
+  {"assert":
+   {"type": "mul",
+    "rhs":
+    {"type": "add",
+     "rhs":
+     {"type": "mul",
+      "rhs": {"value": 1, "type": "const"},
+      "lhs": {"value": 2130706432, "type": "const"}},
+     "lhs": {"type": "var", "index": 0}},
+    "lhs": {"type": "var", "index": 0}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs": {"type": "var", "index": 64},
+      "lhs": {"type": "var", "index": 63}},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs": {"type": "var", "index": 0}}},
+  {"assert":
+   {"type": "mul",
+    "rhs":
+    {"type": "add",
+     "rhs":
+     {"type": "mul",
+      "rhs": {"value": 1, "type": "const"},
+      "lhs": {"value": 2130706432, "type": "const"}},
+     "lhs":
+     {"type": "add",
+      "rhs": {"type": "var", "index": 64},
+      "lhs": {"type": "var", "index": 63}}},
+    "lhs":
+    {"type": "add",
+     "rhs": {"type": "var", "index": 64},
+     "lhs": {"type": "var", "index": 63}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"value": 1, "type": "const"},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs": {"type": "var", "index": 63}},
+     "lhs": {"type": "var", "index": 63}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"value": 1, "type": "const"},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs": {"type": "var", "index": 64}},
+     "lhs": {"type": "var", "index": 64}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"value": 1, "type": "const"},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs": {"type": "var", "index": 37}},
+     "lhs": {"type": "var", "index": 37}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"value": 1, "type": "const"},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs": {"type": "var", "index": 38}},
+     "lhs": {"type": "var", "index": 38}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"value": 1, "type": "const"},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs": {"type": "var", "index": 39}},
+     "lhs": {"type": "var", "index": 39}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"value": 1, "type": "const"},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs": {"type": "var", "index": 40}},
+     "lhs": {"type": "var", "index": 40}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"value": 1, "type": "const"},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs": {"type": "var", "index": 41}},
+     "lhs": {"type": "var", "index": 41}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"value": 1, "type": "const"},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs": {"type": "var", "index": 42}},
+     "lhs": {"type": "var", "index": 42}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"value": 0, "type": "const"},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"type": "var", "index": 63},
+        "lhs":
+        {"type": "mul",
+         "rhs": {"value": 2, "type": "const"},
+         "lhs": {"type": "var", "index": 42}}},
+       "lhs": {"type": "var", "index": 41}}},
+     "lhs": {"type": "var", "index": 46}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"value": 1, "type": "const"},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs": {"type": "var", "index": 46}},
+     "lhs": {"type": "var", "index": 46}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"value": 1, "type": "const"},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"type": "var", "index": 63},
+        "lhs":
+        {"type": "mul",
+         "rhs": {"value": 2, "type": "const"},
+         "lhs": {"type": "var", "index": 42}}},
+       "lhs": {"type": "var", "index": 41}}},
+     "lhs": {"type": "var", "index": 47}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"value": 1, "type": "const"},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs": {"type": "var", "index": 47}},
+     "lhs": {"type": "var", "index": 47}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"value": 2, "type": "const"},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"type": "var", "index": 63},
+        "lhs":
+        {"type": "mul",
+         "rhs": {"value": 2, "type": "const"},
+         "lhs": {"type": "var", "index": 42}}},
+       "lhs": {"type": "var", "index": 41}}},
+     "lhs": {"type": "var", "index": 48}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"value": 1, "type": "const"},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs": {"type": "var", "index": 48}},
+     "lhs": {"type": "var", "index": 48}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"value": 3, "type": "const"},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"type": "var", "index": 63},
+        "lhs":
+        {"type": "mul",
+         "rhs": {"value": 2, "type": "const"},
+         "lhs": {"type": "var", "index": 42}}},
+       "lhs": {"type": "var", "index": 41}}},
+     "lhs": {"type": "var", "index": 49}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"value": 1, "type": "const"},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs": {"type": "var", "index": 49}},
+     "lhs": {"type": "var", "index": 49}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"value": 1, "type": "const"},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs":
+      {"type": "add",
+       "rhs": {"type": "var", "index": 49},
+       "lhs":
+       {"type": "add",
+        "rhs": {"type": "var", "index": 48},
+        "lhs":
+        {"type": "add",
+         "rhs": {"type": "var", "index": 47},
+         "lhs": {"type": "var", "index": 46}}}}},
+     "lhs":
+     {"type": "add",
+      "rhs": {"type": "var", "index": 64},
+      "lhs": {"type": "var", "index": 63}}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "add",
+     "rhs":
+     {"type": "mul",
+      "rhs":
+      {"type": "mul",
+       "rhs":
+       {"type": "add",
+        "rhs": {"value": 1, "type": "const"},
+        "lhs":
+        {"type": "mul",
+         "rhs": {"value": 3, "type": "const"},
+         "lhs": {"type": "var", "index": 38}}},
+       "lhs":
+       {"type": "add",
+        "rhs": {"value": 1, "type": "const"},
+        "lhs": {"type": "var", "index": 37}}},
+      "lhs": {"value": 2130706432, "type": "const"}},
+     "lhs": {"type": "var", "index": 43}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "add",
+     "rhs":
+     {"type": "mul",
+      "rhs":
+      {"type": "mul",
+       "rhs":
+       {"type": "add",
+        "rhs": {"value": 1, "type": "const"},
+        "lhs":
+        {"type": "mul",
+         "rhs": {"value": 15, "type": "const"},
+         "lhs": {"type": "var", "index": 39}}},
+       "lhs": {"type": "var", "index": 43}},
+      "lhs": {"value": 2130706432, "type": "const"}},
+     "lhs": {"type": "var", "index": 44}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "add",
+     "rhs":
+     {"type": "mul",
+      "rhs":
+      {"type": "mul",
+       "rhs":
+       {"type": "add",
+        "rhs": {"value": 1, "type": "const"},
+        "lhs":
+        {"type": "mul",
+         "rhs": {"value": 255, "type": "const"},
+         "lhs": {"type": "var", "index": 40}}},
+       "lhs": {"type": "var", "index": 44}},
+      "lhs": {"value": 2130706432, "type": "const"}},
+     "lhs": {"type": "var", "index": 45}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "add",
+     "rhs":
+     {"type": "mul",
+      "rhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"type": "var", "index": 45},
+        "lhs": {"type": "var", "index": 50}},
+       "lhs":
+       {"type": "mul",
+        "rhs": {"value": 65536, "type": "const"},
+        "lhs": {"type": "var", "index": 54}}},
+      "lhs": {"value": 2130706432, "type": "const"}},
+     "lhs":
+     {"type": "mul",
+      "rhs": {"type": "var", "index": 45},
+      "lhs": {"type": "var", "index": 16}}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "add",
+     "rhs":
+     {"type": "mul",
+      "rhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"type": "var", "index": 45},
+        "lhs": {"type": "var", "index": 51}},
+       "lhs":
+       {"type": "mul",
+        "rhs": {"value": 65536, "type": "const"},
+        "lhs": {"type": "var", "index": 55}}},
+      "lhs": {"value": 2130706432, "type": "const"}},
+     "lhs":
+     {"type": "mul",
+      "rhs": {"type": "var", "index": 45},
+      "lhs": {"type": "var", "index": 17}}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "add",
+     "rhs":
+     {"type": "mul",
+      "rhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"type": "var", "index": 45},
+        "lhs": {"type": "var", "index": 52}},
+       "lhs":
+       {"type": "mul",
+        "rhs": {"value": 65536, "type": "const"},
+        "lhs": {"type": "var", "index": 56}}},
+      "lhs": {"value": 2130706432, "type": "const"}},
+     "lhs":
+     {"type": "mul",
+      "rhs": {"type": "var", "index": 45},
+      "lhs": {"type": "var", "index": 18}}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "add",
+     "rhs":
+     {"type": "mul",
+      "rhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"type": "var", "index": 45},
+        "lhs": {"type": "var", "index": 53}},
+       "lhs":
+       {"type": "mul",
+        "rhs": {"value": 65536, "type": "const"},
+        "lhs": {"type": "var", "index": 57}}},
+      "lhs": {"value": 2130706432, "type": "const"}},
+     "lhs":
+     {"type": "mul",
+      "rhs": {"type": "var", "index": 45},
+      "lhs": {"type": "var", "index": 19}}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "add",
+     "rhs":
+     {"type": "mul",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"type": "var", "index": 45},
+       "lhs": {"type": "var", "index": 50}},
+      "lhs": {"value": 2130706432, "type": "const"}},
+     "lhs": {"type": "var", "index": 58}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "add",
+     "rhs":
+     {"type": "mul",
+      "rhs":
+      {"type": "add",
+       "rhs": {"type": "var", "index": 54},
+       "lhs":
+       {"type": "mul",
+        "rhs": {"type": "var", "index": 45},
+        "lhs": {"type": "var", "index": 51}}},
+      "lhs": {"value": 2130706432, "type": "const"}},
+     "lhs": {"type": "var", "index": 59}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "add",
+     "rhs":
+     {"type": "mul",
+      "rhs":
+      {"type": "add",
+       "rhs": {"type": "var", "index": 55},
+       "lhs":
+       {"type": "mul",
+        "rhs": {"type": "var", "index": 45},
+        "lhs": {"type": "var", "index": 52}}},
+      "lhs": {"value": 2130706432, "type": "const"}},
+     "lhs": {"type": "var", "index": 60}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "add",
+     "rhs":
+     {"type": "mul",
+      "rhs":
+      {"type": "add",
+       "rhs": {"type": "var", "index": 56},
+       "lhs":
+       {"type": "mul",
+        "rhs": {"type": "var", "index": 45},
+        "lhs": {"type": "var", "index": 53}}},
+      "lhs": {"value": 2130706432, "type": "const"}},
+     "lhs": {"type": "var", "index": 61}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "mul",
+      "rhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"type": "var", "index": 58},
+        "lhs": {"value": 2130706432, "type": "const"}},
+       "lhs": {"type": "var", "index": 33}},
+      "lhs": {"type": "var", "index": 46}},
+     "lhs": {"type": "var", "index": 63}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "mul",
+      "rhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"type": "var", "index": 59},
+        "lhs": {"value": 2130706432, "type": "const"}},
+       "lhs": {"type": "var", "index": 34}},
+      "lhs": {"type": "var", "index": 46}},
+     "lhs": {"type": "var", "index": 63}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "mul",
+      "rhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"type": "var", "index": 60},
+        "lhs": {"value": 2130706432, "type": "const"}},
+       "lhs": {"type": "var", "index": 35}},
+      "lhs": {"type": "var", "index": 46}},
+     "lhs": {"type": "var", "index": 63}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "mul",
+      "rhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"type": "var", "index": 61},
+        "lhs": {"value": 2130706432, "type": "const"}},
+       "lhs": {"type": "var", "index": 36}},
+      "lhs": {"type": "var", "index": 46}},
+     "lhs": {"type": "var", "index": 63}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "mul",
+      "rhs": {"type": "var", "index": 33},
+      "lhs": {"type": "var", "index": 47}},
+     "lhs": {"type": "var", "index": 63}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "mul",
+      "rhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"type": "var", "index": 58},
+        "lhs": {"value": 2130706432, "type": "const"}},
+       "lhs": {"type": "var", "index": 34}},
+      "lhs": {"type": "var", "index": 47}},
+     "lhs": {"type": "var", "index": 63}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "mul",
+      "rhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"type": "var", "index": 59},
+        "lhs": {"value": 2130706432, "type": "const"}},
+       "lhs": {"type": "var", "index": 35}},
+      "lhs": {"type": "var", "index": 47}},
+     "lhs": {"type": "var", "index": 63}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "mul",
+      "rhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"type": "var", "index": 60},
+        "lhs": {"value": 2130706432, "type": "const"}},
+       "lhs": {"type": "var", "index": 36}},
+      "lhs": {"type": "var", "index": 47}},
+     "lhs": {"type": "var", "index": 63}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "mul",
+      "rhs": {"type": "var", "index": 33},
+      "lhs": {"type": "var", "index": 48}},
+     "lhs": {"type": "var", "index": 63}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "mul",
+      "rhs": {"type": "var", "index": 34},
+      "lhs": {"type": "var", "index": 48}},
+     "lhs": {"type": "var", "index": 63}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "mul",
+      "rhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"type": "var", "index": 58},
+        "lhs": {"value": 2130706432, "type": "const"}},
+       "lhs": {"type": "var", "index": 35}},
+      "lhs": {"type": "var", "index": 48}},
+     "lhs": {"type": "var", "index": 63}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "mul",
+      "rhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"type": "var", "index": 59},
+        "lhs": {"value": 2130706432, "type": "const"}},
+       "lhs": {"type": "var", "index": 36}},
+      "lhs": {"type": "var", "index": 48}},
+     "lhs": {"type": "var", "index": 63}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "mul",
+      "rhs": {"type": "var", "index": 33},
+      "lhs": {"type": "var", "index": 49}},
+     "lhs": {"type": "var", "index": 63}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "mul",
+      "rhs": {"type": "var", "index": 34},
+      "lhs": {"type": "var", "index": 49}},
+     "lhs": {"type": "var", "index": 63}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "mul",
+      "rhs": {"type": "var", "index": 35},
+      "lhs": {"type": "var", "index": 49}},
+     "lhs": {"type": "var", "index": 63}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "mul",
+      "rhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"type": "var", "index": 58},
+        "lhs": {"value": 2130706432, "type": "const"}},
+       "lhs": {"type": "var", "index": 36}},
+      "lhs": {"type": "var", "index": 49}},
+     "lhs": {"type": "var", "index": 63}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "mul",
+      "rhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"type": "var", "index": 58},
+        "lhs": {"value": 2130706432, "type": "const"}},
+       "lhs": {"type": "var", "index": 33}},
+      "lhs": {"type": "var", "index": 46}},
+     "lhs": {"type": "var", "index": 64}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "mul",
+      "rhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"type": "var", "index": 59},
+        "lhs": {"value": 2130706432, "type": "const"}},
+       "lhs": {"type": "var", "index": 34}},
+      "lhs": {"type": "var", "index": 46}},
+     "lhs": {"type": "var", "index": 64}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "mul",
+      "rhs": {"type": "var", "index": 33},
+      "lhs": {"type": "var", "index": 47}},
+     "lhs": {"type": "var", "index": 64}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "mul",
+      "rhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"type": "var", "index": 58},
+        "lhs": {"value": 2130706432, "type": "const"}},
+       "lhs": {"type": "var", "index": 34}},
+      "lhs": {"type": "var", "index": 47}},
+     "lhs": {"type": "var", "index": 64}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"type": "var", "index": 35},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs":
+      {"type": "mul",
+       "rhs": {"value": 65535, "type": "const"},
+       "lhs": {"type": "var", "index": 62}}},
+     "lhs": {"type": "var", "index": 64}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"type": "var", "index": 36},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs":
+      {"type": "mul",
+       "rhs": {"value": 65535, "type": "const"},
+       "lhs": {"type": "var", "index": 62}}},
+     "lhs": {"type": "var", "index": 64}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs":
+    {"type": "add",
+     "rhs":
+     {"type": "mul",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"type": "var", "index": 32},
+       "lhs": {"type": "var", "index": 64}},
+      "lhs": {"value": 2130706432, "type": "const"}},
+     "lhs": {"type": "var", "index": 65}}}},
+  {"assert":
+   {"type": "add",
+    "rhs":
+    {"type": "mul",
+     "rhs": {"value": 0, "type": "const"},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "lhs": {"type": "var", "index": 14}}},
+  {"interact":
+   {"multiplicity":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs": {"type": "var", "index": 64},
+      "lhs": {"type": "var", "index": 63}},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "message":
+    [{"value": 6, "type": "const"},
+     {"type": "mul",
+      "rhs": {"value": 2097414145, "type": "const"},
+      "lhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs":
+        {"type": "add",
+         "rhs":
+         {"type": "mul",
+          "rhs": {"value": 32, "type": "const"},
+          "lhs": {"type": "var", "index": 42}},
+         "lhs":
+         {"type": "add",
+          "rhs":
+          {"type": "mul",
+           "rhs": {"value": 16, "type": "const"},
+           "lhs": {"type": "var", "index": 41}},
+          "lhs":
+          {"type": "add",
+           "rhs":
+           {"type": "mul",
+            "rhs": {"value": 8, "type": "const"},
+            "lhs": {"type": "var", "index": 40}},
+           "lhs":
+           {"type": "add",
+            "rhs":
+            {"type": "mul",
+             "rhs": {"value": 4, "type": "const"},
+             "lhs": {"type": "var", "index": 39}},
+            "lhs":
+            {"type": "add",
+             "rhs":
+             {"type": "mul",
+              "rhs": {"value": 2, "type": "const"},
+              "lhs": {"type": "var", "index": 38}},
+             "lhs":
+             {"type": "mul",
+              "rhs": {"value": 1, "type": "const"},
+              "lhs": {"type": "var", "index": 37}}}}}}},
+        "lhs": {"value": 2130706432, "type": "const"}},
+       "lhs": {"type": "var", "index": 26}}},
+     {"value": 10, "type": "const"},
+     {"value": 0, "type": "const"}],
+    "channel": "SP1Byte"}},
+  {"interact":
+   {"multiplicity":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs": {"type": "var", "index": 64},
+      "lhs": {"type": "var", "index": 63}},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "message":
+    [{"value": 6, "type": "const"},
+     {"type": "var", "index": 50},
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs":
+       {"type": "add",
+        "rhs":
+        {"type": "mul",
+         "rhs": {"value": 8, "type": "const"},
+         "lhs": {"type": "var", "index": 40}},
+        "lhs":
+        {"type": "add",
+         "rhs":
+         {"type": "mul",
+          "rhs": {"value": 4, "type": "const"},
+          "lhs": {"type": "var", "index": 39}},
+         "lhs":
+         {"type": "add",
+          "rhs":
+          {"type": "mul",
+           "rhs": {"value": 2, "type": "const"},
+           "lhs": {"type": "var", "index": 38}},
+          "lhs":
+          {"type": "mul",
+           "rhs": {"value": 1, "type": "const"},
+           "lhs": {"type": "var", "index": 37}}}}},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs": {"value": 16, "type": "const"}},
+     {"value": 0, "type": "const"}],
+    "channel": "SP1Byte"}},
+  {"interact":
+   {"multiplicity":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs": {"type": "var", "index": 64},
+      "lhs": {"type": "var", "index": 63}},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "message":
+    [{"value": 6, "type": "const"},
+     {"type": "var", "index": 54},
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"value": 8, "type": "const"},
+       "lhs": {"type": "var", "index": 40}},
+      "lhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"value": 4, "type": "const"},
+        "lhs": {"type": "var", "index": 39}},
+       "lhs":
+       {"type": "add",
+        "rhs":
+        {"type": "mul",
+         "rhs": {"value": 2, "type": "const"},
+         "lhs": {"type": "var", "index": 38}},
+        "lhs":
+        {"type": "mul",
+         "rhs": {"value": 1, "type": "const"},
+         "lhs": {"type": "var", "index": 37}}}}},
+     {"value": 0, "type": "const"}],
+    "channel": "SP1Byte"}},
+  {"interact":
+   {"multiplicity":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs": {"type": "var", "index": 64},
+      "lhs": {"type": "var", "index": 63}},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "message":
+    [{"value": 6, "type": "const"},
+     {"type": "var", "index": 51},
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs":
+       {"type": "add",
+        "rhs":
+        {"type": "mul",
+         "rhs": {"value": 8, "type": "const"},
+         "lhs": {"type": "var", "index": 40}},
+        "lhs":
+        {"type": "add",
+         "rhs":
+         {"type": "mul",
+          "rhs": {"value": 4, "type": "const"},
+          "lhs": {"type": "var", "index": 39}},
+         "lhs":
+         {"type": "add",
+          "rhs":
+          {"type": "mul",
+           "rhs": {"value": 2, "type": "const"},
+           "lhs": {"type": "var", "index": 38}},
+          "lhs":
+          {"type": "mul",
+           "rhs": {"value": 1, "type": "const"},
+           "lhs": {"type": "var", "index": 37}}}}},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs": {"value": 16, "type": "const"}},
+     {"value": 0, "type": "const"}],
+    "channel": "SP1Byte"}},
+  {"interact":
+   {"multiplicity":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs": {"type": "var", "index": 64},
+      "lhs": {"type": "var", "index": 63}},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "message":
+    [{"value": 6, "type": "const"},
+     {"type": "var", "index": 55},
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"value": 8, "type": "const"},
+       "lhs": {"type": "var", "index": 40}},
+      "lhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"value": 4, "type": "const"},
+        "lhs": {"type": "var", "index": 39}},
+       "lhs":
+       {"type": "add",
+        "rhs":
+        {"type": "mul",
+         "rhs": {"value": 2, "type": "const"},
+         "lhs": {"type": "var", "index": 38}},
+        "lhs":
+        {"type": "mul",
+         "rhs": {"value": 1, "type": "const"},
+         "lhs": {"type": "var", "index": 37}}}}},
+     {"value": 0, "type": "const"}],
+    "channel": "SP1Byte"}},
+  {"interact":
+   {"multiplicity":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs": {"type": "var", "index": 64},
+      "lhs": {"type": "var", "index": 63}},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "message":
+    [{"value": 6, "type": "const"},
+     {"type": "var", "index": 52},
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs":
+       {"type": "add",
+        "rhs":
+        {"type": "mul",
+         "rhs": {"value": 8, "type": "const"},
+         "lhs": {"type": "var", "index": 40}},
+        "lhs":
+        {"type": "add",
+         "rhs":
+         {"type": "mul",
+          "rhs": {"value": 4, "type": "const"},
+          "lhs": {"type": "var", "index": 39}},
+         "lhs":
+         {"type": "add",
+          "rhs":
+          {"type": "mul",
+           "rhs": {"value": 2, "type": "const"},
+           "lhs": {"type": "var", "index": 38}},
+          "lhs":
+          {"type": "mul",
+           "rhs": {"value": 1, "type": "const"},
+           "lhs": {"type": "var", "index": 37}}}}},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs": {"value": 16, "type": "const"}},
+     {"value": 0, "type": "const"}],
+    "channel": "SP1Byte"}},
+  {"interact":
+   {"multiplicity":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs": {"type": "var", "index": 64},
+      "lhs": {"type": "var", "index": 63}},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "message":
+    [{"value": 6, "type": "const"},
+     {"type": "var", "index": 56},
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"value": 8, "type": "const"},
+       "lhs": {"type": "var", "index": 40}},
+      "lhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"value": 4, "type": "const"},
+        "lhs": {"type": "var", "index": 39}},
+       "lhs":
+       {"type": "add",
+        "rhs":
+        {"type": "mul",
+         "rhs": {"value": 2, "type": "const"},
+         "lhs": {"type": "var", "index": 38}},
+        "lhs":
+        {"type": "mul",
+         "rhs": {"value": 1, "type": "const"},
+         "lhs": {"type": "var", "index": 37}}}}},
+     {"value": 0, "type": "const"}],
+    "channel": "SP1Byte"}},
+  {"interact":
+   {"multiplicity":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs": {"type": "var", "index": 64},
+      "lhs": {"type": "var", "index": 63}},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "message":
+    [{"value": 6, "type": "const"},
+     {"type": "var", "index": 53},
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs":
+       {"type": "add",
+        "rhs":
+        {"type": "mul",
+         "rhs": {"value": 8, "type": "const"},
+         "lhs": {"type": "var", "index": 40}},
+        "lhs":
+        {"type": "add",
+         "rhs":
+         {"type": "mul",
+          "rhs": {"value": 4, "type": "const"},
+          "lhs": {"type": "var", "index": 39}},
+         "lhs":
+         {"type": "add",
+          "rhs":
+          {"type": "mul",
+           "rhs": {"value": 2, "type": "const"},
+           "lhs": {"type": "var", "index": 38}},
+          "lhs":
+          {"type": "mul",
+           "rhs": {"value": 1, "type": "const"},
+           "lhs": {"type": "var", "index": 37}}}}},
+       "lhs": {"value": 2130706432, "type": "const"}},
+      "lhs": {"value": 16, "type": "const"}},
+     {"value": 0, "type": "const"}],
+    "channel": "SP1Byte"}},
+  {"interact":
+   {"multiplicity":
+    {"type": "mul",
+     "rhs":
+     {"type": "add",
+      "rhs": {"type": "var", "index": 64},
+      "lhs": {"type": "var", "index": 63}},
+     "lhs": {"value": 2130706432, "type": "const"}},
+    "message":
+    [{"value": 6, "type": "const"},
+     {"type": "var", "index": 57},
+     {"type": "add",
+      "rhs":
+      {"type": "mul",
+       "rhs": {"value": 8, "type": "const"},
+       "lhs": {"type": "var", "index": 40}},
+      "lhs":
+      {"type": "add",
+       "rhs":
+       {"type": "mul",
+        "rhs": {"value": 4, "type": "const"},
+        "lhs": {"type": "var", "index": 39}},
+       "lhs":
+       {"type": "add",
+        "rhs":
+        {"type": "mul",
+         "rhs": {"value": 2, "type": "const"},
+         "lhs": {"type": "var", "index": 38}},
+        "lhs":
+        {"type": "mul",
+         "rhs": {"value": 1, "type": "const"},
+         "lhs": {"type": "var", "index": 37}}}}},
+     {"value": 0, "type": "const"}],
+    "channel": "SP1Byte"}}],
+ "localLength": 33}

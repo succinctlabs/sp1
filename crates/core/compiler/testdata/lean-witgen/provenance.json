@@ -1,0 +1,6 @@
+{
+  "wireVersion": 1,
+  "sp1LeanCommit": "9938ea71eef2facaa36c6bf518129b53ae1849ec",
+  "cleanRev": "2dad7788d58b09eabeb3898506e4cb896e5d3e9d",
+  "source": "sp1-lean export/witgen (byte-identical; scripts/vendor_witgen_artifacts.sh)"
+}

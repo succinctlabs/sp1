@@ -13,6 +13,7 @@ members = [
   "crates/build",
   "crates/cli",
   "crates/core/compiler",
+  "crates/core/compiler/witgen-interp",
   "crates/core/executor",
   "crates/core/jit",
   "crates/core/machine",

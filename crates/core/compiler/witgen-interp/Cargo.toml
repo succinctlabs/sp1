@@ -1,0 +1,12 @@
+[package]
+name = "witgen-interp"
+description = "Reference interpreter for the Lean-exported witness-generation wire format"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+serde_json = { workspace = true }
