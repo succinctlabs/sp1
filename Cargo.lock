@@ -7085,6 +7085,7 @@ dependencies = [
  "sp1-core-machine",
  "sp1-hypercube",
  "sp1-primitives 6.4.0",
+ "witgen-interp",
 ]
 
 [[package]]
@@ -10153,6 +10154,13 @@ dependencies = [
  "serde_json",
  "unicode-xid",
  "wasmparser",
+]
+
+[[package]]
+name = "witgen-interp"
+version = "6.4.0"
+dependencies = [
+ "serde_json",
 ]
 
 [[package]]
