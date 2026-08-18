@@ -13,7 +13,6 @@ members = [
   "crates/build",
   "crates/cli",
   "crates/core/compiler",
-  "crates/core/compiler/witgen-interp",
   "crates/core/executor",
   "crates/core/jit",
   "crates/core/machine",
@@ -96,6 +95,11 @@ members = [
 exclude = [
   "examples/target",
   "crates/eval",
+  # The witgen conformance check and the vendored reference interpreter it uses
+  # are deliberately outside the workspace (the check is its own workspace):
+  # nothing in `cargo build`/`cargo test --workspace` builds or runs them.
+  "crates/core/compiler/conformance-check",
+  "crates/core/compiler/witgen-interp",
   # The cabi crate produces `libzkevm.a` and needs `panic = "abort"`,
   # which is a workspace-level setting in cargo. It lives in a stand-
   # alone workspace under `zkevm/`.

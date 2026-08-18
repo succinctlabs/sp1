@@ -17,10 +17,26 @@
 //! change — re-sync or reconcile), stale artifacts, or a wire-format regression;
 //! the failure message names the chip, row, and column.
 //!
-//! A real-execution (`--elf`) variant of this test is deliberate follow-up: the
-//! synthetic batteries already cover every opcode family with populate-path
-//! invariants intact, and `conformance::run_elf` covers all 25 chip families for
-//! ad-hoc real-program dumps.
+//! **Deliberately opt-in, with zero CI footprint.** This package is its own
+//! workspace (not a member of SP1's), so no `cargo build` or
+//! `cargo test --workspace` run in the SP1 tree ever builds or executes it — nor
+//! the vendored `witgen-interp` it depends on. The check runs only when invoked
+//! explicitly:
+//!
+//! ```text
+//! cargo run --release \
+//!     --manifest-path crates/core/compiler/conformance-check/Cargo.toml
+//! ```
+//!
+//! (sp1-lean drives it with `scripts/run_sp1_conformance.sh`, which also shares
+//! the workspace target dir so the dependency tree is built once). Promoting the
+//! check into CI is a deliberate later step, once the artifact-sync story is
+//! hardened; exit code 1 on any mismatch keeps it script- and CI-ready either way.
+//!
+//! A real-execution (`--elf`) variant is deliberate follow-up: the synthetic
+//! batteries already cover every opcode family with populate-path invariants
+//! intact, and `conformance::run_elf` covers all 25 chip families for ad-hoc
+//! real-program dumps.
 
 use serde_json::Value;
 use sp1_constraint_compiler::conformance::{build_chip, generate_rows, CHIPS};
@@ -41,7 +57,7 @@ const IS_REAL_HINTED: &[&str] = &["Bitwise", "Branch", "Lt", "Mul", "ShiftLeft",
 const DERIVED_PAD: &[&str] = &["ShiftLeft", "ShiftRight", "DivRem"];
 
 fn read_json(name: &str) -> Value {
-    let path = format!("{}/testdata/lean-witgen/{name}", env!("CARGO_MANIFEST_DIR"));
+    let path = format!("{}/../testdata/lean-witgen/{name}", env!("CARGO_MANIFEST_DIR"));
     let raw = std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("{path}: {e} (run sp1-lean's vendor_witgen_artifacts.sh)"));
     serde_json::from_str(&raw).unwrap_or_else(|e| panic!("{path}: parse error: {e}"))
@@ -262,8 +278,8 @@ fn check_chip(chip: &str) -> Result<(), String> {
     }
 }
 
-#[test]
-fn all_chips_reproduce_generate_trace() {
+#[allow(clippy::print_stdout)]
+fn main() {
     let mut failures = Vec::new();
     for chip in CHIPS {
         match check_chip(chip) {
@@ -271,5 +287,10 @@ fn all_chips_reproduce_generate_trace() {
             Err(e) => failures.push(e),
         }
     }
-    assert!(failures.is_empty(), "\n{}", failures.join("\n"));
+    if !failures.is_empty() {
+        eprintln!("{}", failures.join("\n"));
+        eprintln!("witgen conformance: FAILED");
+        std::process::exit(1);
+    }
+    println!("witgen conformance: all {} chips reproduce generate_trace", CHIPS.len());
 }

@@ -1,0 +1,17 @@
+[package]
+name = "witgen-conformance-check"
+description = "Opt-in check: SP1 trace generation vs the vendored Lean-verified witness generators"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+# Deliberately its own workspace: this package is not a member of the SP1
+# workspace, so no `cargo build`/`cargo test --workspace` run ever builds or
+# executes it — the check runs only when invoked by path (see src/main.rs).
+[workspace]
+
+[dependencies]
+serde_json = "1"
+sp1-constraint-compiler = { path = ".." }
+sp1-core-executor = { path = "../../executor" }
+witgen-interp = { path = "../witgen-interp" }
