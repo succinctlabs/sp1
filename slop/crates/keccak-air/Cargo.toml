@@ -1,6 +1,6 @@
 [package]
 name = "slop-keccak-air"
-description = "Re-exports p3_keccak_air from Plonky3 for SLOP"
+description = "Keccak-f trace generation optimized for SP1"
 readme = "README.md"
 version.workspace = true
 edition.workspace = true
@@ -10,7 +10,13 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-p3-keccak-air = {workspace = true}
+slop-algebra = { workspace = true }
+slop-matrix = { workspace = true }
+slop-maybe-rayon = { workspace = true }
+
+[dev-dependencies]
+slop-baby-bear = { workspace = true }
+tiny-keccak = { workspace = true, features = ["keccak"] }
 
 [lints]
 workspace = true

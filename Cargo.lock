@@ -4763,20 +4763,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "p3-keccak-air"
-version = "0.4.3-succinct"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f5bf177d56740078b5a5a842fa2393427796283dc8174b4a1a325c2d0b042de"
-dependencies = [
- "p3-air",
- "p3-field",
- "p3-matrix",
- "p3-maybe-rayon",
- "p3-util",
- "tracing",
-]
-
-[[package]]
 name = "p3-koala-bear"
 version = "0.4.3-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6685,7 +6671,11 @@ dependencies = [
 name = "slop-keccak-air"
 version = "6.4.0"
 dependencies = [
- "p3-keccak-air",
+ "slop-algebra 6.4.0",
+ "slop-baby-bear",
+ "slop-matrix",
+ "slop-maybe-rayon",
+ "tiny-keccak 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

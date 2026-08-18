@@ -3,7 +3,7 @@ use std::iter::once;
 
 use slop_air::{Air, AirBuilder, BaseAir};
 use slop_algebra::AbstractField;
-use slop_keccak_air::{NUM_ROUNDS, U64_LIMBS};
+use slop_keccak_air::{NUM_ROUNDS, RC_BIT_POSITIONS, U64_LIMBS};
 use slop_matrix::Matrix;
 use sp1_hypercube::{
     air::{AirInteraction, InteractionScope, SP1AirBuilder},
@@ -15,6 +15,14 @@ use super::{
     constants::rc_value_bit,
     KeccakPermuteChip, BITS_PER_LIMB,
 };
+
+fn xor<AB: SP1AirBuilder>(a: AB::Expr, b: AB::Expr) -> AB::Expr {
+    a.clone() + b.clone() - a * b.double()
+}
+
+fn andn<AB: SP1AirBuilder>(a: AB::Expr, b: AB::Expr) -> AB::Expr {
+    b.clone() - a * b
+}
 
 impl<F> BaseAir<F> for KeccakPermuteChip {
     fn width(&self) -> usize {
@@ -28,76 +36,46 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-
         let local = main.row_slice(0);
         let local: &KeccakMemCols<AB::Var> = (*local).borrow();
 
         builder.assert_bool(local.is_real);
 
-        // Keccak AIRs from Plonky3.
-        let andn_gen = |a: AB::Expr, b: AB::Expr| b.clone() - a * b;
-        let xor_gen = |a: AB::Expr, b: AB::Expr| a.clone() + b.clone() - a * b.double();
-        let xor3_gen = |a: AB::Expr, b: AB::Expr, c: AB::Expr| xor_gen(a, xor_gen(b, c));
-
-        // Flag constraints.
         let mut sum_flags = AB::Expr::zero();
         let mut computed_index = AB::Expr::zero();
-        for i in 0..NUM_ROUNDS {
-            builder.assert_bool(local.keccak.step_flags[i]);
-            sum_flags = sum_flags.clone() + local.keccak.step_flags[i];
-            computed_index = computed_index.clone()
-                + AB::Expr::from_canonical_u32(i as u32) * local.keccak.step_flags[i];
+        for round in 0..NUM_ROUNDS {
+            builder.assert_bool(local.keccak.step_flags[round]);
+            sum_flags = sum_flags.clone() + local.keccak.step_flags[round];
+            computed_index = computed_index
+                + AB::Expr::from_canonical_usize(round) * local.keccak.step_flags[round];
         }
         builder.assert_one(sum_flags);
         builder.when(local.is_real).assert_eq(computed_index, local.index);
 
-        // C'[x, z] = xor(C[x, z], C[x - 1, z], C[x + 1, z - 1]).
         for x in 0..5 {
-            for z in 0..64 {
-                builder.assert_bool(local.keccak.c[x][z]);
-                let xor = xor3_gen(
-                    local.keccak.c[x][z].into(),
-                    local.keccak.c[(x + 4) % 5][z].into(),
-                    local.keccak.c[(x + 1) % 5][(z + 63) % 64].into(),
-                );
-                let c_prime = local.keccak.c_prime[x][z];
-                builder.assert_eq(c_prime, xor);
+            for bit in local.keccak.c[x] {
+                builder.assert_bool(bit);
             }
         }
-
-        // Check that the input limbs are consistent with A' and D.
-        // A[x, y, z] = xor(A'[x, y, z], D[x, y, z])
-        //            = xor(A'[x, y, z], C[x - 1, z], C[x + 1, z - 1])
-        //            = xor(A'[x, y, z], C[x, z], C'[x, z]).
-        // The last step is valid based on the identity we checked above.
-        // It isn't required, but makes this check a bit cleaner.
-        for y in 0..5 {
-            for x in 0..5 {
-                let get_bit = |z| {
-                    let a_prime: AB::Var = local.keccak.a_prime[y][x][z];
-                    let c: AB::Var = local.keccak.c[x][z];
-                    let c_prime: AB::Var = local.keccak.c_prime[x][z];
-                    xor3_gen(a_prime.into(), c.into(), c_prime.into())
-                };
-
-                for limb in 0..U64_LIMBS {
-                    let a_limb = local.keccak.a[y][x][limb];
-                    let computed_limb = (limb * BITS_PER_LIMB..(limb + 1) * BITS_PER_LIMB)
-                        .rev()
-                        .fold(AB::Expr::zero(), |acc, z| {
-                            builder.assert_bool(local.keccak.a_prime[y][x][z]);
-                            acc.double() + get_bit(z)
-                        });
-                    builder.assert_eq(computed_limb, a_limb);
+        for x in 0..5 {
+            for y in 0..5 {
+                for bit in local.keccak.a_prime[y][x] {
+                    builder.assert_bool(bit);
                 }
             }
         }
 
-        // xor_{i=0}^4 A'[x, i, z] = C'[x, z], so for each x, z,
-        // diff * (diff - 2) * (diff - 4) = 0, where
-        // diff = sum_{i=0}^4 A'[x, i, z] - C'[x, z]
         for x in 0..5 {
             for z in 0..64 {
+                let c_prime = xor::<AB>(
+                    local.keccak.c[x][z].into(),
+                    xor::<AB>(
+                        local.keccak.c[(x + 4) % 5][z].into(),
+                        local.keccak.c[(x + 1) % 5][(z + 63) % 64].into(),
+                    ),
+                );
+                builder.assert_bool(local.keccak.c_prime[x][z]);
+                builder.assert_eq(c_prime, local.keccak.c_prime[x][z]);
                 let sum: AB::Expr = (0..5).map(|y| local.keccak.a_prime[y][x][z].into()).sum();
                 let diff = sum - local.keccak.c_prime[x][z];
                 let four = AB::Expr::from_canonical_u8(4);
@@ -106,57 +84,63 @@ where
             }
         }
 
-        // A''[x, y] = xor(B[x, y], andn(B[x + 1, y], B[x + 2, y])).
-        for y in 0..5 {
-            for x in 0..5 {
-                let get_bit = |z| {
-                    let andn = andn_gen(
-                        local.keccak.b((x + 1) % 5, y, z).into(),
-                        local.keccak.b((x + 2) % 5, y, z).into(),
-                    );
-                    xor_gen(local.keccak.b(x, y, z).into(), andn)
-                };
-
-                for limb in 0..U64_LIMBS {
-                    let computed_limb = (limb * BITS_PER_LIMB..(limb + 1) * BITS_PER_LIMB)
-                        .rev()
-                        .fold(AB::Expr::zero(), |acc, z| acc.double() + get_bit(z));
-                    builder.assert_eq(computed_limb, local.keccak.a_prime_prime[y][x][limb]);
-                }
-            }
-        }
-
-        // A'''[0, 0] = A''[0, 0] XOR RC
-        for limb in 0..U64_LIMBS {
-            let computed_a_prime_prime_0_0_limb = (limb * BITS_PER_LIMB
-                ..(limb + 1) * BITS_PER_LIMB)
+        let chi_bit = |x: usize, y: usize, z: usize| {
+            xor::<AB>(
+                local.keccak.b(x, y, z).into(),
+                andn::<AB>(
+                    local.keccak.b((x + 1) % 5, y, z).into(),
+                    local.keccak.b((x + 2) % 5, y, z).into(),
+                ),
+            )
+        };
+        let chi_limb = |x: usize, y: usize, limb: usize| {
+            (limb * BITS_PER_LIMB..(limb + 1) * BITS_PER_LIMB)
                 .rev()
-                .fold(AB::Expr::zero(), |acc, z| {
-                    builder.assert_bool(local.keccak.a_prime_prime_0_0_bits[z]);
-                    acc.double() + local.keccak.a_prime_prime_0_0_bits[z]
-                });
-            let a_prime_prime_0_0_limb = local.keccak.a_prime_prime[0][0][limb];
-            builder.assert_eq(computed_a_prime_prime_0_0_limb, a_prime_prime_0_0_limb);
-        }
-
-        let get_xored_bit = |i| {
-            let mut rc_bit_i = AB::Expr::zero();
-            for r in 0..NUM_ROUNDS {
-                let this_round = local.keccak.step_flags[r];
-                let this_round_constant = AB::Expr::from_canonical_u8(rc_value_bit(r, i));
-                rc_bit_i = rc_bit_i.clone() + this_round * this_round_constant;
-            }
-
-            xor_gen(local.keccak.a_prime_prime_0_0_bits[i].into(), rc_bit_i)
+                .fold(AB::Expr::zero(), |acc, z| acc.double() + chi_bit(x, y, z))
         };
 
-        for limb in 0..U64_LIMBS {
-            let a_prime_prime_prime_0_0_limb = local.keccak.a_prime_prime_prime_0_0_limbs[limb];
-            let computed_a_prime_prime_prime_0_0_limb = (limb * BITS_PER_LIMB
-                ..(limb + 1) * BITS_PER_LIMB)
-                .rev()
-                .fold(AB::Expr::zero(), |acc, z| acc.double() + get_xored_bit(z));
-            builder.assert_eq(computed_a_prime_prime_prime_0_0_limb, a_prime_prime_prime_0_0_limb);
+        for (index, z) in RC_BIT_POSITIONS.into_iter().enumerate() {
+            builder.assert_bool(local.keccak.a_prime_prime_0_0_rc_bits[index]);
+            builder.assert_eq(local.keccak.a_prime_prime_0_0_rc_bits[index], chi_bit(0, 0, z));
+        }
+
+        for y in 0..5 {
+            for x in 0..5 {
+                for limb in 0..U64_LIMBS {
+                    let input_limb = (limb * BITS_PER_LIMB..(limb + 1) * BITS_PER_LIMB).rev().fold(
+                        AB::Expr::zero(),
+                        |acc, z| {
+                            let d = xor::<AB>(
+                                local.keccak.c[(x + 4) % 5][z].into(),
+                                local.keccak.c[(x + 1) % 5][(z + 63) % 64].into(),
+                            );
+                            acc.double() + xor::<AB>(local.keccak.a_prime[y][x][z].into(), d)
+                        },
+                    );
+                    builder.assert_eq(input_limb, local.keccak.input_limbs[y][x][limb]);
+
+                    let mut output_limb = chi_limb(x, y, limb);
+                    if x == 0 && y == 0 {
+                        for (index, z) in RC_BIT_POSITIONS.into_iter().enumerate() {
+                            if z / BITS_PER_LIMB != limb {
+                                continue;
+                            }
+                            let mut rc_bit = AB::Expr::zero();
+                            for round in 0..NUM_ROUNDS {
+                                rc_bit = rc_bit
+                                    + AB::Expr::from_canonical_u8(rc_value_bit(round, z))
+                                        * local.keccak.step_flags[round];
+                            }
+                            let chi: AB::Expr =
+                                local.keccak.a_prime_prime_0_0_rc_bits[index].into();
+                            let weight = AB::Expr::from_canonical_u32(1 << (z % BITS_PER_LIMB));
+                            output_limb =
+                                output_limb + weight * rc_bit * (AB::Expr::one() - chi.double());
+                        }
+                    }
+                    builder.assert_eq(output_limb, local.keccak.output_limbs[y][x][limb]);
+                }
+            }
         }
 
         let receive_values = once(local.clk_high)
@@ -166,14 +150,12 @@ where
             .chain(
                 local
                     .keccak
-                    .a
+                    .input_limbs
                     .into_iter()
                     .flat_map(|two_d| two_d.into_iter().flat_map(|one_d| one_d.into_iter())),
             )
             .map(Into::into)
             .collect::<Vec<_>>();
-
-        // Receive state.
         builder.receive(
             AirInteraction::new(receive_values, local.is_real.into(), InteractionKind::Keccak),
             InteractionScope::Local,
@@ -183,14 +165,10 @@ where
             .chain(once(local.clk_low.into()))
             .chain(local.state_addr.map(Into::into))
             .chain(once(local.index + AB::Expr::one()))
-            .chain((0..5).flat_map(|y| {
-                (0..5).flat_map(move |x| {
-                    (0..4).map(move |limb| local.keccak.a_prime_prime_prime(y, x, limb).into())
-                })
+            .chain(local.keccak.output_limbs.into_iter().flat_map(|two_d| {
+                two_d.into_iter().flat_map(|one_d| one_d.into_iter().map(Into::into))
             }))
             .collect::<Vec<_>>();
-
-        // Send state.
         builder.send(
             AirInteraction::new(send_values, local.is_real.into(), InteractionKind::Keccak),
             InteractionScope::Local,

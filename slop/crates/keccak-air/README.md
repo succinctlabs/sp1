@@ -1,12 +1,25 @@
 # slop-keccak-air
 
-Re-exports [`p3_keccak_air`](https://crates.io/crates/p3_keccak_air) from [Plonky3](https://github.com/Plonky3/Plonky3) for use in the SLOP library.
+Native Keccak-f trace generation for SP1's SLOP machine.
 
-This crate provides an AIR (Algebraic Intermediate Representation) for the Keccak-256 hash function. It defines the constraints needed to prove correct Keccak computations inside a proof system that can prove AIRs.
+The trace representation is based on the certified optimized AIR from
+[`keccak.fast`](https://github.com/Layr-Labs/keccak.fast). SP1's machine AIR
+adds explicit theta parities and input/output limbs to satisfy two production
+backend requirements:
 
-## License
+- AIR constraints have degree at most three.
+- Interaction values are affine expressions.
 
-This crate re-exports code from Plonky3, which is licensed under MIT/Apache-2.0.
+The resulting Keccak core has 2,471 columns. SP1 adds seven VM context columns,
+for a 2,478-column chip instead of the previous 2,640-column chip.
+
+The SP1 controller interaction remains unchanged: each row receives
+`(clock, state address, round index, 100 state limbs)` and sends the same
+message shape with the next round index and output state.
+
+The exact SP1 AIR is an adaptation of the certified standalone AIR, not the
+same polynomial artifact. It must therefore be tested and reviewed as its own
+production constraint system.
 
 ---
 

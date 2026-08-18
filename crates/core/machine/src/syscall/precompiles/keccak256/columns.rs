@@ -19,3 +19,5 @@ pub struct KeccakMemCols<T> {
 }
 
 pub const NUM_KECCAK_MEM_COLS: usize = size_of::<KeccakMemCols<u8>>();
+
+static_assertions::const_assert_eq!(NUM_KECCAK_MEM_COLS, 2_478);
