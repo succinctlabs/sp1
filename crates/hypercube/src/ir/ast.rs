@@ -247,6 +247,9 @@ impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
     /// The caller selects, per def, the bindings reachable from that def's roots — so no def carries
     /// a `let` it does not use.
     #[must_use]
+    // One linear emission pass per constraint kind; splitting it would scatter the
+    // rendered Lean's ordering decisions across helpers.
+    #[allow(clippy::too_many_lines)]
     pub fn to_lean_components(&self, mapping: &HashMap<usize, String>) -> LeanComponents {
         let mut bindings: Vec<LeanBinding> = Vec::default();
         let mut asserts: Vec<(String, Vec<BindId>)> = Vec::default();
@@ -423,7 +426,7 @@ impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
 /// with multiplicity `g` becomes `byteChannel.gatedReceive g ⟨op, a, b', c⟩` (a *pull* of the
 /// preprocessed `ByteChip`; the sign flip is the send/receive duality, `Foundations/Channels.lean`).
 /// The looked-up value `a` is passed **raw**, multiplicity-gated by `g` on `toRawGated` — faithful to
-/// SP1's `send_byte(…, is_real)`, whose LogUp term is `g / fingerprint(values)`, so a padding row
+/// SP1's `send_byte(…, is_real)`, whose `LogUp` term is `g / fingerprint(values)`, so a padding row
 /// (`g = 0`) drops out of the sum entirely and its values are unconstrained (no `g * a` fold). The
 /// bit-width column `b`, when a literal, is rendered `Expression.const ((b:ℕ):ZMod p)` so it matches
 /// `byteRowSpec_range`'s `((n:ℕ):ZMod p)` shape (`Foundations/ByteTable.lean`).
