@@ -5,7 +5,9 @@
 
 //! GF(2^128) with the GHASH polynomial x^128 + x^7 + x^2 + x + 1.
 
-use core::ops::{Add, AddAssign, BitXor, BitXorAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+use core::ops::{
+    Add, AddAssign, BitXor, BitXorAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign,
+};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[repr(C, align(16))]
@@ -115,6 +117,23 @@ impl MulAssign for GHash {
     #[inline]
     fn mul_assign(&mut self, rhs: Self) {
         *self = *self * rhs;
+    }
+}
+
+#[allow(clippy::suspicious_arithmetic_impl)]
+impl Div for GHash {
+    type Output = Self;
+
+    #[inline]
+    fn div(self, rhs: Self) -> Self {
+        self * rhs.inverse().expect("cannot divide by zero")
+    }
+}
+
+impl DivAssign for GHash {
+    #[inline]
+    fn div_assign(&mut self, rhs: Self) {
+        *self = *self / rhs;
     }
 }
 
@@ -229,5 +248,18 @@ mod tests {
     #[test]
     fn zero_has_no_inverse() {
         assert_eq!(GHash::ZERO.inverse(), None);
+    }
+
+    #[test]
+    fn division_roundtrip() {
+        let lhs = GHash::new(0x0123_4567_89ab_cdef, 0xfedc_ba98_7654_3210);
+        let rhs = GHash::new(0xdead_beef_cafe_babe, 0x1020_3040_5060_7080);
+        assert_eq!((lhs / rhs) * rhs, lhs);
+    }
+
+    #[test]
+    #[should_panic(expected = "cannot divide by zero")]
+    fn division_by_zero_panics() {
+        let _ = GHash::ONE / GHash::ZERO;
     }
 }

@@ -5,7 +5,7 @@
 
 //! GF(2^8) with the AES polynomial x^8 + x^4 + x^3 + x + 1.
 
-use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[repr(transparent)]
@@ -103,6 +103,23 @@ impl MulAssign for BinaryField8 {
     }
 }
 
+#[allow(clippy::suspicious_arithmetic_impl)]
+impl Div for BinaryField8 {
+    type Output = Self;
+
+    #[inline]
+    fn div(self, rhs: Self) -> Self {
+        self * rhs.inverse().expect("cannot divide by zero")
+    }
+}
+
+impl DivAssign for BinaryField8 {
+    #[inline]
+    fn div_assign(&mut self, rhs: Self) {
+        *self = *self / rhs;
+    }
+}
+
 #[inline]
 const fn carryless_multiply(lhs: u8, rhs: u8) -> u16 {
     let mut product = 0;
@@ -149,6 +166,24 @@ mod tests {
     #[test]
     fn zero_has_no_inverse() {
         assert_eq!(BinaryField8::ZERO.inverse(), None);
+    }
+
+    #[test]
+    fn division_roundtrip() {
+        for lhs in 0..=u8::MAX {
+            for rhs in 1..=u8::MAX {
+                assert_eq!(
+                    (BinaryField8(lhs) / BinaryField8(rhs)) * BinaryField8(rhs),
+                    BinaryField8(lhs)
+                );
+            }
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "cannot divide by zero")]
+    fn division_by_zero_panics() {
+        let _ = BinaryField8::ONE / BinaryField8::ZERO;
     }
 
     #[test]
