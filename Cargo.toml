@@ -41,6 +41,7 @@ members = [
   "slop/crates/algebra",
   "slop/crates/alloc",
   "slop/crates/baby-bear",
+  "slop/crates/binary-fields",
   "slop/crates/basefold-prover",
   "slop/crates/basefold",
   "slop/crates/bn254",
@@ -187,6 +188,7 @@ slop-air = { version = "6.8.0", path = "./slop/crates/air" }
 slop-algebra = { version = "6.8.0", path = "./slop/crates/algebra" }
 slop-alloc = { version = "6.8.0", path = "./slop/crates/alloc" }
 slop-baby-bear = { version = "6.8.0", path = "./slop/crates/baby-bear" }
+slop-binary-fields = { version = "6.8.0", path = "./slop/crates/binary-fields" }
 slop-basefold = { version = "6.8.0", path = "./slop/crates/basefold" }
 slop-basefold-prover = { version = "6.8.0", path = "./slop/crates/basefold-prover" }
 slop-bn254 = { version = "6.8.0", path = "./slop/crates/bn254" }
