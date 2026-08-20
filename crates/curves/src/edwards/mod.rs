@@ -3,6 +3,9 @@ pub mod ed25519;
 use generic_array::GenericArray;
 use num::{BigUint, Zero};
 use serde::{Deserialize, Serialize};
+use std::sync::LazyLock;
+
+use ::curve25519_dalek::edwards::{CompressedEdwardsY, EdwardsPoint};
 
 use super::CurveType;
 use crate::{
@@ -112,25 +115,51 @@ impl<E: EdwardsParameters> AffinePoint<EdwardsCurve<E>> {
         &self,
         other: &AffinePoint<EdwardsCurve<E>>,
     ) -> AffinePoint<EdwardsCurve<E>> {
-        let p = <E as EllipticCurveParameters>::BaseField::modulus();
-        let x_3n = (&self.x * &other.y + &self.y * &other.x) % &p;
-        let y_3n = (&self.y * &other.y + &self.x * &other.x) % &p;
-
-        let all_xy = (&self.x * &self.y * &other.x * &other.y) % &p;
-        let d = E::d_biguint();
-        let dxy = (d * &all_xy) % &p;
-        let den_x = ((1u32 + &dxy) % &p).modpow(&(&p - 2u32), &p);
-        let den_y = ((1u32 + &p - &dxy) % &p).modpow(&(&p - 2u32), &p);
-
-        let x_3 = (&x_3n * &den_x) % &p;
-        let y_3 = (&y_3n * &den_y) % &p;
-
-        AffinePoint::new(x_3, y_3)
+        let result = affine_to_dalek(self) + affine_to_dalek(other);
+        dalek_to_affine(&result)
     }
 
     pub(crate) fn ed_double(&self) -> AffinePoint<EdwardsCurve<E>> {
-        self.ed_add(self)
+        let point = affine_to_dalek(self);
+        dalek_to_affine(&(point + point))
     }
+}
+
+fn affine_to_dalek<E: EdwardsParameters>(point: &AffinePoint<EdwardsCurve<E>>) -> EdwardsPoint {
+    assert!(matches!(E::CURVE_TYPE, CurveType::Ed25519), "Dalek only supports Ed25519");
+
+    let mut compressed = [0u8; 32];
+    let y = point.y.to_bytes_le();
+    compressed[..y.len()].copy_from_slice(&y);
+    compressed[31] |= u8::from(point.x.bit(0)) << 7;
+
+    CompressedEdwardsY(compressed).decompress().expect("edwards point must be valid")
+}
+
+fn dalek_to_affine<E: EdwardsParameters>(point: &EdwardsPoint) -> AffinePoint<EdwardsCurve<E>> {
+    static SQRT_M1_TORSION_POINT: LazyLock<EdwardsPoint> = LazyLock::new(|| {
+        CompressedEdwardsY([0u8; 32]).decompress().expect("(sqrt(-1), 0) must be valid")
+    });
+
+    const NEG_SQRT_M1: [u8; 32] = [
+        61, 95, 241, 181, 216, 228, 17, 59, 135, 27, 208, 82, 249, 231, 188, 208, 88, 40, 4, 194,
+        102, 255, 178, 212, 244, 32, 62, 176, 127, 219, 124, 84,
+    ];
+
+    let mut y_bytes = point.compress().to_bytes();
+    y_bytes[31] &= 0x7f;
+
+    // Adding (sqrt(-1), 0) maps (x, y) to (sqrt(-1) * y, sqrt(-1) * x).
+    // This gives access to x through Dalek's compressed point interface.
+    let mut x_times_sqrt_m1_bytes = (point + *SQRT_M1_TORSION_POINT).compress().to_bytes();
+    x_times_sqrt_m1_bytes[31] &= 0x7f;
+
+    let modulus = E::BaseField::modulus();
+    let x = (BigUint::from_bytes_le(&x_times_sqrt_m1_bytes) * BigUint::from_bytes_le(&NEG_SQRT_M1))
+        % modulus;
+    let y = BigUint::from_bytes_le(&y_bytes);
+
+    AffinePoint::new(x, y)
 }
 
 #[cfg(test)]
@@ -177,5 +206,28 @@ mod tests {
         let order = BigUint::from(2u32).pow(252)
             + BigUint::from(27742317777372353535851937790883648493u128);
         assert_eq!(base, &base + &(&base * &order));
+    }
+
+    #[test]
+    fn test_dalek_ed_add_matches_affine_formula() {
+        type E = Ed25519;
+        let base = E::ec_generator();
+        let modulus = <E as EllipticCurveParameters>::BaseField::modulus();
+        let d = Ed25519Parameters::d_biguint();
+        let mut rng = thread_rng();
+
+        for _ in 0..10 {
+            let p = &base * &rng.gen_biguint(64);
+            let q = &base * &rng.gen_biguint(64);
+            let all_xy = (&p.x * &p.y * &q.x * &q.y) % &modulus;
+            let dxy = (&d * all_xy) % &modulus;
+            let den_x = ((1u32 + &dxy) % &modulus).modpow(&(&modulus - 2u32), &modulus);
+            let den_y = ((1u32 + &modulus - dxy) % &modulus).modpow(&(&modulus - 2u32), &modulus);
+            let expected_x = (&p.x * &q.y + &p.y * &q.x) * den_x % &modulus;
+            let expected_y = (&p.y * &q.y + &p.x * &q.x) * den_y % &modulus;
+
+            assert_eq!(&p + &q, AffinePoint::new(expected_x, expected_y));
+            assert_eq!(E::ec_double(&p), &p + &p);
+        }
     }
 }
