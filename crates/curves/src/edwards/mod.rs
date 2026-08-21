@@ -170,7 +170,9 @@ fn affine_to_dalek<E: EdwardsParameters>(
     Some(CompressedEdwardsY(compressed).decompress().expect("edwards point must be valid"))
 }
 
-fn dalek_to_affine<E: EdwardsParameters>(point: &EdwardsPoint) -> AffinePoint<EdwardsCurve<E>> {
+pub(crate) fn dalek_to_affine<E: EdwardsParameters>(
+    point: &EdwardsPoint,
+) -> AffinePoint<EdwardsCurve<E>> {
     static SQRT_M1_TORSION_POINT: LazyLock<EdwardsPoint> = LazyLock::new(|| {
         CompressedEdwardsY([0u8; 32]).decompress().expect("(sqrt(-1), 0) must be valid")
     });
