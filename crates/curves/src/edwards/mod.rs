@@ -115,6 +115,10 @@ impl<E: EdwardsParameters> AffinePoint<EdwardsCurve<E>> {
         &self,
         other: &AffinePoint<EdwardsCurve<E>>,
     ) -> AffinePoint<EdwardsCurve<E>> {
+        if self.x == other.x && self.y == other.y {
+            return self.ed_double();
+        }
+
         match (affine_to_dalek(self), affine_to_dalek(other)) {
             (Some(point), Some(other_point)) => dalek_to_affine(&(point + other_point)),
             _ => self.ed_add_biguint(other),
@@ -123,7 +127,7 @@ impl<E: EdwardsParameters> AffinePoint<EdwardsCurve<E>> {
 
     pub(crate) fn ed_double(&self) -> AffinePoint<EdwardsCurve<E>> {
         match affine_to_dalek(self) {
-            Some(point) => dalek_to_affine(&(point + point)),
+            Some(point) => dalek_to_affine(&group::Group::double(&point)),
             None => self.ed_add_biguint(self),
         }
     }

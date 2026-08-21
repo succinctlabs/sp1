@@ -17,6 +17,7 @@ typenum = { workspace = true }
 k256 = { workspace = true, features = ["expose-field"] }
 p256 = { workspace = true, features = ["expose-field"] }
 generic-array = { workspace = true, features = ["alloc", "serde"] }
+group = { workspace = true }
 amcl = { workspace = true, features = ["bls381"] }
 elliptic-curve = { workspace = true }
 dashu = { workspace = true }
