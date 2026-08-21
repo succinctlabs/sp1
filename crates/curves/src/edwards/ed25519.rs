@@ -7,7 +7,7 @@ use typenum::{U32, U62};
 
 use crate::{
     curve25519_dalek::CompressedEdwardsY,
-    edwards::{dalek_to_affine, EdwardsCurve, EdwardsParameters},
+    edwards::{EdwardsCurve, EdwardsParameters},
     params::{FieldParameters, NumLimbs},
     AffinePoint, CurveType, EllipticCurveParameters,
 };
@@ -120,9 +120,29 @@ pub fn ed25519_sqrt(a: &BigUint) -> Option<BigUint> {
 }
 
 pub fn decompress(compressed_point: &CompressedEdwardsY) -> Option<AffinePoint<Ed25519>> {
-    let point = ::curve25519_dalek::edwards::CompressedEdwardsY(*compressed_point.as_bytes())
-        .decompress()?;
-    Some(dalek_to_affine(&point))
+    let mut point_bytes = *compressed_point.as_bytes();
+    let sign = point_bytes[31] >> 7 == 1;
+    // mask out the sign bit
+    point_bytes[31] &= 0b0111_1111;
+    let modulus = &Ed25519BaseField::modulus();
+
+    let y = &BigUint::from_bytes_le(&point_bytes);
+    let yy = &((y * y) % modulus);
+    let u = (yy + modulus - BigUint::one()) % modulus; // u =  y²-1
+    let v = &((yy * &Ed25519Parameters::d_biguint()) + &BigUint::one()) % modulus; // v = dy²+1
+
+    let v_inv = v.modpow(&(modulus - BigUint::from(2u64)), modulus);
+    let u_div_v = (u * &v_inv) % modulus;
+
+    let mut x = ed25519_sqrt(&u_div_v)?;
+
+    // sqrt always returns the nonnegative square root,
+    // so we negate according to the supplied sign bit.
+    if sign {
+        x = (modulus - &x) % modulus;
+    }
+
+    Some(AffinePoint::new(x, y.clone()))
 }
 
 #[cfg(test)]
