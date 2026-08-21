@@ -6,11 +6,13 @@ pub use artifacts::*;
 mod machine;
 pub use machine::*;
 
+#[allow(clippy::result_large_err)]
 pub mod cluster {
     tonic::include_proto!("cluster");
 }
 pub use cluster::*;
 
+#[allow(clippy::result_large_err)]
 pub mod worker {
     tonic::include_proto!("worker");
 }

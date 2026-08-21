@@ -313,6 +313,7 @@ where
                     return Err(BaseFoldVerifierError::IncorrectShape);
                 }
 
+                #[allow(clippy::chunks_exact_to_as_chunks)]
                 let evals: [GC::EF; 2] = opening
                     .as_slice()
                     .chunks_exact(GC::EF::D)
