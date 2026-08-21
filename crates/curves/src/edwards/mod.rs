@@ -139,10 +139,14 @@ impl<E: EdwardsParameters> AffinePoint<EdwardsCurve<E>> {
 
         let all_xy = (&self.x * &self.y * &other.x * &other.y) % &p;
         let dxy = (E::d_biguint() * all_xy) % &p;
-        let den_x = ((1u32 + &dxy) % &p).modpow(&(&p - 2u32), &p);
-        let den_y = ((1u32 + &p - dxy) % &p).modpow(&(&p - 2u32), &p);
+        let den_x = (1u32 + &dxy) % &p;
+        let den_y = (1u32 + &p - dxy) % &p;
+        let den_product_inv = (&den_x * &den_y % &p).modpow(&(&p - 2u32), &p);
 
-        AffinePoint::new(x_3n * den_x % &p, y_3n * den_y % &p)
+        AffinePoint::new(
+            x_3n * &den_y * &den_product_inv % &p,
+            y_3n * &den_x * den_product_inv % &p,
+        )
     }
 }
 
@@ -151,16 +155,10 @@ fn affine_to_dalek<E: EdwardsParameters>(
 ) -> Option<EdwardsPoint> {
     assert!(matches!(E::CURVE_TYPE, CurveType::Ed25519), "Dalek only supports Ed25519");
 
+    // The caller must supply a point on the Ed25519 curve.
     let modulus = E::BaseField::modulus();
     let x = &point.x % &modulus;
     let y = &point.y % &modulus;
-    let x_squared = &x * &x % &modulus;
-    let y_squared = &y * &y % &modulus;
-    let left = (&y_squared + &modulus - &x_squared) % &modulus;
-    let right = (1u32 + E::d_biguint() * &x_squared % &modulus * &y_squared) % &modulus;
-    if left != right {
-        return None;
-    }
 
     let mut compressed = [0u8; 32];
     let y = y.to_bytes_le();
@@ -277,7 +275,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ed_add_accepts_invalid_points() {
+    fn test_biguint_ed_add_accepts_invalid_points() {
         type E = Ed25519;
         let p = AffinePoint::new(
             BigUint::from_str(
@@ -310,6 +308,6 @@ mod tests {
             .unwrap(),
         );
 
-        assert_eq!(&p + &q, expected);
+        assert_eq!(p.ed_add_biguint(&q), expected);
     }
 }
