@@ -115,25 +115,55 @@ impl<E: EdwardsParameters> AffinePoint<EdwardsCurve<E>> {
         &self,
         other: &AffinePoint<EdwardsCurve<E>>,
     ) -> AffinePoint<EdwardsCurve<E>> {
-        let result = affine_to_dalek(self) + affine_to_dalek(other);
-        dalek_to_affine(&result)
+        match (affine_to_dalek(self), affine_to_dalek(other)) {
+            (Some(point), Some(other_point)) => dalek_to_affine(&(point + other_point)),
+            _ => self.ed_add_biguint(other),
+        }
     }
 
     pub(crate) fn ed_double(&self) -> AffinePoint<EdwardsCurve<E>> {
-        let point = affine_to_dalek(self);
-        dalek_to_affine(&(point + point))
+        match affine_to_dalek(self) {
+            Some(point) => dalek_to_affine(&(point + point)),
+            None => self.ed_add_biguint(self),
+        }
+    }
+
+    fn ed_add_biguint(&self, other: &AffinePoint<EdwardsCurve<E>>) -> AffinePoint<EdwardsCurve<E>> {
+        let p = E::BaseField::modulus();
+        let x_3n = (&self.x * &other.y + &self.y * &other.x) % &p;
+        let y_3n = (&self.y * &other.y + &self.x * &other.x) % &p;
+
+        let all_xy = (&self.x * &self.y * &other.x * &other.y) % &p;
+        let dxy = (E::d_biguint() * all_xy) % &p;
+        let den_x = ((1u32 + &dxy) % &p).modpow(&(&p - 2u32), &p);
+        let den_y = ((1u32 + &p - dxy) % &p).modpow(&(&p - 2u32), &p);
+
+        AffinePoint::new(x_3n * den_x % &p, y_3n * den_y % &p)
     }
 }
 
-fn affine_to_dalek<E: EdwardsParameters>(point: &AffinePoint<EdwardsCurve<E>>) -> EdwardsPoint {
+fn affine_to_dalek<E: EdwardsParameters>(
+    point: &AffinePoint<EdwardsCurve<E>>,
+) -> Option<EdwardsPoint> {
     assert!(matches!(E::CURVE_TYPE, CurveType::Ed25519), "Dalek only supports Ed25519");
 
-    let mut compressed = [0u8; 32];
-    let y = point.y.to_bytes_le();
-    compressed[..y.len()].copy_from_slice(&y);
-    compressed[31] |= u8::from(point.x.bit(0)) << 7;
+    let modulus = E::BaseField::modulus();
+    let x = &point.x % &modulus;
+    let y = &point.y % &modulus;
+    let x_squared = &x * &x % &modulus;
+    let y_squared = &y * &y % &modulus;
+    let left = (&y_squared + &modulus - &x_squared) % &modulus;
+    let right = (1u32 + E::d_biguint() * &x_squared % &modulus * &y_squared) % &modulus;
+    if left != right {
+        return None;
+    }
 
-    CompressedEdwardsY(compressed).decompress().expect("edwards point must be valid")
+    let mut compressed = [0u8; 32];
+    let y = y.to_bytes_le();
+    compressed[..y.len()].copy_from_slice(&y);
+    compressed[31] |= u8::from(x.bit(0)) << 7;
+
+    Some(CompressedEdwardsY(compressed).decompress().expect("edwards point must be valid"))
 }
 
 fn dalek_to_affine<E: EdwardsParameters>(point: &EdwardsPoint) -> AffinePoint<EdwardsCurve<E>> {
@@ -164,6 +194,7 @@ fn dalek_to_affine<E: EdwardsParameters>(point: &EdwardsPoint) -> AffinePoint<Ed
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
 
     use num::bigint::RandBigInt;
     use rand::thread_rng;
@@ -229,5 +260,52 @@ mod tests {
             assert_eq!(&p + &q, AffinePoint::new(expected_x, expected_y));
             assert_eq!(E::ec_double(&p), &p + &p);
         }
+    }
+
+    #[test]
+    fn test_dalek_ed_add_reduces_coordinates() {
+        type E = Ed25519;
+        let p = <E as EllipticCurveParameters>::BaseField::modulus();
+        let base = E::ec_generator();
+        let non_canonical = AffinePoint::new(&base.x + &p, &base.y + &p);
+
+        assert_eq!(&non_canonical + &non_canonical, &base + &base);
+    }
+
+    #[test]
+    fn test_ed_add_accepts_invalid_points() {
+        type E = Ed25519;
+        let p = AffinePoint::new(
+            BigUint::from_str(
+                "90393249858788985237231628593243673548167146579814268721945474994541877372611",
+            )
+            .unwrap(),
+            BigUint::from_str(
+                "33321104029277118100578831462130550309254424135206412570121538923759338004303",
+            )
+            .unwrap(),
+        );
+        let q = AffinePoint::new(
+            BigUint::from_str(
+                "61717728572175158701898635111983295176935961585742968051419350619945173564869",
+            )
+            .unwrap(),
+            BigUint::from_str(
+                "28137966556353620208933066709998005335145594788896528644015312259959272398451",
+            )
+            .unwrap(),
+        );
+        let expected = AffinePoint::<E>::new(
+            BigUint::from_str(
+                "36213413123116753589144482590359479011148956763279542162278577842046663495729",
+            )
+            .unwrap(),
+            BigUint::from_str(
+                "17093345531692682197799066694073110060588941459686871373458223451938707761683",
+            )
+            .unwrap(),
+        );
+
+        assert_eq!(&p + &q, expected);
     }
 }
