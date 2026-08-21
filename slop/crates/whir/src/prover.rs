@@ -868,11 +868,11 @@ mod tests {
 
         let encoding_of_fold_vec = encoding_of_fold.into_buffer().to_vec();
 
-        let columns: Vec<_> = encoding
-            .clone()
-            .into_buffer()
-            .to_vec()
-            .chunks_exact(1 << FOLDING_FACTOR)
+        let encoding_vec = encoding.clone().into_buffer().to_vec();
+        let columns: Vec<_> = encoding_vec
+            .as_chunks::<{ 1 << FOLDING_FACTOR }>()
+            .0
+            .iter()
             .map(|v| Mle::new(v.to_vec().into()))
             .collect();
 
