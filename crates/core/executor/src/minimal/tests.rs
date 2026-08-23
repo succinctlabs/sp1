@@ -207,6 +207,31 @@ mod poseidon2_tests {
             );
         }
     }
+
+    /// A state word `>= P` has no provable execution: the Poseidon2 AIR range checks all 16 input
+    /// words against the modulus. `SP1Field::from_canonical_u32` only enforces that under
+    /// `debug_assert`, so a release-mode executor used to reduce such a word modulo `P`, hash a
+    /// value the guest never wrote, and run on to completion. The only symptom was a constraint
+    /// failure inside the Poseidon2 chip at proving time, naming neither the syscall nor the
+    /// guest. This pins the diagnostic that replaced it, which is the only thing the guest author
+    /// ever sees, and it must hold in release builds where the `debug_assert` is compiled out.
+    ///
+    /// `absorb_field_block_unchecked` is the only way a guest can get a non-canonical word into
+    /// the state, and the test program forwards the host's blocks to it verbatim.
+    #[test]
+    #[should_panic(expected = "non-canonical value to the Poseidon2 precompile")]
+    fn non_canonical_absorb_input_is_rejected() {
+        // Exactly the modulus: the smallest non-canonical word, and the one a reduction maps to
+        // zero, so a silent reduction would look like an ordinary hash of an all-zero block.
+        let mut block = [0u32; RATE];
+        block[3] = SP1Field::ORDER_U32;
+
+        let program = Arc::new(Program::from(&test_artifacts::POSEIDON2_ELF).unwrap());
+        let mut executor = MinimalExecutor::<SupervisorMode>::new(program, false, None);
+        executor.with_input(&serialize(&vec![block]).unwrap());
+        executor.with_input(&serialize(&Vec::<Vec<u8>>::new()).unwrap());
+        while executor.execute_chunk().is_some() {}
+    }
 }
 
 /// Differential tests comparing the portable executor against the native `x86_64` executor.
