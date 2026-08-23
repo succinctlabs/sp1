@@ -5,6 +5,8 @@ use sp1_derive::AlignedBorrow;
 
 pub mod air;
 pub mod permutation;
+#[cfg(test)]
+mod tests;
 pub mod trace;
 
 /// The width of the permutation.
