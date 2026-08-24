@@ -7776,6 +7776,8 @@ dependencies = [
  "cbindgen",
  "cmake",
  "pathdiff",
+ "slop-algebra 6.4.0",
+ "slop-bn254 6.4.0",
  "slop-koala-bear 6.4.0",
  "sp1-core-executor",
  "sp1-core-machine",
