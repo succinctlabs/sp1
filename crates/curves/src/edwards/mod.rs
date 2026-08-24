@@ -13,7 +13,10 @@ use crate::{
     AffinePoint, EllipticCurve, EllipticCurveParameters,
 };
 
-use crate::{edwards::ed25519::Ed25519BaseField, params::NumWords};
+use crate::{
+    edwards::ed25519::{Ed25519, Ed25519BaseField, Ed25519Parameters},
+    params::NumWords,
+};
 use typenum::Unsigned;
 
 pub type Limbs = <Ed25519BaseField as NumLimbs>::Limbs;
@@ -50,23 +53,23 @@ pub trait EdwardsParameters: EllipticCurveParameters {
 #[serde(bound = "")]
 pub struct EdwardsCurve<E: EdwardsParameters>(pub E);
 
-impl<E: EdwardsParameters> EdwardsParameters for EdwardsCurve<E> {
-    const D: GenericArray<u8, <Self::BaseField as NumLimbs>::Limbs> = E::D;
+impl EdwardsParameters for EdwardsCurve<Ed25519Parameters> {
+    const D: GenericArray<u8, <Self::BaseField as NumLimbs>::Limbs> = Ed25519Parameters::D;
 
     fn generator() -> (BigUint, BigUint) {
-        E::generator()
+        Ed25519Parameters::generator()
     }
 
     fn prime_group_order() -> BigUint {
-        E::prime_group_order()
+        Ed25519Parameters::prime_group_order()
     }
 
     fn d_biguint() -> BigUint {
-        E::d_biguint()
+        Ed25519Parameters::d_biguint()
     }
 
     fn neutral() -> (BigUint, BigUint) {
-        E::neutral()
+        Ed25519Parameters::neutral()
     }
 }
 
@@ -86,7 +89,7 @@ impl<E: EdwardsParameters> EdwardsCurve<E> {
     }
 }
 
-impl<E: EdwardsParameters> EllipticCurve for EdwardsCurve<E> {
+impl EllipticCurve for EdwardsCurve<Ed25519Parameters> {
     fn ec_add(p: &AffinePoint<Self>, q: &AffinePoint<Self>) -> AffinePoint<Self> {
         p.ed_add(q)
     }
@@ -96,7 +99,7 @@ impl<E: EdwardsParameters> EllipticCurve for EdwardsCurve<E> {
     }
 
     fn ec_generator() -> AffinePoint<Self> {
-        let (x, y) = E::generator();
+        let (x, y) = Ed25519Parameters::generator();
         AffinePoint::new(x, y)
     }
 
@@ -105,16 +108,13 @@ impl<E: EdwardsParameters> EllipticCurve for EdwardsCurve<E> {
     }
 
     fn ec_neg(p: &AffinePoint<Self>) -> AffinePoint<Self> {
-        let modulus = E::BaseField::modulus();
+        let modulus = Ed25519BaseField::modulus();
         AffinePoint::new(&modulus - &p.x, p.y.clone())
     }
 }
 
-impl<E: EdwardsParameters> AffinePoint<EdwardsCurve<E>> {
-    pub(crate) fn ed_add(
-        &self,
-        other: &AffinePoint<EdwardsCurve<E>>,
-    ) -> AffinePoint<EdwardsCurve<E>> {
+impl AffinePoint<Ed25519> {
+    pub(crate) fn ed_add(&self, other: &Self) -> Self {
         if self.x == other.x && self.y == other.y {
             return self.ed_double();
         }
@@ -125,20 +125,20 @@ impl<E: EdwardsParameters> AffinePoint<EdwardsCurve<E>> {
         }
     }
 
-    pub(crate) fn ed_double(&self) -> AffinePoint<EdwardsCurve<E>> {
+    pub(crate) fn ed_double(&self) -> Self {
         match affine_to_dalek(self) {
             Some(point) => dalek_to_affine(&group::Group::double(&point)),
             None => self.ed_add_biguint(self),
         }
     }
 
-    fn ed_add_biguint(&self, other: &AffinePoint<EdwardsCurve<E>>) -> AffinePoint<EdwardsCurve<E>> {
-        let p = E::BaseField::modulus();
+    fn ed_add_biguint(&self, other: &Self) -> Self {
+        let p = Ed25519BaseField::modulus();
         let x_3n = (&self.x * &other.y + &self.y * &other.x) % &p;
         let y_3n = (&self.y * &other.y + &self.x * &other.x) % &p;
 
         let all_xy = (&self.x * &self.y * &other.x * &other.y) % &p;
-        let dxy = (E::d_biguint() * all_xy) % &p;
+        let dxy = (Ed25519Parameters::d_biguint() * all_xy) % &p;
         let den_x = (1u32 + &dxy) % &p;
         let den_y = (1u32 + &p - dxy) % &p;
         let den_product_inv = (&den_x * &den_y % &p).modpow(&(&p - 2u32), &p);
@@ -150,11 +150,7 @@ impl<E: EdwardsParameters> AffinePoint<EdwardsCurve<E>> {
     }
 }
 
-fn affine_to_dalek<E: EdwardsParameters>(
-    point: &AffinePoint<EdwardsCurve<E>>,
-) -> Option<EdwardsPoint> {
-    assert!(matches!(E::CURVE_TYPE, CurveType::Ed25519), "Dalek only supports Ed25519");
-
+fn affine_to_dalek(point: &AffinePoint<Ed25519>) -> Option<EdwardsPoint> {
     // The caller must supply reduced coordinates for a point on the Ed25519 curve.
     let mut compressed = [0u8; 32];
     let y = point.y.to_bytes_le();
@@ -164,7 +160,7 @@ fn affine_to_dalek<E: EdwardsParameters>(
     Some(CompressedEdwardsY(compressed).decompress().expect("edwards point must be valid"))
 }
 
-fn dalek_to_affine<E: EdwardsParameters>(point: &EdwardsPoint) -> AffinePoint<EdwardsCurve<E>> {
+fn dalek_to_affine(point: &EdwardsPoint) -> AffinePoint<Ed25519> {
     static SQRT_M1_TORSION_POINT: LazyLock<EdwardsPoint> = LazyLock::new(|| {
         CompressedEdwardsY([0u8; 32]).decompress().expect("(sqrt(-1), 0) must be valid")
     });
@@ -182,7 +178,7 @@ fn dalek_to_affine<E: EdwardsParameters>(point: &EdwardsPoint) -> AffinePoint<Ed
     let mut x_times_sqrt_m1_bytes = (point + *SQRT_M1_TORSION_POINT).compress().to_bytes();
     x_times_sqrt_m1_bytes[31] &= 0x7f;
 
-    let modulus = E::BaseField::modulus();
+    let modulus = Ed25519BaseField::modulus();
     let x = (BigUint::from_bytes_le(&x_times_sqrt_m1_bytes) * BigUint::from_bytes_le(&NEG_SQRT_M1))
         % modulus;
     let y = BigUint::from_bytes_le(&y_bytes);
