@@ -155,15 +155,11 @@ fn affine_to_dalek<E: EdwardsParameters>(
 ) -> Option<EdwardsPoint> {
     assert!(matches!(E::CURVE_TYPE, CurveType::Ed25519), "Dalek only supports Ed25519");
 
-    // The caller must supply a point on the Ed25519 curve.
-    let modulus = E::BaseField::modulus();
-    let x = &point.x % &modulus;
-    let y = &point.y % &modulus;
-
+    // The caller must supply reduced coordinates for a point on the Ed25519 curve.
     let mut compressed = [0u8; 32];
-    let y = y.to_bytes_le();
+    let y = point.y.to_bytes_le();
     compressed[..y.len()].copy_from_slice(&y);
-    compressed[31] |= u8::from(x.bit(0)) << 7;
+    compressed[31] |= u8::from(point.x.bit(0)) << 7;
 
     Some(CompressedEdwardsY(compressed).decompress().expect("edwards point must be valid"))
 }
@@ -262,16 +258,6 @@ mod tests {
             assert_eq!(&p + &q, AffinePoint::new(expected_x, expected_y));
             assert_eq!(E::ec_double(&p), &p + &p);
         }
-    }
-
-    #[test]
-    fn test_dalek_ed_add_reduces_coordinates() {
-        type E = Ed25519;
-        let p = <E as EllipticCurveParameters>::BaseField::modulus();
-        let base = E::ec_generator();
-        let non_canonical = AffinePoint::new(&base.x + &p, &base.y + &p);
-
-        assert_eq!(&non_canonical + &non_canonical, &base + &base);
     }
 
     #[test]
