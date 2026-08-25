@@ -35,7 +35,9 @@ fn convert_endianness<const CHUNK_SIZE: usize, const ARRAY_SIZE: usize>(
     bytes: &[u8; ARRAY_SIZE],
 ) -> [u8; ARRAY_SIZE] {
     let reversed: [_; ARRAY_SIZE] = bytes
-        .chunks_exact(CHUNK_SIZE)
+        .as_chunks::<CHUNK_SIZE>()
+        .0
+        .iter()
         .flat_map(|chunk| chunk.iter().rev().copied())
         .enumerate()
         .fold([0u8; ARRAY_SIZE], |mut acc, (i, v)| {

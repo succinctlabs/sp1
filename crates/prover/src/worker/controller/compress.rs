@@ -71,7 +71,9 @@ impl RangeProofs {
         let chunk_range =
             serde_json::from_str(artifacts[0].id()).map_err(|e| TaskError::Fatal(e.into()))?;
         let proofs = artifacts[1..]
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|chunk| -> Result<RecursionProof, TaskError> {
                 let chunk_range =
                     serde_json::from_str(chunk[0].id()).map_err(|e| TaskError::Fatal(e.into()))?;

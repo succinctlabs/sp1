@@ -349,6 +349,7 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveBasefoldVerifier<
 
                 builder.reduce_e(*folded_eval);
 
+                #[allow(clippy::chunks_exact_to_as_chunks)]
                 let evals: [Ext<SP1Field, SP1ExtensionField>; 2] = opening
                     .as_slice()
                     .chunks_exact(D)

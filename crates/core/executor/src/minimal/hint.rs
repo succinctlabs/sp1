@@ -17,14 +17,11 @@ pub unsafe fn hint_read(
 
     assert_eq!(ptr % 8, 0, "hint read address not aligned to 8 bytes");
 
-    let chunks = bytes.chunks_exact(8);
+    let (chunks, remainder) = bytes.as_chunks::<8>();
     let chunk_count = chunks.len();
-    let remainder = chunks.remainder();
 
-    for (i, chunk) in chunks.enumerate() {
-        let word = u64::from_le_bytes([
-            chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6], chunk[7],
-        ]);
+    for (i, chunk) in chunks.iter().enumerate() {
+        let word = u64::from_le_bytes(*chunk);
         ctx.mw_hint(ptr + (i * 8) as u64, word);
     }
 
