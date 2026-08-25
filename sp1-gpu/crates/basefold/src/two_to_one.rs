@@ -247,7 +247,7 @@ fn sum_as_poly_zero(
         .into_vec();
     let mut t1 = Ext::zero();
     let mut t2 = Ext::zero();
-    for chunk in host.chunks_exact(2) {
+    for chunk in host.as_chunks::<2>().0 {
         t1 += chunk[0];
         t2 += chunk[1];
     }

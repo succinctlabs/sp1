@@ -384,10 +384,12 @@ pub fn prove_jagged_eval_sumcheck<
 
     let univariate_polys = sum_values
         .as_slice()
-        .chunks_exact(3)
+        .as_chunks::<3>()
+        .0
+        .iter()
         .map(|chunk| {
             // Compute the univariate polynomial message.
-            let ys: [EF; 3] = chunk.try_into().unwrap();
+            let ys: [EF; 3] = *chunk;
             let xs: [EF; 3] = [EF::zero(), EF::two().inverse(), EF::one()];
             interpolate_univariate_polynomial(&xs, &ys)
         })
