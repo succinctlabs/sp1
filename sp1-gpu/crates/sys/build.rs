@@ -194,39 +194,30 @@ fn compare_table(path: &str, name: &str, found: &[Vec<u32>], expected: &[Vec<u32
 
 /// Guard the CUDA copies of the Poseidon2 constants against drifting from the Rust ones.
 ///
-/// Both headers hold a hand-copied duplicate of constants this workspace already derives, with the
-/// round constants laid out in the order the kernel walks them: the beginning half of the external
-/// rounds, then the ending half, then the internal rounds. `StaticHasher` in `poseidon2.cuh` binds
-/// these tables directly, so they are what every GPU hash actually uses.
+/// Both headers hand-copy constants this workspace already derives, ordered as the kernel walks
+/// them (beginning external, ending external, internal) and bound directly by `StaticHasher` in
+/// `poseidon2.cuh`. Only what is read is checked, and that differs between the two headers even
+/// where they declare the same names; each function below says which of its tables are live.
 ///
-/// What is checked is what is read, and that differs between the two headers even where they
-/// declare the same names. Each function below says which of its tables are live and why.
-///
-/// This is a build-script check rather than a test because the CPU CI jobs exclude every
-/// `sp1-gpu-*` crate from `cargo test`, and a test binary here cannot link without a CUDA build
-/// anyway. Build scripts still run under `cargo check` and `cargo clippy`, which do cover the
-/// whole workspace, so running the comparison here is what gets it onto a non-GPU runner.
+/// A build script rather than a test: CPU CI excludes `sp1-gpu-*` from `cargo test` and a test
+/// binary here cannot link without CUDA, but build scripts still run under `cargo check`.
 fn check_poseidon2_constants(crate_dir: &Path) {
     check_kb31_constants(crate_dir);
     check_bn254_constants(crate_dir);
 }
 
-/// The KoalaBear table holds canonical values, so the parsed entries compare against
-/// `as_canonical_u32()` and not against `KoalaBear`'s inner Montgomery value.
+/// The KoalaBear table holds canonical values, so entries compare against `as_canonical_u32()`
+/// rather than `KoalaBear`'s inner Montgomery value.
 ///
-/// That is a consequence of C++ overload resolution, not a stylistic choice. `kb31_t` declares both
-/// `kb31_t(uint32_t)`, which stores its argument raw into the Montgomery field, and `kb31_t(int)`,
-/// which converts with `(a << 32) % MOD`. A decimal literal is `int` unless it exceeds `INT_MAX`,
-/// and every canonical KoalaBear value is below `MOD` (0x7f000001), which is itself below `INT_MAX`,
-/// so these literals always bind to the converting constructor. Contrast `bn254_t`, whose only
-/// matching constructor copies limbs verbatim; see `check_bn254_constants`.
+/// That follows from overload resolution: `kb31_t(uint32_t)` stores its argument raw while
+/// `kb31_t(int)` converts with `(a << 32) % MOD`, and a decimal literal below `INT_MAX` is `int`.
+/// Every canonical value is below `MOD` (0x7f000001), so these bind the converting one. `bn254_t`'s
+/// only matching constructor copies limbs verbatim instead.
 ///
-/// `MAT_INTERNAL_DIAG_M1` and `MONTY_INVERSE` are deliberately not checked, because this header
-/// genuinely never reads either. `KoalaBear::internalLinearLayer` takes both as unnamed parameters
-/// and applies the diagonal as shifts against a hardcoded `SH` table, so the declared copy is dead
-/// weight; the header even carries two `#if`-selected versions of it, both equally unread. The
-/// BN254 header spells its constants the same way but does read its diagonal, so do not carry this
-/// paragraph across; see `check_bn254_constants`.
+/// `MAT_INTERNAL_DIAG_M1` and `MONTY_INVERSE` are not checked: this header reads neither, applying
+/// the diagonal as shifts against a hardcoded `SH` table. `SH` is live and unchecked, the same
+/// exposure in a different table. The BN254 header does read its diagonal; see
+/// `check_bn254_constants`.
 fn check_kb31_constants(crate_dir: &Path) {
     let path = crate_dir.join(KB31_HEADER);
     let header = fs::read_to_string(&path)
@@ -249,29 +240,22 @@ fn check_kb31_constants(crate_dir: &Path) {
     }
 }
 
-/// Unlike the KoalaBear table, the BN254 one is written out in Montgomery form, as eight
-/// little-endian `uint32_t` limbs per constant, so the comparison goes through
-/// `bn254_montgomery_limbs`.
+/// The BN254 table is written in Montgomery form, eight little-endian `uint32_t` limbs per constant,
+/// so the comparison goes through `bn254_montgomery_limbs`. `bn254_t` is `mont_t<...>`, whose
+/// eight-argument constructor assigns into `even[0..8]` with no conversion, so the header text is
+/// already the stored representation.
 ///
-/// The reason the two headers differ is the constructor each field type offers. `bn254_t` is
-/// `mont_t<...>`, whose eight-argument constructor assigns straight into `even[0..8]` with no
-/// conversion, so whatever is written in the header is already the stored representation.
+/// `bn254_poseidon2_rc3` returns all 64 rounds in Plonky3's flat order; the split below is
+/// `outer_perm`'s, and the kernel's begin-then-end external layout is that split concatenated.
 ///
-/// `bn254_poseidon2_rc3` hands back all 64 rounds in Plonky3's flat order. `outer_perm` splits that
-/// into external and internal exactly as below, and the kernel's begin-then-end external layout is
-/// that same split with the two halves concatenated.
+/// `MAT_INTERNAL_DIAG_M1` is checked here though the KoalaBear one is not, and the headers looking
+/// parallel is the trap. `Bn254::internalLinearLayer` ignores its parameters but has no shift path:
+/// it multiplies lane `i` by the class constant on all 56 internal rounds. `bn254_internal_diagonal`
+/// reads that diagonal back out of `DiffusionMatrixBN254`, so the comparison is against CPU
+/// behaviour rather than a third transcription.
 ///
-/// `MAT_INTERNAL_DIAG_M1` is checked here even though the KoalaBear one is not, and the two headers
-/// looking parallel is exactly the trap. `Bn254::internalLinearLayer` does ignore both parameters
-/// it is handed, but it does not fall back to a shift path: it multiplies lane `i` by the class
-/// constant `MAT_INTERNAL_DIAG_M1[i]` on every one of the 56 internal rounds. That table is live,
-/// hand-copied, and would otherwise change every BN254 hash silently. `bn254_internal_diagonal`
-/// reads the same diagonal back out of `DiffusionMatrixBN254`, the internal layer `outer_perm`
-/// runs, so the comparison is against CPU behaviour rather than against a third transcription.
-///
-/// `MONTY_INVERSE` is left unchecked in both headers. Nothing reads it: the only places it appears
-/// are the two `internalLinearLayer` call sites, which pass it into a parameter neither
-/// implementation names.
+/// `MONTY_INVERSE` is unchecked in both headers; the only mentions are the two
+/// `internalLinearLayer` call sites, passing it into a parameter neither implementation names.
 fn check_bn254_constants(crate_dir: &Path) {
     /// Full rounds, half at the start of the permutation and half at the end.
     const ROUNDS_F: usize = 8;
