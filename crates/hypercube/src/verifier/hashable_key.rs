@@ -82,7 +82,9 @@ pub trait HashableKey {
     /// Hash the key into a digest of u64 elements.
     fn hash_u64(&self) -> [u64; DIGEST_SIZE / 2] {
         self.hash_u32()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|chunk| chunk[0] as u64 | ((chunk[1] as u64) << 32))
             .collect::<Vec<_>>()
             .try_into()

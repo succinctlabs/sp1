@@ -28,7 +28,7 @@ fn run_g1_msm(input: &[u8]) -> Option<Vec<u8>> {
         return None;
     }
     let mut pairs = Vec::with_capacity(input.len() / 160);
-    for chunk in input.chunks_exact(160) {
+    for chunk in input.as_chunks::<160>().0 {
         pairs.push(Bls12381G1MsmPair {
             point: ZkvmBytes96 { data: wire_g1_to_abi(&chunk[0..128])? },
             scalar: ZkvmBytes32 { data: chunk[128..160].try_into().unwrap() },
@@ -55,7 +55,7 @@ fn run_g2_msm(input: &[u8]) -> Option<Vec<u8>> {
         return None;
     }
     let mut pairs = Vec::with_capacity(input.len() / 288);
-    for chunk in input.chunks_exact(288) {
+    for chunk in input.as_chunks::<288>().0 {
         pairs.push(Bls12381G2MsmPair {
             point: ZkvmBytes192 { data: wire_g2_to_abi(&chunk[0..256])? },
             scalar: ZkvmBytes32 { data: chunk[256..288].try_into().unwrap() },
@@ -71,7 +71,7 @@ fn run_pairing(input: &[u8]) -> Option<Vec<u8>> {
         return None;
     }
     let mut pairs = Vec::with_capacity(input.len() / 384);
-    for chunk in input.chunks_exact(384) {
+    for chunk in input.as_chunks::<384>().0 {
         pairs.push(Bls12381PairingPair {
             g1: ZkvmBytes96 { data: wire_g1_to_abi(&chunk[0..128])? },
             g2: ZkvmBytes192 { data: wire_g2_to_abi(&chunk[128..384])? },

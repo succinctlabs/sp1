@@ -157,16 +157,13 @@ pub fn words_to_bytes_le<'a, const B: usize>(words: impl IntoIterator<Item = &'a
 /// Converts a byte array in little endian to a slice of words.
 pub fn bytes_to_words_le<const W: usize>(bytes: &[u8]) -> [u64; W] {
     debug_assert_eq!(bytes.len(), W * 8);
-    let mut iter = bytes.chunks_exact(8).map(|chunk| u64::from_le_bytes(chunk.try_into().unwrap()));
+    let mut iter = bytes.as_chunks::<8>().0.iter().map(|chunk| u64::from_le_bytes(*chunk));
     core::array::from_fn(|_| iter.next().unwrap())
 }
 
 /// Converts a byte array in little endian to a vector of words.
 pub fn bytes_to_words_le_vec(bytes: &[u8]) -> Vec<u64> {
-    bytes
-        .chunks_exact(8)
-        .map(|chunk| u64::from_le_bytes(chunk.try_into().unwrap()))
-        .collect::<Vec<_>>()
+    bytes.as_chunks::<8>().0.iter().map(|chunk| u64::from_le_bytes(*chunk)).collect::<Vec<_>>()
 }
 
 // Converts a num to a string with commas every 3 digits.
@@ -188,7 +185,12 @@ pub fn num_to_comma_separated<T: ToString>(value: T) -> String {
 /// Converts a little endian u32 array into u64 array.
 pub fn u32_to_u64(limbs: &[u32]) -> Vec<u64> {
     debug_assert!(limbs.len().is_multiple_of(2), "need an even number of u32s");
-    limbs.chunks_exact(2).map(|pair| (pair[0] as u64) | ((pair[1] as u64) << 32)).collect()
+    limbs
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| (pair[0] as u64) | ((pair[1] as u64) << 32))
+        .collect()
 }
 
 /// Converts a little endian u64 array into u32 array.
