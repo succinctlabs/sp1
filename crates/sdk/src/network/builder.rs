@@ -6,6 +6,7 @@ use alloy_primitives::Address;
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::Machine;
 use sp1_primitives::SP1Field;
+use tonic::transport::Identity;
 
 use crate::{
     network::{signer::NetworkSigner, NetworkMode, TEE_NETWORK_RPC_URL},
@@ -21,6 +22,7 @@ pub struct NetworkProverBuilder {
     pub(crate) tee_signers: Option<Vec<Address>>,
     pub(crate) signer: Option<NetworkSigner>,
     pub(crate) network_mode: Option<NetworkMode>,
+    pub(crate) client_identity: Option<Identity>,
     pub(crate) hosted: bool,
     pub(crate) machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 }
@@ -47,6 +49,7 @@ impl NetworkProverBuilder {
             tee_signers: None,
             signer: None,
             network_mode: None,
+            client_identity: None,
             hosted: false,
             machine,
         }
@@ -168,6 +171,17 @@ impl NetworkProverBuilder {
         self
     }
 
+    /// Sets the PEM-encoded certificate and private key used for mutual TLS authentication.
+    #[must_use]
+    pub fn client_identity(
+        mut self,
+        certificate: impl AsRef<[u8]>,
+        private_key: impl AsRef<[u8]>,
+    ) -> Self {
+        self.client_identity = Some(Identity::from_pem(certificate, private_key));
+        self
+    }
+
     /// Builds a [`NetworkProver`].
     ///
     /// # Details
@@ -247,6 +261,7 @@ impl NetworkProverBuilder {
         NetworkProver::new_with_machine(signer, &rpc_url, network_mode, self.machine)
             .await
             .with_tee_signers(tee_signers)
+            .with_client_identity(self.client_identity)
             .with_hosted(self.hosted)
     }
 }
@@ -268,5 +283,16 @@ mod tests {
         assert!(builder.hosted);
         // Hosted proving always runs in reserved mode.
         assert_eq!(builder.network_mode, Some(NetworkMode::Reserved));
+    }
+
+    #[tokio::test]
+    async fn test_client_identity_is_injected() {
+        let private_key = hex::encode(alloy_signer_local::PrivateKeySigner::random().to_bytes());
+        let prover = NetworkProverBuilder::new()
+            .private_key(&private_key)
+            .client_identity("certificate", "private key")
+            .build()
+            .await;
+        assert!(prover.client.client_identity.is_some());
     }
 }
