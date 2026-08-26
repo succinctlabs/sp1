@@ -130,10 +130,7 @@ pub fn words_to_bytes_le(words: &[u64]) -> Vec<u8> {
 
 /// Converts a byte array in little endian to a slice of words.
 pub fn bytes_to_words_le(bytes: &[u8]) -> Vec<u64> {
-    bytes
-        .chunks_exact(8)
-        .map(|chunk| u64::from_le_bytes(chunk.try_into().unwrap()))
-        .collect::<Vec<_>>()
+    bytes.as_chunks::<8>().0.iter().map(|chunk| u64::from_le_bytes(*chunk)).collect::<Vec<_>>()
 }
 
 #[derive(Copy, Clone, Debug)]
