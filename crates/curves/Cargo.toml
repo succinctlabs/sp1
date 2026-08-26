@@ -17,6 +17,7 @@ typenum = { workspace = true }
 k256 = { workspace = true, features = ["expose-field"] }
 p256 = { workspace = true, features = ["expose-field"] }
 generic-array = { workspace = true, features = ["alloc", "serde"] }
+group = { workspace = true }
 amcl = { workspace = true, features = ["bls381"] }
 elliptic-curve = { workspace = true }
 dashu = { workspace = true }
@@ -26,6 +27,7 @@ slop-algebra = { workspace = true }
 itertools = { workspace = true }
 rug = { workspace = true, optional = true }
 cfg-if = { workspace = true }
+curve25519-dalek = { workspace = true }
 
 [dev-dependencies]
 rand = { workspace = true }
