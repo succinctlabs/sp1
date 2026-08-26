@@ -4908,25 +4908,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "p3-uni-stark"
-version = "0.4.3-succinct"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc3dfdeba14d8db621c4e52dd63973384ff35f353fd750154ff88397f4ea5adf"
-dependencies = [
- "itertools 0.12.1",
- "p3-air",
- "p3-challenger",
- "p3-commit",
- "p3-dft",
- "p3-field",
- "p3-matrix",
- "p3-maybe-rayon",
- "p3-util",
- "serde",
- "tracing",
-]
-
-[[package]]
 name = "p3-util"
 version = "0.4.3-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6496,6 +6477,9 @@ name = "slop-air"
 version = "6.5.0"
 dependencies = [
  "p3-air",
+ "serde",
+ "slop-algebra 6.5.0",
+ "slop-matrix",
 ]
 
 [[package]]
@@ -6553,6 +6537,7 @@ dependencies = [
  "slop-baby-bear",
  "slop-bn254 6.5.0",
  "slop-challenger 6.5.0",
+ "slop-commit",
  "slop-koala-bear 6.5.0",
  "slop-merkle-tree",
  "slop-multilinear",
@@ -6686,6 +6671,7 @@ dependencies = [
 name = "slop-jagged"
 version = "6.5.0"
 dependencies = [
+ "criterion",
  "derive-where",
  "futures",
  "itertools 0.14.0",
@@ -6792,6 +6778,7 @@ dependencies = [
 name = "slop-multilinear"
 version = "6.5.0"
 dependencies = [
+ "criterion",
  "derive-where",
  "futures",
  "num_cpus",
@@ -6824,6 +6811,7 @@ dependencies = [
  "slop-commit",
  "slop-merkle-tree",
  "slop-multilinear",
+ "slop-stacked",
  "slop-sumcheck",
 ]
 
@@ -6894,6 +6882,7 @@ dependencies = [
  "slop-challenger 6.5.0",
  "slop-commit",
  "slop-futures",
+ "slop-koala-bear 6.5.0",
  "slop-merkle-tree",
  "slop-multilinear",
  "slop-tensor",
@@ -6957,7 +6946,9 @@ dependencies = [
 name = "slop-uni-stark"
 version = "6.5.0"
 dependencies = [
- "p3-uni-stark",
+ "slop-air",
+ "slop-algebra 6.5.0",
+ "slop-matrix",
 ]
 
 [[package]]
@@ -7002,6 +6993,7 @@ dependencies = [
  "slop-utils",
  "thiserror 1.0.69",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -7145,7 +7137,9 @@ dependencies = [
  "serde_json",
  "slop-air",
  "slop-algebra 6.5.0",
+ "slop-challenger 6.5.0",
  "slop-maybe-rayon",
+ "slop-merkle-tree",
  "slop-symmetric 6.5.0",
  "sp1-curves",
  "sp1-hypercube",
@@ -7203,6 +7197,7 @@ version = "6.5.0"
 dependencies = [
  "bincode",
  "cfg-if",
+ "criterion",
  "enum-map",
  "futures",
  "generic-array 1.1.0",
@@ -7225,8 +7220,10 @@ dependencies = [
  "slop-keccak-air",
  "slop-matrix",
  "slop-maybe-rayon",
+ "slop-merkle-tree",
  "slop-multilinear",
  "slop-sumcheck",
+ "slop-symmetric 6.5.0",
  "slop-uni-stark",
  "snowbridge-amcl",
  "sp1-core-executor",
@@ -7321,6 +7318,7 @@ dependencies = [
 name = "sp1-gpu-basefold"
 version = "6.5.0"
 dependencies = [
+ "criterion",
  "futures",
  "itertools 0.14.0",
  "rand 0.8.6",
@@ -7388,6 +7386,7 @@ dependencies = [
  "serial_test",
  "slop-algebra 6.5.0",
  "slop-alloc",
+ "slop-basefold-prover",
  "slop-challenger 6.5.0",
  "slop-dft",
  "slop-futures",
@@ -7468,7 +7467,9 @@ dependencies = [
  "slop-tensor",
  "sp1-gpu-challenger",
  "sp1-gpu-cudart",
+ "sp1-gpu-jagged-sumcheck",
  "sp1-gpu-tracing",
+ "sp1-gpu-utils",
  "sp1-primitives 6.5.0",
  "sp1-prover",
  "tokio",
@@ -7599,6 +7600,9 @@ dependencies = [
 name = "sp1-gpu-merkle-tree"
 version = "6.5.0"
 dependencies = [
+ "criterion",
+ "rand 0.8.6",
+ "rayon",
  "serial_test",
  "slop-algebra 6.5.0",
  "slop-alloc",
@@ -7645,6 +7649,8 @@ dependencies = [
  "serde",
  "serde_json",
  "slop-algebra 6.5.0",
+ "slop-challenger 6.5.0",
+ "slop-symmetric 6.5.0",
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-gpu-cudart",
@@ -7730,6 +7736,7 @@ version = "6.5.0"
 dependencies = [
  "criterion",
  "rand 0.8.6",
+ "rayon",
  "serde_json",
  "serial_test",
  "slop-air",
@@ -7743,6 +7750,7 @@ dependencies = [
  "slop-multilinear",
  "slop-stacked",
  "slop-tensor",
+ "sp1-core-executor",
  "sp1-core-machine",
  "sp1-gpu-air",
  "sp1-gpu-basefold",
@@ -7946,6 +7954,7 @@ dependencies = [
  "libc",
  "memfd",
  "memmap2",
+ "rayon",
  "serde",
  "sp1-primitives 6.5.0",
  "tracing",
@@ -7984,13 +7993,18 @@ dependencies = [
  "chrono",
  "clap",
  "dotenv",
+ "libc",
+ "num_cpus",
  "rand 0.8.6",
+ "rayon",
  "rustyline",
  "slop-algebra 6.5.0",
  "sp1-core-executor",
+ "sp1-core-executor-runner",
  "sp1-core-machine",
  "sp1-cuda",
  "sp1-hypercube",
+ "sp1-jit",
  "sp1-primitives 6.5.0",
  "sp1-prover",
  "sp1-prover-types",
@@ -8064,12 +8078,15 @@ dependencies = [
  "hex",
  "indicatif",
  "itertools 0.14.0",
+ "libc",
  "lru",
  "mti",
  "num-bigint 0.4.6",
+ "num_cpus",
  "opentelemetry",
  "pin-project",
  "rand 0.8.6",
+ "rayon",
  "reqwest",
  "serde",
  "serde_json",
@@ -8082,6 +8099,7 @@ dependencies = [
  "slop-challenger 6.5.0",
  "slop-futures",
  "slop-jagged",
+ "slop-merkle-tree",
  "slop-multilinear",
  "slop-stacked",
  "slop-symmetric 6.5.0",
