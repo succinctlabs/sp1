@@ -6,6 +6,7 @@ use alloy_primitives::Address;
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::Machine;
 use sp1_primitives::SP1Field;
+use tonic::transport::Identity;
 
 use super::NetworkProver;
 use crate::network::{signer::NetworkSigner, NetworkMode, TEE_NETWORK_RPC_URL};
@@ -19,6 +20,7 @@ pub struct NetworkProverBuilder {
     pub(crate) tee_signers: Option<Vec<Address>>,
     pub(crate) signer: Option<NetworkSigner>,
     pub(crate) network_mode: Option<NetworkMode>,
+    pub(crate) client_identity: Option<Identity>,
     pub(crate) hosted: bool,
     pub(crate) machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 }
@@ -45,6 +47,7 @@ impl NetworkProverBuilder {
             tee_signers: None,
             signer: None,
             network_mode: None,
+            client_identity: None,
             hosted: false,
             machine,
         }
@@ -144,6 +147,17 @@ impl NetworkProverBuilder {
         self
     }
 
+    /// Sets the PEM-encoded certificate and private key used for mutual TLS authentication.
+    #[must_use]
+    pub fn client_identity(
+        mut self,
+        certificate: impl AsRef<[u8]>,
+        private_key: impl AsRef<[u8]>,
+    ) -> Self {
+        self.client_identity = Some(Identity::from_pem(certificate, private_key));
+        self
+    }
+
     /// Builds a blocking [`NetworkProver`].
     ///
     /// # Details
@@ -166,6 +180,7 @@ impl NetworkProverBuilder {
             tee_signers: self.tee_signers,
             signer: self.signer,
             network_mode: self.network_mode,
+            client_identity: self.client_identity,
             hosted: self.hosted,
             machine: self.machine,
         };
