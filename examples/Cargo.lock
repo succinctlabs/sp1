@@ -1455,6 +1455,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "curve25519-dalek"
+version = "4.1.3"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.2.0#b251b2a155f859d00375f73bc2c937f025f7b4b4"
+dependencies = [
+ "cfg-if",
+ "cpufeatures",
+ "curve25519-dalek-derive",
+ "fiat-crypto",
+ "group",
+ "rand_core 0.6.4",
+ "rustc_version 0.4.1",
+ "sp1-lib",
+ "subtle",
+]
+
+[[package]]
+name = "curve25519-dalek-derive"
+version = "0.1.1"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.2.0#b251b2a155f859d00375f73bc2c937f025f7b4b4"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.114",
+]
+
+[[package]]
 name = "curve25519-dalek-ng"
 version = "4.1.1"
 source = "git+https://github.com/sp1-patches/curve25519-dalek-ng?tag=patch-4.1.1-sp1-6.2.0#3c58f6af72122ec3cb6c15731c958c541a910050"
@@ -2159,6 +2185,12 @@ dependencies = [
  "quote",
  "syn 1.0.109",
 ]
+
+[[package]]
+name = "fiat-crypto"
+version = "0.2.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
 
 [[package]]
 name = "fibonacci-cuda-program"
@@ -6190,14 +6222,14 @@ checksum = "7a2ae44ef20feb57a68b23d846850f861394c2e02dc425a50098ae8c90267589"
 
 [[package]]
 name = "slop-air"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "p3-air",
 ]
 
 [[package]]
 name = "slop-algebra"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "itertools 0.14.0",
  "p3-field",
@@ -6206,7 +6238,7 @@ dependencies = [
 
 [[package]]
 name = "slop-alloc"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "serde",
  "slop-algebra",
@@ -6215,7 +6247,7 @@ dependencies = [
 
 [[package]]
 name = "slop-baby-bear"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "lazy_static",
  "p3-baby-bear",
@@ -6228,7 +6260,7 @@ dependencies = [
 
 [[package]]
 name = "slop-basefold"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "derive-where",
  "itertools 0.14.0",
@@ -6249,7 +6281,7 @@ dependencies = [
 
 [[package]]
 name = "slop-basefold-prover"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "derive-where",
  "itertools 0.14.0",
@@ -6274,7 +6306,7 @@ dependencies = [
 
 [[package]]
 name = "slop-bn254"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "ff",
  "p3-bn254-fr",
@@ -6287,7 +6319,7 @@ dependencies = [
 
 [[package]]
 name = "slop-challenger"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "futures",
  "p3-challenger",
@@ -6298,7 +6330,7 @@ dependencies = [
 
 [[package]]
 name = "slop-commit"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "p3-commit",
  "serde",
@@ -6307,7 +6339,7 @@ dependencies = [
 
 [[package]]
 name = "slop-dft"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "p3-dft",
  "serde",
@@ -6319,14 +6351,14 @@ dependencies = [
 
 [[package]]
 name = "slop-fri"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "p3-fri",
 ]
 
 [[package]]
 name = "slop-futures"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "crossbeam",
  "futures",
@@ -6339,7 +6371,7 @@ dependencies = [
 
 [[package]]
 name = "slop-jagged"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "derive-where",
  "futures",
@@ -6371,14 +6403,14 @@ dependencies = [
 
 [[package]]
 name = "slop-keccak-air"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "p3-keccak-air",
 ]
 
 [[package]]
 name = "slop-koala-bear"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "lazy_static",
  "p3-koala-bear",
@@ -6391,21 +6423,21 @@ dependencies = [
 
 [[package]]
 name = "slop-matrix"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "p3-matrix",
 ]
 
 [[package]]
 name = "slop-maybe-rayon"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "p3-maybe-rayon",
 ]
 
 [[package]]
 name = "slop-merkle-tree"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "derive-where",
  "itertools 0.14.0",
@@ -6429,7 +6461,7 @@ dependencies = [
 
 [[package]]
 name = "slop-multilinear"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "derive-where",
  "futures",
@@ -6448,21 +6480,21 @@ dependencies = [
 
 [[package]]
 name = "slop-poseidon2"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "p3-poseidon2",
 ]
 
 [[package]]
 name = "slop-primitives"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "slop-algebra",
 ]
 
 [[package]]
 name = "slop-stacked"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "derive-where",
  "futures",
@@ -6483,7 +6515,7 @@ dependencies = [
 
 [[package]]
 name = "slop-sumcheck"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "futures",
  "itertools 0.14.0",
@@ -6499,14 +6531,14 @@ dependencies = [
 
 [[package]]
 name = "slop-symmetric"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "p3-symmetric",
 ]
 
 [[package]]
 name = "slop-tensor"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "arrayvec 0.7.6",
  "derive-where",
@@ -6524,14 +6556,14 @@ dependencies = [
 
 [[package]]
 name = "slop-uni-stark"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "p3-uni-stark",
 ]
 
 [[package]]
 name = "slop-utils"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "p3-util",
  "tracing-forest",
@@ -6540,7 +6572,7 @@ dependencies = [
 
 [[package]]
 name = "slop-whir"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "derive-where",
  "futures",
@@ -6607,7 +6639,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -6619,7 +6651,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -6658,7 +6690,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor-runner"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "base64 0.22.1",
  "bincode",
@@ -6678,7 +6710,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor-runner-binary"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "bincode",
  "crash-handler",
@@ -6691,7 +6723,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-machine"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "bincode",
  "cfg-if",
@@ -6738,7 +6770,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cuda"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "bincode",
  "bytes",
@@ -6758,12 +6790,14 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "cfg-if",
+ "curve25519-dalek",
  "dashu",
  "elliptic-curve",
  "generic-array 1.1.0",
+ "group",
  "itertools 0.14.0",
  "k256",
  "num",
@@ -6777,7 +6811,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6786,7 +6820,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-hypercube"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "arrayref",
  "deepsize2",
@@ -6833,7 +6867,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-jit"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "dynasmrt",
  "hashbrown 0.14.5",
@@ -6848,7 +6882,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "bincode",
  "elliptic-curve",
@@ -6858,7 +6892,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "bincode",
  "blake3",
@@ -6880,7 +6914,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -6943,7 +6977,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover-types"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "anyhow",
  "async-scoped",
@@ -6965,7 +6999,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "bincode",
  "itertools 0.14.0",
@@ -7003,7 +7037,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "backtrace",
  "cfg-if",
@@ -7022,7 +7056,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-executor"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "backtrace",
  "cfg-if",
@@ -7044,7 +7078,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -7066,7 +7100,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-machine"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "itertools 0.14.0",
  "rand 0.8.5",
@@ -7086,7 +7120,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7122,7 +7156,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-verifier"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "bincode",
  "blake3",
@@ -7147,7 +7181,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "6.4.0"
+version = "6.5.0"
 dependencies = [
  "cfg-if",
  "critical-section",
@@ -8927,11 +8961,6 @@ name = "zmij"
 version = "1.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2fc5a66a20078bf1251bde995aa2fdcc4b800c70b5d92dd2c62abc5c60f679f8"
-
-[[patch.unused]]
-name = "curve25519-dalek"
-version = "4.1.3"
-source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.2.0#b251b2a155f859d00375f73bc2c937f025f7b4b4"
 
 [[patch.unused]]
 name = "sha2"
