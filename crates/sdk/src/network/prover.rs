@@ -41,6 +41,7 @@ use sp1_prover::worker::{SP1LightNode, SP1NodeCore};
 use sp1_prover::SP1_CIRCUIT_VERSION;
 
 use tokio::time::sleep;
+use tonic::transport::Identity;
 
 /// An implementation of [`crate::ProverClient`] that can generate proofs on a remote RPC server.
 #[derive(Clone)]
@@ -238,6 +239,12 @@ impl NetworkProver {
     #[must_use]
     pub fn with_tee_signers(mut self, tee_signers: Vec<Address>) -> Self {
         self.tee_signers = tee_signers;
+        self
+    }
+
+    #[must_use]
+    pub(crate) fn with_client_identity(mut self, client_identity: Option<Identity>) -> Self {
+        self.client.client_identity = client_identity;
         self
     }
 
