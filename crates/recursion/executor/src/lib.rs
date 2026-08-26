@@ -267,7 +267,7 @@ pub struct PrefixSumChecksInstr<F> {
 }
 
 /// The event encoding the inputs and outputs of an PrefixSumChecks operation.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(C)]
 pub struct PrefixSumChecksEvent<F> {
     pub x1: F,
