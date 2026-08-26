@@ -246,6 +246,7 @@ jobs:
         uses: ./.github/actions/setup
         with:
           pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+          rustup_override: stable
 
       - name: Install SP1 toolchain from repo
         run: |
