@@ -26,7 +26,9 @@ pub use sp1_hypercube::{indices_arr, next_multiple_of_32, pad_rows_fixed};
 pub fn limbs_to_words<AB: SP1AirBuilder>(limbs: Vec<AB::Var>) -> Vec<Word<AB::Expr>> {
     let base = AB::Expr::from_canonical_u32(1 << 8);
     let result_words: Vec<Word<AB::Expr>> = limbs
-        .chunks_exact(WORD_BYTE_SIZE)
+        .as_chunks::<WORD_BYTE_SIZE>()
+        .0
+        .iter()
         .map(|l| {
             Word([
                 l[0] + l[1] * base.clone(),
