@@ -1,10 +1,11 @@
+use crate::utils::pad_rows_core;
 use core::{
     borrow::{Borrow, BorrowMut},
     mem::{size_of, MaybeUninit},
 };
 use std::collections::HashMap;
 
-use crate::{air::ProgramAirBuilder, program::InstructionCols, utils::next_multiple_of_32};
+use crate::{air::ProgramAirBuilder, program::InstructionCols, utils::pad_rows_recursion};
 use slop_air::{Air, BaseAir, PairBuilder};
 use slop_algebra::PrimeField32;
 use slop_matrix::Matrix;
@@ -59,14 +60,13 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
         let nb_rows = input.program.instructions.len();
-        let size_log2 = input.fixed_log2_rows::<F, _>(self);
-        let padded_nb_rows = next_multiple_of_32(nb_rows, size_log2);
+        let padded_nb_rows = pad_rows_core(nb_rows);
         Some(padded_nb_rows)
     }
 
     fn preprocessed_num_rows(&self, program: &Self::Program) -> Option<usize> {
         let instrs_len = program.instructions.len();
-        Some(next_multiple_of_32(instrs_len, None))
+        Some(pad_rows_core(instrs_len))
     }
 
     fn preprocessed_num_rows_with_instrs_len(
@@ -74,7 +74,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
         _program: &Self::Program,
         instrs_len: usize,
     ) -> Option<usize> {
-        Some(next_multiple_of_32(instrs_len, None))
+        Some(pad_rows_core(instrs_len))
     }
 
     fn generate_preprocessed_trace_into(
@@ -89,7 +89,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
         // Generate the trace rows for each event.
         let nb_rows = program.instructions.len();
         let size_log2 = program.fixed_log2_rows::<F, _>(self);
-        let padded_nb_rows = next_multiple_of_32(nb_rows, size_log2);
+        let padded_nb_rows = pad_rows_recursion(nb_rows, size_log2);
         assert!(matches!(
             padded_nb_rows.checked_mul(4),
             Some(last_idx) if last_idx < F::ORDER_U64 as usize,

@@ -1,10 +1,10 @@
 use super::MemoryChipType;
+use crate::utils::pad_rows_core;
 use crate::{
     air::{SP1CoreAirBuilder, SP1Operation, WordAirBuilder},
     operations::{
         IsZeroOperation, IsZeroOperationInput, LtOperationUnsigned, LtOperationUnsignedInput,
     },
-    utils::next_multiple_of_32,
 };
 use core::{
     borrow::{Borrow, BorrowMut},
@@ -147,8 +147,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
             MemoryChipType::Finalize => &input.global_memory_finalize_events,
         };
         let nb_rows = events.len();
-        let size_log2 = input.fixed_log2_rows::<F, Self>(self);
-        let padded_nb_rows = next_multiple_of_32(nb_rows, size_log2);
+        let padded_nb_rows = pad_rows_core(nb_rows);
         Some(padded_nb_rows)
     }
 
