@@ -14,7 +14,6 @@ slop-challenger = { workspace = true }
 slop-alloc = { workspace = true }
 slop-algebra = { workspace = true }
 slop-koala-bear = { workspace = true }
-slop-symmetric = { workspace = true }
 slop-multilinear = { workspace = true }
 slop-matrix = { workspace = true }
 slop-dft = { workspace = true }
@@ -29,7 +28,6 @@ slop-sumcheck = { workspace = true }
 rayon = { workspace = true }
 serde = { workspace = true }
 itertools = { workspace = true }
-futures = { workspace = true }
 thiserror = { workspace = true }
 rand = { workspace = true }
 derive-where = { workspace = true }
@@ -39,7 +37,6 @@ slop-utils = { workspace = true }
 [dev-dependencies]
 rand_chacha = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt"] }
-slop-poseidon2 = { workspace = true }
 slop-jagged = { workspace = true }
 
 [[example]]
