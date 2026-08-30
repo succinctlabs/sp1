@@ -19,6 +19,7 @@ slop-challenger = { workspace = true }
 slop-tensor = { workspace = true }
 slop-algebra = { workspace = true }
 slop-commit = { workspace = true }
+slop-futures = { workspace = true }
 
 itertools = { workspace = true }
 thiserror = { workspace = true }

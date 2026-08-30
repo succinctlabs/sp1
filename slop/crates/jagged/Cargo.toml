@@ -32,6 +32,7 @@ tracing = { workspace = true }
 rayon = { workspace = true }
 serde = { workspace = true, features = ["rc"] }
 thiserror = { workspace = true }
+derive-where = { workspace = true }
 rand = { workspace = true }
 num_cpus = { workspace = true }
 
