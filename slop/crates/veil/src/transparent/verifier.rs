@@ -1,5 +1,4 @@
 use slop_algebra::{Field, TwoAdicField};
-use slop_basefold::BasefoldVerifier;
 use slop_challenger::{CanObserve, FieldChallenger, IopCtx};
 use slop_multilinear::{BatchPcsVerifier, OracleEval, Point};
 use thiserror::Error;

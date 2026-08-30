@@ -9,8 +9,5 @@ repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
-[dependencies]
-slop-algebra = { workspace = true }
-
 [lints]
 workspace = true

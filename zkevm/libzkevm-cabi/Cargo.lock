@@ -1590,7 +1590,6 @@ dependencies = [
 name = "slop-challenger"
 version = "6.5.0"
 dependencies = [
- "futures",
  "p3-challenger 0.4.3-succinct",
  "serde",
  "slop-algebra 6.5.0",
@@ -1653,9 +1652,6 @@ dependencies = [
 [[package]]
 name = "slop-primitives"
 version = "6.5.0"
-dependencies = [
- "slop-algebra 6.5.0",
-]
 
 [[package]]
 name = "slop-symmetric"
@@ -1746,7 +1742,6 @@ dependencies = [
  "embedded-alloc",
  "getrandom 0.2.17",
  "getrandom 0.3.4",
- "lazy_static",
  "rand",
  "sha2 0.10.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "sp1-primitives 6.5.0",
