@@ -23,13 +23,8 @@ slop-baby-bear = { workspace = true }
 slop-koala-bear = { workspace = true }
 slop-merkle-tree = { workspace = true }
 slop-fri = { workspace = true }
-slop-bn254 = { workspace = true }
 itertools = { workspace = true }
 rand = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 derive-where = { workspace = true }
-
-
-[dev-dependencies]
-futures = { workspace = true }
