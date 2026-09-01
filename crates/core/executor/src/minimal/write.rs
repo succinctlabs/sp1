@@ -1,8 +1,100 @@
+use crate::OutputConsumers;
 use sp1_jit::{RiscRegister, SyscallContext};
 use sp1_primitives::consts::fd::{
     FD_BLS12_381_INVERSE, FD_BLS12_381_SQRT, FD_ECRECOVER_HOOK, FD_EDDECOMPRESS, FD_FP_INV,
     FD_FP_SQRT, FD_HINT, FD_PUBLIC_VALUES, FD_RSA_MUL_MOD,
 };
+use std::cell::RefCell;
+use tokio::sync::watch;
+
+const OUTPUT_SNAPSHOT_MAX_BYTES: usize = 2 * 1024;
+
+thread_local! {
+    static OUTPUT_CONSUMERS: RefCell<OutputConsumers> = RefCell::new(OutputConsumers::default());
+}
+
+struct OutputConsumersGuard(OutputConsumers);
+
+impl Drop for OutputConsumersGuard {
+    fn drop(&mut self) {
+        OUTPUT_CONSUMERS.with(|current| current.replace(std::mem::take(&mut self.0)));
+    }
+}
+
+/// Run a closure with guest output redirected on the current executor thread.
+pub fn with_output_consumers<T>(consumers: &OutputConsumers, f: impl FnOnce() -> T) -> T {
+    let previous = OUTPUT_CONSUMERS.with(|current| current.replace(consumers.clone()));
+    let _guard = OutputConsumersGuard(previous);
+    f()
+}
+
+/// Append one line to a bounded output snapshot and notify its receivers.
+#[doc(hidden)]
+#[must_use]
+pub fn publish_output_line(sender: &watch::Sender<String>, line: &str) -> bool {
+    if sender.receiver_count() == 0 {
+        return false;
+    }
+
+    sender.send_modify(|snapshot| {
+        let added_len = line.len() + 1;
+        if added_len >= OUTPUT_SNAPSHOT_MAX_BYTES {
+            snapshot.clear();
+            let mut start = line.len().saturating_sub(OUTPUT_SNAPSHOT_MAX_BYTES - 1);
+            while !line.is_char_boundary(start) {
+                start += 1;
+            }
+            snapshot.push_str(&line[start..]);
+            snapshot.push('\n');
+            return;
+        }
+
+        let overflow =
+            snapshot.len().saturating_add(added_len).saturating_sub(OUTPUT_SNAPSHOT_MAX_BYTES);
+        if overflow > 0 {
+            let mut start = overflow;
+            while !snapshot.is_char_boundary(start) {
+                start += 1;
+            }
+            snapshot.drain(..start);
+        }
+        snapshot.push_str(line);
+        snapshot.push('\n');
+    });
+    true
+}
+
+fn redirect_output(fd: u64, line: &str) -> bool {
+    OUTPUT_CONSUMERS.with(|consumers| {
+        let consumers = consumers.borrow();
+        let sender = if fd == 1 { &consumers.stdout } else { &consumers.stderr };
+        let Some(sender) = sender else {
+            return false;
+        };
+
+        publish_output_line(sender, line)
+    })
+}
+
+#[cfg(test)]
+mod output_tests {
+    use super::{publish_output_line, OUTPUT_SNAPSHOT_MAX_BYTES};
+    use tokio::sync::watch;
+
+    #[test]
+    fn output_snapshot_is_bounded_and_keeps_latest_text() {
+        let (tx, rx) = watch::channel(String::new());
+        assert!(publish_output_line(&tx, &"old\u{ac00}".repeat(OUTPUT_SNAPSHOT_MAX_BYTES)));
+        assert!(publish_output_line(&tx, "latest"));
+
+        let snapshot = rx.borrow().clone();
+        assert!(snapshot.len() <= OUTPUT_SNAPSHOT_MAX_BYTES);
+        assert!(snapshot.ends_with("latest\n"));
+
+        drop(rx);
+        assert!(!publish_output_line(&tx, "unused"));
+    }
+}
 
 #[cfg(feature = "profiling")]
 mod cycle_tracker {
@@ -68,15 +160,15 @@ fn handle_output(ctx: &mut impl SyscallContext, fd: u64, content: &str) {
                     }
                     _ => {}
                 }
-            } else {
-                // Non-cycle-tracker output - print as before
+            } else if !redirect_output(fd, line) {
                 eprintln!("stdout: {line}");
             }
         }
     } else {
-        // stderr - just print
         for line in content.lines() {
-            eprintln!("stderr: {line}");
+            if !redirect_output(fd, line) {
+                eprintln!("stderr: {line}");
+            }
         }
     }
 }
@@ -85,7 +177,9 @@ fn handle_output(ctx: &mut impl SyscallContext, fd: u64, content: &str) {
 fn handle_output(_ctx: &mut impl SyscallContext, fd: u64, content: &str) {
     let prefix = if fd == 1 { "stdout" } else { "stderr" };
     for line in content.lines() {
-        eprintln!("{prefix}: {line}");
+        if !redirect_output(fd, line) {
+            eprintln!("{prefix}: {line}");
+        }
     }
 }
 

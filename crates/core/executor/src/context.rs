@@ -3,6 +3,7 @@ use core::mem::take;
 use hashbrown::HashMap;
 use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
 use std::io::Write;
+use tokio::sync::watch;
 
 use sp1_primitives::consts::fd::LOWEST_ALLOWED_FD;
 
@@ -86,6 +87,9 @@ pub struct SP1Context<'a> {
 
     /// The IO options for the [`SP1Executor`].
     pub io_options: IoOptions<'a>,
+
+    /// Owned consumers for guest `stdout` and `stderr`.
+    pub output_consumers: OutputConsumers,
 }
 
 impl Default for SP1Context<'_> {
@@ -103,8 +107,8 @@ pub struct SP1ContextBuilder<'a> {
     calculate_gas: bool,
     expected_exit_code: Option<StatusCode>,
     proof_nonce: [u32; 4],
-    // TODO remove the lifetime here, change stdout and stderr options to accept channels.
     io_options: IoOptions<'a>,
+    output_consumers: OutputConsumers,
 }
 
 impl Default for SP1ContextBuilder<'_> {
@@ -137,6 +141,7 @@ impl<'a> SP1ContextBuilder<'a> {
             expected_exit_code: None,
             proof_nonce: [0, 0, 0, 0], // Default to zeros, will be set by SDK
             io_options: IoOptions::new(),
+            output_consumers: OutputConsumers { stdout: None, stderr: None },
         }
     }
 
@@ -181,6 +186,7 @@ impl<'a> SP1ContextBuilder<'a> {
             calculate_gas,
             proof_nonce,
             io_options: take(&mut self.io_options),
+            output_consumers: take(&mut self.output_consumers),
             expected_exit_code: self.expected_exit_code.unwrap_or(StatusCode::SUCCESS),
         }
     }
@@ -249,6 +255,22 @@ impl<'a> SP1ContextBuilder<'a> {
         self
     }
 
+    /// Publish the latest 2 KiB snapshot of guest `stdout`.
+    ///
+    /// Keep a receiver alive through execution, then clone its value after execution completes.
+    pub fn stdout_channel(&mut self, sender: watch::Sender<String>) -> &mut Self {
+        self.output_consumers.stdout = Some(sender);
+        self
+    }
+
+    /// Publish the latest 2 KiB snapshot of guest `stderr`.
+    ///
+    /// Keep a receiver alive through execution, then clone its value after execution completes.
+    pub fn stderr_channel(&mut self, sender: watch::Sender<String>) -> &mut Self {
+        self.output_consumers.stderr = Some(sender);
+        self
+    }
+
     /// Set the expected exit code of the program.
     pub fn expected_exit_code(&mut self, code: StatusCode) -> &mut Self {
         self.expected_exit_code = Some(code);
@@ -283,6 +305,7 @@ impl IoOptions<'_> {
         Self { stdout: None, stderr: None }
     }
 }
+
 impl Clone for IoOptions<'_> {
     fn clone(&self) -> Self {
         IoOptions { stdout: None, stderr: None }
@@ -296,6 +319,17 @@ pub trait IoWriter: Write + Send + Sync {}
 
 impl<W: Write + Send + Sync> IoWriter for W {}
 
+/// Publishers for the latest 2 KiB guest `stdout` and `stderr` snapshots.
+///
+/// Receivers should clone values promptly because a live borrow can delay the publisher.
+#[derive(Clone, Default)]
+pub struct OutputConsumers {
+    /// Publishes the latest retained guest `stdout`.
+    pub stdout: Option<watch::Sender<String>>,
+    /// Publishes the latest retained guest `stderr`.
+    pub stderr: Option<watch::Sender<String>>,
+}
+
 #[cfg(test)]
 mod tests {
     use crate::SP1Context;
@@ -306,6 +340,18 @@ mod tests {
             SP1Context::builder().build();
         assert!(hook_registry.is_none());
         assert!(cycle_limit.is_none());
+    }
+
+    #[test]
+    fn writer_api_remains_compatible() {
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        let mut builder = SP1Context::builder();
+        builder.stdout(&mut stdout).stderr(&mut stderr);
+
+        let context = builder.build();
+        assert!(context.io_options.stdout.is_some());
+        assert!(context.io_options.stderr.is_some());
     }
 
     #[test]

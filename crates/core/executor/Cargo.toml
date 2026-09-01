@@ -34,6 +34,7 @@ num = { workspace = true }
 typenum = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }
 strum = { workspace = true, features = ["derive"] }
 tiny-keccak = { workspace = true, features = ["keccak"] }
 enum-map = { workspace = true, features = ["serde"] }

@@ -7129,6 +7129,7 @@ dependencies = [
  "test-artifacts",
  "thiserror 1.0.69",
  "tiny-keccak 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio",
  "tracing",
  "typenum",
 ]
@@ -7151,6 +7152,7 @@ dependencies = [
  "sp1-primitives 6.5.0",
  "sysinfo 0.30.13",
  "test-artifacts",
+ "tokio",
  "tracing",
  "uuid",
 ]
