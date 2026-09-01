@@ -1,5 +1,11 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::{env, fs};
+
+use slop_algebra::PrimeField32;
+use slop_bn254::{bn254_internal_diagonal, bn254_montgomery_limbs, bn254_poseidon2_rc3};
+use slop_koala_bear::{
+    KoalaBear_BEGIN_EXT_CONSTS, KoalaBear_END_EXT_CONSTS, KoalaBear_PARTIAL_CONSTS,
+};
 
 fn cbindgen_builder() -> cbindgen::Builder {
     /// The warning placed in the cbindgen header.
@@ -129,6 +135,170 @@ fn detect_cuda() -> bool {
     false
 }
 
+/// The CUDA headers holding the Poseidon2 round constants, relative to the crate root.
+const KB31_HEADER: &str = "include/poseidon2/poseidon2_kb31_16.cuh";
+const BN254_HEADER: &str = "include/poseidon2/poseidon2_bn254_3.cuh";
+
+/// Pull the integer literals out of every `ctor(...)` initializer in the `__constant__` table
+/// declared as `decl`, one inner `Vec` per table entry.
+///
+/// Neither header nests braces inside one of these initializer lists, so the first `}` after the
+/// declaration is its terminator.
+fn parse_table(header: &str, path: &str, ctor: &str, decl: &str) -> Vec<Vec<u32>> {
+    let body =
+        header.split_once(decl).unwrap_or_else(|| panic!("{path}: no declaration of `{decl}`")).1;
+    let end =
+        body.find('}').unwrap_or_else(|| panic!("{path}: `{decl}` initializer is unterminated"));
+    body[..end]
+        .split(&format!("{ctor}("))
+        .skip(1)
+        .map(|tail| {
+            let inner = tail
+                .split_once(')')
+                .unwrap_or_else(|| panic!("{path}: `{decl}` has an unclosed `{ctor}(`"))
+                .0;
+            assert!(
+                inner.chars().all(|c| c.is_ascii_digit() || c.is_whitespace() || c == ','),
+                "{path}: `{decl}` has a non-literal entry at `{ctor}({inner:.32}`"
+            );
+            inner
+                .split(|c: char| !c.is_ascii_digit())
+                .filter(|run| !run.is_empty())
+                .map(|run| {
+                    run.parse().unwrap_or_else(|_| {
+                        panic!("{path}: `{decl}` has an out-of-range literal `{run}`")
+                    })
+                })
+                .collect()
+        })
+        .collect()
+}
+
+/// Compare one parsed CUDA table against the values this workspace derives for it.
+fn compare_table(path: &str, name: &str, found: &[Vec<u32>], expected: &[Vec<u32>]) {
+    assert_eq!(
+        found.len(),
+        expected.len(),
+        "{path}: {name} has {} entries, but Rust supplies {}",
+        found.len(),
+        expected.len()
+    );
+    for (i, (cuda, rust)) in found.iter().zip(expected).enumerate() {
+        assert_eq!(
+            cuda, rust,
+            "{path}: {name}[{i}] is {cuda:?}, but Rust has {rust:?}. The CUDA and Rust Poseidon2 \
+             constants have drifted; fix whichever side changed."
+        );
+    }
+}
+
+/// Guard the CUDA copies of the Poseidon2 constants against drifting from the Rust ones.
+///
+/// Both headers hand-copy constants this workspace already derives, ordered as the kernel walks
+/// them (beginning external, ending external, internal) and bound directly by `StaticHasher` in
+/// `poseidon2.cuh`. Only what is read is checked, and that differs between the two headers even
+/// where they declare the same names; each function below says which of its tables are live.
+///
+/// A build script rather than a test: CPU CI excludes `sp1-gpu-*` from `cargo test` and a test
+/// binary here cannot link without CUDA, but build scripts still run under `cargo check`.
+fn check_poseidon2_constants(crate_dir: &Path) {
+    check_kb31_constants(crate_dir);
+    check_bn254_constants(crate_dir);
+}
+
+/// The KoalaBear table holds canonical values, so entries compare against `as_canonical_u32()`
+/// rather than `KoalaBear`'s inner Montgomery value.
+///
+/// That follows from overload resolution: `kb31_t(uint32_t)` stores its argument raw while
+/// `kb31_t(int)` converts with `(a << 32) % MOD`, and a decimal literal below `INT_MAX` is `int`.
+/// Every canonical value is below `MOD` (0x7f000001), so these bind the converting one. `bn254_t`'s
+/// only matching constructor copies limbs verbatim instead.
+///
+/// `MAT_INTERNAL_DIAG_M1` and `MONTY_INVERSE` are not checked: this header reads neither, applying
+/// the diagonal as shifts against a hardcoded `SH` table. `SH` is live and unchecked, the same
+/// exposure in a different table. The BN254 header does read its diagonal; see
+/// `check_bn254_constants`.
+fn check_kb31_constants(crate_dir: &Path) {
+    let path = crate_dir.join(KB31_HEADER);
+    let header = fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
+
+    let external: Vec<Vec<u32>> = KoalaBear_BEGIN_EXT_CONSTS
+        .iter()
+        .chain(KoalaBear_END_EXT_CONSTS.iter())
+        .flat_map(|round| round.iter().map(|c| vec![c.as_canonical_u32()]))
+        .collect();
+    let internal: Vec<Vec<u32>> =
+        KoalaBear_PARTIAL_CONSTS.iter().map(|c| vec![c.as_canonical_u32()]).collect();
+
+    for (name, decl, expected) in [
+        ("EXTERNAL_ROUND_CONSTANTS", "EXTERNAL_ROUND_CONSTANTS[ROUNDS_F * WIDTH]", external),
+        ("INTERNAL_ROUND_CONSTANTS", "INTERNAL_ROUND_CONSTANTS[ROUNDS_P]", internal),
+    ] {
+        let found = parse_table(&header, KB31_HEADER, "kb31_t", decl);
+        compare_table(KB31_HEADER, name, &found, &expected);
+    }
+}
+
+/// The BN254 table is written in Montgomery form, eight little-endian `uint32_t` limbs per constant,
+/// so the comparison goes through `bn254_montgomery_limbs`. `bn254_t` is `mont_t<...>`, whose
+/// eight-argument constructor assigns into `even[0..8]` with no conversion, so the header text is
+/// already the stored representation.
+///
+/// `bn254_poseidon2_rc3` returns all 64 rounds in Plonky3's flat order; the split below is
+/// `outer_perm`'s, and the kernel's begin-then-end external layout is that split concatenated.
+///
+/// `MAT_INTERNAL_DIAG_M1` is checked here though the KoalaBear one is not, and the headers looking
+/// parallel is the trap. `Bn254::internalLinearLayer` ignores its parameters but has no shift path:
+/// it multiplies lane `i` by the class constant on all 56 internal rounds. `bn254_internal_diagonal`
+/// reads that diagonal back out of `DiffusionMatrixBN254`, so the comparison is against CPU
+/// behaviour rather than a third transcription.
+///
+/// `MONTY_INVERSE` is unchecked in both headers; the only mentions are the two
+/// `internalLinearLayer` call sites, passing it into a parameter neither implementation names.
+fn check_bn254_constants(crate_dir: &Path) {
+    /// Full rounds, half at the start of the permutation and half at the end.
+    const ROUNDS_F: usize = 8;
+    /// Partial rounds, sitting between the two halves.
+    const ROUNDS_P: usize = 56;
+
+    let path = crate_dir.join(BN254_HEADER);
+    let header = fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
+
+    let rounds = bn254_poseidon2_rc3();
+    assert_eq!(
+        rounds.len(),
+        ROUNDS_F + ROUNDS_P,
+        "slop-bn254 supplies {} rounds, but {BN254_HEADER} is built for {}",
+        rounds.len(),
+        ROUNDS_F + ROUNDS_P
+    );
+    let internal_start = ROUNDS_F / 2;
+    let internal_end = internal_start + ROUNDS_P;
+
+    let external: Vec<Vec<u32>> = rounds[..internal_start]
+        .iter()
+        .chain(&rounds[internal_end..])
+        .flat_map(|round| round.iter().map(|c| bn254_montgomery_limbs(*c).to_vec()))
+        .collect();
+    let internal: Vec<Vec<u32>> = rounds[internal_start..internal_end]
+        .iter()
+        .map(|round| bn254_montgomery_limbs(round[0]).to_vec())
+        .collect();
+    let diagonal: Vec<Vec<u32>> =
+        bn254_internal_diagonal().iter().map(|d| bn254_montgomery_limbs(*d).to_vec()).collect();
+
+    for (name, decl, expected) in [
+        ("EXTERNAL_ROUND_CONSTANTS", "EXTERNAL_ROUND_CONSTANTS[ROUNDS_F * WIDTH]", external),
+        ("INTERNAL_ROUND_CONSTANTS", "INTERNAL_ROUND_CONSTANTS[ROUNDS_P]", internal),
+        ("MAT_INTERNAL_DIAG_M1", "MAT_INTERNAL_DIAG_M1[WIDTH]", diagonal),
+    ] {
+        let found = parse_table(&header, BN254_HEADER, "bn254_t", decl);
+        compare_table(BN254_HEADER, name, &found, &expected);
+    }
+}
+
 fn main() {
     // Directives for tracking changes in folders
     println!("cargo:rerun-if-changed=include/");
@@ -144,6 +314,10 @@ fn main() {
 
     // The crate directory.
     let crate_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+
+    // Fail fast if the CUDA copy of the Poseidon2 round constants has drifted from the
+    // Rust one. Ahead of everything below so it still runs where nvcc is absent.
+    check_poseidon2_constants(&crate_dir);
 
     // The output directory, where built artifacts should be placed.
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());

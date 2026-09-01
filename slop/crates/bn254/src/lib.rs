@@ -11,12 +11,13 @@
 #![allow(clippy::disallowed_types)]
 use std::marker::PhantomData;
 
+use ff::PrimeField as FFPrimeField;
 pub use p3_bn254_fr::*;
 use serde::{Deserialize, Serialize};
-use slop_algebra::{ExtensionField, PrimeField31};
+use slop_algebra::{AbstractField, ExtensionField, PrimeField31};
 use slop_challenger::{IopCtx, MultiField32Challenger};
 use slop_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
-use slop_symmetric::{Hash, MultiField32PaddingFreeSponge, TruncatedPermutation};
+use slop_symmetric::{Hash, MultiField32PaddingFreeSponge, Permutation, TruncatedPermutation};
 
 mod poseidon2_rc;
 
@@ -63,6 +64,41 @@ pub fn bn254_poseidon2_rc3() -> Vec<[Bn254Fr; 3]> {
             [bn254_from_be_hex(row[0]), bn254_from_be_hex(row[1]), bn254_from_be_hex(row[2])]
         })
         .collect()
+}
+
+/// The Montgomery representation of `x`, as eight little-endian 32-bit limbs.
+///
+/// `halo2curves` keeps its limbs private and `to_repr` returns canonical bytes, so this goes the
+/// long way round: `x * R` is an ordinary field element whose canonical bytes are the limbs wanted.
+///
+/// Public so the CUDA headers' hand-copied round constants, written as Montgomery limbs, can be
+/// checked against this crate.
+pub fn bn254_montgomery_limbs(x: Bn254Fr) -> [u32; 8] {
+    // R = 2^256 mod r, reached by eight squarings of two since 2^(2^8) = 2^256.
+    let mut r = Bn254Fr::two();
+    for _ in 0..8 {
+        r = r.square();
+    }
+    let repr = (x * r).value.to_repr();
+    core::array::from_fn(|i| u32::from_le_bytes(repr.0[4 * i..4 * i + 4].try_into().unwrap()))
+}
+
+/// The internal (partial-round) diagonal of the width-3 BN254 Poseidon2 permutation.
+///
+/// `p3-bn254-fr` keeps the table private, so it is read back out of the permutation instead:
+/// `matmul_internal` is `state[i] * d[i] + Σ state`, so probing with `e_i` returns `d[i] + 1`.
+/// That sees the layer only at zero and one, which is why
+/// `internal_layer_has_the_form_the_diagonal_recovery_assumes` pins the form separately.
+///
+/// Public for the CUDA drift guard, which has to check this table: the BN254 header reads its
+/// diagonal every internal round, unlike the KoalaBear one.
+pub fn bn254_internal_diagonal() -> [Bn254Fr; OUTER_CHALLENGER_STATE_WIDTH] {
+    core::array::from_fn(|i| {
+        let mut state = [Bn254Fr::zero(); OUTER_CHALLENGER_STATE_WIDTH];
+        state[i] = Bn254Fr::one();
+        DiffusionMatrixBN254.permute_mut(&mut state);
+        state[i] - Bn254Fr::one()
+    })
 }
 
 impl<F: PrimeField31, EF: ExtensionField<F>> IopCtx for Poseidon2Bn254GlobalConfig<F, EF> {
@@ -113,3 +149,275 @@ impl<F: PrimeField31, EF: ExtensionField<F>> IopCtx for Poseidon2Bn254GlobalConf
 }
 
 pub type BNGC<F, EF> = Poseidon2Bn254GlobalConfig<F, EF>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Pins the encoding against the published BN254 Montgomery constant. The drift guard exercises it
+    /// for real, but only where the CUDA header is present.
+    #[test]
+    fn montgomery_limbs_match_published_r() {
+        // R = 2^256 mod r = 0x0e0a77c19a07df2f666ea36f7879462e36fc76959f60cd29ac96341c4ffffffb,
+        // as eight little-endian 32-bit limbs. The Montgomery form of one is R itself.
+        const R_LIMBS: [u32; 8] = [
+            1342177275, 2895524892, 2673921321, 922515093, 2021213742, 1718526831, 2584207151,
+            235567041,
+        ];
+        assert_eq!(bn254_montgomery_limbs(Bn254Fr::one()), R_LIMBS);
+        assert_eq!(bn254_montgomery_limbs(Bn254Fr::zero()), [0; 8]);
+    }
+
+    /// Pins the recovered diagonal against the one `p3-bn254-fr` builds.
+    #[test]
+    fn internal_diagonal_matches_plonky3() {
+        assert_eq!(bn254_internal_diagonal(), [Bn254Fr::one(), Bn254Fr::one(), Bn254Fr::two()]);
+    }
+
+    /// Probe states, none of them the zero/one pattern a basis vector produces.
+    fn probe_states() -> Vec<[Bn254Fr; OUTER_CHALLENGER_STATE_WIDTH]> {
+        let mut states = vec![
+            [Bn254Fr::zero(); OUTER_CHALLENGER_STATE_WIDTH],
+            [Bn254Fr::two(), Bn254Fr::zero(), Bn254Fr::zero()],
+            [Bn254Fr::zero() - Bn254Fr::one(); OUTER_CHALLENGER_STATE_WIDTH],
+            [Bn254Fr::two(), Bn254Fr::from_canonical_u64(3), Bn254Fr::from_canonical_u64(5)],
+        ];
+
+        let mut x = Bn254Fr::from_canonical_u64(7);
+        let mut walk = Vec::with_capacity(24);
+        for _ in 0..24 {
+            x = x.square().square() * x + Bn254Fr::from_canonical_u64(3);
+            walk.push(x);
+        }
+        states.extend(walk.chunks_exact(OUTER_CHALLENGER_STATE_WIDTH).map(|c| [c[0], c[1], c[2]]));
+        states
+    }
+
+    /// Pins the internal layer as `state[i] * d[i] + Σ state` on arbitrary states.
+    ///
+    /// The diagonal recovery is a special case of that identity, and on its own cannot check it: basis
+    /// vectors see the layer only at zero and one, so any elementwise `f` with `f(0) = 0` and
+    /// `f(1) = 1` ahead of the diagonal multiply recovers the same table from a different permutation.
+    #[test]
+    fn internal_layer_has_the_form_the_diagonal_recovery_assumes() {
+        let diagonal = bn254_internal_diagonal();
+        for state in probe_states() {
+            let sum = state[0] + state[1] + state[2];
+            let expected: [Bn254Fr; OUTER_CHALLENGER_STATE_WIDTH] =
+                core::array::from_fn(|i| state[i] * diagonal[i] + sum);
+
+            let mut got = state;
+            DiffusionMatrixBN254.permute_mut(&mut got);
+
+            assert_eq!(
+                got, expected,
+                "DiffusionMatrixBN254 is no longer `state[i] * d[i] + sum`, so recovering its \
+                 diagonal from basis vectors no longer describes it"
+            );
+        }
+    }
+
+    /// Pins the round split against the shape of the constants.
+    ///
+    /// [`outer_perm`] keeps only lane zero of each internal round and discards the rest unexamined,
+    /// which is safe only while those lanes are empty. A split off by one row would silently drop two
+    /// live external constants, and the build script reconstructs the same split, so it would move too.
+    #[test]
+    fn the_round_split_lands_where_the_constants_say_it_does() {
+        const ROUNDS_F: usize = 8;
+        const ROUNDS_P: usize = 56;
+
+        let rounds = bn254_poseidon2_rc3();
+        assert_eq!(rounds.len(), ROUNDS_F + ROUNDS_P);
+        let internal_start = ROUNDS_F / 2;
+        let internal_end = internal_start + ROUNDS_P;
+
+        for (i, round) in rounds.iter().enumerate() {
+            if (internal_start..internal_end).contains(&i) {
+                assert_eq!(
+                    [round[1], round[2]],
+                    [Bn254Fr::zero(); 2],
+                    "round {i} is treated as internal, but carries a constant outside lane zero \
+                     that `outer_perm` would discard"
+                );
+            } else {
+                assert!(
+                    round.iter().all(|c| *c != Bn254Fr::zero()),
+                    "round {i} is treated as external, but looks like an internal round"
+                );
+            }
+        }
+    }
+
+    /// Pins the CUDA driver against [`outer_perm`].
+    ///
+    /// The drift guard only compares tables. Round order, S-box degree, the lane the internal constant
+    /// lands on, and where the external constants split are conventions it never looks at, and identical
+    /// tables can still compute different permutations. `poseidon2.cuh` and `poseidon2_bn254_3.cuh` are
+    /// transcribed here rather than executed, so this catches drift only if the transcription is kept
+    /// in step with the header.
+    #[test]
+    fn the_cuda_driver_agrees_with_outer_perm() {
+        const ROUNDS_F: usize = 8;
+        const ROUNDS_P: usize = 56;
+        const D: u64 = 5;
+
+        // `poseidon2_bn254_3.cuh`, `Bn254::externalLinearLayer`.
+        fn external_linear_layer(state: &mut [Bn254Fr; OUTER_CHALLENGER_STATE_WIDTH]) {
+            let sum = state[0] + state[1] + state[2];
+            for lane in state.iter_mut() {
+                *lane += sum;
+            }
+        }
+
+        // `poseidon2_bn254_3.cuh`, `Bn254::internalLinearLayer`, which reads the class constant
+        // rather than its parameters.
+        fn internal_linear_layer(
+            state: &mut [Bn254Fr; OUTER_CHALLENGER_STATE_WIDTH],
+            diagonal: &[Bn254Fr; OUTER_CHALLENGER_STATE_WIDTH],
+        ) {
+            let sum = state[0] + state[1] + state[2];
+            for (lane, d) in state.iter_mut().zip(diagonal) {
+                *lane = *lane * *d + sum;
+            }
+        }
+
+        // `poseidon2.cuh`, `sbox`, which raises each lane to `Params::D`.
+        fn sbox(x: Bn254Fr) -> Bn254Fr {
+            assert_eq!(D, 5, "the transcription below is written for the degree-five S-box");
+            x.square().square() * x
+        }
+
+        let rounds = bn254_poseidon2_rc3();
+        let internal_start = ROUNDS_F / 2;
+        let internal_end = internal_start + ROUNDS_P;
+        let external: Vec<[Bn254Fr; OUTER_CHALLENGER_STATE_WIDTH]> =
+            rounds[..internal_start].iter().chain(&rounds[internal_end..]).copied().collect();
+        let internal: Vec<Bn254Fr> =
+            rounds[internal_start..internal_end].iter().map(|round| round[0]).collect();
+        let diagonal = bn254_internal_diagonal();
+
+        // `poseidon2.cuh`, `Hasher::permute`.
+        let cuda_permute = |input: [Bn254Fr; OUTER_CHALLENGER_STATE_WIDTH]| {
+            let mut state = input;
+            external_linear_layer(&mut state);
+
+            let rounds_f_half = ROUNDS_F / 2;
+            for round in &external[..rounds_f_half] {
+                for (lane, rc) in state.iter_mut().zip(round) {
+                    *lane += *rc;
+                }
+                state = core::array::from_fn(|i| sbox(state[i]));
+                external_linear_layer(&mut state);
+            }
+
+            for rc in &internal {
+                state[0] += *rc;
+                state[0] = sbox(state[0]);
+                internal_linear_layer(&mut state, &diagonal);
+            }
+
+            for round in &external[rounds_f_half..] {
+                for (lane, rc) in state.iter_mut().zip(round) {
+                    *lane += *rc;
+                }
+                state = core::array::from_fn(|i| sbox(state[i]));
+                external_linear_layer(&mut state);
+            }
+
+            state
+        };
+
+        let perm = outer_perm();
+        for state in probe_states() {
+            assert_eq!(
+                cuda_permute(state),
+                perm.permute(state),
+                "the CUDA driver and `outer_perm` disagree, so the two sides run different \
+                 permutations even where their constant tables match"
+            );
+        }
+    }
+
+    /// Checks the encoding away from the two points [`montgomery_limbs_match_published_r`] pins.
+    ///
+    /// `R` is derived a second way, by doubling rather than squaring, since an off-by-one in the
+    /// squarings lands on another perfectly good field element. Additivity then rules out `to_repr`
+    /// returning the internal limbs, which would scale everything by `R` a second time.
+    #[test]
+    fn montgomery_encoding_is_consistent_off_the_pinned_point() {
+        let mut doubled = Bn254Fr::one();
+        for _ in 0..256 {
+            doubled = doubled + doubled;
+        }
+        // `doubled` is R, so its canonical limbs are what the encoding of one must be. Encoding
+        // it again would ask for `R * R`.
+        assert_eq!(
+            bn254_montgomery_limbs(Bn254Fr::one()),
+            canonical_limbs(doubled),
+            "R by repeated squaring and R by repeated doubling disagree"
+        );
+
+        // Read back as one 256-bit little-endian integer, the encoding has to carry field
+        // addition. The prime is not written down here: it is `(-1) + 1`, taken from the field.
+        let modulus = add_limbs(canonical_limbs(Bn254Fr::zero() - Bn254Fr::one()), ONE)
+            .expect("r - 1 sits below 2^256");
+        for state in probe_states() {
+            let (x, y) = (state[0], state[1]);
+            let sum = add_limbs(bn254_montgomery_limbs(x), bn254_montgomery_limbs(y))
+                .expect("two residues below r sum below 2^256");
+            let reduced = if less_than(sum, modulus) {
+                sum
+            } else {
+                sub_limbs(sum, modulus).expect("a sum at least r stays non-negative less r")
+            };
+            assert_eq!(
+                reduced,
+                bn254_montgomery_limbs(x + y),
+                "the Montgomery encoding does not carry field addition, so the limbs are not \
+                 the residue they are read as"
+            );
+        }
+    }
+
+    const ONE: [u32; 8] = [1, 0, 0, 0, 0, 0, 0, 0];
+
+    /// The canonical residue of `x`, as eight little-endian 32-bit limbs.
+    fn canonical_limbs(x: Bn254Fr) -> [u32; 8] {
+        let repr = x.value.to_repr();
+        core::array::from_fn(|i| u32::from_le_bytes(repr.0[4 * i..4 * i + 4].try_into().unwrap()))
+    }
+
+    /// Little-endian 256-bit addition, `None` on overflow past `2^256`.
+    fn add_limbs(a: [u32; 8], b: [u32; 8]) -> Option<[u32; 8]> {
+        let mut out = [0u32; 8];
+        let mut carry = 0u64;
+        for i in 0..8 {
+            let wide = u64::from(a[i]) + u64::from(b[i]) + carry;
+            out[i] = wide as u32;
+            carry = wide >> 32;
+        }
+        (carry == 0).then_some(out)
+    }
+
+    /// Little-endian 256-bit subtraction, `None` on borrow out of the top limb.
+    fn sub_limbs(a: [u32; 8], b: [u32; 8]) -> Option<[u32; 8]> {
+        let mut out = [0u32; 8];
+        let mut borrow = 0i64;
+        for i in 0..8 {
+            let wide = i64::from(a[i]) - i64::from(b[i]) - borrow;
+            out[i] = wide as u32;
+            borrow = i64::from(wide < 0);
+        }
+        (borrow == 0).then_some(out)
+    }
+
+    fn less_than(a: [u32; 8], b: [u32; 8]) -> bool {
+        for i in (0..8).rev() {
+            if a[i] != b[i] {
+                return a[i] < b[i];
+            }
+        }
+        false
+    }
+}
