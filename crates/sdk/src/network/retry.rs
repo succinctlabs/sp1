@@ -8,6 +8,7 @@ pub const DEFAULT_RETRY_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// Trait for implementing retryable RPC operations.
 #[async_trait::async_trait]
+#[allow(clippy::double_must_use)]
 pub trait RetryableRpc {
     /// Execute an operation with retries using default timeout.
     async fn with_retry<'a, T, F, Fut>(&'a self, operation: F, operation_name: &str) -> Result<T>
