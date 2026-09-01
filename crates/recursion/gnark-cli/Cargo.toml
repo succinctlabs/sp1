@@ -12,5 +12,5 @@ rust-version = { workspace = true }
 
 [dependencies]
 sp1-recursion-gnark-ffi = { workspace = true, features = ["native"] }
-clap = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
 bincode = { workspace = true }

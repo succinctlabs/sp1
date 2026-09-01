@@ -12,7 +12,6 @@ categories.workspace = true
 [dependencies]
 slop-alloc = { workspace = true }
 slop-tensor = { workspace = true }
-slop-futures = { workspace = true }
 slop-commit = { workspace = true }
 # slop-baby-bear = { workspace = true }
 
@@ -24,10 +23,8 @@ serde = { workspace = true }
 rayon = { workspace = true }
 derive-where = { workspace = true }
 rand = { workspace = true }
-futures = { workspace = true }
 num_cpus = { workspace = true }
 
 [dev-dependencies]
 slop-baby-bear = { workspace = true }
-rand = { workspace = true }
 serde_json = { workspace = true }
