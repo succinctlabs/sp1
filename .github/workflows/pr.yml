@@ -68,6 +68,11 @@ jobs:
           command: check
           args: --all-targets --all-features --tests
 
+      - name: Test native guest output forwarding
+        run: >-
+          cargo test --release -p sp1-core-executor-runner
+          test_guest_stderr_forwarding -- --nocapture
+
       - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
@@ -246,6 +251,7 @@ jobs:
         uses: ./.github/actions/setup
         with:
           pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+          rustup_override: stable
 
       - name: Install SP1 toolchain from repo
         run: |

@@ -18,7 +18,6 @@ slop-sumcheck = { workspace = true }
 slop-baby-bear = { workspace = true }
 slop-merkle-tree = { workspace = true }
 slop-pgspcs = { workspace = true }
-futures = { workspace = true }
 itertools = { workspace = true }
 rand = { workspace = true }
 
