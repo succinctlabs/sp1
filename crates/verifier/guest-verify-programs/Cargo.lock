@@ -796,7 +796,7 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "slop-algebra"
-version = "6.5.0"
+version = "6.6.0"
 dependencies = [
  "itertools 0.14.0",
  "p3-field",
@@ -805,7 +805,7 @@ dependencies = [
 
 [[package]]
 name = "slop-bn254"
-version = "6.5.0"
+version = "6.6.0"
 dependencies = [
  "ff",
  "p3-bn254-fr",
@@ -818,7 +818,7 @@ dependencies = [
 
 [[package]]
 name = "slop-challenger"
-version = "6.5.0"
+version = "6.6.0"
 dependencies = [
  "p3-challenger",
  "serde",
@@ -828,7 +828,7 @@ dependencies = [
 
 [[package]]
 name = "slop-koala-bear"
-version = "6.5.0"
+version = "6.6.0"
 dependencies = [
  "lazy_static",
  "p3-koala-bear",
@@ -841,25 +841,25 @@ dependencies = [
 
 [[package]]
 name = "slop-poseidon2"
-version = "6.5.0"
+version = "6.6.0"
 dependencies = [
  "p3-poseidon2",
 ]
 
 [[package]]
 name = "slop-primitives"
-version = "6.5.0"
+version = "6.6.0"
 
 [[package]]
 name = "slop-symmetric"
-version = "6.5.0"
+version = "6.6.0"
 dependencies = [
  "p3-symmetric",
 ]
 
 [[package]]
 name = "sp1-lib"
-version = "6.5.0"
+version = "6.6.0"
 dependencies = [
  "bincode",
  "elliptic-curve",
@@ -869,7 +869,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "6.5.0"
+version = "6.6.0"
 dependencies = [
  "bincode",
  "blake3",
@@ -891,7 +891,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-verifier"
-version = "6.5.0"
+version = "6.6.0"
 dependencies = [
  "blake3",
  "cfg-if",
@@ -904,7 +904,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "6.5.0"
+version = "6.6.0"
 dependencies = [
  "blake3",
  "cfg-if",
