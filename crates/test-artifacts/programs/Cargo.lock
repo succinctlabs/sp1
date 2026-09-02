@@ -406,7 +406,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 6.5.0",
+ "sp1-lib 6.6.0",
  "sp1-zkvm",
 ]
 
@@ -449,7 +449,7 @@ name = "bls12381-mul-test"
 version = "1.1.0"
 dependencies = [
  "sp1-derive",
- "sp1-lib 6.5.0",
+ "sp1-lib 6.6.0",
  "sp1-zkvm",
 ]
 
@@ -459,7 +459,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 6.5.0",
+ "sp1-lib 6.6.0",
  "sp1-zkvm",
 ]
 
@@ -502,7 +502,7 @@ name = "bn254-mul-test"
 version = "1.1.0"
 dependencies = [
  "sp1-derive",
- "sp1-lib 6.5.0",
+ "sp1-lib 6.6.0",
  "sp1-zkvm",
 ]
 
@@ -572,7 +572,7 @@ name = "common-test-utils"
 version = "1.1.0"
 dependencies = [
  "num-bigint 0.4.6",
- "sp1-lib 6.5.0",
+ "sp1-lib 6.6.0",
 ]
 
 [[package]]
@@ -710,7 +710,7 @@ dependencies = [
  "digest 0.10.7",
  "fiat-crypto",
  "rustc_version 0.4.1",
- "sp1-lib 6.5.0",
+ "sp1-lib 6.6.0",
  "subtle",
  "zeroize",
 ]
@@ -1274,7 +1274,6 @@ checksum = "65bc07b1a8bc7c85c5f2e110c476c7389b4554ba72af57d8445ea63a576b0876"
 dependencies = [
  "futures-channel",
  "futures-core",
- "futures-executor",
  "futures-io",
  "futures-sink",
  "futures-task",
@@ -1298,32 +1297,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05f29059c0c2090612e8d742178b0580d2dc940c837851ad723096f87af6663e"
 
 [[package]]
-name = "futures-executor"
-version = "0.3.31"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e28d1d997f585e54aebc3f97d39e72338912123a67330d723fdbb564d646c9f"
-dependencies = [
- "futures-core",
- "futures-task",
- "futures-util",
-]
-
-[[package]]
 name = "futures-io"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e5c1b78ca4aae1ac06c48a526a655760685149f0d465d21f37abfe57ce075c6"
-
-[[package]]
-name = "futures-macro"
-version = "0.3.31"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "162ee34ebcb7c64a8abebc059ce0fee27c2262618d7b60ed8faf72fef13c3650"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.114",
-]
 
 [[package]]
 name = "futures-sink"
@@ -1343,16 +1320,11 @@ version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9fa08315bb612088cc391249efdc3bc77536f16c91f6cf495e6fbe85b20a4a81"
 dependencies = [
- "futures-channel",
  "futures-core",
- "futures-io",
- "futures-macro",
  "futures-sink",
  "futures-task",
- "memchr",
  "pin-project-lite",
  "pin-utils",
- "slab",
 ]
 
 [[package]]
@@ -2501,7 +2473,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 6.5.0",
+ "sp1-lib 6.6.0",
  "sp1-zkvm",
 ]
 
@@ -2537,7 +2509,7 @@ dependencies = [
  "num",
  "p256",
  "sp1-curves",
- "sp1-lib 6.5.0",
+ "sp1-lib 6.6.0",
  "sp1-zkvm",
 ]
 
@@ -2558,7 +2530,7 @@ dependencies = [
  "num",
  "p256",
  "sp1-curves",
- "sp1-lib 6.5.0",
+ "sp1-lib 6.6.0",
  "sp1-zkvm",
 ]
 
@@ -2775,14 +2747,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "slab"
-version = "0.4.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a2ae44ef20feb57a68b23d846850f861394c2e02dc425a50098ae8c90267589"
-
-[[package]]
 name = "slop-algebra"
-version = "6.5.0"
+version = "6.6.0"
 dependencies = [
  "itertools 0.14.0",
  "p3-field",
@@ -2791,7 +2757,7 @@ dependencies = [
 
 [[package]]
 name = "slop-bn254"
-version = "6.5.0"
+version = "6.6.0"
 dependencies = [
  "ff",
  "p3-bn254-fr",
@@ -2804,9 +2770,8 @@ dependencies = [
 
 [[package]]
 name = "slop-challenger"
-version = "6.5.0"
+version = "6.6.0"
 dependencies = [
- "futures",
  "p3-challenger",
  "serde",
  "slop-algebra",
@@ -2815,7 +2780,7 @@ dependencies = [
 
 [[package]]
 name = "slop-koala-bear"
-version = "6.5.0"
+version = "6.6.0"
 dependencies = [
  "lazy_static",
  "p3-koala-bear",
@@ -2828,21 +2793,18 @@ dependencies = [
 
 [[package]]
 name = "slop-poseidon2"
-version = "6.5.0"
+version = "6.6.0"
 dependencies = [
  "p3-poseidon2",
 ]
 
 [[package]]
 name = "slop-primitives"
-version = "6.5.0"
-dependencies = [
- "slop-algebra",
-]
+version = "6.6.0"
 
 [[package]]
 name = "slop-symmetric"
-version = "6.5.0"
+version = "6.6.0"
 dependencies = [
  "p3-symmetric",
 ]
@@ -2859,7 +2821,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "6.5.0"
+version = "6.6.0"
 dependencies = [
  "cfg-if",
  "curve25519-dalek 4.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2880,7 +2842,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "6.5.0"
+version = "6.6.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2899,7 +2861,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "6.5.0"
+version = "6.6.0"
 dependencies = [
  "bincode",
  "elliptic-curve",
@@ -2909,7 +2871,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "6.5.0"
+version = "6.6.0"
 dependencies = [
  "bincode",
  "blake3",
@@ -2931,19 +2893,18 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "6.5.0"
+version = "6.6.0"
 dependencies = [
  "cfg-if",
  "critical-section",
  "embedded-alloc",
  "getrandom 0.2.17",
  "getrandom 0.3.4",
- "lazy_static",
  "libm",
  "rand 0.8.5",
  "sha2 0.10.9",
  "slop-algebra",
- "sp1-lib 6.5.0",
+ "sp1-lib 6.6.0",
  "sp1-primitives",
 ]
 
@@ -3192,7 +3153,7 @@ source = "git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.2
 dependencies = [
  "cfg-if",
  "crunchy",
- "sp1-lib 6.5.0",
+ "sp1-lib 6.6.0",
 ]
 
 [[package]]
