@@ -59,26 +59,31 @@ impl SP1LightNode {
         opts: SP1CoreOpts,
     ) -> Self {
         // Initializing the merkle tree is blocking, so we need to spawn in on a blocking task.
-        tokio::task::spawn_blocking(move || {
-            // Get a core prover for the light node to be able to do the setup step
-            let core_verifier = CpuSP1ProverComponents::core_verifier(machine.clone());
-            let core_air_prover =
-                Arc::new(CpuShardProver::new(core_verifier.shard_verifier().clone()));
-            let permits = ProverSemaphore::new(1);
+        tokio::task::spawn_blocking(move || Self::with_opts_and_machine_sync(machine, opts))
+            .await
+            .expect("failed to initialize light node")
+    }
 
-            #[cfg(feature = "mprotect")]
-            let verifier_vks =
-                RecursionVks::new(None, DEFAULT_MAX_COMPOSE_ARITY, false).to_verifier_vks();
-            #[cfg(not(feature = "mprotect"))]
-            let verifier_vks = VerifierRecursionVks::default();
-            let verifier = SP1Verifier::new_with_machine(verifier_vks, machine);
-            // Create a new core node for the light node
-            let core = SP1NodeCore::new(verifier, opts);
+    /// Create a new light node with custom options and a given machine.
+    pub fn with_opts_and_machine_sync(
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+        opts: SP1CoreOpts,
+    ) -> Self {
+        // Get a core prover for the light node to be able to do the setup step
+        let core_verifier = CpuSP1ProverComponents::core_verifier(machine.clone());
+        let core_air_prover = Arc::new(CpuShardProver::new(core_verifier.shard_verifier().clone()));
+        let permits = ProverSemaphore::new(1);
 
-            Self { inner: Arc::new(SP1LightNodeInner { core, core_air_prover, permits }) }
-        })
-        .await
-        .expect("failed to initialize light node")
+        #[cfg(feature = "mprotect")]
+        let verifier_vks =
+            RecursionVks::new(None, DEFAULT_MAX_COMPOSE_ARITY, false).to_verifier_vks();
+        #[cfg(not(feature = "mprotect"))]
+        let verifier_vks = VerifierRecursionVks::default();
+        let verifier = SP1Verifier::new_with_machine(verifier_vks, machine);
+        // Create a new core node for the light node
+        let core = SP1NodeCore::new(verifier, opts);
+
+        Self { inner: Arc::new(SP1LightNodeInner { core, core_air_prover, permits }) }
     }
 
     pub async fn setup(&self, elf: &[u8]) -> anyhow::Result<SP1VerifyingKey> {
