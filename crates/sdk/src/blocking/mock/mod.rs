@@ -46,7 +46,7 @@ impl MockProver {
     #[must_use]
     pub fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         tracing::info!("initializing mock prover");
-        Self { inner: block_on(SP1LightNode::new_with_machine(machine)) }
+        Self { inner: SP1LightNode::with_opts_and_machine_sync(machine, Default::default()) }
     }
 
     /// Create a mock prover from an existing light node.

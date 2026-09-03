@@ -42,7 +42,7 @@ impl LightProver {
     #[must_use]
     pub fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         tracing::info!("initializing light prover");
-        let node = block_on(SP1LightNode::new_with_machine(machine));
+        let node = SP1LightNode::with_opts_and_machine_sync(machine, Default::default());
         Self { inner: node }
     }
 
