@@ -726,6 +726,8 @@ impl NetworkClient {
                     error,
                     is_canceled: false,
                     stdin_private,
+                    error_trace: None,
+                    floor_price_per_pgu: None,
                 }
             }),
         }
