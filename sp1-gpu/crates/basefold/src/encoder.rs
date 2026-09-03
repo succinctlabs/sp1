@@ -9,13 +9,13 @@ use sp1_gpu_utils::Felt;
 use slop_algebra::{AbstractField, Field};
 use slop_tensor::{Tensor, TensorView};
 use sp1_gpu_cudart::{
-    sys::dft::{batch_coset_dft, sppark_init_default_stream},
+    sys::dft::{batch_coset_dft, dft_init_default_stream},
     CudaError, DeviceCopy,
 };
 use sp1_primitives::SP1Field;
 
 pub fn encode_batch<'a>(
-    dft: SpparkDftKoalaBear,
+    dft: CudaDftKoalaBear,
     log_blowup: u32,
     data: TensorView<'a, Felt, TaskScope>,
     dst: &mut Tensor<Felt, TaskScope>,
@@ -32,7 +32,7 @@ pub fn encode_batch<'a>(
     Ok(())
 }
 
-pub trait SpparkCudaDftSys<T: DeviceCopy>: 'static + Send + Sync {
+pub trait CudaDftSys<T: DeviceCopy>: 'static + Send + Sync {
     /// # Safety
     ///
     /// The caller must ensure the validity of pointers, allocation size, and lifetimes.
@@ -51,7 +51,7 @@ pub trait SpparkCudaDftSys<T: DeviceCopy>: 'static + Send + Sync {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SpparkDft<F, T>(pub F, std::marker::PhantomData<T>);
+pub struct CudaDft<F, T>(pub F, std::marker::PhantomData<T>);
 
 #[derive(Clone)]
 pub struct CudaStackedPcsProverData<GC: IopCtx> {
@@ -61,7 +61,7 @@ pub struct CudaStackedPcsProverData<GC: IopCtx> {
     pub codeword_mle: Option<Arc<Tensor<GC::F, TaskScope>>>,
 }
 
-impl<T: Field, F: SpparkCudaDftSys<T>> SpparkDft<F, T> {
+impl<T: Field, F: CudaDftSys<T>> CudaDft<F, T> {
     /// Performs a discrete Fourier transform along the last dimension of the input tensor.
     fn coset_dft_into<'a>(
         &self,
@@ -113,18 +113,18 @@ impl<T: Field, F: SpparkCudaDftSys<T>> SpparkDft<F, T> {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct SpparkB31Kernels;
+pub struct CudaB31Kernels;
 
-pub type SpparkDftKoalaBear = SpparkDft<SpparkB31Kernels, Felt>;
+pub type CudaDftKoalaBear = CudaDft<CudaB31Kernels, Felt>;
 
-impl Default for SpparkB31Kernels {
+impl Default for CudaB31Kernels {
     fn default() -> Self {
-        unsafe { sppark_init_default_stream() };
+        CudaError::result_from_ffi(unsafe { dft_init_default_stream() }).unwrap();
         Self
     }
 }
 
-impl SpparkCudaDftSys<SP1Field> for SpparkB31Kernels {
+impl CudaDftSys<SP1Field> for CudaB31Kernels {
     unsafe fn dft_unchecked(
         &self,
         d_out: *mut SP1Field,
@@ -180,7 +180,7 @@ mod tests {
             let result = run_sync_in_place(|t| {
                 let tensor_raw = DeviceTensor::from_host(&tensor_h_sent, &t).unwrap().into_inner();
                 let tensor = DeviceTensor::from_raw(tensor_raw).transpose().into_inner();
-                let dft = SpparkDftKoalaBear::default();
+                let dft = CudaDftKoalaBear::default();
                 let mut dst =
                     Tensor::<Felt, _>::with_sizes_in([batch_size, d << log_blowup], t.clone());
                 dft.coset_dft_into(
@@ -205,7 +205,7 @@ mod tests {
             for (i, (r, e)) in
                 result.as_slice().iter().zip_eq(expected_result.as_slice()).enumerate()
             {
-                assert_eq!(r, e, "Mismatch at index {i}");
+                assert_eq!(r, e, "Mismatch for log degree {log_d} at index {i}");
             }
         }
     }

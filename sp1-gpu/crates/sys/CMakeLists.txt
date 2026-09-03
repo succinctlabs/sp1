@@ -4,6 +4,17 @@ project(sp1-gpu-cuda LANGUAGES CXX CUDA)
 # Require CUDA 12.0+
 find_package(CUDAToolkit 12.0 REQUIRED)
 
+if(NVIDIA_NTT)
+    if(CUDAToolkit_VERSION VERSION_LESS 12.8)
+        message(FATAL_ERROR "nvidia-ntt requires CUDA 12.8 or newer")
+    endif()
+    add_library(cupqc_ntt STATIC IMPORTED)
+    set_target_properties(cupqc_ntt PROPERTIES
+        IMPORTED_LOCATION "${CUPQC_SDK_DIR}/lib/libcupqc-ntt.a"
+        INTERFACE_INCLUDE_DIRECTORIES "${CUPQC_SDK_DIR}/include;${CUPQC_SDK_DIR}/include/cupqc"
+    )
+endif()
+
 # Get CUDA version for architecture selection
 set(CUDA_VERSION_MAJOR ${CUDAToolkit_VERSION_MAJOR})
 set(CUDA_VERSION_MINOR ${CUDAToolkit_VERSION_MINOR})

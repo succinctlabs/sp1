@@ -60,5 +60,9 @@ criterion = "0.5"
 name = "commit"
 harness = false
 
+[features]
+default = []
+nvidia-ntt = ["sp1-gpu-basefold/nvidia-ntt"]
+
 [lints]
 workspace = true

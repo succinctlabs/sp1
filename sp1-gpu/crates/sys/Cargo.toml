@@ -20,3 +20,7 @@ sp1-recursion-machine = { workspace = true }
 cmake = { version = "0.1" }
 cbindgen = { workspace = true }
 pathdiff = { workspace = true }
+
+[features]
+default = []
+nvidia-ntt = []

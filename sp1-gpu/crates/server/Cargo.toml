@@ -33,6 +33,7 @@ tikv-jemallocator = { version = "0.6", features = ["profiling", "stats"] }
 workspace = true
 
 [features]
+nvidia-ntt = ["sp1-gpu-prover/nvidia-ntt"]
 experimental = ["sp1-prover/experimental", "sp1-gpu-prover/experimental"]
 mprotect = [
   "experimental",

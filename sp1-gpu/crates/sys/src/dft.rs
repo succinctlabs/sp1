@@ -4,8 +4,8 @@ use crate::runtime::{CudaRustError, CudaStreamHandle, DEFAULT_STREAM};
 
 /// # Safety
 ///
-/// External call to sppark DFT kernels.
-pub unsafe fn sppark_init_default_stream() -> CudaRustError {
+/// Initializes the selected GPU DFT backend.
+pub unsafe fn dft_init_default_stream() -> CudaRustError {
     sppark_init(DEFAULT_STREAM)
 }
 
@@ -63,7 +63,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_sppark_init() {
-        unsafe { sppark_init_default_stream() };
+    fn test_dft_init() {
+        unsafe { dft_init_default_stream() };
     }
 }
