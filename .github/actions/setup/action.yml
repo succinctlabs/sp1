@@ -31,10 +31,10 @@ runs:
         git config --global url."https://${{ inputs.pull_token }}@github.com/".insteadOf ssh://git@github.com
         git config --global url."https://${{ inputs.pull_token }}@github.com".insteadOf https://github.com
 
-    - name: Install Go 1.22
+    - name: Install Go
       uses: actions/setup-go@v5
       with:
-        go-version: "1.22"
+        go-version-file: "crates/recursion/gnark-ffi/go/go.mod"
         cache-dependency-path: "**/go.sum"
 
     - name: Print go version
