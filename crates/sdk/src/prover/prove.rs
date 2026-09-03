@@ -5,7 +5,7 @@ use sp1_core_executor::SP1ContextBuilder;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::SP1VerifyingKey;
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 /// A proving key for the SP1 prover.
 ///
 /// Contains only the minimal information required to implement the `ProvingKey` trait.
