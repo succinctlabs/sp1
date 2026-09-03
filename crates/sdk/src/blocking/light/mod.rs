@@ -4,6 +4,7 @@
 
 pub mod builder;
 
+use sp1_core_executor::SP1CoreOpts;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::Machine;
@@ -42,7 +43,7 @@ impl LightProver {
     #[must_use]
     pub fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         tracing::info!("initializing light prover");
-        let node = SP1LightNode::with_opts_and_machine_sync(machine, Default::default());
+        let node = SP1LightNode::with_opts_and_machine_sync(machine, SP1CoreOpts::default());
         Self { inner: node }
     }
 
