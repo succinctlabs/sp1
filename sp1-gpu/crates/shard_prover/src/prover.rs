@@ -10,7 +10,9 @@ use slop_jagged::{
 };
 use slop_multilinear::{MleEval, MultilinearPcsVerifier, Point};
 use sp1_gpu_air::ir::{ChunkBudget, DagBuilder};
-use sp1_gpu_basefold::{CudaStackedPcsProverData, DeviceGrindingChallenger, FriCudaProver};
+use sp1_gpu_basefold::{
+    CudaB31Kernels, CudaStackedPcsProverData, DeviceGrindingChallenger, FriCudaProver,
+};
 use sp1_gpu_challenger::FromHostChallengerSync;
 use sp1_gpu_cudart::PinnedBuffer;
 use sp1_gpu_cudart::{DeviceMle, DevicePoint, TaskScope};
@@ -75,6 +77,10 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>> CudaShar
         recompute_first_layer: bool,
         drop_ldes: bool,
     ) -> Self {
+        let max_ntt_log_size =
+            basefold_prover.log_height + basefold_prover.config.log_blowup() as u32;
+        CudaB31Kernels::initialize_twiddles(max_ntt_log_size, &backend).unwrap();
+
         // Compile + upload the whole machine's zerocheck bytecode once.
         // It's machine-stable, so every shard reuses this single upload.
         let machine_bytecode = {

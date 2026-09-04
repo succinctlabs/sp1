@@ -28,8 +28,8 @@ use sp1_gpu_merkle_tree::{CudaTcsProver, MerkleTreeProverData, SingleLayerMerkle
 use sp1_gpu_utils::{Ext, Felt, JaggedTraceMle, TraceDenseData};
 
 use crate::{
-    encode_batch, CudaStackedPcsProverData, DeviceGrindingChallenger, GrindingPowCudaProver,
-    SpparkDftKoalaBear,
+    encode_batch, CudaDftKoalaBear, CudaStackedPcsProverData, DeviceGrindingChallenger,
+    GrindingPowCudaProver,
 };
 
 /// # Safety
@@ -85,7 +85,7 @@ where
         (<GC as IopCtx>::Digest, CudaStackedPcsProverData<GC>),
         SingleLayerMerkleTreeProverError,
     > {
-        let encoder = SpparkDftKoalaBear::default();
+        let encoder = CudaDftKoalaBear::default();
         let scope = jagged_trace_mle.dense().dense.backend().clone();
 
         let virtual_tensor = if use_preprocessed {
@@ -177,7 +177,7 @@ where
                 .launch_kernel(TaskScope::flatten_to_base_kernel(), grid_dim, block_dim, &args, 0)
                 .unwrap();
         }
-        let encoder = SpparkDftKoalaBear::default();
+        let encoder = CudaDftKoalaBear::default();
         encode_batch(
             encoder,
             self.config.log_blowup as u32,
@@ -295,7 +295,7 @@ where
                 .launch_kernel(TaskScope::flatten_to_base_kernel(), grid_dim, block_dim, &args, 0)
                 .unwrap();
         }
-        let encoder = SpparkDftKoalaBear::default();
+        let encoder = CudaDftKoalaBear::default();
         encode_batch(
             encoder,
             self.config.log_blowup as u32,
@@ -346,7 +346,7 @@ where
                     dst.assume_init();
                 }
 
-                let encoder = SpparkDftKoalaBear::default();
+                let encoder = CudaDftKoalaBear::default();
                 encode_batch(
                     encoder,
                     self.config.log_blowup as u32,

@@ -140,6 +140,7 @@ fn main() {
     println!("cargo:rerun-if-env-changed=OPT_LEVEL");
     println!("cargo:rerun-if-env-changed=DEBUG");
     println!("cargo:rerun-if-env-changed=CUDA_ARCHS");
+    println!("cargo:rerun-if-env-changed=CUPQC_SDK_DIR");
     println!("cargo:rerun-if-env-changed=PROFILE_DEBUG_DATA");
 
     // The crate directory.
@@ -189,6 +190,20 @@ fn main() {
     // Build using CMake
     let mut cmake_config = cmake::Config::new(".");
 
+    let cupqc_sdk_dir = env::var_os("CARGO_FEATURE_NVIDIA_NTT").map(|_| {
+        let sdk_dir = env::var_os("CUPQC_SDK_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("/usr/local/cupqc-sdk"));
+        let ntt_library = sdk_dir.join("lib/libcupqc-ntt.a");
+        assert!(
+            ntt_library.is_file(),
+            "nvidia-ntt requires cuPQC; set CUPQC_SDK_DIR to the extracted SDK"
+        );
+        cmake_config.define("NVIDIA_NTT", "ON");
+        cmake_config.define("CUPQC_SDK_DIR", &sdk_dir);
+        sdk_dir
+    });
+
     // Export compile commands for clangd IDE support
     cmake_config.define("CMAKE_EXPORT_COMPILE_COMMANDS", "ON");
 
@@ -229,6 +244,11 @@ fn main() {
     // Link the library
     println!("cargo:rustc-link-search=native={}/lib", dst.display());
     println!("cargo:rustc-link-lib=static=sys-cuda");
+    if let Some(sdk_dir) = cupqc_sdk_dir {
+        println!("cargo:rustc-link-lib=static:+whole-archive=nvidia-ntt");
+        println!("cargo:rustc-link-search=native={}/lib", sdk_dir.display());
+        println!("cargo:rustc-link-lib=static=cupqc-ntt");
+    }
 
     // Add CUDA library search paths. Track the env var so switching
     // `CUDA_PATH` re-emits the link-search lines — otherwise a stale cached
