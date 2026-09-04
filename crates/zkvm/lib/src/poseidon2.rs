@@ -93,10 +93,9 @@ impl Poseidon2ByteHash {
         state.absorb_byte_block(&len_block);
 
         // Absorb full blocks.
-        let chunks = input.chunks_exact(BYTE_BLOCK_SIZE);
-        let remainder = chunks.remainder();
+        let (chunks, remainder) = input.as_chunks::<BYTE_BLOCK_SIZE>();
         for chunk in chunks {
-            state.absorb_byte_block(chunk.try_into().unwrap());
+            state.absorb_byte_block(chunk);
         }
 
         // Absorb the final partial block (zero-padded).

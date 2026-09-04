@@ -17,7 +17,10 @@ use serde::{de::DeserializeOwned, Serialize};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{HashableKey, SP1VerifyingKey};
 use tokio::sync::OnceCell;
-use tonic::{transport::Channel, Code};
+use tonic::{
+    transport::{Channel, Identity},
+    Code,
+};
 
 use super::{
     grpc,
@@ -105,6 +108,7 @@ pub struct NetworkClient {
     pub(crate) http: HttpClientWithMiddleware,
     pub(crate) rpc_url: String,
     pub(crate) network_mode: NetworkMode,
+    pub(crate) client_identity: Option<Identity>,
     /// Lazily-established gRPC channel, shared across clones and reused across calls.
     pub(crate) channel: Arc<OnceCell<Channel>>,
 }
@@ -154,6 +158,7 @@ impl NetworkClient {
             http: client.into(),
             rpc_url: rpc_url.into(),
             network_mode,
+            client_identity: None,
             channel: Arc::new(OnceCell::new()),
         }
     }
@@ -721,6 +726,8 @@ impl NetworkClient {
                     error,
                     is_canceled: false,
                     stdin_private,
+                    error_trace: None,
+                    floor_price_per_pgu: None,
                 }
             }),
         }
@@ -902,7 +909,8 @@ impl NetworkClient {
         self.channel
             .get_or_try_init(|| async {
                 tracing::debug!(rpc_url = %self.rpc_url, "establishing gRPC channel");
-                Ok(grpc::configure_endpoint(&self.rpc_url)?.connect_lazy())
+                Ok(grpc::configure_endpoint(&self.rpc_url, self.client_identity.clone())?
+                    .connect_lazy())
             })
             .await
             .cloned()
