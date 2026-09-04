@@ -9,7 +9,7 @@ use sp1_gpu_utils::Felt;
 use slop_algebra::{AbstractField, Field};
 use slop_tensor::{Tensor, TensorView};
 use sp1_gpu_cudart::{
-    sys::dft::{batch_coset_dft, dft_init_default_stream},
+    sys::dft::{batch_coset_dft, dft_init_default_stream, dft_init_twiddles},
     CudaError, DeviceCopy,
 };
 use sp1_primitives::SP1Field;
@@ -116,6 +116,12 @@ impl<T: Field, F: CudaDftSys<T>> CudaDft<F, T> {
 pub struct CudaB31Kernels;
 
 pub type CudaDftKoalaBear = CudaDft<CudaB31Kernels, Felt>;
+
+impl CudaB31Kernels {
+    pub fn initialize_twiddles(max_log_size: u32, backend: &TaskScope) -> Result<(), CudaError> {
+        CudaError::result_from_ffi(unsafe { dft_init_twiddles(max_log_size, backend.handle()) })
+    }
+}
 
 impl Default for CudaB31Kernels {
     fn default() -> Self {

@@ -191,6 +191,9 @@ cudaError_t launch_standard(
     if (error != cudaSuccess) {
         return error;
     }
+    if (polynomial_count == 0) {
+        return cudaSuccess;
+    }
 
     constexpr size_t shared_memory = cupqc::ntt_shared_workspace_size<N, uint32_t>();
     const uint32_t n_inv = cupqc::n_inv<N>(PRIME);
@@ -240,6 +243,9 @@ inline cudaError_t launch_size_512(
     const uint32_t stride,
     const bool inverse,
     const cudaStream_t stream) {
+    if (polynomial_count == 0) {
+        return launch_standard<1024>(nullptr, 0, 0, inverse, stream);
+    }
     uint32_t* workspace = nullptr;
     cudaError_t error = cudaMallocAsync(
         reinterpret_cast<void**>(&workspace), polynomial_count * 1024 * sizeof(uint32_t), stream);
@@ -277,6 +283,9 @@ cudaError_t launch_staged(
         forward_twiddles, inverse_twiddles, stream);
     if (error != cudaSuccess) {
         return error;
+    }
+    if (polynomial_count == 0) {
+        return cudaSuccess;
     }
 
     const uint32_t n_inv = cupqc::n_inv<N>(PRIME);
@@ -334,10 +343,13 @@ inline cudaError_t batch_ntt(
     const uint32_t stride,
     const bool inverse,
     const cudaStream_t stream) {
-    if (polynomial_count == 0 || log_size == 0) {
+    if (log_size == 0) {
         return cudaSuccess;
     }
     if (log_size == 1) {
+        if (polynomial_count == 0) {
+            return cudaSuccess;
+        }
         size_two_ntt<<<polynomial_count, 1, 0, stream>>>(data, stride, inverse);
         return cudaGetLastError();
     }
@@ -375,7 +387,7 @@ inline cudaError_t batch_ntt(
         STAGED_CASE(20, 1024);
         STAGED_CASE(21, 2048);
         STAGED_CASE(22, 2048);
-        STAGED_CASE(23, 4096);
+        STAGED_CASE(23, 1024);
         STAGED_CASE(24, 4096);
         default:
             return cudaErrorInvalidValue;

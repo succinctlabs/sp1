@@ -88,10 +88,6 @@ if(DEFINED CBINDGEN_INCLUDE_DIR)
     target_include_directories(sp1_gpu_common INTERFACE ${CBINDGEN_INCLUDE_DIR})
 endif()
 
-# Output directories - use the project root's target directory
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CSL_SOURCE_DIR}/target/cuda-build/lib)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CSL_SOURCE_DIR}/target/cuda-build/lib)
-
 # Add subdirectories for each module
 add_subdirectory(lib/algebra)
 add_subdirectory(lib/basefold)

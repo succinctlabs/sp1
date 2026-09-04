@@ -263,6 +263,7 @@ public:
                            fr_t* ext_domain_data, fr_t* domain_data,
                            const fr_t (*gen_powers)[WINDOW_SIZE],
                            uint32_t lg_domain_size, uint32_t lg_blowup,
+                           bool bit_reversed_input,
                            bool perform_shift = true, fr_t shift = fr_t{1} ,bool ext_pow = false)
     {
         assert(lg_domain_size + lg_blowup <= MAX_LG_DOMAIN_SIZE);
@@ -311,6 +312,7 @@ public:
             &gen_powers,
             &lg_domain_size, 
             &lg_blowup, 
+            &bit_reversed_input,
             &perform_shift, 
             &shift, 
             &ext_pow
@@ -362,7 +364,7 @@ public:
             }
 
             LDE_launch(stream, ext_domain_data, domain_data, gen_powers,
-                       lg_domain_size, lg_blowup);
+                       lg_domain_size, lg_blowup, true);
 
             // NTT - RN
             NTT_internal(ext_domain_data, lg_domain_size + lg_blowup,
@@ -410,7 +412,7 @@ public:
     static void LDE_expand(const cudaStream_t stream, fr_t* d_out, fr_t* d_in,
                            uint32_t lg_domain_size, uint32_t lg_blowup)
     {
-        LDE_launch(stream, d_out, d_in, NULL, lg_domain_size, lg_blowup, false);
+        LDE_launch(stream, d_out, d_in, NULL, lg_domain_size, lg_blowup, true, false);
     }
 };
 #endif
