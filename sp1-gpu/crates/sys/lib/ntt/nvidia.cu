@@ -34,6 +34,7 @@ cudaError_t nvidia_ntt_batch_coset(
     uint32_t polynomial_count,
     const fr_t* gen_powers,
     fr_t shift,
+    bool perform_shift,
     cudaStream_t stream) {
     return nvidia_ntt::batch_coset_ntt(
         data,
@@ -43,5 +44,6 @@ cudaError_t nvidia_ntt_batch_coset(
         polynomial_count,
         gen_powers,
         shift,
+        perform_shift,
         stream);
 }

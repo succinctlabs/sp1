@@ -183,6 +183,7 @@ __global__ void staged_ntt_first_coset(
     const uint32_t input_size,
     const fr_t* gen_powers,
     const fr_t shift,
+    const bool perform_shift,
     const uint32_t* twiddles) {
     output += blockIdx.y * N;
     input += blockIdx.y * input_size;
@@ -195,7 +196,9 @@ __global__ void staged_ntt_first_coset(
         fr_t value = fr_t::zero();
         if (index < input_size) {
             value = input[index];
-            value = value * lde_root(index, gen_powers) * (shift^index);
+            if (perform_shift) {
+                value = value * lde_root(index, gen_powers) * (shift^index);
+            }
         }
         shared[offset] = value.val;
     }
@@ -383,6 +386,7 @@ cudaError_t launch_staged_coset(
     const uint32_t input_size,
     const fr_t* gen_powers,
     const fr_t shift,
+    const bool perform_shift,
     const cudaStream_t stream) {
     using ForwardNtt = StagedNtt<N, M, cupqc::nttDirection::FORWARD>;
     using InverseNtt = StagedNtt<N, M, cupqc::nttDirection::INVERSE>;
@@ -400,7 +404,8 @@ cudaError_t launch_staged_coset(
         cupqc::fwd_stage_2_ntt_shared_workspace_size<N, M, uint32_t>();
     staged_ntt_first_coset<N, M, ForwardNtt>
         <<<dim3(M, polynomial_count), BLOCK_SIZE, first_shared, stream>>>(
-            output, input, input_size, gen_powers, shift, forward_twiddles);
+            output, input, input_size, gen_powers, shift, perform_shift,
+            forward_twiddles);
     error = cudaGetLastError();
     if (error == cudaSuccess) {
         staged_ntt_second<N, M, ForwardNtt, false>
@@ -492,6 +497,7 @@ inline cudaError_t batch_coset_ntt(
     const uint32_t polynomial_count,
     const fr_t* gen_powers,
     const fr_t shift,
+    const bool perform_shift,
     const cudaStream_t stream) {
     const uint32_t stride = 1U << log_size;
     const uint32_t input_size = stride >> log_blowup;
@@ -499,7 +505,7 @@ inline cudaError_t batch_coset_ntt(
     case LOG:                                                                                 \
         return launch_staged_coset<(1U << LOG), SUB_SIZE>(                                    \
             reinterpret_cast<uint32_t*>(data), polynomial_count, input, input_size,            \
-            gen_powers, shift, stream)
+            gen_powers, shift, perform_shift, stream)
     switch (log_size) {
         STAGED_COSET_CASE(14, 256);
         STAGED_COSET_CASE(15, 256);

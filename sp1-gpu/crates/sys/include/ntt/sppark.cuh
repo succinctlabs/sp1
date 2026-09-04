@@ -37,6 +37,7 @@ cudaError_t nvidia_ntt_batch_coset(
     uint32_t polynomial_count,
     const fr_t* gen_powers,
     fr_t shift,
+    bool perform_shift,
     cudaStream_t stream);
 #endif
 
@@ -179,6 +180,7 @@ extern "C" rustCudaError_t batch_coset_dft(
 
     try {
         const auto gen_powers = NTTParameters::all()[NTT::gpu_id()].partial_group_gen_powers;
+        const bool perform_shift = shift != group_gen_inverse;
 #ifdef NVIDIA_NTT
         const uint32_t lg_ext_domain_size = lg_domain_size + lg_blowup;
         if (lg_ext_domain_size >= 14) {
@@ -190,6 +192,7 @@ extern "C" rustCudaError_t batch_coset_dft(
                 poly_count,
                 &gen_powers[0][0],
                 shift,
+                perform_shift,
                 stream));
             if (!bit_rev_output) {
                 for (uint32_t polynomial = 0; polynomial < poly_count; ++polynomial) {
@@ -222,7 +225,7 @@ extern "C" rustCudaError_t batch_coset_dft(
                 lg_domain_size,
                 lg_blowup,
                 LDE_INPUT_BIT_REVERSED,
-                true,
+                perform_shift,
                 shift);
 
         }
@@ -259,6 +262,7 @@ extern "C" rustCudaError_t batch_coset_dft_in_place(
 
     try {
         const auto gen_powers = NTTParameters::all()[NTT::gpu_id()].partial_group_gen_powers;
+        const bool perform_shift = shift != group_gen_inverse;
         for (size_t c = 0; c < poly_count; c++) {
             fr_t* domain_data = &d_inout[(c + 1) * ext_domain_size - domain_size];
             if constexpr (LDE_INPUT_BIT_REVERSED) {
@@ -273,7 +277,7 @@ extern "C" rustCudaError_t batch_coset_dft_in_place(
                 lg_domain_size,
                 lg_blowup,
                 LDE_INPUT_BIT_REVERSED,
-                true,
+                perform_shift,
                 shift);
 
         }
@@ -310,6 +314,7 @@ extern "C" rustCudaError_t batch_lde_shift_in_place(
 
     try {
         const auto gen_powers = NTTParameters::all()[NTT::gpu_id()].partial_group_gen_powers;
+        const bool perform_shift = shift != group_gen_inverse;
         CUDA_OK(run_ntt_batch(
             &d_inout[ext_domain_size - domain_size],
             lg_domain_size,
@@ -328,7 +333,7 @@ extern "C" rustCudaError_t batch_lde_shift_in_place(
                 lg_domain_size,
                 lg_blowup,
                 LDE_INPUT_BIT_REVERSED,
-                true,
+                perform_shift,
                 shift);
 
         }
