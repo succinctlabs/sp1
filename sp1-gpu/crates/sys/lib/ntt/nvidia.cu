@@ -25,3 +25,23 @@ cudaError_t nvidia_ntt_batch(
     return nvidia_ntt::batch_ntt(
         data, log_size, polynomial_count, stride, inverse, stream);
 }
+
+cudaError_t nvidia_ntt_batch_coset(
+    fr_t* data,
+    const fr_t* input,
+    uint32_t log_size,
+    uint32_t log_blowup,
+    uint32_t polynomial_count,
+    const fr_t* gen_powers,
+    fr_t shift,
+    cudaStream_t stream) {
+    return nvidia_ntt::batch_coset_ntt(
+        data,
+        input,
+        log_size,
+        log_blowup,
+        polynomial_count,
+        gen_powers,
+        shift,
+        stream);
+}

@@ -155,6 +155,58 @@ __global__ void staged_ntt_first(
     ntt.stage_1_store(shared, data, blockIdx.x);
 }
 
+__device__ __forceinline__ fr_t lde_root(uint32_t power, const fr_t* roots) {
+    if (power == 0) {
+        return fr_t::one();
+    }
+
+    constexpr uint32_t window_bits = 5;
+    constexpr uint32_t window_size = 1U << window_bits;
+    uint32_t window = 0;
+    while ((power & (window_size - 1)) == 0) {
+        power >>= window_bits;
+        ++window;
+    }
+
+    fr_t root = roots[window * window_size + (power & (window_size - 1))];
+    while (power >>= window_bits) {
+        ++window;
+        root *= roots[window * window_size + (power & (window_size - 1))];
+    }
+    return root;
+}
+
+template <uint32_t N, uint32_t M, class Ntt>
+__global__ void staged_ntt_first_coset(
+    uint32_t* output,
+    const fr_t* input,
+    const uint32_t input_size,
+    const fr_t* gen_powers,
+    const fr_t shift,
+    const uint32_t* twiddles) {
+    output += blockIdx.y * N;
+    input += blockIdx.y * input_size;
+    extern __shared__ uint32_t shared[];
+    constexpr uint32_t chunk_size = N / M;
+
+    // cuPQC uses this strided input layout for forward stage one.
+    for (uint32_t offset = threadIdx.x; offset < chunk_size; offset += blockDim.x) {
+        const uint32_t index = blockIdx.x + M * offset;
+        fr_t value = fr_t::zero();
+        if (index < input_size) {
+            value = input[index];
+            value = value * lde_root(index, gen_powers) * (shift^index);
+        }
+        shared[offset] = value.val;
+    }
+
+    __syncthreads();
+    Ntt ntt;
+    ntt.stage_1_execute(shared, twiddles, PRIME);
+    __syncthreads();
+    ntt.stage_1_store(shared, output, blockIdx.x);
+}
+
 template <uint32_t N, uint32_t M, class Ntt, bool INVERSE>
 __global__ void staged_ntt_second(
     uint32_t* data,
@@ -323,6 +375,42 @@ cudaError_t launch_staged(
     return error;
 }
 
+template <uint32_t N, uint32_t M>
+cudaError_t launch_staged_coset(
+    uint32_t* output,
+    const uint32_t polynomial_count,
+    const fr_t* input,
+    const uint32_t input_size,
+    const fr_t* gen_powers,
+    const fr_t shift,
+    const cudaStream_t stream) {
+    using ForwardNtt = StagedNtt<N, M, cupqc::nttDirection::FORWARD>;
+    using InverseNtt = StagedNtt<N, M, cupqc::nttDirection::INVERSE>;
+    uint32_t* forward_twiddles;
+    uint32_t* inverse_twiddles;
+    cudaError_t error = get_twiddles<N, ForwardNtt, InverseNtt>(
+        forward_twiddles, inverse_twiddles, stream);
+    if (error != cudaSuccess || polynomial_count == 0) {
+        return error;
+    }
+
+    constexpr size_t first_shared =
+        cupqc::fwd_stage_1_ntt_shared_workspace_size<N, M, uint32_t>();
+    constexpr size_t second_shared =
+        cupqc::fwd_stage_2_ntt_shared_workspace_size<N, M, uint32_t>();
+    staged_ntt_first_coset<N, M, ForwardNtt>
+        <<<dim3(M, polynomial_count), BLOCK_SIZE, first_shared, stream>>>(
+            output, input, input_size, gen_powers, shift, forward_twiddles);
+    error = cudaGetLastError();
+    if (error == cudaSuccess) {
+        staged_ntt_second<N, M, ForwardNtt, false>
+            <<<dim3(N / M, polynomial_count), BLOCK_SIZE, second_shared, stream>>>(
+                output, N, forward_twiddles, cupqc::n_inv<N>(PRIME));
+        error = cudaGetLastError();
+    }
+    return error;
+}
+
 __global__ void size_two_ntt(fr_t* data, const uint32_t stride, const bool inverse) {
     fr_t* polynomial = data + blockIdx.x * stride;
     const fr_t first = polynomial[0];
@@ -394,6 +482,40 @@ inline cudaError_t batch_ntt(
     }
 #undef STAGED_CASE
 #undef STANDARD_CASE
+}
+
+inline cudaError_t batch_coset_ntt(
+    fr_t* data,
+    const fr_t* input,
+    const uint32_t log_size,
+    const uint32_t log_blowup,
+    const uint32_t polynomial_count,
+    const fr_t* gen_powers,
+    const fr_t shift,
+    const cudaStream_t stream) {
+    const uint32_t stride = 1U << log_size;
+    const uint32_t input_size = stride >> log_blowup;
+#define STAGED_COSET_CASE(LOG, SUB_SIZE)                                                       \
+    case LOG:                                                                                 \
+        return launch_staged_coset<(1U << LOG), SUB_SIZE>(                                    \
+            reinterpret_cast<uint32_t*>(data), polynomial_count, input, input_size,            \
+            gen_powers, shift, stream)
+    switch (log_size) {
+        STAGED_COSET_CASE(14, 256);
+        STAGED_COSET_CASE(15, 256);
+        STAGED_COSET_CASE(16, 256);
+        STAGED_COSET_CASE(17, 512);
+        STAGED_COSET_CASE(18, 512);
+        STAGED_COSET_CASE(19, 1024);
+        STAGED_COSET_CASE(20, 1024);
+        STAGED_COSET_CASE(21, 2048);
+        STAGED_COSET_CASE(22, 2048);
+        STAGED_COSET_CASE(23, 1024);
+        STAGED_COSET_CASE(24, 4096);
+        default:
+            return cudaErrorInvalidValue;
+    }
+#undef STAGED_COSET_CASE
 }
 
 }  // namespace nvidia_ntt

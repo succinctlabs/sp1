@@ -287,6 +287,19 @@ public:
             num_blocks = domain_size / 1024;
             block_size = 1024;
         }
+
+        if (!bit_reversed_input) {
+            LDE_copy_distribute_powers<<<num_blocks, block_size, 0, stream>>>(
+                ext_domain_data, domain_data, gen_powers, domain_size,
+                perform_shift, shift);
+            CUDA_UNWRAP_SPPARK(cudaGetLastError());
+
+            size_t ext_domain_size = domain_size << lg_blowup;
+            CUDA_UNWRAP_SPPARK(cudaMemsetAsync(
+                ext_domain_data + domain_size, 0,
+                (ext_domain_size - domain_size) * sizeof(fr_t), stream));
+            return;
+        }
       
 
         // launch coop
@@ -312,7 +325,6 @@ public:
             &gen_powers,
             &lg_domain_size, 
             &lg_blowup, 
-            &bit_reversed_input,
             &perform_shift, 
             &shift, 
             &ext_pow

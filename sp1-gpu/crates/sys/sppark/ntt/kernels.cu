@@ -171,10 +171,28 @@ void LDE_distribute_powers(fr_t* d_inout, uint32_t lg_domain_size,
 }
 
 __launch_bounds__(1024) __global__
+void LDE_copy_distribute_powers(fr_t* out, const fr_t* in,
+                                const fr_t (*gen_powers)[WINDOW_SIZE],
+                                size_t domain_size, bool perform_shift,
+                                fr_t shift)
+{
+    index_t idx = threadIdx.x + blockDim.x * (index_t)blockIdx.x;
+    const uint32_t stride = gridDim.x * blockDim.x;
+
+    for (; idx < domain_size; idx += stride) {
+        fr_t r = in[idx];
+        if (perform_shift) {
+            fr_t weight = get_intermediate_root(idx, gen_powers);
+            r = r * weight * (shift^idx);
+        }
+        out[idx] = r;
+    }
+}
+
+__launch_bounds__(1024) __global__
 void LDE_spread_distribute_powers(fr_t* out, fr_t* in,
                                   const fr_t (*gen_powers)[WINDOW_SIZE],
                                   uint32_t lg_domain_size, uint32_t lg_blowup,
-                                  bool bit_reversed_input,
                                   bool perform_shift = true,
                                   fr_t shift = fr_t {1},
                                   bool ext_pow = false)
@@ -195,28 +213,6 @@ void LDE_spread_distribute_powers(fr_t* out, fr_t* in,
     {
         overlapping_data = true;
         assert(&out[domain_size * (blowup - 1)] == &in[0]);
-    }
-
-    if (!bit_reversed_input) {
-        index_t idx = threadIdx.x + blockDim.x * (index_t)blockIdx.x;
-        for (; idx < domain_size; idx += stride) {
-            fr_t r = in[idx];
-            if (perform_shift) {
-                fr_t weight = get_intermediate_root(idx, gen_powers);
-                r = r * weight * (shift^idx);
-            }
-            out[idx] = r;
-        }
-
-        if (overlapping_data)
-            cooperative_groups::this_grid().sync();
-
-        fr_t zero;
-        zero.set_to_zero();
-        idx = domain_size + threadIdx.x + blockDim.x * (index_t)blockIdx.x;
-        for (; idx < domain_size * blowup; idx += stride)
-            out[idx] = zero;
-        return;
     }
 
     index_t idx0 = blockDim.x * blockIdx.x;

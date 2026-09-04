@@ -29,6 +29,15 @@ cudaError_t nvidia_ntt_batch(
     uint32_t stride,
     bool inverse,
     cudaStream_t stream);
+cudaError_t nvidia_ntt_batch_coset(
+    fr_t* data,
+    const fr_t* input,
+    uint32_t log_size,
+    uint32_t log_blowup,
+    uint32_t polynomial_count,
+    const fr_t* gen_powers,
+    fr_t shift,
+    cudaStream_t stream);
 #endif
 
 #include "runtime/exception.cuh"
@@ -170,6 +179,30 @@ extern "C" rustCudaError_t batch_coset_dft(
 
     try {
         const auto gen_powers = NTTParameters::all()[NTT::gpu_id()].partial_group_gen_powers;
+#ifdef NVIDIA_NTT
+        const uint32_t lg_ext_domain_size = lg_domain_size + lg_blowup;
+        if (lg_ext_domain_size >= 14) {
+            CUDA_OK(nvidia_ntt_batch_coset(
+                d_out,
+                d_in,
+                lg_ext_domain_size,
+                lg_blowup,
+                poly_count,
+                &gen_powers[0][0],
+                shift,
+                stream));
+            if (!bit_rev_output) {
+                for (uint32_t polynomial = 0; polynomial < poly_count; ++polynomial) {
+                    NTT::bit_rev(
+                        d_out + polynomial * ext_domain_size,
+                        d_out + polynomial * ext_domain_size,
+                        lg_ext_domain_size,
+                        stream);
+                }
+            }
+            return CUDA_SUCCESS_CSL;
+        }
+#endif
         for (size_t c = 0; c < poly_count; c++) {
             fr_t* domain_data = &d_in[c * domain_size];
             if constexpr (LDE_INPUT_BIT_REVERSED) {
