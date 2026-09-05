@@ -9,7 +9,7 @@ use sp1_primitives::SP1Field;
 use tonic::transport::Identity;
 
 use super::NetworkProver;
-use crate::network::{signer::NetworkSigner, NetworkMode, TEE_NETWORK_RPC_URL};
+use crate::network::{signer::NetworkSigner, NetworkBearerToken, NetworkMode, TEE_NETWORK_RPC_URL};
 
 /// A builder for the blocking [`NetworkProver`].
 ///
@@ -21,6 +21,7 @@ pub struct NetworkProverBuilder {
     pub(crate) signer: Option<NetworkSigner>,
     pub(crate) network_mode: Option<NetworkMode>,
     pub(crate) client_identity: Option<Identity>,
+    pub(crate) bearer_token: Option<NetworkBearerToken>,
     pub(crate) hosted: bool,
     pub(crate) machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 }
@@ -48,6 +49,7 @@ impl NetworkProverBuilder {
             signer: None,
             network_mode: None,
             client_identity: None,
+            bearer_token: None,
             hosted: false,
             machine,
         }
@@ -158,6 +160,13 @@ impl NetworkProverBuilder {
         self
     }
 
+    /// Sets the bearer token added to Prover Network and Artifact Store requests.
+    #[must_use]
+    pub fn bearer_token(mut self, bearer_token: NetworkBearerToken) -> Self {
+        self.bearer_token = Some(bearer_token);
+        self
+    }
+
     /// Builds a blocking [`NetworkProver`].
     ///
     /// # Details
@@ -181,6 +190,7 @@ impl NetworkProverBuilder {
             signer: self.signer,
             network_mode: self.network_mode,
             client_identity: self.client_identity,
+            bearer_token: self.bearer_token,
             hosted: self.hosted,
             machine: self.machine,
         };
