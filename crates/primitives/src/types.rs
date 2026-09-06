@@ -74,7 +74,19 @@ pub enum Elf {
     Dynamic(Arc<[u8]>),
 }
 
-// todo!(n): implement serde for the ELF type.
+impl Serialize for Elf {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let bytes: &[u8] = self.as_ref();
+        bytes.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for Elf {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let bytes = Vec::<u8>::deserialize(deserializer)?;
+        Ok(Self::Dynamic(bytes.into()))
+    }
+}
 
 impl From<Arc<[u8]>> for Elf {
     fn from(elf: Arc<[u8]>) -> Self {
@@ -102,5 +114,28 @@ impl core::ops::Deref for Elf {
             Self::Static(elf) => elf,
             Self::Dynamic(elf) => elf.as_ref(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn elf_serde_roundtrip_dynamic() {
+        let data = vec![0x7f, 0x45, 0x4c, 0x46, 1, 2, 3, 4];
+        let elf = Elf::from(data.clone());
+        let serialized = bincode::serialize(&elf).unwrap();
+        let deserialized: Elf = bincode::deserialize(&serialized).unwrap();
+        assert_eq!(&*deserialized, &data[..]);
+    }
+
+    #[test]
+    fn elf_serde_roundtrip_static() {
+        static DATA: &[u8] = &[0x7f, 0x45, 0x4c, 0x46, 5, 6, 7, 8];
+        let elf = Elf::Static(DATA);
+        let serialized = bincode::serialize(&elf).unwrap();
+        let deserialized: Elf = bincode::deserialize(&serialized).unwrap();
+        assert_eq!(&*deserialized, DATA);
     }
 }
