@@ -5,8 +5,8 @@ use tonic::Status;
 #[derive(Error, Debug)]
 pub enum Error {
     /// The program execution failed.
-    #[error("Program simulation failed")]
-    SimulationFailed,
+    #[error("Program simulation failed: {0:#}")]
+    SimulationFailed(#[source] anyhow::Error),
 
     /// The proof request is unexecutable.
     #[error("Proof request 0x{} is unexecutable", hex::encode(.request_id))]
@@ -57,4 +57,18 @@ pub enum Error {
     /// An unknown error occurred.
     #[error("Other error: {0}")]
     Other(#[from] anyhow::Error),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Error;
+
+    #[test]
+    fn simulation_failure_preserves_its_source() {
+        let source = anyhow::anyhow!("executor failed").context("guest panicked");
+        let error = Error::SimulationFailed(source);
+
+        assert_eq!(error.to_string(), "Program simulation failed: guest panicked: executor failed");
+        assert!(std::error::Error::source(&error).is_some());
+    }
 }

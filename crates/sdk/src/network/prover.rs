@@ -890,7 +890,7 @@ impl NetworkProver {
             .node
             .execute(elf, stdin.clone(), SP1Context::builder().calculate_gas(true).build())
             .await
-            .map_err(|_| Error::SimulationFailed)?;
+            .map_err(Error::SimulationFailed)?;
 
         let (_, committed_value_digest, report) = execute_result;
 
