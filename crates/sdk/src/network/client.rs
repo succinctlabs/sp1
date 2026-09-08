@@ -18,11 +18,13 @@ use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{HashableKey, SP1VerifyingKey};
 use tokio::sync::OnceCell;
 use tonic::{
+    codegen::InterceptedService,
     transport::{Channel, Identity},
     Code,
 };
 
 use super::{
+    auth::{BearerTokenInterceptor, NetworkBearerToken},
     grpc,
     retry::{self, RetryableRpc, DEFAULT_RETRY_TIMEOUT},
     signer::NetworkSigner,
@@ -77,6 +79,8 @@ use crate::network::proto::{
     RequestProofResponse,
 };
 
+type AuthenticatedChannel = InterceptedService<Channel, BearerTokenInterceptor>;
+
 /// Current market `max_price_per_pgu` returned by [`NetworkClient::get_market_price_per_pgu`].
 /// Returned to callers who want the raw market signal; the SDK's own auto-default path
 /// uses `GetProofRequestParams.max_price_per_pgu` instead and does not consume this type.
@@ -109,6 +113,7 @@ pub struct NetworkClient {
     pub(crate) rpc_url: String,
     pub(crate) network_mode: NetworkMode,
     pub(crate) client_identity: Option<Identity>,
+    pub(crate) bearer_token: Option<NetworkBearerToken>,
     /// Lazily-established gRPC channel, shared across clones and reused across calls.
     pub(crate) channel: Arc<OnceCell<Channel>>,
 }
@@ -159,6 +164,7 @@ impl NetworkClient {
             rpc_url: rpc_url.into(),
             network_mode,
             client_identity: None,
+            bearer_token: None,
             channel: Arc::new(OnceCell::new()),
         }
     }
@@ -893,7 +899,7 @@ impl NetworkClient {
     // Auction client for operations whose schemas are wire-compatible across network modes.
     pub(crate) async fn prover_network_client(
         &self,
-    ) -> Result<AuctionProverNetworkClient<Channel>> {
+    ) -> Result<AuctionProverNetworkClient<AuthenticatedChannel>> {
         // For shared operations, we use the auction client type as it provides the default types.
         // The actual network routing is handled by the RPC URL which is correctly set based on
         // network_mode.
@@ -919,18 +925,29 @@ impl NetworkClient {
     // Helper methods for runtime proto type selection.
     pub(crate) async fn auction_prover_network_client(
         &self,
-    ) -> Result<AuctionProverNetworkClient<Channel>> {
-        Ok(AuctionProverNetworkClient::new(self.channel().await?))
+    ) -> Result<AuctionProverNetworkClient<AuthenticatedChannel>> {
+        Ok(AuctionProverNetworkClient::with_interceptor(
+            self.channel().await?,
+            BearerTokenInterceptor::new(self.bearer_token.as_ref()),
+        ))
     }
 
     pub(crate) async fn base_prover_network_client(
         &self,
-    ) -> Result<BaseProverNetworkClient<Channel>> {
-        Ok(BaseProverNetworkClient::new(self.channel().await?))
+    ) -> Result<BaseProverNetworkClient<AuthenticatedChannel>> {
+        Ok(BaseProverNetworkClient::with_interceptor(
+            self.channel().await?,
+            BearerTokenInterceptor::new(self.bearer_token.as_ref()),
+        ))
     }
 
-    pub(crate) async fn artifact_store_client(&self) -> Result<ArtifactStoreClient<Channel>> {
-        Ok(ArtifactStoreClient::new(self.channel().await?))
+    pub(crate) async fn artifact_store_client(
+        &self,
+    ) -> Result<ArtifactStoreClient<AuthenticatedChannel>> {
+        Ok(ArtifactStoreClient::with_interceptor(
+            self.channel().await?,
+            BearerTokenInterceptor::new(self.bearer_token.as_ref()),
+        ))
     }
 
     pub(crate) async fn create_artifact_with_content<T: Serialize + Send + Sync>(
