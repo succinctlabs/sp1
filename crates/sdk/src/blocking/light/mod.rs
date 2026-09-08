@@ -105,7 +105,7 @@ mod tests {
 
     use super::LightProver;
 
-    /// The blocking LightProver constructor must not create or `block_on` a Tokio runtime.
+    /// The blocking `LightProver` constructor must not create or `block_on` a Tokio runtime.
     #[tokio::test]
     async fn test_constructs_inside_tokio_runtime() {
         let _prover = LightProver::new();
