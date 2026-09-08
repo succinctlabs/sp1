@@ -2,6 +2,7 @@
 //!
 //! A library for interacting with the SP1 prover over the network.
 
+mod auth;
 pub mod client;
 pub mod prover;
 #[rustfmt::skip]
@@ -23,6 +24,7 @@ pub mod utils;
 use std::time::Duration;
 
 pub use crate::network::{
+    auth::{InvalidBearerToken, NetworkBearerToken},
     client::{MarketPrice, NetworkClient},
     proto::types::FulfillmentStrategy,
 };
