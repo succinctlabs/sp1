@@ -5,10 +5,17 @@ use tonic::transport::{ClientTlsConfig, Endpoint, Identity};
 /// Configures the endpoint for the gRPC client.
 ///
 /// Sets reasonable settings to handle timeouts and keep-alive.
-pub fn configure_endpoint(addr: &str, identity: Option<Identity>) -> Result<Endpoint> {
+pub fn configure_endpoint(
+    addr: &str,
+    identity: Option<Identity>,
+    has_bearer_token: bool,
+) -> Result<Endpoint> {
     let has_identity = identity.is_some();
     if has_identity && !addr.starts_with("https://") {
         bail!("mTLS client identity requires an HTTPS RPC URL");
+    }
+    if has_bearer_token && !addr.starts_with("https://") {
+        bail!("bearer token requires an HTTPS RPC URL");
     }
 
     let mut endpoint = Endpoint::new(addr.to_string())?
@@ -64,28 +71,47 @@ dSxHF4iabbGMIRh5PCJzea9TuW0pcgiOFg==
     #[test]
     fn configures_standard_tls_without_client_identity() {
         let _ = rustls::crypto::ring::default_provider().install_default();
-        configure_endpoint("https://localhost", None).unwrap();
+        configure_endpoint("https://localhost", None, false).unwrap();
+    }
+
+    #[test]
+    fn configures_plaintext_without_credentials() {
+        configure_endpoint("http://localhost", None, false).unwrap();
     }
 
     #[test]
     fn configures_mtls_with_explicit_client_identity() {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let identity = Identity::from_pem(TEST_CERT, TEST_KEY);
-        configure_endpoint("https://localhost", Some(identity)).unwrap();
+        configure_endpoint("https://localhost", Some(identity), false).unwrap();
     }
 
     #[test]
     fn rejects_invalid_client_identity() {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let identity = Identity::from_pem("not a certificate", "not a key");
-        let err = configure_endpoint("https://localhost", Some(identity)).unwrap_err().to_string();
+        let err =
+            configure_endpoint("https://localhost", Some(identity), false).unwrap_err().to_string();
         assert!(err.contains("configuring mTLS client identity"));
     }
 
     #[test]
     fn rejects_client_identity_without_https() {
         let identity = Identity::from_pem(TEST_CERT, TEST_KEY);
-        let err = configure_endpoint("http://localhost", Some(identity)).unwrap_err().to_string();
+        let err =
+            configure_endpoint("http://localhost", Some(identity), false).unwrap_err().to_string();
         assert!(err.contains("requires an HTTPS RPC URL"));
+    }
+
+    #[test]
+    fn configures_bearer_token_over_https() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        configure_endpoint("https://localhost", None, true).unwrap();
+    }
+
+    #[test]
+    fn rejects_bearer_token_without_https() {
+        let err = configure_endpoint("http://localhost", None, true).unwrap_err().to_string();
+        assert!(err.contains("bearer token requires an HTTPS RPC URL"));
     }
 }

@@ -915,8 +915,12 @@ impl NetworkClient {
         self.channel
             .get_or_try_init(|| async {
                 tracing::debug!(rpc_url = %self.rpc_url, "establishing gRPC channel");
-                Ok(grpc::configure_endpoint(&self.rpc_url, self.client_identity.clone())?
-                    .connect_lazy())
+                Ok(grpc::configure_endpoint(
+                    &self.rpc_url,
+                    self.client_identity.clone(),
+                    self.bearer_token.is_some(),
+                )?
+                .connect_lazy())
             })
             .await
             .cloned()
