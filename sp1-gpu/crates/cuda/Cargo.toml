@@ -35,6 +35,9 @@ tracing = { workspace = true }
 [dev-dependencies]
 rand = "0.8"
 
+[features]
+default = []
+nvidia-ntt = ["sp1-gpu-sys/nvidia-ntt"]
 
 [lints]
 workspace = true

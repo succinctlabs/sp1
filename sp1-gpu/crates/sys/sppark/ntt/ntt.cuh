@@ -263,6 +263,7 @@ public:
                            fr_t* ext_domain_data, fr_t* domain_data,
                            const fr_t (*gen_powers)[WINDOW_SIZE],
                            uint32_t lg_domain_size, uint32_t lg_blowup,
+                           bool bit_reversed_input,
                            bool perform_shift = true, fr_t shift = fr_t{1} ,bool ext_pow = false)
     {
         assert(lg_domain_size + lg_blowup <= MAX_LG_DOMAIN_SIZE);
@@ -285,6 +286,19 @@ public:
         } else {
             num_blocks = domain_size / 1024;
             block_size = 1024;
+        }
+
+        if (!bit_reversed_input) {
+            LDE_copy_distribute_powers<<<num_blocks, block_size, 0, stream>>>(
+                ext_domain_data, domain_data, gen_powers, domain_size,
+                perform_shift, shift);
+            CUDA_UNWRAP_SPPARK(cudaGetLastError());
+
+            size_t ext_domain_size = domain_size << lg_blowup;
+            CUDA_UNWRAP_SPPARK(cudaMemsetAsync(
+                ext_domain_data + domain_size, 0,
+                (ext_domain_size - domain_size) * sizeof(fr_t), stream));
+            return;
         }
       
 
@@ -362,7 +376,7 @@ public:
             }
 
             LDE_launch(stream, ext_domain_data, domain_data, gen_powers,
-                       lg_domain_size, lg_blowup);
+                       lg_domain_size, lg_blowup, true);
 
             // NTT - RN
             NTT_internal(ext_domain_data, lg_domain_size + lg_blowup,
@@ -410,7 +424,7 @@ public:
     static void LDE_expand(const cudaStream_t stream, fr_t* d_out, fr_t* d_in,
                            uint32_t lg_domain_size, uint32_t lg_blowup)
     {
-        LDE_launch(stream, d_out, d_in, NULL, lg_domain_size, lg_blowup, false);
+        LDE_launch(stream, d_out, d_in, NULL, lg_domain_size, lg_blowup, true, false);
     }
 };
 #endif
