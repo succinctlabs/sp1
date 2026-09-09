@@ -61,6 +61,7 @@ fn main() {
                 .args([
                     "build",
                     tags,
+                    "-buildvcs=false",
                     "-o",
                     dest.to_str().unwrap(),
                     "-buildmode=c-archive",
