@@ -6,7 +6,7 @@ use slop_maybe_rayon::prelude::{IndexedParallelIterator, ParallelIterator, Paral
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::{
     air::{ExtensionAirBuilder, MachineAir},
-    next_multiple_of_32,
+    pad_rows_recursion,
 };
 use sp1_primitives::SP1Field;
 use sp1_recursion_executor::{
@@ -96,7 +96,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
     ) -> Option<usize> {
         let height = program.shape.as_ref().and_then(|shape| shape.height(self));
         let nb_rows = instrs_len.div_ceil(NUM_EXT_ALU_ENTRIES_PER_ROW);
-        Some(next_multiple_of_32(nb_rows, height))
+        Some(pad_rows_recursion(nb_rows, height))
     }
 
     fn generate_preprocessed_trace_into(
@@ -171,7 +171,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
         let height = input.program.shape.as_ref().and_then(|shape| shape.height(self));
         let events = &input.ext_alu_events;
         let nb_rows = events.len().div_ceil(NUM_EXT_ALU_ENTRIES_PER_ROW);
-        Some(next_multiple_of_32(nb_rows, height))
+        Some(pad_rows_recursion(nb_rows, height))
     }
 
     fn generate_trace_into(

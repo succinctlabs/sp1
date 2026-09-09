@@ -2,10 +2,10 @@ use crate::events::{TrapExecEvent, TrapMemInstrEvent};
 use deepsize2::DeepSizeOf;
 use hashbrown::HashMap;
 use slop_air::AirBuilder;
-use slop_algebra::{AbstractField, Field, PrimeField, PrimeField32};
+use slop_algebra::{AbstractField, Field, PrimeField32};
 use sp1_hypercube::{
     air::{
-        AirInteraction, BaseAirBuilder, InteractionScope, MachineAir, PublicValues, SP1AirBuilder,
+        AirInteraction, BaseAirBuilder, InteractionScope, PublicValues, SP1AirBuilder,
         PROOF_NONCE_NUM_WORDS, PV_DIGEST_NUM_WORDS, SP1_PROOF_NUM_PV_ELTS,
     },
     septic_digest::SepticDigest,
@@ -493,14 +493,6 @@ impl ExecutionRecord {
         }
 
         shards
-    }
-
-    /// Return the number of rows needed for a chip, according to the proof shape specified in the
-    /// struct.
-    ///
-    /// **deprecated**: TODO: remove this method.
-    pub fn fixed_log2_rows<F: PrimeField, A: MachineAir<F>>(&self, _air: &A) -> Option<usize> {
-        None
     }
 
     /// Determines whether the execution record contains CPU events.

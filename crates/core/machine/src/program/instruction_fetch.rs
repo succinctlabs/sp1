@@ -1,12 +1,10 @@
+use crate::utils::pad_rows_core;
 use core::{
     borrow::{Borrow, BorrowMut},
     mem::{size_of, MaybeUninit},
 };
 
-use crate::{
-    air::SP1CoreAirBuilder, memory::MemoryAccessCols, program::InstructionCols,
-    utils::next_multiple_of_32,
-};
+use crate::{air::SP1CoreAirBuilder, memory::MemoryAccessCols, program::InstructionCols};
 use hashbrown::HashMap;
 use itertools::Itertools;
 use slop_air::{Air, AirBuilder, BaseAir};
@@ -220,10 +218,7 @@ impl<F: PrimeField32> MachineAir<F> for InstructionFetchChip {
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
-        let nb_rows = next_multiple_of_32(
-            input.instruction_fetch_events.len(),
-            input.fixed_log2_rows::<F, _>(self),
-        );
+        let nb_rows = pad_rows_core(input.instruction_fetch_events.len());
 
         Some(nb_rows)
     }

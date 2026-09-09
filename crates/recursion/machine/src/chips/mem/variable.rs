@@ -4,7 +4,7 @@ use slop_algebra::PrimeField32;
 use slop_matrix::Matrix;
 use slop_maybe_rayon::prelude::{IndexedParallelIterator, ParallelIterator, ParallelSliceMut};
 use sp1_derive::AlignedBorrow;
-use sp1_hypercube::{air::MachineAir, next_multiple_of_32};
+use sp1_hypercube::{air::MachineAir, pad_rows_recursion};
 use sp1_recursion_executor::{
     instruction::{HintAddCurveInstr, HintBitsInstr, HintExt2FeltsInstr, HintInstr},
     Block, ExecutionRecord, Instruction, RecursionProgram,
@@ -93,7 +93,7 @@ impl<F: PrimeField32, const VAR_EVENTS_PER_ROW: usize> MachineAir<F>
         instrs_len: usize,
     ) -> Option<usize> {
         let height = program.shape.as_ref().and_then(|shape| shape.height(self));
-        Some(next_multiple_of_32(instrs_len.div_ceil(VAR_EVENTS_PER_ROW), height))
+        Some(pad_rows_recursion(instrs_len.div_ceil(VAR_EVENTS_PER_ROW), height))
     }
 
     fn generate_preprocessed_trace_into(
@@ -162,7 +162,7 @@ impl<F: PrimeField32, const VAR_EVENTS_PER_ROW: usize> MachineAir<F>
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
         let height = input.program.shape.as_ref().and_then(|shape| shape.height(self));
         let nb_rows = input.mem_var_events.len().div_ceil(VAR_EVENTS_PER_ROW);
-        let padded_nb_rows = next_multiple_of_32(nb_rows, height);
+        let padded_nb_rows = pad_rows_recursion(nb_rows, height);
         Some(padded_nb_rows)
     }
 

@@ -1,9 +1,10 @@
+use crate::utils::pad_rows_core;
 use std::{
     borrow::{Borrow, BorrowMut},
     mem::{size_of, MaybeUninit},
 };
 
-use crate::{air::SP1CoreAirBuilder, utils::next_multiple_of_32};
+use crate::air::SP1CoreAirBuilder;
 use hashbrown::HashMap;
 use itertools::Itertools;
 use slop_air::{Air, AirBuilder, BaseAir};
@@ -87,8 +88,7 @@ impl<F: PrimeField32> MachineAir<F> for StateBumpChip {
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
         let nb_rows = input.bump_state_events.len();
-        let size_log2 = input.fixed_log2_rows::<F, _>(self);
-        Some(next_multiple_of_32(nb_rows, size_log2))
+        Some(pad_rows_core(nb_rows))
     }
 
     fn generate_trace_into(

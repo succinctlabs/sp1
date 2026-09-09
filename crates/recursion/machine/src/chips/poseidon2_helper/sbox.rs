@@ -4,7 +4,7 @@ use slop_algebra::{extension::BinomiallyExtendable, Field, PrimeField32};
 use slop_matrix::Matrix;
 use slop_maybe_rayon::prelude::{IndexedParallelIterator, ParallelIterator, ParallelSliceMut};
 use sp1_derive::AlignedBorrow;
-use sp1_hypercube::{air::MachineAir, next_multiple_of_32};
+use sp1_hypercube::{air::MachineAir, pad_rows_recursion};
 use sp1_primitives::SP1Field;
 use sp1_recursion_executor::{
     Address, Block, ExecutionRecord, Instruction, Poseidon2SBoxInstr, Poseidon2SBoxIo,
@@ -91,7 +91,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for Poseidon2SBoxC
     ) -> Option<usize> {
         let height = program.shape.as_ref().and_then(|shape| shape.height(self));
         let nb_rows = instrs_len.div_ceil(NUM_SBOX_ENTRIES_PER_ROW);
-        Some(next_multiple_of_32(nb_rows, height))
+        Some(pad_rows_recursion(nb_rows, height))
     }
 
     fn generate_preprocessed_trace_into(
@@ -156,7 +156,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for Poseidon2SBoxC
         let height = input.program.shape.as_ref().and_then(|shape| shape.height(self));
         let events = &input.poseidon2_sbox_events;
         let nb_rows = events.len().div_ceil(NUM_SBOX_ENTRIES_PER_ROW);
-        Some(next_multiple_of_32(nb_rows, height))
+        Some(pad_rows_recursion(nb_rows, height))
     }
 
     fn generate_trace_into(

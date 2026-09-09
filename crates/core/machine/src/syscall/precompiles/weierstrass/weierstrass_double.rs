@@ -1,3 +1,4 @@
+use crate::utils::pad_rows_core;
 use crate::{
     air::SP1CoreAirBuilder,
     memory::MemoryAccessColsU8,
@@ -5,7 +6,7 @@ use crate::{
         field::{field_op::FieldOpCols, range::FieldLtCols},
         AddrAddOperation, AddressSlicePageProtOperation, SyscallAddrOperation,
     },
-    utils::{limbs_to_words, next_multiple_of_32, zeroed_f_vec},
+    utils::{limbs_to_words, zeroed_f_vec},
     SupervisorMode, TrustMode, UserMode,
 };
 use core::{
@@ -201,8 +202,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters, M: TrustMode> Ma
             CurveType::Bls12381 => input.get_precompile_events(SyscallCode::BLS12381_DOUBLE).len(),
             _ => panic!("Unsupported curve"),
         };
-        let size_log2 = input.fixed_log2_rows::<F, _>(self);
-        let padded_nb_rows = next_multiple_of_32(nb_rows, size_log2);
+        let padded_nb_rows = pad_rows_core(nb_rows);
         Some(padded_nb_rows)
     }
 
