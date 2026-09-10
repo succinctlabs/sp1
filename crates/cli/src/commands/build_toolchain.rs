@@ -22,9 +22,12 @@ impl CommandExecutor for Command {
             .stdout(Stdio::inherit())
             .stdin(Stdio::inherit())
             .status()
-            .with_context(|| format!("while executing `{self:?}`"))?;
+            .with_context(|| format!("while executing {:?}", self.get_program()))?;
 
-        status.success().then_some(()).with_context(|| format!("`{self:?}` failed: {status}"))
+        status
+            .success()
+            .then_some(())
+            .with_context(|| format!("{:?} failed: {status}", self.get_program()))
     }
 }
 
@@ -181,5 +184,25 @@ mod tests {
     #[test]
     fn run_succeeds_on_zero_exit() {
         Command::new("sh").args(["-c", "exit 0"]).run().unwrap();
+    }
+
+    #[test]
+    fn run_errors_do_not_expose_command_credentials() {
+        let mut nonzero_exit = Command::new("sh");
+        nonzero_exit.args(["-c", "exit 42"]);
+        let mut spawn_failure = Command::new("sh");
+        spawn_failure.current_dir(std::env::current_exe().unwrap());
+
+        for mut command in [nonzero_exit, spawn_failure] {
+            let error = command
+                .arg("https://test-url-token@github.com/succinctlabs/rust")
+                .env("GITHUB_ACCESS_TOKEN", "test-env-token")
+                .run()
+                .unwrap_err();
+            let message = format!("{error:#}");
+            assert!(message.contains("\"sh\""), "missing program name: {message}");
+            assert!(!message.contains("test-url-token"), "exposed argument: {message}");
+            assert!(!message.contains("test-env-token"), "exposed environment: {message}");
+        }
     }
 }
