@@ -112,14 +112,26 @@ class KoalaBear {
     static constexpr pF_t MONTY_INVERSE = constants::MONTY_INVERSE;
 
     __device__ static void internalLinearLayer(F_t state[WIDTH], pF_t*, F_t) {
+        // Poseidon2 internal linear layer, matching Plonky3's DiffusionMatrixKoalaBear. With the
+        // state held in Montgomery form (state[i].val), the internal diagonal
+        // D = [-2, 2^0, 2^1, ..., 2^13, 2^15] is applied via shifts plus a single Montgomery
+        // reduction per lane, instead of a full Montgomery multiply per element:
+        //   state[i] = monty_reduce(full_sum + (state[i].val << SHIFT[i-1]))   for i >= 1
+        //   state[0] = monty_reduce(part_sum + (-state[0]).val)
+        // where full_sum = Σ state[i].val (< 16*p < 2^35) and part_sum = full_sum - state[0].val.
         uint64_t sum64 = 0;
         for (int i = 0; i < WIDTH; i++) {
             sum64 += static_cast<uint64_t>(state[i].val);
         }
-        const F_t sum = kb31_t(static_cast<uint32_t>(sum64 % kb31_t::MOD)) * MONTY_INVERSE;
-        for (int i = 0; i < WIDTH; i++) {
-            state[i] *= MAT_INTERNAL_DIAG_M1[i];
-            state[i] += sum;
+        static const uint32_t SH[WIDTH - 1] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15};
+        uint32_t v0 = state[0].val;
+        uint32_t neg0 = v0 == 0 ? 0 : (kb31_t::MOD - v0);
+        uint64_t s0 = (sum64 - static_cast<uint64_t>(v0)) + static_cast<uint64_t>(neg0);
+        state[0].val = kb31_t::monty_reduce(s0);
+#pragma unroll
+        for (int i = 1; i < WIDTH; i++) {
+            uint64_t si = sum64 + (static_cast<uint64_t>(state[i].val) << SH[i - 1]);
+            state[i].val = kb31_t::monty_reduce(si);
         }
     }
 

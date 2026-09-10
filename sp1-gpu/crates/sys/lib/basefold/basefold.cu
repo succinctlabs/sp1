@@ -9,9 +9,9 @@ __global__ void batchKernel(F* input, EF* output, EF* betaPowers, size_t height,
          rowIdx += blockDim.x * gridDim.x) {
         EF accumulator = EF::zero();
         for (size_t colIdx = 0; colIdx < width; colIdx++) {
-            accumulator += input[colIdx * height + rowIdx] * betaPowers[colIdx];
+            accumulator += betaPowers[colIdx] * input[colIdx * height + rowIdx];
         }
-        output[rowIdx] += accumulator;
+        output[rowIdx] = accumulator;
     }
 }
 

@@ -181,6 +181,7 @@ pub async fn execute_with_options_and_machine(
     let calculate_gas = context.calculate_gas;
     let nonce = context.proof_nonce;
     let max_cycles = context.max_cycles;
+    let output_consumers = context.output_consumers.clone();
     // Gas estimation chunks at its own dedicated cadence, decoupled from
     // `minimal_trace_chunk_threshold`. The metered gas depends on the chunk size (each chunk is
     // treated as a shard for memory-boundary accounting), so it must not track the memory-only
@@ -209,6 +210,7 @@ pub async fn execute_with_options_and_machine(
         memory_limit,
         trace_chunk_slots,
     );
+    minimal_executor.set_output_consumers(output_consumers);
 
     // Feed stdin buffers to the executor
     for buf in buffer {

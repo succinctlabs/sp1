@@ -54,7 +54,7 @@ fn run_bn_pairing(input: &[u8]) -> Option<Vec<u8>> {
         return None;
     }
     let mut pairs = Vec::with_capacity(input.len() / 192);
-    for chunk in input.chunks_exact(192) {
+    for chunk in input.as_chunks::<192>().0 {
         pairs.push(Bn254PairingPair {
             g1: ZkvmBytes64 { data: chunk[0..64].try_into().unwrap() },
             g2: ZkvmBytes128 { data: chunk[64..192].try_into().unwrap() },

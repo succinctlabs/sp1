@@ -27,7 +27,9 @@ pub(crate) unsafe fn poseidon2(
 
     // Convert back to u64 array
     let u64_result: Vec<u64> = output_hash
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| (u64::from(pair[1]) << 32) | u64::from(pair[0]))
         .collect();
 

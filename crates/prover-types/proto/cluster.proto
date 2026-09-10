@@ -32,6 +32,9 @@ service ClusterService {
 // previous manifest (full snapshot).
 message SetClusterComponentInfoRequest {
   repeated worker.ClusterComponentInfo components = 1;
+  // GPU capacity snapshot built alongside the component manifest. Absent when the
+  // coordinator has no capacity data to report.
+  optional worker.ClusterCapacitySnapshot capacity = 2;
 }
 
 // The latest manifest as held by the API, with the server-owned time it was last
@@ -42,6 +45,8 @@ message ClusterComponentManifest {
   repeated worker.ClusterComponentInfo components = 1;
   // Unix seconds when the API last stored a manifest (server-owned).
   uint64 updated_at = 2;
+  // GPU capacity snapshot from the same manifest write.
+  optional worker.ClusterCapacitySnapshot capacity = 3;
 }
 
 message ProofRequestCreateRequest {

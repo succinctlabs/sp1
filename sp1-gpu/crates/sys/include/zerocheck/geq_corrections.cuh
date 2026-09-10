@@ -45,3 +45,7 @@ extern "C" void* zerocheck_fix_geq_state_kernel();
 
 // Per-chip geq corrections kernel. See file banner for the I/O contract.
 extern "C" void* zerocheck_geq_corrections_kernel();
+
+// Bivariate variant for the fused first-two-rounds: 12 partials per geq chip,
+// one per non-boolean grid node. See zerocheck/bivariate.cuh for node order.
+extern "C" void* zerocheck_geq_corrections_bivariate_kernel();

@@ -1,6 +1,7 @@
 add_library(logup_gkr_objs OBJECT
     execution.cu
     first_layer.cu
+    lookahead.cu
     round.cu
     tracegen.cu
 )

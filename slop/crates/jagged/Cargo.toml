@@ -24,7 +24,6 @@ slop-merkle-tree = { workspace = true }
 slop-commit = { workspace = true }
 slop-basefold-prover = { workspace = true }
 slop-basefold = { workspace = true }
-slop-futures = { workspace = true }
 slop-tensor = { workspace = true }
 slop-symmetric = { workspace = true }
 
@@ -33,10 +32,5 @@ tracing = { workspace = true }
 rayon = { workspace = true }
 serde = { workspace = true, features = ["rc"] }
 thiserror = { workspace = true }
-futures = { workspace = true }
-derive-where = { workspace = true }
 rand = { workspace = true }
 num_cpus = { workspace = true }
-
-[dev-dependencies]
-slop-baby-bear = { workspace = true }

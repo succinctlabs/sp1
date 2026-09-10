@@ -17,17 +17,14 @@ pub unsafe fn hint_read(
     assert_eq!(ptr % 8, 0, "hint read address not aligned to 8 bytes");
 
     // Chunk the bytes into words.
-    let chunks = vec.chunks_exact(8);
+    let (chunks, remainder) = vec.as_chunks::<8>();
     // Get the number of chunks.
     let chunk_count = chunks.len();
     // Get the remainder of the bytes.
-    let remainder = chunks.remainder();
 
     // For each chunk, write the word to the memory.
-    for (i, chunk) in chunks.enumerate() {
-        let word = u64::from_le_bytes([
-            chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6], chunk[7],
-        ]);
+    for (i, chunk) in chunks.iter().enumerate() {
+        let word = u64::from_le_bytes(*chunk);
 
         ctx.mw_hint(ptr + (i * 8) as u64, word);
     }

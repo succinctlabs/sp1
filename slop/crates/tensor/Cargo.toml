@@ -13,7 +13,6 @@ categories.workspace = true
 slop-alloc = { workspace = true }
 slop-algebra = { workspace = true }
 slop-matrix = { workspace = true }
-slop-futures = { workspace = true }
 
 rayon = { workspace = true }
 transpose = { workspace = true }

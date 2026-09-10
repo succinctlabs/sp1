@@ -20,7 +20,4 @@ slop-challenger = { workspace = true }
 slop-alloc = { workspace = true }
 slop-sumcheck = { workspace = true }
 slop-baby-bear = { workspace = true }
-futures = { workspace = true }
 rand = { workspace = true }
-
-[dev-dependencies]

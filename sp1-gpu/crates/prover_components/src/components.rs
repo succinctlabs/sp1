@@ -61,6 +61,7 @@ pub async fn new_cuda_prover<GC, PC>(
     max_trace_size: usize,
     num_workers: usize,
     recompute_first_layer: bool,
+    drop_ldes: bool,
     scope: TaskScope,
 ) -> CudaShardProver<GC, PC>
 where
@@ -111,6 +112,6 @@ where
         scope,
         all_interactions,
         recompute_first_layer,
-        recompute_first_layer,
+        drop_ldes,
     )
 }

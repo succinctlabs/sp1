@@ -61,5 +61,9 @@ futures = { workspace = true }
 slop-futures = { workspace = true }
 tracing = { workspace = true }
 
+[features]
+default = []
+nvidia-ntt = ["sp1-gpu-cudart/nvidia-ntt"]
+
 [lints]
 workspace = true

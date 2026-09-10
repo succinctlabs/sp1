@@ -26,6 +26,3 @@ thiserror = { workspace = true }
 itertools = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 derive-where = { workspace = true }
-
-[dev-dependencies]
-slop-baby-bear = { workspace = true }

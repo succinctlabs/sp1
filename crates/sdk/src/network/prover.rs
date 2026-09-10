@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use super::prove::NetworkProveBuilder;
 use crate::{
     network::{
-        client::NetworkClient,
+        client::{parse_fulfillment_status, NetworkClient},
         proto::{
             types::{
                 ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, ProofMode, ProofRequest,
@@ -41,6 +41,7 @@ use sp1_prover::worker::{SP1LightNode, SP1NodeCore};
 use sp1_prover::SP1_CIRCUIT_VERSION;
 
 use tokio::time::sleep;
+use tonic::transport::Identity;
 
 /// An implementation of [`crate::ProverClient`] that can generate proofs on a remote RPC server.
 #[derive(Clone)]
@@ -241,6 +242,21 @@ impl NetworkProver {
         self
     }
 
+    #[must_use]
+    pub(crate) fn with_client_identity(mut self, client_identity: Option<Identity>) -> Self {
+        self.client.client_identity = client_identity;
+        self
+    }
+
+    #[must_use]
+    pub(crate) fn with_bearer_token(
+        mut self,
+        bearer_token: Option<super::NetworkBearerToken>,
+    ) -> Self {
+        self.client.bearer_token = bearer_token;
+        self
+    }
+
     /// Sets whether this prover uses hosted defaults (skip simulation, max cycle and gas limits).
     ///
     /// See [`NetworkProver::hosted`] for details.
@@ -414,7 +430,7 @@ impl NetworkProver {
         let maybe_proof: Option<SP1ProofWithPublicValues> = maybe_proof.map(Into::into);
 
         let execution_status = ExecutionStatus::try_from(status.execution_status()).unwrap();
-        let fulfillment_status = FulfillmentStatus::try_from(status.fulfillment_status()).unwrap();
+        let fulfillment_status = parse_fulfillment_status(status.fulfillment_status(), request_id)?;
 
         let current_time =
             std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();

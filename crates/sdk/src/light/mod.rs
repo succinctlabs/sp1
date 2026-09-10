@@ -131,7 +131,7 @@ mod tests {
         stdin.write(&10usize);
         let (pv, _) =
             prover.execute(pk.elf.clone(), stdin).await.expect("failed to execute program");
-        assert!(!pv.as_slice().is_empty());
+        assert_ne!(pv.as_slice(), &[] as &[u8]);
 
         // Prove should error.
         let mut stdin = SP1Stdin::new();

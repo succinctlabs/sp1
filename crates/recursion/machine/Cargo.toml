@@ -38,7 +38,6 @@ sp1-recursion-executor = { workspace = true, features = ["program_validation"] }
 
 [dev-dependencies]
 sp1-core-machine = { workspace = true }
-sp1-recursion-executor = { workspace = true, features = ["program_validation"] }
 slop-challenger = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt", "sync"] }
 

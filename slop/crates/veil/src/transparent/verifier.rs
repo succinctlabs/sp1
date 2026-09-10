@@ -1,5 +1,4 @@
 use slop_algebra::{Field, TwoAdicField};
-use slop_basefold::BasefoldVerifier;
 use slop_challenger::{CanObserve, FieldChallenger, IopCtx};
 use slop_multilinear::{Mle, Point};
 use slop_stacked::{StackedBasefoldProof, StackedPcsVerifier, StackedVerifierError};
@@ -277,14 +276,4 @@ impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>> TransparentVerifierCtx<GC> {
 
         Ok(())
     }
-}
-
-// Convenience helper so callers can build a `StackedPcsVerifier` with a default
-// basefold config.
-#[allow(dead_code)]
-fn default_pcs_verifier<GC: IopCtx>(log_stacking_height: u32) -> StackedPcsVerifier<GC> {
-    StackedPcsVerifier::new(
-        BasefoldVerifier::<GC>::new(slop_basefold::FriConfig::default_fri_config(), 1),
-        log_stacking_height,
-    )
 }

@@ -171,6 +171,25 @@ void LDE_distribute_powers(fr_t* d_inout, uint32_t lg_domain_size,
 }
 
 __launch_bounds__(1024) __global__
+void LDE_copy_distribute_powers(fr_t* out, const fr_t* in,
+                                const fr_t (*gen_powers)[WINDOW_SIZE],
+                                size_t domain_size, bool perform_shift,
+                                fr_t shift)
+{
+    index_t idx = threadIdx.x + blockDim.x * (index_t)blockIdx.x;
+    const uint32_t stride = gridDim.x * blockDim.x;
+
+    for (; idx < domain_size; idx += stride) {
+        fr_t r = in[idx];
+        if (perform_shift) {
+            fr_t weight = get_intermediate_root(idx, gen_powers);
+            r = r * weight * (shift^idx);
+        }
+        out[idx] = r;
+    }
+}
+
+__launch_bounds__(1024) __global__
 void LDE_spread_distribute_powers(fr_t* out, fr_t* in,
                                   const fr_t (*gen_powers)[WINDOW_SIZE],
                                   uint32_t lg_domain_size, uint32_t lg_blowup,

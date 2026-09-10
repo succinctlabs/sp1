@@ -106,8 +106,13 @@ mod tests {
         let elf = test_artifacts::PANIC_ELF;
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
-        let (_, report) = client.execute(elf, stdin).await.unwrap();
+        let (stderr_tx, stderr_rx) = tokio::sync::watch::channel(String::new());
+        let (_, report) = client.execute(elf, stdin).stderr(stderr_tx).await.unwrap();
         assert_eq!(report.exit_code, 1);
+
+        let stderr = stderr_rx.borrow().clone();
+        assert!(stderr.contains("panicked at panic/src/main.rs:9:5"), "stderr: {stderr}");
+        assert!(stderr.contains("assertion `left == right` failed"), "stderr: {stderr}");
     }
 
     // TODO: reimplement the cycle limit logic and revive this test.
@@ -279,21 +284,19 @@ mod tests {
         }
     }
 
-    // TODO: reimplement the custom stdout/stderr and revive this test
-    // #[tokio::test]
-    // async fn test_e2e_io_override() {
-    //     utils::setup_logger();
-    //     let client = ProverClient::builder().cpu().build().await;
-    //     let elf = test_artifacts::HELLO_WORLD_ELF;
+    #[tokio::test]
+    async fn test_e2e_io_override() {
+        utils::setup_logger();
+        let client = ProverClient::builder().cpu().build().await;
+        let elf = test_artifacts::HELLO_WORLD_ELF;
+        let (stdout_tx, stdout_rx) = tokio::sync::watch::channel(String::new());
 
-    //     let mut stdout = Vec::new();
+        let stdin = SP1Stdin::new();
+        let _ = client.execute(elf, stdin).stdout(stdout_tx).await.unwrap();
 
-    //     // Generate proof & verify.
-    //     let stdin = SP1Stdin::new();
-    //     let _ = client.execute(elf, stdin).stdout(&mut stdout).run().unwrap();
-
-    //     assert_eq!(stdout, b"Hello, world!\n");
-    // }
+        let stdout = stdout_rx.borrow().clone();
+        assert_eq!(stdout, "Hello, world!\n");
+    }
 
     #[tokio::test]
     async fn test_e2e_compressed() {
