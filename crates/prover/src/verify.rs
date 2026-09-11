@@ -57,6 +57,14 @@ bn254 proof"
     InvalidPublicValues,
 }
 
+#[derive(Error, Debug)]
+enum PublicValuesVerificationError {
+    #[error(
+        "the public values in the sp1 proof do not match the public values in the inner proof"
+    )]
+    InvalidPublicValues,
+}
+
 /// The verifying key for the program wrapping an SP1 proof into a SNARK friendly format.
 #[cfg(not(feature = "mprotect"))]
 pub const WRAP_VK_BYTES: &[u8] = include_bytes!("../wrap_vk.bin");
@@ -869,7 +877,7 @@ pub fn verify_public_values(
     if sha256_public_values_hash != expected_public_values_hash {
         let blake3_public_values_hash = public_values.hash_bn254_with_fn(blake3_hash);
         if blake3_public_values_hash != expected_public_values_hash {
-            return Err(Groth16VerificationError::InvalidPublicValues.into());
+            return Err(PublicValuesVerificationError::InvalidPublicValues.into());
         }
     }
 
