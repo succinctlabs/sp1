@@ -69,7 +69,10 @@ mod tests {
             .context("guest panicked")
             .context(Error::SimulationFailed);
 
-        assert_eq!(error.to_string(), "Program simulation failed: guest panicked: executor failed");
+        assert_eq!(
+            format!("{error:#}"),
+            "Program simulation failed: guest panicked: executor failed"
+        );
         assert!(error.source().is_some());
     }
 }
