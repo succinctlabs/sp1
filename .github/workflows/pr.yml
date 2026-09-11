@@ -28,14 +28,7 @@ concurrency:
 jobs:
   test-x86:
     name: Test (x86-64)
-    runs-on:
-      [
-        runs-on,
-        runner=64cpu-linux-x64,
-        spot=false,
-        disk=large,
-        "run-id=${{ github.run_id }}",
-      ]
+    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-test-x86/runner=64cpu-linux-x64/spot=false/disk=large
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -107,14 +100,7 @@ jobs:
 
   test-arm:
     name: Test (ARM)
-    runs-on:
-      [
-        runs-on,
-        runner=64cpu-linux-arm64,
-        spot=false,
-        disk=large,
-        "run-id=${{ github.run_id }}",
-      ]
+    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-test-arm/runner=64cpu-linux-arm64/spot=false/disk=large
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -181,14 +167,7 @@ jobs:
 
   test-verifier:
     name: Test Verifier Crate
-    runs-on:
-      [
-        runs-on,
-        runner=64cpu-linux-arm64,
-        spot=false,
-        disk=large,
-        "run-id=${{ github.run_id }}",
-      ]
+    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-test-verifier/runner=64cpu-linux-arm64/spot=false/disk=large
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -233,14 +212,7 @@ jobs:
 
   lint:
     name: Formatting & Clippy
-    runs-on:
-      [
-        runs-on,
-        runner=16cpu-linux-x64,
-        disk=large,
-        spot=false,
-        "run-id=${{ github.run_id }}",
-      ]
+    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-lint/runner=16cpu-linux-x64/disk=large/spot=false
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -279,14 +251,7 @@ jobs:
 
   check:
     name: Cargo Check
-    runs-on:
-      [
-        runs-on,
-        runner=16cpu-linux-x64,
-        disk=large,
-        spot=false,
-        "run-id=${{ github.run_id }}",
-      ]
+    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-check/runner=16cpu-linux-x64/disk=large/spot=false
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
       RUSTFLAGS: "--cfg sp1_debug_constraints"
@@ -327,14 +292,7 @@ jobs:
 
   check-nightly:
     name: Cargo Check (Nightly)
-    runs-on:
-      [
-        runs-on,
-        runner=16cpu-linux-x64,
-        disk=large,
-        spot=false,
-        "run-id=${{ github.run_id }}",
-      ]
+    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-check-nightly/runner=16cpu-linux-x64/disk=large/spot=false
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -375,14 +333,7 @@ jobs:
 
   examples:
     name: Examples
-    runs-on:
-      [
-        runs-on,
-        runner=64cpu-linux-x64,
-        disk=large,
-        spot=false,
-        "run-id=${{ github.run_id }}",
-      ]
+    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-examples/runner=64cpu-linux-x64/disk=large/spot=false
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -496,15 +447,7 @@ jobs:
   # GPU Unit Tests
   test-gpu:
     name: Test (GPU)
-    runs-on:
-      [
-        "runs-on",
-        "family=g6.4xlarge",
-        "hdd=200",
-        "ami=ami-0a63dc9cb9e934ba3",
-        "spot=false",
-        "run-id=${{ github.run_id }}",
-      ]
+    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-test-gpu/family=g6.4xlarge/hdd=200/ami=ami-0a63dc9cb9e934ba3/spot=false
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -564,15 +507,7 @@ jobs:
   # GPU E2E Test
   test-gpu-e2e:
     name: GPU E2E (node)
-    runs-on:
-      [
-        "runs-on",
-        "family=g6.4xlarge",
-        "hdd=200",
-        "ami=ami-0a63dc9cb9e934ba3",
-        "spot=false",
-        "run-id=${{ github.run_id }}",
-      ]
+    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-test-gpu-e2e/family=g6.4xlarge/hdd=200/ami=ami-0a63dc9cb9e934ba3/spot=false
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
