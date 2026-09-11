@@ -9,15 +9,15 @@ use prost::Message;
 
 use std::cmp::{max, min};
 
-use super::signer::NetworkSigner;
+use super::signer::SignerSource;
 
 /// Trait for signing network protobuf messages.
 pub(crate) trait Signable: Message {
-    async fn sign(&self, signer: &NetworkSigner) -> Result<Vec<u8>>;
+    async fn sign(&self, signer: &SignerSource) -> Result<Vec<u8>>;
 }
 
 impl<T: Message> Signable for T {
-    async fn sign(&self, signer: &NetworkSigner) -> Result<Vec<u8>> {
+    async fn sign(&self, signer: &SignerSource) -> Result<Vec<u8>> {
         let signature = signer.sign_message(self.encode_to_vec().as_slice()).await?;
         Ok(signature.as_bytes().to_vec())
     }
@@ -26,13 +26,13 @@ impl<T: Message> Signable for T {
 /// Sign a message and return the raw signature object.
 pub(crate) async fn sign_raw(
     message: &[u8],
-    signer: &NetworkSigner,
+    signer: &SignerSource,
 ) -> Result<alloy_primitives::Signature> {
     Ok(signer.sign_message(message).await?)
 }
 
 /// Sign a message and return signature bytes with Ethereum-style recovery ID.
-pub(crate) async fn sign_message(message: &[u8], signer: &NetworkSigner) -> Result<Vec<u8>> {
+pub(crate) async fn sign_message(message: &[u8], signer: &SignerSource) -> Result<Vec<u8>> {
     let signature = signer.sign_message(message).await?;
     let bytes = signature.as_bytes();
 
