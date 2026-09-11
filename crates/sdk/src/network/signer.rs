@@ -1,6 +1,9 @@
 //! # Network Signer
 //!
-//! This module provides a unified signer that supports both local private keys and AWS KMS.
+//! This module provides a unified signer that supports local private keys, AWS KMS, and custom
+//! asynchronous signers.
+
+use std::{fmt, sync::Arc};
 
 use alloy_primitives::Address;
 use alloy_signer::{Signature, Signer, SignerSync};
@@ -62,13 +65,25 @@ pub enum NetworkSignerError {
     InvalidKmsArn(String),
 }
 
-/// Unified signer that supports both local private keys and AWS KMS.
-#[derive(Clone, Debug)]
+/// Unified signer that supports local private keys, AWS KMS, and custom asynchronous signers.
+#[derive(Clone)]
 pub enum NetworkSigner {
     /// Local private key signer.
     Local(PrivateKeySigner),
     /// AWS KMS signer.
     Aws(AwsSigner),
+    /// Custom asynchronous signer.
+    Dynamic(Arc<dyn Signer + Send + Sync>),
+}
+
+impl fmt::Debug for NetworkSigner {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Local(signer) => f.debug_tuple("Local").field(signer).finish(),
+            Self::Aws(signer) => f.debug_tuple("Aws").field(signer).finish(),
+            Self::Dynamic(_) => f.debug_tuple("Dynamic").field(&"..").finish(),
+        }
+    }
 }
 
 impl NetworkSigner {
@@ -98,12 +113,19 @@ impl NetworkSigner {
         Ok(NetworkSigner::Aws(signer))
     }
 
+    /// Create a network signer from a custom asynchronous signer.
+    #[must_use]
+    pub fn dynamic(signer: Arc<dyn Signer + Send + Sync>) -> Self {
+        Self::Dynamic(signer)
+    }
+
     /// Get the address of the signer.
     #[must_use]
     pub fn address(&self) -> Address {
         match self {
             NetworkSigner::Local(signer) => Signer::address(signer),
             NetworkSigner::Aws(signer) => Signer::address(signer),
+            NetworkSigner::Dynamic(signer) => Signer::address(signer.as_ref()),
         }
     }
 
@@ -114,6 +136,9 @@ impl NetworkSigner {
                 signer.sign_message_sync(message).map_err(NetworkSignerError::Signing)
             }
             NetworkSigner::Aws(signer) => {
+                signer.sign_message(message).await.map_err(NetworkSignerError::Signing)
+            }
+            NetworkSigner::Dynamic(signer) => {
                 signer.sign_message(message).await.map_err(NetworkSignerError::Signing)
             }
         }
@@ -141,4 +166,27 @@ fn extract_region_from_kms_arn(arn: &str) -> Result<String, NetworkSignerError> 
         )));
     }
     Ok(parts[3].to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn dynamic_signer_delegates_address_and_message_signing() {
+        let signer = NetworkSigner::local(
+            "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        )
+        .unwrap();
+        let NetworkSigner::Local(local) = signer else {
+            unreachable!();
+        };
+        let expected_address = local.address();
+        let expected_signature = local.sign_message_sync(b"dynamic signer").unwrap();
+
+        let signer = NetworkSigner::dynamic(Arc::new(local));
+
+        assert_eq!(signer.address(), expected_address);
+        assert_eq!(signer.sign_message(b"dynamic signer").await.unwrap(), expected_signature);
+    }
 }
