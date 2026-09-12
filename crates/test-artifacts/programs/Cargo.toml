@@ -23,6 +23,7 @@ members = [
   "keccak-permute",
   "keccak256",
   "panic",
+  "poseidon2",
   "rand",
   "secp256k1-add",
   "secp256k1-decompress",

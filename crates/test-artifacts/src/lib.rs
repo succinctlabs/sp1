@@ -26,6 +26,8 @@ pub const KECCAK_PERMUTE_ELF: Elf = include_elf!("keccak-permute-test");
 
 pub const KECCAK256_ELF: Elf = include_elf!("keccak256-test");
 
+pub const POSEIDON2_ELF: Elf = include_elf!("poseidon2-test");
+
 pub const SECP256K1_ADD_ELF: Elf = include_elf!("secp256k1-add-test");
 
 pub const SECP256K1_DECOMPRESS_ELF: Elf = include_elf!("secp256k1-decompress-test");
