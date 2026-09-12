@@ -41,13 +41,16 @@ jobs:
 
       - name: Compute release name and tag
         id: release_info
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+          RUN_ID: ${{ github.run_id }}
         run: |
           # Parse the version from the `Cargo.toml` file.
           VERSION=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "sp1-primitives") | .version')
           TAG_NAME="v${VERSION}"
           # Append suffix for dry runs to avoid tag collisions with existing releases
-          if [ "${{ inputs.dry_run }}" == "true" ]; then
-            TAG_NAME="${TAG_NAME}-dry-run-${{ github.run_id }}"
+          if [ "$DRY_RUN" == "true" ]; then
+            TAG_NAME="${TAG_NAME}-dry-run-${RUN_ID}"
           fi
           echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
           echo "release_name=${TAG_NAME}" >> $GITHUB_OUTPUT
@@ -56,11 +59,20 @@ jobs:
         id: create_release
         env:
           GH_TOKEN: ${{ secrets.SP1_RELEASE_TOKEN }}
+          TARGET_BRANCH: ${{ inputs.target_branch || github.ref_name }}
+          PRERELEASE: ${{ inputs.prerelease }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          TAG_NAME: ${{ steps.release_info.outputs.tag_name }}
         run: |
-          TARGET_BRANCH="${{ inputs.target_branch || github.ref_name }}"
-          PRERELEASE_FLAG=${{ inputs.prerelease && '"--prerelease"' || '""' }}
-          DRAFT_FLAG=${{ inputs.dry_run && '"--draft"' || '""' }}
-          GH_DEBUG=api gh release create ${{ steps.release_info.outputs.tag_name }} --target "$TARGET_BRANCH" --generate-notes --latest=false $PRERELEASE_FLAG $DRAFT_FLAG
+          PRERELEASE_FLAG=""
+          if [ "$PRERELEASE" == "true" ]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+          DRAFT_FLAG=""
+          if [ "$DRY_RUN" == "true" ]; then
+            DRAFT_FLAG="--draft"
+          fi
+          GH_DEBUG=api gh release create "$TAG_NAME" --target "$TARGET_BRANCH" --generate-notes --latest=false $PRERELEASE_FLAG $DRAFT_FLAG
 
       - name: Categorize release notes by Conventional Commit prefix
         env:

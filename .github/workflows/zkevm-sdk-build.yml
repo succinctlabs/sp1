@@ -55,7 +55,9 @@ jobs:
         run: cargo run -p sp1-cli --no-default-features -- prove install-toolchain
 
       - name: Build SDK archive
-        run: make -C zkevm sdk-archive SDK_VERSION=${{ inputs.version }}
+        env:
+          SDK_VERSION: ${{ inputs.version }}
+        run: make -C zkevm sdk-archive SDK_VERSION="$SDK_VERSION"
 
       - name: Upload tarball as workflow artifact
         if: ${{ inputs.release_tag == '' }}
@@ -69,5 +71,7 @@ jobs:
         if: ${{ inputs.release_tag != '' && inputs.dry_run != true }}
         env:
           GH_TOKEN: ${{ secrets.SP1_RELEASE_TOKEN }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          SDK_VERSION: ${{ inputs.version }}
         run: |
-          gh release upload "${{ inputs.release_tag }}" "zkevm/zkevm-sdk-${{ inputs.version }}.tar.gz"
+          gh release upload "$RELEASE_TAG" "zkevm/zkevm-sdk-${SDK_VERSION}.tar.gz"
