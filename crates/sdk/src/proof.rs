@@ -12,9 +12,40 @@ use sp1_hypercube::create_dummy_recursion_proof;
 use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::{Groth16Bn254Proof, HashableKey, PlonkBn254Proof, SP1VerifyingKey};
 
+use crate::StatusCode;
+
 // Re-export the types from the verifier crate in order to avoid importing the verifier crate
 // for downstream dependencies.
 pub use sp1_verifier::{ProofFromNetwork, SP1Proof, SP1ProofMode};
+
+const MOCK_STATUS_TEE_PROOF_PREFIX: &[u8] = b"sp1-mock-status-v1:";
+
+fn encode_mock_status_tee_proof(status_code: StatusCode) -> Vec<u8> {
+    let mut encoded = MOCK_STATUS_TEE_PROOF_PREFIX.to_vec();
+    encoded.extend_from_slice(&status_code.as_u32().to_le_bytes());
+    encoded
+}
+
+pub(crate) fn mock_status_code(proof: &SP1ProofWithPublicValues) -> Result<u32> {
+    if let Some(tee_proof) = &proof.tee_proof {
+        if let Some(encoded_status) = tee_proof.strip_prefix(MOCK_STATUS_TEE_PROOF_PREFIX) {
+            let bytes: [u8; 4] = encoded_status
+                .try_into()
+                .map_err(|_| anyhow::anyhow!("invalid mock status metadata"))?;
+            return Ok(u32::from_le_bytes(bytes));
+        }
+    }
+
+    match &proof.proof {
+        SP1Proof::Plonk(plonk_proof) => {
+            plonk_proof.public_inputs[2].parse::<u32>().context("invalid mock Plonk exit code")
+        }
+        SP1Proof::Groth16(groth16_proof) => {
+            groth16_proof.public_inputs[2].parse::<u32>().context("invalid mock Groth16 exit code")
+        }
+        SP1Proof::Core(_) | SP1Proof::Compressed(_) => Ok(StatusCode::SUCCESS.as_u32()),
+    }
+}
 
 /// Verify that the mock proof's public inputs match the expected values.
 ///
@@ -220,13 +251,33 @@ impl SP1ProofWithPublicValues {
         mode: SP1ProofMode,
         sp1_version: &str,
     ) -> Self {
+        Self::create_mock_proof_with_status(
+            vk,
+            public_values,
+            mode,
+            sp1_version,
+            StatusCode::SUCCESS,
+        )
+    }
+
+    /// Creates a mock proof for the specified proof mode from the public values and exit status.
+    #[must_use]
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn create_mock_proof_with_status(
+        vk: &SP1VerifyingKey,
+        public_values: SP1PublicValues,
+        mode: SP1ProofMode,
+        sp1_version: &str,
+        status_code: StatusCode,
+    ) -> Self {
         let sp1_version = sp1_version.to_string();
         match mode {
             SP1ProofMode::Core => SP1ProofWithPublicValues {
                 proof: SP1Proof::Core(vec![]),
                 public_values,
                 sp1_version,
-                tee_proof: None,
+                tee_proof: (status_code != StatusCode::SUCCESS)
+                    .then(|| encode_mock_status_tee_proof(status_code)),
             },
             SP1ProofMode::Compressed => {
                 // Create a mock compressed proof with dummy values.
@@ -235,14 +286,15 @@ impl SP1ProofWithPublicValues {
                     proof: SP1Proof::Compressed(Box::new(dummy_proof)),
                     public_values,
                     sp1_version,
-                    tee_proof: None,
+                    tee_proof: (status_code != StatusCode::SUCCESS)
+                        .then(|| encode_mock_status_tee_proof(status_code)),
                 }
             }
             SP1ProofMode::Plonk => {
                 // Create mock Plonk proof with correct public inputs.
                 // public_inputs[0]: vkey_hash
                 // public_inputs[1]: committed_values_digest (public_values hash)
-                // public_inputs[2]: exit_code (0 for success)
+                // public_inputs[2]: exit_code
                 // public_inputs[3]: vk_root (0 for mock)
                 // public_inputs[4]: proof_nonce (0 for mock)
                 let vkey_hash = vk.hash_bn254().to_string();
@@ -252,7 +304,7 @@ impl SP1ProofWithPublicValues {
                         public_inputs: [
                             vkey_hash,
                             committed_values_digest,
-                            "0".to_string(), // exit_code
+                            status_code.as_u32().to_string(),
                             "0".to_string(), // vk_root (mock)
                             "0".to_string(), // proof_nonce (mock)
                         ],
@@ -269,7 +321,7 @@ impl SP1ProofWithPublicValues {
                 // Create mock Groth16 proof with correct public inputs.
                 // public_inputs[0]: vkey_hash
                 // public_inputs[1]: committed_values_digest (public_values hash)
-                // public_inputs[2]: exit_code (0 for success)
+                // public_inputs[2]: exit_code
                 // public_inputs[3]: vk_root (0 for mock)
                 // public_inputs[4]: proof_nonce (0 for mock)
                 let vkey_hash = vk.hash_bn254().to_string();
@@ -279,7 +331,7 @@ impl SP1ProofWithPublicValues {
                         public_inputs: [
                             vkey_hash,
                             committed_values_digest,
-                            "0".to_string(), // exit_code
+                            status_code.as_u32().to_string(),
                             "0".to_string(), // vk_root (mock)
                             "0".to_string(), // proof_nonce (mock)
                         ],
