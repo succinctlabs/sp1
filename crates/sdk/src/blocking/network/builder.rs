@@ -161,6 +161,7 @@ impl NetworkProverBuilder {
     }
 
     /// Sets the bearer token added to Prover Network and Artifact Store requests.
+    /// Bearer tokens require an HTTPS RPC URL.
     #[must_use]
     pub fn bearer_token(mut self, bearer_token: NetworkBearerToken) -> Self {
         self.bearer_token = Some(bearer_token);
