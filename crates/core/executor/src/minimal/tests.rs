@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use sp1_primitives::Elf;
+
 use super::*;
 use crate::{Program, SupervisorMode};
 
@@ -38,6 +40,63 @@ fn test_chunk_stops_correctly() {
     }
 
     assert!(chunk_count > 5, "no chunks were executed");
+}
+
+/// Runs a guest program to completion against a single input buffer.
+fn run_with_input(elf: &Elf, input: &[u8]) {
+    let program = Arc::new(Program::from(elf).unwrap());
+    let mut executor = MinimalExecutor::<SupervisorMode>::new(program, false, None);
+    executor.with_input(input);
+    while executor.execute_chunk().is_some() {}
+}
+
+/// A 33-byte SEC1 compressed encoding: an even-y prefix followed by `x`.
+fn compressed_even_y(x: [u8; 32]) -> [u8; 33] {
+    let mut encoded = [0u8; 33];
+    encoded[0] = 2;
+    encoded[1..].copy_from_slice(&x);
+    encoded
+}
+
+/// The three Weierstrass decompress precompiles are decommissioned: no executor implementation
+/// and no AIR. A guest that calls one traps regardless of what it passes, so these pin both
+/// that behaviour and the diagnostic — which is the only thing the guest author ever sees.
+///
+/// Each case passes a well-formed point, so a passing test cannot be explained away as input
+/// validation rejecting garbage. `ED_DECOMPRESS` is unaffected and still works; see
+/// `test_ed_decompress`.
+#[test]
+#[should_panic(expected = "Secp256k1 decompress precompile, which is decommissioned")]
+fn secp256k1_decompress_precompile_is_decommissioned() {
+    // The x coordinate of the secp256k1 generator.
+    let generator_x = [
+        0x79, 0xBE, 0x66, 0x7E, 0xF9, 0xDC, 0xBB, 0xAC, 0x55, 0xA0, 0x62, 0x95, 0xCE, 0x87, 0x0B,
+        0x07, 0x02, 0x9B, 0xFC, 0xDB, 0x2D, 0xCE, 0x28, 0xD9, 0x59, 0xF2, 0x81, 0x5B, 0x16, 0xF8,
+        0x17, 0x98,
+    ];
+    run_with_input(&test_artifacts::SECP256K1_DECOMPRESS_ELF, &compressed_even_y(generator_x));
+}
+
+#[test]
+#[should_panic(expected = "Secp256r1 decompress precompile, which is decommissioned")]
+fn secp256r1_decompress_precompile_is_decommissioned() {
+    // The x coordinate of the NIST P-256 generator.
+    let generator_x = [
+        0x6B, 0x17, 0xD1, 0xF2, 0xE1, 0x2C, 0x42, 0x47, 0xF8, 0xBC, 0xE6, 0xE5, 0x63, 0xA4, 0x40,
+        0xF2, 0x77, 0x03, 0x7D, 0x81, 0x2D, 0xEB, 0x33, 0xA0, 0xF4, 0xA1, 0x39, 0x45, 0xD8, 0x98,
+        0xC2, 0x96,
+    ];
+    run_with_input(&test_artifacts::SECP256R1_DECOMPRESS_ELF, &compressed_even_y(generator_x));
+}
+
+/// Exercises `sp1_lib::bls12381::decompress_pubkey` rather than the raw syscall, so the wrapper
+/// entry point is covered too. The all-zero key is the exact reproduction given in #2926; the
+/// trap precedes any inspection of the input, so its value is immaterial.
+#[test]
+#[should_panic(expected = "Bls12381 decompress precompile, which is decommissioned")]
+fn bls12381_decompress_precompile_is_decommissioned() {
+    let input = bincode::serialize(&[0u64; 6]).unwrap();
+    run_with_input(&test_artifacts::BLS12381_DECOMPRESS_ELF, &input);
 }
 
 /// Differential tests comparing the portable executor against the native `x86_64` executor.
