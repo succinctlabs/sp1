@@ -93,39 +93,31 @@ impl SP1ProofWithPublicValues {
         .map_err(Into::into)
     }
 
-    /// Loads a proof from a path.
-    pub fn load(path: impl AsRef<Path>) -> Result<Self> {
-        // Try to load a [`Self`] from the file.
-        let maybe_this: Result<Self> =
-            bincode::deserialize_from(File::open(path.as_ref()).with_context(|| {
-                format!("failed to open file for loading proof: {}", path.as_ref().display())
-            })?)
-            .map_err(Into::into);
+    /// Deserializes a proof from a byte slice.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        let maybe_this: Result<Self> = bincode::deserialize(bytes).map_err(Into::into);
 
-        // This may be a proof from the prover network, which lacks the TEE proof field.
         match maybe_this {
             Ok(this) => Ok(this),
             Err(e) => {
-                // If the file does not contain a [`Self`], try to load a [`ProofFromNetwork`]
-                // instead.
                 let maybe_proof_from_network: Result<ProofFromNetwork> =
-                    bincode::deserialize_from(File::open(path.as_ref()).with_context(|| {
-                        format!(
-                            "failed to open file for loading proof: {}",
-                            path.as_ref().display()
-                        )
-                    })?)
-                    .map_err(Into::into);
+                    bincode::deserialize(bytes).map_err(Into::into);
 
                 if let Ok(proof_from_network) = maybe_proof_from_network {
-                    // The file contains a [`ProofFromNetwork`], which lacks the TEE proof field.
                     Ok(proof_from_network.into())
                 } else {
-                    // Return the original error from trying to load a [`Self`].
                     Err(e)
                 }
             }
         }
+    }
+
+    /// Loads a proof from a path.
+    pub fn load(path: impl AsRef<Path>) -> Result<Self> {
+        let bytes = std::fs::read(path.as_ref()).with_context(|| {
+            format!("failed to open file for loading proof: {}", path.as_ref().display())
+        })?;
+        Self::from_bytes(&bytes)
     }
 
     /// The proof in the byte encoding the onchain verifiers accepts for [`SP1ProofMode::Groth16`]
@@ -428,6 +420,41 @@ mod tests {
         };
 
         let _ = bincode::deserialize::<ProofFromNetwork>(&round_trip_bytes).unwrap();
+    }
+
+    #[test]
+    fn test_from_bytes_round_trip() {
+        let proof = SP1ProofWithPublicValues {
+            proof: SP1Proof::Core(vec![]),
+            public_values: SP1PublicValues::new(),
+            sp1_version: "test-version".to_string(),
+            tee_proof: Some(vec![1, 2, 3, 4]),
+        };
+
+        let bytes = bincode::serialize(&proof).unwrap();
+        let loaded = SP1ProofWithPublicValues::from_bytes(&bytes).unwrap();
+
+        assert_eq!(loaded.sp1_version, proof.sp1_version);
+        assert_eq!(loaded.public_values, proof.public_values);
+        assert_eq!(loaded.tee_proof, proof.tee_proof);
+        assert!(matches!(loaded.proof, SP1Proof::Core(_)));
+    }
+
+    #[test]
+    fn test_from_bytes_proof_from_network() {
+        let proof_from_network = ProofFromNetwork {
+            proof: SP1Proof::Core(vec![]),
+            public_values: SP1PublicValues::new(),
+            sp1_version: "network-version".to_string(),
+        };
+
+        let bytes = bincode::serialize(&proof_from_network).unwrap();
+        let loaded = SP1ProofWithPublicValues::from_bytes(&bytes).unwrap();
+
+        assert_eq!(loaded.sp1_version, proof_from_network.sp1_version);
+        assert_eq!(loaded.public_values, proof_from_network.public_values);
+        assert_eq!(loaded.tee_proof, None);
+        assert!(matches!(loaded.proof, SP1Proof::Core(_)));
     }
 
     #[tokio::test]
