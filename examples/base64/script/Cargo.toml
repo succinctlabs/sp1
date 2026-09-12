@@ -1,0 +1,8 @@
+[package]
+name = "base64-script"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sp1-sdk = { git = "https://github.com/succinctlabs/sp1.git" }
+tokio = { version = "1.37.0", features = ["full"] }

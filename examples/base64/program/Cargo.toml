@@ -1,0 +1,8 @@
+[package]
+name = "base64-program"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sp1-zkvm = { git = "https://github.com/succinctlabs/sp1.git" }
+base64 = "0.22"
