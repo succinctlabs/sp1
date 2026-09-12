@@ -15,20 +15,39 @@ on:
       - "Cargo.toml"
       - ".github/workflows/**"
       - ".github/actions/**"
+      - ".github/scripts/check-runner-routing.rb"
   merge_group:
+  workflow_dispatch:
+    inputs:
+      runs_on_environment:
+        description: "RunsOn v3 environment (empty keeps the default runners)"
+        type: string
+        default: ""
+      runs_on_volume:
+        description: "Root volume for the selected v3 environment"
+        type: string
+        default: "200gb:gp3:750mbps:4000iops"
 
 env:
   SP1_CI_IN_PROGRESS: "true"
   SP1_CIRCUIT_MODE: "release"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}${{ github.event_name == 'workflow_dispatch' && format('-manual-{0}', inputs.runs_on_environment) || '' }}
   cancel-in-progress: true
 
 jobs:
+  runner-routing:
+    name: Runner routing
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - run: ruby .github/scripts/check-runner-routing.rb
+
   test-x86:
     name: Test (x86-64)
-    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-test-x86/runner=64cpu-linux-x64/spot=false/disk=large
+    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-test-x86/runner=64cpu-linux-x64/spot=false/${{ inputs.runs_on_environment && format('env={0}/image=ubuntu22-full-x64/volume={1}', inputs.runs_on_environment, inputs.runs_on_volume) || 'disk=large' }}
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -100,7 +119,7 @@ jobs:
 
   test-arm:
     name: Test (ARM)
-    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-test-arm/runner=64cpu-linux-arm64/spot=false/disk=large
+    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-test-arm/runner=64cpu-linux-arm64/spot=false/${{ inputs.runs_on_environment && format('env={0}/image=ubuntu22-full-arm64/volume={1}', inputs.runs_on_environment, inputs.runs_on_volume) || 'disk=large' }}
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -167,7 +186,7 @@ jobs:
 
   test-verifier:
     name: Test Verifier Crate
-    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-test-verifier/runner=64cpu-linux-arm64/spot=false/disk=large
+    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-test-verifier/runner=64cpu-linux-arm64/spot=false/${{ inputs.runs_on_environment && format('env={0}/image=ubuntu22-full-arm64/volume={1}', inputs.runs_on_environment, inputs.runs_on_volume) || 'disk=large' }}
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -212,7 +231,7 @@ jobs:
 
   lint:
     name: Formatting & Clippy
-    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-lint/runner=16cpu-linux-x64/disk=large/spot=false
+    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-lint/runner=16cpu-linux-x64/${{ inputs.runs_on_environment && format('env={0}/image=ubuntu22-full-x64/volume={1}', inputs.runs_on_environment, inputs.runs_on_volume) || 'disk=large' }}/spot=false
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -251,7 +270,7 @@ jobs:
 
   check:
     name: Cargo Check
-    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-check/runner=16cpu-linux-x64/disk=large/spot=false
+    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-check/runner=16cpu-linux-x64/${{ inputs.runs_on_environment && format('env={0}/image=ubuntu22-full-x64/volume={1}', inputs.runs_on_environment, inputs.runs_on_volume) || 'disk=large' }}/spot=false
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
       RUSTFLAGS: "--cfg sp1_debug_constraints"
@@ -292,7 +311,7 @@ jobs:
 
   check-nightly:
     name: Cargo Check (Nightly)
-    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-check-nightly/runner=16cpu-linux-x64/disk=large/spot=false
+    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-check-nightly/runner=16cpu-linux-x64/${{ inputs.runs_on_environment && format('env={0}/image=ubuntu22-full-x64/volume={1}', inputs.runs_on_environment, inputs.runs_on_volume) || 'disk=large' }}/spot=false
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -333,7 +352,7 @@ jobs:
 
   examples:
     name: Examples
-    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-examples/runner=64cpu-linux-x64/disk=large/spot=false
+    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-examples/runner=64cpu-linux-x64/${{ inputs.runs_on_environment && format('env={0}/image=ubuntu22-full-x64/volume={1}', inputs.runs_on_environment, inputs.runs_on_volume) || 'disk=large' }}/spot=false
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -447,7 +466,7 @@ jobs:
   # GPU Unit Tests
   test-gpu:
     name: Test (GPU)
-    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-test-gpu/family=g6.4xlarge/hdd=200/ami=ami-0a63dc9cb9e934ba3/spot=false
+    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-test-gpu/family=g6.4xlarge/${{ inputs.runs_on_environment && format('env={0}/volume={1}', inputs.runs_on_environment, inputs.runs_on_volume) || 'hdd=200' }}/ami=ami-0a63dc9cb9e934ba3/spot=false
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -507,7 +526,7 @@ jobs:
   # GPU E2E Test
   test-gpu-e2e:
     name: GPU E2E (node)
-    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-test-gpu-e2e/family=g6.4xlarge/hdd=200/ami=ami-0a63dc9cb9e934ba3/spot=false
+    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-test-gpu-e2e/family=g6.4xlarge/${{ inputs.runs_on_environment && format('env={0}/volume={1}', inputs.runs_on_environment, inputs.runs_on_volume) || 'hdd=200' }}/ami=ami-0a63dc9cb9e934ba3/spot=false
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
