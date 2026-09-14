@@ -16,7 +16,9 @@ use crate::{Program, SupervisorMode};
 #[test]
 #[ignore = "manual release-mode native/portable secp256k1 benchmark"]
 fn benchmark_secp256k1_executors() {
-    assert!(!cfg!(debug_assertions), "run with --release --features profiling");
+    if cfg!(debug_assertions) {
+        panic!("run with --release --features profiling");
+    }
     assert!(std::env::var_os("TRACE_FILE").is_none(), "unset TRACE_FILE when benchmarking");
     const ITERATIONS: u32 = 16_384;
 

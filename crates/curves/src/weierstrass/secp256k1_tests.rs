@@ -5,6 +5,7 @@ use rand::{rngs::StdRng, SeedableRng};
 use std::{hint::black_box, time::Instant};
 
 type Point = AffinePoint<SwCurve<Secp256k1Parameters>>;
+type PointOperation = fn(&Point, &Point) -> Point;
 
 // Keep the original implementation as an independent correctness and performance baseline.
 impl AffinePoint<SwCurve<Secp256k1Parameters>> {
@@ -114,7 +115,7 @@ fn secp256k1_inverse_matches_reference() {
 
 #[test]
 fn secp256k1_inverse_accepts_non_normalized_inputs() {
-    let mut rng = StdRng::seed_from_u64(0x5ec_256_1);
+    let mut rng = StdRng::seed_from_u64(0x05ec_2561);
     let random_values = std::iter::repeat_with(|| FieldElement::random(&mut rng))
         .filter(|value| !bool::from(value.is_zero()))
         .take(1024);
@@ -166,10 +167,12 @@ fn secp256k1_preserves_rejections() {
 #[test]
 #[ignore = "manual release-mode before/after performance comparison"]
 fn benchmark_secp256k1() {
-    assert!(!cfg!(debug_assertions), "run this benchmark with --release");
+    if cfg!(debug_assertions) {
+        panic!("run this benchmark with --release");
+    }
     let points = sample_points();
     let iterations = 20_000;
-    let measure = |operation: fn(&Point, &Point) -> Point| {
+    let measure = |operation: PointOperation| {
         let start = Instant::now();
         for i in 0..iterations {
             black_box(operation(
@@ -179,7 +182,7 @@ fn benchmark_secp256k1() {
         }
         start.elapsed().as_secs_f64() * 1e9 / iterations as f64
     };
-    let operations: [(&str, fn(&Point, &Point) -> Point, fn(&Point, &Point) -> Point); 2] = [
+    let operations: [(&str, PointOperation, PointOperation); 2] = [
         ("add", Point::reference_add, Point::sw_add_k256),
         ("double", |p, _| p.reference_double(), |p, _| p.sw_double_k256()),
     ];
