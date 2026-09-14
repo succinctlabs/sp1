@@ -58,3 +58,21 @@ pub enum Error {
     #[error("Other error: {0}")]
     Other(#[from] anyhow::Error),
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Error;
+
+    #[test]
+    fn simulation_failure_preserves_its_source() {
+        let error = anyhow::anyhow!("executor failed")
+            .context("guest panicked")
+            .context(Error::SimulationFailed);
+
+        assert_eq!(
+            format!("{error:#}"),
+            "Program simulation failed: guest panicked: executor failed"
+        );
+        assert!(error.source().is_some());
+    }
+}

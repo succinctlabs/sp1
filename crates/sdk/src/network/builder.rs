@@ -9,7 +9,7 @@ use sp1_primitives::SP1Field;
 use tonic::transport::Identity;
 
 use crate::{
-    network::{signer::NetworkSigner, NetworkMode, TEE_NETWORK_RPC_URL},
+    network::{signer::NetworkSigner, NetworkBearerToken, NetworkMode, TEE_NETWORK_RPC_URL},
     NetworkProver,
 };
 
@@ -23,6 +23,7 @@ pub struct NetworkProverBuilder {
     pub(crate) signer: Option<NetworkSigner>,
     pub(crate) network_mode: Option<NetworkMode>,
     pub(crate) client_identity: Option<Identity>,
+    pub(crate) bearer_token: Option<NetworkBearerToken>,
     pub(crate) hosted: bool,
     pub(crate) machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 }
@@ -50,6 +51,7 @@ impl NetworkProverBuilder {
             signer: None,
             network_mode: None,
             client_identity: None,
+            bearer_token: None,
             hosted: false,
             machine,
         }
@@ -182,6 +184,13 @@ impl NetworkProverBuilder {
         self
     }
 
+    /// Sets the bearer token added to Prover Network and Artifact Store requests.
+    #[must_use]
+    pub fn bearer_token(mut self, bearer_token: NetworkBearerToken) -> Self {
+        self.bearer_token = Some(bearer_token);
+        self
+    }
+
     /// Builds a [`NetworkProver`].
     ///
     /// # Details
@@ -262,6 +271,7 @@ impl NetworkProverBuilder {
             .await
             .with_tee_signers(tee_signers)
             .with_client_identity(self.client_identity)
+            .with_bearer_token(self.bearer_token)
             .with_hosted(self.hosted)
     }
 }
@@ -294,5 +304,17 @@ mod tests {
             .build()
             .await;
         assert!(prover.client.client_identity.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_bearer_token_is_injected() {
+        let private_key = hex::encode(alloy_signer_local::PrivateKeySigner::random().to_bytes());
+        let bearer_token = NetworkBearerToken::new("token").unwrap();
+        let prover = NetworkProverBuilder::new()
+            .private_key(&private_key)
+            .bearer_token(bearer_token)
+            .build()
+            .await;
+        assert!(prover.client.bearer_token.is_some());
     }
 }

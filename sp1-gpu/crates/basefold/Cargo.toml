@@ -68,5 +68,9 @@ criterion = "0.5"
 name = "two_to_one"
 harness = false
 
+[features]
+default = []
+nvidia-ntt = ["sp1-gpu-cudart/nvidia-ntt"]
+
 [lints]
 workspace = true

@@ -330,6 +330,12 @@ pub struct ExecuteProofRequestBody {
     /// The variant of the transaction.
     #[prost(enumeration = "TransactionVariant", tag = "10")]
     pub variant: i32,
+    /// An optional structured, sanitized error trace (UTF-8 JSON) describing why
+    /// execution failed. Same contract as FailFulfillmentRequestBody.error_trace:
+    /// the producer redacts + bounds it, the RPC re-validates it, and it is stored
+    /// in `requests.error_trace`. See `spn_network_types::error_trace`.
+    #[prost(bytes = "vec", optional, tag = "11")]
+    pub error_trace: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct ExecuteProofResponse {
@@ -365,6 +371,13 @@ pub struct FailFulfillmentRequestBody {
     /// The optional proof request error.
     #[prost(enumeration = "ProofRequestError", optional, tag = "3")]
     pub error: ::core::option::Option<i32>,
+    /// An optional structured, sanitized error trace (UTF-8 JSON) describing why
+    /// the request failed. The producer redacts secrets and bounds the size; it may
+    /// be omitted when no useful context is available. The RPC re-validates and
+    /// re-sanitizes it before storing the canonical form in `requests.error_trace`.
+    /// See `spn_network_types::error_trace` for the canonical shape and limits.
+    #[prost(bytes = "vec", optional, tag = "4")]
+    pub error_trace: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct FailFulfillmentResponse {
@@ -533,6 +546,16 @@ pub struct ProofRequest {
     /// empty and stdin is only fetchable via GetStdinUri by an authorized caller.
     #[prost(bool, tag = "38")]
     pub stdin_private: bool,
+    /// A structured, sanitized description of why the request failed (UTF-8 JSON).
+    /// Carries the detail `execute_fail_cause` cannot express, such as the message
+    /// behind an unmapped executor error. We serve only the executor's own traces,
+    /// and only their summary. See `spn_network_types::error_trace`.
+    #[prost(bytes = "vec", optional, tag = "39")]
+    pub error_trace: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+    /// The lowest price per prover gas unit the network accepts for this request, in PROVE wei.
+    /// Absent means no floor applies.
+    #[prost(string, optional, tag = "40")]
+    pub floor_price_per_pgu: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct GetProofRequestStatusRequest {
@@ -822,6 +845,9 @@ pub struct GetProofRequestParamsResponse {
     /// of this value to be accepted.
     #[prost(uint64, tag = "8")]
     pub tick_size: u64,
+    /// The network's current floor price per prover gas unit before any request cap, in PROVE wei.
+    #[prost(string, tag = "9")]
+    pub network_floor_price_per_pgu: ::prost::alloc::string::String,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct GetNonceRequest {
@@ -1301,6 +1327,166 @@ pub struct BidResponse {
 #[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
 pub struct BidResponseBody {}
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct ReportProverInfoRequest {
+    /// The message format of the body.
+    #[prost(enumeration = "MessageFormat", tag = "1")]
+    pub format: i32,
+    /// The signature of the sender.
+    #[prost(bytes = "vec", tag = "2")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the request.
+    #[prost(message, optional, tag = "3")]
+    pub body: ::core::option::Option<ReportProverInfoRequestBody>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct ReportProverInfoRequestBody {
+    /// The domain separator for the request.
+    #[prost(bytes = "vec", tag = "1")]
+    pub domain: ::prost::alloc::vec::Vec<u8>,
+    /// The address of the prover the report is for. Must match the signer-resolved prover.
+    #[prost(bytes = "vec", tag = "2")]
+    pub prover: ::prost::alloc::vec::Vec<u8>,
+    /// The build identity of one or more cluster components.
+    #[prost(message, repeated, tag = "3")]
+    pub components: ::prost::alloc::vec::Vec<ComponentInfo>,
+    /// The GPU capacity snapshot for the cluster. Optional: if it is absent, the receiver
+    /// keeps the stored capacity.
+    #[prost(message, optional, tag = "4")]
+    pub capacity: ::core::option::Option<ClusterCapacitySnapshot>,
+}
+/// Self-reported build identity of a single cluster component. This is debugging
+/// telemetry, not verified attestation. `component` is a free-form string validated
+/// against a server-side allowlist (fulfiller, coordinator, gpu-node, cpu-node).
+/// Keyed by build identity (component, version, git_sha, image_tag).
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct ComponentInfo {
+    /// The component kind, e.g. "fulfiller", "coordinator", "gpu-node", "cpu-node".
+    #[prost(string, tag = "1")]
+    pub component: ::prost::alloc::string::String,
+    /// The crate version (CARGO_PKG_VERSION).
+    #[prost(string, tag = "2")]
+    pub version: ::prost::alloc::string::String,
+    /// The git commit the binary was built from.
+    #[prost(string, tag = "3")]
+    pub git_sha: ::prost::alloc::string::String,
+    /// The container image tag the component is running.
+    #[prost(string, tag = "4")]
+    pub image_tag: ::prost::alloc::string::String,
+}
+/// The self-reported GPU capacity of a prover's cluster. This is telemetry, not verified
+/// attestation. All GPU time is in GPU-milliseconds, which has the same meaning on all
+/// GPU models.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct ClusterCapacitySnapshot {
+    /// Unix seconds on the coordinator clock when the coordinator made this snapshot. This
+    /// is not the send time or the receive time.
+    #[prost(uint64, tag = "1")]
+    pub observed_at: u64,
+    /// Unix seconds when the coordinator process started and the counters were zero. The
+    /// server subtracts two snapshots only if their `counters_since` values are equal.
+    #[prost(uint64, tag = "2")]
+    pub counters_since: u64,
+    /// The number of connected GPU worker nodes at `observed_at`. Each node has one GPU.
+    #[prost(uint32, tag = "3")]
+    pub gpu_nodes: u32,
+    /// The integral of `gpu_nodes` over time since `counters_since`. This value only
+    /// increases. It is the capacity denominator.
+    #[prost(uint64, tag = "4")]
+    pub gpu_available_ms_total: u64,
+    /// The sum of per-task GPU permit-hold time since `counters_since`. This value only
+    /// increases. It is the utilization numerator. It can be more than
+    /// `gpu_available_ms_total` because of sampling effects.
+    #[prost(uint64, tag = "5")]
+    pub gpu_busy_ms_total: u64,
+    /// One entry for each different GPU model. The `node_count` values add up to `gpu_nodes`.
+    #[prost(message, repeated, tag = "6")]
+    pub gpus: ::prost::alloc::vec::Vec<GpuClassCount>,
+}
+/// The number of connected GPU nodes that have the same GPU model.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GpuClassCount {
+    /// The device name from CUDA, for example "NVIDIA L4". Empty if the node could not
+    /// identify its GPU.
+    #[prost(string, tag = "1")]
+    pub name: ::prost::alloc::string::String,
+    /// The total VRAM of the device in bytes, from CUDA. Zero if unknown.
+    #[prost(uint64, tag = "2")]
+    pub memory_total_bytes: u64,
+    /// The number of connected GPU nodes that have this (name, memory_total_bytes).
+    #[prost(uint32, tag = "3")]
+    pub node_count: u32,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetProverCapacityRequest {
+    /// The address of the prover.
+    #[prost(bytes = "vec", tag = "1")]
+    pub prover: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetProverCapacityResponse {
+    /// The latest stored snapshot. Absent if the prover has not reported capacity.
+    #[prost(message, optional, tag = "1")]
+    pub capacity: ::core::option::Option<ProverCapacity>,
+}
+/// The latest stored capacity snapshot for a prover, with the most recent completed
+/// observation window.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct ProverCapacity {
+    /// Unix seconds on the coordinator clock when the coordinator made the snapshot.
+    #[prost(uint64, tag = "1")]
+    pub observed_at: u64,
+    /// Unix seconds when the coordinator process started.
+    #[prost(uint64, tag = "2")]
+    pub counters_since: u64,
+    /// The number of connected GPU nodes at `observed_at`. Each node has one GPU.
+    #[prost(uint32, tag = "3")]
+    pub gpu_nodes: u32,
+    /// GPU-milliseconds available since `counters_since`.
+    #[prost(uint64, tag = "4")]
+    pub gpu_available_ms_total: u64,
+    /// GPU-milliseconds busy since `counters_since`.
+    #[prost(uint64, tag = "5")]
+    pub gpu_busy_ms_total: u64,
+    /// One entry for each different GPU model. The `node_count` values add up to `gpu_nodes`.
+    #[prost(message, repeated, tag = "6")]
+    pub gpus: ::prost::alloc::vec::Vec<GpuClassCount>,
+    /// The most recent completed window. Absent until the server has two comparable
+    /// snapshots.
+    #[prost(message, optional, tag = "7")]
+    pub latest_window: ::core::option::Option<ProverCapacityWindow>,
+    /// Unix seconds on the server clock when a report last superseded the stored snapshot.
+    /// All other fields come from the prover. Use this field to measure staleness.
+    #[prost(uint64, tag = "8")]
+    pub last_reported_at: u64,
+}
+/// The difference between two consecutive snapshots that had the same `counters_since`.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct ProverCapacityWindow {
+    /// Unix seconds of the older snapshot.
+    #[prost(uint64, tag = "1")]
+    pub window_start: u64,
+    /// Unix seconds of the newer snapshot.
+    #[prost(uint64, tag = "2")]
+    pub window_end: u64,
+    /// GPU-milliseconds available in the window.
+    #[prost(uint64, tag = "3")]
+    pub gpu_available_ms: u64,
+    /// GPU-milliseconds busy in the window.
+    #[prost(uint64, tag = "4")]
+    pub gpu_busy_ms: u64,
+    /// The number of connected GPU nodes at `window_end`.
+    #[prost(uint32, tag = "5")]
+    pub gpu_nodes_end: u32,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct ReportProverInfoResponse {
+    /// The body of the response.
+    #[prost(message, optional, tag = "1")]
+    pub body: ::core::option::Option<ReportProverInfoResponseBody>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct ReportProverInfoResponseBody {}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct SettleRequest {
     /// The message format of the body.
     #[prost(enumeration = "MessageFormat", tag = "1")]
@@ -1519,6 +1705,76 @@ pub struct Bid {
     /// The amount of the bid.
     #[prost(string, tag = "2")]
     pub amount: ::prost::alloc::string::String,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct GetProverRequirementsRequest {}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct ProverRequirements {
+    /// Whole-request proving rate in MGas/s: gas_used divided by fulfillment latency
+    /// must meet this whenever the rate grants more time than the floor.
+    #[prost(string, tag = "1")]
+    pub min_mgas_per_second: ::prost::alloc::string::String,
+    /// Minimum time budget in seconds granted to every request regardless of size.
+    #[prost(uint64, tag = "2")]
+    pub floor_latency_seconds: u64,
+    /// Minimum success rate over resolved requests in the lookback window; falling
+    /// below it means suspension.
+    #[prost(string, tag = "3")]
+    pub min_success_rate_percentage: ::prost::alloc::string::String,
+    /// Performance evaluation lookback window in hours.
+    #[prost(uint64, tag = "4")]
+    pub performance_lookback_hours: u64,
+    /// Minimum resolved (succeeded or failed) requests in the window for an
+    /// evaluation to run at all.
+    #[prost(uint64, tag = "5")]
+    pub min_resolved_requests_to_evaluate: u64,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetProverRequirementsResponse {
+    /// The enforced requirements. Absent when performance requirements are not
+    /// enforced on this network.
+    #[prost(message, optional, tag = "1")]
+    pub requirements: ::core::option::Option<ProverRequirements>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetProverStatusRequest {
+    /// The address of the prover.
+    #[prost(bytes = "vec", tag = "1")]
+    pub prover: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct GetProverStatusResponse {
+    /// Whether the prover is whitelisted.
+    #[prost(bool, tag = "1")]
+    pub is_whitelisted: bool,
+    /// Whether the prover is exempt from performance evaluation (high availability).
+    #[prost(bool, tag = "2")]
+    pub is_high_availability: bool,
+    /// Unix seconds when the current suspension expires; absent when not suspended.
+    #[prost(uint64, optional, tag = "3")]
+    pub suspended_until: ::core::option::Option<u64>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetProgramGasEstimatesRequest {
+    /// Programs to look up. The server caps the number per call.
+    #[prost(bytes = "vec", repeated, tag = "1")]
+    pub vk_hashes: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct ProgramGasEstimate {
+    #[prost(bytes = "vec", tag = "1")]
+    pub vk_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The network's expected gas for this program's next proof. The estimation method
+    /// is server-side and may change without notice.
+    #[prost(uint64, tag = "2")]
+    pub gas_estimate: u64,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetProgramGasEstimatesResponse {
+    /// One entry per requested vk the network has an estimate for; programs without
+    /// one are absent.
+    #[prost(message, repeated, tag = "1")]
+    pub estimates: ::prost::alloc::vec::Vec<ProgramGasEstimate>,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct GetProverStatsRequest {
@@ -3891,9 +4147,10 @@ pub enum FulfillmentStatus {
     Fulfilled = 3,
     /// The request cannot be fulfilled.
     Unfulfillable = 4,
-    /// The request failed during settlement. Terminal; no proof is recorded.
+    /// The Clear was soft-reverted by the vApp STF. Terminal; no balance impact.
     Reverted = 5,
-    /// The request expired at its deadline without a proof being submitted. Terminal.
+    /// Request sat at ASSIGNED past its deadline without the prover ever submitting
+    /// a proof. Terminal; STF never received a Clear for it. No balance impact.
     Expired = 6,
 }
 impl FulfillmentStatus {
@@ -4516,6 +4773,9 @@ pub enum ProofRequestError {
     /// The proof failed verification (e.g., invalid proof, public values hash mismatch during
     /// verification).
     VerificationFailure = 5,
+    /// Execution succeeded but a downstream proving task (controller, shard prove,
+    /// recursion, wrap, etc.) hit a fatal error.
+    ProvingFailure = 6,
 }
 impl ProofRequestError {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -4530,6 +4790,7 @@ impl ProofRequestError {
             Self::UnknownFailure => "UNKNOWN_FAILURE",
             Self::PublicValuesMismatch => "PUBLIC_VALUES_MISMATCH",
             Self::VerificationFailure => "VERIFICATION_FAILURE",
+            Self::ProvingFailure => "PROVING_FAILURE",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -4541,6 +4802,7 @@ impl ProofRequestError {
             "UNKNOWN_FAILURE" => Some(Self::UnknownFailure),
             "PUBLIC_VALUES_MISMATCH" => Some(Self::PublicValuesMismatch),
             "VERIFICATION_FAILURE" => Some(Self::VerificationFailure),
+            "PROVING_FAILURE" => Some(Self::ProvingFailure),
             _ => None,
         }
     }
