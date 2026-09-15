@@ -248,6 +248,15 @@ impl NetworkProver {
         self
     }
 
+    #[must_use]
+    pub(crate) fn with_bearer_token(
+        mut self,
+        bearer_token: Option<super::NetworkBearerToken>,
+    ) -> Self {
+        self.client.bearer_token = bearer_token;
+        self
+    }
+
     /// Sets whether this prover uses hosted defaults (skip simulation, max cycle and gas limits).
     ///
     /// See [`NetworkProver::hosted`] for details.
@@ -881,7 +890,7 @@ impl NetworkProver {
             .node
             .execute(elf, stdin.clone(), SP1Context::builder().calculate_gas(true).build())
             .await
-            .map_err(|_| Error::SimulationFailed)?;
+            .context(Error::SimulationFailed)?;
 
         let (_, committed_value_digest, report) = execute_result;
 

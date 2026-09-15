@@ -14,8 +14,14 @@ mod hint;
 mod precompiles;
 mod write;
 
+#[doc(hidden)]
+pub use write::{publish_output_line, with_output_consumers};
+
 #[cfg(test)]
 mod tests;
+
+#[cfg(all(test, target_arch = "x86_64", target_os = "linux", feature = "profiling"))]
+mod secp256k1_bench;
 
 /// Wrapper enum to handle `MinimalExecutor` with different execution modes at runtime.
 pub enum MinimalExecutorEnum {

@@ -1,11 +1,12 @@
 use super::{IntoSendFutureResult, Prover};
 use crate::{ProvingKey, SP1ProofMode, SP1ProofWithPublicValues, StatusCode};
+use serde::{Deserialize, Serialize};
 use sp1_build::Elf;
 use sp1_core_executor::SP1ContextBuilder;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::SP1VerifyingKey;
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 /// A proving key for the SP1 prover.
 ///
 /// Contains only the minimal information required to implement the `ProvingKey` trait.

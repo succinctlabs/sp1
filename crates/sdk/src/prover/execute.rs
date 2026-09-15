@@ -8,6 +8,7 @@ use std::{
     future::{Future, IntoFuture},
     pin::Pin,
 };
+use tokio::sync::watch;
 
 /// A request for executing a program.
 pub struct ExecuteRequest<'a, P: Prover> {
@@ -160,46 +161,23 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
         self
     }
 
-    // todo!(n): workaround this
-    // /// Override the default stdout of the guest program.
-    // ///
-    // /// # Example
-    // /// ```rust,no_run
-    // /// use sp1_sdk::{include_elf, Prover, ProverClient, SP1Stdin};
-    // ///
-    // /// let mut stdout = Vec::new();
-    // ///
-    // /// let elf = &[1, 2, 3];
-    // /// let stdin = SP1Stdin::new();
-    // ///
-    // /// let client = ProverClient::builder().cpu().build();
-    // /// client.execute(elf, &stdin).stdout(&mut stdout).run();
-    // /// ```
-    // #[must_use]
-    // pub fn stdout<W: IoWriter>(mut self, writer: &'a mut W) -> Self {
-    //     self.context_builder.stdout(writer);
-    //     self
-    // }
+    /// Publish the latest 2 KiB snapshot of guest `stdout`.
+    ///
+    /// Keep a receiver alive through execution, then clone its value after execution completes.
+    #[must_use]
+    pub fn stdout(mut self, sender: watch::Sender<String>) -> Self {
+        self.context_builder.stdout_channel(sender);
+        self
+    }
 
-    // /// Override the default stdout of the guest program.
-    // ///
-    // /// # Example
-    // /// ```rust,no_run
-    // /// use sp1_sdk::{include_elf, Prover, ProverClient, SP1Stdin};
-    // ///
-    // /// let mut stderr = Vec::new();
-    // ///
-    // /// let elf = &[1, 2, 3];
-    // /// let stdin = SP1Stdin::new();
-    // ///
-    // /// let client = ProverClient::builder().cpu().build();
-    // /// client.execute(elf, &stdin).stderr(&mut stderr).run();
-    // /// ```
-    // #[must_use]
-    // pub fn stderr<W: IoWriter>(mut self, writer: &'a mut W) -> Self {
-    //     self.context_builder.stderr(writer);
-    //     self
-    // }
+    /// Publish the latest 2 KiB snapshot of guest `stderr`.
+    ///
+    /// Keep a receiver alive through execution, then clone its value after execution completes.
+    #[must_use]
+    pub fn stderr(mut self, sender: watch::Sender<String>) -> Self {
+        self.context_builder.stderr_channel(sender);
+        self
+    }
 }
 
 impl<'a, P: Prover> IntoFuture for ExecuteRequest<'a, P> {
@@ -217,9 +195,6 @@ impl<'a, P: Prover> IntoFuture for ExecuteRequest<'a, P> {
                 .await
                 .map_err(|e| ExecutionError::Other(e.to_string()))?;
 
-            // todo!(n): if there exists stdout/stderr pipes can just forward them with an mpsc
-            // here, and then write to the actual stdout/stderr writers from this
-            // future.
             Ok((pv, report))
         };
         Box::pin(task)
