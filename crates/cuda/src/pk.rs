@@ -60,10 +60,21 @@ impl Drop for SessionKey {
         let client = self.client.clone();
         let id = std::mem::take(&mut self.id);
 
-        tokio::spawn(async move {
-            if let Err(e) = client.destroy(id).await {
-                tracing::error!("Failed to destroy session key: {}", e);
+        // As in `CudaClientInner::drop`, this can run with no Tokio runtime in scope,
+        // where `tokio::spawn` panics and the panic aborts the process from a destructor.
+        match tokio::runtime::Handle::try_current() {
+            Ok(handle) => {
+                handle.spawn(async move {
+                    if let Err(e) = client.destroy(id).await {
+                        tracing::error!("Failed to destroy session key: {}", e);
+                    }
+                });
             }
-        });
+            Err(_) => {
+                // The server frees its keys when the connection closes, so skipping the
+                // explicit destroy is preferable to aborting the process.
+                tracing::debug!("No Tokio runtime available; skipping session key destroy");
+            }
+        }
     }
 }
