@@ -103,6 +103,16 @@ extern "C" {
     pub fn syscall_secp256k1_double(p: *mut [u64; 8]);
 
     /// Executes an Secp256k1 curve decompression on the given point.
+    ///
+    /// # Deprecated
+    ///
+    /// The `SECP256K1_DECOMPRESS` precompile is decommissioned: it has no executor
+    /// implementation and no AIR, so every call traps the executor regardless of input.
+    /// Decompress in Rust instead — see `sp1_lib::ecdsa`, whose `DecompressPoint::decompress`
+    /// computes the square root without a precompile.
+    #[deprecated = "the SECP256K1_DECOMPRESS precompile is decommissioned (no executor \
+                    implementation, no AIR); every call traps the executor. See \
+                    https://github.com/succinctlabs/sp1/issues/2926"]
     pub fn syscall_secp256k1_decompress(point: &mut [u64; 8], is_odd: bool);
 
     /// Executes an Secp256r1 curve addition on the given points.
@@ -112,6 +122,16 @@ extern "C" {
     pub fn syscall_secp256r1_double(p: *mut [u64; 8]);
 
     /// Executes an Secp256r1 curve decompression on the given point.
+    ///
+    /// # Deprecated
+    ///
+    /// The `SECP256R1_DECOMPRESS` precompile is decommissioned: it has no executor
+    /// implementation and no AIR, so every call traps the executor regardless of input.
+    /// Decompress in Rust instead — see `sp1_lib::ecdsa`, whose `DecompressPoint::decompress`
+    /// computes the square root without a precompile.
+    #[deprecated = "the SECP256R1_DECOMPRESS precompile is decommissioned (no executor \
+                    implementation, no AIR); every call traps the executor. See \
+                    https://github.com/succinctlabs/sp1/issues/2926"]
     pub fn syscall_secp256r1_decompress(point: &mut [u64; 8], is_odd: bool);
 
     /// Executes a Bn254 curve addition on the given points.
@@ -177,6 +197,14 @@ extern "C" {
     pub fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u8;
 
     /// Decompresses a BLS12-381 point.
+    ///
+    /// # Deprecated
+    ///
+    /// The `BLS12381_DECOMPRESS` precompile is decommissioned: it has no executor
+    /// implementation and no AIR, so every call traps the executor regardless of input.
+    #[deprecated = "the BLS12381_DECOMPRESS precompile is decommissioned (no executor \
+                    implementation, no AIR); every call traps the executor. See \
+                    https://github.com/succinctlabs/sp1/issues/2926"]
     pub fn syscall_bls12381_decompress(point: &mut [u64; 12], is_odd: bool);
 
     /// Computes a big integer operation with a modulus.
