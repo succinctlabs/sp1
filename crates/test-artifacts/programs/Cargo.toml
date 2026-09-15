@@ -25,6 +25,7 @@ members = [
   "panic",
   "rand",
   "secp256k1-add",
+  "secp256k1-bench",
   "secp256k1-decompress",
   "secp256k1-double",
   "secp256k1-mul",

@@ -2478,6 +2478,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "secp256k1-bench-test"
+version = "1.1.0"
+dependencies = [
+ "sp1-zkvm",
+]
+
+[[package]]
 name = "secp256k1-decompress-test"
 version = "1.1.0"
 dependencies = [
