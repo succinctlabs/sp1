@@ -85,7 +85,7 @@ pub use utils::setup_logger;
 mod tests {
     use sp1_primitives::io::SP1PublicValues;
 
-    use crate::{utils, MockProver, Prover, ProverClient, SP1Stdin};
+    use crate::{prover::ProveRequest, utils, MockProver, Prover, ProverClient, SP1Stdin};
 
     #[tokio::test]
     async fn test_execute() {
@@ -257,6 +257,24 @@ mod tests {
         if client.verify(&proof, &pk.vk, None).is_ok() {
             panic!("verified proof with invalid public values")
         }
+    }
+
+    #[tokio::test]
+    async fn test_e2e_core_auipc_sign_extension() {
+        const EXPECTED: u64 = 0xffff_ffff_8000_0000;
+
+        utils::setup_logger();
+        let client = ProverClient::builder().cpu().build().await;
+        let elf = test_artifacts::AUIPC_SIGN_EXTENSION_ELF;
+        let pk = client.setup(elf).await.unwrap();
+
+        let proof = client.prove(&pk, SP1Stdin::new()).core().await.unwrap();
+        let mut public_values = proof.public_values.clone();
+        assert_eq!(public_values.read::<u64>(), EXPECTED);
+        assert_eq!(public_values.read::<u64>(), EXPECTED);
+        assert!(public_values.read::<bool>());
+
+        client.verify(&proof, &pk.vk, None).unwrap();
     }
 
     #[tokio::test]
