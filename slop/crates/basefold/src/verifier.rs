@@ -127,6 +127,18 @@ where
         proof: &BasefoldProof<GC>,
         challenger: &mut GC::Challenger,
     ) -> Result<(), BaseFoldVerifierError<MerkleTreeTcsError>> {
+        // Validate all batch shapes before using their declared lengths for batching. This is
+        // intentionally duplicated by the existing commitment-count check below.
+        if evaluation_claims.len() != commitments.len()
+            || commitments.len() != proof.component_polynomials_query_openings_and_proofs.len()
+            || commitments.len() != self.num_expected_commitments
+            || evaluation_claims
+                .iter()
+                .any(|batch_claims| !batch_claims.evaluations().has_valid_shape())
+        {
+            return Err(BaseFoldVerifierError::IncorrectShape);
+        }
+
         // Check batch grinding witness.
         if !challenger.check_witness(BATCH_GRINDING_BITS, proof.batch_grinding_witness) {
             return Err(BaseFoldVerifierError::BatchPow);
@@ -244,7 +256,7 @@ where
         {
             let values = &opening_and_proof.values;
             let total_columns = evaluation_claims[round_idx].num_polynomials();
-            if values.dimensions.sizes().len() != 2 {
+            if !values.has_valid_shape() || values.dimensions.sizes().len() != 2 {
                 return Err(BaseFoldVerifierError::IncorrectShape);
             }
             if values.dimensions.sizes()[0] != query_indices.len() {
@@ -339,7 +351,7 @@ where
             .zip_eq(commitments.iter().zip_eq(query_openings.iter()).zip_eq(betas))
         {
             let openings = &query_opening.values;
-            if openings.dimensions.sizes().len() != 2 {
+            if !openings.has_valid_shape() || openings.dimensions.sizes().len() != 2 {
                 return Err(BaseFoldVerifierError::IncorrectShape);
             }
 

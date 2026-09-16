@@ -122,7 +122,11 @@ impl<GC: IopCtx> MerkleTreeTcs<GC> {
         }
 
         let expected_path_len = proof.log_tensor_height;
-        if proof.paths.dimensions.sizes().len() != 2 || opening.dimensions.sizes().len() != 2 {
+        if !proof.paths.has_valid_shape()
+            || !opening.has_valid_shape()
+            || proof.paths.dimensions.sizes().len() != 2
+            || opening.dimensions.sizes().len() != 2
+        {
             return Err(MerkleTreeTcsError::IncorrectShape);
         }
         if indices.len() != proof.paths.dimensions.sizes()[0] {

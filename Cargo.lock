@@ -6920,6 +6920,7 @@ name = "slop-tensor"
 version = "6.8.1"
 dependencies = [
  "arrayvec",
+ "bincode",
  "derive-where",
  "itertools 0.14.0",
  "rand 0.8.6",

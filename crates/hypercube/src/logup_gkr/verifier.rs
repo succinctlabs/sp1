@@ -110,6 +110,9 @@ impl<GC: IopCtx, SC: ShardContext<GC>> LogUpGkrVerifier<GC, SC> {
         let LogupGkrProof { circuit_output, round_proofs, logup_evaluations, witness } = proof;
 
         let LogUpGkrOutput { numerator, denominator } = circuit_output;
+        if shard_chips.iter().all(|chip| chip.sends().is_empty() && chip.receives().is_empty()) {
+            return Err(LogupGkrVerificationError::InvalidShape);
+        }
         let max_interaction_arity = shard_chips
             .iter()
             .flat_map(|c| c.sends().iter().chain(c.receives().iter()))
@@ -150,7 +153,9 @@ impl<GC: IopCtx, SC: ShardContext<GC>> LogUpGkrVerifier<GC, SC> {
 
         let expected_size = 1 << (number_of_interaction_variables + 1);
 
-        if numerator.guts().dimensions.sizes() != [expected_size, 1]
+        if !numerator.guts().has_valid_shape()
+            || !denominator.guts().has_valid_shape()
+            || numerator.guts().dimensions.sizes() != [expected_size, 1]
             || denominator.guts().dimensions.sizes() != [expected_size, 1]
         {
             return Err(LogupGkrVerificationError::InvalidShape);
@@ -262,6 +267,14 @@ impl<GC: IopCtx, SC: ShardContext<GC>> LogUpGkrVerifier<GC, SC> {
             return Err(LogupGkrVerificationError::TracePointMismatch);
         }
 
+        if shard_chips.len() != chip_openings.len()
+            || shard_chips.len() != degrees.len()
+            || shard_chips.iter().map(MachineAir::name).ne(chip_openings.keys().map(String::as_str))
+            || shard_chips.iter().map(MachineAir::name).ne(degrees.keys().map(String::as_str))
+        {
+            return Err(LogupGkrVerificationError::InvalidShape);
+        }
+
         let betas = partial_lagrange_blocking(&beta_seed);
 
         // Compute the expected opening of the last layer numerator and denominator values from the
@@ -278,14 +291,18 @@ impl<GC: IopCtx, SC: ShardContext<GC>> LogUpGkrVerifier<GC, SC> {
             // Observe the opening
             if let Some(prep_eval) = openings.preprocessed_trace_evaluations.as_ref() {
                 challenger.observe_variable_length_extension_slice(prep_eval);
-                if prep_eval.evaluations().sizes() != [chip.air.preprocessed_width()] {
+                if !prep_eval.evaluations().has_valid_shape()
+                    || prep_eval.evaluations().sizes() != [chip.air.preprocessed_width()]
+                {
                     return Err(LogupGkrVerificationError::InvalidShape);
                 }
             } else if chip.air.preprocessed_width() != 0 {
                 return Err(LogupGkrVerificationError::InvalidShape);
             }
             challenger.observe_variable_length_extension_slice(&openings.main_trace_evaluations);
-            if openings.main_trace_evaluations.evaluations().sizes() != [chip.air.width()] {
+            if !openings.main_trace_evaluations.evaluations().has_valid_shape()
+                || openings.main_trace_evaluations.evaluations().sizes() != [chip.air.width()]
+            {
                 return Err(LogupGkrVerificationError::InvalidShape);
             }
 

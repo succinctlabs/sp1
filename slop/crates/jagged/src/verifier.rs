@@ -125,6 +125,77 @@ impl<GC: IopCtx, Verifier: MultilinearPcsVerifier<GC>> JaggedPcsVerifier<GC, Ver
             log_m,
         } = proof;
 
+        // Validate the compact shape metadata before `unzip_and_prefix_sums` expands column
+        // counts into vectors. The checks below are intentionally duplicated by the existing
+        // protocol checks later in this function.
+        let expected_rounds = self.pcs_verifier.num_expected_commitments();
+        if row_counts_and_column_counts.is_empty()
+            || row_counts_and_column_counts.len() != expected_rounds
+            || commitments.len() != expected_rounds
+            || evaluation_claims.len() != expected_rounds
+            || original_commitments.len() != expected_rounds
+            || *max_log_row_count != self.max_log_row_count
+            || self.max_log_row_count >= 30
+            || *log_m >= 30
+            || point.dimension() != self.max_log_row_count
+            || evaluation_claims
+                .iter()
+                .any(|evaluation| !evaluation.evaluations().has_valid_shape())
+        {
+            return Err(JaggedPcsVerifierError::IncorrectShape);
+        }
+
+        let log_stacking_height = Verifier::log_stacking_height(&self.pcs_verifier);
+        if log_stacking_height >= usize::BITS {
+            return Err(JaggedPcsVerifierError::AreaOutOfBounds);
+        }
+        let stacking_height = 1usize << log_stacking_height;
+        let max_row_count = 1usize << self.max_log_row_count;
+        let max_added_columns = (stacking_height - 1).div_ceil(max_row_count).max(1);
+
+        let mut checked_prefix_sum = 0usize;
+        for (round, round_evaluation) in
+            row_counts_and_column_counts.iter().zip(evaluation_claims.iter())
+        {
+            if round.len() < 2 {
+                return Err(JaggedPcsVerifierError::IncorrectShape);
+            }
+            if round.len() >= GC::F::ORDER_U32 as usize
+                || round.iter().any(|&(rows, columns)| {
+                    rows >= GC::F::ORDER_U32 as usize || columns >= GC::F::ORDER_U32 as usize
+                })
+            {
+                return Err(JaggedPcsVerifierError::BaseFieldOverflow);
+            }
+
+            let real_column_count = round[..round.len() - 2]
+                .iter()
+                .try_fold(0usize, |total, &(_, columns)| total.checked_add(columns))
+                .ok_or(JaggedPcsVerifierError::InvalidPrefixSums)?;
+            if real_column_count != round_evaluation.num_polynomials() {
+                return Err(JaggedPcsVerifierError::IncorrectShape);
+            }
+
+            if round[round.len() - 2]
+                .1
+                .checked_add(1)
+                .is_none_or(|columns| columns > max_added_columns)
+                || round[round.len() - 1].1 != 1
+            {
+                return Err(JaggedPcsVerifierError::IncorrectShape);
+            }
+
+            checked_prefix_sum = round
+                .iter()
+                .try_fold(checked_prefix_sum, |total, &(rows, columns)| {
+                    rows.checked_mul(columns).and_then(|area| total.checked_add(area))
+                })
+                .ok_or(JaggedPcsVerifierError::InvalidPrefixSums)?;
+        }
+        if checked_prefix_sum >= (1 << 30) {
+            return Err(JaggedPcsVerifierError::AreaOutOfBounds);
+        }
+
         // Each round must have at least one table committed to.
         if row_counts_and_column_counts.iter().any(|rc_cc| rc_cc.is_empty()) {
             return Err(JaggedPcsVerifierError::IncorrectShape);
