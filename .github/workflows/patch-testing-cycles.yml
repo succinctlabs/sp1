@@ -6,7 +6,27 @@ on:
     types: [opened, synchronize]
 
 jobs:
+  changes:
+    name: Classify changes
+    runs-on: ubuntu-latest
+    outputs:
+      slop_only: ${{ steps.classify.outputs.slop_only }}
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Classify pull request changes
+        id: classify
+        run: |
+          .github/scripts/classify-pr-changes.sh \
+            "${{ github.event.pull_request.base.sha }}" \
+            "${{ github.event.pull_request.head.sha }}"
+
   patch-testing-cycles:
+    needs: changes
+    if: needs.changes.outputs.slop_only != 'true'
     runs-on:
       [
         runs-on,
