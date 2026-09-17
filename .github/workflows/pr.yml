@@ -112,6 +112,7 @@ jobs:
           args: --all-targets --all-features --tests
 
       - name: Test native guest output forwarding
+        if: needs.changes.outputs.slop_only != 'true'
         run: >-
           cargo test --release -p sp1-core-executor-runner
           test_guest_stderr_forwarding -- --nocapture
