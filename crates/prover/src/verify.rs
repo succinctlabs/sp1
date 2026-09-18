@@ -501,7 +501,11 @@ impl SP1Verifier {
             let public_values: &PublicValues<[_; 4], [_; 3], [_; 4], _> =
                 shard_proof.public_values.as_slice().borrow();
 
-            cumulative_sum = cumulative_sum + public_values.global_cumulative_sum;
+            cumulative_sum = cumulative_sum
+                .checked_add(public_values.global_cumulative_sum)
+                .ok_or(MachineVerifierError::InvalidPublicValues(
+                    "global cumulative sum has an exceptional curve addition",
+                ))?;
         }
         if !cumulative_sum.is_zero() {
             return Err(MachineVerifierError::InvalidPublicValues(
