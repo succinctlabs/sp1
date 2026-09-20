@@ -326,10 +326,10 @@ impl<GC: IopCtx, SC: ShardContext<GC>> LogUpGkrVerifier<GC, SC> {
                     betas.as_slice(),
                 );
                 let padding_trace_opening =
-                    MleEval::from(vec![GC::EF::zero(); main_trace_evaluations.num_polynomials()]);
+                    MleEval::from(vec![GC::EF::zero(); main_trace_evaluations.num_evaluations()]);
                 let padding_preprocessed_opening = preprocessed_trace_evaluations
                     .as_ref()
-                    .map(|eval| MleEval::from(vec![GC::EF::zero(); eval.num_polynomials()]));
+                    .map(|eval| MleEval::from(vec![GC::EF::zero(); eval.num_evaluations()]));
                 let (padding_numerator, padding_denominator) = interaction.eval(
                     padding_preprocessed_opening.as_ref(),
                     &padding_trace_opening,

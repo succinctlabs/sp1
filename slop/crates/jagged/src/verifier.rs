@@ -172,7 +172,7 @@ impl<GC: IopCtx, Verifier: MultilinearPcsVerifier<GC>> JaggedPcsVerifier<GC, Ver
                 .iter()
                 .try_fold(0usize, |total, &(_, columns)| total.checked_add(columns))
                 .ok_or(JaggedPcsVerifierError::InvalidPrefixSums)?;
-            if real_column_count != round_evaluation.num_polynomials() {
+            if real_column_count != round_evaluation.num_evaluations() {
                 return Err(JaggedPcsVerifierError::IncorrectShape);
             }
 
@@ -250,7 +250,7 @@ impl<GC: IopCtx, Verifier: MultilinearPcsVerifier<GC>> JaggedPcsVerifier<GC, Ver
         {
             let expected_len: usize =
                 round_column_counts.iter().take(round_column_counts.len() - 2).sum();
-            if round_evaluation.num_polynomials() != expected_len {
+            if round_evaluation.num_evaluations() != expected_len {
                 return Err(JaggedPcsVerifierError::IncorrectShape);
             }
         }

@@ -76,7 +76,7 @@ impl<GC: IopCtx> StackedPcsVerifier<GC> {
         {
             if !round_area.is_multiple_of(1 << self.log_stacking_height)
                 || round_area >> self.log_stacking_height as usize
-                    != proof_evaluation_len.num_polynomials()
+                    != proof_evaluation_len.num_evaluations()
             {
                 return Err(StackedVerifierError::IncorrectShape);
             }

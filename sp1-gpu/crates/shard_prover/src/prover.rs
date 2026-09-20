@@ -455,7 +455,7 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
 
         // First, allocate a buffer for all of the column claims on device.
         let total_column_claims =
-            evaluation_claims.iter().map(|evals| evals.num_polynomials()).sum::<usize>();
+            evaluation_claims.iter().map(|evals| evals.num_evaluations()).sum::<usize>();
 
         // Add in the dummy padding columns added during the stacked PCS commitment.
         let total_len = total_column_claims

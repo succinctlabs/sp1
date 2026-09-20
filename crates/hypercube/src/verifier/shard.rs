@@ -600,7 +600,7 @@ where {
                 || gkr_opened_values
                     .preprocessed_trace_evaluations
                     .as_ref()
-                    .map_or(0, MleEval::num_polynomials)
+                    .map_or(0, MleEval::num_evaluations)
                     != shard_chip.preprocessed_width()
             {
                 return Err(ShardVerifierError::InvalidShape);

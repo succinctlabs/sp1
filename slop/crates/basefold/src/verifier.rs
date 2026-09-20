@@ -147,7 +147,7 @@ where
         // Sample the challenge used to batch all the different polynomials.
         let total_len = evaluation_claims
             .iter()
-            .map(|batch_claims| batch_claims.num_polynomials())
+            .map(|batch_claims| batch_claims.num_evaluations())
             .sum::<usize>();
 
         let num_batching_variables = total_len.next_power_of_two().ilog2();
@@ -255,7 +255,7 @@ where
             proof.component_polynomials_query_openings_and_proofs.iter().enumerate()
         {
             let values = &opening_and_proof.values;
-            let total_columns = evaluation_claims[round_idx].num_polynomials();
+            let total_columns = evaluation_claims[round_idx].num_evaluations();
             if !values.has_valid_shape() || values.dimensions.sizes().len() != 2 {
                 return Err(BaseFoldVerifierError::IncorrectShape);
             }
