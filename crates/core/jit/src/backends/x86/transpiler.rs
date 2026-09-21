@@ -2,8 +2,8 @@
 
 use super::{TranspilerBackend, CONTEXT};
 use crate::{
-    DebugFn, EcallHandler, ExternFn, JitFunction, JitMemory, RiscOperand, RiscRegister,
-    RiscvTranspiler,
+    do_load_imm_var, DebugFn, EcallHandler, ExternFn, JitFunction, JitMemory, RiscOperand,
+    RiscRegister, RiscvTranspiler,
 };
 use dynasmrt::{
     dynasm,
@@ -144,12 +144,7 @@ impl RiscvTranspiler for TranspilerBackend {
     }
 
     fn inspect_immediate(&mut self, imm: u64, handler: DebugFn) {
-        dynasm! {
-            self;
-            .arch x64;
-
-            mov rdi, imm as i32
-        }
+        do_load_imm_var!(self, Rq::RDI as u8, imm);
 
         self.call_extern_fn_raw(handler as _);
     }

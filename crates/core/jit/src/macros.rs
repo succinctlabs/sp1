@@ -111,7 +111,11 @@ macro_rules! do_opt_imm_var {
 macro_rules! do_load_imm_var {
     ($self:expr, $target:expr, $imm:expr) => {
         if $imm as i64 == ($imm as i32) as i64 {
-            if ($target as u8) < 8 {
+            if ($imm as i64) < 0 {
+                // Writing a 32-bit register zero-extends into the upper 32 bits. Use the
+                // sign-extending `mov r64, imm32` encoding for negative 32-bit values.
+                dynasm! { $self; .arch x64; mov Rq($target), $imm as i32 };
+            } else if ($target as u8) < 8 {
                 // dynasm would insert an unnecessary REX prefix if we use
                 // x64 as the `arch` value. Using x86 as `arch` value strips
                 // the prefix. The generated code sequence still work, but
