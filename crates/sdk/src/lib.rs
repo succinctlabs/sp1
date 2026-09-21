@@ -241,6 +241,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_e2e_core() {
+        use std::borrow::BorrowMut;
+
+        use sp1_hypercube::{air::PublicValues, septic_digest::SepticDigest};
+
+        use crate::SP1Proof;
+
         utils::setup_logger();
         let client = ProverClient::builder().cpu().build().await;
         let elf = test_artifacts::FIBONACCI_ELF;
@@ -251,6 +257,27 @@ mod tests {
         // Generate proof & verify.
         let mut proof = client.prove(&pk, stdin).await.unwrap();
         client.verify(&proof, &pk.vk, None).unwrap();
+
+        // Test a global cumulative sum that reaches an exceptional incomplete curve addition.
+        let mut malformed_proof = proof.clone();
+        let accumulator = pk.vk.vk.initial_global_cumulative_sum;
+        let intermediate = SepticDigest::starting_digest()
+            .0
+            .add_incomplete(accumulator.0)
+            .sub_incomplete(SepticDigest::zero().0);
+        assert!(intermediate.check_on_point());
+        match &mut malformed_proof.proof {
+            SP1Proof::Core(shards) => {
+                let public_values: &mut PublicValues<[_; 4], [_; 3], [_; 4], _> =
+                    shards[0].public_values.as_mut_slice().borrow_mut();
+                public_values.global_cumulative_sum = SepticDigest(intermediate);
+            }
+            _ => unreachable!(),
+        }
+        let error = client.verify(&malformed_proof, &pk.vk, None).unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("global cumulative sum has an exceptional curve addition"));
 
         // Test invalid public values.
         proof.public_values = SP1PublicValues::from(&[255, 4, 84]);
