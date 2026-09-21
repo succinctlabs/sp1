@@ -319,7 +319,7 @@ impl Elf {
 
         for addr in (vaddr..end).step_by(step_size) {
             if addr >= vaddr + file_size {
-                image.insert(addr - addr % 8, 0);
+                image.entry(addr - addr % 8).or_insert(0);
                 continue;
             }
             let mut word = 0u64;
