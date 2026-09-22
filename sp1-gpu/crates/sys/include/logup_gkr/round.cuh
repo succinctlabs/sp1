@@ -99,6 +99,18 @@ struct CircuitValues {
         ext_t denominator = denominatorZero * denominatorOne;
         return eqValue * (numerator * lambda + denominator);
     }
+
+    static __device__ __forceinline__ ext_t sumAsPolyScalars(
+        ext_t numeratorZero,
+        ext_t numeratorOne,
+        ext_t denominatorZero,
+        ext_t denominatorOne,
+        ext_t lambda,
+        ext_t eqValue) {
+        ext_t numerator = numeratorZero * denominatorOne + numeratorOne * denominatorZero;
+        ext_t denominator = denominatorZero * denominatorOne;
+        return eqValue * (numerator * lambda + denominator);
+    }
 };
 
 /// A GKR layer.
@@ -259,16 +271,28 @@ __device__ __forceinline__ SumAsPolyResult sumAsPolyCircuitLayerInner(
     valuesZero = CircuitValues::load(layer, zeroIdx, height);
     valuesOne = CircuitValues::load(layer, oneIdx, height);
 
-    // Compute the values at the point 1/2 (times a factor of 2)
-    CircuitValues valuesHalf;
-    valuesHalf.numeratorZero = valuesZero.numeratorZero + valuesOne.numeratorZero;
-    valuesHalf.numeratorOne = valuesZero.numeratorOne + valuesOne.numeratorOne;
-    valuesHalf.denominatorZero = valuesZero.denominatorZero + valuesOne.denominatorZero;
-    valuesHalf.denominatorOne = valuesZero.denominatorOne + valuesOne.denominatorOne;
+    // Compute the values at the point 1/2 (times a factor of 2) without
+    // materializing a temporary CircuitValues struct.
+    ext_t halfNumeratorZero = valuesZero.numeratorZero + valuesOne.numeratorZero;
+    ext_t halfNumeratorOne = valuesZero.numeratorOne + valuesOne.numeratorOne;
+    ext_t halfDenominatorZero = valuesZero.denominatorZero + valuesOne.denominatorZero;
+    ext_t halfDenominatorOne = valuesZero.denominatorOne + valuesOne.denominatorOne;
 
     // Compute the sumcheck sum values and add to the running aggregate
-    ext_t evalZero = valuesZero.sumAsPoly(lambda, eqValueZero);
-    ext_t evalHalf = valuesHalf.sumAsPoly(lambda, eqValueHalf);
+    ext_t evalZero = CircuitValues::sumAsPolyScalars(
+        valuesZero.numeratorZero,
+        valuesZero.numeratorOne,
+        valuesZero.denominatorZero,
+        valuesZero.denominatorOne,
+        lambda,
+        eqValueZero);
+    ext_t evalHalf = CircuitValues::sumAsPolyScalars(
+        halfNumeratorZero,
+        halfNumeratorOne,
+        halfDenominatorZero,
+        halfDenominatorOne,
+        lambda,
+        eqValueHalf);
 
     return SumAsPolyResult{evalZero, evalHalf, eqSum};
 }
