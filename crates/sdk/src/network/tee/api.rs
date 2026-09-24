@@ -1,5 +1,5 @@
 use crate::{
-    network::{signer::NetworkSigner, utils::sign_raw},
+    network::{signer::SignerSource, utils::sign_raw},
     SP1Stdin,
 };
 use alloy_primitives::{Address, Signature as AlloySignature};
@@ -25,7 +25,7 @@ pub struct TEERequest {
 impl TEERequest {
     /// The selector for the TEE verifier.
     pub(crate) async fn new(
-        signer: &NetworkSigner,
+        signer: &SignerSource,
         id: [u8; 32],
         program: Vec<u8>,
         stdin: SP1Stdin,
