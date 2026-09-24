@@ -660,9 +660,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.101"
+version = "1.0.107"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89ae43fd86e4158d6db51ad8e2b80f313af9cc74f5c0e03ccb87de09998732de"
+checksum = "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9"
 dependencies = [
  "unicode-ident",
 ]
@@ -814,7 +814,7 @@ checksum = "5b0276cf7f2c73365f7157c8123c21cd9a50fbbd844757af28ca1f5925fc2a00"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.106",
+ "syn 2.0.119",
 ]
 
 [[package]]
@@ -846,7 +846,7 @@ dependencies = [
 
 [[package]]
 name = "slop-algebra"
-version = "6.8.0"
+version = "6.8.1"
 dependencies = [
  "itertools 0.14.0",
  "p3-field",
@@ -855,7 +855,7 @@ dependencies = [
 
 [[package]]
 name = "slop-bn254"
-version = "6.8.0"
+version = "6.8.1"
 dependencies = [
  "ff",
  "p3-bn254-fr",
@@ -868,7 +868,7 @@ dependencies = [
 
 [[package]]
 name = "slop-challenger"
-version = "6.8.0"
+version = "6.8.1"
 dependencies = [
  "p3-challenger",
  "serde",
@@ -878,7 +878,7 @@ dependencies = [
 
 [[package]]
 name = "slop-koala-bear"
-version = "6.8.0"
+version = "6.8.1"
 dependencies = [
  "lazy_static",
  "p3-koala-bear",
@@ -891,25 +891,25 @@ dependencies = [
 
 [[package]]
 name = "slop-poseidon2"
-version = "6.8.0"
+version = "6.8.1"
 dependencies = [
  "p3-poseidon2",
 ]
 
 [[package]]
 name = "slop-primitives"
-version = "6.8.0"
+version = "6.8.1"
 
 [[package]]
 name = "slop-symmetric"
-version = "6.8.0"
+version = "6.8.1"
 dependencies = [
  "p3-symmetric",
 ]
 
 [[package]]
 name = "sp1-lib"
-version = "6.8.0"
+version = "6.8.1"
 dependencies = [
  "bincode",
  "elliptic-curve",
@@ -919,7 +919,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "6.8.0"
+version = "6.8.1"
 dependencies = [
  "bincode",
  "blake3",
@@ -941,7 +941,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "6.8.0"
+version = "6.8.1"
 dependencies = [
  "cfg-if",
  "critical-section",
@@ -997,9 +997,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.106"
+version = "2.0.119"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ede7c438028d4436d71104916910f5bb611972c5cfd7f89b8300a8186e6fada6"
+checksum = "872831b642d1a07999a962a351ed35b955ea2cfc8f3862091e2a240a84f17297"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1031,7 +1031,7 @@ checksum = "7490cfa5ec963746568740651ac6781f701c9c5ea257c58e057f3ba8cf69e8da"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.106",
+ "syn 2.0.119",
 ]
 
 [[package]]
@@ -1114,7 +1114,7 @@ checksum = "f2ab42fc20575779bd240faa45f94a74256f755c0fa9e89f0ede20d91d0cdfc1"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.106",
+ "syn 2.0.119",
 ]
 
 [[package]]
