@@ -1,25 +1,35 @@
-name: Runner smoke
+name: Runner lifecycle validation
+run-name: Runner lifecycle ${{ inputs.case }}
 
 on:
   workflow_dispatch:
     inputs:
       runs_on_environment:
-        description: RunsOn environment to compare with the default installation
+        description: Isolated RunsOn environment
         type: string
         required: true
+      case:
+        description: Validation case
+        type: choice
+        required: true
+        options: [queued-cancel, running-cancel, control]
 
 permissions: {}
 
 jobs:
-  smoke:
-    strategy:
-      fail-fast: false
-      matrix:
-        environment: [production, "${{ inputs.runs_on_environment }}"]
-    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}/family=c7i.large/image=ubuntu22-full-x64/env=${{ matrix.environment }}/spot=false
-    timeout-minutes: 5
+  lifecycle:
+    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-lifecycle/family=c7i.large/image=ubuntu22-full-x64/env=${{ inputs.runs_on_environment }}/spot=false
+    timeout-minutes: 10
     steps:
-      - name: Verify runner execution
+      - name: Validate lifecycle
+        env:
+          TEST_CASE: ${{ inputs.case }}
         run: |
           test "$(uname -m)" = x86_64
-          printf 'Runner smoke check passed\n'
+          printf 'PAYLOAD_STARTED\n'
+          case "$TEST_CASE" in
+            queued-cancel) echo 'Unexpected execution of cancelled queued job'; exit 1 ;;
+            running-cancel) sleep 540; echo 'Cancellation was not observed'; exit 1 ;;
+            control) sleep 60; printf 'CONTROL_PASSED\n' ;;
+            *) echo 'Unknown validation case'; exit 1 ;;
+          esac
