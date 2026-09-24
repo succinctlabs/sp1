@@ -12,13 +12,13 @@ on:
         description: Validation case
         type: choice
         required: true
-        options: [queued-cancel, running-cancel, control]
+        options: [queued-cancel, running-cancel, invalid-family, control]
 
 permissions: {}
 
 jobs:
   lifecycle:
-    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-lifecycle/family=c7i.large/image=ubuntu22-full-x64/env=${{ inputs.runs_on_environment }}/spot=false
+    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-lifecycle/family=${{ inputs.case == 'invalid-family' && 'invalid-lifecycle-test' || 'c7i.large' }}/image=ubuntu22-full-x64/env=${{ inputs.runs_on_environment }}/spot=false
     timeout-minutes: 10
     steps:
       - name: Validate lifecycle
@@ -30,6 +30,7 @@ jobs:
           case "$TEST_CASE" in
             queued-cancel) echo 'Unexpected execution of cancelled queued job'; exit 1 ;;
             running-cancel) sleep 540; echo 'Cancellation was not observed'; exit 1 ;;
+            invalid-family) echo 'Payload must not run after a configuration failure'; exit 1 ;;
             control) sleep 60; printf 'CONTROL_PASSED\n' ;;
             *) echo 'Unknown validation case'; exit 1 ;;
           esac
