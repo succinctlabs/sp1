@@ -8,6 +8,8 @@
 
 use sp1_build::{include_elf, Elf};
 
+pub const AUIPC_SIGN_EXTENSION_ELF: Elf = include_elf!("auipc-sign-extension-test");
+
 pub const FIBONACCI_ELF: Elf = include_elf!("fibonacci-program-tests");
 
 pub const FIBONACCI_BLAKE3_ELF: Elf = include_elf!("fibonacci-blake3-test");

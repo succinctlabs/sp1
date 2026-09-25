@@ -15,7 +15,7 @@ use crate::{
             },
             GetProofRequestStatusResponse,
         },
-        signer::NetworkSigner,
+        signer::{NetworkSigner, SignerSource},
         tee::{client::Client as TeeClient, verify_tee_proof},
         Error, NetworkMode, DEFAULT_AUCTION_TIMEOUT_DURATION, DEFAULT_GAS_LIMIT,
         DEFAULT_MAX_PRICE_PER_PGU_BUFFER, MAINNET_EXPLORER_URL, MAINNET_RPC_URL,
@@ -226,12 +226,26 @@ impl NetworkProver {
         network_mode: NetworkMode,
         machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> Self {
+        Self::new_with_machine_and_signer_source(
+            SignerSource::from(signer.into()),
+            rpc_url,
+            network_mode,
+            machine,
+        )
+        .await
+    }
+
+    pub(crate) async fn new_with_machine_and_signer_source(
+        signer: SignerSource,
+        rpc_url: &str,
+        network_mode: NetworkMode,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+    ) -> Self {
         // Install default CryptoProvider if not already installed.
         let _ = rustls::crypto::ring::default_provider().install_default();
 
-        let signer = signer.into();
         let node = SP1LightNode::new_with_machine(machine).await;
-        let client = NetworkClient::new(signer, rpc_url, network_mode);
+        let client = NetworkClient::new_with_signer_source(signer, rpc_url, network_mode);
         Self { client, node, tee_signers: vec![], network_mode, hosted: false }
     }
 

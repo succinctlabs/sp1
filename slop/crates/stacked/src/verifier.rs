@@ -62,12 +62,21 @@ impl<GC: IopCtx> StackedPcsVerifier<GC> {
             return Err(StackedVerifierError::IncorrectShape);
         }
 
+        if commitments.len() != self.basefold_verifier.num_expected_commitments
+            || proof
+                .batch_evaluations
+                .iter()
+                .any(|evaluation| !evaluation.evaluations().has_valid_shape())
+        {
+            return Err(StackedVerifierError::IncorrectShape);
+        }
+
         for (round_area, proof_evaluation_len) in
             round_areas.iter().zip_eq(proof.batch_evaluations.iter())
         {
             if !round_area.is_multiple_of(1 << self.log_stacking_height)
                 || round_area >> self.log_stacking_height as usize
-                    != proof_evaluation_len.num_polynomials()
+                    != proof_evaluation_len.num_evaluations()
             {
                 return Err(StackedVerifierError::IncorrectShape);
             }

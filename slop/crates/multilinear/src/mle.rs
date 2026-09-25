@@ -439,7 +439,7 @@ impl<T, A: Backend> MleEval<T, A> {
     //. It is expected that `self.evaluations.sizes()` is one of the three options:
     /// `[1, num_polynomials]`, `[num_polynomials,1]`, or `[num_polynomials]`.
     #[inline]
-    pub fn num_polynomials(&self) -> usize {
+    pub fn num_evaluations(&self) -> usize {
         self.evaluations.total_len()
     }
 

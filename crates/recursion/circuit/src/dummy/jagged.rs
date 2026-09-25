@@ -341,7 +341,7 @@ mod tests {
             .iter()
             .zip(dummy_proof.pcs_proof.batch_evaluations.rounds.iter())
         {
-            assert_eq!(round.num_polynomials(), dummy_round.num_polynomials());
+            assert_eq!(round.num_evaluations(), dummy_round.num_evaluations());
         }
         // Check that the BaseFold proof is the right shape.
         let BasefoldProof {

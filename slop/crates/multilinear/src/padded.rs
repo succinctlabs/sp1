@@ -35,7 +35,7 @@ impl<F: Clone, A: Backend> Padding<F, A> {
     pub fn num_polynomials(&self) -> usize {
         match self {
             Padding::Constant((_, num_polynomials, _)) => *num_polynomials,
-            Padding::Generic(ref eval) => eval.num_polynomials(),
+            Padding::Generic(ref eval) => eval.num_evaluations(),
         }
     }
 }
