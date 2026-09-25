@@ -410,10 +410,20 @@ pub(crate) fn sp1_ecall_handler<'a, M: ExecutionMode, RT: SyscallRuntime<'a, M>>
         | SyscallCode::DUMP_ELF
         | SyscallCode::INSERT_PROFILER_SYMBOLS
         | SyscallCode::DELETE_PROFILER_SYMBOLS => Ok(None),
+        // Not `unreachable!`: a guest program can reach these by calling the corresponding
+        // deprecated `sp1-lib` wrapper, so the message addresses the guest author rather than
+        // reporting an internal error.
         code @ (SyscallCode::SECP256K1_DECOMPRESS
         | SyscallCode::BLS12381_DECOMPRESS
-        | SyscallCode::SECP256R1_DECOMPRESS
-        | SyscallCode::U256XU2048_MUL) => {
+        | SyscallCode::SECP256R1_DECOMPRESS) => {
+            panic!(
+                "the guest program called {code}, which is decommissioned: it has no executor \
+                 implementation and no AIR, so it can be neither executed nor proven. Remove the \
+                 decompress syscall from the guest program and decompress in Rust instead. See \
+                 https://github.com/succinctlabs/sp1/issues/2926"
+            )
+        }
+        code @ SyscallCode::U256XU2048_MUL => {
             unreachable!("{code} is not supported by the native executor.")
         }
     };

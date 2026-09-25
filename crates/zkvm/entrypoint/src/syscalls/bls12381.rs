@@ -62,6 +62,14 @@ pub extern "C" fn syscall_bls12381_double(p: *mut [u64; 12]) {
 ///
 /// The caller must ensure that `point` is valid pointer to data that is aligned along an eight byte
 /// boundary.
+///
+/// # Deprecated
+///
+/// The `BLS12381_DECOMPRESS` precompile is decommissioned: it has no executor implementation
+/// and no AIR, so the `ecall` below traps the executor on every input.
+#[deprecated = "the BLS12381_DECOMPRESS precompile is decommissioned (no executor \
+                implementation, no AIR); every call traps the executor. See \
+                https://github.com/succinctlabs/sp1/issues/2926"]
 #[allow(unused_variables)]
 #[no_mangle]
 pub extern "C" fn syscall_bls12381_decompress(point: &mut [u64; 12], sign_bit: bool) {
