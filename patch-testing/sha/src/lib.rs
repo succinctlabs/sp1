@@ -76,8 +76,21 @@ mod tests {
         }
     }
 
-    #[sp1_test("sha3", syscalls = [KECCAK_PERMUTE], gpu, prove)]
-    fn test_sha3_expected_digest_lte_100_times(
+    #[sp1_test("sha3_v0_10_8", syscalls = [KECCAK_PERMUTE], gpu, prove)]
+    fn test_sha3_v0_10_8_expected_digest_lte_100_times(
+        stdin: &mut sp1_sdk::SP1Stdin,
+    ) -> impl FnOnce(SP1PublicValues) {
+        sha3_expected_digest_lte_100_times(stdin)
+    }
+
+    #[sp1_test("sha3_v0_11_0", syscalls = [KECCAK_PERMUTE], gpu, prove)]
+    fn test_sha3_v0_11_0_expected_digest_lte_100_times(
+        stdin: &mut sp1_sdk::SP1Stdin,
+    ) -> impl FnOnce(SP1PublicValues) {
+        sha3_expected_digest_lte_100_times(stdin)
+    }
+
+    fn sha3_expected_digest_lte_100_times(
         stdin: &mut sp1_sdk::SP1Stdin,
     ) -> impl FnOnce(SP1PublicValues) {
         use sha3::Digest;

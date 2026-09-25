@@ -430,6 +430,7 @@ dependencies = [
  "sha2 0.11.0",
  "sha2 0.9.9 (git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.9.9-sp1-6.2.0)",
  "sha3 0.10.8",
+ "sha3 0.11.0",
  "sp1-lib",
  "sp1-zkvm",
  "substrate-bn-succinct-rs 0.6.0 (git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-6.2.0)",
@@ -2297,6 +2298,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "keccak"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d8f198d1db720e4940b5a493201d199d9f24f568f8f746bd13706243a2f71598"
+dependencies = [
+ "cfg-if",
+ "cpufeatures 0.3.0",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4132,7 +4143,6 @@ version = "1.1.0"
 dependencies = [
  "color-eyre",
  "rand 0.8.5",
- "sha2 0.11.0",
  "sha2 0.9.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "sha3 0.10.6",
  "sp1-build",
@@ -4232,7 +4242,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bdf0c33fae925bdc080598b84bc15c55e7b9a4a43b3c704da051f977469691c9"
 dependencies = [
  "digest 0.10.7",
- "keccak",
+ "keccak 0.1.6",
 ]
 
 [[package]]
@@ -4241,7 +4251,16 @@ version = "0.10.8"
 source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha3-0.10.8-sp1-6.2.0#0a16ae7acd5cd5fbb432d884bd4aae2764a18cf7"
 dependencies = [
  "digest 0.10.7",
- "keccak",
+ "keccak 0.1.6",
+]
+
+[[package]]
+name = "sha3"
+version = "0.11.0"
+source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha3-0.11.0-sp1-6.0.0#540d99e46fbe7aab00caf83c4144cb4eaaf62a17"
+dependencies = [
+ "digest 0.11.3",
+ "keccak 0.2.2",
 ]
 
 [[package]]
