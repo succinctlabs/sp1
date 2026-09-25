@@ -52,15 +52,14 @@ jobs:
           echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
           echo "release_name=${TAG_NAME}" >> $GITHUB_OUTPUT
 
-      - name: Create release
+      - name: Create draft release
         id: create_release
         env:
           GH_TOKEN: ${{ secrets.SP1_RELEASE_TOKEN }}
         run: |
           TARGET_BRANCH="${{ inputs.target_branch || github.ref_name }}"
           PRERELEASE_FLAG=${{ inputs.prerelease && '"--prerelease"' || '""' }}
-          DRAFT_FLAG=${{ inputs.dry_run && '"--draft"' || '""' }}
-          GH_DEBUG=api gh release create ${{ steps.release_info.outputs.tag_name }} --target "$TARGET_BRANCH" --generate-notes --latest=false $PRERELEASE_FLAG $DRAFT_FLAG
+          GH_DEBUG=api gh release create ${{ steps.release_info.outputs.tag_name }} --target "$TARGET_BRANCH" --generate-notes --draft --latest=false $PRERELEASE_FLAG
 
       - name: Categorize release notes by Conventional Commit prefix
         env:
@@ -347,24 +346,24 @@ jobs:
       dry_run: ${{ inputs.dry_run }}
     secrets: inherit
 
-  set-latest-release:
-    name: Set latest release
+  publish-release:
+    name: Publish release
     runs-on: ubuntu-latest
-    needs: [sp1-gpu-server-release, cargo-prove-release, prepare]
-    if: ${{ success() && inputs.prerelease != true && inputs.dry_run != true }}
+    needs: [sp1-gpu-server-release, cargo-prove-release, zkevm-sdk-release, prepare]
     steps:
       - uses: actions/checkout@v6
 
-      - name: Set latest release
+      - name: Publish release
+        if: ${{ inputs.dry_run != true }}
         env:
           GH_TOKEN: ${{ secrets.SP1_RELEASE_TOKEN }}
         run: |
-          # Wait until all the binaries have been built to set the latest release.
-          gh release edit ${{ needs.prepare.outputs.tag_name }} --latest
+          # Upload every asset before publishing to support immutable releases.
+          gh release edit ${{ needs.prepare.outputs.tag_name }} --draft=false --latest=${{ inputs.prerelease != true }}
 
   toolchain-test:
     name: "Test toolchain installation (${{ matrix.name }})"
-    needs: [sp1-gpu-server-release, cargo-prove-release, prepare]
+    needs: [publish-release, prepare]
     strategy:
       fail-fast: false
       matrix:
@@ -410,7 +409,7 @@ jobs:
   issue:
     name: Open an issue
     runs-on: ubuntu-latest
-    needs: [sp1-gpu-server-release, cargo-prove-release, prepare]
+    needs: [sp1-gpu-server-release, cargo-prove-release, zkevm-sdk-release, prepare]
     if: ${{ failure() && inputs.dry_run != true }}
     steps:
       - uses: actions/checkout@v6
@@ -425,12 +424,12 @@ jobs:
           update_existing: true
           filename: .github/RELEASE_FAILURE_ISSUE_TEMPLATE.md
 
-  # If any of the jobs fail, this will create a high-priority issue to signal so.
+  # If an artifact build fails, delete the unpublished draft after all uploads finish.
   delete-failed-release:
     name: Delete failed release
     runs-on: ubuntu-latest
-    needs: [sp1-gpu-server-release, cargo-prove-release, prepare]
-    if: failure()
+    needs: [sp1-gpu-server-release, cargo-prove-release, zkevm-sdk-release, prepare]
+    if: ${{ failure() && inputs.dry_run != true }}
     steps:
       - uses: actions/checkout@v6
 
@@ -444,7 +443,7 @@ jobs:
   dry-run-cleanup:
     name: Delete dry run release
     runs-on: ubuntu-latest
-    needs: [toolchain-test, prepare]
+    needs: [sp1-gpu-server-release, cargo-prove-release, zkevm-sdk-release, toolchain-test, prepare]
     if: ${{ always() && inputs.dry_run == true }}
     steps:
       - uses: actions/checkout@v6
