@@ -30,8 +30,10 @@ impl Poseidon2State {
     /// Absorb a [`RATE`] size block of field elements
     ///
     /// # Safety
-    /// This function assumes that the elements are within the `SP1Field` range. Breaking this
-    /// constraint will lead to prover failure (the proof will not verify).
+    /// Every element must be a canonical `SP1Field` value, that is, strictly less than the
+    /// modulus `2^31 - 2^24 + 1`. The Poseidon2 AIR range checks each of the 16 input words
+    /// against the modulus, so a larger value has no provable execution. The executor rejects it
+    /// and halts the program rather than reducing it modulo the field.
     pub fn absorb_field_block_unchecked(&mut self, block: &[u32; RATE]) {
         self.0[0..RATE].copy_from_slice(block);
         self.permute();
@@ -86,7 +88,8 @@ impl Poseidon2ByteHash {
         // This ensures inputs of different lengths that zero-pad identically still
         // produce different hashes.
         // The length is encoded as little-endian bytes and packed into field elements
-        // using the same 3-bytes-per-element scheme, supporting lengths up to 2^192.
+        // using the same 3-bytes-per-element scheme. `usize::to_le_bytes` yields 8 bytes, so
+        // the whole length always fits in the first block.
         let len_bytes = input.len().to_le_bytes();
         let mut len_block = [0u8; BYTE_BLOCK_SIZE];
         len_block[..len_bytes.len()].copy_from_slice(&len_bytes);
