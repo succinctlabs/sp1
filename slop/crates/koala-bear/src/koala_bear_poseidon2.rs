@@ -600,3 +600,231 @@ lazy_static! {
         ],
     ];
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use slop_challenger::{CanObserve, CanSample};
+    use slop_symmetric::{CryptographicHasher, Permutation, PseudoCompressionFunction};
+
+    /// Number of full (external) rounds, mirroring [`my_kb_16_perm`].
+    const ROUNDS_F: usize = 8;
+    /// Number of partial (internal) rounds, mirroring [`my_kb_16_perm`].
+    const ROUNDS_P: usize = 20;
+    /// The KoalaBear modulus, `2^31 - 2^24 + 1`.
+    const P: u64 = 0x7f00_0001;
+
+    /// A deterministic, non-degenerate test state.
+    ///
+    /// The whole point of these tests is to pin the permutation, so the inputs must not depend on
+    /// an RNG (which would make a failure unreproducible) and must not be all-zero or all-one
+    /// (which would hide a transposed or truncated round-constant table).
+    fn seeded_state(seed: u32) -> [KoalaBear; KOALA_BEAR_POSEIDON2_WIDTH] {
+        from_fn(|i| KoalaBear::from_wrapped_u32(seed.wrapping_mul(0x9e37_79b9) ^ (i as u32 + 1)))
+    }
+
+    /// An independent re-implementation of the Poseidon2 round structure.
+    ///
+    /// This deliberately reads the *split* constant tables (`BEGIN_EXT`/`PARTIAL`/`END_EXT`) that
+    /// the AIRs consume, rather than the flat vectors handed to [`KoalaPerm::new`]. Comparing it
+    /// against [`my_kb_16_perm`] is what makes the split in [`koala_bear_round_consts`] load
+    /// bearing: an off-by-one in `p_end`, a swapped begin/end table, or a wrong `ROUNDS_F`/
+    /// `ROUNDS_P` all show up here instead of silently producing a different hash function.
+    fn reference_permute(
+        input: [KoalaBear; KOALA_BEAR_POSEIDON2_WIDTH],
+    ) -> [KoalaBear; KOALA_BEAR_POSEIDON2_WIDTH] {
+        let cube = |x: KoalaBear| x * x * x;
+        let mut state = input;
+
+        Poseidon2ExternalMatrixGeneral.permute_mut(&mut state);
+
+        for round in KoalaBear_BEGIN_EXT_CONSTS.iter() {
+            for (s, rc) in state.iter_mut().zip(round.iter()) {
+                *s = cube(*s + *rc);
+            }
+            Poseidon2ExternalMatrixGeneral.permute_mut(&mut state);
+        }
+
+        for rc in KoalaBear_PARTIAL_CONSTS.iter() {
+            state[0] = cube(state[0] + *rc);
+            DiffusionMatrixKoalaBear.permute_mut(&mut state);
+        }
+
+        for round in KoalaBear_END_EXT_CONSTS.iter() {
+            for (s, rc) in state.iter_mut().zip(round.iter()) {
+                *s = cube(*s + *rc);
+            }
+            Poseidon2ExternalMatrixGeneral.permute_mut(&mut state);
+        }
+
+        state
+    }
+
+    #[test]
+    fn rc16_has_exactly_one_row_per_round() {
+        assert_eq!(RC16.len(), ROUNDS_F + ROUNDS_P);
+        for (i, row) in RC16.iter().enumerate() {
+            assert_eq!(row.len(), KOALA_BEAR_POSEIDON2_WIDTH, "row {i} has the wrong width");
+        }
+    }
+
+    #[test]
+    fn rc16_partial_rounds_only_use_lane_zero() {
+        // `koala_bear_round_consts` keeps only lane 0 of each partial round. If a future edit
+        // pasted a full-width row into the partial range, those extra constants would be dropped
+        // on the floor and the host permutation would silently disagree with whatever generated
+        // the table.
+        let partial =
+            KOALA_BEAR_POSEIDON2_HALF_FULL_ROUNDS..KOALA_BEAR_POSEIDON2_HALF_FULL_ROUNDS + ROUNDS_P;
+        for i in partial {
+            for (lane, hex) in RC16[i].iter().enumerate().skip(1) {
+                assert_eq!(
+                    string_to_koala_bear(hex.clone()),
+                    KoalaBear::zero(),
+                    "partial round {i} has a non-zero constant in lane {lane}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn rc16_constants_are_canonical() {
+        // `string_to_koala_bear` goes through `from_canonical_u64`, whose range check is a
+        // `debug_assert`. In a release build an out-of-range constant would silently wrap, so
+        // check the raw parse here where the profile cannot hide it.
+        for (i, row) in RC16.iter().enumerate() {
+            for (j, hex) in row.iter().enumerate() {
+                let raw = u64::from_str_radix(&hex[2..], 16).expect("invalid hex");
+                assert!(raw < P, "constant at row {i}, lane {j} is not canonical: {hex}");
+            }
+        }
+    }
+
+    #[test]
+    fn round_constant_split_matches_rc16() {
+        // Pins the `p_end` slicing in `koala_bear_round_consts`.
+        for r in 0..KOALA_BEAR_POSEIDON2_HALF_FULL_ROUNDS {
+            for lane in 0..KOALA_BEAR_POSEIDON2_WIDTH {
+                assert_eq!(
+                    KoalaBear_BEGIN_EXT_CONSTS[r][lane],
+                    string_to_koala_bear(RC16[r][lane].clone()),
+                    "begin-external constant {r}/{lane}"
+                );
+                assert_eq!(
+                    KoalaBear_END_EXT_CONSTS[r][lane],
+                    string_to_koala_bear(
+                        RC16[r + KOALA_BEAR_POSEIDON2_HALF_FULL_ROUNDS + ROUNDS_P][lane].clone()
+                    ),
+                    "end-external constant {r}/{lane}"
+                );
+            }
+        }
+        for r in 0..ROUNDS_P {
+            assert_eq!(
+                KoalaBear_PARTIAL_CONSTS[r],
+                string_to_koala_bear(RC16[r + KOALA_BEAR_POSEIDON2_HALF_FULL_ROUNDS][0].clone()),
+                "partial constant {r}"
+            );
+        }
+    }
+
+    #[test]
+    fn perm_matches_the_split_constant_tables() {
+        // The AIRs in `sp1-hypercube` build their constraints from the split tables while the
+        // host commitment stack hashes with `my_kb_16_perm`. If these two ever disagree, every
+        // proof breaks; this is the cheapest place to catch it.
+        for seed in 0..8 {
+            let input = seeded_state(seed);
+            assert_eq!(my_kb_16_perm().permute(input), reference_permute(input), "seed {seed}");
+        }
+    }
+
+    #[test]
+    fn perm_is_not_the_identity_and_diffuses() {
+        // A truncated or all-zero constant table can still round-trip through the linear layers.
+        // Require that a single-lane change reaches every output lane.
+        let input = seeded_state(1);
+        let output = my_kb_16_perm().permute(input);
+        assert_ne!(input, output);
+
+        let mut perturbed = input;
+        perturbed[0] += KoalaBear::one();
+        let perturbed_output = my_kb_16_perm().permute(perturbed);
+        for lane in 0..KOALA_BEAR_POSEIDON2_WIDTH {
+            assert_ne!(output[lane], perturbed_output[lane], "lane {lane} did not diffuse");
+        }
+    }
+
+    #[test]
+    fn iop_ctx_wires_the_sp1_permutation() {
+        // `default_hasher_and_compressor` is what the PCS actually calls. Verify it is built from
+        // `my_kb_16_perm` and not from some other permutation instance.
+        let (hasher, compressor) = KoalaBearDegree4Duplex::default_hasher_and_compressor();
+        let perm = my_kb_16_perm();
+
+        let input: Vec<KoalaBear> =
+            (0..KOALA_BEAR_POSEIDON2_WIDTH as u32).map(KoalaBear::from_canonical_u32).collect();
+        let expected_hash = PaddingFreeSponge::<KoalaPerm, 16, 8, 8>::new(perm.clone())
+            .hash_iter(input.iter().copied());
+        assert_eq!(hasher.hash_iter(input.iter().copied()), expected_hash);
+
+        let left: [KoalaBear; KOALA_BEAR_DIGEST_SIZE] =
+            from_fn(|i| KoalaBear::from_canonical_u32(i as u32));
+        let right: [KoalaBear; KOALA_BEAR_DIGEST_SIZE] =
+            from_fn(|i| KoalaBear::from_canonical_u32(i as u32 + 8));
+        let expected_compress =
+            TruncatedPermutation::<KoalaPerm, 2, 8, 16>::new(perm).compress([left, right]);
+        assert_eq!(compressor.compress([left, right]), expected_compress);
+    }
+
+    #[test]
+    fn merkle_compression_is_order_sensitive() {
+        // `TruncatedPermutation` is the 2-to-1 Merkle compressor. If it ever became commutative,
+        // sibling order would stop mattering and Merkle openings could be forged.
+        let (_, compressor) = KoalaBearDegree4Duplex::default_hasher_and_compressor();
+        let left: [KoalaBear; KOALA_BEAR_DIGEST_SIZE] =
+            from_fn(|i| KoalaBear::from_canonical_u32(i as u32));
+        let right: [KoalaBear; KOALA_BEAR_DIGEST_SIZE] =
+            from_fn(|i| KoalaBear::from_canonical_u32(i as u32 + 8));
+        assert_ne!(compressor.compress([left, right]), compressor.compress([right, left]));
+    }
+
+    /// Observe `values` into a fresh challenger, then draw four challenges.
+    fn observe_then_sample(values: &[u32]) -> [KoalaBear; 4] {
+        let mut challenger = KoalaBearDegree4Duplex::default_challenger();
+        for v in values {
+            challenger.observe(KoalaBear::from_canonical_u32(*v));
+        }
+        from_fn(|_| challenger.sample())
+    }
+
+    #[test]
+    fn challenger_is_deterministic_and_order_sensitive() {
+        // Fiat-Shamir soundness rests on the transcript depending on *what* was observed and in
+        // *what order*. Neither is checked anywhere else in the stack.
+        assert_eq!(observe_then_sample(&[1, 2, 3]), observe_then_sample(&[1, 2, 3]));
+        assert_ne!(observe_then_sample(&[1, 2, 3]), observe_then_sample(&[3, 2, 1]));
+    }
+
+    #[test]
+    fn challenger_does_not_separate_a_partial_block_from_its_zero_padding() {
+        // `DuplexChallenger` absorbs in overwrite mode with no padding: `duplexing` writes only
+        // `input_buffer.len()` lanes and leaves the rest of the rate holding whatever was already
+        // there. On a fresh challenger those lanes are zero, so a partial block of observations is
+        // indistinguishable from the same block explicitly padded with zeros up to the rate.
+        //
+        // This is upstream Plonky3 behaviour, not an SP1 choice, and it is *not* a break on its
+        // own. It is a standing obligation on callers: every item observed into the transcript
+        // must have an arity the verifier fixes in advance (commitments, digests, fixed-size
+        // public value blocks), so that two accepting transcripts can never differ only by
+        // trailing zeros. Pinning it here means a future challenger change is a deliberate one,
+        // and that anyone adding a variable-length observation sees the constraint stated.
+        let three = observe_then_sample(&[1, 2, 3]);
+        assert_eq!(three, observe_then_sample(&[1, 2, 3, 0]));
+        assert_eq!(three, observe_then_sample(&[1, 2, 3, 0, 0, 0, 0, 0]));
+
+        // A non-zero element in the padded position does separate the two transcripts, confirming
+        // it is the zeros, and not the length, that go unnoticed.
+        assert_ne!(three, observe_then_sample(&[1, 2, 3, 4]));
+    }
+}
