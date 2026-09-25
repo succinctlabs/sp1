@@ -396,5 +396,6 @@ jobs:
           NETWORK_PRIVATE_KEY: ${{ secrets.NETWORK_PRIVATE_KEY }}
           NETWORK_RPC_URL: "https://rpc.production.succinct.xyz" 
           AUCTION_TIMEOUT_SECONDS: ${{ github.event.inputs.auction_timeout_seconds }}
+          NETWORK_CONCURRENT_REPEAT_COUNT: ${{ github.event.inputs.network_concurrent_repeat_count }}
         run: |
-          ~/.sp1/bin/sp1-perf --program workdir/program.bin --stdin workdir/stdin.bin --mode network --concurrent-repeat-count ${{ github.event.inputs.network_concurrent_repeat_count }}
+          ~/.sp1/bin/sp1-perf --program workdir/program.bin --stdin workdir/stdin.bin --mode network --concurrent-repeat-count "$NETWORK_CONCURRENT_REPEAT_COUNT"
