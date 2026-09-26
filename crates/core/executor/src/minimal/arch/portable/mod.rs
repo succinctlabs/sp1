@@ -1038,27 +1038,26 @@ macro_rules! impl_execute_chunk {
 impl MinimalExecutor<crate::SupervisorMode> {
     impl_execute_chunk!();
     fn execute_instruction(&mut self) -> bool {
-        let program = self.program.clone();
-        let instruction = program.fetch(self.pc).unwrap();
+        let instruction = *self.program.fetch(self.pc).unwrap();
         self.maybe_debug_and_profile();
 
         self.next_pc = self.pc.wrapping_add(PC_INC);
         self.next_clk = self.clk.wrapping_add(CLK_INC);
 
         if instruction.is_alu_instruction() {
-            self.execute_alu(instruction);
+            self.execute_alu(&instruction);
         } else if instruction.is_memory_load_instruction() {
-            self.execute_load(instruction);
+            self.execute_load(&instruction);
         } else if instruction.is_memory_store_instruction() {
-            self.execute_store(instruction);
+            self.execute_store(&instruction);
         } else if instruction.is_branch_instruction() {
-            self.execute_branch(instruction);
+            self.execute_branch(&instruction);
         } else if instruction.is_jump_instruction() {
-            self.execute_jump(instruction);
+            self.execute_jump(&instruction);
         } else if instruction.is_utype_instruction() {
-            self.execute_utype(instruction);
+            self.execute_utype(&instruction);
         } else if instruction.is_ecall_instruction() {
-            self.execute_ecall(instruction);
+            self.execute_ecall(&instruction);
         } else {
             unreachable!("Invalid opcode for `execute_instruction`: {:?}", instruction.opcode)
         }
