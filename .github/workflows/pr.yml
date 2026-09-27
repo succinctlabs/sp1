@@ -7,6 +7,7 @@ on:
     branches:
       - "**"
     paths:
+      - "patch-testing/**"
       - "crates/**"
       - "slop/**"
       - "sp1-gpu/**"

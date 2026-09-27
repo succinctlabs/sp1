@@ -24,6 +24,8 @@ impl fmt::Display for Dimensions {
 pub enum DimensionsError {
     #[error("Too many dimensions {0}, maximum number allowed is {MAX_DIMENSIONS}")]
     TooManyDimensions(usize),
+    #[error("dimension product overflows usize")]
+    SizeOverflow,
     #[error("total number of elements must match, expected {0}, got {1}")]
     NumElementsMismatch(usize, usize),
 }
@@ -38,6 +40,19 @@ impl Dimensions {
         }
         strides.reverse();
         Self { sizes, strides }
+    }
+
+    fn check_size_product(sizes: &[usize]) -> Result<(), DimensionsError> {
+        sizes
+            .iter()
+            .try_fold(1usize, |product, size| product.checked_mul(*size))
+            .ok_or(DimensionsError::SizeOverflow)?;
+        sizes
+            .iter()
+            .rev()
+            .try_fold(1usize, |product, size| product.checked_mul(*size))
+            .map(|_| ())
+            .ok_or(DimensionsError::SizeOverflow)
     }
 
     #[inline]
@@ -124,6 +139,7 @@ impl TryFrom<&[usize]> for Dimensions {
     fn try_from(value: &[usize]) -> Result<Self, Self::Error> {
         let sizes = ArrayVec::try_from(value)
             .map_err(|_| DimensionsError::TooManyDimensions(value.len()))?;
+        Self::check_size_product(&sizes)?;
         Ok(Self::new(sizes))
     }
 }
@@ -134,6 +150,7 @@ impl TryFrom<Vec<usize>> for Dimensions {
     fn try_from(value: Vec<usize>) -> Result<Self, Self::Error> {
         let sizes = ArrayVec::try_from(value.as_slice())
             .map_err(|_| DimensionsError::TooManyDimensions(value.len()))?;
+        Self::check_size_product(&sizes)?;
         Ok(Self::new(sizes))
     }
 }
@@ -144,6 +161,7 @@ impl<const N: usize> TryFrom<[usize; N]> for Dimensions {
     fn try_from(value: [usize; N]) -> Result<Self, Self::Error> {
         let sizes = ArrayVec::try_from(value.as_slice())
             .map_err(|_| DimensionsError::TooManyDimensions(value.len()))?;
+        Self::check_size_product(&sizes)?;
         Ok(Self::new(sizes))
     }
 }
@@ -152,6 +170,7 @@ impl FromIterator<usize> for Dimensions {
     #[inline]
     fn from_iter<T: IntoIterator<Item = usize>>(iter: T) -> Self {
         let sizes = ArrayVec::from_iter(iter);
+        Self::check_size_product(&sizes).expect("dimension product overflows usize");
         Self::new(sizes)
     }
 }
@@ -165,6 +184,25 @@ impl Serialize for Dimensions {
 impl<'de> Deserialize<'de> for Dimensions {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let sizes = Vec::deserialize(deserializer)?;
-        Ok(Self::try_from(sizes).expect("invalid dimension length"))
+        Self::try_from(sizes).map_err(serde::de::Error::custom)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_too_many_dimensions_during_deserialization() {
+        let result = serde_json::from_str::<Dimensions>("[1,1,1,1]");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn rejects_overflowing_dimension_product() {
+        assert!(matches!(
+            Dimensions::try_from([usize::MAX, 2]),
+            Err(DimensionsError::SizeOverflow)
+        ));
     }
 }

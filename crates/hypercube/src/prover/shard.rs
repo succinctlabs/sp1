@@ -542,8 +542,8 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
                 .powers()
                 .skip(1)
                 .take(
-                    main_opening.num_polynomials()
-                        + prep_opening.as_ref().map_or(0, MleEval::num_polynomials),
+                    main_opening.num_evaluations()
+                        + prep_opening.as_ref().map_or(0, MleEval::num_evaluations),
                 )
                 .collect::<Vec<_>>();
             let gkr_powers = Arc::new(gkr_opening_batch_randomness_powers);

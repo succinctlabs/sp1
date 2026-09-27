@@ -32,6 +32,13 @@ mod tests {
         sha2_expected_digest_lte_100_times(stdin)
     }
 
+    #[sp1_test("sha2_v0_11_0", syscalls = [SHA_COMPRESS, SHA_EXTEND], gpu, prove)]
+    fn test_sha2_v0_11_0_expected_digest_lte_100_times(
+        stdin: &mut sp1_sdk::SP1Stdin,
+    ) -> impl FnOnce(SP1PublicValues) {
+        sha2_expected_digest_lte_100_times(stdin)
+    }
+
     fn sha2_expected_digest_lte_100_times(
         stdin: &mut sp1_sdk::SP1Stdin,
     ) -> impl FnOnce(SP1PublicValues) {

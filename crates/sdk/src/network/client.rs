@@ -27,7 +27,7 @@ use super::{
     auth::{BearerTokenInterceptor, NetworkBearerToken},
     grpc,
     retry::{self, RetryableRpc, DEFAULT_RETRY_TIMEOUT},
-    signer::NetworkSigner,
+    signer::{NetworkSigner, SignerSource},
     utils::{sign_message, Signable},
     NetworkMode, MAINNET_EXPLORER_URL, RESERVED_EXPLORER_URL,
 };
@@ -108,7 +108,7 @@ pub(super) fn parse_fulfillment_status(
 /// A client for interacting with the network.
 #[derive(Clone)]
 pub struct NetworkClient {
-    pub(crate) signer: NetworkSigner,
+    pub(crate) signer: SignerSource,
     pub(crate) http: HttpClientWithMiddleware,
     pub(crate) rpc_url: String,
     pub(crate) network_mode: NetworkMode,
@@ -150,6 +150,14 @@ impl NetworkClient {
     /// Creates a new [`NetworkClient`] with the given signer, rpc url, and network mode.
     pub fn new(
         signer: NetworkSigner,
+        rpc_url: impl Into<String>,
+        network_mode: NetworkMode,
+    ) -> Self {
+        Self::new_with_signer_source(signer.into(), rpc_url, network_mode)
+    }
+
+    pub(crate) fn new_with_signer_source(
+        signer: SignerSource,
         rpc_url: impl Into<String>,
         network_mode: NetworkMode,
     ) -> Self {
