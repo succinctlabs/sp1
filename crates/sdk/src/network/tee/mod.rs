@@ -32,6 +32,13 @@ pub const SP1_TEE_VERSION: u32 = 2;
 ///
 /// See <https://github.com/succinctlabs/sp1-tee/blob/main/host/bin/validate_signers.rs>
 ///
+/// # Security
+/// This is UNTRUSTED convenience data. A compromised or impersonated TEE server
+/// can return an attacker-controlled address here, which would then pass
+/// `verify_tee_proof`'s empty-check while still being the wrong signer.
+/// Callers MUST cross-check the returned signers against an out-of-band pinned
+/// source (config or on-chain) before relying on them for verification.
+///
 /// # Errors
 /// - [`client::ClientError::Http`] - If the request fails to send.
 pub async fn get_tee_signers() -> Result<Vec<alloy_primitives::Address>, client::ClientError> {
