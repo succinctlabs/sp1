@@ -98,7 +98,7 @@ fn mix(mut value: u64) -> u64 {
 }
 
 fn benchmark_field_operations(criterion: &mut Criterion) {
-    benchmark_field(criterion, "ghash_portable", ghash_operands);
+    benchmark_field(criterion, "ghash", ghash_operands);
     benchmark_field(criterion, "baby_bear_degree_4_scalar", baby_bear_operands);
     benchmark_field(criterion, "koala_bear_degree_4_scalar", koala_bear_operands);
 }

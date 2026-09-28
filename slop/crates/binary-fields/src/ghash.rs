@@ -9,6 +9,11 @@ use core::ops::{
     Add, AddAssign, BitXor, BitXorAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign,
 };
 
+#[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+mod aarch64;
+#[cfg(all(target_arch = "x86_64", target_feature = "pclmulqdq", target_feature = "sse4.1"))]
+mod x86_64;
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[repr(C, align(16))]
 pub struct GHash {
@@ -109,7 +114,7 @@ impl Mul for GHash {
 
     #[inline]
     fn mul(self, rhs: Self) -> Self {
-        multiply_unreduced(self, rhs).reduce()
+        multiply(self, rhs)
     }
 }
 
@@ -170,6 +175,13 @@ impl BitXorAssign for GHashUnreduced {
 }
 
 #[inline]
+#[cfg(any(
+    test,
+    not(any(
+        all(target_arch = "aarch64", target_feature = "aes"),
+        all(target_arch = "x86_64", target_feature = "pclmulqdq", target_feature = "sse4.1")
+    ))
+))]
 fn carryless_multiply(lhs: u64, rhs: u64) -> (u64, u64) {
     let mut low = 0;
     let mut high = 0;
@@ -185,7 +197,14 @@ fn carryless_multiply(lhs: u64, rhs: u64) -> (u64, u64) {
 }
 
 #[inline]
-fn multiply_unreduced(lhs: GHash, rhs: GHash) -> GHashUnreduced {
+#[cfg(any(
+    test,
+    not(any(
+        all(target_arch = "aarch64", target_feature = "aes"),
+        all(target_arch = "x86_64", target_feature = "pclmulqdq", target_feature = "sse4.1")
+    ))
+))]
+fn multiply_unreduced_portable(lhs: GHash, rhs: GHash) -> GHashUnreduced {
     let (low_low, low_high) = carryless_multiply(lhs.lo, rhs.lo);
     let (lhs_cross_low, lhs_cross_high) = carryless_multiply(lhs.lo, rhs.hi);
     let (rhs_cross_low, rhs_cross_high) = carryless_multiply(lhs.hi, rhs.lo);
@@ -198,6 +217,48 @@ fn multiply_unreduced(lhs: GHash, rhs: GHash) -> GHashUnreduced {
             high_low ^ lhs_cross_high ^ rhs_cross_high,
             high_high,
         ],
+    }
+}
+
+#[inline]
+fn multiply_unreduced(lhs: GHash, rhs: GHash) -> GHashUnreduced {
+    #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+    {
+        // SAFETY: the AES target feature is enabled at compile time.
+        unsafe { aarch64::multiply_unreduced(lhs, rhs) }
+    }
+    #[cfg(all(target_arch = "x86_64", target_feature = "pclmulqdq", target_feature = "sse4.1"))]
+    {
+        // SAFETY: the PCLMULQDQ target feature is enabled at compile time.
+        unsafe { x86_64::multiply_unreduced(lhs, rhs) }
+    }
+    #[cfg(not(any(
+        all(target_arch = "aarch64", target_feature = "aes"),
+        all(target_arch = "x86_64", target_feature = "pclmulqdq", target_feature = "sse4.1")
+    )))]
+    {
+        multiply_unreduced_portable(lhs, rhs)
+    }
+}
+
+#[inline]
+fn multiply(lhs: GHash, rhs: GHash) -> GHash {
+    #[cfg(all(target_arch = "aarch64", target_feature = "aes"))]
+    {
+        // SAFETY: the AES target feature is enabled at compile time.
+        unsafe { aarch64::multiply(lhs, rhs) }
+    }
+    #[cfg(all(target_arch = "x86_64", target_feature = "pclmulqdq", target_feature = "sse4.1"))]
+    {
+        // SAFETY: the PCLMULQDQ target feature is enabled at compile time.
+        unsafe { x86_64::multiply(lhs, rhs) }
+    }
+    #[cfg(not(any(
+        all(target_arch = "aarch64", target_feature = "aes"),
+        all(target_arch = "x86_64", target_feature = "pclmulqdq", target_feature = "sse4.1")
+    )))]
+    {
+        multiply_unreduced_portable(lhs, rhs).reduce()
     }
 }
 
@@ -237,6 +298,23 @@ mod tests {
         let lhs = GHash::new(0x0123_4567_89ab_cdef, 0xfedc_ba98_7654_3210);
         let rhs = GHash::new(0xdead_beef_cafe_babe, 0x1020_3040_5060_7080);
         assert_eq!(lhs.multiply_unreduced(rhs).reduce(), lhs * rhs);
+    }
+
+    #[test]
+    fn active_implementation_matches_portable() {
+        let values = [
+            GHash::ZERO,
+            GHash::ONE,
+            GHash::new(0x0123_4567_89ab_cdef, 0xfedc_ba98_7654_3210),
+            GHash::new(u64::MAX, u64::MAX),
+        ];
+        for lhs in values {
+            for rhs in values {
+                let portable = multiply_unreduced_portable(lhs, rhs);
+                assert_eq!(multiply_unreduced(lhs, rhs), portable);
+                assert_eq!(multiply(lhs, rhs), portable.reduce());
+            }
+        }
     }
 
     #[test]
