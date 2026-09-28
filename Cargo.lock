@@ -6572,6 +6572,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "slop-binary-fields"
+version = "6.4.0"
+dependencies = [
+ "criterion",
+ "slop-algebra 6.4.0",
+ "slop-baby-bear",
+ "slop-koala-bear 6.4.0",
+]
+
+[[package]]
 name = "slop-bn254"
 version = "6.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"

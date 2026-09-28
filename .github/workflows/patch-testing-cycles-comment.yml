@@ -6,8 +6,34 @@ on:
     types: [completed]
 
 jobs:
+  check-artifact:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    outputs:
+      exists: ${{ steps.artifact.outputs.exists }}
+    steps:
+      - name: Check for cycle stats
+        id: artifact
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const artifacts = await github.paginate(
+              github.rest.actions.listWorkflowRunArtifacts,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: context.payload.workflow_run.id,
+              },
+            );
+            core.setOutput(
+              "exists",
+              artifacts.some((artifact) => artifact.name === "patch-testing-results"),
+            );
+
   post-comment:
-    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request'
+    needs: check-artifact
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request' && needs.check-artifact.outputs.exists == 'true'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write

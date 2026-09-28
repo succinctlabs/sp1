@@ -1,0 +1,22 @@
+[package]
+name = "slop-binary-fields"
+description = "Portable binary field arithmetic for SLOP"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dev-dependencies]
+criterion = "0.5"
+slop-algebra = { workspace = true }
+slop-baby-bear = { workspace = true }
+slop-koala-bear = { workspace = true }
+
+[[bench]]
+name = "field_multiplication"
+harness = false
+
+[lints]
+workspace = true
