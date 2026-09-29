@@ -995,9 +995,11 @@ where
             &mut point,
         );
         let (mut grid, mut poly) = two_round_fix_and_sum_first_layer(poly, alpha_1, alpha_2);
-        let mut remaining = num_variables as usize - 2;
 
-        while remaining >= 2 {
+        while matches!(
+            &poly.layer,
+            PolynomialLayer::CircuitLayer(circuit) if circuit.num_row_variables > 2
+        ) {
             let (alpha_1, alpha_2, next_claim) = process_two_round_grid(
                 &poly,
                 grid,
@@ -1008,18 +1010,31 @@ where
             );
             (grid, poly) = two_round_fix_and_sum_circuit_layer(poly, alpha_1, alpha_2);
             round_claim = next_claim;
-            remaining -= 2;
         }
 
-        if remaining == 1 {
+        let remaining = poly.num_variables() as usize;
+        if remaining > 0 {
             let uni_poly = sum_as_poly_materialized_round(&poly, round_claim);
-            let alpha = process_univariate_polynomial(
+            let mut alpha = process_univariate_polynomial(
                 uni_poly,
                 challenger,
                 &mut univariate_poly_msgs,
                 &mut point,
             );
             round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha);
+
+            for _ in 1..remaining {
+                let (uni_poly, next_poly) =
+                    fix_and_sum_materialized_round(poly, alpha, round_claim);
+                poly = next_poly;
+                alpha = process_univariate_polynomial(
+                    uni_poly,
+                    challenger,
+                    &mut univariate_poly_msgs,
+                    &mut point,
+                );
+                round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha);
+            }
             poly = fix_last_variable_materialized_round(poly, alpha);
         }
 
@@ -1119,9 +1134,11 @@ pub fn materialized_round_sumcheck<C: FieldChallenger<Felt>>(
             &mut point,
         );
         let (mut grid, mut poly) = two_round_fix_and_sum_circuit_layer(poly, alpha_1, alpha_2);
-        let mut remaining = num_variables as usize - 2;
 
-        while remaining >= 2 {
+        while matches!(
+            &poly.layer,
+            PolynomialLayer::CircuitLayer(circuit) if circuit.num_row_variables > 2
+        ) {
             let (alpha_1, alpha_2, next_claim) = process_two_round_grid(
                 &poly,
                 grid,
@@ -1132,18 +1149,31 @@ pub fn materialized_round_sumcheck<C: FieldChallenger<Felt>>(
             );
             (grid, poly) = two_round_fix_and_sum_circuit_layer(poly, alpha_1, alpha_2);
             round_claim = next_claim;
-            remaining -= 2;
         }
 
-        if remaining == 1 {
+        let remaining = poly.num_variables() as usize;
+        if remaining > 0 {
             let uni_poly = sum_as_poly_materialized_round(&poly, round_claim);
-            let alpha = process_univariate_polynomial(
+            let mut alpha = process_univariate_polynomial(
                 uni_poly,
                 challenger,
                 &mut univariate_poly_msgs,
                 &mut point,
             );
             round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha);
+
+            for _ in 1..remaining {
+                let (uni_poly, next_poly) =
+                    fix_and_sum_materialized_round(poly, alpha, round_claim);
+                poly = next_poly;
+                alpha = process_univariate_polynomial(
+                    uni_poly,
+                    challenger,
+                    &mut univariate_poly_msgs,
+                    &mut point,
+                );
+                round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha);
+            }
             poly = fix_last_variable_materialized_round(poly, alpha);
         }
 
