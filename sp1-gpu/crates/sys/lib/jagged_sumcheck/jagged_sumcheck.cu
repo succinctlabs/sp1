@@ -211,9 +211,122 @@ __global__ void paddedHadamardFixAndSum(
     }
 }
 
+__device__ __forceinline__ void accumulateHadamardBivariate(const Pair values[4], ext_t acc[8]) {
+    const ext_t p00 = values[0].p;
+    const ext_t p01 = values[1].p;
+    const ext_t p10 = values[2].p;
+    const ext_t p11 = values[3].p;
+    const ext_t q00 = values[0].q;
+    const ext_t q01 = values[1].q;
+    const ext_t q10 = values[2].q;
+    const ext_t q11 = values[3].q;
+
+    acc[0] += p00 * q00;
+    acc[1] += p01 * q01;
+    acc[2] += (p00 + p01) * (q00 + q01);
+    acc[3] += p10 * q10;
+    acc[4] += (p10 + p11) * (q10 + q11);
+    acc[5] += (p00 + p10) * (q00 + q10);
+    acc[6] += (p01 + p11) * (q01 + q11);
+    acc[7] += (p00 + p01 + p10 + p11) * (q00 + q01 + q10 + q11);
+}
+
+__device__ __forceinline__ void reduceHadamardBivariate(ext_t acc[8], ext_t* evaluations) {
+    extern __shared__ unsigned char memory[];
+    ext_t* shared = reinterpret_cast<ext_t*>(memory);
+    auto block = cg::this_thread_block();
+    auto tile = cg::tiled_partition<32>(block);
+#pragma unroll
+    for (size_t k = 0; k < 8; k++) {
+        ext_t blockSum = partialBlockReduce(block, tile, acc[k], shared);
+        if (threadIdx.x == 0) {
+            ext_t::store(evaluations, k * gridDim.x + blockIdx.x, blockSum);
+        }
+        block.sync();
+    }
+}
+
+__global__ void paddedHadamardFixAndTwoRoundSum(
+    const ext_t* p_input,
+    const ext_t* q_input,
+    ext_t* p_output,
+    ext_t* q_output,
+    ext_t alpha,
+    ext_t* evaluations,
+    size_t inputHeight) {
+
+    ext_t acc[8] = {};
+    const size_t outputHeight = (inputHeight + 1) >> 1;
+    const size_t n_quads = (outputHeight + 3) >> 2;
+
+    for (size_t i = blockIdx.x * blockDim.x + threadIdx.x; i < n_quads;
+         i += blockDim.x * gridDim.x) {
+        const size_t base = i << 2;
+        Pair values[4];
+#pragma unroll
+        for (size_t k = 0; k < 4; k++) {
+            const size_t outputIdx = base + k;
+            values[k] = outputIdx < outputHeight
+                            ? fixLastVariableInner(p_input, q_input, alpha, inputHeight, outputIdx)
+                            : Pair{ext_t::zero(), ext_t::zero()};
+            if (outputIdx < outputHeight) {
+                ext_t::store(p_output, outputIdx, values[k].p);
+                ext_t::store(q_output, outputIdx, values[k].q);
+            }
+        }
+        accumulateHadamardBivariate(values, acc);
+    }
+
+    reduceHadamardBivariate(acc, evaluations);
+}
+
+__global__ void paddedHadamardTwoRoundFixAndTwoRoundSum(
+    const ext_t* p_input,
+    const ext_t* q_input,
+    ext_t* p_output,
+    ext_t* q_output,
+    ext_t alpha1,
+    ext_t alpha2,
+    ext_t* evaluations,
+    size_t inputHeight) {
+
+    const size_t outputHeight = (inputHeight + 3) >> 2;
+    const size_t n_quads = (outputHeight + 3) >> 2;
+    ext_t acc[8] = {};
+
+    for (size_t i = blockIdx.x * blockDim.x + threadIdx.x; i < n_quads;
+         i += blockDim.x * gridDim.x) {
+        const size_t base = i << 2;
+        Pair values[4];
+#pragma unroll
+        for (size_t k = 0; k < 4; k++) {
+            const size_t outputIdx = base + k;
+            values[k] = outputIdx < outputHeight
+                            ? fixLastTwoVariablesInner(
+                                  p_input, q_input, alpha1, alpha2, inputHeight, outputIdx)
+                            : Pair{ext_t::zero(), ext_t::zero()};
+            if (outputIdx < outputHeight) {
+                ext_t::store(p_output, outputIdx, values[k].p);
+                ext_t::store(q_output, outputIdx, values[k].q);
+            }
+        }
+        accumulateHadamardBivariate(values, acc);
+    }
+
+    reduceHadamardBivariate(acc, evaluations);
+}
+
 
 extern "C" void* jagged_two_round_sum_as_poly() { return (void*)jaggedTwoRoundSumAsPoly; }
 
 extern "C" void* jagged_two_round_fix_and_sum() { return (void*)jaggedTwoRoundFixAndSum; }
+
+extern "C" void* padded_hadamard_fix_and_two_round_sum() {
+    return (void*)paddedHadamardFixAndTwoRoundSum;
+}
+
+extern "C" void* padded_hadamard_two_round_fix_and_two_round_sum() {
+    return (void*)paddedHadamardTwoRoundFixAndTwoRoundSum;
+}
 
 extern "C" void* padded_hadamard_fix_and_sum() { return (void*)paddedHadamardFixAndSum; }

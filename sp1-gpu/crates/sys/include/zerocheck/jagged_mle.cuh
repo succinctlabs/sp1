@@ -83,6 +83,7 @@ extern "C" void* initialize_jagged_info();
 extern "C" void* fix_last_variable_jagged_felt();
 extern "C" void* fix_last_variable_jagged_ext();
 extern "C" void* fix_last_two_variables_jagged_felt();
+extern "C" void* fix_last_two_variables_jagged_ext();
 extern "C" void* fix_last_variable_jagged_info();
 extern "C" void* jagged_eval_kernel_chunked_felt();
 extern "C" void* jagged_eval_kernel_chunked_ext();

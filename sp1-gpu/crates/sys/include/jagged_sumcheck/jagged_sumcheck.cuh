@@ -5,6 +5,8 @@
 
 extern "C" void* jagged_two_round_sum_as_poly();
 extern "C" void* jagged_two_round_fix_and_sum();
+extern "C" void* padded_hadamard_fix_and_two_round_sum();
+extern "C" void* padded_hadamard_two_round_fix_and_two_round_sum();
 
 struct Hadamard {
     ext_t* p;
@@ -46,6 +48,37 @@ __device__ __forceinline__ Pair fixLastVariableInner(
 
     // Store the restricted values
     return Pair{baseValue, extValue};
+}
+
+__device__ __forceinline__ ext_t loadOrZero(const ext_t* input, size_t i, size_t height) {
+    return i < height ? ext_t::load(input, i) : ext_t::zero();
+}
+
+__device__ __forceinline__ Pair fixLastTwoVariablesInner(
+    const ext_t* base_input,
+    const ext_t* ext_input,
+    ext_t alpha1,
+    ext_t alpha2,
+    size_t height,
+    size_t i) {
+
+    const size_t base = i << 2;
+    ext_t p0 = loadOrZero(base_input, base, height);
+    ext_t p1 = loadOrZero(base_input, base + 1, height);
+    ext_t p2 = loadOrZero(base_input, base + 2, height);
+    ext_t p3 = loadOrZero(base_input, base + 3, height);
+    ext_t q0 = loadOrZero(ext_input, base, height);
+    ext_t q1 = loadOrZero(ext_input, base + 1, height);
+    ext_t q2 = loadOrZero(ext_input, base + 2, height);
+    ext_t q3 = loadOrZero(ext_input, base + 3, height);
+
+    ext_t p_lo = alpha1.interpolateLinear(p1, p0);
+    ext_t p_hi = alpha1.interpolateLinear(p3, p2);
+    ext_t q_lo = alpha1.interpolateLinear(q1, q0);
+    ext_t q_hi = alpha1.interpolateLinear(q3, q2);
+    return Pair{
+        alpha2.interpolateLinear(p_hi, p_lo),
+        alpha2.interpolateLinear(q_hi, q_lo)};
 }
 
 /// Dense data for the jagged sumcheck.

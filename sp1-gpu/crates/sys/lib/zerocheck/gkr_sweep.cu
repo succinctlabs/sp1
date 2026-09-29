@@ -260,3 +260,6 @@ extern "C" void* zerocheck_gkr_sweep_ext_kernel() {
 extern "C" void* zerocheck_gkr_corner_sweep_kb_kernel() {
     return (void*)zerocheck_gkr_corner_sweep<felt_t>;
 }
+extern "C" void* zerocheck_gkr_corner_sweep_ext_kernel() {
+    return (void*)zerocheck_gkr_corner_sweep<ext_t>;
+}

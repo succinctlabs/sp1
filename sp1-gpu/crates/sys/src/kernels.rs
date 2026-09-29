@@ -31,9 +31,9 @@ extern "C" {
     pub fn fix_last_variable_jagged_felt() -> KernelPtr;
     pub fn fix_last_variable_jagged_ext() -> KernelPtr;
 
-    // Fused two-variable jagged fold (base trace → twice-folded ext trace in
-    // one pass), used by the zerocheck fused first-two-rounds.
+    // Fused two-variable jagged fold.
     pub fn fix_last_two_variables_jagged_felt() -> KernelPtr;
+    pub fn fix_last_two_variables_jagged_ext() -> KernelPtr;
 
     // Fused dispatch: one launch per non-empty tier handles every
     // Sequential chunk in a round. The launcher's per-block dispatch
@@ -51,16 +51,19 @@ extern "C" {
     pub fn zerocheck_fused_sequential_ext_512_kernel() -> KernelPtr;
     pub fn zerocheck_fused_sequential_ext_1024_kernel() -> KernelPtr;
 
-    // zerocheck (DAG-native): bivariate variants for the fused
-    // first-two-rounds evaluation. Eval nodes on blockIdx.z (12 non-boolean
-    // grid nodes of {0,1,2,4}^2), quadruple row consumption, output stride
-    // 12. Round 0 only — base-field trace.
+    // zerocheck (DAG-native): bivariate paired-round variants.
     pub fn zerocheck_fused_sequential_bivariate_kb_32_kernel() -> KernelPtr;
     pub fn zerocheck_fused_sequential_bivariate_kb_64_kernel() -> KernelPtr;
     pub fn zerocheck_fused_sequential_bivariate_kb_128_kernel() -> KernelPtr;
     pub fn zerocheck_fused_sequential_bivariate_kb_256_kernel() -> KernelPtr;
     pub fn zerocheck_fused_sequential_bivariate_kb_512_kernel() -> KernelPtr;
     pub fn zerocheck_fused_sequential_bivariate_kb_1024_kernel() -> KernelPtr;
+    pub fn zerocheck_fused_sequential_bivariate_ext_32_kernel() -> KernelPtr;
+    pub fn zerocheck_fused_sequential_bivariate_ext_64_kernel() -> KernelPtr;
+    pub fn zerocheck_fused_sequential_bivariate_ext_128_kernel() -> KernelPtr;
+    pub fn zerocheck_fused_sequential_bivariate_ext_256_kernel() -> KernelPtr;
+    pub fn zerocheck_fused_sequential_bivariate_ext_512_kernel() -> KernelPtr;
+    pub fn zerocheck_fused_sequential_bivariate_ext_1024_kernel() -> KernelPtr;
 
     // zerocheck (DAG-native): ColumnTile lowering kernels.
     pub fn zerocheck_column_tile_kb_kernel() -> KernelPtr;
@@ -75,6 +78,7 @@ extern "C" {
     // first-two-rounds. One block per geq chip, 12 ext_t partials per chip
     // (one per non-boolean grid node).
     pub fn zerocheck_geq_corrections_bivariate_kernel() -> KernelPtr;
+    pub fn zerocheck_geq_corrections_bivariate_all_kernel() -> KernelPtr;
 
     // zerocheck (DAG-native): apply `VirtualGeq::fix_last_variable(alpha)`
     // in place to each chip's geq state. One thread per chip.
@@ -100,6 +104,7 @@ extern "C" {
     // first-two-rounds — the opening batch at the four boolean grid corners
     // (raw rows of each quadruple, no interpolation). Output stride 4.
     pub fn zerocheck_gkr_corner_sweep_kb_kernel() -> KernelPtr;
+    pub fn zerocheck_gkr_corner_sweep_ext_kernel() -> KernelPtr;
 
     // zerocheck (DAG-native): per-chunk padded_row_adjustment via the
     // bytecode interpreter at the all-zero trace. One thread per chunk;
@@ -199,6 +204,8 @@ extern "C" {
     // ******** Jagged sumcheck kernels ********
     pub fn jagged_two_round_sum_as_poly() -> KernelPtr;
     pub fn jagged_two_round_fix_and_sum() -> KernelPtr;
+    pub fn padded_hadamard_fix_and_two_round_sum() -> KernelPtr;
+    pub fn padded_hadamard_two_round_fix_and_two_round_sum() -> KernelPtr;
     pub fn padded_hadamard_fix_and_sum() -> KernelPtr;
 
     // Populate restrict eq

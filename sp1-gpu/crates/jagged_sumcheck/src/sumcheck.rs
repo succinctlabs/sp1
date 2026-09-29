@@ -3,6 +3,7 @@ use sp1_gpu_cudart::{
     sys::kernels::{
         jagged_two_round_fix_and_sum, jagged_two_round_sum_as_poly,
         mle_fix_last_variable_koala_bear_ext_ext_zero_padding, padded_hadamard_fix_and_sum,
+        padded_hadamard_fix_and_two_round_sum, padded_hadamard_two_round_fix_and_two_round_sum,
     },
     DeviceBuffer, DeviceMle, DeviceTensor, TaskScope,
 };
@@ -14,7 +15,7 @@ use slop_algebra::{
 };
 use slop_alloc::{Backend, HasBackend};
 use slop_challenger::FieldChallenger;
-use slop_multilinear::Mle;
+use slop_multilinear::{Mle, MleBaseBackend};
 use slop_sumcheck::PartialSumcheckProof;
 use slop_tensor::Tensor;
 
@@ -135,6 +136,150 @@ fn two_round_sum_as_poly<'a>(poly: &JaggedFirstRoundPoly<'a>) -> [Ext; 8] {
     evaluations.as_slice().try_into().unwrap()
 }
 
+fn fix_last_variable_and_two_round_sum(
+    p: Mle<Ext, TaskScope>,
+    q: Mle<Ext, TaskScope>,
+    alpha: Ext,
+) -> (Mle<Ext, TaskScope>, Mle<Ext, TaskScope>, [Ext; 8]) {
+    let backend = p.backend();
+    let input_height = p.guts().sizes()[1];
+    debug_assert_eq!(q.guts().sizes()[1], input_height);
+    let output_height = input_height.div_ceil(2);
+
+    let mut p_output: Tensor<Ext, TaskScope> = backend.uninit_mle(1, output_height);
+    let mut q_output: Tensor<Ext, TaskScope> = backend.uninit_mle(1, output_height);
+    const BLOCK_SIZE: usize = 256;
+    let grid_size_x = output_height.div_ceil(4).div_ceil(BLOCK_SIZE);
+    let mut evaluations =
+        Tensor::<Ext, TaskScope>::with_sizes_in([8, grid_size_x], backend.clone());
+    let shared_mem = (BLOCK_SIZE / 32) * std::mem::size_of::<Ext>();
+
+    unsafe {
+        p_output.assume_init();
+        q_output.assume_init();
+        evaluations.assume_init();
+        let args = args!(
+            p.guts().as_ptr(),
+            q.guts().as_ptr(),
+            p_output.as_mut_ptr(),
+            q_output.as_mut_ptr(),
+            alpha,
+            evaluations.as_mut_ptr(),
+            input_height
+        );
+        backend
+            .launch_kernel(
+                padded_hadamard_fix_and_two_round_sum(),
+                grid_size_x,
+                BLOCK_SIZE,
+                &args,
+                shared_mem,
+            )
+            .unwrap();
+    }
+
+    let evaluations = DeviceTensor::from_raw(evaluations).sum_dim(1).to_host().unwrap();
+    (Mle::new(p_output), Mle::new(q_output), evaluations.as_slice().try_into().unwrap())
+}
+
+fn two_round_second_univariate(
+    grid: [Ext; 8],
+    alpha_1: Ext,
+    round_claim: Ext,
+) -> UnivariatePolynomial<Ext> {
+    let [h_0_0, h_0_1, h_0_half, _, _, h_half_0, h_half_1, h_half_half] = grid;
+    let half = Ext::from_canonical_u16(2).inverse();
+    let quarter = Ext::from_canonical_u16(4).inverse();
+    let grid_points = [Ext::zero(), Ext::one(), half];
+    let column_at_alpha_1 = |h_x_0: Ext, h_x_1: Ext, h_x_half: Ext| {
+        interpolate_univariate_polynomial(&grid_points, &[h_x_0, h_x_1, h_x_half])
+            .eval_at_point(alpha_1)
+    };
+    let eval_zero = column_at_alpha_1(h_0_0, h_0_1, h_0_half * quarter);
+    let eval_half =
+        column_at_alpha_1(h_half_0 * quarter, h_half_1 * quarter, h_half_half * quarter * quarter);
+
+    interpolate_univariate_polynomial(
+        &grid_points,
+        &[eval_zero, round_claim - eval_zero, eval_half],
+    )
+}
+
+fn two_round_first_univariate(grid: [Ext; 8], claim: Ext) -> UnivariatePolynomial<Ext> {
+    let [h_0_0, h_0_1, h_0_half, h_1_0, h_1_half, _, _, _] = grid;
+    let half = Ext::from_canonical_u16(2).inverse();
+    let quarter = Ext::from_canonical_u16(4).inverse();
+    let h_1_1 = claim - h_0_0 - h_0_1 - h_1_0;
+    interpolate_univariate_polynomial(
+        &[Ext::zero(), Ext::one(), half],
+        &[h_0_0 + h_1_0, h_0_1 + h_1_1, (h_0_half + h_1_half) * quarter],
+    )
+}
+
+fn process_two_round_grid<C: FieldChallenger<Felt>>(
+    grid: [Ext; 8],
+    claim: Ext,
+    challenger: &mut C,
+    univariate_poly_msgs: &mut Vec<UnivariatePolynomial<Ext>>,
+    point: &mut Vec<Ext>,
+) -> (Ext, Ext, Ext) {
+    let uni_poly = two_round_first_univariate(grid, claim);
+    let alpha_1 = process_univariate_polynomial(uni_poly, challenger, univariate_poly_msgs, point);
+    let round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha_1);
+    let uni_poly = two_round_second_univariate(grid, alpha_1, round_claim);
+    let alpha_2 = process_univariate_polynomial(uni_poly, challenger, univariate_poly_msgs, point);
+    let round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha_2);
+    (alpha_1, alpha_2, round_claim)
+}
+
+fn fix_last_two_variables_and_two_round_sum(
+    p: Mle<Ext, TaskScope>,
+    q: Mle<Ext, TaskScope>,
+    alpha_1: Ext,
+    alpha_2: Ext,
+) -> (Mle<Ext, TaskScope>, Mle<Ext, TaskScope>, [Ext; 8]) {
+    let backend = p.backend();
+    let input_height = p.guts().sizes()[1];
+    debug_assert_eq!(q.guts().sizes()[1], input_height);
+    let output_height = input_height.div_ceil(4);
+
+    let mut p_output: Tensor<Ext, TaskScope> = backend.uninit_mle(1, output_height);
+    let mut q_output: Tensor<Ext, TaskScope> = backend.uninit_mle(1, output_height);
+    const BLOCK_SIZE: usize = 256;
+    let grid_size_x = output_height.div_ceil(4).div_ceil(BLOCK_SIZE);
+    let shared_mem = (BLOCK_SIZE / 32) * std::mem::size_of::<Ext>();
+    let mut evaluations =
+        Tensor::<Ext, TaskScope>::with_sizes_in([8, grid_size_x], backend.clone());
+
+    unsafe {
+        p_output.assume_init();
+        q_output.assume_init();
+        evaluations.assume_init();
+        let args = args!(
+            p.guts().as_ptr(),
+            q.guts().as_ptr(),
+            p_output.as_mut_ptr(),
+            q_output.as_mut_ptr(),
+            alpha_1,
+            alpha_2,
+            evaluations.as_mut_ptr(),
+            input_height
+        );
+        backend
+            .launch_kernel(
+                padded_hadamard_two_round_fix_and_two_round_sum(),
+                grid_size_x,
+                BLOCK_SIZE,
+                &args,
+                shared_mem,
+            )
+            .unwrap();
+    }
+
+    let evaluations = DeviceTensor::from_raw(evaluations).sum_dim(1).to_host().unwrap();
+    (Mle::new(p_output), Mle::new(q_output), evaluations.as_slice().try_into().unwrap())
+}
+
 /// Fold the first two sumcheck challenges into the jagged first-round poly in a single
 /// pass, materializing `(p, q)` at a quarter of the dense size, and compute the
 /// third-round univariate polynomial from the folded values.
@@ -242,10 +387,11 @@ where
     let num_variables = poly.total_number_of_variables;
     let task = poly.base.backend().clone();
 
-    // The first three rounds are handled by the fused jagged kernels; the loop below
-    // handles the rest, including the `stacked_evals` snapshot.
+    // The first pair uses the jagged trace layout. Later pairs use dense
+    // extension-field MLEs after the stacked PCS snapshot.
     assert!(num_variables >= 3_u32);
     assert!(log_stacking_height >= 3, "stacked evals are snapshotted inside the round loop");
+    assert!(log_stacking_height < num_variables as usize);
 
     // The point at which the reduced sumcheck proof should be evaluated.
     let mut point = vec![];
@@ -256,16 +402,13 @@ where
     // A single pass over the trace yields the two-round polynomial
     // `h(X, Y) = Σ_i p(i, X, Y)·q(i, X, Y)` on the grid `{0, 1, ½}²`, from which the
     // first two round messages are derived on the host with no further device work.
-    let [h_0_0, h_0_1, h_0_half, h_1_0, h_1_half, h_half_0, h_half_1, h_half_half] =
-        two_round_sum_as_poly(&poly);
+    let grid = two_round_sum_as_poly(&poly);
+    let [h_0_0, h_0_1, h_0_half, h_1_0, h_1_half, _, _, _] = grid;
 
     // Descale the midpoint accumulators and deduce `h(1, 1)` from the claim.
     let quarter = Ext::from_canonical_u16(4).inverse();
     let h_0_half = h_0_half * quarter;
     let h_1_half = h_1_half * quarter;
-    let h_half_0 = h_half_0 * quarter;
-    let h_half_1 = h_half_1 * quarter;
-    let h_half_half = h_half_half * quarter * quarter;
     let h_1_1 = claim - h_0_0 - h_0_1 - h_1_0;
 
     let grid_points = [
@@ -282,20 +425,8 @@ where
     let alpha_1 =
         process_univariate_polynomial(uni_poly, challenger, &mut univariate_poly_msgs, &mut point);
 
-    // Round 2: `g₂(X) = h(X, α₁)`, evaluating each grid column at `α₁`. The round check
-    // `g₂(0) + g₂(1) = g₁(α₁)` holds by the polynomial identity `g₁(Y) = h(0, Y) + h(1, Y)`.
-    let column_at_alpha_1 = |h_x_0: Ext, h_x_1: Ext, h_x_half: Ext| {
-        interpolate_univariate_polynomial(&grid_points, &[h_x_0, h_x_1, h_x_half])
-            .eval_at_point(alpha_1)
-    };
-    let uni_poly = interpolate_univariate_polynomial(
-        &grid_points,
-        &[
-            column_at_alpha_1(h_0_0, h_0_1, h_0_half),
-            column_at_alpha_1(h_1_0, h_1_1, h_1_half),
-            column_at_alpha_1(h_half_0, h_half_1, h_half_half),
-        ],
-    );
+    let round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha_1);
+    let uni_poly = two_round_second_univariate(grid, alpha_1, round_claim);
     let alpha_2 =
         process_univariate_polynomial(uni_poly, challenger, &mut univariate_poly_msgs, &mut point);
     let round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha_2);
@@ -310,7 +441,9 @@ where
 
     let mut stacked_evals =
         DeviceBuffer::with_capacity_in(1 << (num_variables as usize - log_stacking_height), task);
-    for sc_round in 3..num_variables as usize {
+    let mut folds_done = 2;
+
+    while folds_done + 1 < log_stacking_height {
         // Get the round claims from the last round's univariate poly messages.
         let round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha);
 
@@ -322,10 +455,7 @@ where
             round_claim,
             padded_hadamard_fix_and_sum,
         );
-
-        if sc_round == log_stacking_height {
-            stacked_evals.extend_from_device_slice(p.guts().as_buffer()).unwrap();
-        }
+        folds_done += 1;
 
         alpha = process_univariate_polynomial(
             uni_poly,
@@ -335,16 +465,44 @@ where
         );
     }
 
-    let (p, q) =
-        fix_last_variable(p, q, alpha, mle_fix_last_variable_koala_bear_ext_ext_zero_padding);
+    let mut round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha);
+    let mut grid;
+    (p, q, grid) = fix_last_variable_and_two_round_sum(p, q, alpha);
+    folds_done += 1;
+    debug_assert_eq!(folds_done, log_stacking_height);
+    stacked_evals.extend_from_device_slice(p.guts().as_buffer()).unwrap();
+
+    let mut remaining = num_variables as usize - folds_done;
+    while remaining >= 2 {
+        let (alpha_1, alpha_2, next_claim) = process_two_round_grid(
+            grid,
+            round_claim,
+            challenger,
+            &mut univariate_poly_msgs,
+            &mut point,
+        );
+        (p, q, grid) = fix_last_two_variables_and_two_round_sum(p, q, alpha_1, alpha_2);
+        round_claim = next_claim;
+        remaining -= 2;
+    }
+
+    if remaining == 1 {
+        let uni_poly = two_round_first_univariate(grid, round_claim);
+        alpha = process_univariate_polynomial(
+            uni_poly,
+            challenger,
+            &mut univariate_poly_msgs,
+            &mut point,
+        );
+        round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha);
+        (p, q) =
+            fix_last_variable(p, q, alpha, mle_fix_last_variable_koala_bear_ext_ext_zero_padding);
+    }
 
     let proof = PartialSumcheckProof {
         univariate_polys: univariate_poly_msgs.clone(),
         claimed_sum: claim,
-        point_and_eval: (
-            point.clone().into(),
-            univariate_poly_msgs.last().unwrap().eval_at_point(alpha),
-        ),
+        point_and_eval: (point.clone().into(), round_claim),
     };
     let p_eval_tensor = DeviceTensor::copy_to_host(p.guts()).unwrap();
     let p_eval = Ext::from_base(p_eval_tensor.as_slice()[0]);

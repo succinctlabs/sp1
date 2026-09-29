@@ -157,9 +157,8 @@ fn two_round_univariates<C: FieldChallenger<Felt>>(
     univariate_poly_msgs: &mut Vec<UnivariatePolynomial<Ext>>,
     point: &mut Vec<Ext>,
 ) -> (Ext, Ext, Ext) {
-    let [h_0_0, h_0_1, h_0_half, h_1_0, h_1_half, h_half_0, h_half_1, h_half_half, eq_y0, eq_y1] =
-        grid;
-    let (z_y, z_x) = z;
+    let [h_0_0, _, h_0_half, h_1_0, h_1_half, _, _, _, eq_y0, eq_y1] = grid;
+    let (z_y, _) = z;
     let (eq_adjustment, padding_adjustment) = adjustments;
 
     let half = Ext::from_canonical_u16(2).inverse();
@@ -181,9 +180,29 @@ fn two_round_univariates<C: FieldChallenger<Felt>>(
     let alpha_1 = process_univariate_polynomial(uni_poly, challenger, univariate_poly_msgs, point);
     let round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha_1);
 
-    // Round 2: `g₂(X) = h(X, α₁)`. Every materialized summand of a grid column carries the
-    // `Y`-eq factor, so the columns also vanish at `b_Y`. The `X = ½` column keeps its 2³
-    // scale so the corrections below match `finalize_univariate` verbatim.
+    let uni_poly = two_round_second_univariate(grid, z, adjustments, alpha_1, round_claim);
+    let alpha_2 = process_univariate_polynomial(uni_poly, challenger, univariate_poly_msgs, point);
+    let round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha_2);
+
+    (alpha_1, alpha_2, round_claim)
+}
+
+/// Derives the second message of a paired round from its bivariate grid.
+/// The caller has already observed the first message and sampled `alpha_1`.
+fn two_round_second_univariate(
+    grid: [Ext; 10],
+    z: (Ext, Ext),
+    adjustments: (Ext, Ext),
+    alpha_1: Ext,
+    round_claim: Ext,
+) -> UnivariatePolynomial<Ext> {
+    let [h_0_0, h_0_1, h_0_half, _, _, h_half_0, h_half_1, h_half_half, eq_y0, eq_y1] = grid;
+    let (z_y, z_x) = z;
+    let (eq_adjustment, padding_adjustment) = adjustments;
+    let half = Ext::from_canonical_u16(2).inverse();
+    let inv_eight = Ext::from_canonical_u16(8).inverse();
+    let b_y = (Ext::one() - z_y) / (Ext::one() - z_y.double());
+
     let grid_points = [Ext::zero(), Ext::one(), half, b_y];
     let column_at_alpha_1 = |v_0: Ext, v_1: Ext, v_half: Ext| {
         interpolate_univariate_polynomial(&grid_points, &[v_0, v_1, v_half, Ext::zero()])
@@ -192,9 +211,6 @@ fn two_round_univariates<C: FieldChallenger<Felt>>(
     let folded_eval_zero = column_at_alpha_1(h_0_0, h_0_1, h_0_half * inv_eight);
     let folded_eval_half = column_at_alpha_1(h_half_0, h_half_1, h_half_half * inv_eight);
 
-    // The state updates the skipped single round would have applied: the folded eq row's
-    // mass over the materialized rows is the `α₁`-interpolation of the `Y = 0` / `Y = 1`
-    // masses, and the padding adjustment picks up the `eq(z_y, α₁)` factor.
     let padding_adjustment =
         padding_adjustment * (z_y * alpha_1 + (Ext::one() - z_y) * (Ext::one() - alpha_1));
     let eq_sum = eq_y0 + alpha_1 * (eq_y1 - eq_y0);
@@ -203,15 +219,11 @@ fn two_round_univariates<C: FieldChallenger<Felt>>(
     let eval_half =
         (folded_eval_half + eq_correction * Ext::from_canonical_u16(4)) * inv_eight * eq_adjustment;
     let b_x = (Ext::one() - z_x) / (Ext::one() - z_x.double());
-    let eval_one = round_claim - eval_zero;
-    let uni_poly = interpolate_univariate_polynomial(
-        &[Ext::zero(), Ext::one(), half, b_x],
-        &[eval_zero, eval_one, eval_half, Ext::zero()],
-    );
-    let alpha_2 = process_univariate_polynomial(uni_poly, challenger, univariate_poly_msgs, point);
-    let round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha_2);
 
-    (alpha_1, alpha_2, round_claim)
+    interpolate_univariate_polynomial(
+        &[Ext::zero(), Ext::one(), half, b_x],
+        &[eval_zero, round_claim - eval_zero, eval_half, Ext::zero()],
+    )
 }
 
 /// Folds the first two sumcheck challenges into the layer in a single pass, materializing
@@ -390,6 +402,48 @@ fn two_round_fix_and_sum_first_layer(
 
     let univariate = finalize_univariate(&result_poly, univariate_evals, claim);
     (univariate, result_poly)
+}
+
+/// Uses paired-round look-ahead after the current round message is known.
+/// Returns the twice-folded polynomial, the next challenge, and its claim.
+fn process_next_two_rounds<C: FieldChallenger<Felt>>(
+    poly: LogupRoundPolynomial,
+    alpha_1: Ext,
+    round_claim: Ext,
+    challenger: &mut C,
+    univariate_poly_msgs: &mut Vec<UnivariatePolynomial<Ext>>,
+    point: &mut Vec<Ext>,
+) -> (LogupRoundPolynomial, Ext, Ext) {
+    let PolynomialLayer::CircuitLayer(circuit) = &poly.layer else { unreachable!() };
+    let grid = two_round_sum_as_poly(
+        &circuit.jagged_mle,
+        circuit.jagged_mle.dense_data.height,
+        &poly.eq_row,
+        &poly.eq_interaction,
+        poly.lambda,
+        two_round_sum_circuit_layer_kernel,
+    );
+    let mut last_coordinates = poly.point.iter().rev();
+    let z_y = *last_coordinates.next().unwrap();
+    let z_x = *last_coordinates.next().unwrap();
+    let uni_poly = two_round_second_univariate(
+        grid,
+        (z_y, z_x),
+        (poly.eq_adjustment, poly.padding_adjustment),
+        alpha_1,
+        round_claim,
+    );
+    let alpha_2 = process_univariate_polynomial(uni_poly, challenger, univariate_poly_msgs, point);
+    let claim_2 = univariate_poly_msgs.last().unwrap().eval_at_point(alpha_2);
+
+    let (uni_poly, poly) = two_round_fix_and_sum_circuit_layer(poly, alpha_1, alpha_2, claim_2);
+    let alpha_3 = process_univariate_polynomial(uni_poly, challenger, univariate_poly_msgs, point);
+    let claim_3 = univariate_poly_msgs.last().unwrap().eval_at_point(alpha_3);
+    (poly, alpha_3, claim_3)
+}
+
+fn later_round_lookahead_enabled() -> bool {
+    std::env::var("SP1_GPU_LEGACY_LATER_ROUNDS").is_err()
 }
 
 /// Evaluates the first layer polynomial and eq polynomial at 0 and 1/2.
@@ -940,7 +994,7 @@ where
     // halves that allocation on top of saving a pass over the leaf.
     let use_lookahead = poly.layer.num_row_variables > 2;
 
-    let (mut alpha, mut poly, rounds_processed) = if use_lookahead {
+    let (mut alpha, mut poly, mut rounds_processed) = if use_lookahead {
         let grid = two_round_sum_as_poly(
             &poly.layer.jagged_mle,
             poly.layer.jagged_mle.dense_data.height,
@@ -995,6 +1049,27 @@ where
         (alpha, next_poly, 2)
     };
 
+    let use_later_lookahead = later_round_lookahead_enabled();
+    while use_later_lookahead
+        && matches!(
+            &poly.layer,
+            PolynomialLayer::CircuitLayer(circuit) if circuit.num_row_variables > 2
+        )
+    {
+        let round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha);
+        let (next_poly, next_alpha, _) = process_next_two_rounds(
+            poly,
+            alpha,
+            round_claim,
+            challenger,
+            &mut univariate_poly_msgs,
+            &mut point,
+        );
+        poly = next_poly;
+        alpha = next_alpha;
+        rounds_processed += 2;
+    }
+
     for _ in rounds_processed..num_variables as usize {
         // Get the round claims from the last round's univariate poly messages.
         let round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha);
@@ -1046,7 +1121,7 @@ pub fn materialized_round_sumcheck<C: FieldChallenger<Felt>>(
     );
 
     let mut round_claim;
-    let rounds_processed;
+    let mut rounds_processed;
     if use_lookahead {
         let PolynomialLayer::CircuitLayer(circuit) = &poly.layer else { unreachable!() };
         let grid = two_round_sum_as_poly(
@@ -1108,6 +1183,27 @@ pub fn materialized_round_sumcheck<C: FieldChallenger<Felt>>(
 
         round_claim = univariate_poly_msgs[0].eval_at_point(alpha);
         rounds_processed = 1;
+    }
+
+    let use_later_lookahead = later_round_lookahead_enabled();
+    while use_later_lookahead
+        && matches!(
+            &poly.layer,
+            PolynomialLayer::CircuitLayer(circuit) if circuit.num_row_variables > 2
+        )
+    {
+        let alpha = point[0];
+        let (next_poly, _, next_claim) = process_next_two_rounds(
+            poly,
+            alpha,
+            round_claim,
+            challenger,
+            &mut univariate_poly_msgs,
+            &mut point,
+        );
+        poly = next_poly;
+        round_claim = next_claim;
+        rounds_processed += 2;
     }
 
     // Process remaining rounds
