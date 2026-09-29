@@ -127,18 +127,19 @@ __global__ void logupGkrTwoRoundSumLayer(
 }
 
 // Folds the first two challenges in one pass, materializing the next circuit layer at a
-// quarter of the input height. The same pass accumulates the bivariate grid for the
-// following two rounds. `eqRow` is the host-twice-folded eq row.
+// quarter of the input height (the jagged metadata advanced two folds), and accumulates
+// the round-3 (evalZero, evalHalf, eqSum) from the doubly-folded values while they are
+// still in registers. `eqRow` is the host-twice-folded eq row.
 //
-// The thread owning each four-quad group folds the complete group, so the next grid
-// never reads another thread's output. Other threads skip. This
+// The thread owning the even quad of an output pair folds both quads of the pair, so the
+// round-3 sums never read another thread's output; odd-quad threads skip. This
 // reproduces exactly the composition of two `fixLastVariableTwoPadding` folds: real
 // folds land at output elements [0, quads), and the column's last active thread writes
 // the trailing pads (the second fold over the intermediate's pads plus the twice-folded
 // metadata's own pads) together with the colIndex entries the tail completes.
 template <typename DenseData>
 __global__ void logupGkrTwoRoundFixAndSumLayer(
-    ext_t* __restrict__ result,
+    ext_t* __restrict__ univariate_result,
     const JaggedMle<DenseData> inputJaggedMle,
     JaggedMle<JaggedGkrLayer> outputJaggedMle,
     ext_t alpha1,
@@ -147,11 +148,9 @@ __global__ void logupGkrTwoRoundFixAndSumLayer(
     const ext_t* __restrict__ eqInteraction,
     const ext_t lambda) {
 
-    ext_t acc[10];
-#pragma unroll
-    for (size_t k = 0; k < 10; k++) {
-        acc[k] = ext_t::zero();
-    }
+    ext_t evalZero = ext_t::zero();
+    ext_t evalHalf = ext_t::zero();
+    ext_t eqSum = ext_t::zero();
 
     for (size_t q = blockIdx.x * blockDim.x + threadIdx.x;
          q < inputJaggedMle.denseData.height >> 1;
@@ -169,7 +168,7 @@ __global__ void logupGkrTwoRoundFixAndSumLayer(
         }
 
         size_t quadRow = (pairIdx - startIdx) >> 1;
-        if (quadRow & 3) {
+        if (quadRow & 1) {
             continue;
         }
 
@@ -177,33 +176,31 @@ __global__ void logupGkrTwoRoundFixAndSumLayer(
         size_t outStartElems = outputJaggedMle.startIndices[colIdx] << 1;
         size_t restrictedIndex = outStartElems + quadRow;
 
-        CircuitValues values[4];
-        ext_t eqValues[4];
-        ext_t eqInteractionValue = ext_t::load(eqInteraction, colIdx);
-#pragma unroll
-        for (size_t t = 0; t < 4; t++) {
-            if (quadRow + t < realQuads) {
-                values[t] = twoRoundFoldQuad(
-                    inputJaggedMle.denseData, (q + t) << 2, alpha1, alpha2);
-                values[t].store(
-                    outputJaggedMle.denseData.layer,
-                    restrictedIndex + t,
-                    outputJaggedMle.denseData.height);
-                eqValues[t] = ext_t::load(eqRow, quadRow + t) * eqInteractionValue;
-                if ((restrictedIndex + t) & 1) {
-                    outputJaggedMle.colIndex[(restrictedIndex + t) >> 1] = colIdx;
-                }
-            } else {
-                values[t] = CircuitValues::paddingValues();
-                eqValues[t] = ext_t::zero();
-            }
+        CircuitValues valuesZero = twoRoundFoldQuad(inputJaggedMle.denseData, q << 2, alpha1, alpha2);
+        valuesZero.store(
+            outputJaggedMle.denseData.layer,
+            restrictedIndex,
+            outputJaggedMle.denseData.height);
+
+        CircuitValues valuesOne;
+        if (quadRow + 1 < realQuads) {
+            valuesOne = twoRoundFoldQuad(inputJaggedMle.denseData, (q + 1) << 2, alpha1, alpha2);
+            valuesOne.store(
+                outputJaggedMle.denseData.layer,
+                restrictedIndex + 1,
+                outputJaggedMle.denseData.height);
+            outputJaggedMle.colIndex[restrictedIndex >> 1] = colIdx;
+        } else {
+            // The two-round fold over the intermediate layer's pads is exactly the padding
+            // value; the tail below materializes it.
+            valuesOne = CircuitValues::paddingValues();
         }
 
         // The last active thread of the column writes the zero tail (same rule as
         // `JaggedMle::fixLastTwoVariablesTwoPadding`): the doubly-folded pads in
         // [realQuads, 2 * hp2) and the colIndex entries for every output pair the tail
         // completes.
-        if (quadRow + 4 >= realQuads) {
+        if (quadRow + 2 >= realQuads) {
             size_t hp1 = ((interactionHeight + 3) >> 2) << 1;
             size_t hp2 = ((hp1 + 3) >> 2) << 1;
             size_t totalElems = hp2 << 1;
@@ -215,23 +212,20 @@ __global__ void logupGkrTwoRoundFixAndSumLayer(
             }
         }
 
-        acc[0] += values[0].sumAsPoly(lambda, eqValues[0]);
-        acc[1] += values[1].sumAsPoly(lambda, eqValues[1]);
-        acc[2] += addValues(values[0], values[1])
-                      .sumAsPoly(lambda, eqValues[0] + eqValues[1]);
-        acc[3] += values[2].sumAsPoly(lambda, eqValues[2]);
-        acc[4] += addValues(values[2], values[3])
-                      .sumAsPoly(lambda, eqValues[2] + eqValues[3]);
-        acc[5] += addValues(values[0], values[2])
-                      .sumAsPoly(lambda, eqValues[0] + eqValues[2]);
-        acc[6] += addValues(values[1], values[3])
-                      .sumAsPoly(lambda, eqValues[1] + eqValues[3]);
-        acc[7] += addValues(addValues(values[0], values[1]), addValues(values[2], values[3]))
-                      .sumAsPoly(
-                          lambda,
-                          eqValues[0] + eqValues[1] + eqValues[2] + eqValues[3]);
-        acc[8] += eqValues[0] + eqValues[2];
-        acc[9] += eqValues[1] + eqValues[3];
+        // Round-3 sums from the just-folded output pair. The output element row of
+        // `valuesZero` is `quadRow` (even), so the twice-folded eq row is read at
+        // (quadRow, quadRow + 1) — the same indices `sumAsPolyCircuitLayerInner` would
+        // use on the materialized output.
+        ext_t eqInteractionValue = ext_t::load(eqInteraction, colIdx);
+        ext_t eqValueZero = ext_t::load(eqRow, quadRow) * eqInteractionValue;
+        ext_t eqValueOne = ext_t::load(eqRow, quadRow + 1) * eqInteractionValue;
+        ext_t eqValueHalf = eqValueZero + eqValueOne;
+
+        eqSum += eqValueHalf;
+
+        CircuitValues valuesHalf = addValues(valuesZero, valuesOne);
+        evalZero += valuesZero.sumAsPoly(lambda, eqValueZero);
+        evalHalf += valuesHalf.sumAsPoly(lambda, eqValueHalf);
     }
 
     // Allocate shared memory
@@ -240,12 +234,14 @@ __global__ void logupGkrTwoRoundFixAndSumLayer(
 
     auto block = cg::this_thread_block();
     auto tile = cg::tiled_partition<32>(block);
-#pragma unroll
-    for (size_t k = 0; k < 10; k++) {
-        ext_t blockSum = partialBlockReduce(block, tile, acc[k], shared);
-        if (threadIdx.x == 0) {
-            ext_t::store(result, k * gridDim.x + blockIdx.x, blockSum);
-        }
+    ext_t evalZeroblockSum = partialBlockReduce(block, tile, evalZero, shared);
+    ext_t evalHalfblockSum = partialBlockReduce(block, tile, evalHalf, shared);
+    ext_t eqSumBlockSum = partialBlockReduce(block, tile, eqSum, shared);
+
+    if (threadIdx.x == 0) {
+        ext_t::store(univariate_result, blockIdx.x, evalZeroblockSum);
+        ext_t::store(univariate_result, gridDim.x + blockIdx.x, evalHalfblockSum);
+        ext_t::store(univariate_result, 2 * gridDim.x + blockIdx.x, eqSumBlockSum);
     }
 }
 

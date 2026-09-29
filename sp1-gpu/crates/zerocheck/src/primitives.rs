@@ -6,8 +6,7 @@ use slop_multilinear::{MleEval, Point};
 use slop_tensor::{Tensor, TensorView};
 
 use sp1_gpu_cudart::sys::kernels::{
-    fix_last_two_variables_jagged_ext, fix_last_two_variables_jagged_felt,
-    fix_last_variable_jagged_ext, fix_last_variable_jagged_felt,
+    fix_last_two_variables_jagged_felt, fix_last_variable_jagged_ext, fix_last_variable_jagged_felt,
 };
 use sp1_gpu_cudart::sys::runtime::KernelPtr;
 use sp1_gpu_cudart::{
@@ -29,22 +28,6 @@ impl JaggedFixLastVariableKernel<Felt> for TaskScope {
 impl JaggedFixLastVariableKernel<Ext> for TaskScope {
     fn jagged_fix_last_variable_kernel() -> KernelPtr {
         unsafe { fix_last_variable_jagged_ext() }
-    }
-}
-
-pub(crate) trait JaggedFixLastTwoVariablesKernel<K: Field> {
-    fn jagged_fix_last_two_variables_kernel() -> KernelPtr;
-}
-
-impl JaggedFixLastTwoVariablesKernel<Felt> for TaskScope {
-    fn jagged_fix_last_two_variables_kernel() -> KernelPtr {
-        unsafe { fix_last_two_variables_jagged_felt() }
-    }
-}
-
-impl JaggedFixLastTwoVariablesKernel<Ext> for TaskScope {
-    fn jagged_fix_last_two_variables_kernel() -> KernelPtr {
-        unsafe { fix_last_two_variables_jagged_ext() }
     }
 }
 
@@ -242,26 +225,24 @@ where
 }
 
 /// Folds the trace MLE against two challenges in a single pass over the
-/// input, returning the twice-folded MLE. The result equals two chained
+/// input, returning the twice-folded MLE — byte-identical to two chained
 /// [`evaluate_jagged_fix_last_variable`] calls, but the intermediate
 /// (half-size, extension-field) trace is never written or re-read.
 ///
 /// `alpha_1` folds the last variable, `alpha_2` the second-to-last.
 /// `input_length` is the input pair count; `new_total_length` the
-/// twice-folded element count.
+/// twice-folded element count. Base-field input only: the caller is the
+/// zerocheck fused first-two-rounds, whose two challenges are both known
+/// before any fold happens.
 #[inline(always)]
-pub(crate) fn evaluate_jagged_fix_last_two_variables<F: Field>(
-    jagged_mle: &JaggedTraceMle<F, TaskScope>,
+pub(crate) fn evaluate_jagged_fix_last_two_variables(
+    jagged_mle: &JaggedTraceMle<Felt, TaskScope>,
     alpha_1: Ext,
     alpha_2: Ext,
     input_length: u32,
     new_total_length: u32,
     scratch: FoldMetadataScratch<'_>,
-) -> JaggedTraceMle<Ext, TaskScope>
-where
-    TaskScope: JaggedFixLastTwoVariablesKernel<F>,
-    Ext: ExtensionField<F>,
-{
+) -> JaggedTraceMle<Ext, TaskScope> {
     let backend = jagged_mle.dense().backend();
 
     // Adjusts offsets for each chip — the single-fold recurrence applied
@@ -332,7 +313,7 @@ where
     // SAFETY: `next_jagged_mle` is freshly allocated with capacity sized to
     // `new_total_length`; the kernel below writes every element (real
     // outputs plus the per-column zero tails) before any later reader. The
-    // `args!` tuple matches `fix_last_two_variables_jagged_<felt|ext>`'s C
+    // `args!` tuple matches `fix_last_two_variables_jagged_felt`'s C
     // signature in `sys/include/zerocheck/jagged_mle.cuh`.
     unsafe {
         next_jagged_mle.dense_data.dense.assume_init();
@@ -341,7 +322,7 @@ where
             args!(jagged_mle.as_raw(), next_jagged_mle.as_mut_raw(), n_quads, alpha_1, alpha_2);
         backend
             .launch_kernel(
-                <TaskScope as JaggedFixLastTwoVariablesKernel<F>>::jagged_fix_last_two_variables_kernel(),
+                fix_last_two_variables_jagged_felt(),
                 grid_size,
                 block_dim_fold,
                 &args,

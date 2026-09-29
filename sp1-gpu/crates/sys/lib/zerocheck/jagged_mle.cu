@@ -17,7 +17,8 @@ __global__ void fixLastVariableJagged(
 
 // Folds the last two variables in one pass over the input (see
 // `fixLastTwoVariablesTwoPadding`); `n_quads` is the input pair count / 2.
-// The caller supplies two challenges before the fold starts.
+// Used by the zerocheck fused first-two-rounds, whose two challenges are
+// both known before any fold happens.
 template <typename F>
 __global__ void fixLastTwoVariablesJagged(
     const JaggedMle<DenseBuffer<F>> inputJaggedMle,
@@ -74,9 +75,6 @@ extern "C" void* fix_last_variable_jagged_felt() { return (void*)fixLastVariable
 extern "C" void* fix_last_variable_jagged_ext() { return (void*)fixLastVariableJagged<ext_t>; }
 extern "C" void* fix_last_two_variables_jagged_felt() {
     return (void*)fixLastTwoVariablesJagged<felt_t>;
-}
-extern "C" void* fix_last_two_variables_jagged_ext() {
-    return (void*)fixLastTwoVariablesJagged<ext_t>;
 }
 extern "C" void* fix_last_variable_jagged_info() { return (void*)fixLastVariableJaggedInfo; }
 

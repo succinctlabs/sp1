@@ -1,7 +1,7 @@
-// Shared helpers for paired-round ("bivariate") zerocheck evaluation.
+// Shared helpers for the fused first-two-rounds ("bivariate") zerocheck.
 //
-// Two sumcheck rounds are proven from one pass over the trace. The round
-// polynomial is evaluated as a *bivariate* in the
+// The first two sumcheck rounds are proven from a single pass over the
+// base-field trace: the round polynomial is evaluated as a *bivariate* in the
 // last two variables `(X, Y)` on the grid `{0, 1, 2, 4}^2`. Rows are consumed
 // in quadruples (element index `4·quad + 2·X + Y`); the four boolean nodes
 // `X, Y ∈ {0, 1}` need no constraint evaluation (constraints vanish on real
@@ -20,7 +20,6 @@
 // Number of non-boolean grid nodes evaluated by the constraint kernels; also
 // the output stride of every bivariate partials buffer.
 constexpr int BIVARIATE_NUM_NODES = 12;
-constexpr int BIVARIATE_NUM_ALL_NODES = 16;
 
 // Number of boolean corner nodes swept by the GKR corner kernel.
 constexpr int BIVARIATE_NUM_CORNERS = 4;
@@ -51,21 +50,6 @@ __device__ __forceinline__ BivariateNode bivariate_node(int e) {
     case 10: return {4u, 2u, 8u};
     default: return {4u, 4u, 16u};
     }
-}
-
-__device__ __forceinline__ uint32_t bivariate_coordinate(int i) {
-    switch (i) {
-    case 0: return 0u;
-    case 1: return 1u;
-    case 2: return 2u;
-    default: return 4u;
-    }
-}
-
-__device__ __forceinline__ BivariateNode bivariate_all_node(int e) {
-    const uint32_t x = bivariate_coordinate(e >> 2);
-    const uint32_t y = bivariate_coordinate(e & 3);
-    return {x, y, x * y};
 }
 
 // `v * c` for `c ∈ {0, 1, 2, 4, 8, 16}` via doublings. `c` is uniform per

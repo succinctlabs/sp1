@@ -193,7 +193,7 @@ __global__ void zerocheck_fused_sequential(
 }
 
 // ============================================================================
-// Bivariate variant — one fused pair of rounds.
+// Bivariate variant — the fused first-two-rounds evaluation.
 //
 // Rows are consumed in QUADRUPLES (element index `4·quad + 2·X + Y`), and each
 // block computes ALL 12 non-boolean grid nodes of `{0, 1, 2, 4}^2`: per row,
@@ -202,6 +202,8 @@ __global__ void zerocheck_fused_sequential(
 // temporal locality on the same quadruple). This trades compute (the
 // interpreter runs 12× per row either way) for a single pass over memory —
 // the round-message cost is pass-count-bound, not compute-bound.
+// Only run for round 0, so only the felt_t instantiations are exported.
+//
 // Differences from the univariate kernel above:
 //   - No blockIdx.z: the launcher's grid is (n_blocks, 1, 1).
 //   - No inline GKR sweep: the boolean corner nodes are handled by the
@@ -215,7 +217,7 @@ __global__ void zerocheck_fused_sequential(
 //     (block.x * 12 + e).
 // ============================================================================
 
-template <typename K, int MAX_REGS, bool ALL_NODES = false>
+template <typename K, int MAX_REGS>
 __global__ void zerocheck_fused_sequential_bivariate(
     const BlockDispatch* __restrict__ dispatch,
     const ChunkStatic* __restrict__ chunk_static,
@@ -238,9 +240,8 @@ __global__ void zerocheck_fused_sequential_bivariate(
     // One accumulator per grid node. Indexed by the (non-unrolled) node loop,
     // so it lives in L1-cached local memory rather than bloating the register
     // file on top of `regs[]`.
-    constexpr int NUM_NODES = ALL_NODES ? BIVARIATE_NUM_ALL_NODES : BIVARIATE_NUM_NODES;
-    ext_t thread_acc[NUM_NODES];
-    for (int e = 0; e < NUM_NODES; e++) {
+    ext_t thread_acc[BIVARIATE_NUM_NODES];
+    for (int e = 0; e < BIVARIATE_NUM_NODES; e++) {
         thread_acc[e] = ext_t::zero();
     }
 
@@ -262,8 +263,8 @@ __global__ void zerocheck_fused_sequential_bivariate(
         // chip's boundary quad.
         const bool full_quad = ((quad_idx << 2) | 3u) < lay.height;
 
-        for (int e = 0; e < NUM_NODES; e++) {
-            const BivariateNode node = ALL_NODES ? bivariate_all_node(e) : bivariate_node(e);
+        for (int e = 0; e < BIVARIATE_NUM_NODES; e++) {
+            const BivariateNode node = bivariate_node(e);
             ext_t acc = run_chunk_bytecode(
                 stc, consts, public_values, powers_of_alpha, regs, [&](LeafRef leaf) {
                     size_t base = (leaf.source == LEAF_SOURCE_MAIN_LOCAL)
@@ -283,10 +284,10 @@ __global__ void zerocheck_fused_sequential_bivariate(
     auto block = cg::this_thread_block();
     auto tile_warp = cg::tiled_partition<32>(block);
 
-    for (int e = 0; e < NUM_NODES; e++) {
+    for (int e = 0; e < BIVARIATE_NUM_NODES; e++) {
         ext_t block_sum = partialBlockReduce(block, tile_warp, thread_acc[e], shared);
         if (threadIdx.x == 0) {
-            ext_t::store(partials, blockIdx.x * NUM_NODES + (uint32_t)e, block_sum);
+            ext_t::store(partials, blockIdx.x * BIVARIATE_NUM_NODES + (uint32_t)e, block_sum);
         }
         block.sync();
     }
@@ -335,7 +336,8 @@ extern "C" void* zerocheck_fused_sequential_ext_1024_kernel() {
     return (void*)zerocheck_fused_sequential<ext_t, 1024>;
 }
 
-// Bivariate paired-round entry points.
+// Bivariate (fused first-two-rounds) entry points. Round 0 only, so only the
+// base-field instantiations exist.
 extern "C" void* zerocheck_fused_sequential_bivariate_kb_32_kernel() {
     return (void*)zerocheck_fused_sequential_bivariate<felt_t, 32>;
 }
@@ -353,22 +355,4 @@ extern "C" void* zerocheck_fused_sequential_bivariate_kb_512_kernel() {
 }
 extern "C" void* zerocheck_fused_sequential_bivariate_kb_1024_kernel() {
     return (void*)zerocheck_fused_sequential_bivariate<felt_t, 1024>;
-}
-extern "C" void* zerocheck_fused_sequential_bivariate_ext_32_kernel() {
-    return (void*)zerocheck_fused_sequential_bivariate<ext_t, 32, true>;
-}
-extern "C" void* zerocheck_fused_sequential_bivariate_ext_64_kernel() {
-    return (void*)zerocheck_fused_sequential_bivariate<ext_t, 64, true>;
-}
-extern "C" void* zerocheck_fused_sequential_bivariate_ext_128_kernel() {
-    return (void*)zerocheck_fused_sequential_bivariate<ext_t, 128, true>;
-}
-extern "C" void* zerocheck_fused_sequential_bivariate_ext_256_kernel() {
-    return (void*)zerocheck_fused_sequential_bivariate<ext_t, 256, true>;
-}
-extern "C" void* zerocheck_fused_sequential_bivariate_ext_512_kernel() {
-    return (void*)zerocheck_fused_sequential_bivariate<ext_t, 512, true>;
-}
-extern "C" void* zerocheck_fused_sequential_bivariate_ext_1024_kernel() {
-    return (void*)zerocheck_fused_sequential_bivariate<ext_t, 1024, true>;
 }

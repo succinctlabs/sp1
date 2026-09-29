@@ -138,17 +138,12 @@ extern "C" void* zerocheck_fused_sequential_ext_256_kernel();
 extern "C" void* zerocheck_fused_sequential_ext_512_kernel();
 extern "C" void* zerocheck_fused_sequential_ext_1024_kernel();
 
-// Bivariate paired-round variants: 12 non-boolean nodes, quadruple row
-// consumption, and output stride 12. See zerocheck/bivariate.cuh.
+// Bivariate (fused first-two-rounds) variants: eval nodes on blockIdx.z
+// (12 nodes), quadruple row consumption, output stride 12. Round 0 only —
+// base-field trace, so no ext instantiations. See zerocheck/bivariate.cuh.
 extern "C" void* zerocheck_fused_sequential_bivariate_kb_32_kernel();
 extern "C" void* zerocheck_fused_sequential_bivariate_kb_64_kernel();
 extern "C" void* zerocheck_fused_sequential_bivariate_kb_128_kernel();
 extern "C" void* zerocheck_fused_sequential_bivariate_kb_256_kernel();
 extern "C" void* zerocheck_fused_sequential_bivariate_kb_512_kernel();
 extern "C" void* zerocheck_fused_sequential_bivariate_kb_1024_kernel();
-extern "C" void* zerocheck_fused_sequential_bivariate_ext_32_kernel();
-extern "C" void* zerocheck_fused_sequential_bivariate_ext_64_kernel();
-extern "C" void* zerocheck_fused_sequential_bivariate_ext_128_kernel();
-extern "C" void* zerocheck_fused_sequential_bivariate_ext_256_kernel();
-extern "C" void* zerocheck_fused_sequential_bivariate_ext_512_kernel();
-extern "C" void* zerocheck_fused_sequential_bivariate_ext_1024_kernel();

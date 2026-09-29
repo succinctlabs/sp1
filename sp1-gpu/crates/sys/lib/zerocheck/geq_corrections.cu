@@ -154,7 +154,6 @@ __global__ void zerocheck_geq_corrections(
 // NO correction: there the padded rows' constraint values are not summed by
 // any kernel, and the two cancel exactly.
 // ============================================================================
-template <bool ALL_NODES = false>
 __global__ void zerocheck_geq_corrections_bivariate(
     const uint32_t* __restrict__ geq_chip_indices,
     uint32_t n_geq_chips,
@@ -164,7 +163,7 @@ __global__ void zerocheck_geq_corrections_bivariate(
     const ChipLayout* __restrict__ chip_layouts,
     const ext_t* __restrict__ partial_lagrange,
     uint32_t rest_point_dim,
-    ext_t* __restrict__ partials
+    ext_t* __restrict__ partials  // 12 slots per geq chip, laid out as [idx][e]
 ) {
     (void)n_geq_chips;
     const uint32_t out_idx = blockIdx.x;
@@ -220,14 +219,13 @@ __global__ void zerocheck_geq_corrections_bivariate(
     ext_t a11 = partialBlockReduce(block, tile, t11, shared);
 
     if (threadIdx.x == 0) {
-        constexpr int NUM_NODES = ALL_NODES ? BIVARIATE_NUM_ALL_NODES : BIVARIATE_NUM_NODES;
         const ext_t coeff = lambda * pad_adj;
         const ext_t ax = a10 - a00;
         const ext_t ay = a01 - a00;
         const ext_t axy = (a11 - a10) - ay;
-        const uint32_t base = out_idx * (uint32_t)NUM_NODES;
-        for (int e = 0; e < NUM_NODES; e++) {
-            const BivariateNode nd = ALL_NODES ? bivariate_all_node(e) : bivariate_node(e);
+        const uint32_t base = out_idx * (uint32_t)BIVARIATE_NUM_NODES;
+        for (int e = 0; e < BIVARIATE_NUM_NODES; e++) {
+            const BivariateNode nd = bivariate_node(e);
             ext_t S = a00 + mul_small_pow2(ax, nd.cx) + mul_small_pow2(ay, nd.cy)
                 + mul_small_pow2(axy, nd.cxy);
             ext_t::store(partials, base + (uint32_t)e, ext_t::zero() - coeff * S);
@@ -246,9 +244,5 @@ extern "C" void* zerocheck_geq_corrections_kernel() {
 }
 
 extern "C" void* zerocheck_geq_corrections_bivariate_kernel() {
-    return (void*)zerocheck_geq_corrections_bivariate<false>;
-}
-
-extern "C" void* zerocheck_geq_corrections_bivariate_all_kernel() {
-    return (void*)zerocheck_geq_corrections_bivariate<true>;
+    return (void*)zerocheck_geq_corrections_bivariate;
 }

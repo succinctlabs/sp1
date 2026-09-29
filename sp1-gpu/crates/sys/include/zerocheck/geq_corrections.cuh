@@ -49,4 +49,3 @@ extern "C" void* zerocheck_geq_corrections_kernel();
 // Bivariate variant for the fused first-two-rounds: 12 partials per geq chip,
 // one per non-boolean grid node. See zerocheck/bivariate.cuh for node order.
 extern "C" void* zerocheck_geq_corrections_bivariate_kernel();
-extern "C" void* zerocheck_geq_corrections_bivariate_all_kernel();
