@@ -10,7 +10,7 @@ manual_group = "${{ github.event_name == 'workflow_dispatch' && format('-manual-
 raise "Manual runs can cancel ordinary CI" unless workflow.fetch("concurrency").fetch("group").end_with?(manual_group)
 
 jobs = workflow.fetch("jobs").select { |_, job| job.fetch("runs-on", "").start_with?("runs-on=") }
-raise "Expected all nine runner jobs" unless jobs.size == 9
+raise "Expected all ten runner jobs" unless jobs.size == 10
 
 jobs.each do |name, job|
   label = job.fetch("runs-on")
@@ -35,4 +35,4 @@ jobs.each do |name, job|
   end
 end
 
-puts "All nine job labels keep default routing and support isolated v3 selection."
+puts "All ten job labels keep default routing and support isolated v3 selection."

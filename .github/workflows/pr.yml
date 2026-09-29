@@ -524,6 +524,50 @@ jobs:
           RUST_BACKTRACE: 1
           CUDA_ARCHS: 89
 
+  test-gpu-nvidia-ntt:
+    name: Test (GPU, cuPQC NTT)
+    runs-on: runs-on=${{ github.run_id }}-${{ github.run_attempt }}-test-gpu-nvidia-ntt/family=g6.4xlarge/${{ inputs.runs_on_environment && format('env={0}/volume={1}', inputs.runs_on_environment, inputs.runs_on_volume) || 'hdd=200' }}/ami=ami-0a63dc9cb9e934ba3/spot=false
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v6
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+          setup_gpu: true
+
+      - name: Install CUDA 12.8
+        id: cuda-toolkit
+        uses: Jimver/cuda-toolkit@v0.2.30
+        with:
+          cuda: "12.8.1"
+          method: network
+          sub-packages: '["cudart", "cudart-dev", "nvcc", "nvrtc", "nvtx"]'
+          use-github-cache: false
+          use-local-cache: false
+
+      - name: Download cuPQC SDK
+        run: |
+          archive="$RUNNER_TEMP/cupqc-sdk-0.6.0-x86_64.tar.gz"
+          curl --fail --location --retry 3 \
+            https://developer.download.nvidia.com/compute/cupqc/redist/cupqc/cupqc-sdk-0.6.0-x86_64.tar.gz \
+            --output "$archive"
+          echo "8026ac00d81130180d2ff0afb3eb9bce852b76cc6a02141f9e45b799a17ae571  $archive" | sha256sum --check
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+          echo "CUPQC_SDK_DIR=$RUNNER_TEMP/cupqc-sdk-0.6.0-x86_64" >> "$GITHUB_ENV"
+
+      - name: Run cuPQC NTT tests
+        run: cargo test --release -p sp1-gpu-commit --features nvidia-ntt -- --test-threads=1
+        env:
+          CUDA_PATH: ${{ steps.cuda-toolkit.outputs.CUDA_PATH }}
+          CUDACXX: ${{ steps.cuda-toolkit.outputs.CUDA_PATH }}/bin/nvcc
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          RUST_BACKTRACE: 1
+          CUDA_ARCHS: 89
+
   # GPU E2E Test
   test-gpu-e2e:
     name: GPU E2E (node)
