@@ -22,6 +22,20 @@ pub enum Error {
         request_id: Vec<u8>,
     },
 
+    /// The proof request failed during settlement.
+    #[error("Proof request 0x{} failed during settlement", hex::encode(.request_id))]
+    RequestReverted {
+        /// The ID of the request that failed during settlement.
+        request_id: Vec<u8>,
+    },
+
+    /// The proof request expired at its deadline without a proof being submitted (terminal).
+    #[error("Proof request 0x{} expired before a proof was submitted", hex::encode(.request_id))]
+    RequestExpired {
+        /// The ID of the request that expired.
+        request_id: Vec<u8>,
+    },
+
     /// The proof request timed out.
     #[error("Proof request 0x{} timed out", hex::encode(.request_id))]
     RequestTimedOut {
@@ -43,4 +57,22 @@ pub enum Error {
     /// An unknown error occurred.
     #[error("Other error: {0}")]
     Other(#[from] anyhow::Error),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Error;
+
+    #[test]
+    fn simulation_failure_preserves_its_source() {
+        let error = anyhow::anyhow!("executor failed")
+            .context("guest panicked")
+            .context(Error::SimulationFailed);
+
+        assert_eq!(
+            format!("{error:#}"),
+            "Program simulation failed: guest panicked: executor failed"
+        );
+        assert!(error.source().is_some());
+    }
 }

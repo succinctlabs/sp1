@@ -84,7 +84,12 @@ class Hasher {
         F_t right[Params::DIGEST_WIDTH],
         F_t out[Params::DIGEST_WIDTH],
         RoundConstants_t roundConstants) {
-        F_t state[Params::WIDTH];
+        // `state` is reinterpreted as `FDW_t` (a 16-byte-aligned vector type) below, which
+        // emits 128-bit aligned loads/stores. A plain `F_t state[WIDTH]` is only
+        // `alignof(F_t)` (4-byte) aligned, so those accesses fault with a misaligned
+        // address on newer GPU archs (e.g. sm_120/Blackwell) where the vector access is no
+        // longer silently widened from registers. Force 16-byte alignment to match `FDW_t`.
+        __align__(16) F_t state[Params::WIDTH];
         FDW_t* stateWidth = reinterpret_cast<FDW_t*>(state);
         stateWidth[0] = *reinterpret_cast<FDW_t*>(left);
         stateWidth[1] = *reinterpret_cast<FDW_t*>(right);
@@ -97,7 +102,9 @@ class Hasher {
 
     __device__ static void
     hash(F_t* in, size_t nIn, F_t out[Params::DIGEST_WIDTH], RoundConstants_t roundConstants) {
-        F_t state[Params::WIDTH];
+        // 16-byte aligned: `state` is reinterpreted as the aligned `FDW_t` vector type in
+        // `finalize` below (see the note in `compress`).
+        __align__(16) F_t state[Params::WIDTH];
         for (int i = 0; i < Params::WIDTH; i++) {
             state[i].set_to_zero();
         }
@@ -183,8 +190,12 @@ class StaticHasher : public Hasher<Params> {
     }
 };
 
+// 16-byte aligned so `data` (offset 0) can be reinterpreted as the aligned `FDW_t`
+// vector type in `finalize` without a misaligned 128-bit access. Without this the
+// struct would only be `alignof(size_t)` (8-byte) aligned, faulting with a misaligned
+// address on newer GPU archs (e.g. sm_120/Blackwell).
 template <typename Params, typename Hasher_t>
-struct HasherState {
+struct __align__(16) HasherState {
     using F_t = typename Params::F_t;
     using FDW_t = FDW_t<Params>;
 

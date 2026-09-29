@@ -19,10 +19,10 @@ pub mod bn254;
 pub mod secp256k1;
 pub mod secp256r1;
 
-use k256::{
-    elliptic_curve::sec1::ToEncodedPoint, AffinePoint as K256AffinePoint, EncodedPoint,
-    ProjectivePoint as K256ProjectivePoint,
-};
+use k256::{AffinePoint as K256AffinePoint, EncodedPoint, FieldElement};
+
+#[cfg(test)]
+mod secp256k1_tests;
 
 /// Parameters that specify a short Weierstrass curve : y^2 = x^3 + ax + b.
 pub trait WeierstrassParameters: EllipticCurveParameters {
@@ -211,54 +211,70 @@ impl EllipticCurve for SwCurve<Secp256k1Parameters> {
 }
 
 impl AffinePoint<SwCurve<Secp256k1Parameters>> {
-    pub fn sw_add_k256(&self, other: &Self) -> Self {
-        let this_bytes = self.to_sec1_uncompressed();
-        let other_bytes = other.to_sec1_uncompressed();
-
-        let this: K256AffinePoint =
-            K256AffinePoint::from_encoded_point(&EncodedPoint::from_bytes(this_bytes).unwrap())
-                .unwrap();
-        let this = K256ProjectivePoint::from(this);
-
-        let other =
-            K256AffinePoint::from_encoded_point(&EncodedPoint::from_bytes(other_bytes).unwrap())
-                .unwrap();
-        let other = K256ProjectivePoint::from(other);
-
-        let result = this + other;
-        let result = result.to_affine();
-        // Save it as a uncompressed point
-        let result_bytes = result.to_encoded_point(false);
-        let result_bytes = result_bytes.as_bytes();
-
-        // Skip the first byte which is the compression flag
-        AffinePoint::new(
-            BigUint::from_bytes_be(&result_bytes[1..33]),
-            BigUint::from_bytes_be(&result_bytes[33..65]),
+    fn k256_coordinates(&self) -> (FieldElement, FieldElement) {
+        let encoded = EncodedPoint::from_bytes(self.to_sec1_uncompressed()).unwrap();
+        // Preserve SEC1's canonical-coordinate and curve-membership checks.
+        K256AffinePoint::from_encoded_point(&encoded).unwrap();
+        (
+            FieldElement::from_bytes(encoded.x().unwrap()).unwrap(),
+            FieldElement::from_bytes(encoded.y().unwrap()).unwrap(),
         )
+    }
+
+    pub fn sw_add_k256(&self, other: &Self) -> Self {
+        // The curve helper historically supports equal points.
+        if self == other {
+            return self.sw_double_k256();
+        }
+        let (x1, y1) = self.k256_coordinates();
+        let (x2, y2) = other.k256_coordinates();
+        let slope = (y2 - y1) * secp256k1_inverse(x2 - x1);
+        Self::k256_from_slope(x1, y1, x2, slope)
     }
 
     pub fn sw_double_k256(&self) -> Self {
-        let this_bytes = self.to_sec1_uncompressed();
-        let this =
-            K256AffinePoint::from_encoded_point(&EncodedPoint::from_bytes(this_bytes).unwrap())
-                .unwrap();
+        let (x, y) = self.k256_coordinates();
+        let slope = x.square().mul_single(3) * secp256k1_inverse(y.double());
+        Self::k256_from_slope(x, y, x, slope)
+    }
 
-        let this = K256ProjectivePoint::from(this);
-
-        let result = this.double();
-        let result = result.to_affine();
-
-        // Save it as a uncompressed point
-        let result_bytes = result.to_encoded_point(false);
-        let result_bytes = result_bytes.as_bytes();
-
-        // Skip the first byte which is the compression flag
+    fn k256_from_slope(
+        x1: FieldElement,
+        y1: FieldElement,
+        x2: FieldElement,
+        slope: FieldElement,
+    ) -> Self {
+        // Subtraction uses negates assuming magnitude 1, so normalize x3 beforehand.
+        // All multiplication/squaring inputs here have magnitude <= 8, as required by k256.
+        let x3 = (slope.square() - x1 - x2).normalize_weak();
+        let y3 = slope * (x1 - x3) - y1;
         AffinePoint::new(
-            BigUint::from_bytes_be(&result_bytes[1..33]),
-            BigUint::from_bytes_be(&result_bytes[33..65]),
+            BigUint::from_bytes_be(&x3.to_bytes()),
+            BigUint::from_bytes_be(&y3.to_bytes()),
         )
     }
+}
+
+/// Variable-time inversion for host execution, which already uses variable-time bigint arithmetic.
+/// Keep the other field operations in k256 to avoid bigint allocation and reduction for each one.
+fn secp256k1_inverse(value: FieldElement) -> FieldElement {
+    use dashu::integer::{fast_div::ConstDivisor, UBig};
+    use std::sync::LazyLock;
+
+    static MODULUS: LazyLock<ConstDivisor> = LazyLock::new(|| {
+        ConstDivisor::new(biguint_to_dashu(
+            &<Secp256k1Parameters as EllipticCurveParameters>::BaseField::modulus(),
+        ))
+    });
+    let inverse = MODULUS
+        .reduce(UBig::from_be_bytes(&value.to_bytes()))
+        .inv()
+        .expect("secp256k1 result is the point at infinity")
+        .residue()
+        .to_be_bytes();
+    let mut bytes = k256::FieldBytes::default();
+    bytes[32 - inverse.len()..].copy_from_slice(&inverse);
+    FieldElement::from_bytes(&bytes).unwrap()
 }
 
 impl<E: WeierstrassParameters> AffinePoint<SwCurve<E>> {

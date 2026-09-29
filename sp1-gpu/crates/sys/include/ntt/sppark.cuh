@@ -20,12 +20,115 @@
 #endif
 
 #include <ntt/ntt.cuh>
+#ifdef NVIDIA_NTT
+cudaError_t nvidia_ntt_init(uint32_t max_log_size, cudaStream_t stream);
+cudaError_t nvidia_ntt_batch(
+    fr_t* data,
+    uint32_t log_size,
+    uint32_t polynomial_count,
+    uint32_t stride,
+    bool inverse,
+    cudaStream_t stream);
+cudaError_t nvidia_ntt_batch_coset(
+    fr_t* data,
+    const fr_t* input,
+    uint32_t log_size,
+    uint32_t log_blowup,
+    uint32_t polynomial_count,
+    const fr_t* gen_powers,
+    fr_t shift,
+    bool perform_shift,
+    cudaStream_t stream);
+#endif
 
 #include "runtime/exception.cuh"
 
 #ifndef __CUDA_ARCH__
 
+#ifdef NVIDIA_NTT
+static constexpr bool LDE_INPUT_BIT_REVERSED = false;
+static constexpr auto LDE_FORWARD_NTT_ORDER = NTT::InputOutputOrder::NN;
+static constexpr auto LDE_INVERSE_NTT_ORDER = NTT::InputOutputOrder::NN;
+#else
+static constexpr bool LDE_INPUT_BIT_REVERSED = true;
+static constexpr auto LDE_FORWARD_NTT_ORDER = NTT::InputOutputOrder::RN;
+static constexpr auto LDE_INVERSE_NTT_ORDER = NTT::InputOutputOrder::NR;
+#endif
+
+static cudaError_t run_ntt_batch(
+    fr_t* data,
+    uint32_t lg_domain_size,
+    uint32_t poly_count,
+    uint32_t stride,
+    NTT::InputOutputOrder order,
+    NTT::Direction direction,
+    bool reverse_result,
+    const cudaStream_t stream) {
+    try {
+#ifdef NVIDIA_NTT
+        const bool reverse_input =
+            order == NTT::InputOutputOrder::RN || order == NTT::InputOutputOrder::RR;
+        const bool reverse_output =
+            (order == NTT::InputOutputOrder::NN || order == NTT::InputOutputOrder::RN) !=
+            reverse_result;
+        if (reverse_input) {
+            for (uint32_t polynomial = 0; polynomial < poly_count; ++polynomial) {
+                NTT::bit_rev(
+                    data + polynomial * stride,
+                    data + polynomial * stride,
+                    lg_domain_size,
+                    stream);
+            }
+        }
+        cudaError_t error = nvidia_ntt_batch(
+            data,
+            lg_domain_size,
+            poly_count,
+            stride,
+            direction == NTT::Direction::inverse,
+            stream);
+        if (error != cudaSuccess) {
+            return error;
+        }
+        if (reverse_output) {
+            for (uint32_t polynomial = 0; polynomial < poly_count; ++polynomial) {
+                NTT::bit_rev(
+                    data + polynomial * stride,
+                    data + polynomial * stride,
+                    lg_domain_size,
+                    stream);
+            }
+        }
+#else
+        for (uint32_t polynomial = 0; polynomial < poly_count; ++polynomial) {
+            NTT::Base_dev_ptr(
+                stream,
+                data + polynomial * stride,
+                lg_domain_size,
+                order,
+                direction,
+                NTT::Type::standard);
+        }
+        if (reverse_result) {
+            for (uint32_t polynomial = 0; polynomial < poly_count; ++polynomial) {
+                NTT::bit_rev(
+                    data + polynomial * stride,
+                    data + polynomial * stride,
+                    lg_domain_size,
+                    stream);
+            }
+        }
+#endif
+    } catch (const cuda_error& error) {
+        return static_cast<cudaError_t>(-error.code());
+    }
+    return cudaSuccess;
+}
+
 extern "C" rustCudaError_t sppark_init(const cudaStream_t stream) {
+#ifdef NVIDIA_NTT
+    return CUDA_SUCCESS_CSL;
+#else
     uint32_t lg_domain_size = 1;
     uint32_t domain_size = 1U << lg_domain_size;
 
@@ -40,9 +143,22 @@ extern "C" rustCudaError_t sppark_init(const cudaStream_t stream) {
             NTT::InputOutputOrder::NR,
             NTT::Direction::forward,
             NTT::Type::standard);
-    } catch (const cudaError_t& e) {
-        CUDA_OK(e);
+    } catch (const cuda_error& error) {
+        CUDA_OK(static_cast<cudaError_t>(-error.code()));
     }
+    return CUDA_SUCCESS_CSL;
+#endif
+}
+
+extern "C" rustCudaError_t dft_init_twiddles(
+    uint32_t max_log_size,
+    const cudaStream_t stream) {
+#ifdef NVIDIA_NTT
+    CUDA_OK(nvidia_ntt_init(max_log_size, stream));
+#else
+    (void)max_log_size;
+    (void)stream;
+#endif
     return CUDA_SUCCESS_CSL;
 }
 
@@ -62,45 +178,68 @@ extern "C" rustCudaError_t batch_coset_dft(
     uint32_t domain_size = 1U << lg_domain_size;
     uint32_t ext_domain_size = domain_size << lg_blowup;
 
-    const auto gen_powers = NTTParameters::all()[NTT::gpu_id()].partial_group_gen_powers;
-
     try {
+        const auto gen_powers = NTTParameters::all()[NTT::gpu_id()].partial_group_gen_powers;
+        const bool perform_shift = shift != group_gen_inverse;
+#ifdef NVIDIA_NTT
+        const uint32_t lg_ext_domain_size = lg_domain_size + lg_blowup;
+        if (lg_ext_domain_size >= 14) {
+            CUDA_OK(nvidia_ntt_batch_coset(
+                d_out,
+                d_in,
+                lg_ext_domain_size,
+                lg_blowup,
+                poly_count,
+                &gen_powers[0][0],
+                shift,
+                perform_shift,
+                stream));
+            if (!bit_rev_output) {
+                for (uint32_t polynomial = 0; polynomial < poly_count; ++polynomial) {
+                    NTT::bit_rev(
+                        d_out + polynomial * ext_domain_size,
+                        d_out + polynomial * ext_domain_size,
+                        lg_ext_domain_size,
+                        stream);
+                }
+            }
+            return CUDA_SUCCESS_CSL;
+        }
+#endif
         for (size_t c = 0; c < poly_count; c++) {
-
-            NTT::bit_rev(
-                &d_out[(c + 1) * ext_domain_size - domain_size],
-                &d_in[c * domain_size],
-                lg_domain_size,
-                stream);
+            fr_t* domain_data = &d_in[c * domain_size];
+            if constexpr (LDE_INPUT_BIT_REVERSED) {
+                domain_data = &d_out[(c + 1) * ext_domain_size - domain_size];
+                NTT::bit_rev(
+                    domain_data,
+                    &d_in[c * domain_size],
+                    lg_domain_size,
+                    stream);
+            }
 
             NTT::LDE_launch(
                 stream,
                 &d_out[c * ext_domain_size],
-                &d_out[(c + 1) * ext_domain_size - domain_size],
+                domain_data,
                 gen_powers,
                 lg_domain_size,
                 lg_blowup,
-                true,
+                LDE_INPUT_BIT_REVERSED,
+                perform_shift,
                 shift);
 
-            NTT::Base_dev_ptr(
-                stream,
-                &d_out[c * ext_domain_size],
-                lg_domain_size + lg_blowup,
-                NTT::InputOutputOrder::RN,
-                NTT::Direction::forward,
-                NTT::Type::standard);
-
-            if (bit_rev_output) {
-                NTT::bit_rev(
-                    &d_out[c * ext_domain_size],
-                    &d_out[c * ext_domain_size],
-                    lg_domain_size + lg_blowup,
-                    stream);
-            }
         }
-    } catch (const cudaError_t& e) {
-        CUDA_OK(e);
+        CUDA_OK(run_ntt_batch(
+            d_out,
+            lg_domain_size + lg_blowup,
+            poly_count,
+            ext_domain_size,
+            LDE_FORWARD_NTT_ORDER,
+            NTT::Direction::forward,
+            bit_rev_output,
+            stream));
+    } catch (const cuda_error& error) {
+        CUDA_OK(static_cast<cudaError_t>(-error.code()));
     }
 
     return CUDA_SUCCESS_CSL;
@@ -121,45 +260,38 @@ extern "C" rustCudaError_t batch_coset_dft_in_place(
     uint32_t domain_size = 1U << lg_domain_size;
     uint32_t ext_domain_size = domain_size << lg_blowup;
 
-    const auto gen_powers = NTTParameters::all()[NTT::gpu_id()].partial_group_gen_powers;
-
     try {
+        const auto gen_powers = NTTParameters::all()[NTT::gpu_id()].partial_group_gen_powers;
+        const bool perform_shift = shift != group_gen_inverse;
         for (size_t c = 0; c < poly_count; c++) {
-
-            NTT::bit_rev(
-                &d_inout[(c + 1) * ext_domain_size - domain_size],
-                &d_inout[(c + 1) * ext_domain_size - domain_size],
-                lg_domain_size,
-                stream);
+            fr_t* domain_data = &d_inout[(c + 1) * ext_domain_size - domain_size];
+            if constexpr (LDE_INPUT_BIT_REVERSED) {
+                NTT::bit_rev(domain_data, domain_data, lg_domain_size, stream);
+            }
 
             NTT::LDE_launch(
                 stream,
                 &d_inout[c * ext_domain_size],
-                &d_inout[(c + 1) * ext_domain_size - domain_size],
+                domain_data,
                 gen_powers,
                 lg_domain_size,
                 lg_blowup,
-                true,
+                LDE_INPUT_BIT_REVERSED,
+                perform_shift,
                 shift);
 
-            NTT::Base_dev_ptr(
-                stream,
-                &d_inout[c * ext_domain_size],
-                lg_domain_size + lg_blowup,
-                NTT::InputOutputOrder::RN,
-                NTT::Direction::forward,
-                NTT::Type::standard);
-
-            if (bit_rev_output) {
-                NTT::bit_rev(
-                    &d_inout[c * ext_domain_size],
-                    &d_inout[c * ext_domain_size],
-                    lg_domain_size + lg_blowup,
-                    stream);
-            }
         }
-    } catch (const cudaError_t& e) {
-        CUDA_OK(e);
+        CUDA_OK(run_ntt_batch(
+            d_inout,
+            lg_domain_size + lg_blowup,
+            poly_count,
+            ext_domain_size,
+            LDE_FORWARD_NTT_ORDER,
+            NTT::Direction::forward,
+            bit_rev_output,
+            stream));
+    } catch (const cuda_error& error) {
+        CUDA_OK(static_cast<cudaError_t>(-error.code()));
     }
 
     return CUDA_SUCCESS_CSL;
@@ -180,18 +312,19 @@ extern "C" rustCudaError_t batch_lde_shift_in_place(
     uint32_t domain_size = 1U << lg_domain_size;
     uint32_t ext_domain_size = domain_size << lg_blowup;
 
-    const auto gen_powers = NTTParameters::all()[NTT::gpu_id()].partial_group_gen_powers;
-
     try {
+        const auto gen_powers = NTTParameters::all()[NTT::gpu_id()].partial_group_gen_powers;
+        const bool perform_shift = shift != group_gen_inverse;
+        CUDA_OK(run_ntt_batch(
+            &d_inout[ext_domain_size - domain_size],
+            lg_domain_size,
+            poly_count,
+            ext_domain_size,
+            LDE_INVERSE_NTT_ORDER,
+            NTT::Direction::inverse,
+            false,
+            stream));
         for (size_t c = 0; c < poly_count; c++) {
-            NTT::Base_dev_ptr(
-                stream,
-                &d_inout[(c + 1) * ext_domain_size - domain_size],
-                lg_domain_size,
-                NTT::InputOutputOrder::NR,
-                NTT::Direction::inverse,
-                NTT::Type::standard);
-
             NTT::LDE_launch(
                 stream,
                 &d_inout[c * ext_domain_size],
@@ -199,27 +332,22 @@ extern "C" rustCudaError_t batch_lde_shift_in_place(
                 gen_powers,
                 lg_domain_size,
                 lg_blowup,
-                true,
+                LDE_INPUT_BIT_REVERSED,
+                perform_shift,
                 shift);
 
-            NTT::Base_dev_ptr(
-                stream,
-                &d_inout[c * ext_domain_size],
-                lg_domain_size + lg_blowup,
-                NTT::InputOutputOrder::RN,
-                NTT::Direction::forward,
-                NTT::Type::standard);
-
-            if (bit_rev_output) {
-                NTT::bit_rev(
-                    &d_inout[c * ext_domain_size],
-                    &d_inout[c * ext_domain_size],
-                    lg_domain_size + lg_blowup,
-                    stream);
-            }
         }
-    } catch (const cudaError_t& e) {
-        CUDA_OK(e);
+        CUDA_OK(run_ntt_batch(
+            d_inout,
+            lg_domain_size + lg_blowup,
+            poly_count,
+            ext_domain_size,
+            LDE_FORWARD_NTT_ORDER,
+            NTT::Direction::forward,
+            bit_rev_output,
+            stream));
+    } catch (const cuda_error& error) {
+        CUDA_OK(static_cast<cudaError_t>(-error.code()));
     }
 
     return CUDA_SUCCESS_CSL;
@@ -232,19 +360,15 @@ batch_NTT(fr_t* d_inout, uint32_t lg_domain_size, uint32_t poly_count, const cud
 
     uint32_t domain_size = 1U << lg_domain_size;
 
-    try {
-        for (size_t c = 0; c < poly_count; c++) {
-            NTT::Base_dev_ptr(
-                stream,
-                &d_inout[c * domain_size],
-                lg_domain_size,
-                NTT::InputOutputOrder::NN,
-                NTT::Direction::forward,
-                NTT::Type::standard);
-        }
-    } catch (const cudaError_t& e) {
-        CUDA_OK(e);
-    }
+    CUDA_OK(run_ntt_batch(
+        d_inout,
+        lg_domain_size,
+        poly_count,
+        domain_size,
+        NTT::InputOutputOrder::NN,
+        NTT::Direction::forward,
+        false,
+        stream));
     return CUDA_SUCCESS_CSL;
 }
 
@@ -263,8 +387,8 @@ extern "C" rustCudaError_t reverse_bits_batch(
         for (size_t c = 0; c < poly_count; c++) {
             NTT::bit_rev(&d_out[c * domain_size], &d_in[c * domain_size], lg_domain_size, stream);
         }
-    } catch (const cudaError_t& e) {
-        CUDA_OK(e);
+    } catch (const cuda_error& error) {
+        CUDA_OK(static_cast<cudaError_t>(-error.code()));
     }
     return CUDA_SUCCESS_CSL;
 }
@@ -276,19 +400,15 @@ batch_iNTT(fr_t* d_inout, uint32_t lg_domain_size, uint32_t poly_count, const cu
 
     uint32_t domain_size = 1U << lg_domain_size;
 
-    try {
-        for (size_t c = 0; c < poly_count; c++) {
-            NTT::Base_dev_ptr(
-                stream,
-                &d_inout[c * domain_size],
-                lg_domain_size,
-                NTT::InputOutputOrder::NN,
-                NTT::Direction::inverse,
-                NTT::Type::standard);
-        }
-    } catch (const cudaError_t& e) {
-        CUDA_OK(e);
-    }
+    CUDA_OK(run_ntt_batch(
+        d_inout,
+        lg_domain_size,
+        poly_count,
+        domain_size,
+        NTT::InputOutputOrder::NN,
+        NTT::Direction::inverse,
+        false,
+        stream));
     return CUDA_SUCCESS_CSL;
 }
 

@@ -171,6 +171,8 @@ impl ProverClientBuilder {
             rpc_url: None,
             tee_signers: None,
             network_mode: Some(mode),
+            client_identity: None,
+            bearer_token: None,
             hosted: false,
             machine: self.machine.clone(),
         }

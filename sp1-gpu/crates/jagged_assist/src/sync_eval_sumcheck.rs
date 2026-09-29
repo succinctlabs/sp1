@@ -215,13 +215,14 @@ where
     // Move sum_as_poly evaluations to CPU
     let host_sum_values = unsafe { sum_values.copy_into_host_vec() };
 
-    let univariate_polys = host_sum_values
-        .as_slice()
-        .chunks_exact(3)
-        .map(|chunk| {
-            let ys: [EF; 3] = chunk.try_into().unwrap();
+    let (sum_value_chunks, remainder) = host_sum_values.as_slice().as_chunks::<3>();
+    assert!(remainder.is_empty(), "sumcheck evaluations must form complete rounds");
+
+    let univariate_polys = sum_value_chunks
+        .iter()
+        .map(|ys| {
             let xs: [EF; 3] = [EF::zero(), EF::two().inverse(), EF::one()];
-            interpolate_univariate_polynomial(&xs, &ys)
+            interpolate_univariate_polynomial(&xs, ys)
         })
         .collect::<Vec<_>>();
 

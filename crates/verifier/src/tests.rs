@@ -1,7 +1,8 @@
 use crate::{error::Error, Groth16Error, PlonkError};
 use rstest::rstest;
 use serial_test::serial;
-use sp1_hypercube::{MachineVerifyingKey, SP1PcsProofOuter, ShardProof};
+use slop_algebra::PrimeField;
+use sp1_hypercube::{koalabears_to_bn254, MachineVerifyingKey, SP1PcsProofOuter, ShardProof};
 use sp1_primitives::SP1OuterGlobalContext;
 use sp1_sdk::{
     install::{try_build_groth16_artifacts_dir, try_build_plonk_artifacts_dir},
@@ -11,6 +12,16 @@ use test_artifacts::{
     FIBONACCI_BLAKE3_ELF, FIBONACCI_ELF, GROTH16_BLAKE3_ELF, GROTH16_ELF, PLONK_BLAKE3_ELF,
     PLONK_ELF,
 };
+
+#[test]
+fn test_vk_root_bytes() {
+    let root = koalabears_to_bn254(&crate::VerifierRecursionVks::default().root());
+    let root_bytes = root.as_canonical_biguint().to_bytes_be();
+    let mut expected = [0u8; 32];
+    expected[32 - root_bytes.len()..].copy_from_slice(&root_bytes);
+
+    assert_eq!(*crate::VK_ROOT_BYTES, expected);
+}
 
 // TODO: for these tests to work, the `prove_plonk` and `prove_groth16` functions in the SDK
 // has to use the proving/verifying keys based on the Aztec SRS by patching the SDK.

@@ -8,15 +8,14 @@ use crate::events::MemoryInitializeFinalizeEvent;
 /// 0s.
 #[must_use]
 pub fn chunked_memory_init_events(start: u64, bytes: &[u8]) -> Vec<MemoryInitializeFinalizeEvent> {
-    let chunks = bytes.chunks_exact(8);
+    let (chunks, last) = bytes.as_chunks::<8>();
     let num_chunks = chunks.len();
-    let last = chunks.remainder();
 
     let mut output = Vec::with_capacity(num_chunks + 1);
 
-    for (i, chunk) in chunks.enumerate() {
+    for (i, chunk) in chunks.iter().enumerate() {
         let addr = start + i as u64 * 8;
-        let value = u64::from_le_bytes(chunk.try_into().unwrap());
+        let value = u64::from_le_bytes(*chunk);
         output.push(MemoryInitializeFinalizeEvent::initialize(addr, value));
     }
 

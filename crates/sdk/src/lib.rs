@@ -85,7 +85,7 @@ pub use utils::setup_logger;
 mod tests {
     use sp1_primitives::io::SP1PublicValues;
 
-    use crate::{utils, MockProver, Prover, ProverClient, SP1Stdin};
+    use crate::{prover::ProveRequest, utils, MockProver, Prover, ProverClient, SP1Stdin};
 
     #[tokio::test]
     async fn test_execute() {
@@ -106,8 +106,13 @@ mod tests {
         let elf = test_artifacts::PANIC_ELF;
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
-        let (_, report) = client.execute(elf, stdin).await.unwrap();
+        let (stderr_tx, stderr_rx) = tokio::sync::watch::channel(String::new());
+        let (_, report) = client.execute(elf, stdin).stderr(stderr_tx).await.unwrap();
         assert_eq!(report.exit_code, 1);
+
+        let stderr = stderr_rx.borrow().clone();
+        assert!(stderr.contains("panicked at panic/src/main.rs:9:5"), "stderr: {stderr}");
+        assert!(stderr.contains("assertion `left == right` failed"), "stderr: {stderr}");
     }
 
     // TODO: reimplement the cycle limit logic and revive this test.
@@ -236,6 +241,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_e2e_core() {
+        use std::borrow::BorrowMut;
+
+        use sp1_hypercube::{air::PublicValues, septic_digest::SepticDigest};
+
+        use crate::SP1Proof;
+
         utils::setup_logger();
         let client = ProverClient::builder().cpu().build().await;
         let elf = test_artifacts::FIBONACCI_ELF;
@@ -247,11 +258,50 @@ mod tests {
         let mut proof = client.prove(&pk, stdin).await.unwrap();
         client.verify(&proof, &pk.vk, None).unwrap();
 
+        // Test a global cumulative sum that reaches an exceptional incomplete curve addition.
+        let mut malformed_proof = proof.clone();
+        let accumulator = pk.vk.vk.initial_global_cumulative_sum;
+        let intermediate = SepticDigest::starting_digest()
+            .0
+            .add_incomplete(accumulator.0)
+            .sub_incomplete(SepticDigest::zero().0);
+        assert!(intermediate.check_on_point());
+        match &mut malformed_proof.proof {
+            SP1Proof::Core(shards) => {
+                let public_values: &mut PublicValues<[_; 4], [_; 3], [_; 4], _> =
+                    shards[0].public_values.as_mut_slice().borrow_mut();
+                public_values.global_cumulative_sum = SepticDigest(intermediate);
+            }
+            _ => unreachable!(),
+        }
+        let error = client.verify(&malformed_proof, &pk.vk, None).unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("global cumulative sum has an exceptional curve addition"));
+
         // Test invalid public values.
         proof.public_values = SP1PublicValues::from(&[255, 4, 84]);
         if client.verify(&proof, &pk.vk, None).is_ok() {
             panic!("verified proof with invalid public values")
         }
+    }
+
+    #[tokio::test]
+    async fn test_e2e_core_auipc_sign_extension() {
+        const EXPECTED: u64 = 0xffff_ffff_8000_0000;
+
+        utils::setup_logger();
+        let client = ProverClient::builder().cpu().build().await;
+        let elf = test_artifacts::AUIPC_SIGN_EXTENSION_ELF;
+        let pk = client.setup(elf).await.unwrap();
+
+        let proof = client.prove(&pk, SP1Stdin::new()).core().await.unwrap();
+        let mut public_values = proof.public_values.clone();
+        assert_eq!(public_values.read::<u64>(), EXPECTED);
+        assert_eq!(public_values.read::<u64>(), EXPECTED);
+        assert!(public_values.read::<bool>());
+
+        client.verify(&proof, &pk.vk, None).unwrap();
     }
 
     #[tokio::test]
@@ -279,21 +329,19 @@ mod tests {
         }
     }
 
-    // TODO: reimplement the custom stdout/stderr and revive this test
-    // #[tokio::test]
-    // async fn test_e2e_io_override() {
-    //     utils::setup_logger();
-    //     let client = ProverClient::builder().cpu().build().await;
-    //     let elf = test_artifacts::HELLO_WORLD_ELF;
+    #[tokio::test]
+    async fn test_e2e_io_override() {
+        utils::setup_logger();
+        let client = ProverClient::builder().cpu().build().await;
+        let elf = test_artifacts::HELLO_WORLD_ELF;
+        let (stdout_tx, stdout_rx) = tokio::sync::watch::channel(String::new());
 
-    //     let mut stdout = Vec::new();
+        let stdin = SP1Stdin::new();
+        let _ = client.execute(elf, stdin).stdout(stdout_tx).await.unwrap();
 
-    //     // Generate proof & verify.
-    //     let stdin = SP1Stdin::new();
-    //     let _ = client.execute(elf, stdin).stdout(&mut stdout).run().unwrap();
-
-    //     assert_eq!(stdout, b"Hello, world!\n");
-    // }
+        let stdout = stdout_rx.borrow().clone();
+        assert_eq!(stdout, "Hello, world!\n");
+    }
 
     #[tokio::test]
     async fn test_e2e_compressed() {

@@ -7,7 +7,7 @@ use slop_algebra::{AbstractField, PrimeField32};
 use slop_symmetric::CryptographicHasher;
 use sp1_hypercube::{
     verify_merkle_proof, HashableKey, InnerSC, MachineVerifier, MachineVerifierError,
-    SP1RecursionProof, ShardVerifier, DIGEST_SIZE, PROOF_MAX_NUM_PVS,
+    SP1RecursionProof, ShardVerifier, VcsError, DIGEST_SIZE, PROOF_MAX_NUM_PVS,
 };
 use sp1_primitives::{fri_params::recursion_fri_config, poseidon2_hasher, SP1Field};
 use sp1_recursion_executor::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH};
@@ -35,6 +35,7 @@ pub type CompressAir<SP1Field> = sp1_recursion_machine::RecursionAir<SP1Field, C
 pub struct SP1CompressedVerifier {
     verifier: MachineVerifier<GC, InnerSC<CompressAir<SP1Field>>>,
     vk_merkle_root: [SP1Field; DIGEST_SIZE],
+    vk_num_keys: usize,
 }
 
 impl Default for SP1CompressedVerifier {
@@ -52,7 +53,8 @@ impl Default for SP1CompressedVerifier {
 
         let verifier = MachineVerifier::new(recursion_shard_verifier);
         let vk_merkle_root = crate::VerifierRecursionVks::default().root();
-        Self { verifier, vk_merkle_root }
+        let vk_num_keys = crate::VerifierRecursionVks::default().num_keys();
+        Self { verifier, vk_merkle_root, vk_num_keys }
     }
 }
 
@@ -97,7 +99,7 @@ impl SP1CompressedVerifier {
 
         // Check the public values length.
         if proof.public_values.len() != PROOF_MAX_NUM_PVS {
-            return Err(MachineVerifierError::InvalidPublicValues("invalid public values length"))?;
+            Err(MachineVerifierError::InvalidPublicValues("invalid public values length"))?;
         }
 
         // Validate the public values.
@@ -111,13 +113,26 @@ impl SP1CompressedVerifier {
             .into());
         }
 
+        // Verify that the merkle proof has the expected shape and a valid leaf index.
+        if self.vk_num_keys == 0 {
+            return Err(CompressedError::InvalidVkey(VcsError));
+        }
+        let Some(tree_size) = self.vk_num_keys.checked_next_power_of_two() else {
+            return Err(CompressedError::InvalidVkey(VcsError));
+        };
+        if vk_merkle_proof.path.len() != tree_size.ilog2() as usize
+            || vk_merkle_proof.index >= self.vk_num_keys
+        {
+            return Err(CompressedError::InvalidVkey(VcsError));
+        }
+
         // Verify the merkle proof of inclusion in the tree.
         verify_merkle_proof(vk_merkle_proof, compress_vk.hash_koalabear(), self.vk_merkle_root)
             .map_err(CompressedError::InvalidVkey)?;
 
         // Verify that the vk merkle tree root in the public values matches the expected root.
         if public_values.vk_root != self.vk_merkle_root {
-            return Err(MachineVerifierError::InvalidPublicValues("vk merkle root mismatch"))?;
+            Err(MachineVerifierError::InvalidPublicValues("vk merkle root mismatch"))?;
         }
 
         // `is_complete` should be 1. This ensures that the proof is fully reduced.

@@ -283,7 +283,7 @@ impl PrecompileEvents {
         syscall_event: SyscallEvent,
         event: PrecompileEvent,
     ) {
-        assert!(syscall_code.should_send() == 1);
+        assert_eq!(syscall_code.should_send(), 1);
         self.events.entry(syscall_code).or_default().push((syscall_event, event));
     }
 
@@ -306,7 +306,7 @@ impl PrecompileEvents {
         syscall_code: SyscallCode,
         events: Vec<(SyscallEvent, PrecompileEvent)>,
     ) {
-        assert!(syscall_code.should_send() == 1);
+        assert_eq!(syscall_code.should_send(), 1);
         self.events.insert(syscall_code, events);
     }
 
@@ -338,7 +338,7 @@ impl PrecompileEvents {
         &self,
         syscall_code: SyscallCode,
     ) -> Option<&Vec<(SyscallEvent, PrecompileEvent)>> {
-        assert!(syscall_code.should_send() == 1);
+        assert_eq!(syscall_code.should_send(), 1);
         self.events.get(&syscall_code)
     }
 

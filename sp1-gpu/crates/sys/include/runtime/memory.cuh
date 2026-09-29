@@ -16,6 +16,8 @@ extern "C" rustCudaError_t cuda_host_unregister(void* hostPtr);
 
 extern "C" rustCudaError_t cuda_mem_get_info(size_t* free, size_t* total);
 
+extern "C" rustCudaError_t cuda_get_device_name(char* name, size_t len);
+
 extern "C" rustCudaError_t cuda_mem_copy_host_to_device(void* dst, const void* src, size_t count);
 
 extern "C" rustCudaError_t cuda_mem_copy_device_to_host(void* dst, const void* src, size_t count);

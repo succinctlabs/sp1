@@ -27,11 +27,13 @@ pub(crate) unsafe fn poseidon2(
 
     // Convert back to u64 array
     let u64_result: Vec<u64> = output_hash
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| (u64::from(pair[1]) << 32) | u64::from(pair[0]))
         .collect();
 
-    assert!(u64_result.len() == 8);
+    assert_eq!(u64_result.len(), 8);
 
     // Write result back to memory
     ctx.mw_slice_without_prot(ptr, &u64_result);
