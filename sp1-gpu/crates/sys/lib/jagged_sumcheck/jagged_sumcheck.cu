@@ -242,7 +242,11 @@ __global__ void paddedHadamardFixAndTwoRoundSum(
     ext_t* evaluations,
     size_t inputHeight) {
 
-    ext_t acc[8] = {};
+    ext_t acc[8];
+#pragma unroll
+    for (size_t k = 0; k < 8; k++) {
+        acc[k] = ext_t::zero();
+    }
     const size_t outputHeight = (inputHeight + 1) >> 1;
     const size_t n_quads = (outputHeight + 3) >> 2;
 
@@ -279,7 +283,11 @@ __global__ void paddedHadamardTwoRoundFixAndTwoRoundSum(
 
     const size_t outputHeight = (inputHeight + 3) >> 2;
     const size_t n_quads = (outputHeight + 3) >> 2;
-    ext_t acc[8] = {};
+    ext_t acc[8];
+#pragma unroll
+    for (size_t k = 0; k < 8; k++) {
+        acc[k] = ext_t::zero();
+    }
 
     for (size_t i = blockIdx.x * blockDim.x + threadIdx.x; i < n_quads;
          i += blockDim.x * gridDim.x) {
