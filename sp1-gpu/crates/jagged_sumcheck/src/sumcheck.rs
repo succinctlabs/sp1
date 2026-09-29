@@ -240,6 +240,9 @@ fn assert_two_round_grid(
     claim: Ext,
     folds_done: usize,
 ) {
+    if p.num_variables() == 0 {
+        return;
+    }
     let expected = sum_in_last_variable(p, q, claim, hadamard_sum_as_poly_ext_ext_kernel);
     assert_eq!(
         two_round_first_univariate(grid, claim),
