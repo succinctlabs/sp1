@@ -424,6 +424,20 @@ fn process_two_round_grid<C: FieldChallenger<Felt>>(
     )
 }
 
+#[cfg(debug_assertions)]
+fn assert_two_round_grid(poly: &LogupRoundPolynomial, grid: [Ext; 10]) {
+    let PolynomialLayer::CircuitLayer(circuit) = &poly.layer else { return };
+    let expected = two_round_sum_as_poly(
+        &circuit.jagged_mle,
+        circuit.jagged_mle.dense_data.height,
+        &poly.eq_row,
+        &poly.eq_interaction,
+        poly.lambda,
+        two_round_sum_circuit_layer_kernel,
+    );
+    assert_eq!(grid, expected, "paired LogUp grid mismatch");
+}
+
 /// Evaluates the first layer polynomial and eq polynomial at 0 and 1/2.
 fn sum_as_poly_first_layer(poly: &FirstLayerPolynomial, claim: Ext) -> UnivariatePolynomial<Ext> {
     let circuit = &poly.layer.jagged_mle;
@@ -995,6 +1009,8 @@ where
             &mut point,
         );
         let (mut grid, mut poly) = two_round_fix_and_sum_first_layer(poly, alpha_1, alpha_2);
+        #[cfg(debug_assertions)]
+        assert_two_round_grid(&poly, grid);
 
         while matches!(
             &poly.layer,
@@ -1009,6 +1025,8 @@ where
                 &mut point,
             );
             (grid, poly) = two_round_fix_and_sum_circuit_layer(poly, alpha_1, alpha_2);
+            #[cfg(debug_assertions)]
+            assert_two_round_grid(&poly, grid);
             round_claim = next_claim;
         }
 
@@ -1134,6 +1152,8 @@ pub fn materialized_round_sumcheck<C: FieldChallenger<Felt>>(
             &mut point,
         );
         let (mut grid, mut poly) = two_round_fix_and_sum_circuit_layer(poly, alpha_1, alpha_2);
+        #[cfg(debug_assertions)]
+        assert_two_round_grid(&poly, grid);
 
         while matches!(
             &poly.layer,
@@ -1148,6 +1168,8 @@ pub fn materialized_round_sumcheck<C: FieldChallenger<Felt>>(
                 &mut point,
             );
             (grid, poly) = two_round_fix_and_sum_circuit_layer(poly, alpha_1, alpha_2);
+            #[cfg(debug_assertions)]
+            assert_two_round_grid(&poly, grid);
             round_claim = next_claim;
         }
 
