@@ -6,6 +6,8 @@
 #include <cooperative_groups.h>
 #include <cooperative_groups/reduce.h>
 
+__device__ __forceinline__ void accumulateHadamardBivariate(const Pair values[4], ext_t acc[8]);
+__device__ __forceinline__ void reduceHadamardBivariate(ext_t acc[8], ext_t* evaluations);
 
 // Computes the two-round polynomial h(X, Y) = sum_i p(i, X, Y) * q(i, X, Y) on the grid
 // {0, 1, 1/2}^2 in a single pass over the trace, so the host can derive both the first- and
@@ -80,9 +82,8 @@ __global__ void jaggedTwoRoundSumAsPoly(
     }
 }
 
-// Folds the first two sumcheck challenges in one pass, materializing the (p, q) pair at a
-// quarter of the dense size (instead of half after one fold), and accumulates the round-3
-// univariate evaluations from the folded values while they are still in registers.
+// Folds the first two sumcheck challenges in one pass and materializes the (p, q) pair.
+// The same pass accumulates the bivariate grid for the next two rounds.
 __global__ void jaggedTwoRoundFixAndSum(
     ext_t* evaluations,
     const JaggedMle<JaggedSumcheckData> inputJaggedMle,
@@ -91,17 +92,19 @@ __global__ void jaggedTwoRoundFixAndSum(
     ext_t alpha1,
     ext_t alpha2) {
 
-    ext_t evalZero = ext_t::zero();
-    ext_t evalHalf = ext_t::zero();
+    ext_t acc[8];
+#pragma unroll
+    for (size_t k = 0; k < 8; k++) {
+        acc[k] = ext_t::zero();
+    }
 
-    for (size_t i = blockIdx.x * blockDim.x + threadIdx.x; i < inputJaggedMle.denseData.height >> 2;
+    for (size_t i = blockIdx.x * blockDim.x + threadIdx.x; i < inputJaggedMle.denseData.height >> 3;
          i += blockDim.x * gridDim.x) {
 
-        // The values of the doubly-folded (p, q) at (2i, 2i + 1).
-        Pair folded[2];
+        Pair folded[4];
 #pragma unroll
-        for (size_t t = 0; t < 2; t++) {
-            size_t k = (i << 1) + t;
+        for (size_t t = 0; t < 4; t++) {
+            size_t k = (i << 2) + t;
 
             // The values of the singly-folded (p, q) at (2k, 2k + 1). Column lengths are
             // padded to a multiple of 16, so no bounds or padding checks are needed.
@@ -126,26 +129,10 @@ __global__ void jaggedTwoRoundFixAndSum(
             ext_t::store(output_q, k, folded[t].q);
         }
 
-        evalZero += folded[0].q * folded[0].p;
-        evalHalf += (folded[0].q + folded[1].q) * (folded[0].p + folded[1].p);
+        accumulateHadamardBivariate(folded, acc);
     }
 
-    // Allocate shared memory
-    extern __shared__ unsigned char memory[];
-    ext_t* shared = reinterpret_cast<ext_t*>(memory);
-
-    auto block = cg::this_thread_block();
-    auto tile = cg::tiled_partition<32>(block);
-    ext_t evalZeroblockSum = partialBlockReduce(block, tile, evalZero, shared);
-    ext_t evalHalfblockSum = partialBlockReduce(block, tile, evalHalf, shared);
-
-    if (threadIdx.x == 0) {
-        ext_t::store(evaluations, gridDim.x * blockIdx.y + blockIdx.x, evalZeroblockSum);
-        ext_t::store(
-            evaluations,
-            gridDim.x * gridDim.y + gridDim.x * blockIdx.y + blockIdx.x,
-            evalHalfblockSum);
-    }
+    reduceHadamardBivariate(acc, evaluations);
 }
 
 __global__ void paddedHadamardFixAndSum(

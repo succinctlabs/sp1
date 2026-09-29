@@ -2,7 +2,7 @@ use sp1_gpu_cudart::{
     args,
     sys::kernels::{
         jagged_two_round_fix_and_sum, jagged_two_round_sum_as_poly,
-        mle_fix_last_variable_koala_bear_ext_ext_zero_padding, padded_hadamard_fix_and_sum,
+        mle_fix_last_variable_koala_bear_ext_ext_zero_padding,
         padded_hadamard_fix_and_two_round_sum, padded_hadamard_two_round_fix_and_two_round_sum,
     },
     DeviceBuffer, DeviceMle, DeviceTensor, TaskScope,
@@ -21,7 +21,7 @@ use slop_tensor::Tensor;
 
 use sp1_gpu_utils::{DenseData, Ext, Felt, JaggedTraceMle};
 
-use super::hadamard::{fix_last_variable, fix_last_variable_and_sum_as_poly};
+use super::hadamard::fix_last_variable;
 
 pub struct JaggedFirstRoundPoly<'a, A: Backend = TaskScope> {
     // pub base: Arc<Tensor<Felt, A>>,
@@ -281,18 +281,17 @@ fn fix_last_two_variables_and_two_round_sum(
 }
 
 /// Fold the first two sumcheck challenges into the jagged first-round poly in a single
-/// pass, materializing `(p, q)` at a quarter of the dense size, and compute the
-/// third-round univariate polynomial from the folded values.
+/// pass, materializing `(p, q)` at a quarter of the dense size. The same pass
+/// computes the bivariate grid for the next two rounds.
 fn fix_two_and_sum_first_rounds<'a>(
     poly: JaggedFirstRoundPoly<'a>,
     alpha_1: Ext,
     alpha_2: Ext,
-    claim: Ext,
-) -> (UnivariatePolynomial<Ext>, Mle<Ext, TaskScope>, Mle<Ext, TaskScope>) {
+) -> ([Ext; 8], Mle<Ext, TaskScope>, Mle<Ext, TaskScope>) {
     let backend = poly.base.backend();
     let height = poly.height;
-    // The kernel folds four consecutive dense pairs per output pair with no bounds checks.
-    assert_eq!(height % 4, 0, "the jagged poly height must be a multiple of 4");
+    // The kernel folds eight consecutive dense pairs per output quad with no bounds checks.
+    assert_eq!(height % 8, 0, "the jagged poly height must be a multiple of 8");
 
     // Create the doubly-folded layer.
     let output_height = height >> 1;
@@ -304,9 +303,9 @@ fn fix_two_and_sum_first_rounds<'a>(
     // populate the new layer
     const BLOCK_SIZE: usize = 256;
     const STRIDE: usize = 32;
-    let grid_size_x = height.div_ceil(BLOCK_SIZE * STRIDE * 4); // * 4 because we are doing 4 fixes per thread.
+    let grid_size_x = height.div_ceil(BLOCK_SIZE * STRIDE * 8);
     let mut evaluations =
-        Tensor::<Ext, TaskScope>::with_sizes_in([2, grid_size_x], backend.clone());
+        Tensor::<Ext, TaskScope>::with_sizes_in([8, grid_size_x], backend.clone());
 
     let num_tiles = BLOCK_SIZE.checked_div(STRIDE).unwrap_or(1);
     let shared_mem = num_tiles * std::mem::size_of::<Ext>();
@@ -337,20 +336,7 @@ fn fix_two_and_sum_first_rounds<'a>(
     // Sum the evaluations across all dimensions.
     let evaluations = DeviceTensor::from_raw(evaluations);
     let evaluations = evaluations.sum_dim(1).to_host().unwrap();
-    let [eval_zero, eval_half] = evaluations.as_slice().try_into().unwrap();
-
-    let eval_one = claim - eval_zero;
-
-    let uni_poly = interpolate_univariate_polynomial(
-        &[
-            Ext::from_canonical_u16(0),
-            Ext::from_canonical_u16(1),
-            Ext::from_canonical_u16(2).inverse(),
-        ],
-        &[eval_zero, eval_one, eval_half * Ext::from_canonical_u16(4).inverse()],
-    );
-
-    (uni_poly, Mle::new(output_p), Mle::new(output_q))
+    (evaluations.as_slice().try_into().unwrap(), Mle::new(output_p), Mle::new(output_q))
 }
 
 /// Process a univariate polynomial by observing it with the challenger and sampling the next evaluation point
@@ -429,46 +415,42 @@ where
     let uni_poly = two_round_second_univariate(grid, alpha_1, round_claim);
     let alpha_2 =
         process_univariate_polynomial(uni_poly, challenger, &mut univariate_poly_msgs, &mut point);
-    let round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha_2);
+    let mut round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha_2);
 
     // The data polynomial is p and the jagged polynomial is q, materialized after folding
     // both challenges in a single pass over the trace.
-    let (uni_poly, mut p, mut q) =
-        fix_two_and_sum_first_rounds(poly, alpha_1, alpha_2, round_claim);
-
-    let mut alpha =
-        process_univariate_polynomial(uni_poly, challenger, &mut univariate_poly_msgs, &mut point);
+    let (mut grid, mut p, mut q) = fix_two_and_sum_first_rounds(poly, alpha_1, alpha_2);
 
     let mut stacked_evals =
         DeviceBuffer::with_capacity_in(1 << (num_variables as usize - log_stacking_height), task);
     let mut folds_done = 2;
 
-    while folds_done + 1 < log_stacking_height {
-        // Get the round claims from the last round's univariate poly messages.
-        let round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha);
-
-        let uni_poly;
-        (p, q, uni_poly) = fix_last_variable_and_sum_as_poly(
-            p,
-            q,
-            alpha,
+    while folds_done + 2 <= log_stacking_height {
+        let (alpha_1, alpha_2, next_claim) = process_two_round_grid(
+            grid,
             round_claim,
-            padded_hadamard_fix_and_sum,
+            challenger,
+            &mut univariate_poly_msgs,
+            &mut point,
         );
-        folds_done += 1;
+        (p, q, grid) = fix_last_two_variables_and_two_round_sum(p, q, alpha_1, alpha_2);
+        round_claim = next_claim;
+        folds_done += 2;
+    }
 
-        alpha = process_univariate_polynomial(
+    if folds_done < log_stacking_height {
+        let uni_poly = two_round_first_univariate(grid, round_claim);
+        let alpha = process_univariate_polynomial(
             uni_poly,
             challenger,
             &mut univariate_poly_msgs,
             &mut point,
         );
+        round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha);
+        (p, q, grid) = fix_last_variable_and_two_round_sum(p, q, alpha);
+        folds_done += 1;
     }
 
-    let mut round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha);
-    let mut grid;
-    (p, q, grid) = fix_last_variable_and_two_round_sum(p, q, alpha);
-    folds_done += 1;
     debug_assert_eq!(folds_done, log_stacking_height);
     stacked_evals.extend_from_device_slice(p.guts().as_buffer()).unwrap();
 
@@ -488,7 +470,7 @@ where
 
     if remaining == 1 {
         let uni_poly = two_round_first_univariate(grid, round_claim);
-        alpha = process_univariate_polynomial(
+        let alpha = process_univariate_polynomial(
             uni_poly,
             challenger,
             &mut univariate_poly_msgs,
