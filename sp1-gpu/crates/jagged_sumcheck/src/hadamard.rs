@@ -21,7 +21,7 @@ use slop_sumcheck::PartialSumcheckProof;
 use slop_tensor::Tensor;
 
 /// Generic helper for sum in last variable operations
-pub(super) fn sum_in_last_variable<F>(
+fn sum_in_last_variable<F>(
     poly_base: &Mle<F, TaskScope>,
     poly_ext: &Mle<Ext, TaskScope>,
     claim: Ext,
