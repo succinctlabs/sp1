@@ -1,8 +1,8 @@
 use sp1_gpu_cudart::{
     args,
     sys::kernels::{
-        jagged_two_round_fix_and_sum, jagged_two_round_sum_as_poly,
-        mle_fix_last_variable_koala_bear_ext_ext_zero_padding,
+        hadamard_sum_as_poly_ext_ext_kernel, jagged_two_round_fix_and_sum,
+        jagged_two_round_sum_as_poly, mle_fix_last_variable_koala_bear_ext_ext_zero_padding,
         padded_hadamard_fix_and_two_round_sum, padded_hadamard_two_round_fix_and_two_round_sum,
     },
     DeviceBuffer, DeviceMle, DeviceTensor, TaskScope,
@@ -21,7 +21,7 @@ use slop_tensor::Tensor;
 
 use sp1_gpu_utils::{DenseData, Ext, Felt, JaggedTraceMle};
 
-use super::hadamard::fix_last_variable;
+use super::hadamard::{fix_last_variable, sum_in_last_variable};
 
 pub struct JaggedFirstRoundPoly<'a, A: Backend = TaskScope> {
     // pub base: Arc<Tensor<Felt, A>>,
@@ -232,6 +232,22 @@ fn process_two_round_grid<C: FieldChallenger<Felt>>(
     (alpha_1, alpha_2, round_claim)
 }
 
+#[cfg(debug_assertions)]
+fn assert_two_round_grid(
+    p: &Mle<Ext, TaskScope>,
+    q: &Mle<Ext, TaskScope>,
+    grid: [Ext; 8],
+    claim: Ext,
+    folds_done: usize,
+) {
+    let expected = sum_in_last_variable(p, q, claim, hadamard_sum_as_poly_ext_ext_kernel);
+    assert_eq!(
+        two_round_first_univariate(grid, claim),
+        expected,
+        "paired grid mismatch after {folds_done} folds"
+    );
+}
+
 fn fix_last_two_variables_and_two_round_sum(
     p: Mle<Ext, TaskScope>,
     q: Mle<Ext, TaskScope>,
@@ -425,6 +441,9 @@ where
         DeviceBuffer::with_capacity_in(1 << (num_variables as usize - log_stacking_height), task);
     let mut folds_done = 2;
 
+    #[cfg(debug_assertions)]
+    assert_two_round_grid(&p, &q, grid, round_claim, folds_done);
+
     while folds_done + 2 <= log_stacking_height {
         let (alpha_1, alpha_2, next_claim) = process_two_round_grid(
             grid,
@@ -436,6 +455,8 @@ where
         (p, q, grid) = fix_last_two_variables_and_two_round_sum(p, q, alpha_1, alpha_2);
         round_claim = next_claim;
         folds_done += 2;
+        #[cfg(debug_assertions)]
+        assert_two_round_grid(&p, &q, grid, round_claim, folds_done);
     }
 
     if folds_done < log_stacking_height {
@@ -449,6 +470,8 @@ where
         round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha);
         (p, q, grid) = fix_last_variable_and_two_round_sum(p, q, alpha);
         folds_done += 1;
+        #[cfg(debug_assertions)]
+        assert_two_round_grid(&p, &q, grid, round_claim, folds_done);
     }
 
     debug_assert_eq!(folds_done, log_stacking_height);
@@ -466,6 +489,8 @@ where
         (p, q, grid) = fix_last_two_variables_and_two_round_sum(p, q, alpha_1, alpha_2);
         round_claim = next_claim;
         remaining -= 2;
+        #[cfg(debug_assertions)]
+        assert_two_round_grid(&p, &q, grid, round_claim, num_variables as usize - remaining);
     }
 
     if remaining == 1 {
