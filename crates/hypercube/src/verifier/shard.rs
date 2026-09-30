@@ -300,6 +300,24 @@ where
 where {
         let max_log_row_count = self.jagged_pcs_verifier.max_log_row_count;
 
+        if shard_chips.len() != opened_values.chips.len()
+            || shard_chips.len() != gkr_evaluations.chip_openings.len()
+            || shard_chips
+                .iter()
+                .map(MachineAir::name)
+                .ne(opened_values.chips.keys().map(String::as_str))
+            || shard_chips
+                .iter()
+                .map(MachineAir::name)
+                .ne(gkr_evaluations.chip_openings.keys().map(String::as_str))
+            || opened_values
+                .chips
+                .values()
+                .any(|openings| openings.degree.len() != max_log_row_count + 1)
+        {
+            return Err(ShardVerifierError::InvalidShape);
+        }
+
         // Get the random challenge to merge the constraints.
         let alpha = challenger.sample_ext_element::<GC::EF>();
 
@@ -497,6 +515,12 @@ where {
             .filter(|chip| chip.preprocessed_width() != 0)
             .collect::<BTreeSet<_>>();
 
+        // The shard opening argument always contains the preprocessed and main rounds. Check this
+        // before indexing the preprocessed round below.
+        if evaluation_proof.row_counts_and_column_counts.len() != 2 {
+            return Err(ShardVerifierError::InvalidShape);
+        }
+
         // Check:
         // 1. All shard chips in the proof are expected from the machine configuration.
         // 2. All chips with non-zero preprocessed width in the machine configuration appear in
@@ -572,13 +596,19 @@ where {
             if gkr_opened_values
                 .preprocessed_trace_evaluations
                 .as_ref()
-                .map_or(0, MleEval::num_polynomials)
-                != shard_chip.preprocessed_width()
+                .is_some_and(|evaluations| !evaluations.evaluations().has_valid_shape())
+                || gkr_opened_values
+                    .preprocessed_trace_evaluations
+                    .as_ref()
+                    .map_or(0, MleEval::num_evaluations)
+                    != shard_chip.preprocessed_width()
             {
                 return Err(ShardVerifierError::InvalidShape);
             }
 
-            if gkr_opened_values.main_trace_evaluations.len() != shard_chip.width() {
+            if !gkr_opened_values.main_trace_evaluations.evaluations().has_valid_shape()
+                || gkr_opened_values.main_trace_evaluations.len() != shard_chip.width()
+            {
                 return Err(ShardVerifierError::InvalidShape);
             }
         }

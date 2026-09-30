@@ -187,7 +187,7 @@ impl NetworkProverBuilder {
             private_key: self.private_key,
             rpc_url: self.rpc_url,
             tee_signers: self.tee_signers,
-            signer: self.signer,
+            signer: self.signer.map(Into::into),
             network_mode: self.network_mode,
             client_identity: self.client_identity,
             bearer_token: self.bearer_token,

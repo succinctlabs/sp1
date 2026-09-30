@@ -141,7 +141,7 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveBasefoldVerifier<
         // Sample batching coefficients via partial Lagrange basis.
         let total_len = evaluation_claims
             .iter()
-            .map(|batch_claims| batch_claims.num_polynomials())
+            .map(|batch_claims| batch_claims.num_evaluations())
             .sum::<usize>();
         let num_batching_variables = total_len.next_power_of_two().ilog2();
         let batching_point: Point<Ext<SP1Field, SP1ExtensionField>> =

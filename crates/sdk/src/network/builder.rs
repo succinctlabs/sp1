@@ -2,14 +2,20 @@
 //!
 //! This module provides a builder for the [`NetworkProver`].
 
+use std::sync::Arc;
+
 use alloy_primitives::Address;
+use alloy_signer::Signer;
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::Machine;
 use sp1_primitives::SP1Field;
 use tonic::transport::Identity;
 
 use crate::{
-    network::{signer::NetworkSigner, NetworkBearerToken, NetworkMode, TEE_NETWORK_RPC_URL},
+    network::{
+        signer::{NetworkSigner, SignerSource},
+        NetworkBearerToken, NetworkMode, TEE_NETWORK_RPC_URL,
+    },
     NetworkProver,
 };
 
@@ -20,7 +26,7 @@ pub struct NetworkProverBuilder {
     pub(crate) private_key: Option<String>,
     pub(crate) rpc_url: Option<String>,
     pub(crate) tee_signers: Option<Vec<Address>>,
-    pub(crate) signer: Option<NetworkSigner>,
+    pub(crate) signer: Option<SignerSource>,
     pub(crate) network_mode: Option<NetworkMode>,
     pub(crate) client_identity: Option<Identity>,
     pub(crate) bearer_token: Option<NetworkBearerToken>,
@@ -169,7 +175,14 @@ impl NetworkProverBuilder {
     /// ```
     #[must_use]
     pub fn signer(mut self, signer: NetworkSigner) -> Self {
-        self.signer = Some(signer);
+        self.signer = Some(signer.into());
+        self
+    }
+
+    /// Sets a custom asynchronous signer to use for signing requests.
+    #[must_use]
+    pub fn dynamic_signer(mut self, signer: Arc<dyn Signer + Send + Sync>) -> Self {
+        self.signer = Some(SignerSource::Dynamic(signer));
         self
     }
 
@@ -240,7 +253,7 @@ impl NetworkProverBuilder {
                     "NETWORK_PRIVATE_KEY environment variable is not set. \
                     Please set it to your private key or use the .private_key() method.",
                 );
-            NetworkSigner::local(&private_key).expect("Failed to create local signer")
+            NetworkSigner::local(&private_key).expect("Failed to create local signer").into()
         };
 
         let network_mode = self.network_mode.unwrap_or_default();
@@ -267,12 +280,17 @@ impl NetworkProverBuilder {
             None => vec![],
         };
 
-        NetworkProver::new_with_machine(signer, &rpc_url, network_mode, self.machine)
-            .await
-            .with_tee_signers(tee_signers)
-            .with_client_identity(self.client_identity)
-            .with_bearer_token(self.bearer_token)
-            .with_hosted(self.hosted)
+        NetworkProver::new_with_machine_and_signer_source(
+            signer,
+            &rpc_url,
+            network_mode,
+            self.machine,
+        )
+        .await
+        .with_tee_signers(tee_signers)
+        .with_client_identity(self.client_identity)
+        .with_bearer_token(self.bearer_token)
+        .with_hosted(self.hosted)
     }
 }
 
@@ -316,5 +334,25 @@ mod tests {
             .build()
             .await;
         assert!(prover.client.bearer_token.is_some());
+    }
+
+    #[tokio::test]
+    async fn dynamic_signer_delegates() {
+        let message = b"dynamic signer";
+        let signer = "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+            .parse::<alloy_signer_local::PrivateKeySigner>()
+            .unwrap();
+        let expected_address = alloy_signer::Signer::address(&signer);
+        let expected_signature =
+            alloy_signer::SignerSync::sign_message_sync(&signer, message).unwrap();
+
+        let prover = NetworkProverBuilder::new()
+            .dynamic_signer(std::sync::Arc::new(signer))
+            .tee_signers(&[])
+            .build()
+            .await;
+
+        assert_eq!(prover.client.signer.address(), expected_address);
+        assert_eq!(prover.client.signer.sign_message(message).await.unwrap(), expected_signature);
     }
 }

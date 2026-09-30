@@ -2,6 +2,8 @@
 //!
 //! This module provides a unified signer that supports both local private keys and AWS KMS.
 
+use std::sync::Arc;
+
 use alloy_primitives::Address;
 use alloy_signer::{Signature, Signer, SignerSync};
 use alloy_signer_aws::{AwsSigner, AwsSignerError};
@@ -114,6 +116,40 @@ impl NetworkSigner {
                 signer.sign_message_sync(message).map_err(NetworkSignerError::Signing)
             }
             NetworkSigner::Aws(signer) => {
+                signer.sign_message(message).await.map_err(NetworkSignerError::Signing)
+            }
+        }
+    }
+}
+
+#[derive(Clone)]
+pub(crate) enum SignerSource {
+    Existing(NetworkSigner),
+    Dynamic(Arc<dyn Signer + Send + Sync>),
+}
+
+impl From<NetworkSigner> for SignerSource {
+    fn from(signer: NetworkSigner) -> Self {
+        Self::Existing(signer)
+    }
+}
+
+impl SignerSource {
+    #[must_use]
+    pub(crate) fn address(&self) -> Address {
+        match self {
+            Self::Existing(signer) => signer.address(),
+            Self::Dynamic(signer) => signer.address(),
+        }
+    }
+
+    pub(crate) async fn sign_message(
+        &self,
+        message: &[u8],
+    ) -> Result<Signature, NetworkSignerError> {
+        match self {
+            Self::Existing(signer) => signer.sign_message(message).await,
+            Self::Dynamic(signer) => {
                 signer.sign_message(message).await.map_err(NetworkSignerError::Signing)
             }
         }
