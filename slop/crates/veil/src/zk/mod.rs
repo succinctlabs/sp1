@@ -1,5 +1,8 @@
-mod dot_product;
-mod error_correcting_code;
+// `pub` so the benchmark targets under `benchmarking/` (which are external crates, unlike the
+// in-tree `tests.rs`) can drive the dot-product protocol directly. Visibility widening only — the
+// items themselves are unchanged.
+pub mod dot_product;
+pub mod error_correcting_code;
 mod hadamard_product;
 mod inner;
 mod mask_counter;
