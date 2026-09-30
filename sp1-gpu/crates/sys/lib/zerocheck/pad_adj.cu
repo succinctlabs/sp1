@@ -55,6 +55,10 @@ __global__ void zerocheck_pad_adj(
             regs[instr.out] = regs[instr.a] * regs[instr.b];
             break;
         }
+        case BC_MUL_CONST: {
+            regs[instr.out] = regs[instr.a] * consts[instr.b];
+            break;
+        }
         case BC_NEG_F: {
             regs[instr.out] = felt_t::zero() - regs[instr.a];
             break;
