@@ -70,7 +70,7 @@ fn g2_to_abi(bytes: [u8; 192]) -> [u8; 192] {
 /// Rejects coordinates carrying the crate's flag bits (values >= p): the crate
 /// masks them on the first coordinate and would accept `0x40||00..` as infinity.
 fn is_canonical_coords(bytes: &[u8]) -> bool {
-    bytes.chunks_exact(48).all(|coord| coord[0] & 0b1110_0000 == 0)
+    bytes.as_chunks::<48>().0.iter().all(|coord| coord[0] & 0b1110_0000 == 0)
 }
 
 /// Full decode for MSM and pairing (precompiles 0x0c/0x0e/0x0f), where
