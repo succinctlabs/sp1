@@ -3,7 +3,15 @@ require "yaml"
 DEFAULT_VOLUME = "150gb:gp3:750mbps:4000iops"
 
 def select_runner(event, configured, manual, manual_volume)
-  environment = event == "workflow_dispatch" ? manual : configured
+  environment = if event == "workflow_dispatch"
+    manual
+  elsif configured.empty?
+    "ci-v3"
+  elsif configured == "legacy"
+    ""
+  else
+    configured
+  end
   volume = event == "workflow_dispatch" ? manual_volume : DEFAULT_VOLUME
   raise "Invalid runner environment" unless environment.empty? || environment.match?(/\A[A-Za-z0-9][A-Za-z0-9_-]*\z/)
   if !environment.empty? && !volume.match?(/\A[1-9][0-9]*gb:gp3:[1-9][0-9]*mbps:[1-9][0-9]*iops\z/)
@@ -12,15 +20,20 @@ def select_runner(event, configured, manual, manual_volume)
   { "environment" => environment, "volume" => environment.empty? ? "" : volume }
 end
 
-# Exercise both routes before exporting the selection to downstream jobs.
+# Validate selections before exporting them to downstream jobs.
 %w[pull_request push merge_group].each do |event|
-  raise "Default route changed" unless select_runner(event, "", "manual", "invalid")["environment"] == ""
+  raise "Default route changed" unless select_runner(event, "", "manual", "invalid") == {
+    "environment" => "ci-v3", "volume" => DEFAULT_VOLUME
+  }
+  raise "Legacy override ignored" unless select_runner(event, "legacy", "manual", "invalid") == {
+    "environment" => "", "volume" => ""
+  }
   raise "Configured route ignored" unless select_runner(event, "test-v3", "manual", "invalid") == {
     "environment" => "test-v3", "volume" => DEFAULT_VOLUME
   }
 end
 raise "Manual empty selection changed" unless select_runner("workflow_dispatch", "test-v3", "", "")["environment"] == ""
-raise "Manual selection ignored" unless select_runner("workflow_dispatch", "ignored", "manual", "200gb:gp3:750mbps:4000iops") == {
+raise "Manual selection ignored" unless select_runner("workflow_dispatch", "legacy", "manual", "200gb:gp3:750mbps:4000iops") == {
   "environment" => "manual", "volume" => "200gb:gp3:750mbps:4000iops"
 }
 [["push", "bad/env", "", ""], ["push", "bad\nvalue", "", ""],
@@ -71,11 +84,15 @@ jobs.each do |name, job|
   branch = "${{ needs.runner-routing.outputs.environment && format('#{selected}', needs.runner-routing.outputs.environment, needs.runner-routing.outputs.volume) || '#{legacy}' }}"
   raise "Incorrect environment selection: #{name}" unless label.scan(branch).size == 1
 
-  default_label = label.sub(branch, legacy)
+  legacy_label = label.sub(branch, legacy)
+  default = select_runner("push", "", "", "")
+  default_label = label.sub(branch, selected.sub("{0}", default.fetch("environment")).sub("{1}", default.fetch("volume")))
   selected_label = label.sub(branch, selected.sub("{0}", "test-v3").sub("{1}", "200gb:gp3:750mbps:4000iops"))
-  raise "Default routing changed: #{name}" if default_label.include?("/env=") || default_label.include?("/volume=")
-  raise "Legacy storage used on v3: #{name}" if selected_label.match?(%r{/(disk|hdd)=})
-  raise "On-demand selection changed: #{name}" unless default_label.include?("/spot=false")
+  raise "Legacy routing changed: #{name}" if legacy_label.include?("/env=") || legacy_label.include?("/volume=")
+  raise "Default environment missing: #{name}" unless default_label.include?("/env=ci-v3/")
+  raise "Default volume changed: #{name}" unless default_label.include?("/volume=#{DEFAULT_VOLUME}")
+  raise "Legacy storage used on v3: #{name}" if [default_label, selected_label].any? { |value| value.match?(%r{/(disk|hdd)=}) }
+  raise "On-demand selection changed: #{name}" unless legacy_label.include?("/spot=false")
   if gpu
     raise "GPU type changed: #{name}" unless label.include?("/family=g6.4xlarge/")
     raise "GPU image changed: #{name}" unless label.include?("/ami=ami-0a63dc9cb9e934ba3/")
@@ -87,4 +104,4 @@ selection = select_runner(ENV.fetch("GITHUB_EVENT_NAME", ""), ENV.fetch("SP1_CI_
 if ENV["GITHUB_OUTPUT"]
   File.open(ENV.fetch("GITHUB_OUTPUT"), "a") { |file| selection.each { |key, value| file.puts "#{key}=#{value}" } }
 end
-puts "All nine job labels passed default, configured, and manual routing checks."
+puts "All nine job labels passed default, legacy, configured, and manual routing checks."
