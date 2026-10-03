@@ -21,7 +21,7 @@ on:
   workflow_dispatch:
     inputs:
       runs_on_environment:
-        description: "RunsOn v3 environment (empty keeps the default runners)"
+        description: "RunsOn v3 environment (empty keeps the legacy runners)"
         type: string
         default: ""
       runs_on_volume:
