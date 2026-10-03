@@ -21,6 +21,7 @@ use crate::ir::chunker::Chunk;
 use crate::ir::dag::{ConstraintDag, DagNode, NodeId, TraceSource};
 use crate::ir::lowering::SequentialPlan;
 use crate::F;
+use slop_algebra::{AbstractField, PrimeField32};
 use std::collections::HashMap;
 
 /// Bytecode opcodes for the per-row register-machine the fused sequential
@@ -149,7 +150,6 @@ fn compact_chunk(
     plan: &SequentialPlan,
     simplify: bool,
 ) -> LocalChunk {
-    use slop_algebra::AbstractField;
     use DagNode::*;
     let mut nodes = Vec::with_capacity(plan.topo_order.len());
     let mut alias = HashMap::<NodeId, NodeId>::with_capacity(plan.topo_order.len());
@@ -323,7 +323,6 @@ fn emit_chunk(local: &LocalChunk) -> ChunkBytecode {
 }
 
 fn const_index(value: F, pool: &mut Vec<F>, indices: &mut HashMap<u32, u16>) -> u16 {
-    use slop_algebra::PrimeField32;
     *indices.entry(value.as_canonical_u32()).or_insert_with(|| {
         let idx = pool.len() as u16;
         pool.push(value);
