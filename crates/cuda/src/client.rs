@@ -218,12 +218,26 @@ impl Drop for CudaClientInner {
     fn drop(&mut self) {
         let stream = self.stream.take().expect("stream already taken");
 
-        tokio::spawn(async move {
-            let mut stream = stream.lock().await;
+        // This may run with no Tokio runtime in scope -- notably when a caller of the
+        // blocking API drops the client after its runtime has already been torn down.
+        // `tokio::spawn` panics there, and a panic in a destructor aborts the process,
+        // so a program that has already finished its work exits with SIGABRT.
+        match tokio::runtime::Handle::try_current() {
+            Ok(handle) => {
+                handle.spawn(async move {
+                    let mut stream = stream.lock().await;
 
-            if let Err(e) = stream.shutdown().await {
-                tracing::error!("Failed to shutdown the stream: {}", e);
+                    if let Err(e) = stream.shutdown().await {
+                        tracing::error!("Failed to shutdown the stream: {}", e);
+                    }
+                });
             }
-        });
+            Err(_) => {
+                // Dropping the stream closes the file descriptor. The graceful shutdown
+                // is best-effort, so skipping it is preferable to aborting the process.
+                tracing::debug!("No Tokio runtime available; closing the CUDA stream directly");
+                drop(stream);
+            }
+        }
     }
 }
