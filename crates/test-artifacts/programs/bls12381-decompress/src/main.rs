@@ -1,4 +1,9 @@
 #![no_main]
+// This fixture exists to exercise the BLS12381_DECOMPRESS precompile, which is decommissioned
+// and has no AIR, so `decompress_pubkey` is deprecated. The ELF is still declared in
+// `sp1-test-artifacts` but nothing runs it; it is kept so the fixture is ready if the
+// precompile is ever reinstated. See https://github.com/succinctlabs/sp1/issues/2926.
+#![allow(deprecated)]
 
 sp1_zkvm::entrypoint!(main);
 
