@@ -105,6 +105,22 @@ pub(super) fn parse_fulfillment_status(
     })
 }
 
+/// Parse the `amount` field of a balance response into a [`U256`].
+///
+/// The network returns the balance as a decimal string, so anything that is not a valid amount is
+/// a server/protocol error. Surface it as an `Err` instead of panicking the caller's process, and
+/// keep the offending string in the message so it can be reported upstream.
+///
+/// Note that `U256::from_str` accepts an empty string as `0`, so a blank response is rejected
+/// explicitly rather than being silently reported as a zero balance.
+pub(super) fn parse_balance(raw: &str) -> Result<U256> {
+    if raw.trim().is_empty() {
+        return Err(anyhow::anyhow!("invalid balance returned by prover network: {raw:?}"));
+    }
+    U256::from_str(raw)
+        .with_context(|| format!("invalid balance returned by prover network: {raw:?}"))
+}
+
 /// A client for interacting with the network.
 #[derive(Clone)]
 pub struct NetworkClient {
@@ -234,7 +250,7 @@ impl NetworkClient {
     /// Uses the key that the client was initialized with.
     pub async fn get_balance(&self) -> Result<U256> {
         let response = self.get_balance_response().await?;
-        Ok(U256::from_str(response.balance()).unwrap())
+        parse_balance(response.balance())
     }
 
     /// Get the full balance response (internal helper).
@@ -1070,7 +1086,7 @@ mod test {
         time::Duration,
     };
 
-    use alloy_primitives::B256;
+    use alloy_primitives::{B256, U256};
     use tonic::{
         codegen::{http, Body, BoxFuture, Service, StdError},
         server::{Grpc, NamedService, UnaryService},
@@ -1080,7 +1096,7 @@ mod test {
 
     use crate::network::{proto::base_types, signer::NetworkSigner, NetworkMode, RESERVED_RPC_URL};
 
-    use super::parse_fulfillment_status;
+    use super::{parse_balance, parse_fulfillment_status};
 
     #[derive(Clone)]
     struct ReservedProofDetailsFixture(base_types::GetProofRequestDetailsResponse);
@@ -1148,6 +1164,23 @@ mod test {
         let error = parse_fulfillment_status(7, request_id).unwrap_err().to_string();
         assert!(error.contains("unsupported fulfillment status 7"));
         assert!(error.contains(&format!("0x{}", hex::encode(request_id))));
+    }
+
+    #[test]
+    fn balance_parser_handles_valid_and_invalid_values() {
+        assert_eq!(parse_balance("1000").unwrap(), U256::from(1000));
+        assert_eq!(parse_balance("0").unwrap(), U256::ZERO);
+        assert_eq!(parse_balance(&U256::MAX.to_string()).unwrap(), U256::MAX);
+
+        // A blank, non-numeric, or out-of-range response must all be reported as errors rather than
+        // panicking the caller: `U256::from_str` would panic on the non-numeric cases and silently
+        // return zero for the blank one.
+        let overflow = format!("1{}", "0".repeat(78));
+        for raw in ["", "   ", "invalid", "1.5", "-1", overflow.as_str()] {
+            let error = parse_balance(raw).unwrap_err().to_string();
+            assert!(error.contains("invalid balance returned by prover network"), "{error}");
+            assert!(error.contains(&format!("{raw:?}")), "{error}");
+        }
     }
 
     #[tokio::test]
