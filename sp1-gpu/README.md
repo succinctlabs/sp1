@@ -11,7 +11,8 @@ You can speed up compilation times by specifying the target CUDA architecture us
 Examples:
 - **Ada Lovelace** (RTX 4090, 4080, etc.): `CUDA_ARCHS="89"`
 - **Hopper** (H100): `CUDA_ARCHS="90"`
-- **Blackwell** (B100, B200, RTX 5090): `CUDA_ARCHS="100"`
+- **Blackwell data center** (B100, B200): `CUDA_ARCHS="100"`
+- **Blackwell GeForce** (RTX 5090): `CUDA_ARCHS="120"`
 
 Usage:
 ```bash
@@ -26,6 +27,51 @@ CUDA_ARCHS="89,90" cargo build --release
 ```
 
 If `CUDA_ARCHS` is not specified, the build will compile for all supported architectures, which takes significantly longer.
+
+### NVIDIA cuPQC NTT
+
+The `nvidia-ntt` feature uses NVIDIA cuPQC for NTT operations. A build without this feature uses sppark.
+
+Install CUDA Toolkit 12.8 or newer. Then download and extract the [cuPQC SDK](https://developer.nvidia.com/cupqc).
+
+Set these environment variables before you build:
+
+```bash
+export CUDA_PATH=/usr/local/cuda
+export CUDACXX="$CUDA_PATH/bin/nvcc"
+export PATH="$CUDA_PATH/bin:$PATH"
+export LD_LIBRARY_PATH="$CUDA_PATH/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export CUPQC_SDK_DIR=/path/to/cupqc-sdk
+export CUDA_ARCHS=120
+```
+
+Set `CUDA_ARCHS` for your GPU. The example targets an RTX 5090.
+
+`CUPQC_SDK_DIR` must contain `lib/libcupqc-ntt.a`. You can omit this variable when the SDK is at `/usr/local/cupqc-sdk`.
+
+Enable the feature on the final package that you build. Cargo passes it to each required SP1 GPU crate.
+
+Build the GPU prover server:
+
+```bash
+cargo build --release -p sp1-gpu-server --features nvidia-ntt
+```
+
+Install the GPU prover server:
+
+```bash
+cargo install --locked --root "$HOME/.sp1" \
+    --path sp1-gpu/crates/server --features nvidia-ntt
+```
+
+Run the end-to-end benchmark with cuPQC:
+
+```bash
+cargo run --release -p sp1-gpu-perf --features nvidia-ntt --bin node -- \
+    --program v6/rsp --mode compressed
+```
+
+Rebuild an installed server after you change this feature. The feature applies during compilation.
 
 ## Cargo profiles
 

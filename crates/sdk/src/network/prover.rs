@@ -8,14 +8,14 @@ use std::time::{Duration, Instant};
 use super::prove::NetworkProveBuilder;
 use crate::{
     network::{
-        client::NetworkClient,
+        client::{parse_fulfillment_status, NetworkClient},
         proto::{
             types::{
                 ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, ProofMode, ProofRequest,
             },
             GetProofRequestStatusResponse,
         },
-        signer::NetworkSigner,
+        signer::{NetworkSigner, SignerSource},
         tee::{client::Client as TeeClient, verify_tee_proof},
         Error, NetworkMode, DEFAULT_AUCTION_TIMEOUT_DURATION, DEFAULT_GAS_LIMIT,
         DEFAULT_MAX_PRICE_PER_PGU_BUFFER, MAINNET_EXPLORER_URL, MAINNET_RPC_URL,
@@ -41,6 +41,7 @@ use sp1_prover::worker::{SP1LightNode, SP1NodeCore};
 use sp1_prover::SP1_CIRCUIT_VERSION;
 
 use tokio::time::sleep;
+use tonic::transport::Identity;
 
 /// An implementation of [`crate::ProverClient`] that can generate proofs on a remote RPC server.
 #[derive(Clone)]
@@ -225,12 +226,26 @@ impl NetworkProver {
         network_mode: NetworkMode,
         machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> Self {
+        Self::new_with_machine_and_signer_source(
+            SignerSource::from(signer.into()),
+            rpc_url,
+            network_mode,
+            machine,
+        )
+        .await
+    }
+
+    pub(crate) async fn new_with_machine_and_signer_source(
+        signer: SignerSource,
+        rpc_url: &str,
+        network_mode: NetworkMode,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+    ) -> Self {
         // Install default CryptoProvider if not already installed.
         let _ = rustls::crypto::ring::default_provider().install_default();
 
-        let signer = signer.into();
         let node = SP1LightNode::new_with_machine(machine).await;
-        let client = NetworkClient::new(signer, rpc_url, network_mode);
+        let client = NetworkClient::new_with_signer_source(signer, rpc_url, network_mode);
         Self { client, node, tee_signers: vec![], network_mode, hosted: false }
     }
 
@@ -238,6 +253,21 @@ impl NetworkProver {
     #[must_use]
     pub fn with_tee_signers(mut self, tee_signers: Vec<Address>) -> Self {
         self.tee_signers = tee_signers;
+        self
+    }
+
+    #[must_use]
+    pub(crate) fn with_client_identity(mut self, client_identity: Option<Identity>) -> Self {
+        self.client.client_identity = client_identity;
+        self
+    }
+
+    #[must_use]
+    pub(crate) fn with_bearer_token(
+        mut self,
+        bearer_token: Option<super::NetworkBearerToken>,
+    ) -> Self {
+        self.client.bearer_token = bearer_token;
         self
     }
 
@@ -414,7 +444,7 @@ impl NetworkProver {
         let maybe_proof: Option<SP1ProofWithPublicValues> = maybe_proof.map(Into::into);
 
         let execution_status = ExecutionStatus::try_from(status.execution_status()).unwrap();
-        let fulfillment_status = FulfillmentStatus::try_from(status.fulfillment_status()).unwrap();
+        let fulfillment_status = parse_fulfillment_status(status.fulfillment_status(), request_id)?;
 
         let current_time =
             std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
@@ -874,7 +904,7 @@ impl NetworkProver {
             .node
             .execute(elf, stdin.clone(), SP1Context::builder().calculate_gas(true).build())
             .await
-            .map_err(|_| Error::SimulationFailed)?;
+            .context(Error::SimulationFailed)?;
 
         let (_, committed_value_digest, report) = execute_result;
 

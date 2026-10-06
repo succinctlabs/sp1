@@ -23,6 +23,29 @@ pub struct Tensor<T, A: Backend = CpuBackend> {
 }
 
 impl<T, A: Backend> Tensor<T, A> {
+    /// Constructs a tensor from initialized storage and dimensions.
+    ///
+    /// Returns an error when the physical storage length does not exactly match the declared
+    /// dimensions.
+    #[inline]
+    pub fn try_from_parts(
+        storage: Buffer<T, A>,
+        dimensions: Dimensions,
+    ) -> Result<Self, DimensionsError> {
+        let expected = dimensions.total_len();
+        let actual = storage.len();
+        if actual != expected {
+            return Err(DimensionsError::NumElementsMismatch(expected, actual));
+        }
+        Ok(Self { storage, dimensions })
+    }
+
+    /// Returns whether the physical storage length matches the declared dimensions.
+    #[inline]
+    pub fn has_valid_shape(&self) -> bool {
+        self.storage.len() == self.dimensions.total_len()
+    }
+
     #[inline]
     pub fn with_sizes_in(sizes: impl AsRef<[usize]>, allocator: A) -> Self {
         Self::try_with_sizes_in(sizes, allocator).unwrap()
@@ -182,6 +205,12 @@ impl<T, A: Backend> Tensor<T, A> {
 
     #[inline]
     pub fn as_view(&'_ self) -> TensorView<'_, T, A> {
+        assert!(
+            self.has_valid_shape(),
+            "Tensor::as_view: storage length {} does not match declared length {}",
+            self.storage.len(),
+            self.dimensions.total_len()
+        );
         TensorView {
             ptr: self.as_ptr(),
             dimensions: self.dimensions.clone(),
@@ -192,6 +221,12 @@ impl<T, A: Backend> Tensor<T, A> {
 
     #[inline]
     pub fn as_view_mut(&'_ mut self) -> TensorViewMut<'_, T, A> {
+        assert!(
+            self.has_valid_shape(),
+            "Tensor::as_view_mut: storage length {} does not match declared length {}",
+            self.storage.len(),
+            self.dimensions.total_len()
+        );
         TensorViewMut {
             ptr: self.as_mut_ptr(),
             dimensions: self.dimensions.clone(),
@@ -698,13 +733,13 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for Tensor<T> {
             where
                 V: serde::de::SeqAccess<'de>,
             {
-                let storage = seq
+                let storage: Buffer<T> = seq
                     .next_element()?
                     .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
-                let dimensions = seq
+                let dimensions: Dimensions = seq
                     .next_element()?
                     .ok_or_else(|| serde::de::Error::invalid_length(1, &self))?;
-                Ok(Tensor { storage, dimensions })
+                Tensor::try_from_parts(storage, dimensions).map_err(serde::de::Error::custom)
             }
 
             fn visit_map<V>(self, mut map: V) -> Result<Self::Value, V::Error>
@@ -734,7 +769,7 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for Tensor<T> {
                 let storage = storage.ok_or_else(|| serde::de::Error::missing_field("storage"))?;
                 let dimensions =
                     dimensions.ok_or_else(|| serde::de::Error::missing_field("dimensions"))?;
-                Ok(Tensor { storage, dimensions })
+                Tensor::try_from_parts(storage, dimensions).map_err(serde::de::Error::custom)
             }
         }
 
@@ -852,5 +887,60 @@ mod tests {
         let serialized = serde_json::to_string(&tensor).unwrap();
         let deserialized: Tensor<u32> = serde_json::from_str(&serialized).unwrap();
         assert_eq!(deserialized, tensor);
+    }
+
+    #[test]
+    fn test_tensor_deserialize_rejects_appended_storage() {
+        let result =
+            serde_json::from_str::<Tensor<u32>>(r#"{"storage":[1,2,3,4,5],"dimensions":[2,2]}"#);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_tensor_deserialize_rejects_truncated_storage() {
+        let result =
+            serde_json::from_str::<Tensor<u32>>(r#"{"storage":[1,2,3],"dimensions":[2,2]}"#);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_tensor_bincode_round_trip() {
+        let tensor = Tensor::<u32>::from(buffer![1, 2, 3, 4]).reshape([2, 2]);
+        let serialized = bincode::serialize(&tensor).unwrap();
+        let deserialized: Tensor<u32> = bincode::deserialize(&serialized).unwrap();
+        assert_eq!(deserialized, tensor);
+    }
+
+    #[test]
+    fn test_tensor_bincode_rejects_appended_storage() {
+        let tensor = Tensor {
+            storage: buffer![1, 2, 3, 4, 5],
+            dimensions: Dimensions::try_from([2, 2]).unwrap(),
+        };
+        let serialized = bincode::serialize(&tensor).unwrap();
+        assert!(bincode::deserialize::<Tensor<u32>>(&serialized).is_err());
+    }
+
+    #[test]
+    fn test_tensor_bincode_rejects_truncated_storage() {
+        let tensor =
+            Tensor { storage: buffer![1, 2, 3], dimensions: Dimensions::try_from([2, 2]).unwrap() };
+        let serialized = bincode::serialize(&tensor).unwrap();
+        assert!(bincode::deserialize::<Tensor<u32>>(&serialized).is_err());
+    }
+
+    #[test]
+    #[should_panic(expected = "storage length 1 does not match declared length 2")]
+    fn test_tensor_as_view_rejects_invalid_shape() {
+        let tensor = Tensor { storage: buffer![1], dimensions: Dimensions::try_from([2]).unwrap() };
+        let _ = tensor.as_view();
+    }
+
+    #[test]
+    #[should_panic(expected = "storage length 2 does not match declared length 1")]
+    fn test_tensor_as_view_mut_rejects_invalid_shape() {
+        let mut tensor =
+            Tensor { storage: buffer![1, 2], dimensions: Dimensions::try_from([1]).unwrap() };
+        let _ = tensor.as_view_mut();
     }
 }

@@ -57,6 +57,7 @@ tracing-opentelemetry = "^0.24"
 tracing-subscriber = "0.3.19"
 
 [features]
+nvidia-ntt = ["sp1-gpu-prover/nvidia-ntt"]
 bigint-rug = [
     "sp1-core-executor/bigint-rug",
     "sp1-core-machine/bigint-rug",

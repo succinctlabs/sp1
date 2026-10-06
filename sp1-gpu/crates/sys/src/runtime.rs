@@ -19,6 +19,8 @@ extern "C" {
 
     pub fn cuda_mem_get_info(free: *mut usize, total: *mut usize) -> CudaRustError;
 
+    pub fn cuda_get_device_name(name: *mut c_char, len: usize) -> CudaRustError;
+
     pub fn cuda_malloc_host(ptr: *mut *mut c_void, count: usize) -> CudaRustError;
     pub fn cuda_host_register(ptr: *const c_void, count: usize) -> CudaRustError;
     pub fn cuda_free_host(ptr: *const c_void) -> CudaRustError;

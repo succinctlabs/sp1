@@ -158,6 +158,10 @@ where
         proof: &MachineProof<GC, PcsProof<GC, SC>>,
     ) -> Result<(), MachineVerifierConfigError<GC, SC::Config>>
 where {
+        if proof.shard_proofs.is_empty() {
+            return Err(MachineVerifierError::EmptyProof);
+        }
+
         let mut challenger = self.challenger();
         // Observe the verifying key.
         vk.observe_into(&mut challenger);

@@ -9,8 +9,6 @@ use sp1_hypercube::Machine;
 use sp1_primitives::SP1Field;
 use sp1_prover::worker::SP1LightNode;
 
-use crate::blocking::block_on;
-
 /// A builder for the blocking [`MockProver`].
 pub struct MockProverBuilder {
     /// Optional core options to configure the prover.
@@ -55,10 +53,10 @@ impl MockProverBuilder {
     #[must_use]
     pub fn build(self) -> MockProver {
         tracing::info!("initializing mock prover");
-        let node = match self.core_opts {
-            Some(opts) => block_on(SP1LightNode::with_opts_and_machine(self.machine, opts)),
-            None => block_on(SP1LightNode::new_with_machine(self.machine)),
-        };
+        let node = SP1LightNode::with_opts_and_machine_sync(
+            self.machine,
+            self.core_opts.unwrap_or_default(),
+        );
         MockProver::from_node(node)
     }
 }

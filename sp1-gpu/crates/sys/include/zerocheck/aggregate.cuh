@@ -20,3 +20,8 @@
 // Reduces `total_slots / 3` block triples in `partials` into `totals[0..3]`.
 // `total_slots` must be a multiple of 3.
 extern "C" void* zerocheck_aggregate_partials_kernel();
+
+// Strided variant for the fused first-two-rounds partials buffers: reduces
+// `total_slots / stride` groups of `stride` slots into `totals[0..stride]`.
+// Launched with gridDim.x == stride; `total_slots` must be a multiple of it.
+extern "C" void* zerocheck_aggregate_partials_strided_kernel();

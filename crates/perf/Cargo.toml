@@ -25,7 +25,6 @@ slop-algebra = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 bincode = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
-rand = { workspace = true }
 async-scoped = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }

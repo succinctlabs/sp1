@@ -1186,7 +1186,7 @@ mod tests {
 
                 let trace = trace.eval_at(&z_row);
 
-                num_cols += trace.num_polynomials();
+                num_cols += trace.num_evaluations();
                 let tensor = trace.into_evaluations();
 
                 all_evals_host.extend_from_slice(tensor.as_buffer());
@@ -1201,7 +1201,7 @@ mod tests {
 
                 let trace = trace.eval_at(&z_row);
 
-                num_cols += trace.num_polynomials();
+                num_cols += trace.num_evaluations();
                 let tensor = trace.into_evaluations();
 
                 all_evals_host.extend_from_slice(tensor.as_buffer());

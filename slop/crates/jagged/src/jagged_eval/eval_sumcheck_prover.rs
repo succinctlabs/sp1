@@ -52,16 +52,16 @@ pub fn prove_jagged_eval_sumcheck<
     // Move the `sum_as_poly` evaluations to the CPU.
     let host_sum_values = unsafe { sum_values.copy_into_host_vec() };
 
-    let univariate_polys = host_sum_values
-        .as_slice()
-        // The jagged eval sumcheck is of degree 2, which means that there are 3 evaluations needed
-        // per round of sumcheck.
-        .chunks_exact(3)
-        .map(|chunk| {
+    // The jagged eval sumcheck has degree 2, so each round needs three evaluations.
+    let (sum_value_chunks, remainder) = host_sum_values.as_slice().as_chunks::<3>();
+    assert!(remainder.is_empty(), "sumcheck evaluations must form complete rounds");
+
+    let univariate_polys = sum_value_chunks
+        .iter()
+        .map(|ys| {
             // Compute the univariate polynomial message.
-            let ys: [EF; 3] = chunk.try_into().unwrap();
             let xs: [EF; 3] = [EF::zero(), EF::two().inverse(), EF::one()];
-            interpolate_univariate_polynomial(&xs, &ys)
+            interpolate_univariate_polynomial(&xs, ys)
         })
         .collect::<Vec<_>>();
 

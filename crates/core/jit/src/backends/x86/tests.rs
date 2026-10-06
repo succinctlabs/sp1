@@ -836,6 +836,42 @@ mod control_flow {
     use super::*;
 
     #[test]
+    fn test_inspect_immediate_preserves_u64_value() {
+        let mut backend = new_backend();
+
+        backend.start_instr();
+        backend.inspect_immediate(0x8000_0000, assert_register_is!(0x8000_0000));
+        backend
+            .inspect_immediate(0xffff_ffff_8000_0000, assert_register_is!(0xffff_ffff_8000_0000));
+
+        run_test(backend);
+    }
+
+    #[test]
+    fn test_auipc_sign_extended_immediate() {
+        let mut backend = new_backend();
+
+        backend.start_instr();
+        backend.auipc(RiscRegister::X5, 0xffff_ffff_8000_0000);
+        backend.auipc(RiscRegister::X10, 0xffff_ffff_8000_0000);
+        backend.inspect_register(RiscRegister::X5, assert_register_is!(0xffff_ffff_8000_0064));
+        backend.inspect_register(RiscRegister::X10, assert_register_is!(0xffff_ffff_8000_0064));
+
+        run_test(backend);
+    }
+
+    #[test]
+    fn test_jump_table_with_wide_pc_base() {
+        let pc_base = 0x8000_0000;
+        let mut backend = TranspilerBackend::new(1, 1024 * 2, 1000, pc_base, pc_base, 8).unwrap();
+
+        backend.start_instr();
+        backend.inspect_immediate(42, assert_register_is!(42));
+
+        run_test(backend);
+    }
+
+    #[test]
     fn test_set_pc() {
         let mut backend = new_backend();
 

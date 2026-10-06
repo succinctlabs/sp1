@@ -16,7 +16,6 @@ slop-futures = { workspace = true }
 slop-commit = { workspace = true }
 slop-challenger = { workspace = true }
 slop-symmetric = { workspace = true }
-slop-poseidon2 = { workspace = true }
 slop-baby-bear = { workspace = true }
 slop-algebra = { workspace = true }
 slop-tensor = { workspace = true }
@@ -30,7 +29,6 @@ slop-utils = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
 itertools = { workspace = true }
-derive-where = { workspace = true }
 
 
 [dev-dependencies]

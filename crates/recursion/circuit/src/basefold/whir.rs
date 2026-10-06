@@ -361,6 +361,7 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
             // Except in the first round, the opened values in the Merkle proof are secretly
             // extension field elements, so we have to reinterpret them as such. (The
             // Merkle tree API commits to and opens only base-field values.)
+            #[allow(clippy::chunks_exact_to_as_chunks)]
             let merkle_read_values: Vec<Mle<Ext<SP1Field, SP1ExtensionField>>> = if round_index != 0
             {
                 merkle_proofs
@@ -492,6 +493,7 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
             &proof.final_merkle_proof,
         );
 
+        #[allow(clippy::chunks_exact_to_as_chunks)]
         let final_merkle_read_values: Vec<Mle<Ext<SP1Field, SP1ExtensionField>>> = proof
             .final_merkle_proof
             .values

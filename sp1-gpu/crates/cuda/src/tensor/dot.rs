@@ -37,6 +37,18 @@ where
     assert_eq!(src.sizes().len(), 2, "Dot product only supported for 2D tensors",);
     let max_scalar_dim = *scalars.sizes().iter().max().unwrap();
     assert_eq!(max_scalar_dim, scalars.total_len(), "The scalar tensor must be a 1D tensor");
+    // The kernels read `scalars[0..src.sizes()[dim]]`: scalars beyond the dimension length
+    // are simply unused (callers dotting zero-padded data rely on reading a prefix), but a
+    // scalar tensor shorter than the dimension would be an out-of-bounds read on device.
+    assert!(
+        src.sizes()[dim] <= scalars.total_len(),
+        "dot along dimension {} of a tensor with sizes {:?} reads {} scalars, but only {} were \
+         provided",
+        dim,
+        src.sizes(),
+        src.sizes()[dim],
+        scalars.total_len()
+    );
     match dim {
         dim if dim == src.sizes().len() - 1 => {
             let height = src.sizes()[dim];

@@ -4,7 +4,7 @@ use std::{
     process::Command,
 };
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Parser;
 use dirs::home_dir;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -134,10 +134,12 @@ impl InstallToolchainCmd {
 
         // Unpack the toolchain.
         fs::create_dir_all(toolchain_dir.clone())?;
-        Command::new("tar")
-            .current_dir(&root_dir)
-            .args(["-xzf", &toolchain_asset_name, "-C", &toolchain_dir.to_string_lossy()])
-            .status()?;
+        run_checked(Command::new("tar").current_dir(&root_dir).args([
+            "-xzf",
+            &toolchain_asset_name,
+            "-C",
+            &toolchain_dir.to_string_lossy(),
+        ]))?;
 
         // Move the toolchain to a randomly named directory in the 'toolchains' folder
         let toolchains_dir = root_dir.join("toolchains");
@@ -148,15 +150,12 @@ impl InstallToolchainCmd {
         fs::rename(&toolchain_dir, &new_toolchain_dir)?;
 
         // Link the new toolchain directory to rustup
-        Command::new("rustup")
-            .current_dir(&root_dir)
-            .args([
-                "toolchain",
-                "link",
-                RUSTUP_TOOLCHAIN_NAME,
-                &new_toolchain_dir.to_string_lossy(),
-            ])
-            .status()?;
+        run_checked(Command::new("rustup").current_dir(&root_dir).args([
+            "toolchain",
+            "link",
+            RUSTUP_TOOLCHAIN_NAME,
+            &new_toolchain_dir.to_string_lossy(),
+        ]))?;
         println!("Successfully linked toolchain to rustup.");
 
         // Ensure permissions.
@@ -173,6 +172,16 @@ impl InstallToolchainCmd {
 
         Ok(())
     }
+}
+
+/// Run `command` to completion, returning an error if it could not be spawned
+/// or if it exited with a non-zero status. `Command::status` only reports a
+/// spawn/wait failure, so a process that runs and exits non-zero must be caught
+/// explicitly here.
+fn run_checked(command: &mut Command) -> Result<()> {
+    let status = command.status().with_context(|| format!("while executing `{command:?}`"))?;
+
+    status.success().then_some(()).with_context(|| format!("`{command:?}` failed: {status}"))
 }
 
 pub async fn download_file(
@@ -209,4 +218,20 @@ pub async fn download_file(
     pb.finish();
 
     Ok(())
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn run_checked_errors_on_nonzero_exit() {
+        let err = run_checked(Command::new("sh").args(["-c", "exit 7"])).unwrap_err();
+        assert!(err.to_string().contains("failed"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn run_checked_succeeds_on_zero_exit() {
+        run_checked(Command::new("sh").args(["-c", "exit 0"])).unwrap();
+    }
 }

@@ -319,7 +319,7 @@ impl Elf {
 
         for addr in (vaddr..end).step_by(step_size) {
             if addr >= vaddr + file_size {
-                image.insert(addr - addr % 8, 0);
+                image.entry(addr - addr % 8).or_insert(0);
                 continue;
             }
             let mut word = 0u64;
@@ -421,5 +421,42 @@ impl Elf {
         }
 
         Ok(None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn preserves_file_bytes_when_zero_fill_shares_word() {
+        let file_bytes = [1, 2, 3, 4];
+        let segment = ProgramHeader {
+            p_type: PT_LOAD,
+            p_offset: 0,
+            p_vaddr: STACK_TOP,
+            p_paddr: STACK_TOP,
+            p_filesz: file_bytes.len() as u64,
+            p_memsz: 8,
+            p_flags: PF_R | PF_W,
+            p_align: 4,
+        };
+        let mut instructions = Vec::new();
+        let mut base_address = None;
+        let mut image = HashMap::new();
+        let mut page_prot_image = HashMap::new();
+
+        Elf::process_load_segment(
+            &segment,
+            &file_bytes,
+            &mut instructions,
+            &mut base_address,
+            &mut image,
+            &mut page_prot_image,
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(image[&STACK_TOP], u64::from_le_bytes([1, 2, 3, 4, 0, 0, 0, 0]));
     }
 }
