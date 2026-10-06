@@ -42,12 +42,13 @@ async fn main() {
         let b = Scalar::random(&mut rng);
         let big_a = G2Affine::from(G2Projective::generator() * a);
         let big_b = G2Affine::from(G2Projective::generator() * b);
-        let expected = G2Affine::from(G2Projective::generator() * (a + b)).to_uncompressed();
+        let expected =
+            g2_to_abi(G2Affine::from(G2Projective::generator() * (a + b)).to_uncompressed());
 
         let mut input = Vec::with_capacity(1 + 384);
         input.push(1);
-        input.extend_from_slice(&big_a.to_uncompressed());
-        input.extend_from_slice(&big_b.to_uncompressed());
+        input.extend_from_slice(&g2_to_abi(big_a.to_uncompressed()));
+        input.extend_from_slice(&g2_to_abi(big_b.to_uncompressed()));
         let mut stdin = SP1Stdin::new();
         stdin.write_slice(&input);
         let (public_values, report) = client.execute(ELF, stdin).await.unwrap();
@@ -63,9 +64,9 @@ async fn main() {
         let mut input = Vec::with_capacity(1 + 2 * (96 + 192));
         input.push(2);
         input.extend_from_slice(&g1.to_uncompressed());
-        input.extend_from_slice(&g2.to_uncompressed());
+        input.extend_from_slice(&g2_to_abi(g2.to_uncompressed()));
         input.extend_from_slice(&neg_g1.to_uncompressed());
-        input.extend_from_slice(&g2.to_uncompressed());
+        input.extend_from_slice(&g2_to_abi(g2.to_uncompressed()));
         let mut stdin = SP1Stdin::new();
         stdin.write_slice(&input);
         let (public_values, report) = client.execute(ELF, stdin).await.unwrap();
@@ -83,7 +84,7 @@ async fn main() {
         let mut input = Vec::with_capacity(1 + (96 + 192));
         input.push(2);
         input.extend_from_slice(&g1.to_uncompressed());
-        input.extend_from_slice(&g2.to_uncompressed());
+        input.extend_from_slice(&g2_to_abi(g2.to_uncompressed()));
         let mut stdin = SP1Stdin::new();
         stdin.write_slice(&input);
         let (public_values, report) = client.execute(ELF, stdin).await.unwrap();
@@ -126,13 +127,14 @@ async fn main() {
         let c0 = fp::Fp::from_bytes(&c0_bytes).unwrap();
         let c1 = fp::Fp::from_bytes(&c1_bytes).unwrap();
         let fp2_in = fp2::Fp2 { c0, c1 };
-        let expected =
-            G2Affine::from(G2Projective::map_to_curve(&fp2_in).clear_cofactor()).to_uncompressed();
+        let expected = g2_to_abi(
+            G2Affine::from(G2Projective::map_to_curve(&fp2_in).clear_cofactor()).to_uncompressed(),
+        );
 
         let mut input = Vec::with_capacity(1 + 96);
         input.push(4);
-        input.extend_from_slice(&c1_bytes);
         input.extend_from_slice(&c0_bytes);
+        input.extend_from_slice(&c1_bytes);
         let mut stdin = SP1Stdin::new();
         stdin.write_slice(&input);
         let (public_values, report) = client.execute(ELF, stdin).await.unwrap();
@@ -180,11 +182,11 @@ async fn main() {
         let mut input = vec![6u8]; // mode = g2_msm
         for i in 0..3 {
             let p = G2Affine::from(G2Projective::generator() * pts[i]);
-            input.extend_from_slice(&p.to_uncompressed());
+            input.extend_from_slice(&g2_to_abi(p.to_uncompressed()));
             input.extend_from_slice(&scalar_to_be(scalars[i]));
             acc += G2Projective::from(p) * scalars[i];
         }
-        let expected = G2Affine::from(acc).to_uncompressed();
+        let expected = g2_to_abi(G2Affine::from(acc).to_uncompressed());
 
         let mut stdin = SP1Stdin::new();
         stdin.write_slice(&input);
@@ -261,6 +263,17 @@ async fn main() {
         assert_eq!(public_values.as_slice(), expected, "eip-2537 pairing[{}]", v.name);
     }
     info!("all eip-2537 pairing golden vectors match");
+}
+
+/// Convert the crate's uncompressed G2 form (Fp2 = c1 || c0) to the C ABI's
+/// EIP-2537 form (c0 || c1) by swapping the halves of each coordinate.
+fn g2_to_abi(bytes: [u8; 192]) -> [u8; 192] {
+    let mut out = [0u8; 192];
+    out[0..48].copy_from_slice(&bytes[48..96]);
+    out[48..96].copy_from_slice(&bytes[0..48]);
+    out[96..144].copy_from_slice(&bytes[144..192]);
+    out[144..192].copy_from_slice(&bytes[96..144]);
+    out
 }
 
 /// Encode a Scalar as 32 big-endian bytes. Mirrors `libzkevm::precompile::bls12_381::decode_scalar`

@@ -65,8 +65,8 @@ pub unsafe extern "C" fn zkvm_sha256(data: *const u8, len: usize, output: *mut S
 /// `zkvm_status zkvm_ripemd160(const uint8_t* data, size_t len, zkvm_ripemd160_hash* output)`.
 ///
 /// SP1 path: no precompile; software impl via the stock RustCrypto `ripemd`
-/// crate. Output layout per the header is 20 hash bytes followed by 12 zero
-/// bytes — the 12-byte tail is zeroed before writing the digest.
+/// crate. Output layout per the header is 12 zero bytes followed by 20 hash
+/// bytes — the 12-byte prefix is zeroed before writing the digest.
 #[no_mangle]
 pub unsafe extern "C" fn zkvm_ripemd160(
     data: *const u8,
@@ -85,6 +85,6 @@ pub unsafe extern "C" fn zkvm_ripemd160(
     let digest = hasher.finalize();
     let out = &mut (*output).data;
     *out = [0u8; 32];
-    out[..20].copy_from_slice(&digest);
+    out[12..].copy_from_slice(&digest);
     ZKVM_EOK
 }

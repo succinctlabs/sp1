@@ -12,7 +12,7 @@ fn ripemd160_host_padded(data: &[u8]) -> [u8; 32] {
     hasher.update(data);
     let digest = hasher.finalize();
     let mut out = [0u8; 32];
-    out[..20].copy_from_slice(&digest);
+    out[12..].copy_from_slice(&digest);
     out
 }
 
