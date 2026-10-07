@@ -19,18 +19,28 @@ use sp1_gpu_cudart::TracegenRiscvGlobalKernel;
 
 use crate::{CudaTracegenAir, F};
 
-// Stream-ordered scratch holds one total per 512 points at each recursion level.
+// Keep in sync with the CUDA constants in sys/lib/scan/scan.cu.
+const CURVE_SCAN_BLOCK_SIZE: usize = 256;
+const CURVE_SCAN_POINTS_PER_BLOCK: usize = 2 * CURVE_SCAN_BLOCK_SIZE;
+
+// Stream-ordered scratch holds one total per block at each recursion level.
 unsafe fn hierarchical_curve_scan(
     output: *mut SepticCurve<F>,
     input: *const SepticCurve<F>,
     n: usize,
     scope: &TaskScope,
 ) {
-    let blocks = n.div_ceil(512);
+    let blocks = n.div_ceil(CURVE_SCAN_POINTS_PER_BLOCK);
     let mut totals = Buffer::<SepticCurve<F>, _>::with_capacity_in(blocks, scope.clone());
     let args = args!(output, input, n, totals.as_mut_ptr());
     scope
-        .launch_kernel(sp1_gpu_cudart::sys::scan::curve_scan_local_kernel(), blocks, 256, &args, 0)
+        .launch_kernel(
+            sp1_gpu_cudart::sys::scan::curve_scan_local_kernel(),
+            blocks,
+            CURVE_SCAN_BLOCK_SIZE,
+            &args,
+            0,
+        )
         .unwrap();
     if blocks > 1 {
         hierarchical_curve_scan(totals.as_mut_ptr(), totals.as_ptr(), blocks, scope);
@@ -39,7 +49,7 @@ unsafe fn hierarchical_curve_scan(
             .launch_kernel(
                 sp1_gpu_cudart::sys::scan::curve_scan_offsets_kernel(),
                 blocks - 1,
-                256,
+                CURVE_SCAN_BLOCK_SIZE,
                 &args,
                 0,
             )
@@ -255,7 +265,14 @@ mod tests {
             let p = SepticCurve::<F>::dummy();
             let zero = SepticCurve::<F>::default();
             // Cancellation, identity, partial blocks, and a second recursion level.
-            for n in [1, 511, 512, 513, 512 * 512 + 1] {
+            let points_per_block = super::CURVE_SCAN_POINTS_PER_BLOCK;
+            for n in [
+                1,
+                points_per_block - 1,
+                points_per_block,
+                points_per_block + 1,
+                points_per_block * points_per_block + 1,
+            ] {
                 let values: Vec<_> = (0..n).map(|i| [p, p.neg(), zero][i % 3]).collect();
                 let mut input = Buffer::with_capacity_in(n, scope.clone());
                 input.extend_from_host_slice(&values).unwrap();
