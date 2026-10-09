@@ -20,6 +20,8 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  GOPROXY: "https://proxy.golang.org,https://goproxy.cn,direct"
+  GOSUMDB: "sum.golang.org"
 
 jobs:
   prepare:
