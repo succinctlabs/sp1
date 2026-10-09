@@ -31,6 +31,13 @@ runs:
         git config --global url."https://${{ inputs.pull_token }}@github.com/".insteadOf ssh://git@github.com
         git config --global url."https://${{ inputs.pull_token }}@github.com".insteadOf https://github.com
 
+    - name: Configure Go module downloads
+      shell: bash
+      run: |
+        # The pinned ignition verifier is unavailable from the default proxy and origin.
+        echo 'GOPROXY=https://proxy.golang.org,https://goproxy.cn,direct' >> "$GITHUB_ENV"
+        echo 'GOSUMDB=sum.golang.org' >> "$GITHUB_ENV"
+
     - name: Install Go 1.22
       uses: actions/setup-go@v5
       with:
