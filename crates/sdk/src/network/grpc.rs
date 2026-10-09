@@ -42,6 +42,7 @@ pub fn configure_endpoint(addr: &str, identity: Option<Identity>) -> Result<Endp
 #[cfg(test)]
 mod tests {
     use super::configure_endpoint;
+    use crate::network::{signer::NetworkSigner, NetworkClient, NetworkMode};
     use tonic::transport::Identity;
 
     const TEST_CERT: &str = r"-----BEGIN CERTIFICATE-----
@@ -60,6 +61,20 @@ MHcCAQEEIL8Af/fX1VefNox2ZkOQZEe3XEDYfCxEYq2E22VU91j1oAoGCCqGSM49
 AwEHoUQDQgAEua0EHvbPtxWcOEKtr7nBcFzOH47KYoTDv/kL+rNy4f90pjG5B2fq
 dSxHF4iabbGMIRh5PCJzea9TuW0pcgiOFg==
 -----END EC PRIVATE KEY-----";
+
+    #[tokio::test]
+    async fn standalone_client_configures_mtls_channel() {
+        let private_key = hex::encode(alloy_signer_local::PrivateKeySigner::random().to_bytes());
+        let signer = NetworkSigner::local(&private_key).unwrap();
+        let client = NetworkClient::builder(signer, "https://localhost", NetworkMode::Reserved)
+            .client_identity(TEST_CERT, TEST_KEY)
+            .build();
+
+        assert!(client.client_identity.is_some());
+        assert!(client.channel.get().is_none());
+        client.base_prover_network_client().await.unwrap();
+        assert!(client.channel.get().is_some());
+    }
 
     #[test]
     fn configures_standard_tls_without_client_identity() {

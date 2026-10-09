@@ -241,9 +241,6 @@ impl NetworkProver {
         network_mode: NetworkMode,
         machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> Self {
-        // Install default CryptoProvider if not already installed.
-        let _ = rustls::crypto::ring::default_provider().install_default();
-
         let node = SP1LightNode::new_with_machine(machine).await;
         let client = NetworkClient::new_with_signer_source(signer, rpc_url, network_mode);
         Self { client, node, tee_signers: vec![], network_mode, hosted: false }
