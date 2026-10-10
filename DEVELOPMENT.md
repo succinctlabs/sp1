@@ -7,7 +7,7 @@ This is a guide with helpful information for developers who want to contribute t
 To build SP1, you must install [Go](https://go.dev/doc/install). You can run the test suite in SP1 core by running the following command:
 
 ```bash
-cd core
+cd crates/core/machine
 cargo test
 ```
 
@@ -51,18 +51,14 @@ RUST_LOG=info RUST_BACKTRACE=1 cargo test syscall::precompiles::edwards::ed_add:
 
 ## Contributing to Docs
 
-To build docs locally, run the following commands in the top-level directory:
-
-```bash
-cargo install mdbook  # Installs mdbook locally
-mdbook serve  # Serves the docs locally
-```
+The SP1 docs are no longer built from this repository. They are published at
+[docs.succinct.xyz](https://docs.succinct.xyz/docs/sp1/introduction).
 
 ## Publishing
 
 SP1 crates are hosted on [crates.io](https://crates.io/search?q=sp1). We use
 [release-plz](https://release-plz.ieni.dev/) to automate the publication process, and it is configured
-with [release-plz.toml](./release-plz.toml) and [.github/workflows/release-plz.yml](./.github/workflows/release-plz.yml).
+with [release-plz.toml](./release-plz.toml).
 
 With this configuration, when the `dev` branch is pushed to, the following should happen:
 
