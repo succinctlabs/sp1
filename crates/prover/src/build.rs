@@ -620,7 +620,7 @@ fn publish_circuit_artifacts(staging_dir: tempfile::TempDir, build_dir: &Path) -
         std::fs::remove_dir_all(build_dir)?;
     }
 
-    let staging_path = staging_dir.keep();
+    let staging_path = staging_dir.path();
     if let Err(err) = std::fs::rename(&staging_path, build_dir) {
         std::fs::remove_dir_all(&staging_path)?;
         // If the marker exists, another process installed the artifacts first.
