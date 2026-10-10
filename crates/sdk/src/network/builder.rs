@@ -171,6 +171,7 @@ impl NetworkProverBuilder {
     #[must_use]
     pub fn private(mut self) -> Self {
         self.rpc_url = Some(TEE_NETWORK_RPC_URL.to_string());
+        self.network_mode = Some(NetworkMode::Reserved);
         self
     }
 
@@ -391,6 +392,14 @@ mod tests {
             .build()
             .await;
         assert!(prover.client.bearer_token.is_some());
+    }
+
+    #[test]
+    fn test_private_sets_reserved_mode() {
+        let builder = NetworkProverBuilder::new().private();
+
+        assert_eq!(builder.rpc_url, Some(TEE_NETWORK_RPC_URL.to_string()));
+        assert_eq!(builder.network_mode, Some(NetworkMode::Reserved));
     }
 
     #[tokio::test]
