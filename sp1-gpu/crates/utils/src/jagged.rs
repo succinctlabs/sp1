@@ -186,11 +186,8 @@ impl<D: DenseData<TaskScope>> JaggedMle<D, TaskScope> {
     /// `execution::first_layer_transition`, `sumcheck::fix_and_sum_first_layer`,
     /// `sumcheck::fix_and_sum_layer_transition`).
     ///
-    /// Allocates the scan bookkeeping (`block_counter`, `flags`,
-    /// `scan_values`) inline. The bookkeeping is small (≤ `n_blocks + 1`
-    /// `u32` each, where `n_blocks = ceil(n_columns / SECTION_SIZE)` —
-    /// typically 1 for shards with a few hundred columns), so the extra
-    /// allocs are cheap compared to the bulk transfers eliminated.
+    /// Multi-block scans allocate small bookkeeping buffers (`block_counter`, `flags`,
+    /// `scan_values`). Single-block scans need no bookkeeping allocations or initialization.
     ///
     /// Returns `(new_start_indices_dev, new_column_heights_dev, output_height)`.
     pub fn next_start_indices_and_column_heights_dev(
@@ -202,11 +199,29 @@ impl<D: DenseData<TaskScope>> JaggedMle<D, TaskScope> {
 
 /// Free-function core of [`JaggedMle::next_start_indices_and_column_heights_dev`]: runs the
 /// fold-metadata kernel (`heights' = h.div_ceil(4) * 2` plus its prefix sum) on a device
-/// `column_heights` buffer. Standalone so the two-round lookahead can advance the metadata
-/// two folds by chaining calls without materializing the intermediate layer.
+/// `column_heights` buffer.
 pub fn fold_jagged_metadata_dev(
     column_heights: &Buffer<u32, TaskScope>,
 ) -> (Buffer<u32, TaskScope>, Buffer<u32, TaskScope>, u32) {
+    fold_jagged_metadata_n_dev(column_heights, 1, None)
+}
+
+/// Advance metadata by two folds in one launch: applying `2 * ceil(h / 4)` twice
+/// equals `2 * ceil(h / 8)`. Avoids intermediate buffers and a host download.
+pub fn fold_jagged_metadata_twice_dev(
+    column_heights: &Buffer<u32, TaskScope>,
+) -> (Buffer<u32, TaskScope>, Buffer<u32, TaskScope>, u32) {
+    fold_jagged_metadata_n_dev(column_heights, 2, None)
+}
+
+/// Fold metadata on the GPU, reusing a previously measured output height when available.
+/// The supplied height must come from the same column layout and number of folds.
+pub fn fold_jagged_metadata_n_dev(
+    column_heights: &Buffer<u32, TaskScope>,
+    folds: u32,
+    known_output_height: Option<u32>,
+) -> (Buffer<u32, TaskScope>, Buffer<u32, TaskScope>, u32) {
+    assert!(folds == 1 || folds == 2);
     let backend = column_heights.backend();
     let n_columns = column_heights.len();
     let section_size =
@@ -229,31 +244,45 @@ pub fn fold_jagged_metadata_dev(
     // `fold_metadata.cuh`: `block_counter[0] = 0`, `flags[0] = 1` so
     // the first block doesn't wait, `flags[1..]` and `scan_values[..]`
     // start at zero.
-    let u32_bytes = std::mem::size_of::<u32>();
-    let mut block_counter = Buffer::<u32, TaskScope>::with_capacity_in(1, backend.clone());
-    let mut flags = Buffer::<u32, TaskScope>::with_capacity_in(n_blocks + 1, backend.clone());
-    let mut scan_values = Buffer::<u32, TaskScope>::with_capacity_in(n_blocks + 1, backend.clone());
-    block_counter.write_bytes(0, u32_bytes).unwrap();
-    flags.write_bytes(1, u32_bytes).unwrap();
-    flags.write_bytes(0, n_blocks * u32_bytes).unwrap();
-    scan_values.write_bytes(0, (n_blocks + 1) * u32_bytes).unwrap();
+    let single = n_blocks == 1;
+    let mut scratch = if single {
+        None
+    } else {
+        let bytes = std::mem::size_of::<u32>();
+        let mut counter = Buffer::<u32, TaskScope>::with_capacity_in(1, backend.clone());
+        let mut flags = Buffer::<u32, TaskScope>::with_capacity_in(n_blocks + 1, backend.clone());
+        let mut values = Buffer::<u32, TaskScope>::with_capacity_in(n_blocks + 1, backend.clone());
+        counter.write_bytes(0, bytes).unwrap();
+        flags.write_bytes(1, bytes).unwrap();
+        flags.write_bytes(0, n_blocks * bytes).unwrap();
+        values.write_bytes(0, (n_blocks + 1) * bytes).unwrap();
+        Some((counter, flags, values))
+    };
+    let (counter, flags, values) = scratch
+        .as_mut()
+        .map_or((std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut()), |(c, f, v)| {
+            (c.as_mut_ptr(), f.as_mut_ptr(), v.as_mut_ptr())
+        });
 
     // SAFETY: `args!` tuple matches `jagged_fold_metadata`'s C signature
     // in `sys/include/jagged_assist/fold_metadata.cuh`; every pointer
-    // borrows from a Buffer owned for the launch's lifetime.
+    // borrows from a Buffer owned for the launch's lifetime, except null bookkeeping
+    // pointers that the single-block specialization never dereferences.
     unsafe {
         let a = args!(
             column_heights.as_ptr(),
             n_columns as u32,
             new_column_heights.as_mut_ptr(),
             new_start_indices.as_mut_ptr(),
-            block_counter.as_mut_ptr(),
-            flags.as_mut_ptr(),
-            scan_values.as_mut_ptr()
+            counter,
+            flags,
+            values
         );
         backend
             .launch_kernel(
-                sp1_gpu_cudart::sys::kernels::jagged_fold_metadata_kernel(),
+                sp1_gpu_cudart::sys::kernels::jagged_fold_metadata_specialized_kernel(
+                    folds, single,
+                ),
                 (n_blocks as u32, 1u32, 1u32),
                 (block_dim, 1u32, 1u32),
                 &a,
@@ -262,18 +291,13 @@ pub fn fold_jagged_metadata_dev(
             .unwrap();
     }
 
-    // Read back `output_height = new_start_indices[n_columns]`. The
-    // downstream caller needs this scalar to size the next layer's
-    // host-allocated output tensors. We download the whole
-    // `new_start_indices` buffer (n_columns + 1 u32 ≈ a few KB,
-    // *much* smaller than the bulk transfers this path replaces) and
-    // grab the last element. A future optimization could maintain
-    // `output_height` as a host-tracked scalar via the same
-    // recurrence the kernel runs, eliminating this final D2H.
-    // SAFETY: kernel above fully wrote `new_start_indices`; the
-    // download synchronizes on `backend`'s stream.
-    let host_start_idx: Vec<u32> = unsafe { new_start_indices.copy_into_host_vec() };
-    let output_height = *host_start_idx.last().unwrap();
+    // The GKR circuit already records this height during generation. Reuse it
+    // during proving to avoid a stream synchronization and download per fold.
+    // Other callers discover the size by downloading the GPU-computed prefix sums.
+    let output_height = known_output_height.unwrap_or_else(|| {
+        let host_start_idx: Vec<u32> = unsafe { new_start_indices.copy_into_host_vec() };
+        *host_start_idx.last().unwrap()
+    });
 
     (new_start_indices, new_column_heights, output_height)
 }
