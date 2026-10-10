@@ -14,6 +14,7 @@ on:
       - "examples/**"
       - "zkevm/**"
       - "Cargo.toml"
+      - "Dockerfile.build"
       - ".github/workflows/**"
       - ".github/actions/**"
       - ".github/scripts/check-runner-routing.rb"
