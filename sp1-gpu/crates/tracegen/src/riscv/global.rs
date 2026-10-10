@@ -17,7 +17,7 @@ use sp1_hypercube::septic_extension::{SepticBlock, SepticExtension};
 
 use sp1_gpu_cudart::TracegenRiscvGlobalKernel;
 
-use crate::{CudaTracegenAir, F};
+use crate::{CudaTracegenAir, PinnedStaging, F};
 
 // Keep in sync with the CUDA constants in sys/lib/scan/scan.cu.
 const CURVE_SCAN_BLOCK_SIZE: usize = 256;
@@ -66,14 +66,15 @@ impl CudaTracegenAir<F> for GlobalChip {
         &self,
         input: &Self::Record,
         output: &mut Self::Record,
+        staging: PinnedStaging,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
-        let events = &input.global_interaction_events;
+        let events = staging.stage_slice(&input.global_interaction_events);
         let events_len = events.len();
 
         let events_device = {
             let mut buf = Buffer::try_with_capacity_in(events.len(), scope.clone()).unwrap();
-            buf.extend_from_host_slice(events)?;
+            buf.extend_from_host_slice(&events)?;
             buf
         };
 
@@ -315,8 +316,19 @@ mod tests {
 
         let trace = Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
 
+        // Stage the events into a temporary pinned buffer sized to the trace.
+        let width = <GlobalChip as slop_air::BaseAir<F>>::width(&chip);
+        let section = MachineAir::<F>::num_rows(&chip, &gpu_shard).map_or(0, |h| h * width);
+        let mut pinned = sp1_gpu_cudart::PinnedBuffer::<F>::with_capacity(section.max(1));
+        let staging = unsafe {
+            crate::PinnedStaging::new(
+                pinned.as_mut_ptr() as *mut u8,
+                section * std::mem::size_of::<F>(),
+            )
+        };
+
         let gpu_trace = chip
-            .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
+            .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), staging, &scope)
             .await
             .expect("should copy events to device successfully")
             .to_host()
