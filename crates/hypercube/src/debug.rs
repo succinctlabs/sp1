@@ -184,6 +184,39 @@ where
     }
 }
 
+/// Test-only constructor and accessors.
+///
+/// These let an individual AIR operation be evaluated against a witness row in a unit test,
+/// instead of only through a full machine proof.
+#[cfg(test)]
+impl<'a, F, EF> DebugConstraintBuilder<'a, F, EF>
+where
+    F: Field,
+    EF: ExtensionField<F>,
+{
+    /// Build a builder over a single main-trace row, with no preprocessed trace.
+    pub(crate) fn for_single_row(main: &'a [F], public_values: &'a [F]) -> Self {
+        Self {
+            preprocessed: RowMajorMatrixView::new(&[], 0),
+            main: RowMajorMatrixView::new_row(main),
+            public_values,
+            failing_constraints: Vec::new(),
+            num_constraints_evaluated: 0,
+            phantom: std::marker::PhantomData,
+        }
+    }
+
+    /// The indices of the constraints that did not hold.
+    pub(crate) fn failing_constraints(&self) -> &[usize] {
+        &self.failing_constraints
+    }
+
+    /// The total number of constraints evaluated so far.
+    pub(crate) fn num_constraints_evaluated(&self) -> usize {
+        self.num_constraints_evaluated
+    }
+}
+
 impl<F, EF> DebugConstraintBuilder<'_, F, EF>
 where
     F: Field,
