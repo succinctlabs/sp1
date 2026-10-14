@@ -10,6 +10,21 @@ use crate::{BuildArgs, WarningLevel};
 
 use super::utils::{get_program_build_args, get_rust_compiler_flags};
 
+/// Returns extra Docker arguments from the `SP1_DOCKER_ARGS` environment variable.
+///
+/// This allows users to pass additional flags to `docker run`, such as `--network host`
+/// for building behind a proxy, or `-e` flags to forward environment variables into the
+/// container.
+///
+/// Example: `SP1_DOCKER_ARGS="--network host -e HTTPS_PROXY=http://127.0.0.1:7890"`
+fn get_extra_docker_args() -> Vec<String> {
+    std::env::var("SP1_DOCKER_ARGS")
+        .unwrap_or_default()
+        .split_whitespace()
+        .map(String::from)
+        .collect()
+}
+
 #[allow(clippy::uninlined_format_args)]
 /// Uses SP1_DOCKER_IMAGE environment variable if set, otherwise constructs the image to use based
 /// on the provided tag.
@@ -167,14 +182,15 @@ fn build_docker_args(
     // 2. Set the encoded rust flags.
     // Note: In Docker, you can't use the .env command to set environment variables, you have to use
     // the -e flag.
-    let mut docker_args = vec![
-        "run".to_string(),
-        "--rm".to_string(),
+    let mut docker_args = vec!["run".to_string(), "--rm".to_string()];
+    // Append user-supplied Docker arguments (e.g., --network host for proxy environments).
+    docker_args.extend(get_extra_docker_args());
+    docker_args.extend([
         "--platform".to_string(),
         "linux/amd64".to_string(),
         "-v".to_string(),
         workspace_root_path,
-    ];
+    ]);
 
     // Mount Docker named volumes for cargo registry and git caches to avoid re-downloading
     // dependencies on every build. Named volumes persist across `--rm` containers.
@@ -225,6 +241,7 @@ fn run_command_in_docker(image: &str) -> Command {
 
     // Setups the command to run in the docker image.
     cmd.args(["run", "--rm"]);
+    cmd.args(get_extra_docker_args());
     cmd.args(["-e", &format!("RUSTUP_TOOLCHAIN={}", super::TOOLCHAIN_NAME)]);
     cmd.args(["--platform", "linux/amd64", "--entrypoint", "", "-i", image]);
 
