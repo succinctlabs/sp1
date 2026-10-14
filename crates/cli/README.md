@@ -31,3 +31,12 @@ After installing the CLI, you can run it by simply running the following command
 ```bash
 cargo prove
 ```
+
+To check which version of the CLI is currently installed, run:
+
+```bash
+cargo prove --version
+```
+
+If you installed the CLI with `sp1up`, the installer also prints the installed version after
+the binary is downloaded.
