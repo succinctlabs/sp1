@@ -1,3 +1,4 @@
+use crate::utils::pad_rows_core;
 use slop_air::{Air, AirBuilder, BaseAir};
 use slop_matrix::Matrix;
 use sp1_derive::AlignedBorrow;
@@ -17,7 +18,6 @@ use crate::{
     eval_untrusted_program,
     memory::MemoryAccessCols,
     operations::{AddressOperation, AddressOperationInput, U16MSBOperation, U16MSBOperationInput},
-    utils::next_multiple_of_32,
     SupervisorMode, TrustMode, UserMode,
 };
 use hashbrown::HashMap;
@@ -102,10 +102,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for LoadWordChip<M> {
         if input.program.enable_untrusted_programs == M::IS_TRUSTED {
             return Some(0);
         }
-        let nb_rows = next_multiple_of_32(
-            input.memory_load_word_events.len(),
-            input.fixed_log2_rows::<F, _>(self),
-        );
+        let nb_rows = pad_rows_core(input.memory_load_word_events.len());
         Some(nb_rows)
     }
 

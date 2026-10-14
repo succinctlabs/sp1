@@ -21,7 +21,7 @@ pub use sp1_primitives::consts::{
 };
 use sp1_primitives::{consts::WORD_BYTE_SIZE, utils::reverse_bits_len};
 
-pub use sp1_hypercube::{indices_arr, next_multiple_of_32, pad_rows_fixed};
+pub use sp1_hypercube::{indices_arr, pad_rows_core, pad_rows_fixed, pad_rows_recursion};
 
 pub fn limbs_to_words<AB: SP1AirBuilder>(limbs: Vec<AB::Var>) -> Vec<Word<AB::Expr>> {
     let base = AB::Expr::from_canonical_u32(1 << 8);

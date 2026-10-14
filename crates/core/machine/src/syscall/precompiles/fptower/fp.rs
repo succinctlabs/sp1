@@ -1,3 +1,4 @@
+use crate::utils::pad_rows_core;
 use std::{
     borrow::{Borrow, BorrowMut},
     marker::PhantomData,
@@ -11,7 +12,7 @@ use crate::{
         field::range::FieldLtCols, AddrAddOperation, AddressSlicePageProtOperation,
         SyscallAddrOperation,
     },
-    utils::{limbs_to_words, next_multiple_of_32},
+    utils::limbs_to_words,
 };
 use crate::{SupervisorMode, TrustMode, UserMode};
 use generic_array::GenericArray;
@@ -116,8 +117,7 @@ impl<F: PrimeField32, P: FpOpField, M: TrustMode> MachineAir<F> for FpOpChip<P, 
             FieldType::Bn254 => input.get_precompile_events(SyscallCode::BN254_FP_ADD).len(),
             FieldType::Bls12381 => input.get_precompile_events(SyscallCode::BLS12381_FP_ADD).len(),
         };
-        let size_log2 = input.fixed_log2_rows::<F, _>(self);
-        let padded_nb_rows = next_multiple_of_32(nb_rows, size_log2);
+        let padded_nb_rows = pad_rows_core(nb_rows);
         Some(padded_nb_rows)
     }
 

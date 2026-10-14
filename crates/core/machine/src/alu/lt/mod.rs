@@ -1,3 +1,4 @@
+use crate::utils::pad_rows_core;
 use core::{
     borrow::{Borrow, BorrowMut},
     mem::{size_of, MaybeUninit},
@@ -26,7 +27,6 @@ use crate::{
     air::{SP1CoreAirBuilder, SP1Operation},
     eval_untrusted_program,
     operations::{LtOperationSigned, LtOperationSignedInput},
-    utils::next_multiple_of_32,
     SupervisorMode, TrustMode, UserMode,
 };
 
@@ -85,8 +85,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for LtChip<M> {
         if input.program.enable_untrusted_programs == M::IS_TRUSTED {
             return Some(0);
         }
-        let nb_rows =
-            next_multiple_of_32(input.lt_events.len(), input.fixed_log2_rows::<F, _>(self));
+        let nb_rows = pad_rows_core(input.lt_events.len());
         Some(nb_rows)
     }
 
