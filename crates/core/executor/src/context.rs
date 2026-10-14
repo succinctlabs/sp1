@@ -69,7 +69,10 @@ pub struct SP1Context<'a> {
     /// The maximum number of cpu cycles to use for execution.
     pub max_cycles: Option<u64>,
 
-    /// Deferred proof verification.
+    /// Whether to verify the deferred proofs supplied in the stdin against their verifying keys.
+    ///
+    /// This is a host-side check run alongside execution; the executor itself does not check the
+    /// claims a program makes with `verify_sp1_proof`.
     pub deferred_proof_verification: bool,
 
     /// The expected exit code of the program.
