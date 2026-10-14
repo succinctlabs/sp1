@@ -40,6 +40,175 @@ fn test_chunk_stops_correctly() {
     assert!(chunk_count > 5, "no chunks were executed");
 }
 
+/// Poseidon2 host/guest agreement.
+///
+/// `sp1-lib` gives guests two ways to hash with the Poseidon2 precompile: the raw rate-8 sponge on
+/// `Poseidon2State`, and the length-prefixed byte hasher `Poseidon2ByteHash`. Both were shipped
+/// without any test. Nothing checked that either one agrees with the permutation the prover itself
+/// hashes with (`inner_perm`), which is the property every program that hashes in the guest and
+/// verifies the digest outside it relies on.
+///
+/// The host reference below is written out rather than shared with the guest on purpose. The guest
+/// code cannot run here: off the zkVM target the entrypoint compiles `syscall_poseidon2` down to an
+/// `unreachable!()` stub, so calling `Poseidon2ByteHash::hash` on the host panics rather than
+/// hashing. Sharing an implementation would also defeat the point, since it could not catch a
+/// change to the wire format. The packing this pins is what an external verifier has to reproduce.
+mod poseidon2_tests {
+    use bincode::serialize;
+    use slop_algebra::{AbstractField, PrimeField32};
+    use slop_symmetric::Permutation;
+    use sp1_hypercube::inner_perm;
+    use sp1_primitives::{io::SP1PublicValues, SP1Field, SP1Perm};
+
+    use super::*;
+
+    /// Mirrors `sp1_lib::poseidon2`.
+    const WIDTH: usize = 16;
+    const RATE: usize = 8;
+    const BYTE_BLOCK_SIZE: usize = RATE * 3;
+
+    /// The overwrite-mode sponge that `Poseidon2State` implements.
+    struct HostSponge {
+        state: [SP1Field; WIDTH],
+        perm: SP1Perm,
+    }
+
+    impl HostSponge {
+        fn new() -> Self {
+            Self { state: [SP1Field::zero(); WIDTH], perm: inner_perm() }
+        }
+
+        /// Mirrors `Poseidon2State::absorb_field_block_unchecked`: overwrite the rate, permute.
+        fn absorb_field_block(&mut self, block: &[u32; RATE]) {
+            for (lane, value) in self.state[..RATE].iter_mut().zip(block) {
+                *lane = SP1Field::from_canonical_u32(*value);
+            }
+            self.state = self.perm.permute(self.state);
+        }
+
+        /// Mirrors `Poseidon2State::absorb_byte_block`: little-endian, three bytes per element.
+        fn absorb_byte_block(&mut self, block: &[u8; BYTE_BLOCK_SIZE]) {
+            let mut field_block = [0u32; RATE];
+            for (i, element) in field_block.iter_mut().enumerate() {
+                *element = u32::from(block[3 * i])
+                    | (u32::from(block[3 * i + 1]) << 8)
+                    | (u32::from(block[3 * i + 2]) << 16);
+            }
+            self.absorb_field_block(&field_block);
+        }
+
+        /// Mirrors `Poseidon2State::output`: the rate portion, with no finalization.
+        fn output(&self) -> [u32; RATE] {
+            core::array::from_fn(|i| self.state[i].as_canonical_u32())
+        }
+    }
+
+    /// Mirrors `Poseidon2ByteHash::hash`.
+    fn host_byte_hash(input: &[u8]) -> [u32; RATE] {
+        let mut sponge = HostSponge::new();
+
+        let mut length_block = [0u8; BYTE_BLOCK_SIZE];
+        length_block[..8].copy_from_slice(&input.len().to_le_bytes());
+        sponge.absorb_byte_block(&length_block);
+
+        let chunks = input.chunks_exact(BYTE_BLOCK_SIZE);
+        let remainder = chunks.remainder();
+        for chunk in chunks {
+            sponge.absorb_byte_block(chunk.try_into().unwrap());
+        }
+        if !remainder.is_empty() {
+            let mut last_block = [0u8; BYTE_BLOCK_SIZE];
+            last_block[..remainder.len()].copy_from_slice(remainder);
+            sponge.absorb_byte_block(&last_block);
+        }
+
+        sponge.output()
+    }
+
+    /// Rate-sized field blocks, all canonical so the `_unchecked` contract holds.
+    fn field_blocks() -> Vec<[u32; RATE]> {
+        vec![
+            [0; RATE],
+            core::array::from_fn(|i| i as u32),
+            // The largest canonical `SP1Field` value, to catch a reduction applied on one side
+            // of the boundary but not the other.
+            [SP1Field::neg_one().as_canonical_u32(); RATE],
+        ]
+    }
+
+    /// Messages chosen to straddle the 24-byte block boundary and to differ only by trailing
+    /// zeros, which is the collision the length prefix exists to prevent.
+    fn messages() -> Vec<Vec<u8>> {
+        let mut messages = vec![
+            Vec::new(),
+            vec![0xab],
+            vec![7u8; BYTE_BLOCK_SIZE - 1],
+            vec![7u8; BYTE_BLOCK_SIZE],
+            vec![7u8; BYTE_BLOCK_SIZE + 1],
+            vec![7u8; 2 * BYTE_BLOCK_SIZE],
+            (0..=255u8).collect(),
+            vec![1, 2, 3],
+            vec![1, 2, 3, 0],
+            vec![1, 2, 3, 0, 0, 0, 0, 0],
+        ];
+        messages.push((0..100u8).rev().collect());
+        messages
+    }
+
+    /// Byte packing must never produce a non-canonical field element, or
+    /// `absorb_field_block_unchecked`'s documented safety contract would be violated by
+    /// `absorb_byte_block` itself.
+    #[test]
+    fn byte_packing_stays_canonical() {
+        let max_packed =
+            u32::from(u8::MAX) | (u32::from(u8::MAX) << 8) | (u32::from(u8::MAX) << 16);
+        assert!(max_packed < SP1Field::ORDER_U32, "three-byte packing can exceed the modulus");
+    }
+
+    /// The length prefix is what makes the hasher injective across lengths. Without it, a message
+    /// and the same message with trailing zeros would land in the same padded blocks.
+    #[test]
+    fn length_prefix_separates_trailing_zeros() {
+        let base = host_byte_hash(&[1, 2, 3]);
+        assert_ne!(base, host_byte_hash(&[1, 2, 3, 0]));
+        assert_ne!(base, host_byte_hash(&[1, 2, 3, 0, 0, 0, 0, 0]));
+        assert_ne!(host_byte_hash(&[]), host_byte_hash(&[0]));
+    }
+
+    #[test]
+    fn guest_hashing_matches_the_host_permutation() {
+        let program = Arc::new(Program::from(&test_artifacts::POSEIDON2_ELF).unwrap());
+        let field_blocks = field_blocks();
+        let messages = messages();
+
+        let mut executor = MinimalExecutor::<SupervisorMode>::new(program, false, None);
+        executor.with_input(&serialize(&field_blocks).unwrap());
+        executor.with_input(&serialize(&messages).unwrap());
+        while executor.execute_chunk().is_some() {}
+
+        let mut public_values = SP1PublicValues::from(executor.public_values_stream());
+
+        let mut sponge = HostSponge::new();
+        for block in &field_blocks {
+            sponge.absorb_field_block(block);
+        }
+        assert_eq!(
+            public_values.read::<[u32; RATE]>(),
+            sponge.output(),
+            "guest field-element sponge disagrees with the host permutation"
+        );
+
+        for message in &messages {
+            assert_eq!(
+                public_values.read::<[u32; RATE]>(),
+                host_byte_hash(message),
+                "guest byte hash disagrees with the host for a {}-byte message",
+                message.len()
+            );
+        }
+    }
+}
+
 /// Differential tests comparing the portable executor against the native `x86_64` executor.
 /// Only compiled on `x86_64` with the profiling feature enabled.
 #[cfg(all(target_arch = "x86_64", feature = "profiling"))]
