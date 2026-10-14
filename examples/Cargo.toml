@@ -3,6 +3,8 @@ members = [
   "aggregation/program",
   "alu-x0/program",
   "aggregation/script",
+  "base64/program",
+  "base64/script",
   "bls12381/program",
   "bls12381/script",
   "bn254/program",
