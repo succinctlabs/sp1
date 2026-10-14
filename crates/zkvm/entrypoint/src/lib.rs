@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(dead_code, static_mut_refs, unused_imports)]
 
 #[cfg(target_os = "zkvm")]
 use {
