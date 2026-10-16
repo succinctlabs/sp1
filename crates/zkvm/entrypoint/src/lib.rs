@@ -93,7 +93,13 @@ pub extern "C" fn read_vec_raw() -> ReadVecResult {
         }
 
         // Round up to multiple of 8 for whole-word alignment.
-        let capacity = (len + 7) / 8 * 8;
+        //
+        // `len` is supplied by the prover. A length within 7 of `usize::MAX` would wrap the
+        // capacity to 0 and hand the program a `Vec` with `len > capacity`. No real input is
+        // that long, so halt with the invalid hint exit code.
+        let Some(capacity) = len.checked_next_multiple_of(8) else {
+            syscalls::syscall_halt(3);
+        };
 
         cfg_if! {
             if #[cfg(not(feature = "bump"))] {
