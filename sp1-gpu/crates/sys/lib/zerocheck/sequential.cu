@@ -83,6 +83,10 @@ __device__ __forceinline__ ext_t run_chunk_bytecode(
             regs[instr.out] = regs[instr.a] * regs[instr.b];
             break;
         }
+        case BC_MUL_CONST: {
+            regs[instr.out] = regs[instr.a] * consts[instr.b];
+            break;
+        }
         case BC_NEG_F: {
             regs[instr.out] = K::zero() - regs[instr.a];
             break;

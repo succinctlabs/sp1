@@ -12,6 +12,7 @@ on:
     paths:
       - "crates/**"
       - "Cargo.toml"
+      - "Dockerfile.gnark-ffi"
       - ".github/workflows/**"
   merge_group:
 
@@ -34,6 +35,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ github.token }}
 
       - name: Build docker image
         run: |
@@ -44,15 +47,17 @@ jobs:
           cargo run -p sp1-cli --no-default-features -- prove install-toolchain
           
       - name: Run cargo test
-        uses: actions-rs/cargo@v1
         env:
           SP1_GNARK_IMAGE: sp1-gnark
           RUST_LOG: info
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
           RUST_BACKTRACE: 1   
-        with:
-          command: test
-          args: --release -p sp1-prover --features experimental -- --exact worker::node::tests::test_e2e_node_groth16 --nocapture
+        run: |
+          test_name=worker::node::full::tests::test_e2e_groth16_node
+          test_list=$(cargo test --release -p sp1-prover --features experimental -- --list --ignored --exact "$test_name")
+          printf '%s\n' "$test_list"
+          grep -Fxq "$test_name: test" <<< "$test_list"
+          cargo test --release -p sp1-prover --features experimental -- --exact "$test_name" --ignored --nocapture
 
       - name: Make sure the contracts were modified
         run: |

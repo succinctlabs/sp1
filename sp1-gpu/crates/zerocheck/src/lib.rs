@@ -474,12 +474,18 @@ pub mod tests {
             let pv_0 = pv[0];
             let pv_1 = pv[1];
 
-            builder.assert_zero(
-                prep.prep_a
-                    - (local.op_a * local.op_a * local.op_b
-                        + AB::Expr::one()
-                        + AB::Expr::from_canonical_u32(3) * pv_0.into() * local.op_c),
-            );
+            let constraint = prep.prep_a
+                - (local.op_a * local.op_a * local.op_b
+                    + AB::Expr::one()
+                    + AB::Expr::from_canonical_u32(3) * pv_0.into() * local.op_c);
+            // Exercise scalar lowering against the CPU verifier, including nonzero padding.
+            for scalar in [0, 1, 7, 1_057_030_144] {
+                builder.assert_zero(
+                    (constraint.clone() + AB::Expr::zero())
+                        * AB::Expr::one()
+                        * AB::Expr::from_canonical_u32(scalar),
+                );
+            }
 
             builder.assert_zero(
                 prep.prep_b

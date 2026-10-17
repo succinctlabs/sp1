@@ -2,10 +2,10 @@ use thiserror::Error;
 use tokio::sync::watch;
 use tonic::{metadata::AsciiMetadataValue, service::Interceptor, Request, Status};
 
-/// A bearer token that can be updated without rebuilding the network prover.
+/// A bearer token that can be updated without rebuilding the network client or prover.
 ///
 /// The caller is responsible for acquiring and refreshing the token. Retain a clone to update the
-/// value after passing it to a network prover builder.
+/// value after passing it to a network client or prover builder.
 #[derive(Clone)]
 pub struct NetworkBearerToken {
     current: watch::Sender<AsciiMetadataValue>,

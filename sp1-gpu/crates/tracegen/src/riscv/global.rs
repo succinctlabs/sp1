@@ -9,7 +9,7 @@ use slop_tensor::Tensor;
 use sp1_core_machine::global::{GlobalChip, GlobalCols, GLOBAL_INITIAL_DIGEST_POS};
 use sp1_gpu_cudart::sys::runtime::Dim3;
 use sp1_gpu_cudart::transpose::DeviceTransposeKernel;
-use sp1_gpu_cudart::{args, DeviceMle, ScanKernel, TaskScope};
+use sp1_gpu_cudart::{args, DeviceMle, TaskScope};
 use sp1_hypercube::air::MachineAir;
 use sp1_hypercube::septic_curve::SepticCurve;
 use sp1_hypercube::septic_digest::SepticDigest;
@@ -18,6 +18,44 @@ use sp1_hypercube::septic_extension::{SepticBlock, SepticExtension};
 use sp1_gpu_cudart::TracegenRiscvGlobalKernel;
 
 use crate::{CudaTracegenAir, F};
+
+// Keep in sync with the CUDA constants in sys/lib/scan/scan.cu.
+const CURVE_SCAN_BLOCK_SIZE: usize = 256;
+const CURVE_SCAN_POINTS_PER_BLOCK: usize = 2 * CURVE_SCAN_BLOCK_SIZE;
+
+// Stream-ordered scratch holds one total per block at each recursion level.
+unsafe fn hierarchical_curve_scan(
+    output: *mut SepticCurve<F>,
+    input: *const SepticCurve<F>,
+    n: usize,
+    scope: &TaskScope,
+) {
+    let blocks = n.div_ceil(CURVE_SCAN_POINTS_PER_BLOCK);
+    let mut totals = Buffer::<SepticCurve<F>, _>::with_capacity_in(blocks, scope.clone());
+    let args = args!(output, input, n, totals.as_mut_ptr());
+    scope
+        .launch_kernel(
+            sp1_gpu_cudart::sys::scan::curve_scan_local_kernel(),
+            blocks,
+            CURVE_SCAN_BLOCK_SIZE,
+            &args,
+            0,
+        )
+        .unwrap();
+    if blocks > 1 {
+        hierarchical_curve_scan(totals.as_mut_ptr(), totals.as_ptr(), blocks, scope);
+        let args = args!(output, totals.as_ptr(), n);
+        scope
+            .launch_kernel(
+                sp1_gpu_cudart::sys::scan::curve_scan_offsets_kernel(),
+                blocks - 1,
+                CURVE_SCAN_BLOCK_SIZE,
+                &args,
+                0,
+            )
+            .unwrap();
+    }
+}
 
 impl CudaTracegenAir<F> for GlobalChip {
     fn supports_device_main_tracegen(&self) -> bool {
@@ -128,64 +166,13 @@ impl CudaTracegenAir<F> for GlobalChip {
             }
         }
 
-        // Call the scan kernel.
-        // TODO: make a nice scan API with a trait.
-        {
-            const SCAN_KERNEL_LARGE_SECTION_SIZE: usize = 512;
-            let d_out = cumulative_sums.as_mut_ptr();
-            let d_in = accumulation_initial_digest_row_major.as_ptr();
-            let n = height;
-            if (2 * n) <= SCAN_KERNEL_LARGE_SECTION_SIZE {
-                let args = args!(d_out, d_in, n);
-                unsafe {
-                    scope
-                        .launch_kernel(
-                            <TaskScope as ScanKernel<F>>::single_block_scan_kernel_large_bb31_septic_curve(
-                            ),
-                            1,
-                            n,
-                            &args,
-                            0,
-                        )
-                        .unwrap()
-                };
-            } else {
-                let block_dim = SCAN_KERNEL_LARGE_SECTION_SIZE / 2;
-                let num_blocks = n.div_ceil(block_dim);
-                // Create `scan_values` as an array consisting of a single zero cell followed by
-                // `num_blocks` uninitialized cells.
-                let mut scan_values =
-                    Buffer::<SepticCurve<F>, _>::with_capacity_in(num_blocks + 1, scope.clone());
-                scan_values.write_bytes(0, mem::size_of::<SepticCurve<F>>()).unwrap();
-                // Create `block_counter` as a an array consisting of a single zero cell.
-                let mut block_counter = Buffer::<u32, _>::with_capacity_in(1, scope.clone());
-                block_counter.write_bytes(0, mem::size_of::<u32>()).unwrap();
-                // Create `flags` as an array consisting of a single one cell followed by
-                // `num_blocks` zero cells.
-                let mut flags = Buffer::<u32, _>::with_capacity_in(num_blocks + 1, scope.clone());
-                flags.write_bytes(1, size_of::<u32>()).unwrap();
-                flags.write_bytes(0, num_blocks * size_of::<u32>()).unwrap();
-                debug_assert_eq!(flags.len(), num_blocks + 1);
-                let args = args!(
-                    d_out,
-                    d_in,
-                    n,
-                    scan_values.as_mut_ptr(),
-                    block_counter.as_mut_ptr(),
-                    flags.as_mut_ptr()
-                );
-                unsafe {
-                    scope
-                        .launch_kernel(
-                            <TaskScope as ScanKernel<F>>::scan_kernel_large_bb31_septic_curve(),
-                            num_blocks,
-                            block_dim,
-                            &args,
-                            0,
-                        )
-                        .unwrap()
-                };
-            }
+        unsafe {
+            hierarchical_curve_scan(
+                cumulative_sums.as_mut_ptr(),
+                accumulation_initial_digest_row_major.as_ptr(),
+                height,
+                scope,
+            );
         }
         // This transposed version was only needed for the scan operation.
         drop(accumulation_initial_digest_row_major);
@@ -267,6 +254,41 @@ mod tests {
     use sp1_hypercube::MachineRecord;
 
     use crate::{CudaTracegenAir, F};
+
+    #[test]
+    fn test_hierarchical_curve_scan_boundaries() {
+        use slop_alloc::Buffer;
+        use sp1_gpu_cudart::DeviceBuffer;
+        use sp1_hypercube::septic_curve::SepticCurve;
+
+        sp1_gpu_cudart::run_sync_in_place(|scope| {
+            let p = SepticCurve::<F>::dummy();
+            let zero = SepticCurve::<F>::default();
+            // Cancellation, identity, partial blocks, and a second recursion level.
+            let points_per_block = super::CURVE_SCAN_POINTS_PER_BLOCK;
+            for n in [
+                1,
+                points_per_block - 1,
+                points_per_block,
+                points_per_block + 1,
+                points_per_block * points_per_block + 1,
+            ] {
+                let values: Vec<_> = (0..n).map(|i| [p, p.neg(), zero][i % 3]).collect();
+                let mut input = Buffer::with_capacity_in(n, scope.clone());
+                input.extend_from_host_slice(&values).unwrap();
+                let mut output = Buffer::<SepticCurve<F>, _>::with_capacity_in(n, scope.clone());
+                unsafe {
+                    super::hierarchical_curve_scan(output.as_mut_ptr(), input.as_ptr(), n, &scope);
+                    output.set_len(n);
+                }
+                let actual = DeviceBuffer::from_raw(output).to_host().unwrap();
+                for (i, value) in actual.iter().enumerate() {
+                    assert_eq!(*value, if i % 3 == 0 { p } else { zero }, "n={n}, i={i}");
+                }
+            }
+        })
+        .unwrap();
+    }
 
     #[tokio::test]
     async fn test_global_generate_trace() {

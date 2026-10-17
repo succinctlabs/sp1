@@ -206,9 +206,16 @@ extern "C" rustCudaError_t batch_coset_dft(
             return CUDA_SUCCESS_CSL;
         }
 #endif
+#ifdef NVIDIA_NTT
+        constexpr bool direct_bit_reversed_output = false;
+#else
+        const bool direct_bit_reversed_output = bit_rev_output;
+#endif
+        const bool bit_reversed_input =
+            LDE_INPUT_BIT_REVERSED && !direct_bit_reversed_output;
         for (size_t c = 0; c < poly_count; c++) {
             fr_t* domain_data = &d_in[c * domain_size];
-            if constexpr (LDE_INPUT_BIT_REVERSED) {
+            if (bit_reversed_input) {
                 domain_data = &d_out[(c + 1) * ext_domain_size - domain_size];
                 NTT::bit_rev(
                     domain_data,
@@ -224,7 +231,7 @@ extern "C" rustCudaError_t batch_coset_dft(
                 gen_powers,
                 lg_domain_size,
                 lg_blowup,
-                LDE_INPUT_BIT_REVERSED,
+                bit_reversed_input,
                 perform_shift,
                 shift);
 
@@ -234,9 +241,9 @@ extern "C" rustCudaError_t batch_coset_dft(
             lg_domain_size + lg_blowup,
             poly_count,
             ext_domain_size,
-            LDE_FORWARD_NTT_ORDER,
+            direct_bit_reversed_output ? NTT::InputOutputOrder::NR : LDE_FORWARD_NTT_ORDER,
             NTT::Direction::forward,
-            bit_rev_output,
+            bit_rev_output && !direct_bit_reversed_output,
             stream));
     } catch (const cuda_error& error) {
         CUDA_OK(static_cast<cudaError_t>(-error.code()));

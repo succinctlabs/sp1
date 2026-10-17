@@ -46,6 +46,7 @@ enum BcOp : uint8_t {
     BC_SUB_F       = 4,
     BC_MUL_F       = 5,
     BC_NEG_F       = 6,
+    BC_MUL_CONST   = 7, // rhs is consts[instr.b], not a register
 };
 
 // Shard-static per-chunk descriptor. Must match `ChunkStaticC` in
