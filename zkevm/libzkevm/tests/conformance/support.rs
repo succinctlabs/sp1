@@ -143,9 +143,7 @@ pub fn be_word(v: u64) -> [u8; 32] {
 //                   G1 = x(64) || y(64); G2 = x_c0 || x_c1 || y_c0 || y_c1.
 //                   Infinity = all-zero bytes.
 // ABI (this SDK):   Fp = 48 bytes BE.
-//                   G1 = x || y; G2 = x_c1 || x_c0 || y_c1 || y_c0.
-//                   Infinity = 0x40 flag bit in the leading byte,
-//                   zero coordinates (zkcrypto uncompressed form).
+//                   Same coordinate order and all-zero infinity as the wire.
 // ---------------------------------------------------------------------
 
 /// Strip the 16-byte zero padding from a 64-byte wire Fp; `None` if the
@@ -168,10 +166,6 @@ fn pad_fp(b: &[u8]) -> [u8; 64] {
 pub fn wire_g1_to_abi(b: &[u8]) -> Option<[u8; 96]> {
     assert_eq!(b.len(), 128);
     let mut out = [0u8; 96];
-    if b.iter().all(|&x| x == 0) {
-        out[0] = 0x40; // point at infinity
-        return Some(out);
-    }
     out[0..48].copy_from_slice(&unpad_fp(&b[0..64])?);
     out[48..96].copy_from_slice(&unpad_fp(&b[64..128])?);
     Some(out)
@@ -180,40 +174,28 @@ pub fn wire_g1_to_abi(b: &[u8]) -> Option<[u8; 96]> {
 /// 96-byte ABI G1 → 128-byte wire G1.
 pub fn abi_g1_to_wire(b: &[u8; 96]) -> [u8; 128] {
     let mut out = [0u8; 128];
-    if b[0] & 0x40 != 0 {
-        return out; // infinity → all zeros
-    }
     out[0..64].copy_from_slice(&pad_fp(&b[0..48]));
     out[64..128].copy_from_slice(&pad_fp(&b[48..96]));
     out
 }
 
-/// 256-byte wire G2 → 192-byte ABI G2 (coefficient order swap).
+/// 256-byte wire G2 → 192-byte ABI G2.
 pub fn wire_g2_to_abi(b: &[u8]) -> Option<[u8; 192]> {
     assert_eq!(b.len(), 256);
     let mut out = [0u8; 192];
-    if b.iter().all(|&x| x == 0) {
-        out[0] = 0x40;
-        return Some(out);
-    }
-    // wire: x_c0 || x_c1 || y_c0 || y_c1   (64 bytes each)
-    // abi:  x_c1 || x_c0 || y_c1 || y_c0   (48 bytes each)
-    out[0..48].copy_from_slice(&unpad_fp(&b[64..128])?); // x_c1
-    out[48..96].copy_from_slice(&unpad_fp(&b[0..64])?); // x_c0
-    out[96..144].copy_from_slice(&unpad_fp(&b[192..256])?); // y_c1
-    out[144..192].copy_from_slice(&unpad_fp(&b[128..192])?); // y_c0
+    out[0..48].copy_from_slice(&unpad_fp(&b[0..64])?); // x_c0
+    out[48..96].copy_from_slice(&unpad_fp(&b[64..128])?); // x_c1
+    out[96..144].copy_from_slice(&unpad_fp(&b[128..192])?); // y_c0
+    out[144..192].copy_from_slice(&unpad_fp(&b[192..256])?); // y_c1
     Some(out)
 }
 
 /// 192-byte ABI G2 → 256-byte wire G2.
 pub fn abi_g2_to_wire(b: &[u8; 192]) -> [u8; 256] {
     let mut out = [0u8; 256];
-    if b[0] & 0x40 != 0 {
-        return out;
-    }
-    out[0..64].copy_from_slice(&pad_fp(&b[48..96])); // x_c0
-    out[64..128].copy_from_slice(&pad_fp(&b[0..48])); // x_c1
-    out[128..192].copy_from_slice(&pad_fp(&b[144..192])); // y_c0
-    out[192..256].copy_from_slice(&pad_fp(&b[96..144])); // y_c1
+    out[0..64].copy_from_slice(&pad_fp(&b[0..48])); // x_c0
+    out[64..128].copy_from_slice(&pad_fp(&b[48..96])); // x_c1
+    out[128..192].copy_from_slice(&pad_fp(&b[96..144])); // y_c0
+    out[192..256].copy_from_slice(&pad_fp(&b[144..192])); // y_c1
     out
 }

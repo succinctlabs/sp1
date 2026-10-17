@@ -1,6 +1,6 @@
-//! # Network Prover Builder
+//! # Network Builders
 //!
-//! This module provides a builder for the [`NetworkProver`].
+//! This module provides builders for [`NetworkProver`] and [`NetworkClient`].
 
 use std::sync::Arc;
 
@@ -14,10 +14,67 @@ use tonic::transport::Identity;
 use crate::{
     network::{
         signer::{NetworkSigner, SignerSource},
-        NetworkBearerToken, NetworkMode, TEE_NETWORK_RPC_URL,
+        NetworkBearerToken, NetworkClient, NetworkMode, TEE_NETWORK_RPC_URL,
     },
     NetworkProver,
 };
+
+/// Configures a standalone [`NetworkClient`] before its first request.
+pub struct NetworkClientBuilder {
+    signer: NetworkSigner,
+    rpc_url: String,
+    network_mode: NetworkMode,
+    client_identity: Option<Identity>,
+    bearer_token: Option<NetworkBearerToken>,
+}
+
+impl NetworkClientBuilder {
+    pub(crate) fn new(
+        signer: NetworkSigner,
+        rpc_url: impl Into<String>,
+        network_mode: NetworkMode,
+    ) -> Self {
+        Self {
+            signer,
+            rpc_url: rpc_url.into(),
+            network_mode,
+            client_identity: None,
+            bearer_token: None,
+        }
+    }
+
+    /// Sets the PEM-encoded certificate and private key used for mutual TLS authentication.
+    ///
+    /// The RPC URL must use HTTPS. The identity is validated on the first RPC call.
+    /// Build a new client to use a renewed certificate.
+    #[must_use]
+    pub fn client_identity(
+        mut self,
+        certificate: impl AsRef<[u8]>,
+        private_key: impl AsRef<[u8]>,
+    ) -> Self {
+        self.client_identity = Some(Identity::from_pem(certificate, private_key));
+        self
+    }
+
+    /// Sets the bearer token added to Prover Network and Artifact Store requests.
+    ///
+    /// Retain a clone of the token to update it for subsequent requests.
+    #[must_use]
+    pub fn bearer_token(mut self, bearer_token: NetworkBearerToken) -> Self {
+        self.bearer_token = Some(bearer_token);
+        self
+    }
+
+    /// Builds a client without connecting to the RPC server.
+    #[must_use]
+    pub fn build(self) -> NetworkClient {
+        let mut client = NetworkClient::new(self.signer, self.rpc_url, self.network_mode);
+        client.client_identity = self.client_identity;
+        client.bearer_token = self.bearer_token;
+        client
+    }
+}
 
 /// A builder for the [`NetworkProver`].
 ///

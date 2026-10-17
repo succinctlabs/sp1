@@ -1,11 +1,11 @@
 //! EIP-2537 (BLS12-381 / precompiles 0x0b–0x11) golden vectors.
 //!
-//! Encoding follows libzkevm's C ABI, which matches the `bls12_381`
-//! crate's `to_uncompressed()` form:
+//! Encoding follows libzkevm's C ABI (EIP-2537 with the 16-byte per-Fp
+//! padding stripped):
 //!
 //! * G1 = 96 bytes (Fp x || Fp y), each Fp = 48 BE bytes.
-//! * G2 = 192 bytes (Fp2 x || Fp2 y), each Fp2 = `c1 || c0` (96 BE).
-//! * Point at infinity sets the high bit of the leading byte (`0x40`).
+//! * G2 = 192 bytes (Fp2 x || Fp2 y), each Fp2 = `c0 || c1` (96 BE).
+//! * Point at infinity is all-zero bytes.
 //! * Scalars are 32 BE bytes (reduced mod the BLS12-381 group order).
 //!
 //! Reference values generated with `py_ecc.bls12_381` for the canonical
