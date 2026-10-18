@@ -1,4 +1,6 @@
 pub trait AffinePoint<const N: usize>: Clone + Sized {
+    const DECOMPACT_WITH_MIN_Y: bool = false;
+
     /// The generator.
     #[deprecated = "This const will have the `Self` type in the next major version."]
     const GENERATOR: [u64; N];
