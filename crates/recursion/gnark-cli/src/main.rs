@@ -102,6 +102,12 @@ fn prove_groth16_bn254(data_dir: &str, witness_path: &str) -> ProofBn254 {
 }
 
 fn run_verify(args: VerifyArgs) {
+    if args.exit_code.parse::<u32>() != Ok(0) {
+        let mut file = File::create(&args.output_path).unwrap();
+        file.write_all(b"non-zero exit code").unwrap();
+        return;
+    }
+
     let file = File::open(&args.proof_path).unwrap();
     let proof = read_to_string(file).unwrap();
     let result = match args.system.as_str() {

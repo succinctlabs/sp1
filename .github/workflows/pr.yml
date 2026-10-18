@@ -242,6 +242,12 @@ jobs:
           RUST_BACKTRACE: 1
           SP1_CIRCUIT_MODE: "release"
 
+      - name: Test exit code policy without experimental
+        run: cargo test --release -p sp1-core-executor --lib status_code_acceptance_respects_experimental
+        env:
+          RUSTFLAGS: -Copt-level=3 -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          SP1_CIRCUIT_MODE: "release"
+
   lint:
     name: Formatting & Clippy
     needs: runner-routing

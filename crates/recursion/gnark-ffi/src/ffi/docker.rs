@@ -171,6 +171,9 @@ fn verify(
     }
 }
 
+/// Low-level Docker entry point; exit-code checks depend on the container image.
+/// Use [`crate::PlonkBn254Prover::verify`] to enforce a zero exit code locally
+/// when `experimental` is disabled.
 pub fn verify_plonk_bn254(
     data_dir: &str,
     proof: &str,
@@ -192,6 +195,9 @@ pub fn verify_plonk_bn254(
     )
 }
 
+/// Low-level Docker entry point; exit-code checks depend on the container image.
+/// Use [`crate::Groth16Bn254Prover::verify`] to enforce a zero exit code locally
+/// when `experimental` is disabled.
 pub fn verify_groth16_bn254(
     data_dir: &str,
     proof: &str,

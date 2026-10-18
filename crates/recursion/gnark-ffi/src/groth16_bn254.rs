@@ -77,6 +77,9 @@ impl Groth16Bn254Prover {
         proof_nonce: &BigUint,
         build_dir: &Path,
     ) -> Result<()> {
+        if !cfg!(feature = "experimental") && exit_code != &BigUint::from(0u8) {
+            return Err(anyhow::anyhow!("non-zero exit code"));
+        }
         if proof.groth16_vkey_hash != Self::get_vkey_hash(build_dir) {
             return Err(anyhow::anyhow!(
                 "Proof vkey hash does not match circuit vkey hash, it was generated with a different circuit."
