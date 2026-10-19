@@ -103,4 +103,78 @@ dSxHF4iabbGMIRh5PCJzea9TuW0pcgiOFg==
         let err = configure_endpoint("http://localhost", Some(identity)).unwrap_err().to_string();
         assert!(err.contains("requires an HTTPS RPC URL"));
     }
+
+    #[derive(Clone)]
+    struct ArtifactFixture;
+
+    #[tonic::async_trait]
+    impl crate::network::proto::artifact::artifact_store_server::ArtifactStore for ArtifactFixture {
+        async fn create_artifact(
+            &self,
+            request: tonic::Request<crate::network::proto::artifact::CreateArtifactRequest>,
+        ) -> Result<
+            tonic::Response<crate::network::proto::artifact::CreateArtifactResponse>,
+            tonic::Status,
+        > {
+            Ok(tonic::Response::new(crate::network::proto::artifact::CreateArtifactResponse {
+                artifact_uri: "a".repeat(request.into_inner().signature.len()),
+                artifact_presigned_url: String::new(),
+            }))
+        }
+    }
+
+    #[tokio::test]
+    async fn artifact_client_enforces_decoded_response_limit_and_recovers() {
+        use crate::network::proto::artifact::{
+            artifact_store_server::ArtifactStoreServer, CreateArtifactRequest,
+            CreateArtifactResponse,
+        };
+        use prost::Message;
+        use tonic::{codec::CompressionEncoding, transport::Server, Code};
+
+        const LIMIT: usize = 1024;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let incoming = futures::stream::unfold(listener, |listener| async move {
+            Some((listener.accept().await.map(|(stream, _)| stream), listener))
+        });
+        let service =
+            ArtifactStoreServer::new(ArtifactFixture).send_compressed(CompressionEncoding::Gzip);
+        let server =
+            tokio::spawn(Server::builder().add_service(service).serve_with_incoming(incoming));
+        let key = hex::encode(alloy_signer_local::PrivateKeySigner::random().to_bytes());
+        let signer = NetworkSigner::local(&key).unwrap();
+        let client = NetworkClient::new(signer, format!("http://{address}"), NetworkMode::Reserved);
+
+        for compressed in [false, true] {
+            let mut rpc =
+                client.artifact_store_client().await.unwrap().max_decoding_message_size(LIMIT);
+            if compressed {
+                rpc = rpc.accept_compressed(CompressionEncoding::Gzip);
+            }
+            // A length-delimited string this size has a three-byte protobuf header.
+            for size in [LIMIT - 4, LIMIT - 3, LIMIT - 2, 32 * LIMIT, 16] {
+                let response = CreateArtifactResponse {
+                    artifact_uri: "a".repeat(size),
+                    artifact_presigned_url: String::new(),
+                };
+                let result = rpc
+                    .create_artifact(CreateArtifactRequest {
+                        signature: vec![1; size],
+                        artifact_type: 1,
+                    })
+                    .await;
+                if response.encoded_len() <= LIMIT {
+                    assert_eq!(result.unwrap().into_inner(), response);
+                } else {
+                    let status = result.unwrap_err();
+                    assert_eq!(
+                        status.code(),
+                        if compressed { Code::ResourceExhausted } else { Code::OutOfRange }
+                    );
+                }
+            }
+        }
+        server.abort();
+    }
 }

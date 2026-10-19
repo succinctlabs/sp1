@@ -1154,7 +1154,7 @@ mod test {
         B: Body + Send + 'static,
         B::Error: Into<StdError> + Send + 'static,
     {
-        type Response = http::Response<tonic::body::BoxBody>;
+        type Response = http::Response<tonic::body::Body>;
         type Error = Infallible;
         type Future = BoxFuture<Self::Response, Self::Error>;
 
@@ -1166,7 +1166,7 @@ mod test {
             assert_eq!(request.uri().path(), "/network.ProverNetwork/GetProgram");
             let method = self.clone();
             Box::pin(async move {
-                Ok(Grpc::new(tonic::codec::ProstCodec::default()).unary(method, request).await)
+                Ok(Grpc::new(tonic_prost::ProstCodec::default()).unary(method, request).await)
             })
         }
     }
@@ -1290,7 +1290,7 @@ mod test {
         B: Body + Send + 'static,
         B::Error: Into<StdError> + Send + 'static,
     {
-        type Response = http::Response<tonic::body::BoxBody>;
+        type Response = http::Response<tonic::body::Body>;
         type Error = Infallible;
         type Future = BoxFuture<Self::Response, Self::Error>;
 
@@ -1303,7 +1303,7 @@ mod test {
 
             let method = self.clone();
             Box::pin(async move {
-                Ok(Grpc::new(tonic::codec::ProstCodec::default()).unary(method, request).await)
+                Ok(Grpc::new(tonic_prost::ProstCodec::default()).unary(method, request).await)
             })
         }
     }
