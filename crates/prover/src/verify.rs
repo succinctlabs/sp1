@@ -293,7 +293,9 @@ impl SP1Verifier {
             prev_exit_code = public_values.exit_code;
         }
         if !cfg!(feature = "experimental") && prev_exit_code != SP1Field::zero() {
-            return Err(MachineVerifierError::InvalidPublicValues("non-zero exit code"));
+            return Err(MachineVerifierError::InvalidPublicValues(
+                "Verifying proofs with non-zero exit codes requires the `experimental` feature",
+            ));
         }
 
         // Proof nonce constraints.
@@ -554,7 +556,9 @@ impl SP1Verifier {
         let public_values: &RecursionPublicValues<_> = proof.public_values.as_slice().borrow();
 
         if !cfg!(feature = "experimental") && public_values.exit_code != SP1Field::zero() {
-            return Err(MachineVerifierError::InvalidPublicValues("non-zero exit code"));
+            return Err(MachineVerifierError::InvalidPublicValues(
+                "Verifying proofs with non-zero exit codes requires the `experimental` feature",
+            ));
         }
 
         // The `digest` is the correct hash of the recursion public values.
@@ -621,7 +625,9 @@ impl SP1Verifier {
         let public_values: &RecursionPublicValues<_> = proof.public_values.as_slice().borrow();
 
         if !cfg!(feature = "experimental") && public_values.exit_code != SP1Field::zero() {
-            return Err(MachineVerifierError::InvalidPublicValues("non-zero exit code"));
+            return Err(MachineVerifierError::InvalidPublicValues(
+                "Verifying proofs with non-zero exit codes requires the `experimental` feature",
+            ));
         }
 
         // The `digest` is the correct hash of the recursion public values.
@@ -685,7 +691,9 @@ impl SP1Verifier {
         // Validate public values.
         let public_values: &RootPublicValues<_> = proof.public_values.as_slice().borrow();
         if !cfg!(feature = "experimental") && *public_values.exit_code() != SP1Field::zero() {
-            return Err(MachineVerifierError::InvalidPublicValues("non-zero exit code"));
+            return Err(MachineVerifierError::InvalidPublicValues(
+                "Verifying proofs with non-zero exit codes requires the `experimental` feature",
+            ));
         }
         if !is_root_public_values_valid(public_values) {
             return Err(MachineVerifierError::InvalidPublicValues(
@@ -715,7 +723,9 @@ impl SP1Verifier {
         let committed_values_digest = parse_bn254_public_input(&proof.public_inputs[1])?;
         let exit_code = parse_bn254_public_input(&proof.public_inputs[2])?;
         if !cfg!(feature = "experimental") && exit_code != BigUint::from(0u8) {
-            return Err(anyhow!("non-zero exit code"));
+            return Err(anyhow!(
+                "Verifying proofs with non-zero exit codes requires the `experimental` feature"
+            ));
         }
         let vk_root = parse_bn254_public_input(&proof.public_inputs[3])?;
         let proof_nonce = parse_bn254_public_input(&proof.public_inputs[4])?;
@@ -798,7 +808,9 @@ impl SP1Verifier {
         let committed_values_digest = parse_bn254_public_input(&proof.public_inputs[1])?;
         let exit_code = parse_bn254_public_input(&proof.public_inputs[2])?;
         if !cfg!(feature = "experimental") && exit_code != BigUint::from(0u8) {
-            return Err(anyhow!("non-zero exit code"));
+            return Err(anyhow!(
+                "Verifying proofs with non-zero exit codes requires the `experimental` feature"
+            ));
         }
         let vk_root = parse_bn254_public_input(&proof.public_inputs[3])?;
         let proof_nonce = parse_bn254_public_input(&proof.public_inputs[4])?;

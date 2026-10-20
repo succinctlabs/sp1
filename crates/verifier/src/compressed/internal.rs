@@ -106,7 +106,10 @@ impl SP1CompressedVerifier {
         let public_values: &RecursionPublicValues<_> = proof.public_values.as_slice().borrow();
 
         if !cfg!(feature = "experimental") && public_values.exit_code != SP1Field::zero() {
-            return Err(MachineVerifierError::InvalidPublicValues("non-zero exit code").into());
+            return Err(MachineVerifierError::InvalidPublicValues(
+                "Verifying proofs with non-zero exit codes requires the `experimental` feature",
+            )
+            .into());
         }
 
         // The `digest` is the correct hash of the recursion public values.

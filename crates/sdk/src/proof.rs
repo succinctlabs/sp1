@@ -45,7 +45,9 @@ pub(crate) fn verify_mock_public_inputs(
     }
 
     if !cfg!(feature = "experimental") && public_inputs[2] != "0" {
-        anyhow::bail!("non-zero exit code");
+        anyhow::bail!(
+            "Verifying proofs with non-zero exit codes requires the `experimental` feature"
+        );
     }
 
     Ok(())

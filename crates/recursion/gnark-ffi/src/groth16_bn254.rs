@@ -78,7 +78,9 @@ impl Groth16Bn254Prover {
         build_dir: &Path,
     ) -> Result<()> {
         if !cfg!(feature = "experimental") && exit_code != &BigUint::from(0u8) {
-            return Err(anyhow::anyhow!("non-zero exit code"));
+            return Err(anyhow::anyhow!(
+                "Verifying proofs with non-zero exit codes requires the `experimental` feature"
+            ));
         }
         if proof.groth16_vkey_hash != Self::get_vkey_hash(build_dir) {
             return Err(anyhow::anyhow!(
