@@ -139,30 +139,31 @@ fn verify(
         (output_file.path().to_str().unwrap(), "/output"),
     ];
     assert_docker();
-    call_docker(
-        &[
-            "verify",
-            "--system",
-            system.as_str(),
-            "--data-dir",
-            "/circuit",
-            "--proof-path",
-            "/proof",
-            "--vkey-hash",
-            vkey_hash,
-            "--committed-values-digest",
-            committed_values_digest,
-            "--exit-code",
-            exit_code,
-            "--proof-nonce",
-            proof_nonce,
-            "--vk-root",
-            vk_root,
-            "--output-path",
-            "/output",
-        ],
-        &mounts,
-    )?;
+    let mut args = vec![
+        "verify",
+        "--system",
+        system.as_str(),
+        "--data-dir",
+        "/circuit",
+        "--proof-path",
+        "/proof",
+        "--vkey-hash",
+        vkey_hash,
+        "--committed-values-digest",
+        committed_values_digest,
+        "--exit-code",
+        exit_code,
+        "--proof-nonce",
+        proof_nonce,
+        "--vk-root",
+        vk_root,
+        "--output-path",
+        "/output",
+    ];
+    if cfg!(feature = "experimental") && exit_code != "0" {
+        args.push("--allow-nonzero-exit-code");
+    }
+    call_docker(&args, &mounts)?;
     let result = std::fs::read_to_string(output_file.path())?;
     if result == "OK" {
         Ok(())
@@ -190,8 +191,8 @@ pub fn verify_plonk_bn254(
         vkey_hash,
         committed_values_digest,
         exit_code,
-        proof_nonce,
         vk_root,
+        proof_nonce,
     )
 }
 

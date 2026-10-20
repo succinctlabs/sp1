@@ -58,7 +58,10 @@ struct VerifyArgs {
     #[arg(long)]
     committed_values_digest: String,
     #[arg(long)]
-    exit_code: String,
+    exit_code: u32,
+    /// Allow nonzero exit codes for experimental proof verification.
+    #[arg(long)]
+    allow_nonzero_exit_code: bool,
     #[arg(long)]
     proof_nonce: String,
     #[arg(long)]
@@ -102,7 +105,7 @@ fn prove_groth16_bn254(data_dir: &str, witness_path: &str) -> ProofBn254 {
 }
 
 fn run_verify(args: VerifyArgs) {
-    if args.exit_code.parse::<u32>() != Ok(0) {
+    if args.exit_code != 0 && !args.allow_nonzero_exit_code {
         let mut file = File::create(&args.output_path).unwrap();
         file.write_all(b"non-zero exit code").unwrap();
         return;
@@ -110,13 +113,14 @@ fn run_verify(args: VerifyArgs) {
 
     let file = File::open(&args.proof_path).unwrap();
     let proof = read_to_string(file).unwrap();
+    let exit_code = args.exit_code.to_string();
     let result = match args.system.as_str() {
         "plonk" => verify_plonk_bn254(
             &args.data_dir,
             proof.trim(),
             &args.vkey_hash,
             &args.committed_values_digest,
-            &args.exit_code,
+            &exit_code,
             &args.vk_root,
             &args.proof_nonce,
         ),
@@ -125,7 +129,7 @@ fn run_verify(args: VerifyArgs) {
             proof.trim(),
             &args.vkey_hash,
             &args.committed_values_digest,
-            &args.exit_code,
+            &exit_code,
             &args.vk_root,
             &args.proof_nonce,
         ),
