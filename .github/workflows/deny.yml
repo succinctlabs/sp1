@@ -1,0 +1,73 @@
+name: cargo-deny
+
+on:
+  push:
+    branches: [main, dev]
+  # cargo-deny checks the root workspace only, so nested workspaces don't trigger it.
+  pull_request:
+    paths:
+      - "**/Cargo.toml"
+      - "Cargo.lock"
+      - "deny.toml"
+      - ".github/workflows/deny.yml"
+      - "!examples/**"
+      - "!patch-testing/**"
+      - "!zkevm/examples/**"
+      - "!zkevm/libzkevm-cabi/**"
+      - "!crates/test-artifacts/programs/**"
+      - "!crates/verifier/guest-verify-programs/**"
+  merge_group:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    name: Licenses, bans & sources
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command-arguments: licenses bans sources
+
+  # Stays off merge_group and push, so a newly published advisory can't block unrelated PRs.
+  advisories:
+    name: Advisories
+    if: contains(fromJSON('["pull_request", "schedule", "workflow_dispatch"]'), github.event_name)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command-arguments: advisories
+
+  # Scheduled failures notify only the last editor of the cron line.
+  report-advisories-failure:
+    name: Open an issue
+    needs: advisories
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="cargo-deny advisories check failed"
+          issue=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
+            --search "\"$title\" in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$issue" ]; then
+            gh issue comment "$issue" --repo "$GITHUB_REPOSITORY" --body "Failed again: $RUN_URL"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" \
+              --body "The scheduled advisories check failed: $RUN_URL"
+          fi
