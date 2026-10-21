@@ -63,7 +63,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           title="cargo-deny advisories check failed"
-          issue=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
+          issue=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --author "app/github-actions" \
             --search "\"$title\" in:title" --json number --jq '.[0].number // empty')
           if [ -n "$issue" ]; then
             gh issue comment "$issue" --repo "$GITHUB_REPOSITORY" --body "Failed again: $RUN_URL"
