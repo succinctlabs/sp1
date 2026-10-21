@@ -94,6 +94,10 @@ func h2d(dst dvec, src unsafe.Pointer, size int) {
 	check(C.sp1_memcpy_h2d(dst.p, src, C.uint64_t(size), nil), "memcpy_h2d")
 }
 
+func h2dAsync(dst dvec, src unsafe.Pointer, size int, stream unsafe.Pointer) {
+	check(C.sp1_memcpy_h2d(dst.p, src, C.uint64_t(size), stream), "memcpy_h2d")
+}
+
 func d2h(dst unsafe.Pointer, src dvec, size int) {
 	check(C.sp1_memcpy_d2h(dst, src.p, C.uint64_t(size), nil), "memcpy_d2h")
 }
@@ -147,6 +151,35 @@ func ntt(v dvec, logN int, tab dvec, scale *fr.Element) {
 	check(C.sp1_ntt(v.p, C.uint32_t(logN), tab.p, s, nil), "ntt")
 }
 
+// nttSrc is where nttDIF reads its input from; nil reads the vector itself.
+type nttSrc = C.sp1_ntt_src
+
+func srcGather(values, idx dvec) *nttSrc {
+	return &nttSrc{kind: C.SP1_SRC_GATHER, a: values.p, b: idx.p}
+}
+
+func srcExpand(table, idx dvec) *nttSrc {
+	return &nttSrc{kind: C.SP1_SRC_EXPAND, a: table.p, b: idx.p}
+}
+
+func srcSigma(sigma, tabW dvec, u, u2 fr.Element) *nttSrc {
+	return &nttSrc{kind: C.SP1_SRC_SIGMA, a: tabW.p, b: sigma.p, u: *cfr(&u), u2: *cfr(&u2)}
+}
+
+// nttDIF transforms natural-order input into bit-reversed output.
+func nttDIF(v dvec, logN int, tab dvec, scale *fr.Element, src *nttSrc) {
+	var s *C.sp1_fr
+	if scale != nil {
+		s = cfr(scale)
+	}
+	check(C.sp1_ntt_dif(v.p, C.uint32_t(logN), tab.p, s, src, nil), "ntt_dif")
+}
+
+// nttDIT transforms bit-reversed input into natural-order output, evaluating on a coset when coset is set.
+func nttDIT(v dvec, logN int, tab, coset dvec) {
+	check(C.sp1_ntt_dit(v.p, C.uint32_t(logN), tab.p, coset.p, nil), "ntt_dit")
+}
+
 func scalePow(dst, src dvec, n int, tab dvec) {
 	check(C.sp1_fr_scale_pow(dst.p, src.p, C.uint64_t(n), tab.p, nil), "scale_pow")
 }
@@ -188,8 +221,8 @@ func zCombine(acc, pID, pS, z dvec, n int, tabW dvec, c, alpha, alpha2L1 fr.Elem
 		"z_combine")
 }
 
-func hAccum(h, g dvec, n int, w [4]fr.Element, init bool) {
-	check(C.sp1_fr_h_accum(h.p, g.p, C.uint64_t(n), cfr(&w[0]), cbool(init), nil), "h_accum")
+func hAccum(h, g dvec, n int, cInv dvec, w [4]fr.Element, init bool) {
+	check(C.sp1_fr_h_accum(h.p, g.p, C.uint64_t(n), cInv.p, cfr(&w[0]), cbool(init), nil), "h_accum")
 }
 
 func ratio(z, values, wires, sigma dvec, n int, tabW dvec, beta, gamma, u, u2 fr.Element) {
@@ -199,11 +232,6 @@ func ratio(z, values, wires, sigma dvec, n int, tabW dvec, beta, gamma, u, u2 fr
 
 func scanMul(z dvec, n int) { check(C.sp1_fr_scan_mul(z.p, C.uint64_t(n), nil), "scan_mul") }
 
-func sigmaLagrange(dst, sigma dvec, n int, tabW dvec, u, u2 fr.Element) {
-	check(C.sp1_fr_sigma_lagrange(dst.p, (*C.uint32_t)(sigma.p), C.uint64_t(n), tabW.p, cfr(&u), cfr(&u2), nil),
-		"sigma_lagrange")
-}
-
 func evalPartials(p dvec, n int, z fr.Element, chunk int) []fr.Element {
 	out := make([]fr.Element, (n+chunk-1)/chunk)
 	check(C.sp1_fr_eval_partials(cfr(&out[0]), p.p, C.uint64_t(n), cfr(&z), C.uint64_t(chunk), nil), "eval_partials")
@@ -212,10 +240,6 @@ func evalPartials(p dvec, n int, z fr.Element, chunk int) []fr.Element {
 
 func divXMinusA(out, f dvec, n int, a fr.Element, carries []fr.Element, chunk int) {
 	check(C.sp1_fr_div_xma(out.p, f.p, C.uint64_t(n), cfr(&a), cfr(&carries[0]), C.uint64_t(chunk), nil), "div_xma")
-}
-
-func gather(dst, src, idx dvec, n int) {
-	check(C.sp1_fr_gather(dst.p, src.p, (*C.uint32_t)(idx.p), C.uint64_t(n), nil), "gather")
 }
 
 func scatter(dst, pos dvec, vals []fr.Element) {

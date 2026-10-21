@@ -21,7 +21,6 @@ ELEMENTWISE(k_add, (Fr * acc, const Fr* a, uint64_t n), acc[i] = acc[i] + a[i])
 ELEMENTWISE(k_sub, (Fr * acc, const Fr* a, uint64_t n), acc[i] = acc[i] - a[i])
 ELEMENTWISE(k_axpy, (Fr * acc, const Fr* x, Fr s, uint64_t n), acc[i] = acc[i] + x[i] * s)
 ELEMENTWISE(k_scale, (Fr * x, Fr s, uint64_t n), x[i] = x[i] * s)
-ELEMENTWISE(k_gather, (Fr * dst, const Fr* src, const uint32_t* idx, uint64_t n), dst[i] = src[idx[i]])
 ELEMENTWISE(k_expand, (Fr * dst, const uint16_t* idx, const Fr* table, uint64_t n), dst[i] = table[idx[i]])
 
 __global__ void k_scatter(Fr* dst, const uint32_t* pos, const Fr* vals, uint64_t cnt) {
@@ -82,11 +81,12 @@ __global__ void k_z_combine(Fr* acc, const Fr* p_id, const Fr* p_s, const Fr* z,
   }
 }
 
-// h[t*n + i] (+)= w[t] * g[i] for t < 3, and h[3n + i] (+)= w[3] * g[i] for i < 8.
-__global__ void k_h_accum(Fr* h, const Fr* g, uint64_t n, Fr w0, Fr w1, Fr w2, Fr w3, int init) {
+// h[t*n + i] (+)= w[t] * c^-i * g[bitrev(i)] for t < 3, and for t = 3 when i < 8.
+__global__ void k_h_accum(Fr* h, const Fr* g, uint64_t n, uint32_t log_n, const Fr* ctab_inv, Fr w0, Fr w1, Fr w2, Fr w3,
+                          int init) {
   uint64_t i = blockIdx.x * (uint64_t)blockDim.x + threadIdx.x;
   if (i >= n) return;
-  Fr x = g[i];
+  Fr x = g[__brev((uint32_t)i) >> (32 - log_n)] * pow_tab(ctab_inv, i);
   Fr ws[4] = {w0, w1, w2, w3};
   int tmax = i < 8 ? 4 : 3;
   for (int t = 0; t < tmax; t++) {
@@ -97,12 +97,6 @@ __global__ void k_h_accum(Fr* h, const Fr* g, uint64_t n, Fr w0, Fr w1, Fr w2, F
 }
 
 constexpr int RATIO_CHUNK = 8;
-
-__device__ __forceinline__ Fr id_value(uint32_t p, uint64_t n, const Fr* tab_w, const Fr& u, const Fr& u2) {
-  uint64_t k = p / n;
-  Fr w = pow_tab(tab_w, p - k * n);
-  return k == 0 ? w : w * (k == 1 ? u : u2);
-}
 
 // z[i+1] = prod_j (f_j[i] + beta*k_j*w^i + gamma) / prod_j (f_j[i] + beta*id(sigma_j(i)) + gamma); z[0] = 1,
 // where f_j[i] = values[wires[j*n + i]].
@@ -132,11 +126,6 @@ __global__ void k_ratio(Fr* z, const Fr* values, const uint32_t* wires, const ui
     rinv = rinv * den[e];
     z[base + e + 1] = num[e] * di;
   }
-}
-
-__global__ void k_sigma_lagrange(Fr* dst, const uint32_t* sigma, uint64_t n, const Fr* tab_w, Fr u, Fr u2) {
-  uint64_t i = blockIdx.x * (uint64_t)blockDim.x + threadIdx.x;
-  if (i < n) dst[i] = id_value(sigma[i], n, tab_w, u, u2);
 }
 
 // out[t] = sum_{i in chunk t} p_i z^(i - t*chunk).
@@ -258,9 +247,10 @@ int sp1_fr_z_combine(void* acc, const void* p_id, const void* p_s, const void* z
   return err();
 }
 
-int sp1_fr_h_accum(void* h, const void* g, uint64_t n, const sp1_fr* w, int init, void* s) {
-  k_h_accum<<<blocks(n), THREADS, 0, st(s)>>>(dev<Fr>(h), dev<Fr>(g), n, cst<Fr>(&w[0]), cst<Fr>(&w[1]), cst<Fr>(&w[2]),
-                                               cst<Fr>(&w[3]), init);
+int sp1_fr_h_accum(void* h, const void* g, uint64_t n, const void* ctab_inv, const sp1_fr* w, int init, void* s) {
+  uint32_t log_n = 63 - __builtin_clzll(n);
+  k_h_accum<<<blocks(n), THREADS, 0, st(s)>>>(dev<Fr>(h), dev<Fr>(g), n, log_n, dev<Fr>(ctab_inv), cst<Fr>(&w[0]),
+                                               cst<Fr>(&w[1]), cst<Fr>(&w[2]), cst<Fr>(&w[3]), init);
   return err();
 }
 
@@ -280,12 +270,6 @@ int sp1_fr_scan_mul(void* z, uint64_t n, void* s) {
   if (cudaMallocAsync(&tmp, tmp_bytes, st(s)) != cudaSuccess) return err();
   cub::DeviceScan::InclusiveScan(tmp, tmp_bytes, p, p, MulOp(), (int64_t)n, st(s));
   cudaFreeAsync(tmp, st(s));
-  return err();
-}
-
-int sp1_fr_sigma_lagrange(void* dst, const uint32_t* sigma, uint64_t n, const void* tab_w, const sp1_fr* u, const sp1_fr* u2,
-                          void* s) {
-  k_sigma_lagrange<<<blocks(n), THREADS, 0, st(s)>>>(dev<Fr>(dst), sigma, n, dev<Fr>(tab_w), cst<Fr>(u), cst<Fr>(u2));
   return err();
 }
 
@@ -310,10 +294,6 @@ int sp1_fr_div_xma(void* out, const void* f, uint64_t len, const sp1_fr* a, cons
   return err();
 }
 
-int sp1_fr_gather(void* dst, const void* src, const uint32_t* idx, uint64_t n, void* s) {
-  k_gather<<<blocks(n), THREADS, 0, st(s)>>>(dev<Fr>(dst), dev<Fr>(src), idx, n);
-  return err();
-}
 
 int sp1_fr_scatter(void* dst, const uint32_t* pos, const sp1_fr* vals, uint64_t cnt, void* s) {
   Fr* d = upload_tmp<Fr>(vals, cnt, st(s));

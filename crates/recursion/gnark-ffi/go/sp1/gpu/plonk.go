@@ -64,6 +64,7 @@ type PlonkProver struct {
 	copyStream         unsafe.Pointer
 	computeDone        unsafe.Pointer
 	copyDone           unsafe.Pointer
+	srsDone            unsafe.Pointer
 }
 
 // NewPlonkProver prepares a circuit for proving, keeping what it needs from the proving key.
@@ -138,7 +139,7 @@ func NewPlonkProver(spr *cs.SparseR1CS, pk *plonk_bn254.ProvingKey) (*PlonkProve
 	pin(p.srs)
 	pin(p.sigma)
 	pin(p.lroWires)
-	p.copyStream, p.computeDone, p.copyDone = newStream(), newEvent(), newEvent()
+	p.copyStream, p.computeDone, p.copyDone, p.srsDone = newStream(), newEvent(), newEvent(), newEvent()
 	return p, nil
 }
 
@@ -193,7 +194,7 @@ type device struct {
 	tabW, tabWInv dvec
 	tabC, tabCInv [4]dvec
 	srs           dvec
-	sel           [5]dvec
+	sel, selTab   [5]dvec
 	sigma         dvec
 	qcpPos, piPos dvec
 	// values and wires hold the solution, from which l, r and o are gathered when needed.
@@ -206,14 +207,21 @@ func (p *PlonkProver) newDevice() *device {
 		d.tabC[k], d.tabCInv[k] = upload(p.tabC[k]), upload(p.tabCInv[k])
 	}
 	for i, s := range []selector{p.ql, p.qr, p.qm, p.qo, p.qk} {
-		d.sel[i] = upload(s.idx)
+		d.sel[i], d.selTab[i] = upload(s.idx), upload(s.table)
 	}
 	d.sigma = upload(p.sigma)
 	d.qcpPos, d.piPos = upload(p.qcpPos), upload(p.piPos)
 	return d
 }
 
-func (p *PlonkProver) uploadSrs(d *device) { d.srs = upload(p.srs) }
+// uploadSrs starts copying the SRS to the device; waitSrs makes the work queued after it wait for the copy.
+func (p *PlonkProver) uploadSrs(d *device) {
+	size := len(p.srs) * int(unsafe.Sizeof(p.srs[0]))
+	d.srs = allocBytes(size, len(p.srs))
+	h2dAsync(d.srs, unsafe.Pointer(&p.srs[0]), size, p.copyStream)
+}
+
+func (p *PlonkProver) waitSrs() { after(nil, p.copyStream, p.srsDone) }
 
 func (p *PlonkProver) dropSrs(d *device) {
 	d.srs.free()
@@ -231,34 +239,41 @@ func (p *PlonkProver) cosetEval(d *device, dst, src dvec, k int) {
 	ntt(dst, p.logN, d.tabW, nil)
 }
 
-// selectorCanonical writes the coefficients of selector i into dst; overrides replace Lagrange values.
-func (p *PlonkProver) selectorCanonical(d *device, dst dvec, i int, overrides []fr.Element) {
-	s := []selector{p.ql, p.qr, p.qm, p.qo, p.qk}[i]
-	expand(dst, d.sel[i], s.table, p.n)
-	if overrides != nil {
-		pos := upload(p.qkPos)
-		scatter(dst, pos, overrides)
-		pos.free()
-	}
-	p.canonical(d, dst)
+// The *Canonical functions write coefficients into dst in bit-reversed order.
+
+// lagrangeCanonical reads a Lagrange-form vector from src, or dst when src is nil.
+func (p *PlonkProver) lagrangeCanonical(d *device, dst dvec, src *nttSrc) {
+	nttDIF(dst, p.logN, d.tabWInv, &p.domain0.CardinalityInv, src)
 }
 
-// lroCanonical writes the coefficients of l, r or o into dst.
+// selectorCanonical handles selector i; overrides replace its Lagrange values at qkPos.
+func (p *PlonkProver) selectorCanonical(d *device, dst dvec, i int, overrides []fr.Element) {
+	if overrides == nil {
+		p.lagrangeCanonical(d, dst, srcExpand(d.selTab[i], d.sel[i]))
+		return
+	}
+	s := []selector{p.ql, p.qr, p.qm, p.qo, p.qk}[i]
+	expand(dst, d.sel[i], s.table, p.n)
+	pos := upload(p.qkPos)
+	scatter(dst, pos, overrides)
+	pos.free()
+	p.lagrangeCanonical(d, dst, nil)
+}
+
+// lroCanonical handles l, r or o.
 func (p *PlonkProver) lroCanonical(d *device, dst dvec, j int) {
-	gather(dst, d.values, d.wires.at(j*p.n, 4), p.n)
-	p.canonical(d, dst)
+	p.lagrangeCanonical(d, dst, srcGather(d.values, d.wires.at(j*p.n, 4)))
 }
 
 func (p *PlonkProver) sCanonical(d *device, dst dvec, j int) {
-	sigmaLagrange(dst, d.sigma.at(j*p.n, 4), p.n, d.tabW, p.u, p.u2)
-	p.canonical(d, dst)
+	p.lagrangeCanonical(d, dst, srcSigma(d.sigma.at(j*p.n, 4), d.tabW, p.u, p.u2))
 }
 
-// sparseCanonical writes the coefficients of the Lagrange vector with vals at pos into dst.
+// sparseCanonical handles the Lagrange vector with vals at pos.
 func (p *PlonkProver) sparseCanonical(d *device, dst, pos dvec, vals []fr.Element) {
 	memset0(dst, p.n*fr.Bytes)
 	scatter(dst, pos, vals)
-	p.canonical(d, dst)
+	p.lagrangeCanonical(d, dst, nil)
 }
 
 func (p *PlonkProver) qcpCanonical(d *device, dst dvec) {
@@ -315,16 +330,18 @@ func (p *PlonkProver) prove(d *device, wWitness fr.Vector) (*plonk_bn254.Proof, 
 		commitmentVal.BigInt(outs[0])
 		return nil
 	})
+	p.uploadSrs(d)
 	if err := p.solver.solve(wWitness, hint); err != nil {
 		return nil, err
 	}
 
 	// The commitments to l, r and o.
 	d.values, d.wires = upload(p.solver.values), upload(p.lroWires)
-	p.uploadSrs(d)
+	p.waitSrs()
 	tmp := alloc(n)
 	for i, b := range [][]fr.Element{bp.l, bp.r, bp.o} {
 		p.lroCanonical(d, tmp, i)
+		bitrev(tmp, p.logN)
 		proof.LRO[i] = p.commitBlinded(d, tmp, b)
 	}
 	tmp.free()
@@ -364,6 +381,7 @@ func (p *PlonkProver) prove(d *device, wWitness fr.Vector) (*plonk_bn254.Proof, 
 	qk[len(public)] = commitmentVal
 	h := p.quotient(d, z, piVals, qk, bp, alpha, beta, gamma)
 	p.uploadSrs(d)
+	p.waitSrs()
 
 	np2 := n + 2
 	for i := 0; i < 3; i++ {
@@ -399,14 +417,18 @@ func (p *PlonkProver) prove(d *device, wWitness fr.Vector) (*plonk_bn254.Proof, 
 	var lro [3]fr.Element
 	for i, b := range [][]fr.Element{bp.l, bp.r, bp.o} {
 		p.lroCanonical(d, tmp, i)
+		bitrev(tmp, p.logN)
 		lro[i] = evalBlinded(tmp, b)
 	}
 	lZeta, rZeta, oZeta := lro[0], lro[1], lro[2]
 	p.sCanonical(d, tmp, 0)
+	bitrev(tmp, p.logN)
 	s1Zeta := p.eval(tmp, n, zeta)
 	p.sCanonical(d, tmp, 1)
+	bitrev(tmp, p.logN)
 	s2Zeta := p.eval(tmp, n, zeta)
 	p.qcpCanonical(d, tmp)
+	bitrev(tmp, p.logN)
 	qcpZeta := p.eval(tmp, n, zeta)
 
 	// The linearized polynomial, written over the blinded Z one term at a time.
@@ -415,15 +437,6 @@ func (p *PlonkProver) prove(d *device, wWitness fr.Vector) (*plonk_bn254.Proof, 
 	var zScale fr.Element
 	zScale.Add(&c.s2, &c.a2l1)
 	vscale(z, zScale, n+3)
-	p.sCanonical(d, tmp, 2)
-	axpy(z, tmp, c.s1, n)
-	// ql, qr, qm, qo and the circuit's qk, without the public inputs.
-	for i, coeff := range []fr.Element{lZeta, rZeta, c.rl, oZeta, one} {
-		p.selectorCanonical(d, tmp, i, nil)
-		axpy(z, tmp, coeff, n)
-	}
-	p.sparseCanonical(d, tmp, d.piPos, piVals)
-	axpy(z, tmp, qcpZeta, n)
 	// - Z_H(zeta) * (h1 + zeta^(n+2) h2 + zeta^(2(n+2)) h3)
 	var hc fr.Element
 	hc.Neg(&zhZeta)
@@ -432,8 +445,22 @@ func (p *PlonkProver) prove(d *device, wWitness fr.Vector) (*plonk_bn254.Proof, 
 		hc.Mul(&hc, &c.zn2)
 	}
 	h.free()
-	tmp.free()
 	p.uploadSrs(d)
+	acc := alloc(n)
+	p.sCanonical(d, acc, 2)
+	vscale(acc, c.s1, n)
+	// ql, qr, qm, qo and the circuit's qk, without the public inputs.
+	for i, coeff := range []fr.Element{lZeta, rZeta, c.rl, oZeta, one} {
+		p.selectorCanonical(d, tmp, i, nil)
+		axpy(acc, tmp, coeff, n)
+	}
+	p.sparseCanonical(d, tmp, d.piPos, piVals)
+	axpy(acc, tmp, qcpZeta, n)
+	bitrev(acc, p.logN)
+	vadd(z, acc, n)
+	acc.free()
+	tmp.free()
+	p.waitSrs()
 	proof.ZShiftedOpening.H = msm(qz, d.srs, n+2)
 	qz.free()
 	linDigest := msm(z, d.srs, n+3)
@@ -448,22 +475,26 @@ func (p *PlonkProver) prove(d *device, wWitness fr.Vector) (*plonk_bn254.Proof, 
 	}
 	var g fr.Element
 	g.Set(&foldGamma)
-	tmp = alloc(n)
+	tmp, acc = alloc(n), alloc(n)
+	memset0(acc, n*fr.Bytes)
 	for i, b := range [][]fr.Element{bp.l, bp.r, bp.o} {
 		p.lroCanonical(d, tmp, i)
-		axpy(z, tmp, g, n)
+		axpy(acc, tmp, g, n)
 		p.addBlindingTerms(z, n, g, b)
 		g.Mul(&g, &foldGamma)
 	}
 	p.sCanonical(d, tmp, 0)
-	axpy(z, tmp, g, n)
+	axpy(acc, tmp, g, n)
 	g.Mul(&g, &foldGamma)
 	p.sCanonical(d, tmp, 1)
-	axpy(z, tmp, g, n)
+	axpy(acc, tmp, g, n)
 	g.Mul(&g, &foldGamma)
 	p.qcpCanonical(d, tmp)
-	axpy(z, tmp, g, n)
+	axpy(acc, tmp, g, n)
+	bitrev(acc, p.logN)
+	vadd(z, acc, n)
 	tmp.free()
+	acc.free()
 	proof.BatchedProof.ClaimedValues = claimed
 	_, q := p.divide(z, n+3, zeta)
 	proof.BatchedProof.H = msm(q, d.srs, n+2)
@@ -514,18 +545,19 @@ func (p *PlonkProver) quotient(d *device, z dvec, piVals, qk []fr.Element, bp bl
 			}
 			blindCoset(dst, n, d.tabW, c, r)
 		}
+		evalBitrev := func(v dvec) { nttDIT(v, p.logN, d.tabW, d.tabC[k]) }
 		lro := func(dst dvec, j int, b []fr.Element) {
 			p.lroCanonical(d, dst, j)
-			eval(dst, dst)
+			evalBitrev(dst)
 			blind(dst, b)
 		}
 		sel := func(dst dvec, i int, overrides []fr.Element) {
 			p.selectorCanonical(d, dst, i, overrides)
-			eval(dst, dst)
+			evalBitrev(dst)
 		}
 		sigma := func(dst dvec, j int) {
 			p.sCanonical(d, dst, j)
-			eval(dst, dst)
+			evalBitrev(dst)
 		}
 
 		// Gate constraint, with x, y, t holding l, r, o.
@@ -570,13 +602,13 @@ func (p *PlonkProver) quotient(d *device, z dvec, piVals, qk []fr.Element, bp bl
 
 		// The bsb22 commitment's gate term.
 		p.sparseCanonical(d, x, d.piPos, piVals)
-		eval(x, x)
+		evalBitrev(x)
 		p.qcpCanonical(d, y)
-		eval(y, y)
+		evalBitrev(y)
 		vfma(a, x, y, n)
 
-		p.canonical(d, a)
-		scalePow(a, a, n, d.tabCInv[k])
+		// The bit-reversed coefficients of g(c_k X), which hAccum turns into those of g.
+		p.lagrangeCanonical(d, a, nil)
 
 		// h_{i+tn} u^{tn} = 1/4 sum_k w4^{-kt} g'_k[i] / Z_H(c_k)
 		var zhInv, uPow fr.Element
@@ -600,10 +632,10 @@ func (p *PlonkProver) quotient(d *device, z dvec, piVals, qk []fr.Element, bp bl
 
 	syncStream(p.copyStream)
 	h := alloc(3*n + 8)
-	hAccum(h, a, n, weights[3], true)
+	hAccum(h, a, n, d.tabCInv[3], weights[3], true)
 	for k := 0; k < 3; k++ {
 		h2d(a, unsafe.Pointer(&p.hostG[k][0]), n*fr.Bytes)
-		hAccum(h, a, n, weights[k], false)
+		hAccum(h, a, n, d.tabCInv[k], weights[k], false)
 	}
 	a.free()
 	return h

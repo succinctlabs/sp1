@@ -18,6 +18,25 @@ typedef struct {
 // In-place NTT of size 2^log_n in natural order; tab is the power table of the root of unity used.
 // Every output is multiplied by scale when it is not null, which gives the inverse NTT for 1/n.
 int sp1_ntt(void* data, uint32_t log_n, const void* tab, const sp1_fr* scale, void* stream);
+
+enum { SP1_SRC_DATA, SP1_SRC_GATHER, SP1_SRC_EXPAND, SP1_SRC_SIGMA };
+
+// Where a DIF NTT reads its input element i from: data[i] (DATA), a[b[i]] with uint32 b (GATHER) or uint16
+// b (EXPAND), or the permutation value of b[i] with a the power table of the root of unity and u, u2 the
+// coset shifts (SIGMA).
+typedef struct {
+  int kind;
+  const void* a;
+  const void* b;
+  sp1_fr u, u2;
+} sp1_ntt_src;
+
+// In-place DIF NTT: natural-order input, read from src when not null, to bit-reversed output. Every input
+// is multiplied by scale when it is not null.
+int sp1_ntt_dif(void* data, uint32_t log_n, const void* tab, const sp1_fr* scale, const sp1_ntt_src* src, void* stream);
+// In-place DIT NTT: bit-reversed input to natural-order output. When coset_tab is not null, the input of
+// index i (at position bitrev(i)) is first multiplied by c^i, c being its base.
+int sp1_ntt_dit(void* data, uint32_t log_n, const void* tab, const void* coset_tab, void* stream);
 // In-place bit-reversal permutation of 2^log_n elements.
 int sp1_bitrev(void* data, uint32_t log_n, void* stream);
 
@@ -43,18 +62,16 @@ int sp1_fr_perm_s(void* acc, const void* v, const void* s, uint64_t n, const sp1
                   void* stream);
 int sp1_fr_z_combine(void* acc, const void* p_id, const void* p_s, const void* z, uint64_t n, const void* tab_w,
                      const sp1_fr* c, const sp1_fr* alpha, const sp1_fr* alpha2_l1, void* stream);
-int sp1_fr_h_accum(void* h, const void* g, uint64_t n, const sp1_fr* w, int init, void* stream);
+// Adds w[t] * c^-i * g[bitrev(i)] to h[t*n + i] for t < 3, and for t = 3 when i < 8; init overwrites h instead.
+// ctab_inv is the power table of 1/c.
+int sp1_fr_h_accum(void* h, const void* g, uint64_t n, const void* ctab_inv, const sp1_fr* w, int init, void* stream);
 // The copy constraint accumulator of the wires values[wires[j*n + i]], in Montgomery form, before its scan.
 int sp1_fr_ratio(void* z, const void* values, const uint32_t* wires, const uint32_t* sigma, uint64_t n, const void* tab_w,
                  const sp1_fr* beta, const sp1_fr* gamma, const sp1_fr* u, const sp1_fr* u2, void* stream);
 int sp1_fr_scan_mul(void* z, uint64_t n, void* stream);
-int sp1_fr_sigma_lagrange(void* dst, const uint32_t* sigma, uint64_t n, const void* tab_w, const sp1_fr* u, const sp1_fr* u2,
-                          void* stream);
 int sp1_fr_eval_partials(sp1_fr* out, const void* p, uint64_t len, const sp1_fr* z, uint64_t chunk, void* stream);
 int sp1_fr_div_xma(void* out, const void* f, uint64_t len, const sp1_fr* a, const sp1_fr* carries, uint64_t chunk,
                    void* stream);
-// dst[i] = src[idx[i]].
-int sp1_fr_gather(void* dst, const void* src, const uint32_t* idx, uint64_t n, void* stream);
 // dst[pos[i]] = vals[i], with vals in host memory.
 int sp1_fr_scatter(void* dst, const uint32_t* pos, const sp1_fr* vals, uint64_t cnt, void* stream);
 // dst[i] = table[idx[i]], with table in host memory.
