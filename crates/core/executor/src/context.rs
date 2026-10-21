@@ -337,6 +337,17 @@ mod tests {
     use crate::{SP1Context, StatusCode};
 
     #[test]
+    #[ignore = "run explicitly in CI with default features; all-feature builds enable experimental"]
+    fn default_exit_code_policy_rejects_nonzero() {
+        assert!(StatusCode::ANY.is_accepted_code(0));
+        assert!(
+            !StatusCode::ANY.is_accepted_code(1),
+            "default build must reject nonzero exit codes"
+        );
+        assert!(!StatusCode::ANY.is_accepted_code(3));
+    }
+
+    #[test]
     fn status_code_acceptance_respects_experimental() {
         assert!(StatusCode::SUCCESS.is_accepted_code(0));
         assert!(StatusCode::ANY.is_accepted_code(0));
