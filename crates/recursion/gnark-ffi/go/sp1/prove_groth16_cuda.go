@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"os"
+	"runtime/debug"
 	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -46,6 +47,7 @@ func loadGroth16CudaProver(dataDir string) *gpu.Groth16Prover {
 	}
 	p := gpu.NewGroth16Prover(r1cs.(*cs.R1CS), pk.(*groth16_bn254.ProvingKey))
 	groth16CudaProvers[dataDir] = p
+	debug.FreeOSMemory()
 	return p
 }
 
@@ -58,6 +60,8 @@ func ProveGroth16(dataDir string, witnessPath string) Proof {
 
 	groth16CudaMu.Lock()
 	defer groth16CudaMu.Unlock()
+	// A proof leaves gigabytes of garbage, which Go would otherwise keep until its heap doubles.
+	defer func() { go debug.FreeOSMemory() }()
 	gpu.TrimPool()
 	p := loadGroth16CudaProver(dataDir)
 

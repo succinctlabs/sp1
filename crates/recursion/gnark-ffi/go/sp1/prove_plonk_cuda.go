@@ -116,6 +116,8 @@ func ProvePlonk(dataDir string, witnessPath string) Proof {
 
 	plonkCudaMu.Lock()
 	defer plonkCudaMu.Unlock()
+	// A proof leaves gigabytes of garbage, which Go would otherwise keep until its heap doubles.
+	defer func() { go debug.FreeOSMemory() }()
 	gpu.TrimPool()
 	p := loadPlonkCudaProver(dataDir)
 
