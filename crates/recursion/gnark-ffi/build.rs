@@ -31,11 +31,40 @@ fn main() {
 
             println!("Building Go library at {}", dest.display());
 
-            if cfg!(feature = "groth16-cuda") {
+            if cfg!(feature = "plonk-cuda") {
+                println!("cargo:rerun-if-changed=cuda");
+                let cuda_home = cuda_home();
+                let obj = dest_path.join("plonk.o");
+                let status = Command::new(cuda_home.join("bin/nvcc"))
+                    .args(["-O3", "-std=c++17", "-arch=all-major", "-Xcompiler", "-fPIC", "-c", "cuda/plonk.cu", "-o"])
+                    .arg(&obj)
+                    .status()
+                    .expect("Failed to run nvcc");
+                if !status.success() {
+                    panic!("nvcc failed");
+                }
+                let status = Command::new("ar")
+                    .arg("rcs")
+                    .arg(dest_path.join("libsp1plonk.a"))
+                    .arg(&obj)
+                    .status()
+                    .expect("Failed to run ar");
+                if !status.success() {
+                    panic!("ar failed");
+                }
+                println!("cargo:rustc-link-lib=static=sp1plonk");
+                println!("cargo:rustc-link-search=native={}", cuda_home.join("lib64").display());
+                println!("cargo:rustc-link-lib=dylib=cudart");
+                println!("cargo:rustc-link-lib=dylib=stdc++");
+            }
+
+            if cfg!(feature = "groth16-cuda") || cfg!(feature = "plonk-cuda") {
                 println!("cargo:rustc-link-search=native=/usr/local/lib");
                 println!("cargo:rustc-link-lib=dylib=icicle_device");
                 println!("cargo:rustc-link-lib=dylib=icicle_field_bn254");
                 println!("cargo:rustc-link-lib=dylib=icicle_curve_bn254");
+            }
+            if cfg!(feature = "groth16-cuda") {
                 println!("cargo:rustc-link-lib=dylib=icicle_field_bls12_377");
                 println!("cargo:rustc-link-lib=dylib=icicle_curve_bls12_377");
                 println!("cargo:rustc-link-lib=dylib=icicle_field_bls12_381");
@@ -48,19 +77,31 @@ fn main() {
                 // https://github.com/rust-lang/cargo/pull/9557#issuecomment-884302305
             }
 
-            let tags = if cfg!(feature = "groth16-cuda") {
-                "-tags=debug,icicle"
-            } else {
-                "-tags=debug"
-            };
+            let mut tags = vec!["debug"];
+            if cfg!(feature = "groth16-cuda") {
+                tags.push("icicle");
+            }
+            if cfg!(feature = "plonk-cuda") {
+                tags.push("plonkcuda");
+            }
+            let tags = format!("-tags={}", tags.join(","));
 
+            let mut go_envs = go_envs;
+            if cfg!(feature = "plonk-cuda") {
+                let flags = go_envs.entry("CGO_LDFLAGS".to_string()).or_default();
+                *flags = format!(
+                    "{flags} -L{} -L{} -L/usr/local/lib",
+                    dest_path.display(),
+                    cuda_home().join("lib64").display()
+                );
+            }
             let status = Command::new("go")
                 .current_dir("go")
                 .env("CGO_ENABLED", "1")
                 .envs(go_envs)
                 .args([
                     "build",
-                    tags,
+                    &tags,
                     "-o",
                     dest.to_str().unwrap(),
                     "-buildmode=c-archive",
@@ -105,4 +146,15 @@ fn main() {
             }
         }
     }
+}
+
+/// The CUDA toolkit root: `CUDA_HOME`, `CUDA_PATH`, or the parent of the `bin` holding `nvcc`.
+fn cuda_home() -> PathBuf {
+    if let Ok(home) = env::var("CUDA_HOME").or_else(|_| env::var("CUDA_PATH")) {
+        return PathBuf::from(home);
+    }
+    env::var_os("PATH")
+        .and_then(|paths| env::split_paths(&paths).find(|p| p.join("nvcc").exists()))
+        .and_then(|bin| bin.parent().map(PathBuf::from))
+        .unwrap_or_else(|| PathBuf::from("/usr/local/cuda"))
 }

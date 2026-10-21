@@ -1,3 +1,5 @@
+//go:build !plonkcuda
+
 package sp1
 
 import (
