@@ -1,16 +1,9 @@
-## Groth16 CUDA acceleration using Icicle
+## Groth16 and PLONK CUDA acceleration
 
-To use GPU/CUDA acceleration using [Icicle](https://github.com/ingonyama-zk/icicle-gnark), you need to enable the `groth16-cuda` feature, as well as perform the following setup ahead of time
+The `groth16-cuda` and `plonk-cuda` features prove the final Groth16 and PLONK wrapping on an NVIDIA GPU.
 
-Installing Icicle shared libraries:
+Building requires the CUDA toolkit: `nvcc` must be on the `PATH`, or `CUDA_HOME` must point to the toolkit.
+At runtime, `libcudart` must be on the library path, for example:
 ```sh
-git clone https://github.com/ingonyama-zk/icicle-gnark
-cd icicle-gnark/wrappers/golang
-sudo ./build.sh -curve=all
-```
-
-These runtime environment variables are required:
-```sh
-export ICICLE_BACKEND_INSTALL_DIR="/usr/local/lib/backend/"
-export LD_LIBRARY_PATH="/usr/local/lib"
+export LD_LIBRARY_PATH="$CUDA_HOME/lib64"
 ```

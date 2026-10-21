@@ -1,6 +1,6 @@
-//go:build plonkcuda
+//go:build plonkcuda || groth16cuda
 
-package gpuplonk
+package gpu
 
 import (
 	"errors"
@@ -9,7 +9,6 @@ import (
 	"runtime"
 	"sync"
 	"sync/atomic"
-	"unsafe"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/field/pool"
@@ -20,7 +19,7 @@ import (
 
 // levelSolver mirrors gnark's bn254 solver for SparseR1CS. It differs in how it schedules levels: workers
 // spin on a shared epoch instead of exchanging tasks over channels, and solved wires are counted per
-// worker. The wire values live in pinned memory so that they can be copied to the GPU directly.
+// worker. The wire values live in page-locked memory so that they can be copied to the GPU directly.
 type levelSolver struct {
 	*cs.SparseR1CS
 	values []fr.Element
@@ -54,7 +53,8 @@ const (
 
 func newSolver(spr *cs.SparseR1CS) *levelSolver {
 	nbWires := len(spr.Public) + len(spr.Secret) + spr.NbInternalVariables
-	values := unsafe.Slice((*fr.Element)(mallocHost(nbWires*fr.Bytes)), nbWires)
+	values := make([]fr.Element, nbWires)
+	pin(values)
 	return &levelSolver{
 		SparseR1CS: spr,
 		values:     values,
@@ -326,22 +326,19 @@ func (b blueprintSolver) Read(calldata []uint32) (constraint.U64, int) {
 	return b.GetValue(calldata[1], calldata[2]), 3
 }
 
-// lroWires returns, for each row of the n-row trace, the wire ids of L, R and O, as in gnark's
-// evaluateLROSmallDomain.
-func lroWires(spr *cs.SparseR1CS, n int) [3][]uint32 {
-	var w [3][]uint32
-	for k := range w {
-		w[k] = make([]uint32, n)
-	}
+// lroWires returns the wire ids of L, R and O for each row of the n-row trace, as in gnark's
+// evaluateLROSmallDomain: L for all rows, then R, then O.
+func lroWires(spr *cs.SparseR1CS, n int) []uint32 {
+	w := make([]uint32, 3*n)
 	for i := range spr.Public {
-		w[0][i] = uint32(i)
+		w[i] = uint32(i)
 	}
 	j := len(spr.Public)
 	var c constraint.SparseR1C
 	for _, inst := range spr.Instructions {
 		if bc, ok := spr.Blueprints[inst.BlueprintID].(constraint.BlueprintSparseR1C); ok {
 			bc.DecompressSparseR1C(&c, inst.Unpack(&spr.System))
-			w[0][j], w[1][j], w[2][j] = c.XA, c.XB, c.XC
+			w[j], w[n+j], w[2*n+j] = c.XA, c.XB, c.XC
 			j++
 		}
 	}

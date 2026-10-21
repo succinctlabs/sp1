@@ -1,4 +1,4 @@
-//go:build !icicle
+//go:build !groth16cuda
 
 package sp1
 

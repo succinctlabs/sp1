@@ -31,70 +31,59 @@ fn main() {
 
             println!("Building Go library at {}", dest.display());
 
-            if cfg!(feature = "plonk-cuda") {
+            let cuda = cfg!(feature = "groth16-cuda") || cfg!(feature = "plonk-cuda");
+            let mut go_envs = go_envs;
+            if cuda {
                 println!("cargo:rerun-if-changed=cuda");
                 let cuda_home = cuda_home();
-                let obj = dest_path.join("plonk.o");
-                let status = Command::new(cuda_home.join("bin/nvcc"))
-                    .args(["-O3", "-std=c++17", "-arch=all-major", "-Xcompiler", "-fPIC", "-c", "cuda/plonk.cu", "-o"])
-                    .arg(&obj)
-                    .status()
-                    .expect("Failed to run nvcc");
-                if !status.success() {
-                    panic!("nvcc failed");
+                let objs: Vec<PathBuf> =
+                    ["plonk", "ntt", "msm"].iter().map(|src| dest_path.join(format!("{src}.o"))).collect();
+                let nvcc: Vec<_> = ["plonk", "ntt", "msm"]
+                    .iter()
+                    .zip(&objs)
+                    .map(|(src, obj)| {
+                        Command::new(cuda_home.join("bin/nvcc"))
+                            .args(["-O3", "-std=c++17", "--expt-relaxed-constexpr", "-arch=all-major"])
+                            .args(["-Xcompiler", "-fPIC", "-c"])
+                            .arg(format!("cuda/{src}.cu"))
+                            .arg("-o")
+                            .arg(obj)
+                            .spawn()
+                            .expect("Failed to run nvcc")
+                    })
+                    .collect();
+                for mut child in nvcc {
+                    if !child.wait().expect("Failed to wait for nvcc").success() {
+                        panic!("nvcc failed");
+                    }
                 }
                 let status = Command::new("ar")
                     .arg("rcs")
-                    .arg(dest_path.join("libsp1plonk.a"))
-                    .arg(&obj)
+                    .arg(dest_path.join("libsp1gpu.a"))
+                    .args(&objs)
                     .status()
                     .expect("Failed to run ar");
                 if !status.success() {
                     panic!("ar failed");
                 }
-                println!("cargo:rustc-link-lib=static=sp1plonk");
-                println!("cargo:rustc-link-search=native={}", cuda_home.join("lib64").display());
+                let lib64 = cuda_home.join("lib64");
+                println!("cargo:rustc-link-lib=static=sp1gpu");
+                println!("cargo:rustc-link-search=native={}", lib64.display());
                 println!("cargo:rustc-link-lib=dylib=cudart");
                 println!("cargo:rustc-link-lib=dylib=stdc++");
-            }
-
-            if cfg!(feature = "groth16-cuda") || cfg!(feature = "plonk-cuda") {
-                println!("cargo:rustc-link-search=native=/usr/local/lib");
-                println!("cargo:rustc-link-lib=dylib=icicle_device");
-                println!("cargo:rustc-link-lib=dylib=icicle_field_bn254");
-                println!("cargo:rustc-link-lib=dylib=icicle_curve_bn254");
-            }
-            if cfg!(feature = "groth16-cuda") {
-                println!("cargo:rustc-link-lib=dylib=icicle_field_bls12_377");
-                println!("cargo:rustc-link-lib=dylib=icicle_curve_bls12_377");
-                println!("cargo:rustc-link-lib=dylib=icicle_field_bls12_381");
-                println!("cargo:rustc-link-lib=dylib=icicle_curve_bls12_381");
-                println!("cargo:rustc-link-lib=dylib=icicle_field_bw6_761");
-                println!("cargo:rustc-link-lib=dylib=icicle_curve_bw6_761");
-                // Ideally we would also set the RPATH/RUNPATH using the following
-                // println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/local/lib");
-                // Unfortunately, this doesn't work. See:
-                // https://github.com/rust-lang/cargo/pull/9557#issuecomment-884302305
+                let flags = go_envs.entry("CGO_LDFLAGS".to_string()).or_default();
+                *flags = format!("{flags} -L{} -L{}", dest_path.display(), lib64.display());
             }
 
             let mut tags = vec!["debug"];
             if cfg!(feature = "groth16-cuda") {
-                tags.push("icicle");
+                tags.push("groth16cuda");
             }
             if cfg!(feature = "plonk-cuda") {
                 tags.push("plonkcuda");
             }
             let tags = format!("-tags={}", tags.join(","));
 
-            let mut go_envs = go_envs;
-            if cfg!(feature = "plonk-cuda") {
-                let flags = go_envs.entry("CGO_LDFLAGS".to_string()).or_default();
-                *flags = format!(
-                    "{flags} -L{} -L{} -L/usr/local/lib",
-                    dest_path.display(),
-                    cuda_home().join("lib64").display()
-                );
-            }
             let status = Command::new("go")
                 .current_dir("go")
                 .env("CGO_ENABLED", "1")

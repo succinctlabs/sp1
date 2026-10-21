@@ -15,11 +15,11 @@ import (
 	"github.com/consensys/gnark/backend/plonk"
 	plonk_bn254 "github.com/consensys/gnark/backend/plonk/bn254"
 	cs "github.com/consensys/gnark/constraint/bn254"
-	"github.com/succinctlabs/sp1-recursion-gnark/sp1/gpuplonk"
+	"github.com/succinctlabs/sp1-recursion-gnark/sp1/gpu"
 )
 
 type plonkCudaProver struct {
-	prover *gpuplonk.Prover
+	prover *gpu.PlonkProver
 	vk     *plonk_bn254.VerifyingKey
 }
 
@@ -63,7 +63,7 @@ func loadPlonkCudaProver(dataDir string) *plonkCudaProver {
 		panic(err)
 	}
 
-	prover, err := gpuplonk.NewProver(scs.(*cs.SparseR1CS), pk.(*plonk_bn254.ProvingKey))
+	prover, err := gpu.NewPlonkProver(scs.(*cs.SparseR1CS), pk.(*plonk_bn254.ProvingKey))
 	if err != nil {
 		panic(err)
 	}
@@ -116,6 +116,7 @@ func ProvePlonk(dataDir string, witnessPath string) Proof {
 
 	plonkCudaMu.Lock()
 	defer plonkCudaMu.Unlock()
+	gpu.TrimPool()
 	p := loadPlonkCudaProver(dataDir)
 
 	data, err := os.ReadFile(witnessPath)
