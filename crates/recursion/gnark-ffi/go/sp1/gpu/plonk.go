@@ -61,10 +61,11 @@ type PlonkProver struct {
 	tabC, tabCInv      [4][]fr.Element
 	solver             *levelSolver
 	hostG              [3][]fr.Element
+	hostZ              []fr.Element
 	copyStream         unsafe.Pointer
 	computeDone        unsafe.Pointer
 	copyDone           unsafe.Pointer
-	srsDone            unsafe.Pointer
+	uploaded           unsafe.Pointer
 }
 
 // NewPlonkProver prepares a circuit for proving, keeping what it needs from the proving key.
@@ -139,7 +140,7 @@ func NewPlonkProver(spr *cs.SparseR1CS, pk *plonk_bn254.ProvingKey) (*PlonkProve
 	pin(p.srs)
 	pin(p.sigma)
 	pin(p.lroWires)
-	p.copyStream, p.computeDone, p.copyDone, p.srsDone = newStream(), newEvent(), newEvent(), newEvent()
+	p.copyStream, p.computeDone, p.copyDone, p.uploaded = newStream(), newEvent(), newEvent(), newEvent()
 	return p, nil
 }
 
@@ -207,21 +208,48 @@ func (p *PlonkProver) newDevice() *device {
 		d.tabC[k], d.tabCInv[k] = upload(p.tabC[k]), upload(p.tabCInv[k])
 	}
 	for i, s := range []selector{p.ql, p.qr, p.qm, p.qo, p.qk} {
-		d.sel[i], d.selTab[i] = upload(s.idx), upload(s.table)
+		d.selTab[i] = upload(s.table)
 	}
-	d.sigma = upload(p.sigma)
 	d.qcpPos, d.piPos = upload(p.qcpPos), upload(p.piPos)
 	return d
 }
 
-// uploadSrs starts copying the SRS to the device; waitSrs makes the work queued after it wait for the copy.
+// uploadState copies the solution, the permutation and the selectors to the device.
+func (p *PlonkProver) uploadState(d *device) {
+	d.values, d.wires, d.sigma = upload(p.solver.values), upload(p.lroWires), upload(p.sigma)
+	for i, s := range []selector{p.ql, p.qr, p.qm, p.qo, p.qk} {
+		d.sel[i] = upload(s.idx)
+	}
+}
+
+func (d *device) dropState() {
+	for _, v := range append([]dvec{d.values, d.wires, d.sigma}, d.sel[:]...) {
+		v.free()
+	}
+}
+
+// uploadSrs starts copying the SRS to the device.
 func (p *PlonkProver) uploadSrs(d *device) {
 	size := len(p.srs) * int(unsafe.Sizeof(p.srs[0]))
 	d.srs = allocBytes(size, len(p.srs))
 	h2dAsync(d.srs, unsafe.Pointer(&p.srs[0]), size, p.copyStream)
 }
 
-func (p *PlonkProver) waitSrs() { after(nil, p.copyStream, p.srsDone) }
+// waitUploads makes the work queued after it wait for the uploads started so far.
+func (p *PlonkProver) waitUploads() { after(nil, p.copyStream, p.uploaded) }
+
+// hostBuffers page-locks the host memory that device buffers are moved to, once.
+func (p *PlonkProver) hostBuffers() {
+	if p.hostZ != nil {
+		return
+	}
+	for k := range p.hostG {
+		p.hostG[k] = make([]fr.Element, p.n)
+		pin(p.hostG[k])
+	}
+	p.hostZ = make([]fr.Element, p.n)
+	pin(p.hostZ)
+}
 
 func (p *PlonkProver) dropSrs(d *device) {
 	d.srs.free()
@@ -336,8 +364,8 @@ func (p *PlonkProver) prove(d *device, wWitness fr.Vector) (*plonk_bn254.Proof, 
 	}
 
 	// The commitments to l, r and o.
-	d.values, d.wires = upload(p.solver.values), upload(p.lroWires)
-	p.waitSrs()
+	p.uploadState(d)
+	p.waitUploads()
 	tmp := alloc(n)
 	for i, b := range [][]fr.Element{bp.l, bp.r, bp.o} {
 		p.lroCanonical(d, tmp, i)
@@ -367,6 +395,11 @@ func (p *PlonkProver) prove(d *device, wWitness fr.Vector) (*plonk_bn254.Proof, 
 	ratio(z, d.values, d.wires, d.sigma, n, d.tabW, beta, gamma, p.u, p.u2)
 	scanMul(z, n)
 	p.canonical(d, z)
+	// z waits on the host during the quotient, which needs its memory.
+	p.hostBuffers()
+	hostZ := unsafe.Pointer(&p.hostZ[0])
+	after(p.copyStream, nil, p.computeDone)
+	d2hAsync(hostZ, z, n*fr.Bytes, p.copyStream)
 	proof.Z = p.commitBlinded(d, z, bp.z)
 
 	alpha, err := deriveRandomness(fs, "alpha", &proof.Bsb22Commitments[0], &proof.Z)
@@ -376,23 +409,43 @@ func (p *PlonkProver) prove(d *device, wWitness fr.Vector) (*plonk_bn254.Proof, 
 
 	// The quotient needs the memory the SRS takes.
 	p.dropSrs(d)
+	syncStream(p.copyStream)
+	z.free()
 	qk := make([]fr.Element, len(p.qkPos))
 	copy(qk, public)
 	qk[len(public)] = commitmentVal
-	h := p.quotient(d, z, piVals, qk, bp, alpha, beta, gamma)
-	p.uploadSrs(d)
-	p.waitSrs()
+	h := p.quotient(d, piVals, qk, bp, alpha, beta, gamma)
 
+	// Committing to h needs neither the circuit state nor z, which comes back meanwhile.
+	d.dropState()
+	p.uploadSrs(d)
+	z = alloc(n + 3)
+	h2dAsync(z, hostZ, n*fr.Bytes, p.copyStream)
+	p.waitUploads()
 	np2 := n + 2
 	for i := 0; i < 3; i++ {
 		proof.H[i] = msm(h.fr(i*np2), d.srs, np2)
 	}
-	p.dropSrs(d)
 
 	zeta, err := deriveRandomness(fs, "zeta", &proof.H[0], &proof.H[1], &proof.H[2])
 	if err != nil {
 		return nil, err
 	}
+	var zetaN, zhZeta, zn2, one fr.Element
+	one.SetOne()
+	zetaN.Exp(zeta, big.NewInt(int64(n)))
+	zhZeta.Sub(&zetaN, &one)
+	zn2.Mul(&zetaN, &zeta).Mul(&zn2, &zeta)
+
+	// h1 + zeta^(n+2) h2 + zeta^(2(n+2)) h3, the part of h the linearized polynomial needs.
+	hz := alloc(np2)
+	memset0(hz, np2*fr.Bytes)
+	coeff := one
+	for i := 0; i < 3; i++ {
+		axpy(hz, h.fr(i*np2), coeff, np2)
+		coeff.Mul(&coeff, &zn2)
+	}
+	h.free()
 
 	// Open Z (blinded) at zeta * omega.
 	var zetaShifted fr.Element
@@ -400,12 +453,12 @@ func (p *PlonkProver) prove(d *device, wWitness fr.Vector) (*plonk_bn254.Proof, 
 	p.blindCoefficients(z, n, bp.z)
 	var qz dvec
 	proof.ZShiftedOpening.ClaimedValue, qz = p.divide(z, n+3, zetaShifted)
+	proof.ZShiftedOpening.H = msm(qz, d.srs, n+2)
+	qz.free()
+	p.dropSrs(d)
+	p.uploadState(d)
 
 	// Evaluations at zeta.
-	var zetaN, zhZeta, one fr.Element
-	one.SetOne()
-	zetaN.Exp(zeta, big.NewInt(int64(n)))
-	zhZeta.Sub(&zetaN, &one)
 	evalBlinded := func(v dvec, b []fr.Element) fr.Element {
 		r := p.eval(v, n, zeta)
 		be := evalPoly(b, zeta)
@@ -437,14 +490,10 @@ func (p *PlonkProver) prove(d *device, wWitness fr.Vector) (*plonk_bn254.Proof, 
 	var zScale fr.Element
 	zScale.Add(&c.s2, &c.a2l1)
 	vscale(z, zScale, n+3)
-	// - Z_H(zeta) * (h1 + zeta^(n+2) h2 + zeta^(2(n+2)) h3)
-	var hc fr.Element
-	hc.Neg(&zhZeta)
-	for i := 0; i < 3; i++ {
-		axpy(z, h.fr(i*np2), hc, np2)
-		hc.Mul(&hc, &c.zn2)
-	}
-	h.free()
+	var mzh fr.Element
+	mzh.Neg(&zhZeta)
+	axpy(z, hz, mzh, np2)
+	hz.free()
 	p.uploadSrs(d)
 	acc := alloc(n)
 	p.sCanonical(d, acc, 2)
@@ -460,9 +509,7 @@ func (p *PlonkProver) prove(d *device, wWitness fr.Vector) (*plonk_bn254.Proof, 
 	vadd(z, acc, n)
 	acc.free()
 	tmp.free()
-	p.waitSrs()
-	proof.ZShiftedOpening.H = msm(qz, d.srs, n+2)
-	qz.free()
+	p.waitUploads()
 	linDigest := msm(z, d.srs, n+3)
 	linZeta := p.eval(z, n+3, zeta)
 
@@ -510,7 +557,7 @@ func (p *PlonkProver) commitPi(vals []fr.Element) curve.G1Affine {
 }
 
 // quotient returns the coefficients of h on the device; gnark's h1, h2, h3 are its chunks of n+2.
-func (p *PlonkProver) quotient(d *device, z dvec, piVals, qk []fr.Element, bp blinding, alpha, beta, gamma fr.Element) dvec {
+func (p *PlonkProver) quotient(d *device, piVals, qk []fr.Element, bp blinding, alpha, beta, gamma fr.Element) dvec {
 	n := p.n
 	var nInv, one fr.Element
 	one.SetOne()
@@ -524,12 +571,6 @@ func (p *PlonkProver) quotient(d *device, z dvec, piVals, qk []fr.Element, bp bl
 	w4.Div(&w4, &uN)
 	w4Inv.Inverse(&w4)
 	uNInv.Inverse(&uN)
-	if p.hostG[0] == nil {
-		for k := range p.hostG {
-			p.hostG[k] = make([]fr.Element, n)
-			pin(p.hostG[k])
-		}
-	}
 
 	var weights [4][4]fr.Element
 	for k := 0; k < 4; k++ {
@@ -537,7 +578,6 @@ func (p *PlonkProver) quotient(d *device, z dvec, piVals, qk []fr.Element, bp bl
 		var cn, cn1 fr.Element
 		cn.Exp(c, big.NewInt(int64(n)))
 		cn1.Sub(&cn, &one)
-		eval := func(dst, src dvec) { p.cosetEval(d, dst, src, k) }
 		blind := func(dst dvec, b []fr.Element) {
 			r := make([]fr.Element, len(b))
 			for i := range b {
@@ -594,7 +634,8 @@ func (p *PlonkProver) quotient(d *device, z dvec, piVals, qk []fr.Element, bp bl
 		sigma(sv, 0)
 		permS(y, t, sv, n, beta, gamma, false)
 
-		eval(sv, z)
+		h2d(sv, unsafe.Pointer(&p.hostZ[0]), n*fr.Bytes)
+		p.cosetEval(d, sv, sv, k)
 		blind(sv, bp.z)
 		var a2l1 fr.Element
 		a2l1.Square(&alpha).Mul(&a2l1, &cn1).Mul(&a2l1, &nInv)
@@ -706,7 +747,7 @@ func (p *PlonkProver) divide(f dvec, m int, a fr.Element) (fr.Element, dvec) {
 }
 
 type linConsts struct {
-	s1, s2, rl, a2l1, zn2 fr.Element
+	s1, s2, rl, a2l1 fr.Element
 }
 
 func (p *PlonkProver) linearizationConstants(lZeta, rZeta, oZeta, s1Zeta, s2Zeta, alpha, beta, gamma, zeta, zetaN, zu fr.Element) linConsts {
@@ -728,7 +769,6 @@ func (p *PlonkProver) linearizationConstants(lZeta, rZeta, oZeta, s1Zeta, s2Zeta
 
 	var zhZeta, one, den fr.Element
 	one.SetOne()
-	c.zn2.Mul(&zetaN, &zeta).Mul(&c.zn2, &zeta)
 	zhZeta.Sub(&zetaN, &one)
 	den.Sub(&zeta, &one).Inverse(&den)
 	c.a2l1.Mul(&zhZeta, &den).Mul(&c.a2l1, &alpha).Mul(&c.a2l1, &alpha).Mul(&c.a2l1, &p.domain0.CardinalityInv)
