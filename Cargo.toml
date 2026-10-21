@@ -6,7 +6,7 @@ repository = "https://github.com/succinctlabs/sp1"
 keywords = ["sp1", "succinct", "zero-knowledge", "zkvm"]
 categories = ["cryptography"]
 include = ["SP1_CIRCUIT_VERSION"]
-rust-version = "1.88"
+rust-version = "1.91.1"
 
 [workspace]
 members = [
@@ -281,12 +281,12 @@ k256 = "0.13.4"
 lazy_static = "1.5.0"
 libc = "0.2"
 libm = "0.2.8"
-lru = "0.12.4"
+lru = "0.18.5"
 memfd = "0.6.4"
 memmap2 = "0.9.8"
 num = "0.4.3"
 num_cpus = "1.16.0"
-object = { version = "0.37.3", features = ["write"] }
+object = { version = "0.37.3", default-features = false, features = ["write"] }
 num-bigint = { version = "0.4.6", default-features = false }
 num-traits = "0.2.19"
 p256 = "0.13.2"
