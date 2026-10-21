@@ -1,4 +1,4 @@
-//go:build plonkcuda || groth16cuda
+//go:build cuda
 
 package gpu
 

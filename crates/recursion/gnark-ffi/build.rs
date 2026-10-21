@@ -31,11 +31,23 @@ fn main() {
 
             println!("Building Go library at {}", dest.display());
 
-            let cuda = cfg!(feature = "groth16-cuda") || cfg!(feature = "plonk-cuda");
+            let cuda = cfg!(feature = "cuda");
             let mut go_envs = go_envs;
-            if cuda {
+            let cuda_home = cuda_home();
+            for var in ["SP1_CUDA_ENABLED", "CUDA_HOME", "CUDA_PATH"] {
+                println!("cargo:rerun-if-env-changed={var}");
+            }
+            let cuda_found = match env::var("SP1_CUDA_ENABLED").as_deref() {
+                Ok("0" | "false") => false,
+                Ok("1" | "true") => true,
+                _ => cuda_home.join("bin/nvcc").exists(),
+            };
+            // As in sp1-gpu-sys, a machine without CUDA can still check the crate; linking then fails.
+            if cuda && !cuda_found {
+                println!("cargo:warning=CUDA not detected, skipping the gnark CUDA build");
+            }
+            if cuda && cuda_found {
                 println!("cargo:rerun-if-changed=cuda");
-                let cuda_home = cuda_home();
                 let objs: Vec<PathBuf> =
                     ["plonk", "ntt", "msm"].iter().map(|src| dest_path.join(format!("{src}.o"))).collect();
                 let nvcc: Vec<_> = ["plonk", "ntt", "msm"]
@@ -76,11 +88,8 @@ fn main() {
             }
 
             let mut tags = vec!["debug"];
-            if cfg!(feature = "groth16-cuda") {
-                tags.push("groth16cuda");
-            }
-            if cfg!(feature = "plonk-cuda") {
-                tags.push("plonkcuda");
+            if cuda {
+                tags.push("cuda");
             }
             let tags = format!("-tags={}", tags.join(","));
 

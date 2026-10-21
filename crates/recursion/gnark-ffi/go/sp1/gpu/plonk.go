@@ -1,4 +1,4 @@
-//go:build plonkcuda || groth16cuda
+//go:build cuda
 
 // Package gpu implements gnark's BN254 PLONK and Groth16 provers in CUDA. The proofs are those of
 // backend/plonk/bn254 and backend/groth16/bn254, for the same keys, transcripts and verifiers. Nothing

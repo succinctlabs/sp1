@@ -1,4 +1,4 @@
-//go:build !plonkcuda
+//go:build !cuda
 
 package sp1
 

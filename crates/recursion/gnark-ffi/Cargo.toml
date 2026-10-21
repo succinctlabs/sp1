@@ -33,8 +33,7 @@ cfg-if = { workspace = true }
 
 [features]
 native = ["dep:bindgen"]
-groth16-cuda = []
-plonk-cuda = []
+cuda = []
 
 [lints]
 workspace = true
