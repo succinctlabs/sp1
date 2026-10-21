@@ -331,7 +331,6 @@ opentelemetry = "0.23.0"
 thousands = "0.2.0"
 tracing-opentelemetry = "0.24.0"
 transpose = "0.2.3"
-twirp = { package = "twirp-rs", version = "0.13.0-succinct" }
 mti = "1.0.7-beta.1"
 typenum = "1.17.0"
 uuid = "1.17.0"
