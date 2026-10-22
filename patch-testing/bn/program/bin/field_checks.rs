@@ -15,12 +15,14 @@ macro_rules! check_fields {
         let root2 = x2.sqrt().unwrap();
         assert_eq!(root2 * root2, x2);
         assert_eq!(root2, x2.sqrt().unwrap());
-        assert!(root2.0 < (-root2).0);
+        let neg_root2 = -root2;
+        assert!((root2.imaginary(), root2.real()) < (neg_root2.imaginary(), neg_root2.real()));
         let y2 = $bn::Fq2::new($bn::Fq::from_str("2").unwrap(), $bn::Fq::one());
         let square2 = y2 * y2;
         let root2 = square2.sqrt().unwrap();
         assert_eq!(root2 * root2, square2);
-        assert!(root2.0 < (-root2).0);
+        let neg_root2 = -root2;
+        assert!((root2.imaginary(), root2.real()) < (neg_root2.imaginary(), neg_root2.real()));
         assert!(y2.sqrt().is_none());
         assert!($bn::Fq2::zero().sqrt().unwrap() == $bn::Fq2::zero());
 

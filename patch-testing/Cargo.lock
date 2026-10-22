@@ -410,7 +410,7 @@ dependencies = [
  "sp1-test",
  "sp1-zkvm",
  "substrate-bn",
- "substrate-bn-succinct-rs 0.6.0 (git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-6.2.0)",
+ "substrate-bn-succinct-rs",
  "tokio",
 ]
 
@@ -432,7 +432,7 @@ dependencies = [
  "sha3 0.10.8",
  "sp1-lib",
  "sp1-zkvm",
- "substrate-bn-succinct-rs 0.6.0 (git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-6.2.0)",
+ "substrate-bn-succinct-rs",
  "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.2.0)",
 ]
 
@@ -5228,7 +5228,7 @@ dependencies = [
  "sp1-recursion-executor",
  "sp1-recursion-machine",
  "strum",
- "substrate-bn-succinct-rs 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "substrate-bn-succinct-rs",
  "thiserror 2.0.18",
 ]
 
@@ -5357,23 +5357,7 @@ dependencies = [
 [[package]]
 name = "substrate-bn-succinct-rs"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a241fd7c1016fb8ad30fcf5a20986c0c4538e8f15a1b41a1761516299e377ec1"
-dependencies = [
- "bytemuck",
- "byteorder",
- "cfg-if",
- "crunchy",
- "lazy_static",
- "num-bigint 0.4.6",
- "rand 0.8.5",
- "rustc-hex",
-]
-
-[[package]]
-name = "substrate-bn-succinct-rs"
-version = "0.6.0"
-source = "git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-6.2.0#af2ee646c36ad80a44a15b91db0a2b648b517b44"
+source = "git+https://github.com/sp1-patches/bn?rev=d6055ac30a4bfdfe29ae0538a4f2b3de73f76b6b#d6055ac30a4bfdfe29ae0538a4f2b3de73f76b6b"
 dependencies = [
  "bytemuck",
  "byteorder",

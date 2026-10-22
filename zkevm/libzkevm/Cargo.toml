@@ -66,12 +66,11 @@ p256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-p2
 # SP1's patched `substrate-bn`. At `target_os = "zkvm"` BN254 curve and
 # field operations route through SP1's `BN254_*` precompile syscalls
 # (`BN254_ADD`, `BN254_DOUBLE`, `BN254_FP*`). The
-# `-sp1-6.2.0-substrate-bn` tag is the substrate-bn variant of the
-# crate (lib name = `substrate-bn`, vs. the renamed
-# `substrate-bn-succinct-rs` published on the main 6.2.0 tag), pinned
+# pinned revision uses the `substrate-bn` package (rather than
+# `substrate-bn-succinct-rs`), with a dependency
 # at `sp1-lib = "6.2.0"`. Used by `precompile::bn254::*` (Ethereum
 # precompiles 0x06–0x08, EIP-196 / EIP-197).
-substrate-bn = { git = "https://github.com/sp1-patches/bn", tag = "patch-0.6.0-sp1-6.2.0-substrate-bn", default-features = false }
+substrate-bn = { git = "https://github.com/sp1-patches/bn", rev = "d593a80c9d0d83524367a72d2e375a5b4df4c013", default-features = false }
 
 # SP1's patched `bls12_381` (zkcrypto fork). At `target_os = "zkvm"` G1
 # and G2 arithmetic route through SP1's `BLS12381_*` syscalls. Used by
