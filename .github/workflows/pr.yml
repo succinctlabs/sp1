@@ -571,7 +571,7 @@ jobs:
       - name: Install SP1 toolchain from repo
         run: cargo run -p sp1-cli --no-default-features -- prove install-toolchain
 
-      - name: Run E2E node test
+      - name: Run E2E node test (Groth16)
         uses: actions-rs/cargo@v1
         with:
           command: run
