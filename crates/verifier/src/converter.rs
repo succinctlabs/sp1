@@ -180,22 +180,10 @@ pub fn uncompressed_bytes_to_g2_point(buf: &[u8]) -> Result<AffineG2, Error> {
 /// The uncompressed byte array is represented as two fq2 elements.
 pub fn g2_point_to_uncompressed_bytes(point: &AffineG2) -> Result<[u8; 128], Error> {
     let mut buffer = [0u8; 128];
-    point.x()
-        .imaginary()
-        .to_big_endian(&mut buffer[..32])
-        .map_err(Error::Field)?;
-    point.x()
-        .real()
-        .to_big_endian(&mut buffer[32..64])
-        .map_err(Error::Field)?;
-    point.y()
-        .imaginary()
-        .to_big_endian(&mut buffer[64..96])
-        .map_err(Error::Field)?;
-    point.y()
-        .real()
-        .to_big_endian(&mut buffer[96..128])
-        .map_err(Error::Field)?;
+    point.x().imaginary().to_big_endian(&mut buffer[..32]).map_err(Error::Field)?;
+    point.x().real().to_big_endian(&mut buffer[32..64]).map_err(Error::Field)?;
+    point.y().imaginary().to_big_endian(&mut buffer[64..96]).map_err(Error::Field)?;
+    point.y().real().to_big_endian(&mut buffer[96..128]).map_err(Error::Field)?;
 
     Ok(buffer)
 }
