@@ -349,6 +349,8 @@ int sp1_trim_pool(void) {
   int device;
   cudaMemPool_t pool;
   if (cudaGetDevice(&device) != cudaSuccess || cudaDeviceGetDefaultMemPool(&pool, device) != cudaSuccess) return err();
+  // The pool keeps asynchronous frees until the host has seen them complete.
+  if (cudaDeviceSynchronize() != cudaSuccess) return err();
   return (int)cudaMemPoolTrimTo(pool, 0);
 }
 }
