@@ -104,6 +104,59 @@ impl ProveShardTaskRequest {
         let raw_task_request = RawTaskRequest { inputs, outputs, context };
         Ok(raw_task_request)
     }
+
+    // An earlier run finished if the proof exists and either the deferred
+    // output exists or the record is gone. The controller deletes the deferred
+    // output after it reads it. The worker deletes the record last.
+    async fn prior_run_finished(&self, artifact_client: &impl ArtifactClient) -> bool {
+        let proof_exists = artifact_client
+            .exists(&self.output, ArtifactType::UnspecifiedArtifactType)
+            .await
+            .unwrap_or(false);
+        if !proof_exists {
+            return false;
+        }
+        let Some(deferred_output) = &self.deferred_output else {
+            return true;
+        };
+        if artifact_client
+            .exists(deferred_output, ArtifactType::UnspecifiedArtifactType)
+            .await
+            .unwrap_or(false)
+        {
+            return true;
+        }
+        // If the check fails, treat the record as present.
+        !artifact_client
+            .exists(&self.record, ArtifactType::UnspecifiedArtifactType)
+            .await
+            .unwrap_or(true)
+    }
+}
+
+impl RawTaskRequest {
+    // Returns success when this run failed but an earlier run finished the
+    // shard. `recover_if_complete` fails for core shards because the
+    // controller deletes their deferred output.
+    pub async fn recover_prove_shard_if_complete(
+        &self,
+        result: Result<TaskMetadata, TaskError>,
+        artifact_client: &impl ArtifactClient,
+    ) -> Result<TaskMetadata, TaskError> {
+        match result {
+            Err(_)
+                if ProveShardTaskRequest::from_raw(self.clone())?
+                    .prior_run_finished(artifact_client)
+                    .await =>
+            {
+                tracing::info!(
+                    "task already completed by a prior execution; skipping re-execution"
+                );
+                Ok(TaskMetadata { gpu_ms: None })
+            }
+            other => other,
+        }
+    }
 }
 
 /// Generates traces and optionally deferred records for a core shard.
@@ -258,9 +311,8 @@ where
         let record_artifact = input.record.clone();
         let metrics = input.metrics.clone();
 
-        // Ok to panic because it will send a JoinError. A re-delivery whose
-        // inputs a prior run already consumed fails here; the task dispatcher
-        // recovers it via `RawTaskRequest::recover_if_complete` (outputs exist).
+        // On a re-delivery these inputs can be gone.
+        // `recover_prove_shard_if_complete` handles that case.
         let (elf, common_input, record) = tokio::try_join!(
             self.artifact_client.download_program(&input.elf),
             self.artifact_client.download::<CommonProverInput>(&input.common_input),
@@ -890,5 +942,97 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A
         let setup_engine = Arc::new(AsyncEngine::new(setup_workers, config.setup_buffer_size));
 
         Self { prove_shard_engine, setup_engine }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use sp1_prover_types::{ArtifactClient, ArtifactType, InMemoryArtifactClient};
+
+    use crate::worker::{
+        ProofId, RawTaskRequest, RequesterId, TaskContext, TaskError, TaskMetadata,
+    };
+
+    use super::Artifact;
+
+    fn ctx() -> TaskContext {
+        TaskContext {
+            proof_id: ProofId::new("test"),
+            parent_id: None,
+            parent_context: None,
+            requester_id: RequesterId::new("test"),
+        }
+    }
+
+    fn fatal() -> Result<TaskMetadata, TaskError> {
+        Err(TaskError::Fatal(anyhow::anyhow!("missing input")))
+    }
+
+    async fn put(client: &InMemoryArtifactClient, name: &str) {
+        client
+            .upload_raw(
+                &Artifact::from(name.to_string()),
+                ArtifactType::UnspecifiedArtifactType,
+                vec![1],
+            )
+            .await
+            .unwrap();
+    }
+
+    async fn del(client: &InMemoryArtifactClient, name: &str) {
+        client
+            .delete(&Artifact::from(name.to_string()), ArtifactType::UnspecifiedArtifactType)
+            .await
+            .unwrap();
+    }
+
+    // The controller deletes a core shard's deferred output after it reads it.
+    #[tokio::test]
+    async fn a_core_shard_recovers_once_its_record_is_gone() {
+        let client = InMemoryArtifactClient::new();
+        let request = RawTaskRequest {
+            inputs: ["elf", "common", "record", "marker"]
+                .map(|n| Artifact::from(n.to_string()))
+                .to_vec(),
+            outputs: ["proof", "deferred"].map(|n| Artifact::from(n.to_string())).to_vec(),
+            context: ctx(),
+        };
+
+        // Nothing uploaded.
+        assert!(request.recover_prove_shard_if_complete(fatal(), &client).await.is_err());
+
+        // Proof only. The deferred upload may have failed.
+        put(&client, "record").await;
+        put(&client, "proof").await;
+        assert!(request.recover_prove_shard_if_complete(fatal(), &client).await.is_err());
+
+        // Proof and deferred output.
+        put(&client, "deferred").await;
+        assert!(request.recover_prove_shard_if_complete(fatal(), &client).await.is_ok());
+
+        // The controller deleted the deferred output. The record is still there.
+        del(&client, "deferred").await;
+        assert!(request.recover_prove_shard_if_complete(fatal(), &client).await.is_err());
+
+        // The worker deleted the record, so the earlier run finished.
+        del(&client, "record").await;
+        assert!(request.recover_prove_shard_if_complete(fatal(), &client).await.is_ok());
+    }
+
+    // Precompile and memory shards have no deferred output.
+    #[tokio::test]
+    async fn a_precompile_shard_recovers_on_its_proof() {
+        let client = InMemoryArtifactClient::new();
+        let request = RawTaskRequest {
+            inputs: ["elf", "common", "record", "marker"]
+                .map(|n| Artifact::from(n.to_string()))
+                .to_vec(),
+            outputs: vec![Artifact::from("proof".to_string())],
+            context: ctx(),
+        };
+
+        assert!(request.recover_prove_shard_if_complete(fatal(), &client).await.is_err());
+        put(&client, "proof").await;
+        assert!(request.recover_prove_shard_if_complete(fatal(), &client).await.is_ok());
     }
 }
