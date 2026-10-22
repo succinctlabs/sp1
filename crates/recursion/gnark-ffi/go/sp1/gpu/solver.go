@@ -19,7 +19,7 @@ import (
 
 // levelSolver mirrors gnark's bn254 solver for SparseR1CS. It differs in how it schedules levels: workers
 // spin on a shared epoch instead of exchanging tasks over channels, and solved wires are counted per
-// worker. The wire values live in page-locked memory so that they can be copied to the GPU directly.
+// worker.
 type levelSolver struct {
 	*cs.SparseR1CS
 	values []fr.Element
@@ -53,11 +53,8 @@ const (
 
 func newSolver(spr *cs.SparseR1CS) *levelSolver {
 	nbWires := len(spr.Public) + len(spr.Secret) + spr.NbInternalVariables
-	values := make([]fr.Element, nbWires)
-	pin(values)
 	return &levelSolver{
 		SparseR1CS: spr,
-		values:     values,
 		solved:     make([]bool, nbWires),
 		nbWorkers:  min(runtime.GOMAXPROCS(0), maxWorkers),
 	}
@@ -88,6 +85,7 @@ func (s *levelSolver) solve(witness fr.Vector, opts ...csolver.Option) error {
 	}
 
 	clear(s.solved)
+	s.values = make([]fr.Element, len(s.solved))
 	copy(s.values, witness)
 	for i := range witness {
 		s.solved[i] = true

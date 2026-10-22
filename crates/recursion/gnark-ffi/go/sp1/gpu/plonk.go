@@ -183,6 +183,7 @@ func powTable(c fr.Element) []fr.Element {
 
 // Prove computes a PLONK proof for the given full witness: the public inputs, then the secret ones.
 func (p *PlonkProver) Prove(fullWitness fr.Vector) (proof *plonk_bn254.Proof, err error) {
+	defer func() { p.solver.values = nil }()
 	defer freeAll()
 	defer func() {
 		if r := recover(); r != nil {
