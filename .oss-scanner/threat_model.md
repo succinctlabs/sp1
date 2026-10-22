@@ -33,4 +33,4 @@ Out of scope: `sp1-gpu/` (needs CUDA, which the scanner does not have), `example
 
 ## Anything to leave alone
 - Do not report that proving is slow or needs a lot of memory.
-- Do not report that guest programs can panic or run out of cycles. That is expected behavior, and it must produce an error, not a proof.
+- Do not report guest panics or cycle-limit errors as bugs. SP1 supports panic proofs when callers explicitly accept the nonzero exit code. Default verification must reject these proofs. Reaching the cycle limit must return an error.
