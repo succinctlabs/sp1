@@ -8029,6 +8029,7 @@ version = "6.9.0"
 dependencies = [
  "bincode",
  "elliptic-curve",
+ "num-bigint 0.4.6",
  "serde",
  "sp1-primitives 6.9.0",
 ]
