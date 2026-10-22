@@ -11,6 +11,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/hash_to_field"
 	groth16_bn254 "github.com/consensys/gnark/backend/groth16/bn254"
 	"github.com/consensys/gnark/backend/witness"
@@ -31,6 +32,12 @@ type Groth16Prover struct {
 // NewGroth16Prover page-locks the proving key's points, which are uploaded for each proof.
 func NewGroth16Prover(r1cs *cs.R1CS, pk *groth16_bn254.ProvingKey) *Groth16Prover {
 	d := &pk.Domain
+	// The kernels use their own power tables, so the domain's precomputed ones are dropped.
+	*d = fft.Domain{
+		Cardinality: d.Cardinality, CardinalityInv: d.CardinalityInv,
+		Generator: d.Generator, GeneratorInv: d.GeneratorInv,
+		FrMultiplicativeGen: d.FrMultiplicativeGen, FrMultiplicativeGenInv: d.FrMultiplicativeGenInv,
+	}
 	var gInv fr.Element
 	gInv.Inverse(&d.FrMultiplicativeGen)
 	p := &Groth16Prover{

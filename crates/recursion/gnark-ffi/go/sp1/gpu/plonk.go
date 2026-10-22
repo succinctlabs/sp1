@@ -76,7 +76,7 @@ func NewPlonkProver(spr *cs.SparseR1CS, pk *plonk_bn254.ProvingKey) (*PlonkProve
 	}
 	p := &PlonkProver{spr: spr, vk: pk.Vk, commit: commitments[0]}
 	sizeSystem := uint64(spr.GetNbConstraints() + len(spr.Public))
-	p.domain0 = fft.NewDomain(sizeSystem)
+	p.domain0 = fft.NewDomain(sizeSystem, fft.WithoutPrecompute())
 	domain1 := fft.NewDomain(4*sizeSystem, fft.WithoutPrecompute())
 	if domain1.Cardinality != 4*p.domain0.Cardinality {
 		return nil, fmt.Errorf("gpu: PLONK expects a quotient domain of 4n")
