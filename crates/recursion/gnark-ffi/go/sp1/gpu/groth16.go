@@ -38,6 +38,8 @@ func NewGroth16Prover(r1cs *cs.R1CS, pk *groth16_bn254.ProvingKey) *Groth16Prove
 		Generator: d.Generator, GeneratorInv: d.GeneratorInv,
 		FrMultiplicativeGen: d.FrMultiplicativeGen, FrMultiplicativeGenInv: d.FrMultiplicativeGenInv,
 	}
+	// Debug info only describes failed constraints in errors.
+	r1cs.DebugInfo, r1cs.MDebug = nil, nil
 	var gInv fr.Element
 	gInv.Inverse(&d.FrMultiplicativeGen)
 	p := &Groth16Prover{

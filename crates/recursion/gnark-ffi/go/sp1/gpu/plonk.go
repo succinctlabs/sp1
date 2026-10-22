@@ -74,6 +74,8 @@ func NewPlonkProver(spr *cs.SparseR1CS, pk *plonk_bn254.ProvingKey) (*PlonkProve
 	if len(commitments) != 1 {
 		return nil, fmt.Errorf("gpu: PLONK supports exactly one bsb22 commitment, got %d", len(commitments))
 	}
+	// Debug info only describes failed constraints in errors.
+	spr.DebugInfo, spr.MDebug = nil, nil
 	p := &PlonkProver{spr: spr, vk: pk.Vk, commit: commitments[0]}
 	sizeSystem := uint64(spr.GetNbConstraints() + len(spr.Public))
 	p.domain0 = fft.NewDomain(sizeSystem, fft.WithoutPrecompute())
