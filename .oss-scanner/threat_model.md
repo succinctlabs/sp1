@@ -31,6 +31,6 @@ Out of scope: `sp1-gpu/` (needs CUDA, which the scanner does not have), `example
 - Medium: a valid program that cannot be proven (a completeness bug). A guest program that makes the host use memory or time without limit.
 - Low: a crash in the CLI or build tools on bad local input.
 
-## Anything to leave alone
+## Exclusions
 - Do not report that proving is slow or needs a lot of memory.
 - Do not report guest panics or cycle-limit errors as bugs. SP1 supports panic proofs when callers explicitly accept the nonzero exit code. Default verification must reject these proofs. Reaching the cycle limit must return an error.
