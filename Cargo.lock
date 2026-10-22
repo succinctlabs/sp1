@@ -8426,7 +8426,7 @@ dependencies = [
 [[package]]
 name = "substrate-bn"
 version = "0.6.0"
-source = "git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-6.2.0-substrate-bn#b9cd95a749de1f20ac786178f9f8754f79a5ad55"
+source = "git+https://github.com/sp1-patches/bn?rev=d593a80c9d0d83524367a72d2e375a5b4df4c013#d593a80c9d0d83524367a72d2e375a5b4df4c013"
 dependencies = [
  "bytemuck",
  "byteorder",
@@ -8442,8 +8442,7 @@ dependencies = [
 [[package]]
 name = "substrate-bn-succinct-rs"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a241fd7c1016fb8ad30fcf5a20986c0c4538e8f15a1b41a1761516299e377ec1"
+source = "git+https://github.com/sp1-patches/bn?rev=d6055ac30a4bfdfe29ae0538a4f2b3de73f76b6b#d6055ac30a4bfdfe29ae0538a4f2b3de73f76b6b"
 dependencies = [
  "bytemuck",
  "byteorder",
@@ -8453,6 +8452,7 @@ dependencies = [
  "num-bigint 0.4.6",
  "rand 0.8.6",
  "rustc-hex",
+ "sp1-lib 6.2.4",
 ]
 
 [[package]]
