@@ -47,8 +47,8 @@ path = "bin/field_checks.rs"
 [dependencies]
 sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
 sp1-lib = { path = "../../../crates/zkvm/lib" }
-substrate-bn = { git = "https://github.com/sp1-patches/bn", rev = "d6055ac30a4bfdfe29ae0538a4f2b3de73f76b6b", package = "substrate-bn-succinct-rs" }
-substrate-bn-substrate = { git = "https://github.com/sp1-patches/bn", rev = "d593a80c9d0d83524367a72d2e375a5b4df4c013", package = "substrate-bn" }
+substrate-bn = { version = "0.6.1", package = "substrate-bn-succinct-rs" }
+substrate-bn-substrate = { git = "https://github.com/sp1-patches/bn", tag = "patch-0.6.0-sp1-6.10.0-substrate-bn", package = "substrate-bn" }
 
 [patch.crates-io]
 sp1-lib = { path = "../../../crates/zkvm/lib" }

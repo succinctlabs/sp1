@@ -49,10 +49,10 @@ path = "bin/v2_point_checks.rs"
 [dependencies]
 sp1-lib = { path = "../../../crates/zkvm/lib" }
 sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
-bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", rev = "a30488fe308d4f9977ce8e9102b763ef8d6d9846", features = [
+bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", tag = "patch-0.8.0-sp1-6.10.0", features = [
     "groups",
 ] }
-bls12_381_v2 = { package = "bls12_381", git = "https://github.com/sp1-patches/bls12_381", rev = "a5bbec5d266ed00ef45903a2b77fa8e8daa5eee7", features = ["groups", "experimental"] }
+bls12_381_v2 = { package = "bls12_381", git = "https://github.com/sp1-patches/bls12_381", tag = "patch-0.8.0-sp1-6.10.0-v2", features = ["groups", "experimental"] }
 sha2 = "0.9.9"
 
 [patch.crates-io]
