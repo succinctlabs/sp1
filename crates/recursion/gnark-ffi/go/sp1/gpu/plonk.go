@@ -66,7 +66,6 @@ type PlonkProver struct {
 	tabC, tabCInv      [4][]fr.Element
 	solver             *levelSolver
 	hostG              [3][]fr.Element
-	hostZ              []fr.Element
 	copyStream         unsafe.Pointer
 	computeDone        unsafe.Pointer
 	copyDone           unsafe.Pointer
@@ -273,20 +272,25 @@ func (p *PlonkProver) waitUploads() { after(nil, p.copyStream, p.uploaded) }
 
 // hostBuffers page-locks the host memory that device buffers are moved to, once.
 func (p *PlonkProver) hostBuffers() {
-	if p.hostZ != nil {
+	if p.hostG[0] != nil {
 		return
 	}
 	for k := range p.hostG {
 		p.hostG[k] = make([]fr.Element, p.n)
 		pin(p.hostG[k])
 	}
-	p.hostZ = make([]fr.Element, p.n)
-	pin(p.hostZ)
 }
 
 func (p *PlonkProver) dropSrs(d *device) {
 	d.srs.free()
 	d.srs = dvec{}
+}
+
+// zCanonical computes the copy constraint accumulator, which is cheaper to recompute than to keep.
+func (p *PlonkProver) zCanonical(d *device, z dvec, beta, gamma fr.Element) {
+	ratio(z, d.values, d.wires, d.sigma, p.n, d.tabW, beta, gamma, p.u, p.u2)
+	scanMul(z, p.n)
+	p.canonical(d, z)
 }
 
 // canonical turns a Lagrange-form vector into its coefficients in place.
@@ -425,14 +429,7 @@ func (p *PlonkProver) prove(d *device, wWitness fr.Vector) (*plonk_bn254.Proof, 
 
 	// Z, the copy constraint accumulator.
 	z := alloc(n + 3)
-	ratio(z, d.values, d.wires, d.sigma, n, d.tabW, beta, gamma, p.u, p.u2)
-	scanMul(z, n)
-	p.canonical(d, z)
-	// z waits on the host during the quotient, which needs its memory.
-	p.hostBuffers()
-	hostZ := unsafe.Pointer(&p.hostZ[0])
-	after(p.copyStream, nil, p.computeDone)
-	d2hAsync(hostZ, z, n*fr.Bytes, p.copyStream)
+	p.zCanonical(d, z, beta, gamma)
 	proof.Z = p.commitBlinded(d, z, bp.z)
 
 	alpha, err := deriveRandomness(fs, "alpha", &proof.Bsb22Commitments[0], &proof.Z)
@@ -440,20 +437,20 @@ func (p *PlonkProver) prove(d *device, wWitness fr.Vector) (*plonk_bn254.Proof, 
 		return nil, err
 	}
 
-	// The quotient needs the memory the SRS takes.
+	// The quotient needs the memory the SRS and z take.
 	p.dropSrs(d)
-	syncStream(p.copyStream)
 	z.free()
+	p.hostBuffers()
 	qk := make([]fr.Element, len(p.qkPos))
 	copy(qk, public)
 	qk[len(public)] = commitmentVal
 	h := p.quotient(d, piVals, qk, bp, alpha, beta, gamma)
 
-	// Committing to h needs neither the circuit state nor z, which comes back meanwhile.
+	// Committing to h needs the circuit state only to recompute z.
+	z = alloc(n + 3)
+	p.zCanonical(d, z, beta, gamma)
 	d.dropState()
 	p.uploadSrs(d)
-	z = alloc(n + 3)
-	h2dAsync(z, hostZ, n*fr.Bytes, p.copyStream)
 	p.waitUploads()
 	np2 := n + 2
 	for i := 0; i < 3; i++ {
@@ -667,7 +664,7 @@ func (p *PlonkProver) quotient(d *device, piVals, qk []fr.Element, bp blinding, 
 		sigma(sv, 0)
 		permS(y, t, sv, n, beta, gamma, false)
 
-		h2d(sv, unsafe.Pointer(&p.hostZ[0]), n*fr.Bytes)
+		p.zCanonical(d, sv, beta, gamma)
 		p.cosetEval(d, sv, sv, k)
 		blind(sv, bp.z)
 		var a2l1 fr.Element
