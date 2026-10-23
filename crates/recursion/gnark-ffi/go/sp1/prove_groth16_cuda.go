@@ -28,7 +28,7 @@ func loadGroth16CudaProver(dataDir string) *gpu.Groth16Prover {
 		return p
 	}
 	r1cs := groth16.NewCS(ecc.BN254)
-	if err := readCircuit(dataDir+"/"+groth16CircuitPath, r1cs); err != nil {
+	if err := readCircuit(dataDir+"/"+groth16CircuitPath, r1cs.(*cs.R1CS)); err != nil {
 		panic(err)
 	}
 	pkFile, err := os.Open(dataDir + "/" + groth16PkPath)

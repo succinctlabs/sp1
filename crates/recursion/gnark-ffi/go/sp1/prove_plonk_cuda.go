@@ -34,7 +34,7 @@ func loadPlonkCudaProver(dataDir string) *plonkCudaProver {
 		return p
 	}
 	scs := plonk.NewCS(ecc.BN254)
-	if err := readCircuit(dataDir+"/"+plonkCircuitPath, scs); err != nil {
+	if err := readCircuit(dataDir+"/"+plonkCircuitPath, scs.(*cs.SparseR1CS)); err != nil {
 		panic(err)
 	}
 
