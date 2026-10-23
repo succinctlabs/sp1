@@ -112,7 +112,7 @@ curve25519-dalek-patched = { git = "https://github.com/sp1-patches/curve25519-da
 curve25519-dalek-ng-patched = { git = "https://github.com/sp1-patches/curve25519-dalek-ng", tag = "patch-4.1.1-sp1-6.2.0", package = "curve25519-dalek-ng" }
 secp256k1-patched = { git = "https://github.com/sp1-patches/rust-secp256k1", tag = "patch-0.29.1-sp1-6.2.0", package = "secp256k1" }
 substrate-bn-patched = { git = "https://github.com/sp1-patches/bn", rev = "d6055ac30a4bfdfe29ae0538a4f2b3de73f76b6b", package = "substrate-bn-succinct-rs" }
-bls12_381-patched = { git = "https://github.com/sp1-patches/bls12_381", tag = "patch-0.8.0-sp1-6.2.0", features = [
+bls12_381-patched = { git = "https://github.com/sp1-patches/bls12_381", rev = "a30488fe308d4f9977ce8e9102b763ef8d6d9846", features = [
   "groups",
 ], package = "bls12_381" }
 rsa-patched = { git = "https://github.com/sp1-patches/RustCrypto-RSA/", tag = "patch-0.9.6-sp1-6.2.0", package = "rsa" }
