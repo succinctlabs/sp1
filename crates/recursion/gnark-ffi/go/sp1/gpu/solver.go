@@ -19,12 +19,17 @@ import (
 
 // levelSolver mirrors gnark's bn254 solver for SparseR1CS. It differs in how it schedules levels: workers
 // spin on a shared epoch instead of exchanging tasks over channels, and solved wires are counted per
-// worker.
+// worker. It reads gates from the trace instead of the instructions, which it frees.
 type levelSolver struct {
 	*cs.SparseR1CS
 	values []fr.Element
 	solved []bool
 	hints  map[csolver.HintID]csolver.Hint
+
+	wires    []uint32
+	sel      [5]selector
+	n        int
+	mappings []constraint.HintMapping
 
 	nbWorkers int
 	epoch     atomic.Uint64
@@ -49,15 +54,58 @@ const (
 	// Beyond this, cross-core traffic on freshly solved wires costs more than the extra workers gain.
 	maxWorkers = 16
 	epochStop  = ^uint64(0)
+	// Levels hold the trace row of a gate, or hintCode with the index of a hint mapping.
+	hintCode = 1 << 31
+	skipCode = ^uint32(0)
 )
 
-func newSolver(spr *cs.SparseR1CS) *levelSolver {
+// newSolver solves spr from the wires and selectors of its n-row trace. It rewrites spr's levels and frees its
+// instructions and calldata.
+func newSolver(spr *cs.SparseR1CS, wires []uint32, sel [5]selector) (*levelSolver, error) {
 	nbWires := len(spr.Public) + len(spr.Secret) + spr.NbInternalVariables
-	return &levelSolver{
+	s := &levelSolver{
 		SparseR1CS: spr,
 		solved:     make([]bool, nbWires),
 		nbWorkers:  min(runtime.GOMAXPROCS(0), maxWorkers),
+		wires:      wires,
+		sel:        sel,
+		n:          len(wires) / 3,
 	}
+	code := make([]uint32, len(spr.Instructions))
+	row := uint32(len(spr.Public))
+	var c constraint.SparseR1C
+	for i, inst := range spr.Instructions {
+		switch b := spr.Blueprints[inst.BlueprintID].(type) {
+		case *constraint.BlueprintGenericSparseR1C[constraint.U64]:
+			b.DecompressSparseR1C(&c, inst.Unpack(&spr.System))
+			// gnark skips the constraints that enforce the commitment when solving.
+			if code[i] = row; c.Commitment != constraint.NOT {
+				code[i] = skipCode
+			}
+			row++
+		case constraint.BlueprintSparseR1C:
+			code[i] = row
+			row++
+		case constraint.BlueprintHint:
+			var h constraint.HintMapping
+			b.DecompressHint(&h, inst.Unpack(&spr.System))
+			code[i] = hintCode | uint32(len(s.mappings))
+			s.mappings = append(s.mappings, h)
+		default:
+			return nil, fmt.Errorf("gpu: unsupported blueprint %T", b)
+		}
+	}
+	for l, level := range spr.Levels {
+		kept := level[:0]
+		for _, i := range level {
+			if code[i] != skipCode {
+				kept = append(kept, code[i])
+			}
+		}
+		spr.Levels[l] = kept
+	}
+	spr.Instructions, spr.CallData = nil, nil
+	return s, nil
 }
 
 func (s *levelSolver) solve(witness fr.Vector, opts ...csolver.Option) error {
@@ -127,7 +175,7 @@ func (s *levelSolver) run() error {
 	for _, level := range s.Levels {
 		if len(level) < minParallelLevel || s.nbWorkers == 1 {
 			for _, i := range level {
-				if err := s.processInstruction(0, s.Instructions[i]); err != nil {
+				if err := s.process(0, i); err != nil {
 					return err
 				}
 			}
@@ -174,7 +222,7 @@ func (s *levelSolver) drain(w int) {
 			return
 		}
 		for _, i := range level[start:min(len(level), start+chunk)] {
-			if err := s.processInstruction(w, s.Instructions[i]); err != nil {
+			if err := s.process(w, i); err != nil {
 				s.errMu.Lock()
 				if s.err == nil {
 					s.err = err
@@ -187,21 +235,64 @@ func (s *levelSolver) drain(w int) {
 	}
 }
 
-// processInstruction decodes the instruction and executes the blueprint-defined logic.
-func (s *levelSolver) processInstruction(w int, pi constraint.PackedInstruction) error {
-	blueprint := s.Blueprints[pi.BlueprintID]
-	inst := pi.Unpack(&s.System)
-	bs := blueprintSolver{s, w}
-	if bc, ok := blueprint.(constraint.BlueprintSolvable[constraint.U64]); ok {
-		if err := bc.Solve(bs, inst); err != nil {
-			return fmt.Errorf("constraint #%d is not satisfied: %w", inst.ConstraintOffset, err)
-		}
-		return nil
+func (s *levelSolver) process(w int, code uint32) error {
+	if code&hintCode != 0 {
+		return s.solveWithHint(w, &s.mappings[code&^hintCode])
 	}
-	if bc, ok := blueprint.(constraint.BlueprintHint); ok {
-		var h constraint.HintMapping
-		bc.DecompressHint(&h, inst)
-		return s.solveWithHint(w, &h)
+	if err := s.solveGate(w, int(code)); err != nil {
+		return fmt.Errorf("constraint #%d is not satisfied: %w", int(code)-len(s.Public), err)
+	}
+	return nil
+}
+
+// solveGate mirrors gnark's BlueprintGenericSparseR1C.Solve for the gate qL⋅xa + qR⋅xb + qO⋅xc + qM⋅xa⋅xb + qC = 0
+// of row j, which also covers its specialized blueprints.
+func (s *levelSolver) solveGate(w, j int) error {
+	xa, xb, xc := s.wires[j], s.wires[s.n+j], s.wires[2*s.n+j]
+	var q [5]uint32
+	for k := range q {
+		q[k] = s.sel[k].cids[s.sel[k].idx[j]]
+	}
+	ql, qr, qm, qo, qc := q[0], q[1], q[2], q[3], q[4]
+	term := func(cID, vID uint32) fr.Element { return s.computeTerm(constraint.Term{CID: cID, VID: vID}) }
+	switch {
+	case !s.solved[xa], !s.solved[xb]:
+		// Solving for L: L(qL+qM⋅R) + qR⋅R + qO⋅O + qC = 0, and likewise for R.
+		x, y, qx, qy := xa, xb, ql, qr
+		if s.solved[xa] {
+			x, y, qx, qy = xb, xa, qr, ql
+		}
+		den := term(qm, y)
+		den.Add(&den, &s.Coefficients[qx])
+		if den.IsZero() {
+			return errors.New("division by 0")
+		}
+		den.Inverse(&den)
+		num, o := term(qy, y), term(qo, xc)
+		num.Add(&num, &o).Add(&num, &s.Coefficients[qc]).Mul(&num, &den).Neg(&num)
+		s.set(w, int(x), num)
+	case !s.solved[xc]:
+		o, l, r := term(qm, xa), term(ql, xa), term(qr, xb)
+		o.Mul(&o, &s.values[xb]).Add(&o, &l).Add(&o, &r).Add(&o, &s.Coefficients[qc])
+		switch qo {
+		case constraint.CoeffIdMinusOne:
+		case constraint.CoeffIdOne:
+			o.Neg(&o)
+		default:
+			var den fr.Element
+			if den.Inverse(&s.Coefficients[qo]); den.IsZero() {
+				return errors.New("division by 0")
+			}
+			o.Mul(&o, &den).Neg(&o)
+		}
+		s.set(w, int(xc), o)
+	default:
+		o, l, r := term(qm, xa), term(ql, xa), term(qr, xb)
+		t := term(qo, xc)
+		o.Mul(&o, &s.values[xb]).Add(&o, &l).Add(&o, &r).Add(&o, &t).Add(&o, &s.Coefficients[qc])
+		if !o.IsZero() {
+			return errors.New("qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC != 0")
+		}
 	}
 	return nil
 }
@@ -290,40 +381,6 @@ func (s *levelSolver) solveWithHint(w int, h *constraint.HintMapping) error {
 	return err
 }
 
-// blueprintSolver implements constraint.Solver for one worker.
-type blueprintSolver struct {
-	*levelSolver
-	w int
-}
-
-func (b blueprintSolver) GetValue(cID, vID uint32) constraint.U64 {
-	var r constraint.U64
-	e := b.computeTerm(constraint.Term{CID: cID, VID: vID})
-	copy(r[:], e[:])
-	return r
-}
-
-func (b blueprintSolver) GetCoeff(cID uint32) constraint.U64 {
-	var r constraint.U64
-	copy(r[:], b.Coefficients[cID][:])
-	return r
-}
-
-func (b blueprintSolver) SetValue(vID uint32, f constraint.U64) {
-	b.set(b.w, int(vID), *(*fr.Element)(f[:]))
-}
-
-func (b blueprintSolver) IsSolved(vID uint32) bool {
-	return b.solved[vID]
-}
-
-func (b blueprintSolver) Read(calldata []uint32) (constraint.U64, int) {
-	if calldata[0] != 1 {
-		panic("invalid calldata")
-	}
-	return b.GetValue(calldata[1], calldata[2]), 3
-}
-
 // newTrace returns gnark's trace for n rows: the wire ids of L for all rows, then R, then O, and the selectors
 // ql, qr, qm, qo and qk.
 func newTrace(spr *cs.SparseR1CS, n int) ([]uint32, [5]selector, error) {
@@ -331,7 +388,7 @@ func newTrace(spr *cs.SparseR1CS, n int) ([]uint32, [5]selector, error) {
 	var sel [5]selector
 	var slot [5][]uint32
 	for k := range sel {
-		sel[k] = selector{idx: make([]uint16, n), table: []fr.Element{{}}}
+		sel[k] = selector{idx: make([]uint16, n), table: []fr.Element{{}}, cids: []uint32{constraint.CoeffIdZero}}
 		slot[k] = make([]uint32, len(spr.Coefficients))
 		slot[k][constraint.CoeffIdZero] = 1
 	}
@@ -341,6 +398,7 @@ func newTrace(spr *cs.SparseR1CS, n int) ([]uint32, [5]selector, error) {
 				return fmt.Errorf("gpu: selector has more than 2^16 distinct values")
 			}
 			sel[k].table = append(sel[k].table, spr.Coefficients[cID])
+			sel[k].cids = append(sel[k].cids, cID)
 			slot[k][cID] = uint32(len(sel[k].table))
 		}
 		sel[k].idx[row] = uint16(slot[k][cID] - 1)

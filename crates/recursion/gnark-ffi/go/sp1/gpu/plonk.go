@@ -40,6 +40,7 @@ const (
 type selector struct {
 	idx   []uint16
 	table []fr.Element
+	cids  []uint32
 }
 
 // PlonkProver holds one circuit's proving key in host memory, the selectors in compact form.
@@ -181,7 +182,9 @@ func NewPlonkProver(spr *cs.SparseR1CS, r io.Reader) (*PlonkProver, error) {
 	if err = decompressG1(p.bsbPoints, comp); err != nil {
 		return nil, err
 	}
-	p.solver = newSolver(spr)
+	if p.solver, err = newSolver(spr, p.lroWires, sel); err != nil {
+		return nil, err
+	}
 
 	for _, v := range [][]uint16{p.ql.idx, p.qr.idx, p.qm.idx, p.qo.idx, p.qk.idx} {
 		pin(v)
