@@ -109,14 +109,6 @@ func NewPlonkProver(spr *cs.SparseR1CS, r io.Reader) (*PlonkProver, error) {
 		p.tabC[k], p.tabCInv[k] = powTable(p.cosets[k]), powTable(inv)
 	}
 
-	var err error
-	var sel [5]selector
-	if p.lroWires, sel, err = newTrace(spr, n); err != nil {
-		return nil, err
-	}
-	p.ql, p.qr, p.qm, p.qo, p.qk = sel[0], sel[1], sel[2], sel[3], sel[4]
-	p.sigma = permutation(p.lroWires, len(spr.Public)+len(spr.Secret)+spr.NbInternalVariables)
-
 	for i := 0; i < p.nbPub; i++ {
 		p.qkPos = append(p.qkPos, uint32(i))
 	}
@@ -126,62 +118,78 @@ func NewPlonkProver(spr *cs.SparseR1CS, r io.Reader) (*PlonkProver, error) {
 	}
 	p.piPos = append(append([]uint32{}, p.qcpPos...), uint32(p.nbPub+p.commit.CommitmentIndex), uint32(p.nbPub+spr.GetNbConstraints()-1))
 
-	var nb uint32
-	if err = binary.Read(r, binary.BigEndian, &nb); err != nil {
-		return nil, err
-	}
-	if int(nb) < n+3 {
-		return nil, fmt.Errorf("gpu: proving key has %d SRS points, expected at least %d", nb, n+3)
-	}
-	p.srs = make([]curve.G1Affine, n+3)
-	pin(p.srs)
-	const chunk = 1 << 22
-	comp := make([]byte, chunk*curve.SizeOfG1AffineCompressed)
-	for i := 0; i < len(p.srs); i += chunk {
-		m := min(chunk, len(p.srs)-i)
-		if _, err = io.ReadFull(r, comp[:m*curve.SizeOfG1AffineCompressed]); err != nil {
-			return nil, err
-		}
-		if err = decompressG1(p.srs[i:i+m], comp[:m*curve.SizeOfG1AffineCompressed]); err != nil {
-			return nil, err
-		}
-	}
-	if _, err = io.CopyN(io.Discard, r, int64(int(nb)-n-3)*curve.SizeOfG1AffineCompressed); err != nil {
-		return nil, err
-	}
-	if err = binary.Read(r, binary.BigEndian, &nb); err != nil {
-		return nil, err
-	}
-	// Decompressing all Lagrange points would take seconds, and only those at piPos are used.
-	order := make([]int, len(p.piPos))
-	for i := range order {
-		order[i] = i
-	}
-	slices.SortFunc(order, func(a, b int) int { return cmp.Compare(p.piPos[a], p.piPos[b]) })
-	comp = make([]byte, len(p.piPos)*curve.SizeOfG1AffineCompressed)
-	var buf [curve.SizeOfG1AffineCompressed]byte
-	next := 0
-	for _, i := range order {
-		pos := int(p.piPos[i])
-		if pos >= int(nb) {
-			return nil, fmt.Errorf("gpu: proving key has %d Lagrange points, expected more than %d", nb, pos)
-		}
-		if pos >= next {
-			if _, err = io.CopyN(io.Discard, r, int64(pos-next)*curve.SizeOfG1AffineCompressed); err != nil {
-				return nil, err
+	// The key's points are read while the trace is built.
+	keyRead := make(chan error, 1)
+	go func() {
+		keyRead <- func() error {
+			var nb uint32
+			var err error
+			if err = binary.Read(r, binary.BigEndian, &nb); err != nil {
+				return err
 			}
-			if _, err = io.ReadFull(r, buf[:]); err != nil {
-				return nil, err
+			if int(nb) < n+3 {
+				return fmt.Errorf("gpu: proving key has %d SRS points, expected at least %d", nb, n+3)
 			}
-			next = pos + 1
-		}
-		copy(comp[i*curve.SizeOfG1AffineCompressed:], buf[:])
-	}
-	p.bsbPoints = make([]curve.G1Affine, len(p.piPos))
-	if err = decompressG1(p.bsbPoints, comp); err != nil {
+			p.srs = make([]curve.G1Affine, n+3)
+			pin(p.srs)
+			const chunk = 1 << 22
+			comp := make([]byte, chunk*curve.SizeOfG1AffineCompressed)
+			for i := 0; i < len(p.srs); i += chunk {
+				m := min(chunk, len(p.srs)-i)
+				if _, err = io.ReadFull(r, comp[:m*curve.SizeOfG1AffineCompressed]); err != nil {
+					return err
+				}
+				if err = decompressG1(p.srs[i:i+m], comp[:m*curve.SizeOfG1AffineCompressed]); err != nil {
+					return err
+				}
+			}
+			if _, err = io.CopyN(io.Discard, r, int64(int(nb)-n-3)*curve.SizeOfG1AffineCompressed); err != nil {
+				return err
+			}
+			if err = binary.Read(r, binary.BigEndian, &nb); err != nil {
+				return err
+			}
+			// Decompressing all Lagrange points would take seconds, and only those at piPos are used.
+			order := make([]int, len(p.piPos))
+			for i := range order {
+				order[i] = i
+			}
+			slices.SortFunc(order, func(a, b int) int { return cmp.Compare(p.piPos[a], p.piPos[b]) })
+			comp = make([]byte, len(p.piPos)*curve.SizeOfG1AffineCompressed)
+			var buf [curve.SizeOfG1AffineCompressed]byte
+			next := 0
+			for _, i := range order {
+				pos := int(p.piPos[i])
+				if pos >= int(nb) {
+					return fmt.Errorf("gpu: proving key has %d Lagrange points, expected more than %d", nb, pos)
+				}
+				if pos >= next {
+					if _, err = io.CopyN(io.Discard, r, int64(pos-next)*curve.SizeOfG1AffineCompressed); err != nil {
+						return err
+					}
+					if _, err = io.ReadFull(r, buf[:]); err != nil {
+						return err
+					}
+					next = pos + 1
+				}
+				copy(comp[i*curve.SizeOfG1AffineCompressed:], buf[:])
+			}
+			p.bsbPoints = make([]curve.G1Affine, len(p.piPos))
+			return decompressG1(p.bsbPoints, comp)
+		}()
+	}()
+
+	var err error
+	var sel [5]selector
+	if p.lroWires, sel, err = newTrace(spr, n); err != nil {
 		return nil, err
 	}
+	p.ql, p.qr, p.qm, p.qo, p.qk = sel[0], sel[1], sel[2], sel[3], sel[4]
+	p.sigma = permutation(p.lroWires, len(spr.Public)+len(spr.Secret)+spr.NbInternalVariables)
 	if p.solver, err = newSolver(spr, p.lroWires, sel); err != nil {
+		return nil, err
+	}
+	if err = <-keyRead; err != nil {
 		return nil, err
 	}
 
