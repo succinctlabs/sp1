@@ -35,6 +35,8 @@ func loadGroth16CudaProver(dataDir string) *gpu.Groth16Prover {
 	if err := readCircuit(dataDir+"/"+groth16CircuitPath, r1cs.(*cs.R1CS)); err != nil {
 		panic(err)
 	}
+	// Returns the reader's buffers before the key adds gigabytes.
+	debug.FreeOSMemory()
 	pkFile, err := os.Open(dataDir + "/" + groth16PkPath)
 	if err != nil {
 		panic(err)

@@ -37,6 +37,8 @@ func loadPlonkCudaProver(dataDir string) *plonkCudaProver {
 	if err := readCircuit(dataDir+"/"+plonkCircuitPath, scs.(*cs.SparseR1CS)); err != nil {
 		panic(err)
 	}
+	// Returns the reader's buffers before the key adds gigabytes.
+	debug.FreeOSMemory()
 
 	pkFile, err := os.Open(dataDir + "/" + plonkPkPath)
 	if err != nil {
