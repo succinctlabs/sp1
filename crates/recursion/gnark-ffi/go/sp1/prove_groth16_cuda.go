@@ -27,13 +27,8 @@ func loadGroth16CudaProver(dataDir string) *gpu.Groth16Prover {
 	if p, ok := groth16CudaProvers[dataDir]; ok {
 		return p
 	}
-	r1csFile, err := os.Open(dataDir + "/" + groth16CircuitPath)
-	if err != nil {
-		panic(err)
-	}
-	defer r1csFile.Close()
 	r1cs := groth16.NewCS(ecc.BN254)
-	if _, err := r1cs.ReadFrom(bufio.NewReaderSize(r1csFile, 1024*1024)); err != nil {
+	if err := readCircuit(dataDir+"/"+groth16CircuitPath, r1cs); err != nil {
 		panic(err)
 	}
 	pkFile, err := os.Open(dataDir + "/" + groth16PkPath)

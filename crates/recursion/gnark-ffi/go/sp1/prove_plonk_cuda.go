@@ -33,13 +33,8 @@ func loadPlonkCudaProver(dataDir string) *plonkCudaProver {
 	if p, ok := plonkCudaProvers[dataDir]; ok {
 		return p
 	}
-	scsFile, err := os.Open(dataDir + "/" + plonkCircuitPath)
-	if err != nil {
-		panic(err)
-	}
-	defer scsFile.Close()
 	scs := plonk.NewCS(ecc.BN254)
-	if _, err := scs.ReadFrom(bufio.NewReaderSize(scsFile, 1024*1024)); err != nil {
+	if err := readCircuit(dataDir+"/"+plonkCircuitPath, scs); err != nil {
 		panic(err)
 	}
 
