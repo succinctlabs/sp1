@@ -122,6 +122,8 @@ func (p *Groth16Prover) Prove(fullWitness witness.Witness) (proof *groth16_bn254
 	}
 
 	h := p.computeH(solution.A, solution.B, solution.C)
+	// The scalars of the MSMs below reuse a's memory, which computeH no longer needs.
+	scalars := solution.A[:0]
 	solution.A, solution.B, solution.C = nil, nil, nil
 
 	var r, s big.Int
@@ -143,23 +145,23 @@ func (p *Groth16Prover) Prove(fullWitness witness.Witness) (proof *groth16_bn254
 	z.free()
 	h.free()
 
-	wireValuesA := withoutInfinity(wireValues, pk.InfinityA, pk.NbInfinityA)
+	scalars = withoutInfinity(scalars, wireValues, pk.InfinityA)
 	var ar curve.G1Jac
-	a := msmHost(pk.G1.A, wireValuesA)
+	a := msmHost(pk.G1.A, scalars)
 	ar.FromAffine(&a)
 	ar.AddMixed(&pk.G1.Alpha)
 	ar.AddMixed(&deltas[0])
 	proof.Ar.FromJacobian(&ar)
 
-	wireValuesB := withoutInfinity(wireValues, pk.InfinityB, pk.NbInfinityB)
+	scalars = withoutInfinity(scalars, wireValues, pk.InfinityB)
 	var bs1 curve.G1Jac
-	b1 := msmHost(pk.G1.B, wireValuesB)
+	b1 := msmHost(pk.G1.B, scalars)
 	bs1.FromAffine(&b1)
 	bs1.AddMixed(&pk.G1.Beta)
 	bs1.AddMixed(&deltas[1])
 
 	var bs, deltaS curve.G2Jac
-	b2 := msmHostG2(pk.G2.B, wireValuesB)
+	b2 := msmHostG2(pk.G2.B, scalars)
 	bs.FromAffine(&b2)
 	deltaS.FromAffine(&pk.G2.Delta)
 	deltaS.ScalarMultiplication(&deltaS, &s)
@@ -174,7 +176,7 @@ func (p *Groth16Prover) Prove(fullWitness witness.Witness) (proof *groth16_bn254
 	toRemove = append(toRemove, commitmentInfo.CommitmentIndexes()...)
 	nbPub := p.r1cs.GetNbPublicVariables()
 	var krs, p1 curve.G1Jac
-	k := msmHost(pk.G1.K, without(wireValues[nbPub:], nbPub, toRemove))
+	k := msmHost(pk.G1.K, without(scalars, wireValues[nbPub:], nbPub, toRemove))
 	krs.FromAffine(&k)
 	krs.AddMixed(&deltas[2])
 	krs.AddMixed(&krs2)
@@ -219,8 +221,9 @@ func (p *Groth16Prover) computeH(a, b, c []fr.Element) dvec {
 	return v[0]
 }
 
-func withoutInfinity(v []fr.Element, infinity []bool, nbInfinity uint64) []fr.Element {
-	r := make([]fr.Element, 0, len(v)-int(nbInfinity))
+// withoutInfinity overwrites dst with the elements of v whose point is not at infinity.
+func withoutInfinity(dst, v []fr.Element, infinity []bool) []fr.Element {
+	r := dst[:0]
 	for i := range v {
 		if !infinity[i] {
 			r = append(r, v[i])
@@ -229,11 +232,11 @@ func withoutInfinity(v []fr.Element, infinity []bool, nbInfinity uint64) []fr.El
 	return r
 }
 
-// without returns v without the elements whose index plus first is in remove.
-func without(v []fr.Element, first int, remove []int) []fr.Element {
+// without overwrites dst with v without the elements whose index plus first is in remove.
+func without(dst, v []fr.Element, first int, remove []int) []fr.Element {
 	remove = slices.Clone(remove)
 	slices.Sort(remove)
-	r := make([]fr.Element, 0, len(v))
+	r := dst[:0]
 	for i := range v {
 		if _, found := slices.BinarySearch(remove, i+first); !found {
 			r = append(r, v[i])
