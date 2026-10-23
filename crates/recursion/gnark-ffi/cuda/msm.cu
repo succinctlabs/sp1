@@ -311,6 +311,56 @@ int msm(void* windows_out, uint32_t* nwindows, const void* scalars_ptr, const vo
   return err();
 }
 
+// Decodes gnark's compressed G1 points: big-endian x with flags in its top two bits, which give infinity or
+// whether y is the larger of y and -y. Sets *bad when a point is invalid.
+__global__ void k_g1_decompress(Affine<Fp>* out, const uint8_t* in, uint64_t n, int* bad) {
+  uint64_t i = blockIdx.x * (uint64_t)blockDim.x + threadIdx.x;
+  if (i >= n) return;
+  const uint8_t* b = in + 32 * i;
+  const uint8_t flags = b[0] & 0xc0;
+  Fp x;
+  for (int l = 0; l < 4; l++) {
+    uint64_t w = 0;
+    for (int k = 0; k < 8; k++) w = (w << 8) | b[8 * (3 - l) + k];
+    x.v[l] = w;
+  }
+  x.v[3] &= ~(0xc0ULL << 56);
+  if (flags == 0x40) {
+    if (!x.is_zero()) *bad = 1;
+    out[i] = Affine<Fp>{Fp::zero(), Fp::zero()};
+    return;
+  }
+  if (flags == 0 || Fp::geq_p(reinterpret_cast<const uint32_t*>(x.v))) {
+    *bad = 1;
+    return;
+  }
+  const Fp r2{{0xf32cfc5b538afa89ULL, 0xb5e71911d44501fbULL, 0x47ab1eff0a417ff6ULL, 0x06d89f71cab8351fULL}};
+  x = x * r2;
+  const Fp rhs = x.sqr() * x + Fp::one() + Fp::one() + Fp::one();
+  // y = rhs^((p + 1) / 4), a square root since p = 3 mod 4.
+  const uint32_t e[8] = {0xb61f3f52, 0x4f082305, 0x5a1c72a3, 0x65e05aa4, 0xa0605617, 0x6e14116d, 0xb84c680a, 0x0c19139c};
+  Fp y = Fp::one();
+  for (int l = 7; l >= 0; l--) {
+    for (int k = 31; k >= 0; k--) {
+      y = y.sqr();
+      if ((e[l] >> k) & 1) y = y * rhs;
+    }
+  }
+  if (!(y.sqr() == rhs)) {
+    *bad = 1;
+    return;
+  }
+  const Fp yc = y.to_canonical(), nc = (-y).to_canonical();
+  bool larger = false;
+  for (int l = 3; l >= 0; l--) {
+    if (yc.v[l] != nc.v[l]) {
+      larger = yc.v[l] > nc.v[l];
+      break;
+    }
+  }
+  out[i] = Affine<Fp>{x, larger == (flags == 0xc0) ? y : -y};
+}
+
 }  // namespace
 
 extern "C" int sp1_msm_g1(void* windows_out, uint32_t* nwindows, const void* scalars, const void* points, uint64_t n,
@@ -321,4 +371,17 @@ extern "C" int sp1_msm_g1(void* windows_out, uint32_t* nwindows, const void* sca
 extern "C" int sp1_msm_g2(void* windows_out, uint32_t* nwindows, const void* scalars, const void* points, uint64_t n,
                           uint32_t c, void* stream) {
   return msm<Fp2>(windows_out, nwindows, scalars, points, n, c, 4096, st(stream));
+}
+
+extern "C" int sp1_g1_decompress(void* points, const void* compressed, uint64_t n, int* bad, void* stream) {
+  cudaStream_t s = st(stream);
+  int* d_bad = alloc<int>(1, s);
+  if (!d_bad) return (int)cudaErrorMemoryAllocation;
+  cudaMemsetAsync(d_bad, 0, sizeof(int), s);
+  k_g1_decompress<<<blocks(n), THREADS, 0, s>>>(reinterpret_cast<Affine<Fp>*>(points),
+                                                reinterpret_cast<const uint8_t*>(compressed), n, d_bad);
+  cudaMemcpyAsync(bad, d_bad, sizeof(int), cudaMemcpyDeviceToHost, s);
+  cudaStreamSynchronize(s);
+  cudaFree(d_bad);
+  return err();
 }

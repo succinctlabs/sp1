@@ -126,14 +126,29 @@ func NewPlonkProver(spr *cs.SparseR1CS, r io.Reader) (*PlonkProver, error) {
 	}
 	p.piPos = append(append([]uint32{}, p.qcpPos...), uint32(p.nbPub+p.commit.CommitmentIndex), uint32(p.nbPub+spr.GetNbConstraints()-1))
 
-	if err = curve.NewDecoder(r, curve.NoSubgroupChecks()).Decode(&p.srs); err != nil {
+	var nb uint32
+	if err = binary.Read(r, binary.BigEndian, &nb); err != nil {
 		return nil, err
 	}
-	if len(p.srs) < n+3 {
-		return nil, fmt.Errorf("gpu: proving key has %d SRS points, expected at least %d", len(p.srs), n+3)
+	if int(nb) < n+3 {
+		return nil, fmt.Errorf("gpu: proving key has %d SRS points, expected at least %d", nb, n+3)
 	}
-	p.srs = p.srs[:n+3]
-	var nb uint32
+	p.srs = make([]curve.G1Affine, n+3)
+	pin(p.srs)
+	const chunk = 1 << 22
+	comp := make([]byte, chunk*curve.SizeOfG1AffineCompressed)
+	for i := 0; i < len(p.srs); i += chunk {
+		m := min(chunk, len(p.srs)-i)
+		if _, err = io.ReadFull(r, comp[:m*curve.SizeOfG1AffineCompressed]); err != nil {
+			return nil, err
+		}
+		if err = decompressG1(p.srs[i:i+m], comp[:m*curve.SizeOfG1AffineCompressed]); err != nil {
+			return nil, err
+		}
+	}
+	if _, err = io.CopyN(io.Discard, r, int64(int(nb)-n-3)*curve.SizeOfG1AffineCompressed); err != nil {
+		return nil, err
+	}
 	if err = binary.Read(r, binary.BigEndian, &nb); err != nil {
 		return nil, err
 	}
@@ -143,7 +158,7 @@ func NewPlonkProver(spr *cs.SparseR1CS, r io.Reader) (*PlonkProver, error) {
 		order[i] = i
 	}
 	slices.SortFunc(order, func(a, b int) int { return cmp.Compare(p.piPos[a], p.piPos[b]) })
-	p.bsbPoints = make([]curve.G1Affine, len(p.piPos))
+	comp = make([]byte, len(p.piPos)*curve.SizeOfG1AffineCompressed)
 	var buf [curve.SizeOfG1AffineCompressed]byte
 	next := 0
 	for _, i := range order {
@@ -160,16 +175,17 @@ func NewPlonkProver(spr *cs.SparseR1CS, r io.Reader) (*PlonkProver, error) {
 			}
 			next = pos + 1
 		}
-		if _, err = p.bsbPoints[i].SetBytes(buf[:]); err != nil {
-			return nil, err
-		}
+		copy(comp[i*curve.SizeOfG1AffineCompressed:], buf[:])
+	}
+	p.bsbPoints = make([]curve.G1Affine, len(p.piPos))
+	if err = decompressG1(p.bsbPoints, comp); err != nil {
+		return nil, err
 	}
 	p.solver = newSolver(spr)
 
 	for _, v := range [][]uint16{p.ql.idx, p.qr.idx, p.qm.idx, p.qo.idx, p.qk.idx} {
 		pin(v)
 	}
-	pin(p.srs)
 	pin(p.sigma)
 	pin(p.lroWires)
 	p.copyStream, p.computeDone, p.copyDone, p.uploaded = newStream(), newEvent(), newEvent(), newEvent()

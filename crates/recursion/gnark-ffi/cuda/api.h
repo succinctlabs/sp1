@@ -47,6 +47,9 @@ int sp1_msm_g1(void* windows_out, uint32_t* nwindows, const void* scalars, const
 int sp1_msm_g2(void* windows_out, uint32_t* nwindows, const void* scalars, const void* points, uint64_t n,
                uint32_t c, void* stream);
 
+// Decodes n G1 points from gnark's compressed encoding; *bad (host memory) is set when one is invalid.
+int sp1_g1_decompress(void* points, const void* compressed, uint64_t n, int* bad, void* stream);
+
 int sp1_fr_scale_pow(void* dst, const void* src, uint64_t n, const void* tab, void* stream);
 int sp1_fr_mul(void* out, const void* a, const void* b, uint64_t n, void* stream);
 int sp1_fr_fma(void* acc, const void* a, const void* b, uint64_t n, void* stream);

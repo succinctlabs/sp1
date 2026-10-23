@@ -8,6 +8,7 @@ package gpu
 import "C"
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"unsafe"
@@ -325,4 +326,18 @@ func msmHostG2(points []curve.G2Affine, scalars []fr.Element) curve.G2Affine {
 	defer dp.free()
 	defer ds.free()
 	return msmG2(ds, dp, len(scalars))
+}
+
+// decompressG1 decodes points from gnark's compressed encoding on the GPU.
+func decompressG1(dst []curve.G1Affine, src []byte) error {
+	in, out := upload(src), allocBytes(len(dst)*curve.SizeOfG1AffineUncompressed, len(dst))
+	defer in.free()
+	defer out.free()
+	var bad C.int
+	check(C.sp1_g1_decompress(out.p, in.p, C.uint64_t(len(dst)), &bad, nil), "g1_decompress")
+	if bad != 0 {
+		return errors.New("gpu: invalid compressed G1 point")
+	}
+	d2h(unsafe.Pointer(&dst[0]), out, len(dst)*curve.SizeOfG1AffineUncompressed)
+	return nil
 }
