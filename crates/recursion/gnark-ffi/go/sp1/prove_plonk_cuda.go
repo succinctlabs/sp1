@@ -48,11 +48,6 @@ func loadPlonkCudaProver(dataDir string) *plonkCudaProver {
 		panic(err)
 	}
 	defer pkFile.Close()
-	pk := plonk.NewProvingKey(ecc.BN254)
-	if _, err := pk.UnsafeReadFrom(bufio.NewReaderSize(pkFile, 1024*1024)); err != nil {
-		panic(err)
-	}
-
 	vkFile, err := os.Open(dataDir + "/" + plonkVkPath)
 	if err != nil {
 		panic(err)
@@ -63,12 +58,11 @@ func loadPlonkCudaProver(dataDir string) *plonkCudaProver {
 		panic(err)
 	}
 
-	prover, err := gpu.NewPlonkProver(scs.(*cs.SparseR1CS), pk.(*plonk_bn254.ProvingKey))
+	prover, err := gpu.NewPlonkProver(scs.(*cs.SparseR1CS), bufio.NewReaderSize(pkFile, 1024*1024))
 	if err != nil {
 		panic(err)
 	}
-	// The key now lives on the GPU. A smaller heap leaves huge pages for the solver's random access.
-	pk = nil
+	// A smaller heap leaves huge pages for the solver's random access.
 	runtime.GC()
 	debug.FreeOSMemory()
 

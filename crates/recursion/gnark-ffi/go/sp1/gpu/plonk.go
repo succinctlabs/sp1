@@ -6,10 +6,14 @@
 package gpu
 
 import (
+	"cmp"
 	"crypto/sha256"
+	"encoding/binary"
 	"fmt"
+	"io"
 	"math/big"
 	"math/bits"
+	"slices"
 	"unsafe"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -68,27 +72,31 @@ type PlonkProver struct {
 	uploaded           unsafe.Pointer
 }
 
-// NewPlonkProver prepares a circuit for proving, keeping what it needs from the proving key.
-func NewPlonkProver(spr *cs.SparseR1CS, pk *plonk_bn254.ProvingKey) (*PlonkProver, error) {
+// NewPlonkProver prepares a circuit for proving, reading what it needs from the proving key that gnark wrote to r.
+func NewPlonkProver(spr *cs.SparseR1CS, r io.Reader) (*PlonkProver, error) {
+	vk := &plonk_bn254.VerifyingKey{}
+	if _, err := vk.ReadFrom(r); err != nil {
+		return nil, err
+	}
 	commitments := spr.CommitmentInfo.(constraint.PlonkCommitments)
 	if len(commitments) != 1 {
 		return nil, fmt.Errorf("gpu: PLONK supports exactly one bsb22 commitment, got %d", len(commitments))
 	}
 	// Debug info only describes failed constraints in errors.
 	spr.DebugInfo, spr.MDebug = nil, nil
-	p := &PlonkProver{spr: spr, vk: pk.Vk, commit: commitments[0]}
+	p := &PlonkProver{spr: spr, vk: vk, commit: commitments[0]}
 	sizeSystem := uint64(spr.GetNbConstraints() + len(spr.Public))
 	p.domain0 = fft.NewDomain(sizeSystem, fft.WithoutPrecompute())
 	domain1 := fft.NewDomain(4*sizeSystem, fft.WithoutPrecompute())
 	if domain1.Cardinality != 4*p.domain0.Cardinality {
 		return nil, fmt.Errorf("gpu: PLONK expects a quotient domain of 4n")
 	}
-	if !domain1.FrMultiplicativeGen.Equal(&pk.Vk.CosetShift) || !p.domain0.Generator.Equal(&pk.Vk.Generator) {
+	if !domain1.FrMultiplicativeGen.Equal(&vk.CosetShift) || !p.domain0.Generator.Equal(&vk.Generator) {
 		return nil, fmt.Errorf("gpu: proving key domain mismatch")
 	}
 	n := int(p.domain0.Cardinality)
 	p.n, p.logN, p.nbPub = n, bits.TrailingZeros(uint(n)), len(spr.Public)
-	p.u = pk.Vk.CosetShift
+	p.u = vk.CosetShift
 	p.u2.Square(&p.u)
 	p.cosets[0] = p.u
 	for k := 1; k < 4; k++ {
@@ -117,11 +125,45 @@ func NewPlonkProver(spr *cs.SparseR1CS, pk *plonk_bn254.ProvingKey) (*PlonkProve
 		p.qcpPos = append(p.qcpPos, uint32(p.nbPub+c))
 	}
 	p.piPos = append(append([]uint32{}, p.qcpPos...), uint32(p.nbPub+p.commit.CommitmentIndex), uint32(p.nbPub+spr.GetNbConstraints()-1))
-	p.bsbPoints = make([]curve.G1Affine, len(p.piPos))
-	for i, pos := range p.piPos {
-		p.bsbPoints[i] = pk.KzgLagrange.G1[pos]
+
+	if err = curve.NewDecoder(r, curve.NoSubgroupChecks()).Decode(&p.srs); err != nil {
+		return nil, err
 	}
-	p.srs = pk.Kzg.G1[:n+3]
+	if len(p.srs) < n+3 {
+		return nil, fmt.Errorf("gpu: proving key has %d SRS points, expected at least %d", len(p.srs), n+3)
+	}
+	p.srs = p.srs[:n+3]
+	var nb uint32
+	if err = binary.Read(r, binary.BigEndian, &nb); err != nil {
+		return nil, err
+	}
+	// Decompressing all Lagrange points would take seconds, and only those at piPos are used.
+	order := make([]int, len(p.piPos))
+	for i := range order {
+		order[i] = i
+	}
+	slices.SortFunc(order, func(a, b int) int { return cmp.Compare(p.piPos[a], p.piPos[b]) })
+	p.bsbPoints = make([]curve.G1Affine, len(p.piPos))
+	var buf [curve.SizeOfG1AffineCompressed]byte
+	next := 0
+	for _, i := range order {
+		pos := int(p.piPos[i])
+		if pos >= int(nb) {
+			return nil, fmt.Errorf("gpu: proving key has %d Lagrange points, expected more than %d", nb, pos)
+		}
+		if pos >= next {
+			if _, err = io.CopyN(io.Discard, r, int64(pos-next)*curve.SizeOfG1AffineCompressed); err != nil {
+				return nil, err
+			}
+			if _, err = io.ReadFull(r, buf[:]); err != nil {
+				return nil, err
+			}
+			next = pos + 1
+		}
+		if _, err = p.bsbPoints[i].SetBytes(buf[:]); err != nil {
+			return nil, err
+		}
+	}
 	p.solver = newSolver(spr)
 
 	for _, v := range [][]uint16{p.ql.idx, p.qr.idx, p.qm.idx, p.qo.idx, p.qk.idx} {
