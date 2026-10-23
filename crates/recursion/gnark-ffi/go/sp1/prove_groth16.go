@@ -1,4 +1,4 @@
-//go:build !icicle
+//go:build !cuda
 
 package sp1
 
