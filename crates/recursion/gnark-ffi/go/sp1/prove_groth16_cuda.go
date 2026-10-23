@@ -4,12 +4,15 @@ package sp1
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
+	"io"
 	"os"
 	"runtime/debug"
 	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/backend/groth16"
 	groth16_bn254 "github.com/consensys/gnark/backend/groth16/bn254"
 	cs "github.com/consensys/gnark/constraint/bn254"
@@ -37,7 +40,14 @@ func loadGroth16CudaProver(dataDir string) *gpu.Groth16Prover {
 	}
 	defer pkFile.Close()
 	pk := groth16.NewProvingKey(ecc.BN254)
-	if err := pk.ReadDump(bufio.NewReaderSize(pkFile, 1024*1024)); err != nil {
+	pkReader := bufio.NewReaderSize(pkFile, 1024*1024)
+	// The dump marker and the FFT domain, whose last byte asks for twiddle tables that the prover does not use.
+	var head [8 + 8 + 5*fr.Bytes + 1]byte
+	if _, err := io.ReadFull(pkReader, head[:]); err != nil {
+		panic(err)
+	}
+	head[len(head)-1] = 0
+	if err := pk.ReadDump(io.MultiReader(bytes.NewReader(head[:]), pkReader)); err != nil {
 		panic(err)
 	}
 	p := gpu.NewGroth16Prover(r1cs.(*cs.R1CS), pk.(*groth16_bn254.ProvingKey))
