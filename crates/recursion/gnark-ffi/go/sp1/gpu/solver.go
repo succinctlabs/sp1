@@ -3,13 +3,16 @@
 package gpu
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math/big"
+	"math/bits"
 	"runtime"
 	"sync"
 	"sync/atomic"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/field/pool"
 	"github.com/consensys/gnark/constraint"
@@ -17,9 +20,9 @@ import (
 	csolver "github.com/consensys/gnark/constraint/solver"
 )
 
-// levelSolver mirrors gnark's bn254 solver for SparseR1CS. It differs in how it schedules levels: workers
-// spin on a shared epoch instead of exchanging tasks over channels, and solved wires are counted per
-// worker. It reads gates from the trace instead of the instructions, which it frees.
+// levelSolver mirrors gnark's bn254 solver. It differs in how it schedules levels: workers spin on a shared
+// epoch instead of exchanging tasks over channels, and solved wires are counted per worker. It frees the
+// instructions and calldata, reading PLONK gates from the trace and R1CS constraints from packed terms.
 type levelSolver struct {
 	*cs.SparseR1CS
 	values []fr.Element
@@ -30,6 +33,13 @@ type levelSolver struct {
 	sel      [5]selector
 	n        int
 	mappings []constraint.HintMapping
+
+	// Each R1CS term packs its expression (L, R or O) in 2 bits, then its coefficient in cBits, then its wire.
+	terms     []byte
+	termStart []uint32
+	termWidth int
+	cBits     uint
+	a, b, c   []fr.Element
 
 	nbWorkers int
 	epoch     atomic.Uint64
@@ -59,53 +69,143 @@ const (
 	skipCode = ^uint32(0)
 )
 
-// newSolver solves spr from the wires and selectors of its n-row trace. It rewrites spr's levels and frees its
-// instructions and calldata.
+// newSolver solves spr from the wires and selectors of its n-row trace.
 func newSolver(spr *cs.SparseR1CS, wires []uint32, sel [5]selector) (*levelSolver, error) {
-	nbWires := len(spr.Public) + len(spr.Secret) + spr.NbInternalVariables
-	s := &levelSolver{
-		SparseR1CS: spr,
-		solved:     make([]bool, nbWires),
-		nbWorkers:  min(runtime.GOMAXPROCS(0), maxWorkers),
-		wires:      wires,
-		sel:        sel,
-		n:          len(wires) / 3,
-	}
-	code := make([]uint32, len(spr.Instructions))
+	s := newLevelSolver(spr)
+	s.wires, s.sel, s.n = wires, sel, len(wires)/3
 	row := uint32(len(spr.Public))
 	var c constraint.SparseR1C
-	for i, inst := range spr.Instructions {
-		switch b := spr.Blueprints[inst.BlueprintID].(type) {
+	err := s.compile(func(inst constraint.PackedInstruction, b constraint.Blueprint) (uint32, error) {
+		switch b := b.(type) {
 		case *constraint.BlueprintGenericSparseR1C[constraint.U64]:
 			b.DecompressSparseR1C(&c, inst.Unpack(&spr.System))
+			row++
 			// gnark skips the constraints that enforce the commitment when solving.
-			if code[i] = row; c.Commitment != constraint.NOT {
-				code[i] = skipCode
+			if c.Commitment != constraint.NOT {
+				return skipCode, nil
 			}
-			row++
+			return row - 1, nil
 		case constraint.BlueprintSparseR1C:
-			code[i] = row
 			row++
-		case constraint.BlueprintHint:
-			var h constraint.HintMapping
-			b.DecompressHint(&h, inst.Unpack(&spr.System))
-			code[i] = hintCode | uint32(len(s.mappings))
-			s.mappings = append(s.mappings, h)
-		default:
-			return nil, fmt.Errorf("gpu: unsupported blueprint %T", b)
+			return row - 1, nil
+		}
+		return 0, fmt.Errorf("gpu: unsupported blueprint %T", b)
+	})
+	return s, err
+}
+
+// newR1CSSolver solves r1cs from its constraints' terms, packed in as few bytes as its wires and coefficients allow.
+func newR1CSSolver(r1cs *cs.R1CS) (*levelSolver, error) {
+	if r1cs.GkrInfo.Is() {
+		return nil, errors.New("gpu: GKR is not supported")
+	}
+	s := newLevelSolver(r1cs)
+	nbWires, nbCoeffs := len(s.solved), len(r1cs.Coefficients)
+	s.cBits = uint(bits.Len(uint(nbCoeffs - 1)))
+	s.termWidth = (2 + int(s.cBits) + bits.Len(uint(nbWires-1)) + 7) / 8
+	if s.termWidth > 8 {
+		return nil, errors.New("gpu: R1CS terms do not fit in 64 bits")
+	}
+	s.termStart = make([]uint32, 0, r1cs.NbConstraints+1)
+	nbTerms := 0
+	for _, inst := range r1cs.Instructions {
+		if _, ok := r1cs.Blueprints[inst.BlueprintID].(*constraint.BlueprintGenericR1C); ok {
+			if int(inst.ConstraintOffset) != len(s.termStart) {
+				return nil, errors.New("gpu: R1CS constraints are out of order")
+			}
+			s.termStart = append(s.termStart, uint32(nbTerms))
+			nbTerms += int(r1cs.CallData[inst.StartCallData]-4) / 2
 		}
 	}
-	for l, level := range spr.Levels {
+	s.termStart = append(s.termStart, uint32(nbTerms))
+	// The padding lets every term be read with an 8-byte load.
+	s.terms = make([]byte, nbTerms*s.termWidth+8)
+
+	// gnark's calldata for an R1C: its size, the lengths of L, R and O, then a coefficient and a wire per term.
+	var bad atomic.Bool
+	var wg sync.WaitGroup
+	nb := runtime.GOMAXPROCS(0)
+	for c := range nb {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			var buf [8]byte
+			for _, inst := range r1cs.Instructions[len(r1cs.Instructions)*c/nb : len(r1cs.Instructions)*(c+1)/nb] {
+				if _, ok := r1cs.Blueprints[inst.BlueprintID].(*constraint.BlueprintGenericR1C); !ok {
+					continue
+				}
+				cd := r1cs.CallData[inst.StartCallData:]
+				nbL, nbLR := int(cd[1]), int(cd[1]+cd[2])
+				off := int(s.termStart[inst.ConstraintOffset]) * s.termWidth
+				for j := range nbLR + int(cd[3]) {
+					cID, vID := cd[4+2*j], cd[5+2*j]
+					if int(vID) >= nbWires || int(cID) >= nbCoeffs {
+						bad.Store(true)
+						return
+					}
+					k := uint64(0)
+					if j >= nbL {
+						k = 1
+					}
+					if j >= nbLR {
+						k = 2
+					}
+					binary.LittleEndian.PutUint64(buf[:], k|uint64(cID)<<2|uint64(vID)<<(2+s.cBits))
+					off += copy(s.terms[off:], buf[:s.termWidth])
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	if bad.Load() {
+		return nil, errors.New("gpu: R1CS term out of range")
+	}
+	err := s.compile(func(inst constraint.PackedInstruction, b constraint.Blueprint) (uint32, error) {
+		if _, ok := b.(*constraint.BlueprintGenericR1C); !ok {
+			return 0, fmt.Errorf("gpu: unsupported blueprint %T", b)
+		}
+		return inst.ConstraintOffset, nil
+	})
+	return s, err
+}
+
+func newLevelSolver(system *cs.SparseR1CS) *levelSolver {
+	return &levelSolver{
+		SparseR1CS: system,
+		solved:     make([]bool, len(system.Public)+len(system.Secret)+system.NbInternalVariables),
+		nbWorkers:  min(runtime.GOMAXPROCS(0), maxWorkers),
+	}
+}
+
+// compile rewrites the levels to hold a code per instruction, gate's for those that are not hints, and frees the
+// instructions and calldata.
+func (s *levelSolver) compile(gate func(constraint.PackedInstruction, constraint.Blueprint) (uint32, error)) error {
+	code := make([]uint32, len(s.Instructions))
+	for i, inst := range s.Instructions {
+		b := s.Blueprints[inst.BlueprintID]
+		if bh, ok := b.(constraint.BlueprintHint); ok {
+			var h constraint.HintMapping
+			bh.DecompressHint(&h, inst.Unpack(&s.System))
+			code[i] = hintCode | uint32(len(s.mappings))
+			s.mappings = append(s.mappings, h)
+			continue
+		}
+		var err error
+		if code[i], err = gate(inst, b); err != nil {
+			return err
+		}
+	}
+	for l, level := range s.Levels {
 		kept := level[:0]
 		for _, i := range level {
 			if code[i] != skipCode {
 				kept = append(kept, code[i])
 			}
 		}
-		spr.Levels[l] = kept
+		s.Levels[l] = kept
 	}
-	spr.Instructions, spr.CallData = nil, nil
-	return s, nil
+	s.Instructions, s.CallData = nil, nil
+	return nil
 }
 
 func (s *levelSolver) solve(witness fr.Vector, opts ...csolver.Option) error {
@@ -113,8 +213,15 @@ func (s *levelSolver) solve(witness fr.Vector, opts ...csolver.Option) error {
 	if err != nil {
 		return err
 	}
-	if len(witness) != len(s.Public)+len(s.Secret) {
-		return fmt.Errorf("invalid witness size, got %d, expected %d", len(witness), len(s.Public)+len(s.Secret))
+	// An R1CS's first wire is the constant 1, which the witness leaves out.
+	offset := 0
+	s.values = make([]fr.Element, len(s.solved))
+	if s.Type == constraint.SystemR1CS {
+		offset = 1
+		s.values[0].SetOne()
+	}
+	if len(witness) != len(s.Public)-offset+len(s.Secret) {
+		return fmt.Errorf("invalid witness size, got %d, expected %d", len(witness), len(s.Public)-offset+len(s.Secret))
 	}
 	var missing []string
 	for hintUUID, hintID := range s.MHintsDependencies {
@@ -133,15 +240,19 @@ func (s *levelSolver) solve(witness fr.Vector, opts ...csolver.Option) error {
 	}
 
 	clear(s.solved)
-	s.values = make([]fr.Element, len(s.solved))
-	copy(s.values, witness)
-	for i := range witness {
+	copy(s.values[offset:], witness)
+	for i := range len(witness) + offset {
 		s.solved[i] = true
+	}
+	if s.termStart != nil {
+		nb := len(s.termStart) - 1
+		n := ecc.NextPowerOfTwo(uint64(nb))
+		s.a, s.b, s.c = make([]fr.Element, nb, n), make([]fr.Element, nb, n), make([]fr.Element, nb, n)
 	}
 	s.err = nil
 	s.failed.Store(false)
 	s.counts = make([]paddedCount, s.nbWorkers)
-	s.counts[0].n = uint64(len(witness))
+	s.counts[0].n = uint64(len(witness) + offset)
 
 	if err := s.run(); err != nil {
 		return err
@@ -239,9 +350,66 @@ func (s *levelSolver) process(w int, code uint32) error {
 	if code&hintCode != 0 {
 		return s.solveWithHint(w, &s.mappings[code&^hintCode])
 	}
+	if s.terms != nil {
+		if err := s.solveR1C(w, code); err != nil {
+			return fmt.Errorf("constraint #%d is not satisfied: %w", code, err)
+		}
+		return nil
+	}
 	if err := s.solveGate(w, int(code)); err != nil {
 		return fmt.Errorf("constraint #%d is not satisfied: %w", int(code)-len(s.Public), err)
 	}
+	return nil
+}
+
+// solveR1C mirrors gnark's solveR1C for the constraint L⋅R = O of index i, which has at most one unsolved wire.
+func (s *levelSolver) solveR1C(w int, i uint32) error {
+	var lro [3]fr.Element
+	loc, unsolved := -1, uint64(0)
+	mask, cMask := ^uint64(0)>>(64-8*s.termWidth), uint64(1)<<s.cBits-1
+	for j := int(s.termStart[i]); j < int(s.termStart[i+1]); j++ {
+		t := binary.LittleEndian.Uint64(s.terms[j*s.termWidth:]) & mask
+		if vID := t >> (2 + s.cBits); !s.solved[vID] {
+			if loc >= 0 {
+				return errors.New("found more than one wire to instantiate")
+			}
+			loc, unsolved = int(t&3), t
+		} else {
+			s.accumulateInto(constraint.Term{CID: uint32(t >> 2 & cMask), VID: uint32(vID)}, &lro[t&3])
+		}
+	}
+	a, b, c := &lro[0], &lro[1], &lro[2]
+	var wire, check fr.Element
+	switch {
+	case loc == 0 && !b.IsZero():
+		wire.Div(c, b).Sub(&wire, a)
+		a.Add(a, &wire)
+	case loc == 1 && !a.IsZero():
+		wire.Div(c, a).Sub(&wire, b)
+		b.Add(b, &wire)
+	case loc == 2:
+		wire.Mul(a, b).Sub(&wire, c)
+		c.Add(c, &wire)
+	default:
+		// Nothing to solve, or a zero factor leaves the wire at 0: the constraint must already hold.
+		if !check.Mul(a, b).Equal(c) {
+			return fmt.Errorf("%s ⋅ %s != %s", a.String(), b.String(), c.String())
+		}
+	}
+	if loc >= 0 {
+		// The solved term is coefficient times value, the coefficient being 1 or -1 in gnark's frontend.
+		switch cID := uint32(unsolved >> 2 & cMask); cID {
+		case constraint.CoeffIdOne:
+		case constraint.CoeffIdMinusOne:
+			wire.Neg(&wire)
+		case constraint.CoeffIdZero:
+			return errors.New("division by 0")
+		default:
+			wire.Div(&wire, &s.Coefficients[cID])
+		}
+		s.set(w, int(unsolved>>(2+s.cBits)), wire)
+	}
+	s.a[i], s.b[i], s.c[i] = *a, *b, *c
 	return nil
 }
 
@@ -340,8 +508,16 @@ func (s *levelSolver) accumulateInto(t constraint.Term, r *fr.Element) {
 		r.Add(r, &s.Coefficients[cID])
 		return
 	}
-	v := s.computeTerm(t)
-	r.Add(r, &v)
+	switch cID {
+	case constraint.CoeffIdZero:
+	case constraint.CoeffIdOne:
+		r.Add(r, &s.values[t.VID])
+	case constraint.CoeffIdMinusOne:
+		r.Sub(r, &s.values[t.VID])
+	default:
+		v := s.computeTerm(t)
+		r.Add(r, &v)
+	}
 }
 
 func (s *levelSolver) solveWithHint(w int, h *constraint.HintMapping) error {

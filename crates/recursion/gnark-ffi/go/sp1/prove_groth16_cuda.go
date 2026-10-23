@@ -15,7 +15,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/backend/groth16"
-	groth16_bn254 "github.com/consensys/gnark/backend/groth16/bn254"
 	cs "github.com/consensys/gnark/constraint/bn254"
 	"github.com/consensys/gnark/frontend"
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1/gpu"
@@ -42,17 +41,16 @@ func loadGroth16CudaProver(dataDir string) *gpu.Groth16Prover {
 		panic(err)
 	}
 	defer pkFile.Close()
-	pk := groth16.NewProvingKey(ecc.BN254)
 	// The dump marker and the FFT domain, whose last byte asks for twiddle tables that the prover does not use.
 	var head [8 + 8 + 5*fr.Bytes + 1]byte
 	if _, err := io.ReadFull(pkFile, head[:]); err != nil {
 		panic(err)
 	}
 	head[len(head)-1] = 0
-	if err := pk.ReadDump(io.MultiReader(bytes.NewReader(head[:]), &parallelReader{pkFile, int64(len(head))})); err != nil {
+	p, err := gpu.NewGroth16Prover(r1cs.(*cs.R1CS), io.MultiReader(bytes.NewReader(head[:]), &parallelReader{pkFile, int64(len(head))}))
+	if err != nil {
 		panic(err)
 	}
-	p := gpu.NewGroth16Prover(r1cs.(*cs.R1CS), pk.(*groth16_bn254.ProvingKey))
 	groth16CudaProvers[dataDir] = p
 	debug.FreeOSMemory()
 	return p

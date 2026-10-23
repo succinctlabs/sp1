@@ -4,8 +4,10 @@ package gpu
 
 import (
 	"fmt"
+	"io"
 	"math/big"
 	"math/bits"
+	"runtime"
 	"slices"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -24,13 +26,27 @@ import (
 // Groth16Prover holds one circuit's proving key in host memory.
 type Groth16Prover struct {
 	r1cs                         *cs.R1CS
+	solver                       *levelSolver
 	pk                           *groth16_bn254.ProvingKey
 	logN                         int
 	tabW, tabWInv, tabC, tabCInv []fr.Element
 }
 
-// NewGroth16Prover page-locks the proving key's points, which are uploaded for each proof.
-func NewGroth16Prover(r1cs *cs.R1CS, pk *groth16_bn254.ProvingKey) *Groth16Prover {
+// NewGroth16Prover prepares a circuit for proving and reads its proving key, as gnark dumped it, from r. The key's
+// points are page-locked, as they are uploaded for each proof.
+func NewGroth16Prover(r1cs *cs.R1CS, r io.Reader) (*Groth16Prover, error) {
+	// Debug info only describes failed constraints in errors.
+	r1cs.DebugInfo, r1cs.MDebug = nil, nil
+	solver, err := newR1CSSolver(r1cs)
+	if err != nil {
+		return nil, err
+	}
+	// Lets the key reuse the memory of the calldata that the solver freed.
+	runtime.GC()
+	pk := &groth16_bn254.ProvingKey{}
+	if err := pk.ReadDump(r); err != nil {
+		return nil, err
+	}
 	d := &pk.Domain
 	// The kernels use their own power tables, so the domain's precomputed ones are dropped.
 	*d = fft.Domain{
@@ -38,12 +54,10 @@ func NewGroth16Prover(r1cs *cs.R1CS, pk *groth16_bn254.ProvingKey) *Groth16Prove
 		Generator: d.Generator, GeneratorInv: d.GeneratorInv,
 		FrMultiplicativeGen: d.FrMultiplicativeGen, FrMultiplicativeGenInv: d.FrMultiplicativeGenInv,
 	}
-	// Debug info only describes failed constraints in errors.
-	r1cs.DebugInfo, r1cs.MDebug = nil, nil
 	var gInv fr.Element
 	gInv.Inverse(&d.FrMultiplicativeGen)
 	p := &Groth16Prover{
-		r1cs: r1cs, pk: pk, logN: bits.TrailingZeros64(d.Cardinality),
+		r1cs: r1cs, solver: solver, pk: pk, logN: bits.TrailingZeros64(d.Cardinality),
 		tabW: powTable(d.Generator), tabWInv: powTable(d.GeneratorInv),
 		tabC: powTable(d.FrMultiplicativeGen), tabCInv: powTable(gInv),
 	}
@@ -55,7 +69,7 @@ func NewGroth16Prover(r1cs *cs.R1CS, pk *groth16_bn254.ProvingKey) *Groth16Prove
 		pin(k.Basis)
 		pin(k.BasisExpSigma)
 	}
-	return p
+	return p, nil
 }
 
 // Prove computes a Groth16 proof for the given full witness.
@@ -98,12 +112,11 @@ func (p *Groth16Prover) Prove(fullWitness witness.Witness) (proof *groth16_bn254
 		res.BigInt(out[0])
 		return nil
 	})
-	_solution, err := p.r1cs.Solve(fullWitness, hint)
-	if err != nil {
+	defer func() { p.solver.values, p.solver.a, p.solver.b, p.solver.c = nil, nil, nil, nil }()
+	if err := p.solver.solve(fullWitness.Vector().(fr.Vector), hint); err != nil {
 		return nil, err
 	}
-	solution := _solution.(*cs.R1CSSolution)
-	wireValues := []fr.Element(solution.W)
+	wireValues := p.solver.values
 
 	poks := make([]curve.G1Affine, len(pk.CommitmentKeys))
 	for i := range pk.CommitmentKeys {
@@ -121,10 +134,10 @@ func (p *Groth16Prover) Prove(fullWitness witness.Witness) (proof *groth16_bn254
 		return nil, err
 	}
 
-	h := p.computeH(solution.A, solution.B, solution.C)
+	h := p.computeH(p.solver.a, p.solver.b, p.solver.c)
 	// The scalars of the MSMs below reuse a's memory, which computeH no longer needs.
-	scalars := solution.A[:0]
-	solution.A, solution.B, solution.C = nil, nil, nil
+	scalars := p.solver.a[:0]
+	p.solver.a, p.solver.b, p.solver.c = nil, nil, nil
 
 	var r, s big.Int
 	var _r, _s, _kr fr.Element
