@@ -101,24 +101,13 @@ func NewPlonkProver(spr *cs.SparseR1CS, pk *plonk_bn254.ProvingKey) (*PlonkProve
 		p.tabC[k], p.tabCInv[k] = powTable(p.cosets[k]), powTable(inv)
 	}
 
-	trace := plonk_bn254.NewTrace(spr, p.domain0)
-	for _, s := range []struct {
-		dst *selector
-		src []fr.Element
-	}{
-		{&p.ql, trace.Ql.Coefficients()}, {&p.qr, trace.Qr.Coefficients()}, {&p.qm, trace.Qm.Coefficients()},
-		{&p.qo, trace.Qo.Coefficients()}, {&p.qk, trace.Qk.Coefficients()},
-	} {
-		var err error
-		if *s.dst, err = compress(s.src); err != nil {
-			return nil, err
-		}
+	var err error
+	var sel [5]selector
+	if p.lroWires, sel, err = newTrace(spr, n); err != nil {
+		return nil, err
 	}
-	p.sigma = make([]uint32, len(trace.S))
-	for i, s := range trace.S {
-		p.sigma[i] = uint32(s)
-	}
-	trace = nil
+	p.ql, p.qr, p.qm, p.qo, p.qk = sel[0], sel[1], sel[2], sel[3], sel[4]
+	p.sigma = permutation(p.lroWires, len(spr.Public)+len(spr.Secret)+spr.NbInternalVariables)
 
 	for i := 0; i < p.nbPub; i++ {
 		p.qkPos = append(p.qkPos, uint32(i))
@@ -133,7 +122,6 @@ func NewPlonkProver(spr *cs.SparseR1CS, pk *plonk_bn254.ProvingKey) (*PlonkProve
 		p.bsbPoints[i] = pk.KzgLagrange.G1[pos]
 	}
 	p.srs = pk.Kzg.G1[:n+3]
-	p.lroWires = lroWires(spr, n)
 	p.solver = newSolver(spr)
 
 	for _, v := range [][]uint16{p.ql.idx, p.qr.idx, p.qm.idx, p.qo.idx, p.qk.idx} {
@@ -144,25 +132,6 @@ func NewPlonkProver(spr *cs.SparseR1CS, pk *plonk_bn254.ProvingKey) (*PlonkProve
 	pin(p.lroWires)
 	p.copyStream, p.computeDone, p.copyDone, p.uploaded = newStream(), newEvent(), newEvent(), newEvent()
 	return p, nil
-}
-
-// compress stores a vector with at most 2^16 distinct values as indices into a table of them.
-func compress(v []fr.Element) (selector, error) {
-	s := selector{idx: make([]uint16, len(v))}
-	pos := map[fr.Element]uint16{}
-	for i := range v {
-		j, ok := pos[v[i]]
-		if !ok {
-			if len(s.table) == 1<<16 {
-				return selector{}, fmt.Errorf("gpu: selector has more than 2^16 distinct values")
-			}
-			j = uint16(len(s.table))
-			pos[v[i]] = j
-			s.table = append(s.table, v[i])
-		}
-		s.idx[i] = j
-	}
-	return s, nil
 }
 
 // powTable returns c^i for i < 2^12 followed by c^(2^12 * i) for i < 2^14.

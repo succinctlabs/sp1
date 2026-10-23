@@ -324,12 +324,31 @@ func (b blueprintSolver) Read(calldata []uint32) (constraint.U64, int) {
 	return b.GetValue(calldata[1], calldata[2]), 3
 }
 
-// lroWires returns the wire ids of L, R and O for each row of the n-row trace, as in gnark's
-// evaluateLROSmallDomain: L for all rows, then R, then O.
-func lroWires(spr *cs.SparseR1CS, n int) []uint32 {
+// newTrace returns gnark's trace for n rows: the wire ids of L for all rows, then R, then O, and the selectors
+// ql, qr, qm, qo and qk.
+func newTrace(spr *cs.SparseR1CS, n int) ([]uint32, [5]selector, error) {
 	w := make([]uint32, 3*n)
+	var sel [5]selector
+	var slot [5][]uint32
+	for k := range sel {
+		sel[k] = selector{idx: make([]uint16, n), table: []fr.Element{{}}}
+		slot[k] = make([]uint32, len(spr.Coefficients))
+		slot[k][constraint.CoeffIdZero] = 1
+	}
+	set := func(k, row int, cID uint32) error {
+		if slot[k][cID] == 0 {
+			if len(sel[k].table) == 1<<16 {
+				return fmt.Errorf("gpu: selector has more than 2^16 distinct values")
+			}
+			sel[k].table = append(sel[k].table, spr.Coefficients[cID])
+			slot[k][cID] = uint32(len(sel[k].table))
+		}
+		sel[k].idx[row] = uint16(slot[k][cID] - 1)
+		return nil
+	}
 	for i := range spr.Public {
 		w[i] = uint32(i)
+		set(0, i, constraint.CoeffIdMinusOne)
 	}
 	j := len(spr.Public)
 	var c constraint.SparseR1C
@@ -337,8 +356,27 @@ func lroWires(spr *cs.SparseR1CS, n int) []uint32 {
 		if bc, ok := spr.Blueprints[inst.BlueprintID].(constraint.BlueprintSparseR1C); ok {
 			bc.DecompressSparseR1C(&c, inst.Unpack(&spr.System))
 			w[j], w[n+j], w[2*n+j] = c.XA, c.XB, c.XC
+			for k, cID := range [5]uint32{c.QL, c.QR, c.QM, c.QO, c.QC} {
+				if err := set(k, j, cID); err != nil {
+					return nil, sel, err
+				}
+			}
 			j++
 		}
 	}
-	return w
+	return w, sel, nil
+}
+
+// permutation returns gnark's copy constraint permutation, which maps each position of a wire to its previous
+// position, and its first position to its last.
+func permutation(wires []uint32, nbWires int) []uint32 {
+	last := make([]uint32, nbWires)
+	for i, w := range wires {
+		last[w] = uint32(i)
+	}
+	sigma := make([]uint32, len(wires))
+	for i, w := range wires {
+		sigma[i], last[w] = last[w], uint32(i)
+	}
+	return sigma
 }
