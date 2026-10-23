@@ -1,13 +1,14 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use k256::{ProjectivePoint, AffinePoint};
-use k256::elliptic_curve::group::Group;
-use k256::elliptic_curve::sec1::FromEncodedPoint;
+use k256::elliptic_curve::sec1::{FromEncodedPoint, ToEncodedPoint};
+use k256::{AffinePoint, ProjectivePoint};
 
 pub fn main() {
-    let g = ProjectivePoint::generator();
-    let id = ProjectivePoint::identity();
+    #[allow(deprecated)]
+    let g = <ProjectivePoint as k256::elliptic_curve::group::Group>::generator();
+    #[allow(deprecated)]
+    let id = <ProjectivePoint as k256::elliptic_curve::group::Group>::identity();
 
     // identity + generator = generator
     let r1 = id + g;
@@ -25,7 +26,7 @@ pub fn main() {
     sp1_zkvm::io::commit(&3u8);
 
     // generator - generator = identity
-    let r4 = g - g;
+    let r4 = g - r2;
     assert_eq!(r4, id);
     sp1_zkvm::io::commit(&4u8);
 
@@ -61,4 +62,24 @@ pub fn main() {
     r10 -= g;
     assert_eq!(r10, id);
     sp1_zkvm::io::commit(&10u8);
+
+    let mut compact = [0u8; 33];
+    compact[0] = 0x05;
+    compact[1..].copy_from_slice(&[
+        0x2f, 0x8b, 0xde, 0x4d, 0x1a, 0x07, 0x20, 0x93, 0x55, 0xb4, 0xa7, 0x25, 0x0a, 0x5c, 0x51,
+        0x28, 0xe8, 0x8b, 0x84, 0xbd, 0xdc, 0x61, 0x9a, 0xb7, 0xcb, 0xa8, 0xd5, 0x69, 0xb2, 0x40,
+        0xef, 0xe4,
+    ]);
+    let encoded = k256::EncodedPoint::from_bytes(compact).unwrap();
+    let point = Option::<AffinePoint>::from(AffinePoint::from_encoded_point(&encoded)).unwrap();
+    let uncompressed = point.to_encoded_point(false);
+    assert_eq!(&uncompressed.as_bytes()[1..33], &compact[1..]);
+    assert_eq!(
+        &uncompressed.as_bytes()[33..],
+        &[
+            0xd8, 0xac, 0x22, 0x26, 0x36, 0xe5, 0xe3, 0xd6, 0xd4, 0xdb, 0xa9, 0xdd, 0xa6, 0xc9,
+            0xc4, 0x26, 0xf7, 0x88, 0x27, 0x1b, 0xab, 0x0d, 0x68, 0x40, 0xdc, 0xa8, 0x7d, 0x3a,
+            0xa6, 0xac, 0x62, 0xd6,
+        ]
+    );
 }

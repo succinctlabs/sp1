@@ -150,7 +150,22 @@ impl<C: ECDSACurve> DecompressPoint<C> for AffinePoint<C> {
 
 impl<C: ECDSACurve> DecompactPoint<C> for AffinePoint<C> {
     fn decompact(x_bytes: &FieldBytes<C>) -> CtOption<Self> {
-        Self::decompress(x_bytes, Choice::from(0))
+        let point = Self::decompress(x_bytes, Choice::from(0));
+
+        if !C::SP1AffinePoint::DECOMPACT_WITH_MIN_Y {
+            return point;
+        }
+
+        point.map(|point| {
+            let (x, y) = point.field_elements();
+            let neg_y = (-y).normalize();
+
+            if neg_y.to_bytes().as_slice() < y.to_bytes().as_slice() {
+                Self::from_field_elements_unchecked(x, neg_y)
+            } else {
+                point
+            }
+        })
     }
 }
 

@@ -163,3 +163,12 @@ pub fn test_recover_pubkey_infinity(
         }
     }
 }
+#[sp1_test::sp1_test("p256_field_checks", gpu, prove)]
+pub fn test_field_checks(_: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+    |mut public| assert!(public.read::<bool>())
+}
+
+#[sp1_test::sp1_test("p256_point_checks", gpu, prove)]
+pub fn test_point_checks(_: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+    |mut public| assert!(public.read::<bool>())
+}

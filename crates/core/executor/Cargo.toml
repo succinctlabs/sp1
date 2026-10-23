@@ -58,6 +58,7 @@ test-artifacts = { path = "../../test-artifacts" }
 
 [features]
 bigint-rug = ["sp1-curves/bigint-rug"]
+experimental = []
 profiling = [
   "dep:rustc-demangle",
   "dep:gecko_profile",

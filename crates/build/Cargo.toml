@@ -21,4 +21,5 @@ chrono = { workspace = true, features = ["clock"] }
 
 [features]
 default = []
+# Experimental ELF snapshot/bootloader support.
 may_dump_elf = []
