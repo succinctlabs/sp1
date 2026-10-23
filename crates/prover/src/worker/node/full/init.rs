@@ -121,23 +121,22 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
             async move {
                 while let Some((task_id, request)) = controller_rx.recv().await {
                     let span = tracing::debug_span!("Controller", proof_id = %request.context.proof_id, task_id = %task_id);
-                    // Run the controller task
-                    if let Err(e) = worker.controller().run(request.clone()).instrument(span).await
-                    {
-                        tracing::error!("Controller: task failed: {e:?}");
-                    }
-
-                    // Complete the task
-                    if let Err(e) = worker
-                        .worker_client()
-                        .complete_task(
-                            request.context.proof_id,
-                            task_id,
-                            TaskMetadata { gpu_ms: None },
-                        )
-                        .await
-                    {
-                        tracing::error!("Controller: marking task as complete failed: {e:?}");
+                    let status_result = match worker.controller().run(request.clone()).instrument(span).await {
+                        Ok(_) => worker
+                            .worker_client()
+                            .complete_task(
+                                request.context.proof_id,
+                                task_id,
+                                TaskMetadata { gpu_ms: None },
+                            )
+                            .await,
+                        Err(e) => {
+                            tracing::error!("Controller: task failed: {e:?}");
+                            worker.worker_client().update_task_status(task_id, TaskStatus::FailedFatal).await
+                        }
+                    };
+                    if let Err(e) = status_result {
+                        tracing::error!("Controller: updating task status failed: {e:?}");
                     }
 
                     // Remove all the inputs from the task
@@ -163,25 +162,25 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                 while let Some((task_id, request)) = execute_rx.recv().await {
                     let span = tracing::debug_span!("CoreExecute", proof_id = %request.context.proof_id, task_id = %task_id);
                     let proof_id = request.context.proof_id.clone();
-                    match crate::worker::CoreExecuteTaskRequest::from_raw(request.clone()) {
+                    let result = match crate::worker::CoreExecuteTaskRequest::from_raw(request.clone()) {
                         Ok(req) => {
-                            if let Err(e) =
-                                worker.controller().execute(task_id.clone(), req).instrument(span).await
-                            {
-                                tracing::error!("CoreExecute: task failed: {e:?}");
-                            }
+                            worker.controller().execute(task_id.clone(), req).instrument(span).await
                         }
-                        Err(e) => {
-                            tracing::error!("CoreExecute: failed to parse request: {e:?}");
-                        }
-                    }
+                        Err(e) => Err(e),
+                    };
 
-                    if let Err(e) = worker
-                        .worker_client()
-                        .complete_task(proof_id, task_id, TaskMetadata { gpu_ms: None })
-                        .await
-                    {
-                        tracing::error!("CoreExecute: marking task as complete failed: {e:?}");
+                    let status_result = match result {
+                        Ok(_) => worker
+                            .worker_client()
+                            .complete_task(proof_id, task_id, TaskMetadata { gpu_ms: None })
+                            .await,
+                        Err(e) => {
+                            tracing::error!("CoreExecute: task failed: {e:?}");
+                            worker.worker_client().update_task_status(task_id, TaskStatus::FailedFatal).await
+                        }
+                    };
+                    if let Err(e) = status_result {
+                        tracing::error!("CoreExecute: updating task status failed: {e:?}");
                     }
                 }
             }
@@ -235,24 +234,31 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
             let worker = worker.clone();
             async move {
                 while let Some((task_id, request)) = controller_rx.recv().await {
-                    // Run the controller task
-                    if let Err(e) =
-                        worker.controller().run_sp1_util_vkey_map_controller(request.clone()).await
-                    {
-                        tracing::error!("Controller: task failed: {e:?}");
-                    }
-
-                    // Complete the task
-                    if let Err(e) = worker
-                        .worker_client()
-                        .complete_task(
-                            request.context.proof_id,
-                            task_id,
-                            TaskMetadata { gpu_ms: None },
-                        )
+                    let status_result = match worker
+                        .controller()
+                        .run_sp1_util_vkey_map_controller(request.clone())
                         .await
                     {
-                        tracing::error!("Controller: marking task as complete failed: {e:?}");
+                        Ok(_) => {
+                            worker
+                                .worker_client()
+                                .complete_task(
+                                    request.context.proof_id,
+                                    task_id,
+                                    TaskMetadata { gpu_ms: None },
+                                )
+                                .await
+                        }
+                        Err(e) => {
+                            tracing::error!("Controller: task failed: {e:?}");
+                            worker
+                                .worker_client()
+                                .update_task_status(task_id, TaskStatus::FailedFatal)
+                                .await
+                        }
+                    };
+                    if let Err(e) = status_result {
+                        tracing::error!("Controller: updating task status failed: {e:?}");
                     }
 
                     // Remove all the inputs from the task

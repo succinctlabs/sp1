@@ -383,6 +383,52 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
+    async fn failed_local_tasks_are_not_marked_successful() -> anyhow::Result<()> {
+        let node =
+            SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder()).build().await?;
+
+        for (kind, inputs, outputs) in [
+            (TaskType::Controller, vec![], vec![Artifact("unused".into())]),
+            (TaskType::CoreExecute, vec![], vec![]),
+            (
+                TaskType::UtilVkeyMapController,
+                vec![Artifact("missing-vk-map-input".into())],
+                vec![],
+            ),
+        ] {
+            let proof_id = ProofId::new(format!("failed-local-task-{kind:?}"));
+            let request = RawTaskRequest {
+                inputs,
+                outputs,
+                context: TaskContext {
+                    proof_id: proof_id.clone(),
+                    parent_id: None,
+                    parent_context: None,
+                    requester_id: RequesterId::new("test"),
+                },
+            };
+            let task_id = node.inner.worker_client.submit_task(kind, request).await?;
+            let subscriber =
+                node.inner.worker_client.subscriber(proof_id.clone()).await?.per_task();
+            let status = tokio::time::timeout(
+                std::time::Duration::from_secs(10),
+                subscriber.wait_task(task_id),
+            )
+            .await??;
+            assert_eq!(status, TaskStatus::FailedFatal, "{kind:?} was marked successful");
+
+            node.inner
+                .worker_client
+                .complete_proof(proof_id.clone(), None, ProofRequestStatus::Failed, "")
+                .await?;
+            node.inner.worker_client.cleanup(&proof_id, &node.inner.artifact_client).await;
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
     #[cfg(feature = "experimental")]
     #[serial]
     async fn test_e2e_node_experimental() -> anyhow::Result<()> {
