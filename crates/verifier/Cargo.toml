@@ -13,7 +13,7 @@ rust-version = { workspace = true }
 # TODO: when reviving this crate, lift its dependencies to the workspace Cargo.toml.
 
 [dependencies]
-bn = { git = "https://github.com/sp1-patches/bn", rev = "d6055ac30a4bfdfe29ae0538a4f2b3de73f76b6b", package = "substrate-bn-succinct-rs" }
+bn = { version = "0.6.0", git = "https://github.com/sp1-patches/bn", rev = "d6055ac30a4bfdfe29ae0538a4f2b3de73f76b6b", package = "substrate-bn-succinct-rs" }
 sha2 = { version = "0.10.8", default-features = false }
 thiserror = { version = "2", default-features = false }
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
