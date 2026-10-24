@@ -7,7 +7,7 @@ use sp1_gpu_cudart::{args, DeviceMle, TaskScope};
 use sp1_hypercube::air::MachineAir;
 use sp1_recursion_machine::chips::prefix_sum_checks::PrefixSumChecksChip;
 
-use crate::{CudaTracegenAir, F};
+use crate::{CudaTracegenAir, PinnedStaging, F};
 
 impl CudaTracegenAir<F> for PrefixSumChecksChip {
     fn supports_device_main_tracegen(&self) -> bool {
@@ -18,13 +18,14 @@ impl CudaTracegenAir<F> for PrefixSumChecksChip {
         &self,
         input: &Self::Record,
         _: &mut Self::Record,
+        staging: PinnedStaging,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
-        let events = &input.prefix_sum_checks_events;
+        let events = staging.stage_slice(&input.prefix_sum_checks_events);
 
         let events_device = {
             let mut buf = Buffer::try_with_capacity_in(events.len(), scope.clone()).unwrap();
-            buf.extend_from_host_slice(events)?;
+            buf.extend_from_host_slice(&events)?;
             buf
         };
 
