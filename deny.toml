@@ -14,6 +14,7 @@ ignore = [
   { id = "RUSTSEC-2026-0173", reason = "Transitive through alloy-sol-macro 1.5 and dynasm 3. Upgrading both removes it." },
   { id = "RUSTSEC-2025-0055", reason = "Transitive through ark-relations 0.5. Upgrading arkworks to 0.6 removes it." },
   { id = "RUSTSEC-2026-0258", reason = "Transitive through opentelemetry-otlp 0.16. Upgrading opentelemetry removes it." },
+  { id = "RUSTSEC-2026-0387", reason = "Transitive through elliptic-curve 0.13, used by alloy-signer, k256 and p256. Upgrading to elliptic-curve 0.14 removes it." },
 ]
 
 [licenses]
