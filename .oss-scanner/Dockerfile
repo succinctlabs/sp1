@@ -29,9 +29,6 @@ sp1-test = """test --release --workspace --features native-gnark,experimental,pr
   --exclude sp1-gpu-tracegen --exclude sp1-gpu-tracing --exclude sp1-gpu-utils --exclude sp1-gpu-zerocheck"""
 EOF
 RUN cargo sp1-test --no-run
-# sp1-build marks the guest programs as changed on every build; the second skipped build settles the fingerprints.
-ENV SP1_SKIP_PROGRAM_BUILD=true
-RUN cargo sp1-test --no-run && cargo sp1-test --no-run
 RUN cd crates/recursion/gnark-ffi/go && go mod download
 
 ENV CARGO_NET_OFFLINE=true \
