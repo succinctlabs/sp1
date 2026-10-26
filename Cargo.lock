@@ -1733,7 +1733,7 @@ dependencies = [
 [[package]]
 name = "bls12_381"
 version = "0.8.0"
-source = "git+https://github.com/sp1-patches/bls12_381?tag=patch-0.8.0-sp1-6.2.0#9e4e2ae4780d3d69cecbec000f5e814df2392468"
+source = "git+https://github.com/sp1-patches/bls12_381?tag=patch-0.8.0-sp1-6.10.0#d347c2b1049c14a1b51c761057ea7b4cea9b38a4"
 dependencies = [
  "cfg-if",
  "digest 0.10.7",
@@ -1742,7 +1742,7 @@ dependencies = [
  "hex",
  "pairing",
  "rand_core 0.6.4",
- "sp1-lib 6.2.4",
+ "sp1-lib 6.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "subtle",
 ]
 
@@ -2400,9 +2400,9 @@ dependencies = [
 
 [[package]]
 name = "ctutils"
-version = "0.4.2"
+version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d5515a3834141de9eafb9717ad39eea8247b5674e6066c404e8c4b365d2a29e"
+checksum = "12218662ccac37d9714f2191252553d67585b97df8c839cbe49e0bde278dc865"
 dependencies = [
  "cmov",
 ]
@@ -4038,14 +4038,14 @@ dependencies = [
 [[package]]
 name = "k256"
 version = "0.13.4"
-source = "git+https://github.com/sp1-patches/elliptic-curves?tag=patch-k256-13.4-sp1-6.2.0#41374de1febd88e67faa695a5641ae46460a8cb6"
+source = "git+https://github.com/sp1-patches/elliptic-curves?tag=patch-k256-13.4-sp1-6.10.0#cd63f2b5a832e15fa98cedb73df2ce89bb1a032a"
 dependencies = [
  "cfg-if",
  "ecdsa 0.16.9 (git+https://github.com/sp1-patches/signatures?tag=sp1-skip-verify-on-recovery)",
  "elliptic-curve",
  "hex",
  "sha2 0.10.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp1-lib 6.2.4",
+ "sp1-lib 6.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -4084,14 +4084,15 @@ checksum = "a4933f3f57a8e9d9da04db23fb153356ecaf00cbd14aee46279c33dc80925c37"
 
 [[package]]
 name = "kzg-rs"
-version = "0.2.8"
-source = "git+https://github.com/succinctlabs/kzg-rs?tag=v0.2.8-sp1-6.2.0#2d48f8b948746d5cfa62ce7421369278a1c2e405"
+version = "0.2.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "433994161b1b86020801f5486deebcd90c1e654d5713e323ef7ef636445e9b9d"
 dependencies = [
- "bls12_381",
  "ff",
  "hex",
  "serde_arrays",
  "sha2 0.10.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp1_bls12_381",
  "spin",
 ]
 
@@ -4171,17 +4172,17 @@ version = "6.10.0"
 dependencies = [
  "bls12_381",
  "hex",
- "k256 0.13.4 (git+https://github.com/sp1-patches/elliptic-curves?tag=patch-k256-13.4-sp1-6.2.0)",
+ "k256 0.13.4 (git+https://github.com/sp1-patches/elliptic-curves?tag=patch-k256-13.4-sp1-6.10.0)",
  "kzg-rs",
  "num-bigint-dig",
- "p256 0.13.2 (git+https://github.com/sp1-patches/elliptic-curves?tag=patch-p256-13.2-sp1-6.2.0)",
+ "p256 0.13.2 (git+https://github.com/sp1-patches/elliptic-curves?tag=patch-p256-13.2-sp1-6.10.0)",
  "ripemd",
  "serde",
  "serde_json",
- "sha2 0.10.9 (git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.10.9-sp1-6.2.0)",
+ "sha2 0.10.9 (git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.10.9-sp1-6.10.0)",
  "sp1-zkvm",
  "substrate-bn",
- "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.2.0)",
+ "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.10.0)",
 ]
 
 [[package]]
@@ -4738,14 +4739,14 @@ dependencies = [
 [[package]]
 name = "p256"
 version = "0.13.2"
-source = "git+https://github.com/sp1-patches/elliptic-curves?tag=patch-p256-13.2-sp1-6.2.0#778543de72a8160a9ce253870da1efae6b18e6d3"
+source = "git+https://github.com/sp1-patches/elliptic-curves?tag=patch-p256-13.2-sp1-6.10.0#f074fbff1b10b270f3c5ae255443d589c97b3175"
 dependencies = [
  "ecdsa 0.16.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "elliptic-curve",
  "hex",
  "primeorder 0.13.1",
  "sha2 0.10.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp1-lib 6.2.4",
+ "sp1-lib 6.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -5257,7 +5258,7 @@ dependencies = [
 [[package]]
 name = "primeorder"
 version = "0.13.1"
-source = "git+https://github.com/sp1-patches/elliptic-curves?tag=patch-p256-13.2-sp1-6.2.0#778543de72a8160a9ce253870da1efae6b18e6d3"
+source = "git+https://github.com/sp1-patches/elliptic-curves?tag=patch-p256-13.2-sp1-6.10.0#f074fbff1b10b270f3c5ae255443d589c97b3175"
 dependencies = [
  "elliptic-curve",
 ]
@@ -6499,7 +6500,7 @@ dependencies = [
 [[package]]
 name = "sha2"
 version = "0.10.9"
-source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.10.9-sp1-6.2.0#e48b656ebc806117554bb33c2f8687e4637e37ff"
+source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.10.9-sp1-6.10.0#e48b656ebc806117554bb33c2f8687e4637e37ff"
 dependencies = [
  "cfg-if",
  "cpufeatures 0.2.17",
@@ -6593,23 +6594,23 @@ dependencies = [
 
 [[package]]
 name = "slop-algebra"
-version = "6.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00314224ceced0f2cbd45abd20536e9387c723985d05b8685e8785b0fe3409ce"
-dependencies = [
- "itertools 0.14.0",
- "p3-field",
- "serde",
-]
-
-[[package]]
-name = "slop-algebra"
 version = "6.10.0"
 dependencies = [
  "itertools 0.14.0",
  "p3-field",
  "serde",
  "slop-baby-bear",
+]
+
+[[package]]
+name = "slop-algebra"
+version = "6.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b44536b0d3267951634cd7f768c3ba73e0b64e05b2ca4783616d4e54cbf324d"
+dependencies = [
+ "itertools 0.14.0",
+ "p3-field",
+ "serde",
 ]
 
 [[package]]
@@ -6681,21 +6682,6 @@ dependencies = [
 
 [[package]]
 name = "slop-bn254"
-version = "6.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5398ee7e1dd84faa4144b71f9dc4bacaafb13b2667bcd08b7850756e72fc7632"
-dependencies = [
- "ff",
- "p3-bn254-fr",
- "serde",
- "slop-algebra 6.2.4",
- "slop-challenger 6.2.4",
- "slop-poseidon2 6.2.4",
- "slop-symmetric 6.2.4",
-]
-
-[[package]]
-name = "slop-bn254"
 version = "6.10.0"
 dependencies = [
  "ff",
@@ -6708,16 +6694,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "slop-challenger"
-version = "6.2.4"
+name = "slop-bn254"
+version = "6.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75cd94d7bf435f998c28bc055c4b0fa1b451e7dae4b0dbea82fb23dd4a37c6e7"
+checksum = "ae41b4d69a3cd4848f91f21e768cf4e623529dab91b0eb85d0fe80455c7a0d4e"
 dependencies = [
- "futures",
- "p3-challenger",
+ "ff",
+ "p3-bn254-fr",
  "serde",
- "slop-algebra 6.2.4",
- "slop-symmetric 6.2.4",
+ "slop-algebra 6.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-challenger 6.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-poseidon2 6.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-symmetric 6.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -6728,6 +6716,18 @@ dependencies = [
  "serde",
  "slop-algebra 6.10.0",
  "slop-symmetric 6.10.0",
+]
+
+[[package]]
+name = "slop-challenger"
+version = "6.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aebbf4fde396e40eeb534981be75547ab89b4a348c4136961627c06d0cbcd51f"
+dependencies = [
+ "p3-challenger",
+ "serde",
+ "slop-algebra 6.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-symmetric 6.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -6810,21 +6810,6 @@ dependencies = [
 
 [[package]]
 name = "slop-koala-bear"
-version = "6.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b03d39f8c4605527970396a1a74c8e72b2adc265431fa004161aadfcfb123ff"
-dependencies = [
- "lazy_static",
- "p3-koala-bear",
- "serde",
- "slop-algebra 6.2.4",
- "slop-challenger 6.2.4",
- "slop-poseidon2 6.2.4",
- "slop-symmetric 6.2.4",
-]
-
-[[package]]
-name = "slop-koala-bear"
 version = "6.10.0"
 dependencies = [
  "lazy_static",
@@ -6834,6 +6819,21 @@ dependencies = [
  "slop-challenger 6.10.0",
  "slop-poseidon2 6.10.0",
  "slop-symmetric 6.10.0",
+]
+
+[[package]]
+name = "slop-koala-bear"
+version = "6.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "627eb3ed4c0918f2dd2e70d2a1d312049ec3d2aa57fa0f7dbe2c3d9cd94993e4"
+dependencies = [
+ "lazy_static",
+ "p3-koala-bear",
+ "serde",
+ "slop-algebra 6.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-challenger 6.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-poseidon2 6.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-symmetric 6.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -6911,9 +6911,7 @@ dependencies = [
 
 [[package]]
 name = "slop-poseidon2"
-version = "6.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a17a10d1cfa6f7a18cc62d4348b0612d49eb14b7aeb289a6a14252676c04dd77"
+version = "6.10.0"
 dependencies = [
  "p3-poseidon2",
 ]
@@ -6921,22 +6919,21 @@ dependencies = [
 [[package]]
 name = "slop-poseidon2"
 version = "6.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "51676e05a2891b15cd624b74c8aaa03cc10d5eb51542eeab5019294ad47c21fb"
 dependencies = [
  "p3-poseidon2",
 ]
 
 [[package]]
 name = "slop-primitives"
-version = "6.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62cc9b1ba7261571e853287064780a6e7f489f024d544e6344d6004f243cdf81"
-dependencies = [
- "slop-algebra 6.2.4",
-]
+version = "6.10.0"
 
 [[package]]
 name = "slop-primitives"
 version = "6.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91992a8acf6a9a4c52dee00142840d30c8cc9bbb3ff30ca3d56dcde428a591dd"
 
 [[package]]
 name = "slop-spartan"
@@ -6994,9 +6991,7 @@ dependencies = [
 
 [[package]]
 name = "slop-symmetric"
-version = "6.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "362b7c414a3b5abee0d84e7418520b24d928f03bc02e0a1a05a09cf49a6a7ab8"
+version = "6.10.0"
 dependencies = [
  "p3-symmetric",
 ]
@@ -7004,6 +6999,8 @@ dependencies = [
 [[package]]
 name = "slop-symmetric"
 version = "6.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9cb116ad23028ab41fe5228905a17bbeaf7b5fb7ec6790163bb8e8fef7092ffc"
 dependencies = [
  "p3-symmetric",
 ]
@@ -8013,18 +8010,6 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "6.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9281c105496b6b8d20b25f0be936242e5b747cc7711a68706ffbb3719d16145d"
-dependencies = [
- "bincode",
- "elliptic-curve",
- "serde",
- "sp1-primitives 6.2.4",
-]
-
-[[package]]
-name = "sp1-lib"
 version = "6.10.0"
 dependencies = [
  "bincode",
@@ -8032,6 +8017,18 @@ dependencies = [
  "num-bigint 0.4.6",
  "serde",
  "sp1-primitives 6.10.0",
+]
+
+[[package]]
+name = "sp1-lib"
+version = "6.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8a36aae1b35d6eae35b479d23c818bb32c22e7c0e34cc1e1bc7c68319c94368"
+dependencies = [
+ "bincode",
+ "elliptic-curve",
+ "serde",
+ "sp1-primitives 6.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -8062,30 +8059,6 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "6.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd38fbc3cf2e151b1d899919def510c80e7f6ca7b8fe7fdaac0e6614cd2bd286"
-dependencies = [
- "bincode",
- "blake3",
- "elf",
- "hex",
- "itertools 0.14.0",
- "lazy_static",
- "num-bigint 0.4.6",
- "serde",
- "sha2 0.10.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "slop-algebra 6.2.4",
- "slop-bn254 6.2.4",
- "slop-challenger 6.2.4",
- "slop-koala-bear 6.2.4",
- "slop-poseidon2 6.2.4",
- "slop-primitives 6.2.4",
- "slop-symmetric 6.2.4",
-]
-
-[[package]]
-name = "sp1-primitives"
 version = "6.10.0"
 dependencies = [
  "bincode",
@@ -8104,6 +8077,30 @@ dependencies = [
  "slop-poseidon2 6.10.0",
  "slop-primitives 6.10.0",
  "slop-symmetric 6.10.0",
+]
+
+[[package]]
+name = "sp1-primitives"
+version = "6.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2ad891be0e48ab9ca110486f122cf799a707e5ca327a75669cfc2792b086882"
+dependencies = [
+ "bincode",
+ "blake3",
+ "elf",
+ "hex",
+ "itertools 0.14.0",
+ "lazy_static",
+ "num-bigint 0.4.6",
+ "serde",
+ "sha2 0.10.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-algebra 6.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-bn254 6.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-challenger 6.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-koala-bear 6.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-poseidon2 6.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-primitives 6.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "slop-symmetric 6.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -8426,6 +8423,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1_bls12_381"
+version = "0.8.0-sp1-6.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b2ad1e32db3c05d37e4385e3e48795f14d687a5797bf2eee0a7753d7eaa9661"
+dependencies = [
+ "cfg-if",
+ "ff",
+ "group",
+ "pairing",
+ "rand_core 0.6.4",
+ "sp1-lib 6.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "subtle",
+]
+
+[[package]]
 name = "spin"
 version = "0.9.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8521,7 +8533,7 @@ dependencies = [
 [[package]]
 name = "substrate-bn"
 version = "0.6.0"
-source = "git+https://github.com/sp1-patches/bn?rev=d593a80c9d0d83524367a72d2e375a5b4df4c013#d593a80c9d0d83524367a72d2e375a5b4df4c013"
+source = "git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-6.10.0-substrate-bn#ab4d0085567695967cf34c23b3090f1ae02a03d1"
 dependencies = [
  "bytemuck",
  "byteorder",
@@ -8531,13 +8543,14 @@ dependencies = [
  "num-bigint 0.4.6",
  "rand 0.8.6",
  "rustc-hex",
- "sp1-lib 6.2.4",
+ "sp1-lib 6.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "substrate-bn-succinct-rs"
-version = "0.6.0"
-source = "git+https://github.com/sp1-patches/bn?rev=d6055ac30a4bfdfe29ae0538a4f2b3de73f76b6b#d6055ac30a4bfdfe29ae0538a4f2b3de73f76b6b"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc5ad6ccb8ae10730213d4d5bdb0a9c4ddf351210e7c6ad9c66c02f2ad0b4256"
 dependencies = [
  "bytemuck",
  "byteorder",
@@ -8547,7 +8560,7 @@ dependencies = [
  "num-bigint 0.4.6",
  "rand 0.8.6",
  "rustc-hex",
- "sp1-lib 6.2.4",
+ "sp1-lib 6.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -8830,11 +8843,11 @@ dependencies = [
 [[package]]
 name = "tiny-keccak"
 version = "2.0.2"
-source = "git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.2.0#c3f95bcc35b391101d0cf0abe91ea4c8423868b0"
+source = "git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.10.0#8fca2536a39c02691f2877e838a2e5b016e892cc"
 dependencies = [
  "cfg-if",
  "crunchy",
- "sp1-lib 6.2.4",
+ "sp1-lib 6.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

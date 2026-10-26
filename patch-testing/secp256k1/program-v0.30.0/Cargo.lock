@@ -409,7 +409,7 @@ dependencies = [
 [[package]]
 name = "k256"
 version = "0.13.4"
-source = "git+https://github.com/sp1-patches/elliptic-curves?tag=patch-k256-13.4-sp1-6.2.0#41374de1febd88e67faa695a5641ae46460a8cb6"
+source = "git+https://github.com/sp1-patches/elliptic-curves?tag=patch-k256-13.4-sp1-6.10.0#cd63f2b5a832e15fa98cedb73df2ce89bb1a032a"
 dependencies = [
  "cfg-if",
  "ecdsa",
@@ -765,7 +765,7 @@ dependencies = [
 [[package]]
 name = "secp256k1"
 version = "0.30.0"
-source = "git+https://github.com/sp1-patches/rust-secp256k1?tag=patch-0.30.0-sp1-6.2.0#8d81eae92322188515140f8a6e57968c757e23c1"
+source = "git+https://github.com/sp1-patches/rust-secp256k1?tag=patch-0.30.0-sp1-6.10.0#3b88e14f88b6ca00c12fb5e7e3431b104ab39877"
 dependencies = [
  "bitcoin_hashes",
  "cfg-if",
@@ -778,7 +778,7 @@ dependencies = [
 [[package]]
 name = "secp256k1-sys"
 version = "0.10.0"
-source = "git+https://github.com/sp1-patches/rust-secp256k1?tag=patch-0.30.0-sp1-6.2.0#8d81eae92322188515140f8a6e57968c757e23c1"
+source = "git+https://github.com/sp1-patches/rust-secp256k1?tag=patch-0.30.0-sp1-6.10.0#3b88e14f88b6ca00c12fb5e7e3431b104ab39877"
 dependencies = [
  "cc",
 ]

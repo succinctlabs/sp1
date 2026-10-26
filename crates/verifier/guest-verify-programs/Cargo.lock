@@ -927,8 +927,9 @@ checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
 
 [[package]]
 name = "substrate-bn-succinct-rs"
-version = "0.6.0"
-source = "git+https://github.com/sp1-patches/bn?rev=d6055ac30a4bfdfe29ae0538a4f2b3de73f76b6b#d6055ac30a4bfdfe29ae0538a4f2b3de73f76b6b"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc5ad6ccb8ae10730213d4d5bdb0a9c4ddf351210e7c6ad9c66c02f2ad0b4256"
 dependencies = [
  "bytemuck",
  "byteorder",
