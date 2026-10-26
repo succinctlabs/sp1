@@ -7417,7 +7417,6 @@ dependencies = [
  "test-artifacts",
  "tokio",
  "tracing",
- "zstd",
 ]
 
 [[package]]
@@ -7472,7 +7471,6 @@ dependencies = [
  "test-artifacts",
  "tokio",
  "tracing",
- "zstd",
 ]
 
 [[package]]
@@ -7564,7 +7562,6 @@ dependencies = [
  "sp1-sdk",
  "test-artifacts",
  "tokio",
- "zstd",
 ]
 
 [[package]]
@@ -7604,7 +7601,6 @@ dependencies = [
  "test-artifacts",
  "tokio",
  "tracing",
- "zstd",
 ]
 
 [[package]]
@@ -7650,7 +7646,6 @@ dependencies = [
  "tokio-blocked",
  "tracing",
  "tracing-subscriber 0.3.23",
- "zstd",
 ]
 
 [[package]]
@@ -7683,7 +7678,6 @@ dependencies = [
  "test-artifacts",
  "thiserror 1.0.69",
  "tokio",
- "zstd",
 ]
 
 [[package]]
@@ -7824,7 +7818,6 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "tracing",
- "zstd",
 ]
 
 [[package]]
@@ -7894,7 +7887,6 @@ dependencies = [
  "sp1-recursion-circuit",
  "sp1-recursion-compiler",
  "sp1-sdk",
- "zstd",
 ]
 
 [[package]]
@@ -7935,7 +7927,6 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "tracing",
- "zstd",
 ]
 
 [[package]]
@@ -8887,9 +8878,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.52.1"
+version = "1.53.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b67dee974fe86fd92cc45b7a95fdd2f99a36a6d7b0d431a231178d3d670bbcc6"
+checksum = "ce3335fa71841cda333a58d7615b03901380ecf09d59b3296d21f8bbac0dde4e"
 dependencies = [
  "bytes",
  "libc",
@@ -10377,27 +10368,27 @@ checksum = "b8848ee67ecc8aedbaf3e4122217aff892639231befc6a1b58d29fff4c2cabaa"
 
 [[package]]
 name = "zstd"
-version = "0.13.3"
+version = "0.14.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e91ee311a569c327171651566e07972200e76fcfe2242a4fa446149a3881c08a"
+checksum = "db3ae9bf90af6e40197bef767eeefc46ad6397420fe873830bd85e5fbbfb3c70"
 dependencies = [
  "zstd-safe",
 ]
 
 [[package]]
 name = "zstd-safe"
-version = "7.2.4"
+version = "8.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f49c4d5f0abb602a93fb8736af2a4f4dd9512e36f7f570d66e65ff867ed3b9d"
+checksum = "ded520f16b29e1a9b771c722221b2b0a0398c2316d9bb3c42b458a5414d7434b"
 dependencies = [
  "zstd-sys",
 ]
 
 [[package]]
 name = "zstd-sys"
-version = "2.0.16+zstd.1.5.7"
+version = "2.1.2+zstd.1.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91e19ebc2adc8f83e43039e79776e3fda8ca919132d68a1fed6a5faca2683748"
+checksum = "481ada9c543b2323cbb7bbdbb5249177fbf0188ed959ed2c15e4b22421c84ed3"
 dependencies = [
  "cc",
  "pkg-config",
