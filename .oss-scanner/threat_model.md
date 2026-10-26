@@ -21,7 +21,7 @@ Out of scope: `sp1-gpu/` (needs CUDA, which the scanner does not have), `example
 
 ## How to exercise it
 - The image is built with `cargo sp1-test --no-run`, which is an alias in `/root/.cargo/config.toml` for the CI test command. Run tests with `cargo sp1-test -- <test name filter>`, or run a test binary in `target/release/deps` directly, to reuse that build. A different `-p` or `--features` set causes a long rebuild.
-- Guest test programs are in `crates/test-artifacts/programs` and are prebuilt. The image sets `SP1_SKIP_PROGRAM_BUILD=true`, so changes to a guest program have no effect until you build with `SP1_SKIP_PROGRAM_BUILD=false`. Guest programs compile offline with the `succinct` Rust toolchain.
+- Guest test programs are in `crates/test-artifacts/programs` and are prebuilt. They rebuild when their source changes, offline, with the `succinct` Rust toolchain.
 - On the scan machine (2 CPUs, 8 GB), the executor tests take less than a second, and a small core proof such as `sp1_core_machine` `riscv::tests::test_fibonacci_prove_simple` takes about 30 seconds. The end-to-end tests in `sp1-prover` (`test_e2e_*`) are too slow. For a soundness bug, a small core proof with a modified trace, or a test in `crates/core/machine/src/utils/zerocheck_unit_test.rs`, is a good reproducer.
 - The PLONK and Groth16 circuit artifacts are not in the image (they are 8.5 GB). The verifying keys that `crates/verifier` uses are in `crates/verifier/vk-artifacts`. The `sp1-verifier` tests are not prebuilt, because they make full proofs.
 
