@@ -31,28 +31,67 @@ fn main() {
 
             println!("Building Go library at {}", dest.display());
 
-            if cfg!(feature = "groth16-cuda") {
-                println!("cargo:rustc-link-search=native=/usr/local/lib");
-                println!("cargo:rustc-link-lib=dylib=icicle_device");
-                println!("cargo:rustc-link-lib=dylib=icicle_field_bn254");
-                println!("cargo:rustc-link-lib=dylib=icicle_curve_bn254");
-                println!("cargo:rustc-link-lib=dylib=icicle_field_bls12_377");
-                println!("cargo:rustc-link-lib=dylib=icicle_curve_bls12_377");
-                println!("cargo:rustc-link-lib=dylib=icicle_field_bls12_381");
-                println!("cargo:rustc-link-lib=dylib=icicle_curve_bls12_381");
-                println!("cargo:rustc-link-lib=dylib=icicle_field_bw6_761");
-                println!("cargo:rustc-link-lib=dylib=icicle_curve_bw6_761");
-                // Ideally we would also set the RPATH/RUNPATH using the following
-                // println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/local/lib");
-                // Unfortunately, this doesn't work. See:
-                // https://github.com/rust-lang/cargo/pull/9557#issuecomment-884302305
+            let cuda = cfg!(feature = "cuda");
+            let mut go_envs = go_envs;
+            let cuda_home = cuda_home();
+            for var in ["SP1_CUDA_ENABLED", "CUDA_HOME", "CUDA_PATH"] {
+                println!("cargo:rerun-if-env-changed={var}");
+            }
+            let cuda_found = match env::var("SP1_CUDA_ENABLED").as_deref() {
+                Ok("0" | "false") => false,
+                Ok("1" | "true") => true,
+                _ => cuda_home.join("bin/nvcc").exists(),
+            };
+            // As in sp1-gpu-sys, a machine without CUDA can still check the crate; linking then fails.
+            if cuda && !cuda_found {
+                println!("cargo:warning=CUDA not detected, skipping the gnark CUDA build");
+            }
+            if cuda && cuda_found {
+                println!("cargo:rerun-if-changed=cuda");
+                let objs: Vec<PathBuf> =
+                    ["plonk", "ntt", "msm"].iter().map(|src| dest_path.join(format!("{src}.o"))).collect();
+                let nvcc: Vec<_> = ["plonk", "ntt", "msm"]
+                    .iter()
+                    .zip(&objs)
+                    .map(|(src, obj)| {
+                        Command::new(cuda_home.join("bin/nvcc"))
+                            .args(["-O3", "-std=c++17", "--expt-relaxed-constexpr", "-arch=all-major"])
+                            .args(["-Xcompiler", "-fPIC", "-c"])
+                            .arg(format!("cuda/{src}.cu"))
+                            .arg("-o")
+                            .arg(obj)
+                            .spawn()
+                            .expect("Failed to run nvcc")
+                    })
+                    .collect();
+                for mut child in nvcc {
+                    if !child.wait().expect("Failed to wait for nvcc").success() {
+                        panic!("nvcc failed");
+                    }
+                }
+                let status = Command::new("ar")
+                    .arg("rcs")
+                    .arg(dest_path.join("libsp1gpu.a"))
+                    .args(&objs)
+                    .status()
+                    .expect("Failed to run ar");
+                if !status.success() {
+                    panic!("ar failed");
+                }
+                let lib64 = cuda_home.join("lib64");
+                println!("cargo:rustc-link-lib=static=sp1gpu");
+                println!("cargo:rustc-link-search=native={}", lib64.display());
+                println!("cargo:rustc-link-lib=dylib=cudart");
+                println!("cargo:rustc-link-lib=dylib=stdc++");
+                let flags = go_envs.entry("CGO_LDFLAGS".to_string()).or_default();
+                *flags = format!("{flags} -L{} -L{}", dest_path.display(), lib64.display());
             }
 
-            let tags = if cfg!(feature = "groth16-cuda") {
-                "-tags=debug,icicle"
-            } else {
-                "-tags=debug"
-            };
+            let mut tags = vec!["debug"];
+            if cuda {
+                tags.push("cuda");
+            }
+            let tags = format!("-tags={}", tags.join(","));
 
             let status = Command::new("go")
                 .current_dir("go")
@@ -60,7 +99,7 @@ fn main() {
                 .envs(go_envs)
                 .args([
                     "build",
-                    tags,
+                    &tags,
                     "-o",
                     dest.to_str().unwrap(),
                     "-buildmode=c-archive",
@@ -105,4 +144,15 @@ fn main() {
             }
         }
     }
+}
+
+/// The CUDA toolkit root: `CUDA_HOME`, `CUDA_PATH`, or the parent of the `bin` holding `nvcc`.
+fn cuda_home() -> PathBuf {
+    if let Ok(home) = env::var("CUDA_HOME").or_else(|_| env::var("CUDA_PATH")) {
+        return PathBuf::from(home);
+    }
+    env::var_os("PATH")
+        .and_then(|paths| env::split_paths(&paths).find(|p| p.join("nvcc").exists()))
+        .and_then(|bin| bin.parent().map(PathBuf::from))
+        .unwrap_or_else(|| PathBuf::from("/usr/local/cuda"))
 }

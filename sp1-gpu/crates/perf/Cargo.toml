@@ -20,7 +20,7 @@ sp1-prover = { workspace = true }
 sp1-recursion-circuit = { workspace = true }
 sp1-recursion-compiler = { workspace = true }
 sp1-recursion-executor = { workspace = true }
-sp1-recursion-gnark-ffi = { workspace = true }
+sp1-recursion-gnark-ffi = { workspace = true, features = ["cuda"] }
 sp1-hypercube = { workspace = true }
 sp1-sdk = { workspace = true }
 
@@ -64,7 +64,6 @@ bigint-rug = [
     "sp1-gpu-prover/bigint-rug",
 ]
 native-gnark = ["sp1-prover/native-gnark"]
-groth16-cuda = ["sp1-recursion-gnark-ffi/groth16-cuda"]
 experimental = ["sp1-prover/experimental", "sp1-gpu-prover/experimental"]
 mprotect = [
     "experimental",

@@ -579,11 +579,22 @@ jobs:
       - name: Install SP1 toolchain from repo
         run: cargo run -p sp1-cli --no-default-features -- prove install-toolchain
 
-      - name: Run E2E node test
+      - name: Run E2E node test (Groth16)
         uses: actions-rs/cargo@v1
         with:
           command: run
           args: --release -p sp1-gpu-perf --bin node --features native-gnark,experimental -- --program local-rsp --param 21000001 --mode groth16
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          SP1_CIRCUIT_MODE: "release"
+          RUST_BACKTRACE: 1
+          CUDA_ARCHS: 89
+
+      - name: Run E2E node test (PLONK)
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --release -p sp1-gpu-perf --bin node --features native-gnark,experimental -- --program local-rsp --param 21000001 --mode plonk
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           SP1_CIRCUIT_MODE: "release"
