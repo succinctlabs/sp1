@@ -215,4 +215,14 @@ mod tests {
             BigUint::from_bytes_le(<Bls12381BaseField as FieldParameters>::MODULUS)
         );
     }
+
+    #[test]
+    fn test_bls12381_add_rejects_identical_and_inverse_points() {
+        use crate::EllipticCurve;
+        let gen = Bls12381::generator();
+        let neg = Bls12381::ec_neg(&gen);
+
+        assert!(std::panic::catch_unwind(|| gen.sw_add(&gen)).is_err());
+        assert!(std::panic::catch_unwind(|| gen.sw_add(&neg)).is_err());
+    }
 }
