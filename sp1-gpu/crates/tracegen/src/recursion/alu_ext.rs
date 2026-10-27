@@ -5,10 +5,10 @@ use slop_tensor::Tensor;
 use sp1_gpu_cudart::{args, DeviceMle, TaskScope};
 use sp1_gpu_cudart::{TracegenPreprocessedRecursionExtAluKernel, TracegenRecursionExtAluKernel};
 use sp1_hypercube::air::MachineAir;
-use sp1_recursion_executor::Instruction;
+use sp1_recursion_executor::{ExtAluInstr, Instruction};
 use sp1_recursion_machine::chips::alu_ext::ExtAluChip;
 
-use crate::{CudaTracegenAir, F};
+use crate::{CudaTracegenAir, PinnedStaging, F};
 
 impl CudaTracegenAir<F> for ExtAluChip {
     fn supports_device_preprocessed_tracegen(&self) -> bool {
@@ -18,16 +18,19 @@ impl CudaTracegenAir<F> for ExtAluChip {
     async fn generate_preprocessed_trace_device(
         &self,
         program: &Self::Program,
+        staging: PinnedStaging,
         scope: &TaskScope,
     ) -> Result<Option<DeviceMle<F>>, CopyError> {
-        let instrs = program
-            .inner
-            .iter() // Faster than using `rayon` for some reason. Maybe vectorization?
-            .filter_map(|instruction| match instruction.inner() {
-                Instruction::ExtAlu(instr) => Some(*instr),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
+        // Pre-bucketed by `bucket_preprocessed_device_instructions`; otherwise
+        // (overflow / no bucketing) stage the instructions here.
+        let instrs = staging.staged::<ExtAluInstr<F>>().unwrap_or_else(|| {
+            staging.stage_iter(program.inner.iter().filter_map(|instruction| {
+                match instruction.inner() {
+                    Instruction::ExtAlu(instr) => Some(*instr),
+                    _ => None,
+                }
+            }))
+        });
 
         let instrs_device = {
             let mut buf = Buffer::try_with_capacity_in(instrs.len(), scope.clone()).unwrap();
@@ -74,13 +77,14 @@ impl CudaTracegenAir<F> for ExtAluChip {
         &self,
         input: &Self::Record,
         _: &mut Self::Record,
+        staging: PinnedStaging,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
-        let events = &input.ext_alu_events;
+        let events = staging.stage_slice(&input.ext_alu_events);
 
         let events_device = {
             let mut buf = Buffer::try_with_capacity_in(events.len(), scope.clone()).unwrap();
-            buf.extend_from_host_slice(events)?;
+            buf.extend_from_host_slice(&events)?;
             buf
         };
 
