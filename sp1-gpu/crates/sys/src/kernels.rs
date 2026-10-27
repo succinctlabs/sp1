@@ -120,6 +120,7 @@ extern "C" {
     // n_columns. See `include/jagged_assist/fold_metadata.cuh` for the
     // caller-init contract on `block_counter`, `flags`, `scan_values`.
     pub fn jagged_fold_metadata_kernel() -> KernelPtr;
+    pub fn jagged_fold_metadata_specialized_kernel(folds: u32, single: bool) -> KernelPtr;
     pub fn jagged_fold_metadata_block_dim() -> u32;
     pub fn jagged_fold_metadata_section_size() -> u32;
 
