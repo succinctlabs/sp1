@@ -42,6 +42,13 @@ jobs:
         run: |
           docker build -t sp1-gnark -f ./Dockerfile.gnark-ffi .
 
+      - name: Test verification exit-code policy
+        env:
+          SP1_GNARK_IMAGE: sp1-gnark
+        run: |
+          cargo test --release -p sp1-recursion-gnark-ffi --test docker_exit_code -- --ignored
+          cargo test --release -p sp1-recursion-gnark-ffi --features experimental --test docker_exit_code -- --ignored
+
       - name: Install SP1 toolchain
         run: |
           cargo run -p sp1-cli --no-default-features -- prove install-toolchain

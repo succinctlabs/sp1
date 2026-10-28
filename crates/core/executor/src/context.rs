@@ -24,7 +24,7 @@ impl StatusCode {
     /// (and the patched crypto crates) when a hint fails its consistency
     /// check, so a malicious prover cannot forge a regular panic.
     pub const INVALID_HINT: Self = Self(3);
-    /// Accept any of the supported status codes.
+    /// Accept any status code permitted by the build.
     pub const ANY: Self = Self(u32::MAX);
 
     /// Create a new status code from a u32.
@@ -51,10 +51,12 @@ impl StatusCode {
         self.0
     }
 
-    /// Check if the status code is equal to the given value.
+    /// Check whether this status accepts a code in the current build.
     #[must_use]
     pub const fn is_accepted_code(&self, code: u32) -> bool {
-        matches!(code, 0 | 1 | 3) && (self.0 == Self::ANY.0 || self.0 == code)
+        (cfg!(feature = "experimental") || code == 0)
+            && matches!(code, 0 | 1 | 3)
+            && (self.0 == Self::ANY.0 || self.0 == code)
     }
 }
 
@@ -332,7 +334,30 @@ pub struct OutputConsumers {
 
 #[cfg(test)]
 mod tests {
-    use crate::SP1Context;
+    use crate::{SP1Context, StatusCode};
+
+    #[test]
+    #[ignore = "run explicitly in CI with default features; all-feature builds enable experimental"]
+    fn default_exit_code_policy_rejects_nonzero() {
+        assert!(StatusCode::ANY.is_accepted_code(0));
+        assert!(
+            !StatusCode::ANY.is_accepted_code(1),
+            "default build must reject nonzero exit codes"
+        );
+        assert!(!StatusCode::ANY.is_accepted_code(3));
+    }
+
+    #[test]
+    fn status_code_acceptance_respects_experimental() {
+        assert!(StatusCode::SUCCESS.is_accepted_code(0));
+        assert!(StatusCode::ANY.is_accepted_code(0));
+        assert!(!StatusCode::SUCCESS.is_accepted_code(1));
+        assert_eq!(StatusCode::ANY.is_accepted_code(1), cfg!(feature = "experimental"));
+        assert_eq!(StatusCode::ANY.is_accepted_code(3), cfg!(feature = "experimental"));
+        assert_eq!(StatusCode::PANIC.is_accepted_code(1), cfg!(feature = "experimental"));
+        assert_eq!(StatusCode::INVALID_HINT.is_accepted_code(3), cfg!(feature = "experimental"));
+        assert!(!StatusCode::ANY.is_accepted_code(2));
+    }
 
     #[test]
     fn defaults() {

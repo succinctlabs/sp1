@@ -17,6 +17,10 @@ unsafe impl critical_section::Impl for CriticalSection {
     unsafe fn release(_token: RawRestoreState) {}
 }
 
+/// Initializes the heap during runtime startup.
+///
+/// Guest programs must not call this function: startup has already initialized the heap,
+/// and reinitializing it can cause overlapping live allocations.
 pub fn init() {
     extern "C" {
         // https://lld.llvm.org/ELF/linker_script.html#sections-command

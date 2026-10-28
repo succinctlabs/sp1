@@ -1,0 +1,53 @@
+[graph]
+all-features = true
+
+[advisories]
+ignore = [
+  { id = "RUSTSEC-2021-0139", reason = "Transitive through the tracing-forest ansi feature. Dropping that feature removes it." },
+  { id = "RUSTSEC-2021-0141", reason = "Direct dependency of sp1-perf and sp1-gpu-perf. Switching to dotenvy removes it." },
+  { id = "RUSTSEC-2024-0384", reason = "Transitive through backoff. Replacing backoff removes it." },
+  { id = "RUSTSEC-2024-0388", reason = "Transitive through ark-crypto-primitives. The latest arkworks release still uses it." },
+  { id = "RUSTSEC-2024-0436", reason = "Transitive through several crates, including alloy-primitives and ark-ff. Each one must drop it first." },
+  { id = "RUSTSEC-2025-0012", reason = "Direct dependency of sp1-sdk. Switching to a maintained retry crate removes it." },
+  { id = "RUSTSEC-2025-0119", reason = "Transitive through indicatif 0.17. Upgrading indicatif to 0.18 removes it." },
+  { id = "RUSTSEC-2025-0141", reason = "Direct dependency of most sp1 crates. Moving to a maintained serializer removes it." },
+  { id = "RUSTSEC-2026-0173", reason = "Transitive through alloy-sol-macro 1.5 and dynasm 3. Upgrading both removes it." },
+  { id = "RUSTSEC-2025-0055", reason = "Transitive through ark-relations 0.5. Upgrading arkworks to 0.6 removes it." },
+  { id = "RUSTSEC-2026-0258", reason = "Transitive through opentelemetry-otlp 0.16. Upgrading opentelemetry removes it." },
+  { id = "RUSTSEC-2026-0387", reason = "Transitive through elliptic-curve 0.13, used by alloy-signer, k256 and p256. Upgrading to elliptic-curve 0.14 removes it." },
+]
+
+[licenses]
+allow = [
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "BSL-1.0",
+  "CDLA-Permissive-2.0",
+  "ISC",
+  "MIT",
+  "MPL-2.0",
+  "Unicode-3.0",
+  "Zlib",
+]
+exceptions = [
+  { allow = ["CC0-1.0"], crate = "tiny-keccak" },
+  # Only reachable through the optional `bigint-rug` feature of sp1-curves.
+  { allow = ["LGPL-3.0-or-later"], crate = "rug" },
+  { allow = ["LGPL-3.0-or-later"], crate = "gmp-mpfr-sys" },
+]
+
+[licenses.private]
+ignore = true
+
+[bans]
+multiple-versions = "allow"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+required-git-spec = "tag"
+allow-org = { github = ["sp1-patches", "succinctlabs"] }

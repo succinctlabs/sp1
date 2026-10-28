@@ -12,8 +12,8 @@ rust-version = { workspace = true }
 
 [dependencies]
 prost = { workspace = true, optional = true }
+tonic-prost = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
-twirp = { workspace = true, optional = true }
 async-trait = { workspace = true }
 reqwest-middleware = { workspace = true, optional = true }
 reqwest = { workspace = true, features = [
@@ -71,13 +71,14 @@ eventsource-stream = { workspace = true }         # SSE Extenstion for reqwest
 
 [target.'cfg(target_os = "ios")'.dependencies]
 tonic = { workspace = true, features = [
-  "tls",
+  "tls-ring",
   "tls-webpki-roots",
 ], optional = true }
 [target.'cfg(not(target_os = "ios"))'.dependencies]
-tonic = { workspace = true, features = ["tls", "tls-roots"], optional = true }
+tonic = { workspace = true, features = ["tls-ring", "tls-native-roots"], optional = true }
 
 [dev-dependencies]
+tonic = { workspace = true, features = ["gzip"] }
 test-artifacts = { path = "../test-artifacts" }
 tokio = { workspace = true, features = ["macros", "rt"] }
 tokio-test = { workspace = true }
@@ -98,9 +99,9 @@ network = [
   "dep:alloy-signer-local",
   "dep:alloy-primitives",
   "dep:reqwest",
-  "dep:twirp",
   "dep:reqwest-middleware",
   "dep:tonic",
+  "dep:tonic-prost",
   "dep:backoff",
   "dep:zstd",
 ]
