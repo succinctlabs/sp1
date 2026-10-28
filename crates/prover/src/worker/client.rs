@@ -807,8 +807,7 @@ mod tests {
         let no_outputs = RawTaskRequest { inputs: vec![], outputs: vec![], context: ctx() };
         assert!(no_outputs.recover_if_complete(fatal(), &client).await.is_err());
 
-        // A single-output task (e.g. a memory/precompile shard) recovers as soon
-        // as its one output exists — no placeholder output to block it.
+        // A task with one output recovers when that output exists.
         let single = RawTaskRequest { inputs: vec![], outputs: vec![o0.clone()], context: ctx() };
         assert!(single.recover_if_complete(fatal(), &client).await.is_ok());
     }

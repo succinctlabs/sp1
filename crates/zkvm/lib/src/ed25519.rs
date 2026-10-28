@@ -11,14 +11,14 @@ pub struct Ed25519AffinePoint(pub [u64; N]);
 impl AffinePoint<N> for Ed25519AffinePoint {
     /// The generator/base point for the Ed25519 curve. Reference: https://datatracker.ietf.org/doc/html/rfc7748#section-4.1
     const GENERATOR: [u64; N] = [
-        13254768563189591678,
-        7223677240904510747,
-        11837459681205989215,
-        14107110925517789205,
-        3231187496542550688,
-        8386596743812984063,
-        16293584715996958308,
-        12755452578091664582,
+        0xc9562d608f25d51a,
+        0x692cc7609525a7b2,
+        0xc0a4e231fdd6dc5c,
+        0x216936d3cd6e53fe,
+        0x6666666666666658,
+        0x6666666666666666,
+        0x6666666666666666,
+        0x6666666666666666,
     ];
 
     #[allow(deprecated)]
@@ -66,5 +66,43 @@ impl Ed25519AffinePoint {
 
     pub fn identity() -> Self {
         Self(Self::IDENTITY)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use num_bigint::BigUint;
+
+    #[test]
+    fn generator_matches_rfc7748() {
+        // RFC 7748 section 4.1 gives these affine coordinates in decimal.
+        let expected_x = BigUint::parse_bytes(
+            b"15112221349535400772501151409588531511454012693041857206046113283949847762202",
+            10,
+        )
+        .unwrap();
+        let expected_y = BigUint::parse_bytes(
+            b"46316835694926478169428394003475163141307993866256225615783033603165251855960",
+            10,
+        )
+        .unwrap();
+        let bytes = Ed25519AffinePoint::GENERATOR_T.to_le_bytes();
+        let x = BigUint::from_bytes_le(&bytes[..32]);
+        let y = BigUint::from_bytes_le(&bytes[32..]);
+        assert_eq!(x, expected_x);
+        assert_eq!(y, expected_y);
+
+        // Check canonical coordinates and -x^2 + y^2 = 1 + d*x^2*y^2 (mod p).
+        let p = (BigUint::from(1u8) << 255usize) - BigUint::from(19u8);
+        let d = BigUint::parse_bytes(
+            b"37095705934669439343138083508754565189542113879843219016388785533085940283555",
+            10,
+        )
+        .unwrap();
+        assert!(x < p && y < p);
+        let x2 = &x * &x % &p;
+        let y2 = &y * &y % &p;
+        assert_eq!(y2, (BigUint::from(1u8) + &x2 + d * &x2 * &y2) % &p);
     }
 }

@@ -130,7 +130,7 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let verify = quote! {
         {
-            __macro_internal_client.verify(&__macro_internal_proof, &__macro_internal_vk).unwrap();
+            __macro_internal_client.verify(&__macro_internal_proof, &__macro_internal_vk, None).unwrap();
         }
     };
 

@@ -318,7 +318,11 @@ mod tests {
 
         // Generate proof & verify.
         let proof = client.prove(&pk, stdin).core().await.unwrap();
-        client.verify(&proof, &pk.vk, StatusCode::new(1)).unwrap();
+        if cfg!(feature = "experimental") {
+            client.verify(&proof, &pk.vk, StatusCode::new(1)).unwrap();
+        } else {
+            assert!(client.verify(&proof, &pk.vk, StatusCode::new(1)).is_err());
+        }
 
         if client.verify(&proof, &pk.vk, None).is_ok() {
             panic!("verified proof with invalid exit code")
@@ -379,7 +383,11 @@ mod tests {
 
         // Generate proof & verify.
         let proof = client.prove(&pk, stdin).compressed().await.unwrap();
-        client.verify(&proof, &pk.vk, StatusCode::new(1)).unwrap();
+        if cfg!(feature = "experimental") {
+            client.verify(&proof, &pk.vk, StatusCode::new(1)).unwrap();
+        } else {
+            assert!(client.verify(&proof, &pk.vk, StatusCode::new(1)).is_err());
+        }
 
         if client.verify(&proof, &pk.vk, None).is_ok() {
             panic!("verified proof with invalid exit code")

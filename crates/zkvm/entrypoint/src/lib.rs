@@ -92,15 +92,20 @@ pub extern "C" fn read_vec_raw() -> ReadVecResult {
             return ReadVecResult { ptr: core::ptr::null_mut(), len: 0, capacity: 0 };
         }
 
+        #[cfg(not(feature = "bump"))]
+        if len > EMBEDDED_RESERVED_INPUT_REGION_SIZE {
+            panic!("Input region overflowed.");
+        }
+
         // Round up to multiple of 8 for whole-word alignment.
-        let capacity = (len + 7) / 8 * 8;
+        let capacity = (len / 8 * 8).checked_add(8).unwrap();
 
         cfg_if! {
             if #[cfg(not(feature = "bump"))] {
                 // Get the existing pointer in the reserved region which is the start of the vec.
                 // Increment the pointer by the capacity to set the new pointer to the end of the vec.
                 let ptr = unsafe { EMBEDDED_RESERVED_INPUT_PTR };
-                if ptr.saturating_add(capacity) > MAX_MEMORY {
+                if ptr < EMBEDDED_RESERVED_INPUT_START || ptr.saturating_add(capacity) > MAX_MEMORY {
                     panic!("Input region overflowed.")
                 }
 

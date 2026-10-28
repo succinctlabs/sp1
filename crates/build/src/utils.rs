@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use cargo_metadata::Metadata;
 use chrono::Local;
@@ -32,8 +32,66 @@ pub(crate) fn cargo_rerun_if_changed(metadata: &Metadata, program_dir: &Path) {
     for package in &metadata.packages {
         for dependency in &package.dependencies {
             if let Some(path) = &dependency.path {
-                println!("cargo:rerun-if-changed={}", path.as_str());
+                for path in
+                    paths_excluding(path.as_std_path(), metadata.target_directory.as_std_path())
+                {
+                    println!("cargo:rerun-if-changed={}", path.display());
+                }
             }
         }
+    }
+}
+
+/// Skips build output, which would otherwise make Cargo's recursive directory scan always see changes.
+fn paths_excluding(path: &Path, excluded: &Path) -> Vec<PathBuf> {
+    if path == excluded
+        || (path.file_name() == Some("target".as_ref())
+            && path.with_file_name("Cargo.toml").exists())
+    {
+        return vec![];
+    }
+    if !path.is_dir() {
+        return vec![path.to_path_buf()];
+    }
+    let mut children: Vec<PathBuf> =
+        std::fs::read_dir(path).unwrap().map(|entry| entry.unwrap().path()).collect();
+    children.sort();
+    let paths: Vec<PathBuf> =
+        children.iter().flat_map(|child| paths_excluding(child, excluded)).collect();
+    if paths == children && !excluded.starts_with(path) {
+        vec![path.to_path_buf()]
+    } else {
+        paths
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::paths_excluding;
+
+    #[test]
+    fn paths_excluding_skips_only_build_output() {
+        let root = std::env::temp_dir().join(format!("sp1-build-paths-{}", std::process::id()));
+        let (other, program) = (root.join("other"), root.join("program"));
+        for dir in
+            [other.join("target"), other.join("src"), program.join("src"), root.join("src/target")]
+        {
+            std::fs::create_dir_all(dir).unwrap();
+        }
+        std::fs::write(other.join("Cargo.toml"), "").unwrap();
+        let not_yet_built = program.join("target");
+
+        assert_eq!(
+            paths_excluding(&root, &not_yet_built),
+            vec![
+                other.join("Cargo.toml"),
+                other.join("src"),
+                program.join("src"),
+                root.join("src")
+            ]
+        );
+        assert_eq!(paths_excluding(&root.join("src"), &not_yet_built), vec![root.join("src")]);
+
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

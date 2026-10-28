@@ -60,8 +60,8 @@ impl PlonkVerifier {
         Self::verify_with_exit_code(proof, sp1_public_inputs, sp1_vkey_hash, plonk_vk, [0u8; 32])
     }
 
-    /// Verifies an SP1 PLONK proof with an expected exit code. Only use this if you're trying to
-    /// verify a program that panics. Otherwise use [`verify`].
+    /// Verifies an SP1 PLONK proof with an expected exit code.
+    /// Nonzero exit codes require `experimental`. Use [`Self::verify`] to require success.
     ///
     /// # Arguments
     ///
@@ -89,6 +89,9 @@ impl PlonkVerifier {
         plonk_vk: &[u8],
         expected_exit_code: [u8; 32],
     ) -> Result<(), PlonkError> {
+        if !cfg!(feature = "experimental") && expected_exit_code != [0u8; 32] {
+            return Err(PlonkError::ExitCodeMismatch);
+        }
         if proof.len() < VK_HASH_PREFIX_LENGTH + 32 + 32 + 32 {
             return Err(PlonkError::GeneralError(Error::InvalidData));
         }
@@ -163,9 +166,9 @@ impl PlonkVerifier {
 
     /// Verifies a Gnark PLONK proof using raw byte inputs.
     ///
-    /// WARNING: if you're verifying an SP1 proof, you should use [`verify`] instead.
-    /// This is a lower-level verification method that works directly with raw bytes rather than
-    /// the SP1 SDK's data structures.
+    /// WARNING: This low-level API does not enforce SP1's exit-code policy, even with
+    /// `experimental` disabled. For SP1 proofs, use [`Self::verify`] or
+    /// [`Self::verify_with_exit_code`].
     ///
     /// # Arguments
     ///
@@ -192,5 +195,20 @@ impl PlonkVerifier {
             .map_err(|e| PlonkError::GeneralError(crate::plonk::Error::Field(e)))?;
 
         verify_plonk_algebraic(&plonk_vk, &proof, &public_inputs)
+    }
+}
+
+#[cfg(all(test, not(feature = "experimental")))]
+mod tests {
+    use super::{PlonkError, PlonkVerifier};
+
+    #[test]
+    fn rejects_nonzero_exit_code() {
+        let mut exit_code = [0u8; 32];
+        exit_code[31] = 3;
+        assert!(matches!(
+            PlonkVerifier::verify_with_exit_code(&[], &[], "", &[], exit_code),
+            Err(PlonkError::ExitCodeMismatch)
+        ));
     }
 }

@@ -24,7 +24,7 @@ and [KALOS](https://kalos.xyz/) and is recommended for production use. The audit
 
 ## Supported Rust Versions (MSRV)
 
-The current MSRV (minimum supported Rust version) is 1.91.
+The current MSRV (minimum supported Rust version) is 1.91.1.
 
 ## For Contributors
 

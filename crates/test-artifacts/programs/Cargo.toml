@@ -55,9 +55,9 @@ serde_json = "1.0.132"
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 
 [patch.crates-io]
-sha2-v0-9-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-v0.9.8" }
-ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", branch = "patch-v2.1.0" }
+sha2-v0-9-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", tag = "patch-sha2-0.9.8-sp1-6.10.0" }
+ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", tag = "patch-2.1.0-sp1-6.10.0" }
 sp1-lib = { path = "../../../crates/zkvm/lib" }
-tiny-keccak-patched = { git = "https://github.com/sp1-patches/tiny-keccak", tag = "patch-2.0.2-sp1-6.2.0", package = "tiny-keccak", features = [
+tiny-keccak-patched = { git = "https://github.com/sp1-patches/tiny-keccak", tag = "patch-2.0.2-sp1-6.10.0", package = "tiny-keccak", features = [
   "keccak",
 ] }

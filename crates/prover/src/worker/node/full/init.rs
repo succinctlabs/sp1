@@ -343,10 +343,10 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                                 async move {
                                     // Outer `Err` = panicked/aborted task (pass through);
                                     // recover the task's result if a prior delivery already
-                                    // completed it (all outputs exist).
+                                    // completed it.
                                     let result = match handle.await {
                                         Ok(task_result) => Ok(request
-                                            .recover_if_complete(task_result, &artifact_client)
+                                            .recover_prove_shard_if_complete(task_result, &artifact_client)
                                             .await),
                                         join_err => join_err,
                                     };
