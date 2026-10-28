@@ -9,6 +9,10 @@ use sp1_prover::{HashableKey, SP1VerifyingKey};
 
 use crate::SP1VerificationError;
 
+const RECOVERY_ID_OFFSET: usize = 4;
+const SIGNATURE_OFFSET: usize = 5;
+const SIGNATURE_END: usize = 69;
+
 /// The API for the TEE server.
 pub mod api;
 
@@ -59,6 +63,13 @@ pub fn verify_tee_proof(
         )));
     }
 
+    if tee_proof.len() < SIGNATURE_END {
+        return Err(crate::SP1VerificationError::Other(anyhow::anyhow!(
+            "Invalid TEE proof length: expected at least {SIGNATURE_END} bytes, got {}",
+            tee_proof.len()
+        )));
+    }
+
     let mut bytes = Vec::new();
 
     // Push the version hash.
@@ -78,10 +89,17 @@ pub fn verify_tee_proof(
 
     // Parse the signature.
     let signature =
-        k256::ecdsa::Signature::from_bytes(tee_proof[5..69].into()).expect("Invalid signature");
+        k256::ecdsa::Signature::from_bytes(tee_proof[SIGNATURE_OFFSET..SIGNATURE_END].into())
+            .map_err(|err| {
+                crate::SP1VerificationError::Other(anyhow::anyhow!("Invalid TEE signature: {err}"))
+            })?;
     // The recovery id is the last byte of the signature minus 27.
-    let recovery_id =
-        k256::ecdsa::RecoveryId::from_byte(tee_proof[4] - 27).expect("Invalid recovery id");
+    let recovery_id = tee_proof[RECOVERY_ID_OFFSET]
+        .checked_sub(27)
+        .and_then(k256::ecdsa::RecoveryId::from_byte)
+        .ok_or_else(|| {
+            crate::SP1VerificationError::Other(anyhow::anyhow!("Invalid TEE recovery id"))
+        })?;
 
     // Recover the signer.
     let signer = k256::ecdsa::VerifyingKey::recover_from_prehash(
@@ -89,7 +107,9 @@ pub fn verify_tee_proof(
         &signature,
         recovery_id,
     )
-    .unwrap();
+    .map_err(|err| {
+        crate::SP1VerificationError::Other(anyhow::anyhow!("Failed to recover TEE signer: {err}"))
+    })?;
     let address = alloy_primitives::Address::from_public_key(&signer);
 
     // Verify the proof.
@@ -99,5 +119,41 @@ pub fn verify_tee_proof(
         Err(crate::SP1VerificationError::Other(anyhow::anyhow!(
             "Invalid TEE proof, signed by unknown address {address}",
         )))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sp1_hypercube::{septic_digest::SepticDigest, MachineVerifyingKey, UntrustedConfig};
+    use sp1_primitives::SP1Field;
+
+    fn dummy_vkey() -> SP1VerifyingKey {
+        SP1VerifyingKey {
+            vk: MachineVerifyingKey {
+                pc_start: [SP1Field::default(); 3],
+                initial_global_cumulative_sum: SepticDigest::zero(),
+                preprocessed_commit: [SP1Field::default(); 8],
+                untrusted_config: UntrustedConfig::zero(),
+            },
+        }
+    }
+
+    #[test]
+    fn test_verify_tee_proof_rejects_short_proof() {
+        let vkey = dummy_vkey();
+        let signers = [alloy_primitives::Address::ZERO];
+        let err = verify_tee_proof(&signers, &[0u8; SIGNATURE_END - 1], &vkey, &[]).unwrap_err();
+
+        assert!(err.to_string().contains("Invalid TEE proof length"));
+    }
+
+    #[test]
+    fn test_verify_tee_proof_rejects_invalid_recovery_id() {
+        let vkey = dummy_vkey();
+        let signers = [alloy_primitives::Address::ZERO];
+        let err = verify_tee_proof(&signers, &[0u8; SIGNATURE_END], &vkey, &[]).unwrap_err();
+
+        assert!(err.to_string().contains("Invalid TEE recovery id"));
     }
 }
