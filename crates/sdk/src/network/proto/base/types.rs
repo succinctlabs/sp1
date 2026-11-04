@@ -5016,6 +5016,8 @@ pub enum ProofRequestError {
     ProvingFailure = 6,
     /// The program artifact exceeds the proxy's size limit.
     ProgramTooLarge = 7,
+    /// The program artifact cannot be decoded.
+    InvalidProgram = 8,
 }
 impl ProofRequestError {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -5032,6 +5034,7 @@ impl ProofRequestError {
             Self::VerificationFailure => "VERIFICATION_FAILURE",
             Self::ProvingFailure => "PROVING_FAILURE",
             Self::ProgramTooLarge => "PROGRAM_TOO_LARGE",
+            Self::InvalidProgram => "INVALID_PROGRAM",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -5045,6 +5048,7 @@ impl ProofRequestError {
             "VERIFICATION_FAILURE" => Some(Self::VerificationFailure),
             "PROVING_FAILURE" => Some(Self::ProvingFailure),
             "PROGRAM_TOO_LARGE" => Some(Self::ProgramTooLarge),
+            "INVALID_PROGRAM" => Some(Self::InvalidProgram),
             _ => None,
         }
     }
