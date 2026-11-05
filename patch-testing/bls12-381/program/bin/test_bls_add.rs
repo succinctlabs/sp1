@@ -1,4 +1,3 @@
-
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
@@ -16,8 +15,7 @@ pub fn main() {
 
         // The Rust test actually does projective addition, but this should be equivalent.
         let sum = val.add_affine(&val2);
-        
+
         sp1_lib::io::commit(&sum.to_uncompressed().to_vec());
     }
 }
-

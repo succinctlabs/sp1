@@ -96,10 +96,9 @@ fn run_map_fp2_to_g2(input: &[u8]) -> Option<Vec<u8>> {
     if input.len() != 128 {
         return None;
     }
-    // wire: c0(64) || c1(64); ABI Fp2: c1(48) || c0(48).
     let mut data = [0u8; 96];
-    data[0..48].copy_from_slice(&unpad_fp(&input[64..128])?);
-    data[48..96].copy_from_slice(&unpad_fp(&input[0..64])?);
+    data[0..48].copy_from_slice(&unpad_fp(&input[0..64])?);
+    data[48..96].copy_from_slice(&unpad_fp(&input[64..128])?);
     let fp2 = ZkvmBytes96 { data };
     let mut out = ZkvmBytes192 { data: [0u8; 192] };
     let status = unsafe { zkvm_bls12_map_fp2_to_g2(&fp2, &mut out) };

@@ -62,6 +62,31 @@ impl<F: Field> SepticDigest<F> {
     pub fn is_zero(&self) -> bool {
         *self == SepticDigest::<F>::zero()
     }
+
+    /// Adds two digests, returning `None` if an incomplete curve addition is exceptional.
+    pub fn checked_add(self, rhs: Self) -> Option<Self> {
+        fn checked_add_incomplete<F: Field>(
+            lhs: SepticCurve<F>,
+            rhs: SepticCurve<F>,
+        ) -> Option<SepticCurve<F>> {
+            if lhs.x == rhs.x {
+                return None;
+            }
+            Some(lhs.add_incomplete(rhs))
+        }
+
+        let start = Self::starting_digest().0;
+        let zero = Self::zero().0;
+
+        let sum_a = checked_add_incomplete(start, self.0)?;
+        let sum_a = checked_add_incomplete(sum_a, zero.neg())?;
+        let sum_b = checked_add_incomplete(sum_a, rhs.0)?;
+        let sum_b = checked_add_incomplete(sum_b, zero.neg())?;
+        let result = checked_add_incomplete(sum_b, zero)?;
+        let result = checked_add_incomplete(result, start.neg())?;
+
+        Some(SepticDigest(result))
+    }
 }
 
 impl<F: Field> Add for SepticDigest<F> {
@@ -129,5 +154,27 @@ mod test {
         });
         let point = SepticCurve { x, y };
         assert!(point.check_on_point());
+    }
+
+    #[test]
+    fn test_checked_add_rejects_exceptional_intermediate() {
+        let lhs = SepticDigest::<SP1Field>::zero();
+        let intermediate = SepticDigest::<SP1Field>::starting_digest()
+            .0
+            .add_incomplete(lhs.0)
+            .sub_incomplete(SepticDigest::zero().0);
+
+        // This is a valid curve point, but adding it next would use equal x-coordinates and divide
+        // by zero in the incomplete addition formula.
+        assert!(intermediate.check_on_point());
+        assert_eq!(lhs.checked_add(SepticDigest(intermediate)), None);
+    }
+
+    #[test]
+    fn test_checked_add_matches_add() {
+        let lhs = SepticDigest::<SP1Field>::zero();
+        let rhs = SepticDigest::<SP1Field>::zero();
+
+        assert_eq!(lhs.checked_add(rhs), Some(lhs + rhs));
     }
 }

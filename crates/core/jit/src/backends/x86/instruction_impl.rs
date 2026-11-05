@@ -686,13 +686,13 @@ impl ComputeInstructions for TranspilerBackend {
             test Rd(TEMP_B), Rd(TEMP_B);
             jz >rem_by_zero;
 
-            // Handle 32-bit overflow case on x86-64: INT_MIN / -1 traps (#DE)
-            cmp eax, i32::MIN;   // dividend == INT_MIN?
+            // Handle 32-bit overflow case on x86-64: INT_MIN % -1 traps (#DE).
+            // RISC-V defines the remainder as 0; it must land in RDX, which is what gets stored.
+            cmp eax, i32::MIN;               // dividend == INT_MIN?
             jne >do_div;
             cmp Rd(TEMP_B), -1;              // divisor == -1?
             jne >do_div;
-            mov eax, i32::MIN;   // result = INT_MIN
-            movsxd rax, eax;                 // sign-extend to 64-bit
+            xor rdx, rdx;                    // remainder = 0
             jmp >done;
 
             do_div:;
@@ -701,11 +701,6 @@ impl ComputeInstructions for TranspilerBackend {
             cdq;                        // sign-extend EAX into EDX
             idiv Rd(TEMP_B);               // remainder → EDX
             movsxd rdx, edx;               // sign-extend result to 64 bits
-            jmp >done;
-
-            // Handle overflow: i32::MIN % -1 = 0 (wrapping)
-            overflow:;
-            xor rdx, rdx;                  // remainder = 0
             jmp >done;
 
             rem_by_zero:;

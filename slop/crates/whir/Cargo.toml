@@ -11,7 +11,6 @@ categories.workspace = true
 
 [dependencies]
 slop-algebra = { workspace = true }
-slop-basefold = { workspace = true }
 slop-multilinear = { workspace = true }
 slop-challenger = { workspace = true }
 slop-utils = { workspace = true }
@@ -22,7 +21,6 @@ slop-alloc = { workspace = true }
 slop-baby-bear = { workspace = true }
 slop-dft = { workspace = true }
 slop-koala-bear = { workspace = true }
-slop-stacked = { workspace = true }
 slop-merkle-tree = { workspace = true }
 slop-jagged = { workspace = true }
 
@@ -31,11 +29,8 @@ thiserror = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 derive-where = { workspace = true }
 rayon = { workspace = true }
-futures = { workspace = true }
 itertools = { workspace = true }
 
 [dev-dependencies]
-slop-baby-bear = { workspace = true }
-slop-basefold = { workspace = true }
 bincode = { workspace = true }
 tracing = { workspace = true }

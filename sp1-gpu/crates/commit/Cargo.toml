@@ -41,7 +41,6 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 serial_test = "3.1"
-zstd = "0.13.3"
 sp1-gpu-jagged-tracegen = { workspace = true, features = ["test-utils"] }
 test-artifacts = { workspace = true }
 sp1-core-machine = { workspace = true }
@@ -59,6 +58,10 @@ criterion = "0.5"
 [[bench]]
 name = "commit"
 harness = false
+
+[features]
+default = []
+nvidia-ntt = ["sp1-gpu-basefold/nvidia-ntt"]
 
 [lints]
 workspace = true

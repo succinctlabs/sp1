@@ -22,6 +22,9 @@ elliptic-curve = { workspace = true, features = [
     "ecdh",
 ], optional = true }
 
+[dev-dependencies]
+num-bigint = { workspace = true }
+
 [features]
 default = ["ecdsa"]
 ecdsa = ["dep:elliptic-curve"]

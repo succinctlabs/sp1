@@ -23,3 +23,7 @@ error: failed to load manifest for dependency `...`
 To fix this, you can either:
 1. Move the program into the workspace that contains the crate.
 2. Build the crate locally instead.
+
+Adding a new file directly beside an excluded `target/` directory may not trigger a guest rebuild, leaving the previous ELF in use.
+Changes within watched directories such as `src/` are still detected.
+To force a rebuild, run `cargo clean -p <host-package>` for the package whose build script invokes `sp1-build`, then repeat your build.

@@ -226,3 +226,7 @@ pub fn test_point_ops_edge_cases(
         }
     }
 }
+#[sp1_test::sp1_test("k256_field_checks", gpu, prove)]
+pub fn test_field_checks(_: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+    |mut public| assert!(public.read::<bool>())
+}

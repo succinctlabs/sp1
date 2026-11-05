@@ -46,6 +46,8 @@ pub fn read_vec() -> Vec<u8> {
         empty_input_stream_halt();
     }
 
+    assert!(len <= capacity);
+
     unsafe { Vec::from_raw_parts(ptr, len, capacity) }
 }
 
@@ -91,6 +93,8 @@ pub fn read<T: DeserializeOwned>() -> T {
     if ptr.is_null() {
         empty_input_stream_halt();
     }
+
+    assert!(len <= capacity);
 
     // 1. `ptr` was allocated using alloc
     // 2. Assume that the allocator in the VM doesn't deallocate in the input space.

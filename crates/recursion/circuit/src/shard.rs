@@ -327,7 +327,7 @@ where
             prefix_sum_felts[skip_indices[0] + 1],
             SP1Field::from_canonical_usize(
                 (1 << self.pcs_verifier.stacked_pcs_verifier.log_stacking_height)
-                    * evaluation_proof.pcs_proof.batch_evaluations.rounds[0].num_polynomials(),
+                    * evaluation_proof.pcs_proof.batch_evaluations.rounds[0].num_evaluations(),
             ),
         );
 
@@ -385,7 +385,7 @@ where
                     .pcs_proof
                     .batch_evaluations
                     .iter()
-                    .map(|evaluations| evaluations.num_polynomials())
+                    .map(|evaluations| evaluations.num_evaluations())
                     .sum::<usize>(),
         ));
 

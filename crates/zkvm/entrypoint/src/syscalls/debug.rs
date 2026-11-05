@@ -64,7 +64,10 @@ mod dump_elf {
 
     #[unsafe(naked)]
     #[no_mangle]
-    /// Executes the dump_elf syscall
+    /// Executes the ELF snapshot syscall provided by the experimental `may_dump_elf` feature.
+    ///
+    /// With the embedded allocator, do not retain input-region buffers or references across a
+    /// snapshot: resuming it discards the input contents and reuses that region for new reads.
     pub extern "C" fn syscall_dump_elf() {
         core::arch::naked_asm!(
             "addi sp, sp, -16",
@@ -176,7 +179,7 @@ mod dump_elf {
 
 #[no_mangle]
 #[cfg(not(all(target_os = "zkvm", feature = "may_dump_elf")))]
-/// Executes the dump_elf syscall
+/// No-op unless built for the zkVM with the experimental `may_dump_elf` feature.
 pub extern "C" fn syscall_dump_elf() {
     // dump_elf is noop when feature may_dump_elf is not enabled, or on native target.
 }

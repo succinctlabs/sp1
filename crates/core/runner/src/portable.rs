@@ -1,7 +1,8 @@
 #[cfg(feature = "profiling")]
 use hashbrown::HashMap;
 use sp1_core_executor::{
-    ExecutionError, MinimalExecutorEnum, Program, UnsafeMemory, DEFAULT_MEMORY_LIMIT,
+    with_output_consumers, ExecutionError, MinimalExecutorEnum, OutputConsumers, Program,
+    UnsafeMemory, DEFAULT_MEMORY_LIMIT,
 };
 use sp1_jit::{MemValue, TraceChunkRaw};
 use std::sync::Arc;
@@ -9,6 +10,7 @@ use std::sync::Arc;
 /// Minimal trace portable executor that caps memory entries
 pub struct MinimalExecutorRunner {
     inner: MinimalExecutorEnum,
+    output_consumers: OutputConsumers,
 }
 
 impl MinimalExecutorRunner {
@@ -39,7 +41,13 @@ impl MinimalExecutorRunner {
                 max_trace_size,
                 Some(memory_limit),
             ),
+            output_consumers: OutputConsumers::default(),
         }
+    }
+
+    /// Redirect guest output to the configured channels.
+    pub fn set_output_consumers(&mut self, consumers: OutputConsumers) {
+        self.output_consumers = consumers;
     }
 
     /// Create a new minimal executor with no tracing or debugging.
@@ -78,13 +86,15 @@ impl MinimalExecutorRunner {
     /// Execute the program. Returning a trace chunk if the program has not completed.
     #[inline]
     pub fn execute_chunk(&mut self) -> Option<TraceChunkRaw> {
-        self.inner.execute_chunk()
+        let consumers = self.output_consumers.clone();
+        with_output_consumers(&consumers, || self.inner.execute_chunk())
     }
 
     /// Execute the program. Returning a trace chunk if the program has not completed.
     #[inline]
     pub fn try_execute_chunk(&mut self) -> Result<Option<TraceChunkRaw>, ExecutionError> {
-        self.inner.try_execute_chunk()
+        let consumers = self.output_consumers.clone();
+        with_output_consumers(&consumers, || self.inner.try_execute_chunk())
     }
 
     /// Get the registers of the JIT function.

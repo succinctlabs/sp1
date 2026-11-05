@@ -185,7 +185,7 @@ impl<GC: IopCtx, Proof, C: MultilinearPcsProver<GC, Proof>> JaggedProver<GC, Pro
         // First, allocate a buffer for all of the column claims on device.
         let total_column_claims = evaluation_claims
             .iter()
-            .map(|evals| evals.iter().map(|evals| evals.num_polynomials()).sum::<usize>())
+            .map(|evals| evals.iter().map(|evals| evals.num_evaluations()).sum::<usize>())
             .sum::<usize>();
 
         let total_len = total_column_claims

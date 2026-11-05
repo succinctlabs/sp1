@@ -30,12 +30,14 @@ pub fn compress_g1_point_to_x(g1: &AffineG1) -> Result<[u8; 32], Error> {
 /// G2 point which hardcoded the sign flag of y coordinate.
 pub fn compress_g2_point_to_x(g2: &AffineG2) -> Result<[u8; 64], Error> {
     let mut x_bytes = [0u8; 64];
-    let x1 = Fq::from_u256(g2.x().0.imaginary().0).map_err(Error::Field)?;
-    let x0 = Fq::from_u256(g2.x().0.real().0).map_err(Error::Field)?;
+    let x1 = g2.x().imaginary();
+    let x0 = g2.x().real();
     x1.to_big_endian(&mut x_bytes[..32]).map_err(Error::Field)?;
     x0.to_big_endian(&mut x_bytes[32..64]).map_err(Error::Field)?;
 
-    if g2.y().0 > -g2.y().0 {
+    let y = g2.y();
+    let neg_y = -y;
+    if (y.imaginary(), y.real()) > (neg_y.imaginary(), neg_y.real()) {
         x_bytes[0] |= CompressedPointFlag::Negative as u8;
     } else {
         x_bytes[0] = (x_bytes[0] & !MASK) | (CompressedPointFlag::Positive as u8);
@@ -178,22 +180,10 @@ pub fn uncompressed_bytes_to_g2_point(buf: &[u8]) -> Result<AffineG2, Error> {
 /// The uncompressed byte array is represented as two fq2 elements.
 pub fn g2_point_to_uncompressed_bytes(point: &AffineG2) -> Result<[u8; 128], Error> {
     let mut buffer = [0u8; 128];
-    Fq::from_u256(point.x().0.imaginary().0)
-        .unwrap()
-        .to_big_endian(&mut buffer[..32])
-        .map_err(Error::Field)?;
-    Fq::from_u256(point.x().0.real().0)
-        .unwrap()
-        .to_big_endian(&mut buffer[32..64])
-        .map_err(Error::Field)?;
-    Fq::from_u256(point.y().0.imaginary().0)
-        .unwrap()
-        .to_big_endian(&mut buffer[64..96])
-        .map_err(Error::Field)?;
-    Fq::from_u256(point.y().0.real().0)
-        .unwrap()
-        .to_big_endian(&mut buffer[96..128])
-        .map_err(Error::Field)?;
+    point.x().imaginary().to_big_endian(&mut buffer[..32]).map_err(Error::Field)?;
+    point.x().real().to_big_endian(&mut buffer[32..64]).map_err(Error::Field)?;
+    point.y().imaginary().to_big_endian(&mut buffer[64..96]).map_err(Error::Field)?;
+    point.y().real().to_big_endian(&mut buffer[96..128]).map_err(Error::Field)?;
 
     Ok(buffer)
 }

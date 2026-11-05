@@ -53,8 +53,8 @@ impl Groth16Verifier {
         Self::verify_with_exit_code(proof, sp1_public_inputs, sp1_vkey_hash, groth16_vk, [0u8; 32])
     }
 
-    /// Verifies an SP1 Groth16 proof with an expected exit code. Only use this if you're trying to
-    /// verify a program that panics. Otherwise use [`verify`].
+    /// Verifies an SP1 Groth16 proof with an expected exit code.
+    /// Nonzero exit codes require `experimental`. Use [`Self::verify`] to require success.
     ///
     /// # Arguments
     ///
@@ -83,6 +83,9 @@ impl Groth16Verifier {
         groth16_vk: &[u8],
         expected_exit_code: [u8; 32],
     ) -> Result<(), Groth16Error> {
+        if !cfg!(feature = "experimental") && expected_exit_code != [0u8; 32] {
+            return Err(Groth16Error::ExitCodeMismatch);
+        }
         if proof.len() < VK_HASH_PREFIX_LENGTH + 32 + 32 + 32 {
             return Err(Groth16Error::GeneralError(Error::InvalidData));
         }
@@ -156,9 +159,9 @@ impl Groth16Verifier {
 
     /// Verifies a Gnark Groth16 proof using raw byte inputs.
     ///
-    /// WARNING: if you're verifying an SP1 proof, you should use [`verify`] instead.
-    /// This is a lower-level verification method that works directly with raw bytes rather than
-    /// the SP1 SDK's data structures.
+    /// WARNING: This low-level API does not enforce SP1's exit-code policy, even with
+    /// `experimental` disabled. For SP1 proofs, use [`Self::verify`] or
+    /// [`Self::verify_with_exit_code`].
     ///
     /// # Arguments
     ///
@@ -190,5 +193,20 @@ impl Groth16Verifier {
             .map_err(|e| Groth16Error::GeneralError(crate::groth16::Error::Field(e)))?;
 
         verify_groth16_algebraic(&groth16_vk, &proof, &public_inputs)
+    }
+}
+
+#[cfg(all(test, not(feature = "experimental")))]
+mod tests {
+    use super::{Groth16Error, Groth16Verifier};
+
+    #[test]
+    fn rejects_nonzero_exit_code() {
+        let mut exit_code = [0u8; 32];
+        exit_code[31] = 1;
+        assert!(matches!(
+            Groth16Verifier::verify_with_exit_code(&[], &[], "", &[], exit_code),
+            Err(Groth16Error::ExitCodeMismatch)
+        ));
     }
 }

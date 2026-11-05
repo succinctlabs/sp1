@@ -21,6 +21,7 @@ use crate::ir::chunker::Chunk;
 use crate::ir::dag::{ConstraintDag, DagNode, NodeId, TraceSource};
 use crate::ir::lowering::SequentialPlan;
 use crate::F;
+use slop_algebra::{AbstractField, PrimeField32};
 use std::collections::HashMap;
 
 /// Bytecode opcodes for the per-row register-machine the fused sequential
@@ -46,6 +47,8 @@ pub enum BcOp {
     MulF = 5,
     /// out = -regs[a]
     NegF = 6,
+    /// out = regs[a] * const_pool[b].
+    MulConst = 7,
 }
 
 /// One bytecode instruction. 8 bytes.
@@ -109,105 +112,222 @@ pub struct ChunkBytecode {
     pub gkr_prep_width: u32,
 }
 
-/// Lower a `SequentialPlan` (topological order over the chunk's DAG subgraph)
-/// to flat bytecode.
-///
-/// Performs liveness-based register allocation: each physical register slot
-/// is reused once its current occupant's last use has passed. The resulting
-/// `max_reg` is the chunk's peak live count, not its node count — typically
-/// a small constant for shallow constraints.
+/// Lower one existing chunk, preserving its assertions and limiting scratch
+/// slots to the unsimplified schedule's peak. All temporary metadata is local
+/// to the chunk; the full chip DAG is neither changed nor copied.
 pub fn lower_sequential(
     chunk: &Chunk,
     constraints: &[ConstraintInfo],
     dag: &ConstraintDag,
     plan: &SequentialPlan,
 ) -> ChunkBytecode {
-    let mut bc = ChunkBytecode {
-        n_constraints: chunk.constraint_indices.len() as u32,
-        ..ChunkBytecode::default()
-    };
+    let original_max = liveness_allocate(chunk, constraints, dag, plan)
+        .values()
+        .copied()
+        .max()
+        .map_or(0, |r| r + 1);
+    let local = compact_chunk(chunk, constraints, dag, plan, true);
+    let bc = emit_chunk(&local);
+    if bc.max_reg <= original_max {
+        return bc;
+    }
+    // Aliasing can change lifetimes. Keep the original evaluation order if
+    // the rewritten schedule ever needs more scratch on a different chip.
+    let bc = emit_chunk(&compact_chunk(chunk, constraints, dag, plan, false));
+    assert!(bc.max_reg <= original_max);
+    bc
+}
 
-    let phys_of = liveness_allocate(chunk, constraints, dag, plan);
+struct LocalChunk {
+    nodes: Vec<DagNode>,
+    roots: Vec<(NodeId, u32)>,
+}
 
-    let mut leaf_of: HashMap<(u8, u32), u16> = HashMap::new();
-    let mut const_of: HashMap<u32, u16> = HashMap::new();
-    let mut public_of: HashMap<u32, u16> = HashMap::new();
+fn compact_chunk(
+    chunk: &Chunk,
+    constraints: &[ConstraintInfo],
+    dag: &ConstraintDag,
+    plan: &SequentialPlan,
+    simplify: bool,
+) -> LocalChunk {
+    use DagNode::*;
+    let mut nodes = Vec::with_capacity(plan.topo_order.len());
+    let mut alias = HashMap::<NodeId, NodeId>::with_capacity(plan.topo_order.len());
+    for &id in &plan.topo_order {
+        let node = match dag.nodes[id as usize] {
+            AddF { a, b } => AddF { a: alias[&a], b: alias[&b] },
+            SubF { a, b } => SubF { a: alias[&a], b: alias[&b] },
+            MulF { a, b } => MulF { a: alias[&a], b: alias[&b] },
+            NegF { a } => NegF { a: alias[&a] },
+            n @ (InputLeaf { .. } | ConstF { .. } | PublicValue { .. }) => n,
+            n => panic!("Sequential kernel cannot lower node kind {n:?} (node id {id})"),
+        };
+        let is_const =
+            |n: NodeId, v: F| matches!(nodes[n as usize], ConstF { value } if value == v);
+        let replacement = if simplify {
+            match node {
+                MulF { a, .. } if is_const(a, F::zero()) => Some(a),
+                MulF { b, .. } if is_const(b, F::zero()) => Some(b),
+                MulF { a, b } if is_const(a, F::one()) => Some(b),
+                MulF { a, b } if is_const(b, F::one()) => Some(a),
+                AddF { a, b } if is_const(a, F::zero()) => Some(b),
+                AddF { a, b } if is_const(b, F::zero()) => Some(a),
+                SubF { a, b } if is_const(b, F::zero()) => Some(a),
+                NegF { a } if is_const(a, F::zero()) => Some(a),
+                _ => None,
+            }
+        } else {
+            None
+        };
+        let local_id = replacement.unwrap_or_else(|| {
+            let n = nodes.len() as NodeId;
+            nodes.push(node);
+            n
+        });
+        alias.insert(id, local_id);
+    }
+    let roots = chunk
+        .constraint_indices
+        .iter()
+        .map(|&ci| {
+            let info = &constraints[ci];
+            (alias[&info.root], info.alpha_index)
+        })
+        .collect();
+    LocalChunk { nodes, roots }
+}
 
-    // Helper: produces the operand register for a node that's already been
-    // emitted (must be in `phys_of`).
-    let reg = |n: NodeId| -> u16 { *phys_of.get(&n).expect("topo order broken") };
+#[derive(Clone, Copy)]
+enum MulKind {
+    General(NodeId, NodeId),
+    Constant(NodeId, F),
+}
 
-    for &node_id in &plan.topo_order {
-        let node = &dag.nodes[node_id as usize];
-        match *node {
-            DagNode::InputLeaf { source, col } => {
-                let src_byte = match source {
-                    TraceSource::PreprocessedLocal => LEAF_SOURCE_PREPROCESSED_LOCAL,
-                    TraceSource::MainLocal => LEAF_SOURCE_MAIN_LOCAL,
-                };
-                let leaf_idx = *leaf_of.entry((src_byte, col)).or_insert_with(|| {
-                    let i = bc.leaves.len() as u16;
-                    bc.leaves.push(LeafRef { source: src_byte, _pad: 0, col });
-                    i
-                });
-                bc.instrs.push(DagInstr::new(BcOp::LoadLeaf, reg(node_id), leaf_idx, 0));
-            }
-            DagNode::ConstF { value } => {
-                use slop_algebra::PrimeField32;
-                let key = value.as_canonical_u32();
-                let cidx = *const_of.entry(key).or_insert_with(|| {
-                    let i = bc.consts.len() as u16;
-                    bc.consts.push(value);
-                    i
-                });
-                bc.instrs.push(DagInstr::new(BcOp::LoadConst, reg(node_id), cidx, 0));
-            }
-            DagNode::PublicValue { idx } => {
-                let pidx = *public_of.entry(idx).or_insert_with(|| {
-                    let i = bc.publics.len() as u16;
-                    bc.publics.push(idx);
-                    i
-                });
-                bc.instrs.push(DagInstr::new(BcOp::LoadPublic, reg(node_id), pidx, 0));
-            }
-            DagNode::AddF { a, b } => {
-                bc.instrs.push(DagInstr::new(BcOp::AddF, reg(node_id), reg(a), reg(b)));
-            }
-            DagNode::SubF { a, b } => {
-                bc.instrs.push(DagInstr::new(BcOp::SubF, reg(node_id), reg(a), reg(b)));
-            }
-            DagNode::MulF { a, b } => {
-                bc.instrs.push(DagInstr::new(BcOp::MulF, reg(node_id), reg(a), reg(b)));
-            }
-            DagNode::NegF { a } => {
-                bc.instrs.push(DagInstr::new(BcOp::NegF, reg(node_id), reg(a), 0));
-            }
-            // EF / mixed / cumsum / boundary singletons aren't reachable
-            // from any asserted base-field root in the current chip set —
-            // `DagBuilder` rejects `assert_zero_ext` so EF nodes never
-            // become roots, and the other variants have no overload
-            // creating them via base-field arithmetic. Trip loudly if a
-            // future chip changes that invariant.
-            _ => {
-                panic!(
-                    "Sequential kernel cannot lower node kind {:?} (node id {}); \
-                     a base-field asserted root reached a non-base-field DAG node \
-                     for the first time",
-                    node, node_id
-                );
-            }
+fn multiplication(nodes: &[DagNode], a: NodeId, b: NodeId) -> MulKind {
+    for (x, c) in [(a, b), (b, a)] {
+        if let DagNode::ConstF { value } = nodes[c as usize] {
+            return MulKind::Constant(x, value);
         }
     }
+    MulKind::General(a, b)
+}
 
-    // Append per-constraint assertions.
-    for &ci in &chunk.constraint_indices {
-        let info = &constraints[ci];
-        bc.asserts.push((reg(info.root), info.alpha_index));
+fn execution_children(nodes: &[DagNode], id: NodeId) -> [Option<NodeId>; 2] {
+    if let DagNode::MulF { a, b } = nodes[id as usize] {
+        match multiplication(nodes, a, b) {
+            MulKind::Constant(x, _) => [Some(x), None],
+            MulKind::General(a, b) => [Some(a), Some(b)],
+        }
+    } else {
+        node_children(&nodes[id as usize])
     }
+}
 
-    // `max_reg` = peak physical-reg index used + 1.
-    bc.max_reg = phys_of.values().copied().max().map(|m| m + 1).unwrap_or(0);
+fn emit_chunk(local: &LocalChunk) -> ChunkBytecode {
+    // Prune after aliasing and operand fusion. Retain even constant-zero roots:
+    // every original assertion and alpha index is emitted below.
+    let nodes = &local.nodes;
+    let mut live = vec![false; nodes.len()];
+    let mut pending: Vec<_> = local.roots.iter().map(|&(n, _)| n).collect();
+    while let Some(n) = pending.pop() {
+        if std::mem::replace(&mut live[n as usize], true) {
+            continue;
+        }
+        pending.extend(execution_children(nodes, n).into_iter().flatten());
+    }
+    let topo: Vec<_> = (0..nodes.len()).filter(|&n| live[n]).collect();
+    let mut last = vec![0; nodes.len()];
+    for (i, &n) in topo.iter().enumerate() {
+        last[n] = last[n].max(i);
+        for c in execution_children(nodes, n as NodeId).into_iter().flatten() {
+            last[c as usize] = last[c as usize].max(i);
+        }
+    }
+    for &(n, _) in &local.roots {
+        last[n as usize] = topo.len();
+    }
+    let mut phys = vec![0u16; nodes.len()];
+    let mut active = Vec::<(usize, u16)>::new();
+    let mut free = Vec::new();
+    let mut max_reg = 0u16;
+    for (i, &n) in topo.iter().enumerate() {
+        active.retain(|&(old, r)| {
+            if last[old] < i {
+                free.push(r);
+                false
+            } else {
+                true
+            }
+        });
+        let r = free.pop().unwrap_or_else(|| {
+            let r = max_reg;
+            max_reg = max_reg.checked_add(1).expect("too many bytecode registers");
+            r
+        });
+        phys[n] = r;
+        active.push((n, r));
+    }
+    let reg = |n: NodeId| phys[n as usize];
+    let mut bc = ChunkBytecode {
+        max_reg,
+        n_constraints: local.roots.len() as u32,
+        ..ChunkBytecode::default()
+    };
+    let mut leaf_of = HashMap::new();
+    let mut const_of = HashMap::new();
+    let mut public_of = HashMap::new();
+    for n in topo {
+        let out = phys[n];
+        use DagNode::*;
+        let instr = match nodes[n] {
+            InputLeaf { source, col } => {
+                let source = match source {
+                    TraceSource::MainLocal => LEAF_SOURCE_MAIN_LOCAL,
+                    TraceSource::PreprocessedLocal => LEAF_SOURCE_PREPROCESSED_LOCAL,
+                };
+                let idx = *leaf_of.entry((source, col)).or_insert_with(|| {
+                    let idx = bc.leaves.len() as u16;
+                    bc.leaves.push(LeafRef { source, _pad: 0, col });
+                    idx
+                });
+                DagInstr::new(BcOp::LoadLeaf, out, idx, 0)
+            }
+            ConstF { value } => {
+                let idx = const_index(value, &mut bc.consts, &mut const_of);
+                DagInstr::new(BcOp::LoadConst, out, idx, 0)
+            }
+            PublicValue { idx } => {
+                let pidx = *public_of.entry(idx).or_insert_with(|| {
+                    let pidx = bc.publics.len() as u16;
+                    bc.publics.push(idx);
+                    pidx
+                });
+                DagInstr::new(BcOp::LoadPublic, out, pidx, 0)
+            }
+            AddF { a, b } => DagInstr::new(BcOp::AddF, out, reg(a), reg(b)),
+            SubF { a, b } => DagInstr::new(BcOp::SubF, out, reg(a), reg(b)),
+            NegF { a } => DagInstr::new(BcOp::NegF, out, reg(a), 0),
+            MulF { a, b } => match multiplication(nodes, a, b) {
+                MulKind::General(a, b) => DagInstr::new(BcOp::MulF, out, reg(a), reg(b)),
+                MulKind::Constant(a, value) => {
+                    let idx = const_index(value, &mut bc.consts, &mut const_of);
+                    DagInstr::new(BcOp::MulConst, out, reg(a), idx)
+                }
+            },
+            _ => unreachable!("compact_chunk rejects unsupported nodes"),
+        };
+        bc.instrs.push(instr);
+    }
+    bc.asserts = local.roots.iter().map(|&(n, alpha)| (reg(n), alpha)).collect();
     bc
+}
+
+fn const_index(value: F, pool: &mut Vec<F>, indices: &mut HashMap<u32, u16>) -> u16 {
+    *indices.entry(value.as_canonical_u32()).or_insert_with(|| {
+        let idx = pool.len() as u16;
+        pool.push(value);
+        idx
+    })
 }
 
 /// Compute a `NodeId -> physical-register-slot` mapping by linear-scan over
@@ -303,5 +423,64 @@ fn node_children(node: &DagNode) -> [Option<NodeId>; 2] {
         | EFSubF { a, b }
         | EFMulF { a, b } => [Some(a), Some(b)],
         NegF { a } | NegEF { a } | EFFromF { a } => [Some(a), None],
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ir::{
+        analyze_constraints, enumerate_lowerings, ConstraintRef, ConstraintShape, Lowering,
+    };
+    use slop_algebra::AbstractField;
+
+    #[test]
+    fn identities_preserve_assertions_and_scratch_bound() {
+        use DagNode::*;
+        let dag = ConstraintDag {
+            nodes: vec![
+                InputLeaf { source: TraceSource::MainLocal, col: 0 },
+                ConstF { value: F::one() },
+                ConstF { value: F::zero() },
+                MulF { a: 0, b: 1 },
+                AddF { a: 3, b: 2 },
+                MulF { a: 0, b: 2 },
+                InputLeaf { source: TraceSource::MainLocal, col: 1 },
+                MulF { a: 6, b: 2 },
+            ],
+            constraints: [3, 4, 5, 7, 3]
+                .into_iter()
+                .enumerate()
+                .map(|(i, root)| ConstraintRef { root, alpha_index: 17 + 3 * i as u32 })
+                .collect(),
+            preprocessed_width: 0,
+            main_width: 2,
+        };
+        let infos = analyze_constraints(&dag);
+        let chunk = Chunk {
+            constraint_indices: (0..infos.len()).collect(),
+            leafset: infos.iter().flat_map(|i| i.column_leaves.iter().copied()).collect(),
+            depth_max: infos.iter().map(|i| i.depth).max().unwrap(),
+            shape: ConstraintShape::General,
+        };
+        let plans = enumerate_lowerings(&chunk, &infos, &dag);
+        let plan = plans
+            .iter()
+            .find_map(|p| match p {
+                Lowering::Sequential(p) => Some(p),
+                _ => None,
+            })
+            .unwrap();
+        let original_max =
+            liveness_allocate(&chunk, &infos, &dag, plan).values().copied().max().unwrap() + 1;
+        let bc = lower_sequential(&chunk, &infos, &dag, plan);
+        assert!(bc.max_reg <= original_max);
+        assert_eq!(bc.instrs.len(), 2); // Only x and zero remain; the second leaf is dead.
+        assert_eq!(bc.leaves.len(), 1);
+        assert_eq!(bc.consts, vec![F::zero()]);
+        assert_eq!(bc.asserts.iter().map(|&(_, a)| a).collect::<Vec<_>>(), [17, 20, 23, 26, 29]);
+        assert_eq!(bc.asserts[0].0, bc.asserts[1].0);
+        assert_eq!(bc.asserts[0].0, bc.asserts[4].0);
+        assert_eq!(bc.asserts[2].0, bc.asserts[3].0);
     }
 }

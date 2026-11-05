@@ -12,15 +12,24 @@ path = "bin/verify.rs"
 name = "p256_recover"
 path = "bin/recover.rs"
 
+[[bin]]
+name = "p256_field_checks"
+path = "bin/field_checks.rs"
+
+[[bin]]
+name = "p256_point_checks"
+path = "bin/point_checks.rs"
+
 [dependencies]
 sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
 p256 = { version = "0.13.2", default-features = false, features = [
     "ecdsa",
     "alloc",
     "serde",
+    "expose-field",
 ] }
 ecdsa-core = { version = "0.16.9", package = "ecdsa", features = ["verifying"] }
 
 [patch.crates-io]
-p256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-p256-13.2-sp1-6.2.0" }
+p256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-p256-13.2-sp1-6.10.0" }
 sp1-lib = { path = "../../../crates/zkvm/lib" }

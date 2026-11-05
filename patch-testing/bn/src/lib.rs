@@ -7,7 +7,7 @@ pub fn test_bn_test_fq_sqrt_100(
     let times: u8 = 100;
     stdin.write(&times);
 
-    let mut unpatched_results: Vec<Vec<u8>> = Vec::new();
+    let mut unpatched_results: Vec<(Vec<u8>, Vec<u8>)> = Vec::new();
 
     while unpatched_results.len() < times as usize {
         let rand_bytes = rand::random::<[u8; 32]>();
@@ -16,20 +16,23 @@ pub fn test_bn_test_fq_sqrt_100(
             Err(_) => continue,
         };
 
-        let mut sqrt_bytes = [0u8; 32];
-        match rand.sqrt() {
-            Some(sqrt) => sqrt.to_big_endian(&mut sqrt_bytes).unwrap(),
+        let sqrt = match rand.sqrt() {
+            Some(sqrt) => sqrt,
             None => continue,
         };
+        let mut sqrt_bytes = [0u8; 32];
+        let mut neg_sqrt_bytes = [0u8; 32];
+        sqrt.to_big_endian(&mut sqrt_bytes).unwrap();
+        (-sqrt).to_big_endian(&mut neg_sqrt_bytes).unwrap();
 
         stdin.write(&rand_bytes.to_vec());
-        unpatched_results.push(sqrt_bytes.to_vec());
+        unpatched_results.push((sqrt_bytes.to_vec(), neg_sqrt_bytes.to_vec()));
     }
 
     |mut public| {
-        for res in unpatched_results {
+        for (res, neg_res) in unpatched_results {
             let zk_res = public.read::<Vec<u8>>();
-            assert_eq!(res, zk_res);
+            assert!(zk_res == res || zk_res == neg_res);
         }
     }
 }
@@ -438,4 +441,8 @@ pub fn test_bn_test_g1_double_100(
     }
 
     |_| {}
+}
+#[sp1_test::sp1_test("bn_field_checks", gpu, prove)]
+pub fn test_field_checks(_: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+    |mut public| assert!(public.read::<bool>())
 }

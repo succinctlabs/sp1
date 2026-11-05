@@ -1,5 +1,7 @@
 # SP1 Security Policy
 
+**Disclaimer.** Use of SP1 is also subject to the disclaimers and limitations of liability described in the [Legal / Disclaimer](https://docs.succinct.xyz/legal/disclaimer) page.
+
 ## Overview
 
 This document explains the Succinct's process for handling issues reported and what to expect in return.

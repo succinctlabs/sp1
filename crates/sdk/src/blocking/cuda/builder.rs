@@ -10,8 +10,6 @@ use sp1_hypercube::Machine;
 use sp1_primitives::SP1Field;
 use sp1_prover::worker::SP1LightNode;
 
-use crate::blocking::block_on;
-
 /// A builder for the [`CudaProver`].
 ///
 /// The builder is used to configure the [`CudaProver`] before it is built.
@@ -107,10 +105,10 @@ impl CudaProverBuilder {
     #[must_use]
     pub fn build(self) -> CudaProver {
         tracing::info!("initializing cuda prover");
-        let node = block_on(SP1LightNode::with_opts_and_machine(
+        let node = SP1LightNode::with_opts_and_machine_sync(
             self.machine,
             self.core_opts.unwrap_or_default(),
-        ));
+        );
         let cuda_prover = match self.cuda_device_id {
             Some(id) => crate::blocking::block_on(CudaProverImpl::new_with_id(id)),
             None => crate::blocking::block_on(CudaProverImpl::new()),

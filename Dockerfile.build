@@ -6,6 +6,10 @@ RUN apt-get update \
 
 ENV PATH="/root/.cargo/bin:${PATH}"
 
+# The ignition verifier is unavailable from the default proxy; retain checksum verification.
+ENV GOPROXY="https://proxy.golang.org,https://goproxy.cn,direct"
+ENV GOSUMDB="sum.golang.org"
+
 # Copy the repo into the container
 RUN mkdir -p /root/sp1
 COPY . /root/sp1

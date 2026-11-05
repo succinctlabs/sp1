@@ -9,13 +9,13 @@ use sp1_gpu_utils::Felt;
 use slop_algebra::{AbstractField, Field};
 use slop_tensor::{Tensor, TensorView};
 use sp1_gpu_cudart::{
-    sys::dft::{batch_coset_dft, sppark_init_default_stream},
+    sys::dft::{batch_coset_dft, dft_init_default_stream, dft_init_twiddles},
     CudaError, DeviceCopy,
 };
 use sp1_primitives::SP1Field;
 
 pub fn encode_batch<'a>(
-    dft: SpparkDftKoalaBear,
+    dft: CudaDftKoalaBear,
     log_blowup: u32,
     data: TensorView<'a, Felt, TaskScope>,
     dst: &mut Tensor<Felt, TaskScope>,
@@ -32,7 +32,7 @@ pub fn encode_batch<'a>(
     Ok(())
 }
 
-pub trait SpparkCudaDftSys<T: DeviceCopy>: 'static + Send + Sync {
+pub trait CudaDftSys<T: DeviceCopy>: 'static + Send + Sync {
     /// # Safety
     ///
     /// The caller must ensure the validity of pointers, allocation size, and lifetimes.
@@ -51,7 +51,7 @@ pub trait SpparkCudaDftSys<T: DeviceCopy>: 'static + Send + Sync {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SpparkDft<F, T>(pub F, std::marker::PhantomData<T>);
+pub struct CudaDft<F, T>(pub F, std::marker::PhantomData<T>);
 
 #[derive(Clone)]
 pub struct CudaStackedPcsProverData<GC: IopCtx> {
@@ -61,7 +61,7 @@ pub struct CudaStackedPcsProverData<GC: IopCtx> {
     pub codeword_mle: Option<Arc<Tensor<GC::F, TaskScope>>>,
 }
 
-impl<T: Field, F: SpparkCudaDftSys<T>> SpparkDft<F, T> {
+impl<T: Field, F: CudaDftSys<T>> CudaDft<F, T> {
     /// Performs a discrete Fourier transform along the last dimension of the input tensor.
     fn coset_dft_into<'a>(
         &self,
@@ -113,18 +113,24 @@ impl<T: Field, F: SpparkCudaDftSys<T>> SpparkDft<F, T> {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct SpparkB31Kernels;
+pub struct CudaB31Kernels;
 
-pub type SpparkDftKoalaBear = SpparkDft<SpparkB31Kernels, Felt>;
+pub type CudaDftKoalaBear = CudaDft<CudaB31Kernels, Felt>;
 
-impl Default for SpparkB31Kernels {
+impl CudaB31Kernels {
+    pub fn initialize_twiddles(max_log_size: u32, backend: &TaskScope) -> Result<(), CudaError> {
+        CudaError::result_from_ffi(unsafe { dft_init_twiddles(max_log_size, backend.handle()) })
+    }
+}
+
+impl Default for CudaB31Kernels {
     fn default() -> Self {
-        unsafe { sppark_init_default_stream() };
+        CudaError::result_from_ffi(unsafe { dft_init_default_stream() }).unwrap();
         Self
     }
 }
 
-impl SpparkCudaDftSys<SP1Field> for SpparkB31Kernels {
+impl CudaDftSys<SP1Field> for CudaB31Kernels {
     unsafe fn dft_unchecked(
         &self,
         d_out: *mut SP1Field,
@@ -152,7 +158,7 @@ impl SpparkCudaDftSys<SP1Field> for SpparkB31Kernels {
 #[cfg(test)]
 mod tests {
     use itertools::Itertools;
-    use rand::thread_rng;
+    use rand::{rngs::StdRng, SeedableRng};
     use slop_algebra::AbstractField;
     use slop_dft::{p3::Radix2DitParallel, Dft};
 
@@ -162,51 +168,76 @@ mod tests {
 
     #[test]
     fn test_batch_coset_dft() {
-        let mut rng = thread_rng();
+        for log_degree in 1..=15 {
+            check_batch_coset_dft(
+                log_degree,
+                1,
+                16,
+                SP1Field::generator(),
+                DftOrdering::BitReversed,
+            );
+        }
+        for (log_degree, log_blowup, batch_size) in [(16, 1, 2), (21, 2, 2), (22, 1, 1)] {
+            check_batch_coset_dft(
+                log_degree,
+                log_blowup,
+                batch_size,
+                SP1Field::one(),
+                DftOrdering::BitReversed,
+            );
+        }
+    }
 
-        let log_degrees = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
-        let log_blowup = 1;
-        let shift = SP1Field::generator();
-        let batch_size = 16;
-
-        let p3_dft = Radix2DitParallel;
-
-        for log_d in log_degrees.iter() {
-            let d = 1 << log_d;
-
-            let tensor_h = Tensor::<SP1Field>::rand(&mut rng, [d, batch_size]);
-
-            let tensor_h_sent = tensor_h.clone();
-            let result = run_sync_in_place(|t| {
-                let tensor_raw = DeviceTensor::from_host(&tensor_h_sent, &t).unwrap().into_inner();
-                let tensor = DeviceTensor::from_raw(tensor_raw).transpose().into_inner();
-                let dft = SpparkDftKoalaBear::default();
-                let mut dst =
-                    Tensor::<Felt, _>::with_sizes_in([batch_size, d << log_blowup], t.clone());
-                dft.coset_dft_into(
-                    tensor.as_view(),
-                    &mut dst,
-                    shift,
-                    log_blowup,
-                    DftOrdering::BitReversed,
-                    1,
-                )
-                .unwrap();
-
-                let result = DeviceTensor::from_raw(dst).transpose();
-                result.to_host().unwrap()
-            })
-            .unwrap();
-
-            let expected_result = p3_dft
-                .coset_dft(&tensor_h, shift, log_blowup, DftOrdering::BitReversed, 0)
-                .unwrap();
-
-            for (i, (r, e)) in
-                result.as_slice().iter().zip_eq(expected_result.as_slice()).enumerate()
-            {
-                assert_eq!(r, e, "Mismatch at index {i}");
+    #[test]
+    fn test_batch_coset_dft_orders_and_shifts() {
+        for log_degree in [1, 8, 15] {
+            for log_blowup in [0, 1, 2] {
+                for shift in [SP1Field::one(), SP1Field::generator().exp_u64(5)] {
+                    for ordering in [DftOrdering::Normal, DftOrdering::BitReversed] {
+                        // Legacy path requires `log_degree >= log_blowup`.
+                        if ordering == DftOrdering::Normal && log_degree < log_blowup {
+                            continue;
+                        }
+                        check_batch_coset_dft(log_degree, log_blowup, 3, shift, ordering);
+                    }
+                }
             }
+        }
+    }
+
+    fn check_batch_coset_dft(
+        log_degree: usize,
+        log_blowup: usize,
+        batch_size: usize,
+        shift: SP1Field,
+        ordering: DftOrdering,
+    ) {
+        let mut rng = StdRng::seed_from_u64(0x4e5454);
+        let degree = 1 << log_degree;
+        let input = Tensor::<SP1Field>::rand(&mut rng, [degree, batch_size]);
+        let device_input = input.transpose();
+        let (result, input_after) = run_sync_in_place(|scope| {
+            let tensor = DeviceTensor::from_host(&device_input, &scope).unwrap().into_inner();
+            let dft = CudaDftKoalaBear::default();
+            let mut dst =
+                Tensor::<Felt, _>::with_sizes_in([batch_size, degree << log_blowup], scope.clone());
+            dft.coset_dft_into(tensor.as_view(), &mut dst, shift, log_blowup, ordering, 1).unwrap();
+            let result = DeviceTensor::from_raw(dst).to_host().unwrap().transpose();
+            let input_after = DeviceTensor::from_raw(tensor).to_host().unwrap().transpose();
+            (result, input_after)
+        })
+        .unwrap();
+
+        assert!(input.as_slice() == input_after.as_slice(), "DFT modified its input");
+        let expected = Radix2DitParallel.coset_dft(&input, shift, log_blowup, ordering, 0).unwrap();
+        for (i, (actual, expected)) in
+            result.as_slice().iter().zip_eq(expected.as_slice()).enumerate()
+        {
+            assert_eq!(
+                actual, expected,
+                "Mismatch at {i}: log_degree={log_degree}, log_blowup={log_blowup}, \
+                 batch_size={batch_size}, shift={shift:?}, ordering={ordering:?}"
+            );
         }
     }
 }

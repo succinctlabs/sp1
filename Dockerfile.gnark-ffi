@@ -3,11 +3,14 @@ FROM golang:1.26 AS go-builder
 FROM rust:1.91-slim-bookworm AS rust-builder
 
 # Dependencies
-RUN apt update && apt install -y clang
+RUN apt update && apt install -y clang git
 
 # Install Go 1.26
 COPY --from=go-builder /usr/local/go /usr/local/go
 ENV PATH="/usr/local/go/bin:$PATH"
+# The ignition verifier is unavailable from the default proxy; retain checksum verification.
+ENV GOPROXY="https://proxy.golang.org,https://goproxy.cn,direct"
+ENV GOSUMDB="sum.golang.org"
 
 WORKDIR /sp1
 

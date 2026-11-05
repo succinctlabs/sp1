@@ -15,4 +15,4 @@ serde = { workspace = true }
 itertools = { workspace = true }
 
 [dev-dependencies]
-slop-baby-bear = { workspace = true }
+slop-baby-bear = { path = "../baby-bear" }

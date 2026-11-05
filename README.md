@@ -9,6 +9,8 @@ SP1 is the fastest, most-feature complete zero-knowledge virtual machine (zkVM) 
 | [Examples](https://github.com/succinctlabs/sp1/tree/main/examples)
 | [Telegram Chat](https://t.me/+AzG4ws-kD24yMGYx)
 
+**Disclaimer.** Use of SP1 is also subject to the disclaimers and limitations of liability described in the [Legal / Disclaimer](https://docs.succinct.xyz/legal/disclaimer) page.
+
 ## Getting Started 
 
 Today, developers can write programs, including complex, large programs like a ZK Tendermint light client or type-1 zkEVM using Reth, in Rust (with std support), generate proofs and verify them. Most Rust crates should be supported and can be used seamlessly by your program. Example programs can be found in the [examples](https://github.com/succinctlabs/sp1/tree/main/examples) folder.
@@ -22,7 +24,7 @@ and [KALOS](https://kalos.xyz/) and is recommended for production use. The audit
 
 ## Supported Rust Versions (MSRV)
 
-The current MSRV (minimum supported Rust version) is 1.91.
+The current MSRV (minimum supported Rust version) is 1.91.1.
 
 ## For Contributors
 

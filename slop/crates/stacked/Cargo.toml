@@ -16,7 +16,6 @@ slop-multilinear = { workspace = true }
 slop-merkle-tree = { workspace = true }
 slop-alloc = { workspace = true }
 slop-challenger = { workspace = true }
-slop-futures = { workspace = true }
 slop-tensor = { workspace = true }
 slop-algebra = { workspace = true }
 slop-commit = { workspace = true }
@@ -25,15 +24,9 @@ itertools = { workspace = true }
 thiserror = { workspace = true }
 derive-where = { workspace = true }
 serde = { workspace = true }
-futures = { workspace = true }
 
 [dev-dependencies]
-slop-basefold-prover = { workspace = true }
-slop-basefold = { workspace = true }
 slop-baby-bear = { workspace = true }
-slop-challenger = { workspace = true }
-slop-merkle-tree = { workspace = true }
-
 rand = { workspace = true }
 
 [lints]

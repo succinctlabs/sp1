@@ -19,7 +19,6 @@ slop-multilinear = { workspace = true }
 rayon = { workspace = true }
 serde = { workspace = true }
 itertools = { workspace = true }
-futures = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]

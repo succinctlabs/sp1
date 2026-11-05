@@ -1,8 +1,9 @@
 use crate::MinimalExecutorRunner;
-use sp1_core_executor::{ExecutionError, Program, DEFAULT_MEMORY_LIMIT};
+use sp1_core_executor::{ExecutionError, OutputConsumers, Program, DEFAULT_MEMORY_LIMIT};
 use sp1_core_machine::{io::SP1Stdin, utils::setup_logger};
 use std::sync::Arc;
-use test_artifacts::{KECCAK256_ELF, MEMORY_TESTER_ELF};
+use test_artifacts::{KECCAK256_ELF, MEMORY_TESTER_ELF, PANIC_ELF};
+use tokio::sync::watch;
 
 fn run(runner: &mut MinimalExecutorRunner) -> Option<ExecutionError> {
     loop {
@@ -12,6 +13,26 @@ fn run(runner: &mut MinimalExecutorRunner) -> Option<ExecutionError> {
             Err(e) => return Some(e),
         }
     }
+}
+
+#[test]
+fn test_guest_stderr_forwarding() {
+    setup_logger();
+
+    let program = Arc::new(Program::from(&PANIC_ELF).expect("parse program"));
+    let mut runner = MinimalExecutorRunner::simple(program);
+    let (stderr_tx, stderr_rx) = watch::channel(String::new());
+    runner.set_output_consumers(OutputConsumers {
+        stderr: Some(stderr_tx),
+        ..OutputConsumers::default()
+    });
+
+    assert_eq!(run(&mut runner), None);
+    assert_eq!(runner.exit_code(), 1);
+
+    let stderr = stderr_rx.borrow().clone();
+    assert!(stderr.contains("panicked at panic/src/main.rs:9:5"), "stderr: {stderr}");
+    assert!(stderr.contains("assertion `left == right` failed"), "stderr: {stderr}");
 }
 
 #[test]

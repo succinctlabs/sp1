@@ -38,7 +38,7 @@ dependencies = [
  "rustc-hash",
  "serde",
  "sha3",
- "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.2.0)",
+ "tiny-keccak",
 ]
 
 [[package]]
@@ -268,6 +268,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
 
 [[package]]
+name = "auipc-sign-extension-test"
+version = "1.1.0"
+dependencies = [
+ "sp1-zkvm",
+]
+
+[[package]]
 name = "auto_impl"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -406,7 +413,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 6.4.0",
+ "sp1-lib",
  "sp1-zkvm",
 ]
 
@@ -449,7 +456,7 @@ name = "bls12381-mul-test"
 version = "1.1.0"
 dependencies = [
  "sp1-derive",
- "sp1-lib 6.4.0",
+ "sp1-lib",
  "sp1-zkvm",
 ]
 
@@ -459,7 +466,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 6.4.0",
+ "sp1-lib",
  "sp1-zkvm",
 ]
 
@@ -502,7 +509,7 @@ name = "bn254-mul-test"
 version = "1.1.0"
 dependencies = [
  "sp1-derive",
- "sp1-lib 6.4.0",
+ "sp1-lib",
  "sp1-zkvm",
 ]
 
@@ -572,7 +579,7 @@ name = "common-test-utils"
 version = "1.1.0"
 dependencies = [
  "num-bigint 0.4.6",
- "sp1-lib 6.4.0",
+ "sp1-lib",
 ]
 
 [[package]]
@@ -702,15 +709,15 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek"
 version = "4.1.3"
-source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.2.0#b251b2a155f859d00375f73bc2c937f025f7b4b4"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.10.0#338cf5b33bef3bf86165bd01213b8eaafad4ffe2"
 dependencies = [
  "cfg-if",
  "cpufeatures",
- "curve25519-dalek-derive 0.1.1 (git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.2.0)",
+ "curve25519-dalek-derive 0.1.1 (git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.10.0)",
  "digest 0.10.7",
  "fiat-crypto",
  "rustc_version 0.4.1",
- "sp1-lib 6.4.0",
+ "sp1-lib",
  "subtle",
  "zeroize",
 ]
@@ -729,7 +736,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-derive"
 version = "0.1.1"
-source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.2.0#b251b2a155f859d00375f73bc2c937f025f7b4b4"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.10.0#338cf5b33bef3bf86165bd01213b8eaafad4ffe2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -739,14 +746,13 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-ng"
 version = "4.1.1"
-source = "git+https://github.com/sp1-patches/curve25519-dalek-ng.git?branch=patch-v4.1.1#3fb3e7f6047ddeef0f0c9212f4604bd30d64bd28"
+source = "git+https://github.com/sp1-patches/curve25519-dalek-ng.git?tag=patch-4.1.1-sp1-6.10.0#88b578708a5e39b0f1fcc67cca49c0f1daea4aa0"
 dependencies = [
- "anyhow",
  "byteorder",
  "cfg-if",
  "digest 0.9.0",
  "rand_core 0.6.4",
- "sp1-lib 3.4.0",
+ "sp1-lib",
  "subtle-ng",
  "zeroize",
 ]
@@ -757,7 +763,7 @@ version = "1.1.0"
 dependencies = [
  "sp1-derive",
  "sp1-zkvm",
- "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?branch=patch-v2.0.2)",
+ "tiny-keccak",
 ]
 
 [[package]]
@@ -1028,7 +1034,7 @@ dependencies = [
 [[package]]
 name = "ed25519-consensus"
 version = "2.1.0"
-source = "git+https://github.com/sp1-patches/ed25519-consensus?branch=patch-v2.1.0#2b2c4b43344bc4daf5b1326f367f2d9d661eeabb"
+source = "git+https://github.com/sp1-patches/ed25519-consensus?tag=patch-2.1.0-sp1-6.10.0#f5eb684b1c344ea242b57a8ab5c8712050e8ce1d"
 dependencies = [
  "curve25519-dalek-ng",
  "hex",
@@ -1040,9 +1046,9 @@ dependencies = [
 [[package]]
 name = "ed25519-dalek"
 version = "2.1.1"
-source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.2.0#b251b2a155f859d00375f73bc2c937f025f7b4b4"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.10.0#338cf5b33bef3bf86165bd01213b8eaafad4ffe2"
 dependencies = [
- "curve25519-dalek 4.1.3 (git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.2.0)",
+ "curve25519-dalek 4.1.3 (git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.10.0)",
  "ed25519",
  "serde",
  "sha2 0.10.9",
@@ -1274,7 +1280,6 @@ checksum = "65bc07b1a8bc7c85c5f2e110c476c7389b4554ba72af57d8445ea63a576b0876"
 dependencies = [
  "futures-channel",
  "futures-core",
- "futures-executor",
  "futures-io",
  "futures-sink",
  "futures-task",
@@ -1298,32 +1303,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05f29059c0c2090612e8d742178b0580d2dc940c837851ad723096f87af6663e"
 
 [[package]]
-name = "futures-executor"
-version = "0.3.31"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e28d1d997f585e54aebc3f97d39e72338912123a67330d723fdbb564d646c9f"
-dependencies = [
- "futures-core",
- "futures-task",
- "futures-util",
-]
-
-[[package]]
 name = "futures-io"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e5c1b78ca4aae1ac06c48a526a655760685149f0d465d21f37abfe57ce075c6"
-
-[[package]]
-name = "futures-macro"
-version = "0.3.31"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "162ee34ebcb7c64a8abebc059ce0fee27c2262618d7b60ed8faf72fef13c3650"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.114",
-]
 
 [[package]]
 name = "futures-sink"
@@ -1343,16 +1326,11 @@ version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9fa08315bb612088cc391249efdc3bc77536f16c91f6cf495e6fbe85b20a4a81"
 dependencies = [
- "futures-channel",
  "futures-core",
- "futures-io",
- "futures-macro",
  "futures-sink",
  "futures-task",
- "memchr",
  "pin-project-lite",
  "pin-utils",
- "slab",
 ]
 
 [[package]]
@@ -1645,7 +1623,7 @@ name = "keccak256-test"
 version = "1.1.0"
 dependencies = [
  "sp1-zkvm",
- "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.2.0)",
+ "tiny-keccak",
 ]
 
 [[package]]
@@ -2501,7 +2479,14 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 6.4.0",
+ "sp1-lib",
+ "sp1-zkvm",
+]
+
+[[package]]
+name = "secp256k1-bench-test"
+version = "1.1.0"
+dependencies = [
  "sp1-zkvm",
 ]
 
@@ -2537,7 +2522,7 @@ dependencies = [
  "num",
  "p256",
  "sp1-curves",
- "sp1-lib 6.4.0",
+ "sp1-lib",
  "sp1-zkvm",
 ]
 
@@ -2558,7 +2543,7 @@ dependencies = [
  "num",
  "p256",
  "sp1-curves",
- "sp1-lib 6.4.0",
+ "sp1-lib",
  "sp1-zkvm",
 ]
 
@@ -2698,7 +2683,7 @@ dependencies = [
 [[package]]
 name = "sha2"
 version = "0.9.8"
-source = "git+https://github.com/sp1-patches/RustCrypto-hashes?branch=patch-v0.9.8#afdbfb09c325f8a69c01d540ec9a261e3637725d"
+source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.9.8-sp1-6.10.0#afdbfb09c325f8a69c01d540ec9a261e3637725d"
 dependencies = [
  "block-buffer 0.9.0",
  "cfg-if",
@@ -2775,14 +2760,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "slab"
-version = "0.4.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a2ae44ef20feb57a68b23d846850f861394c2e02dc425a50098ae8c90267589"
-
-[[package]]
 name = "slop-algebra"
-version = "6.4.0"
+version = "6.10.0"
 dependencies = [
  "itertools 0.14.0",
  "p3-field",
@@ -2791,7 +2770,7 @@ dependencies = [
 
 [[package]]
 name = "slop-bn254"
-version = "6.4.0"
+version = "6.10.0"
 dependencies = [
  "ff",
  "p3-bn254-fr",
@@ -2804,9 +2783,8 @@ dependencies = [
 
 [[package]]
 name = "slop-challenger"
-version = "6.4.0"
+version = "6.10.0"
 dependencies = [
- "futures",
  "p3-challenger",
  "serde",
  "slop-algebra",
@@ -2815,7 +2793,7 @@ dependencies = [
 
 [[package]]
 name = "slop-koala-bear"
-version = "6.4.0"
+version = "6.10.0"
 dependencies = [
  "lazy_static",
  "p3-koala-bear",
@@ -2828,21 +2806,18 @@ dependencies = [
 
 [[package]]
 name = "slop-poseidon2"
-version = "6.4.0"
+version = "6.10.0"
 dependencies = [
  "p3-poseidon2",
 ]
 
 [[package]]
 name = "slop-primitives"
-version = "6.4.0"
-dependencies = [
- "slop-algebra",
-]
+version = "6.10.0"
 
 [[package]]
 name = "slop-symmetric"
-version = "6.4.0"
+version = "6.10.0"
 dependencies = [
  "p3-symmetric",
 ]
@@ -2859,7 +2834,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "6.4.0"
+version = "6.10.0"
 dependencies = [
  "cfg-if",
  "curve25519-dalek 4.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2880,7 +2855,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "6.4.0"
+version = "6.10.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2889,17 +2864,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "3.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a5729da1b05d56c01457e5ecabdc77f1cc941df23f2921163a2f325aec22428"
-dependencies = [
- "bincode",
- "serde",
-]
-
-[[package]]
-name = "sp1-lib"
-version = "6.4.0"
+version = "6.10.0"
 dependencies = [
  "bincode",
  "elliptic-curve",
@@ -2909,7 +2874,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "6.4.0"
+version = "6.10.0"
 dependencies = [
  "bincode",
  "blake3",
@@ -2931,19 +2896,18 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "6.4.0"
+version = "6.10.0"
 dependencies = [
  "cfg-if",
  "critical-section",
  "embedded-alloc",
  "getrandom 0.2.17",
  "getrandom 0.3.4",
- "lazy_static",
  "libm",
  "rand 0.8.5",
  "sha2 0.10.9",
  "slop-algebra",
- "sp1-lib 6.4.0",
+ "sp1-lib",
  "sp1-primitives",
 ]
 
@@ -3188,20 +3152,11 @@ dependencies = [
 [[package]]
 name = "tiny-keccak"
 version = "2.0.2"
-source = "git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.2.0#c3f95bcc35b391101d0cf0abe91ea4c8423868b0"
+source = "git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.10.0#8fca2536a39c02691f2877e838a2e5b016e892cc"
 dependencies = [
  "cfg-if",
  "crunchy",
- "sp1-lib 6.4.0",
-]
-
-[[package]]
-name = "tiny-keccak"
-version = "2.0.2"
-source = "git+https://github.com/sp1-patches/tiny-keccak?branch=patch-v2.0.2#bf0b28f63510a90c7b6c21ac6ff461c93ecd2331"
-dependencies = [
- "cfg-if",
- "crunchy",
+ "sp1-lib",
 ]
 
 [[package]]
@@ -3354,7 +3309,7 @@ dependencies = [
  "hex",
  "sha2 0.10.9",
  "sp1-zkvm",
- "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.2.0)",
+ "tiny-keccak",
 ]
 
 [[package]]

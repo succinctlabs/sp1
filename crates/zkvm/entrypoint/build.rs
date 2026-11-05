@@ -11,6 +11,7 @@ fn main() {
     } else {
         1 << 37
     };
+    assert!(max_memory <= 1u64 << 48, "SP1_ZKVM_MAX_MEMORY must not exceed 2^48");
 
     let input_region_size: u64 = if let Some(s) = option_env!("SP1_ZKVM_INPUT_REGION_SIZE") {
         s.parse().expect("SP1_ZKVM_INPUT_REGION_SIZE must be a valid integer!")

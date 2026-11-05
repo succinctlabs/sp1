@@ -18,14 +18,17 @@ use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{HashableKey, SP1VerifyingKey};
 use tokio::sync::OnceCell;
 use tonic::{
+    codegen::InterceptedService,
     transport::{Channel, Identity},
     Code,
 };
 
 use super::{
+    auth::{BearerTokenInterceptor, NetworkBearerToken},
+    builder::NetworkClientBuilder,
     grpc,
     retry::{self, RetryableRpc, DEFAULT_RETRY_TIMEOUT},
-    signer::NetworkSigner,
+    signer::{NetworkSigner, SignerSource},
     utils::{sign_message, Signable},
     NetworkMode, MAINNET_EXPLORER_URL, RESERVED_EXPLORER_URL,
 };
@@ -77,6 +80,8 @@ use crate::network::proto::{
     RequestProofResponse,
 };
 
+type AuthenticatedChannel = InterceptedService<Channel, BearerTokenInterceptor>;
+
 /// Current market `max_price_per_pgu` returned by [`NetworkClient::get_market_price_per_pgu`].
 /// Returned to callers who want the raw market signal; the SDK's own auto-default path
 /// uses `GetProofRequestParams.max_price_per_pgu` instead and does not consume this type.
@@ -104,11 +109,12 @@ pub(super) fn parse_fulfillment_status(
 /// A client for interacting with the network.
 #[derive(Clone)]
 pub struct NetworkClient {
-    pub(crate) signer: NetworkSigner,
+    pub(crate) signer: SignerSource,
     pub(crate) http: HttpClientWithMiddleware,
     pub(crate) rpc_url: String,
     pub(crate) network_mode: NetworkMode,
     pub(crate) client_identity: Option<Identity>,
+    pub(crate) bearer_token: Option<NetworkBearerToken>,
     /// Lazily-established gRPC channel, shared across clones and reused across calls.
     pub(crate) channel: Arc<OnceCell<Channel>>,
 }
@@ -142,12 +148,47 @@ impl RetryableRpc for NetworkClient {
 }
 
 impl NetworkClient {
+    /// Creates a builder for a standalone client with optional authentication.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::network::{signer::NetworkSigner, NetworkBearerToken, NetworkClient, NetworkMode};
+    ///
+    /// # fn example(signer: NetworkSigner, certificate: &[u8], private_key: &[u8]) -> anyhow::Result<()> {
+    /// let token = NetworkBearerToken::new("access-token")?;
+    /// let client = NetworkClient::builder(signer, "https://rpc.example.com", NetworkMode::Reserved)
+    ///     .client_identity(certificate, private_key)
+    ///     .bearer_token(token.clone())
+    ///     .build();
+    /// token.update("refreshed-token")?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[must_use]
+    pub fn builder(
+        signer: NetworkSigner,
+        rpc_url: impl Into<String>,
+        network_mode: NetworkMode,
+    ) -> NetworkClientBuilder {
+        NetworkClientBuilder::new(signer, rpc_url, network_mode)
+    }
+
     /// Creates a new [`NetworkClient`] with the given signer, rpc url, and network mode.
     pub fn new(
         signer: NetworkSigner,
         rpc_url: impl Into<String>,
         network_mode: NetworkMode,
     ) -> Self {
+        Self::new_with_signer_source(signer.into(), rpc_url, network_mode)
+    }
+
+    pub(crate) fn new_with_signer_source(
+        signer: SignerSource,
+        rpc_url: impl Into<String>,
+        network_mode: NetworkMode,
+    ) -> Self {
+        // Standalone clients also need a TLS provider when multiple providers are enabled.
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let client = reqwest::Client::builder()
             .pool_max_idle_per_host(0)
             .pool_idle_timeout(Duration::from_secs(240))
@@ -159,6 +200,7 @@ impl NetworkClient {
             rpc_url: rpc_url.into(),
             network_mode,
             client_identity: None,
+            bearer_token: None,
             channel: Arc::new(OnceCell::new()),
         }
     }
@@ -726,6 +768,8 @@ impl NetworkClient {
                     error,
                     is_canceled: false,
                     stdin_private,
+                    error_trace: None,
+                    floor_price_per_pgu: None,
                 }
             }),
         }
@@ -891,7 +935,7 @@ impl NetworkClient {
     // Auction client for operations whose schemas are wire-compatible across network modes.
     pub(crate) async fn prover_network_client(
         &self,
-    ) -> Result<AuctionProverNetworkClient<Channel>> {
+    ) -> Result<AuctionProverNetworkClient<AuthenticatedChannel>> {
         // For shared operations, we use the auction client type as it provides the default types.
         // The actual network routing is handled by the RPC URL which is correctly set based on
         // network_mode.
@@ -917,18 +961,29 @@ impl NetworkClient {
     // Helper methods for runtime proto type selection.
     pub(crate) async fn auction_prover_network_client(
         &self,
-    ) -> Result<AuctionProverNetworkClient<Channel>> {
-        Ok(AuctionProverNetworkClient::new(self.channel().await?))
+    ) -> Result<AuctionProverNetworkClient<AuthenticatedChannel>> {
+        Ok(AuctionProverNetworkClient::with_interceptor(
+            self.channel().await?,
+            BearerTokenInterceptor::new(self.bearer_token.as_ref()),
+        ))
     }
 
     pub(crate) async fn base_prover_network_client(
         &self,
-    ) -> Result<BaseProverNetworkClient<Channel>> {
-        Ok(BaseProverNetworkClient::new(self.channel().await?))
+    ) -> Result<BaseProverNetworkClient<AuthenticatedChannel>> {
+        Ok(BaseProverNetworkClient::with_interceptor(
+            self.channel().await?,
+            BearerTokenInterceptor::new(self.bearer_token.as_ref()),
+        ))
     }
 
-    pub(crate) async fn artifact_store_client(&self) -> Result<ArtifactStoreClient<Channel>> {
-        Ok(ArtifactStoreClient::new(self.channel().await?))
+    pub(crate) async fn artifact_store_client(
+        &self,
+    ) -> Result<ArtifactStoreClient<AuthenticatedChannel>> {
+        Ok(ArtifactStoreClient::with_interceptor(
+            self.channel().await?,
+            BearerTokenInterceptor::new(self.bearer_token.as_ref()),
+        ))
     }
 
     pub(crate) async fn create_artifact_with_content<T: Serialize + Send + Sync>(
@@ -1039,6 +1094,7 @@ impl NetworkClient {
 mod test {
     use std::{
         convert::Infallible,
+        sync::{Arc, Mutex},
         task::{Context, Poll},
         time::Duration,
     };
@@ -1051,9 +1107,159 @@ mod test {
         Request, Response, Status,
     };
 
-    use crate::network::{proto::base_types, signer::NetworkSigner, NetworkMode, RESERVED_RPC_URL};
+    use crate::network::{
+        proto::base_types, signer::NetworkSigner, NetworkBearerToken, NetworkMode, RESERVED_RPC_URL,
+    };
 
     use super::parse_fulfillment_status;
+
+    #[derive(Clone)]
+    struct ProgramFixture {
+        authorization: Arc<Mutex<Option<String>>>,
+        vk_hash: B256,
+    }
+
+    impl NamedService for ProgramFixture {
+        const NAME: &'static str = "network.ProverNetwork";
+    }
+
+    impl UnaryService<base_types::GetProgramRequest> for ProgramFixture {
+        type Response = base_types::GetProgramResponse;
+        type Future = BoxFuture<Response<Self::Response>, Status>;
+
+        fn call(&mut self, request: Request<base_types::GetProgramRequest>) -> Self::Future {
+            let authorization =
+                request.metadata().get("authorization").map(|v| v.to_str().unwrap());
+            let authenticated = authorization == self.authorization.lock().unwrap().as_deref();
+            assert_eq!(request.into_inner().vk_hash, self.vk_hash.as_slice());
+            let response = base_types::GetProgramResponse {
+                program: Some(base_types::Program {
+                    vk_hash: self.vk_hash.to_vec(),
+                    program_uri: "programs/test".to_string(),
+                    ..Default::default()
+                }),
+            };
+            Box::pin(async move {
+                if authenticated {
+                    Ok(Response::new(response))
+                } else {
+                    Err(Status::unauthenticated("missing or incorrect bearer token"))
+                }
+            })
+        }
+    }
+
+    impl<B> Service<http::Request<B>> for ProgramFixture
+    where
+        B: Body + Send + 'static,
+        B::Error: Into<StdError> + Send + 'static,
+    {
+        type Response = http::Response<tonic::body::Body>;
+        type Error = Infallible;
+        type Future = BoxFuture<Self::Response, Self::Error>;
+
+        fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+            Poll::Ready(Ok(()))
+        }
+
+        fn call(&mut self, request: http::Request<B>) -> Self::Future {
+            assert_eq!(request.uri().path(), "/network.ProverNetwork/GetProgram");
+            let method = self.clone();
+            Box::pin(async move {
+                Ok(Grpc::new(tonic_prost::ProstCodec::default()).unary(method, request).await)
+            })
+        }
+    }
+
+    impl ProgramFixture {
+        async fn serve(
+            self,
+        ) -> (String, tokio::task::JoinHandle<Result<(), tonic::transport::Error>>) {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+            let incoming = futures::stream::unfold(listener, |listener| async move {
+                let connection = listener.accept().await.map(|(stream, _)| stream);
+                Some((connection, listener))
+            });
+            let server =
+                tokio::spawn(Server::builder().add_service(self).serve_with_incoming(incoming));
+            (format!("http://{address}"), server)
+        }
+    }
+
+    fn test_signer() -> NetworkSigner {
+        let private_key = hex::encode(alloy_signer_local::PrivateKeySigner::random().to_bytes());
+        NetworkSigner::local(&private_key).unwrap()
+    }
+
+    #[tokio::test]
+    async fn standalone_client_authenticates_program_lookup_and_refreshes_token() {
+        for mode in [NetworkMode::Mainnet, NetworkMode::Reserved] {
+            let authorization = Arc::new(Mutex::new(Some("Bearer first.token".to_string())));
+            let vk_hash = B256::repeat_byte(0x42);
+            let (rpc_url, server) =
+                ProgramFixture { authorization: authorization.clone(), vk_hash }.serve().await;
+
+            let unauthenticated = super::NetworkClient::new(test_signer(), &rpc_url, mode);
+            let error = unauthenticated.get_program(vk_hash).await.err().unwrap();
+            assert_eq!(
+                error.downcast_ref::<Status>().unwrap().code(),
+                tonic::Code::Unauthenticated
+            );
+
+            let token = NetworkBearerToken::new("first.token").unwrap();
+            let client = super::NetworkClient::builder(test_signer(), &rpc_url, mode)
+                .bearer_token(token.clone())
+                .build();
+            assert!(client.channel.get().is_none());
+            let program = client.get_program(vk_hash).await.unwrap().unwrap();
+            assert_eq!(program.program_hash(), vk_hash.as_slice());
+            assert_eq!(program.program_uri(), "programs/test");
+
+            let cloned = client.clone();
+            assert!(Arc::ptr_eq(&client.channel, &cloned.channel));
+            *authorization.lock().unwrap() = Some("Bearer second.token".to_string());
+            token.update("second.token").unwrap();
+            cloned.get_program(vk_hash).await.unwrap().unwrap();
+            client.get_program(vk_hash).await.unwrap().unwrap();
+            server.abort();
+        }
+    }
+
+    #[tokio::test]
+    async fn standalone_client_without_auth_keeps_program_lookup_behavior() {
+        for mode in [NetworkMode::Mainnet, NetworkMode::Reserved] {
+            let vk_hash = B256::repeat_byte(0x42);
+            let (rpc_url, server) =
+                ProgramFixture { authorization: Arc::new(Mutex::new(None)), vk_hash }.serve().await;
+            let legacy = super::NetworkClient::new(test_signer(), &rpc_url, mode);
+            let client = super::NetworkClient::builder(test_signer(), &rpc_url, mode).build();
+            assert!(client.client_identity.is_none());
+            assert!(client.bearer_token.is_none());
+            assert!(client.channel.get().is_none());
+            for client in [legacy, client] {
+                let program = client.get_program(vk_hash).await.unwrap().unwrap();
+                assert_eq!(program.program_hash(), vk_hash.as_slice());
+            }
+            server.abort();
+        }
+    }
+
+    #[tokio::test]
+    async fn standalone_client_rejects_invalid_identity_configuration() {
+        for (rpc_url, expected_error) in [
+            ("http://localhost", "requires an HTTPS RPC URL"),
+            ("https://localhost", "configuring mTLS client identity"),
+        ] {
+            let client =
+                super::NetworkClient::builder(test_signer(), rpc_url, NetworkMode::Reserved)
+                    .client_identity("invalid certificate", "invalid private key")
+                    .build();
+            let error = client.get_program(B256::ZERO).await.err().unwrap();
+            assert!(error.to_string().contains(expected_error));
+            assert!(client.channel.get().is_none());
+        }
+    }
 
     #[derive(Clone)]
     struct ReservedProofDetailsFixture(base_types::GetProofRequestDetailsResponse);
@@ -1084,7 +1290,7 @@ mod test {
         B: Body + Send + 'static,
         B::Error: Into<StdError> + Send + 'static,
     {
-        type Response = http::Response<tonic::body::BoxBody>;
+        type Response = http::Response<tonic::body::Body>;
         type Error = Infallible;
         type Future = BoxFuture<Self::Response, Self::Error>;
 
@@ -1097,7 +1303,7 @@ mod test {
 
             let method = self.clone();
             Box::pin(async move {
-                Ok(Grpc::new(tonic::codec::ProstCodec::default()).unary(method, request).await)
+                Ok(Grpc::new(tonic_prost::ProstCodec::default()).unary(method, request).await)
             })
         }
     }

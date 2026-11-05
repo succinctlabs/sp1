@@ -4886,6 +4886,8 @@ pub enum ExecuteFailureCause {
     Unimplemented = 7,
     /// The program ended in unconstrained mode.
     EndInUnconstrained = 8,
+    /// The execution failed with an exceeded gas limit.
+    ExceededGasLimit = 9,
 }
 impl ExecuteFailureCause {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -4903,6 +4905,7 @@ impl ExecuteFailureCause {
             Self::InvalidSyscallUsage => "INVALID_SYSCALL_USAGE",
             Self::Unimplemented => "UNIMPLEMENTED",
             Self::EndInUnconstrained => "END_IN_UNCONSTRAINED",
+            Self::ExceededGasLimit => "EXCEEDED_GAS_LIMIT",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -4917,6 +4920,7 @@ impl ExecuteFailureCause {
             "INVALID_SYSCALL_USAGE" => Some(Self::InvalidSyscallUsage),
             "UNIMPLEMENTED" => Some(Self::Unimplemented),
             "END_IN_UNCONSTRAINED" => Some(Self::EndInUnconstrained),
+            "EXCEEDED_GAS_LIMIT" => Some(Self::ExceededGasLimit),
             _ => None,
         }
     }
@@ -5001,6 +5005,19 @@ pub enum ProofRequestError {
     VerificationKeyMismatch = 2,
     /// The proof request failed due to an unknown error (potentially a bug).
     UnknownFailure = 3,
+    /// The public values hash provided in the request does not match the hash from the execution
+    /// oracle.
+    PublicValuesMismatch = 4,
+    /// The proof failed verification (e.g., invalid proof, public values hash mismatch during
+    /// verification).
+    VerificationFailure = 5,
+    /// Execution succeeded but a downstream proving task (controller, shard prove,
+    /// recursion, wrap, etc.) hit a fatal error.
+    ProvingFailure = 6,
+    /// The program artifact exceeds the proxy's size limit.
+    ProgramTooLarge = 7,
+    /// The program artifact cannot be decoded.
+    InvalidProgram = 8,
 }
 impl ProofRequestError {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -5013,6 +5030,11 @@ impl ProofRequestError {
             Self::ExecutionFailure => "EXECUTION_FAILURE",
             Self::VerificationKeyMismatch => "VERIFICATION_KEY_MISMATCH",
             Self::UnknownFailure => "UNKNOWN_FAILURE",
+            Self::PublicValuesMismatch => "PUBLIC_VALUES_MISMATCH",
+            Self::VerificationFailure => "VERIFICATION_FAILURE",
+            Self::ProvingFailure => "PROVING_FAILURE",
+            Self::ProgramTooLarge => "PROGRAM_TOO_LARGE",
+            Self::InvalidProgram => "INVALID_PROGRAM",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -5022,6 +5044,11 @@ impl ProofRequestError {
             "EXECUTION_FAILURE" => Some(Self::ExecutionFailure),
             "VERIFICATION_KEY_MISMATCH" => Some(Self::VerificationKeyMismatch),
             "UNKNOWN_FAILURE" => Some(Self::UnknownFailure),
+            "PUBLIC_VALUES_MISMATCH" => Some(Self::PublicValuesMismatch),
+            "VERIFICATION_FAILURE" => Some(Self::VerificationFailure),
+            "PROVING_FAILURE" => Some(Self::ProvingFailure),
+            "PROGRAM_TOO_LARGE" => Some(Self::ProgramTooLarge),
+            "INVALID_PROGRAM" => Some(Self::InvalidProgram),
             _ => None,
         }
     }

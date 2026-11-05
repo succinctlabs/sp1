@@ -828,17 +828,29 @@ impl TranspilerBackend {
     fn jump_to_pc(&mut self) {
         self.load_pc_into_register(TEMP_A);
 
-        let pc_base = self.pc_base as i32;
         dynasm! {
             self;
             .arch x64;
 
             // If the PC we want to jump to is 1, jump to the exit label.
             cmp Rq(TEMP_A), 1;
-            je ->exit;
+            je ->exit
+        }
 
-            // Subtract the pc base to get the offset from the start of the program.
-            sub Rq(TEMP_A), pc_base;
+        let pc_base = self.pc_base;
+        if pc_base as i64 == (pc_base as i32) as i64 {
+            // `pc_base` is sign-extended `i32`, so direct subtraction works.
+            dynasm! { self; .arch x64; sub Rq(TEMP_A), pc_base as i32 }
+        } else {
+            // In this case, load the full `pc_base` into a register, then subtract.
+            do_load_imm_var!(self, TEMP_B, pc_base);
+            dynasm! { self; .arch x64; sub Rq(TEMP_A), Rq(TEMP_B) }
+        }
+
+        dynasm! {
+            self;
+            .arch x64;
+
             // Divide by 4 to get the index (each instruction is 4 bytes).
             shr Rq(TEMP_A), 2;
             // Lookup into the jump table, scaling by 8 since the pointers are 8 bytes.

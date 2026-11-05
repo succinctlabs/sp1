@@ -8,6 +8,8 @@
 
 use sp1_build::{include_elf, Elf};
 
+pub const AUIPC_SIGN_EXTENSION_ELF: Elf = include_elf!("auipc-sign-extension-test");
+
 pub const FIBONACCI_ELF: Elf = include_elf!("fibonacci-program-tests");
 
 pub const FIBONACCI_BLAKE3_ELF: Elf = include_elf!("fibonacci-blake3-test");
@@ -27,6 +29,8 @@ pub const KECCAK_PERMUTE_ELF: Elf = include_elf!("keccak-permute-test");
 pub const KECCAK256_ELF: Elf = include_elf!("keccak256-test");
 
 pub const SECP256K1_ADD_ELF: Elf = include_elf!("secp256k1-add-test");
+
+pub const SECP256K1_BENCH_ELF: Elf = include_elf!("secp256k1-bench-test");
 
 pub const SECP256K1_DECOMPRESS_ELF: Elf = include_elf!("secp256k1-decompress-test");
 

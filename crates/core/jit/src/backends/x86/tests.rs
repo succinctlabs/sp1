@@ -627,6 +627,62 @@ mod rv64i {
     }
 
     #[test]
+    fn test_remw_overflow_int_min_mod_minus_one() {
+        let mut backend = new_backend();
+
+        backend.start_instr();
+        // Leave a non-zero remainder in RDX first, so a stale-register result cannot pass by
+        // accident.
+        backend.remw(RiscRegister::X5, RiscOperand::Immediate(100), RiscOperand::Immediate(7));
+        // i32::MIN % -1 overflows on x86 (IDIV raises #DE); RISC-V defines the result as 0.
+        backend.remw(
+            RiscRegister::X6,
+            RiscOperand::Immediate(i32::MIN),
+            RiscOperand::Immediate(-1),
+        );
+        backend.inspect_register(RiscRegister::X5, assert_register_is!(2));
+        backend.inspect_register(RiscRegister::X6, assert_register_is!(0));
+
+        // Same case with both operands in registers, as produced by compiled code.
+        backend.add(RiscRegister::X1, RiscOperand::Immediate(i32::MIN), RiscOperand::Immediate(0));
+        backend.add(RiscRegister::X2, RiscOperand::Immediate(-1), RiscOperand::Immediate(0));
+        backend.remw(RiscRegister::X5, RiscOperand::Immediate(100), RiscOperand::Immediate(7));
+        backend.remw(
+            RiscRegister::X7,
+            RiscOperand::Register(RiscRegister::X1),
+            RiscOperand::Register(RiscRegister::X2),
+        );
+        backend.inspect_register(RiscRegister::X7, assert_register_is!(0));
+
+        run_test(backend);
+    }
+
+    #[test]
+    fn test_divw_overflow_int_min_div_minus_one() {
+        let mut backend = new_backend();
+
+        backend.start_instr();
+        // i32::MIN / -1 overflows on x86; RISC-V defines the result as i32::MIN, sign-extended.
+        backend.divw(
+            RiscRegister::X5,
+            RiscOperand::Immediate(i32::MIN),
+            RiscOperand::Immediate(-1),
+        );
+        backend.inspect_register(RiscRegister::X5, assert_register_is!(0xFFFFFFFF80000000));
+
+        backend.add(RiscRegister::X1, RiscOperand::Immediate(i32::MIN), RiscOperand::Immediate(0));
+        backend.add(RiscRegister::X2, RiscOperand::Immediate(-1), RiscOperand::Immediate(0));
+        backend.divw(
+            RiscRegister::X6,
+            RiscOperand::Register(RiscRegister::X1),
+            RiscOperand::Register(RiscRegister::X2),
+        );
+        backend.inspect_register(RiscRegister::X6, assert_register_is!(0xFFFFFFFF80000000));
+
+        run_test(backend);
+    }
+
+    #[test]
     fn test_remuw_immediate() {
         let mut backend = new_backend();
 
@@ -834,6 +890,42 @@ mod rv64i {
 
 mod control_flow {
     use super::*;
+
+    #[test]
+    fn test_inspect_immediate_preserves_u64_value() {
+        let mut backend = new_backend();
+
+        backend.start_instr();
+        backend.inspect_immediate(0x8000_0000, assert_register_is!(0x8000_0000));
+        backend
+            .inspect_immediate(0xffff_ffff_8000_0000, assert_register_is!(0xffff_ffff_8000_0000));
+
+        run_test(backend);
+    }
+
+    #[test]
+    fn test_auipc_sign_extended_immediate() {
+        let mut backend = new_backend();
+
+        backend.start_instr();
+        backend.auipc(RiscRegister::X5, 0xffff_ffff_8000_0000);
+        backend.auipc(RiscRegister::X10, 0xffff_ffff_8000_0000);
+        backend.inspect_register(RiscRegister::X5, assert_register_is!(0xffff_ffff_8000_0064));
+        backend.inspect_register(RiscRegister::X10, assert_register_is!(0xffff_ffff_8000_0064));
+
+        run_test(backend);
+    }
+
+    #[test]
+    fn test_jump_table_with_wide_pc_base() {
+        let pc_base = 0x8000_0000;
+        let mut backend = TranspilerBackend::new(1, 1024 * 2, 1000, pc_base, pc_base, 8).unwrap();
+
+        backend.start_instr();
+        backend.inspect_immediate(42, assert_register_is!(42));
+
+        run_test(backend);
+    }
 
     #[test]
     fn test_set_pc() {

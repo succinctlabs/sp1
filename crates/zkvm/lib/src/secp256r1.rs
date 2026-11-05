@@ -22,6 +22,8 @@ impl WeierstrassAffinePoint<N> for Secp256r1Point {
 }
 
 impl AffinePoint<N> for Secp256r1Point {
+    const DECOMPACT_WITH_MIN_Y: bool = true;
+
     const GENERATOR: [u64; N] = [
         17627433388654248598,
         8575836109218198432,
