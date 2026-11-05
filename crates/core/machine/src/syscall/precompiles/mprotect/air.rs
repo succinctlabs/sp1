@@ -311,6 +311,12 @@ where
         builder.assert_bool(local.prot_write);
         builder.assert_bool(local.prot_exec);
 
+        // Constrain protection flags to PERMITTED_PROTS (enforce read prerequisite and W^X).
+        builder.when(local.is_real).assert_zero(
+            (AB::Expr::one() - local.prot_read) * (local.prot_write + local.prot_exec)
+                + local.prot_write * local.prot_exec,
+        );
+
         // Create expected bitmap from individual flag bits
         let expected_prot = local.prot_read * AB::Expr::from_canonical_u8(PROT_READ)
             + local.prot_write * AB::Expr::from_canonical_u8(PROT_WRITE)
@@ -340,5 +346,73 @@ where
             expected_prot,
             local.is_real,
         );
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use slop_algebra::Field;
+    use sp1_primitives::{
+        consts::{PERMITTED_PROTS, PROT_EXEC, PROT_READ, PROT_WRITE},
+        SP1Field,
+    };
+
+    #[test]
+    fn test_mprotect_permitted_prots_boolean_constraint() {
+        for r in [0u8, 1u8] {
+            for w in [0u8, 1u8] {
+                for e in [0u8, 1u8] {
+                    let prot = r * PROT_READ + w * PROT_WRITE + e * PROT_EXEC;
+                    let constraint_val = (1 - r) * (w + e) + w * e;
+
+                    if PERMITTED_PROTS.contains(&prot) {
+                        assert_eq!(
+                            constraint_val, 0,
+                            "Permitted protection {prot} (r={r}, w={w}, e={e}) must evaluate to zero"
+                        );
+                    } else {
+                        assert_ne!(
+                            constraint_val, 0,
+                            "Forbidden protection {prot} (r={r}, w={w}, e={e}) must violate constraint"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_mprotect_field_constraint_evaluation() {
+        for r in [0u32, 1u32] {
+            for w in [0u32, 1u32] {
+                for e in [0u32, 1u32] {
+                    let prot =
+                        (r * PROT_READ as u32 + w * PROT_WRITE as u32 + e * PROT_EXEC as u32) as u8;
+                    let r_f = SP1Field::from_canonical_u32(r);
+                    let w_f = SP1Field::from_canonical_u32(w);
+                    let e_f = SP1Field::from_canonical_u32(e);
+
+                    let term1 = (SP1Field::one() - r_f) * (w_f + e_f);
+                    let term2 = w_f * e_f;
+                    let constraint = term1 + term2;
+
+                    if PERMITTED_PROTS.contains(&prot) {
+                        assert_eq!(
+                            constraint,
+                            SP1Field::zero(),
+                            "Permitted protection {prot} must evaluate to field zero"
+                        );
+                    } else {
+                        assert_ne!(
+                            constraint,
+                            SP1Field::zero(),
+                            "Forbidden protection {prot} must not evaluate to field zero"
+                        );
+                    }
+                }
+            }
+        }
     }
 }
