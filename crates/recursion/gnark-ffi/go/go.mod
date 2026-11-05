@@ -7,8 +7,6 @@ require (
 	github.com/consensys/gnark-crypto v0.19.3-0.20251115174214-022ec58e8c19
 )
 
-require github.com/ingonyama-zk/icicle-gnark/v3 v3.2.2 // indirect
-
 require (
 	github.com/bits-and-blooms/bitset v1.24.0 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
