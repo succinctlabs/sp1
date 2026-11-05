@@ -239,7 +239,7 @@ pub(crate) fn verify_proof(
 
         SP1Proof::Groth16(proof) => {
             let exit_code = BigUint::from_str(&proof.public_inputs[2])
-                .map_err(|e| SP1VerificationError::Plonk(anyhow::anyhow!(e)))?;
+                .map_err(|e| SP1VerificationError::Groth16(anyhow::anyhow!(e)))?;
 
             let exit_code_u32 =
                 u32::try_from(&exit_code).map_err(|_| SP1VerificationError::InvalidPublicValues)?;
@@ -260,4 +260,46 @@ pub(crate) fn verify_proof(
         SP1Proof::Plonk(_) => SP1VerificationError::Plonk(e),
         SP1Proof::Groth16(_) => SP1VerificationError::Groth16(e),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{LightProver, Prover, SP1PublicValues};
+    use sp1_hypercube::septic_digest::SepticDigest;
+    use sp1_hypercube::{MachineVerifyingKey, PrimeField32, UntrustedConfig};
+    use sp1_primitives::{SP1Field, SP1GlobalContext};
+    use sp1_prover::Groth16Bn254Proof;
+
+    #[tokio::test]
+    async fn malformed_groth16_exit_code_is_classified_as_groth16() {
+        let prover = LightProver::new().await;
+        let vkey = SP1VerifyingKey {
+            vk: MachineVerifyingKey::<SP1GlobalContext> {
+                pc_start: [SP1Field::zero(); 3],
+                initial_global_cumulative_sum: SepticDigest::zero(),
+                preprocessed_commit: [SP1Field::zero(); 8],
+                untrusted_config: UntrustedConfig::zero(),
+            },
+        };
+        let proof = SP1ProofWithPublicValues::new(
+            SP1Proof::Groth16(Groth16Bn254Proof {
+                public_inputs: [
+                    String::new(),
+                    String::new(),
+                    "invalid-exit-code".to_string(),
+                    String::new(),
+                    String::new(),
+                ],
+                encoded_proof: String::new(),
+                raw_proof: String::new(),
+                groth16_vkey_hash: [0; 32],
+            }),
+            SP1PublicValues::new(),
+            prover.version().to_string(),
+        );
+
+        let err = prover.verify(&proof, &vkey, None).unwrap_err();
+        assert!(matches!(err, SP1VerificationError::Groth16(_)));
+    }
 }
