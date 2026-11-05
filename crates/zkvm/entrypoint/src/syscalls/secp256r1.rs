@@ -67,6 +67,16 @@ pub extern "C" fn syscall_secp256r1_double(p: *mut [u64; 8]) {
 ///
 /// The caller must ensure that `point` is valid pointer to data that is aligned along an eight byte
 /// boundary.
+///
+/// # Deprecated
+///
+/// The `SECP256R1_DECOMPRESS` precompile is decommissioned: it has no executor implementation
+/// and no AIR, so the `ecall` below traps the executor on every input. Decompress in Rust
+/// instead — see `sp1_lib::ecdsa`, whose `DecompressPoint::decompress` computes the square
+/// root without a precompile.
+#[deprecated = "the SECP256R1_DECOMPRESS precompile is decommissioned (no executor \
+                implementation, no AIR); every call traps the executor. See \
+                https://github.com/succinctlabs/sp1/issues/2926"]
 #[allow(unused_variables)]
 #[no_mangle]
 pub extern "C" fn syscall_secp256r1_decompress(point: &mut [u64; 8], is_odd: bool) {

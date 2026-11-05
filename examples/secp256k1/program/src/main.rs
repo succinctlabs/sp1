@@ -4,7 +4,7 @@ use num_bigint::BigUint;
 use sp1_curves::params::FieldParameters;
 use sp1_lib::utils::{AffinePoint, WeierstrassAffinePoint};
 use sp1_zkvm::lib::secp256k1::Secp256k1Point;
-use sp1_zkvm::syscalls::{syscall_secp256k1_decompress, syscall_secp256k1_double};
+use sp1_zkvm::syscalls::syscall_secp256k1_double;
 sp1_zkvm::entrypoint!(main);
 
 /// Test all of the potential special cases for addition for Weierstrass elliptic curves.

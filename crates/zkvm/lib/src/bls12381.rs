@@ -1,7 +1,7 @@
 use std::io::ErrorKind;
 
 use crate::{
-    syscall_bls12381_add, syscall_bls12381_decompress, syscall_bls12381_double,
+    syscall_bls12381_add, syscall_bls12381_double,
     utils::{AffinePoint, WeierstrassAffinePoint, WeierstrassPoint},
 };
 
@@ -92,6 +92,23 @@ impl AffinePoint<N> for Bls12381Point {
 }
 
 /// Decompresses a compressed public key using bls12381_decompress precompile.
+///
+/// # Deprecated
+///
+/// The `BLS12381_DECOMPRESS` precompile is decommissioned: it has no executor implementation
+/// and no AIR, so every call traps the executor regardless of input. There is no compressed
+/// key for which this function returns.
+///
+/// Independently of that, this function does not validate the key it is named for: the
+/// point-at-infinity flag is discarded rather than inspected, no r-order subgroup check is
+/// performed, and the `Result` is never `Err`. Those defects are dormant only because the
+/// precompile is unreachable; see <https://github.com/succinctlabs/sp1/issues/2927>. Do not
+/// treat a future reinstatement of the precompile as making this function safe to use for key
+/// validation without first addressing them.
+#[deprecated = "the BLS12381_DECOMPRESS precompile is decommissioned (no executor \
+                implementation, no AIR); every call traps the executor. This function also \
+                performs no key validation. See \
+                https://github.com/succinctlabs/sp1/issues/2926"]
 pub fn decompress_pubkey(compressed_key: &[u64; 6]) -> Result<[u64; 12], ErrorKind> {
     let mut decompressed_key = [0u64; 12];
     decompressed_key[..6].copy_from_slice(compressed_key);
@@ -108,8 +125,12 @@ pub fn decompress_pubkey(compressed_key: &[u64; 6]) -> Result<[u64; 12], ErrorKi
 
     let mut decompressed_key = decompressed_key.map(u64::from_ne_bytes);
 
+    // The syscall carries the same deprecation as this function; the call is what makes this
+    // function deprecated in the first place. Called by path rather than imported so that a
+    // single `allow` covers it.
+    #[allow(deprecated)]
     unsafe {
-        syscall_bls12381_decompress(&mut decompressed_key, sign_bit);
+        crate::syscall_bls12381_decompress(&mut decompressed_key, sign_bit);
     }
 
     Ok(decompressed_key)
