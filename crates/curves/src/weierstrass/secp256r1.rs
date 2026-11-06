@@ -144,4 +144,14 @@ mod tests {
             assert_eq!(sqrt_2, x_2);
         }
     }
+
+    #[test]
+    fn test_secp256r1_add_rejects_identical_and_inverse_points() {
+        use crate::EllipticCurve;
+        let gen = Secp256r1::generator();
+        let neg = Secp256r1::ec_neg(&gen);
+
+        assert!(std::panic::catch_unwind(|| gen.sw_add(&gen)).is_err());
+        assert!(std::panic::catch_unwind(|| gen.sw_add(&neg)).is_err());
+    }
 }

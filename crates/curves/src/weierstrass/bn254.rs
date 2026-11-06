@@ -94,9 +94,22 @@ mod tests {
 
     use super::*;
     use crate::utils::biguint_from_limbs;
+    use crate::EllipticCurve;
 
     #[test]
     fn test_weierstrass_biguint_scalar_mul() {
         assert_eq!(biguint_from_limbs(Bn254BaseField::MODULUS), Bn254BaseField::modulus());
+    }
+
+    #[test]
+    fn test_bn254_add_rejects_identical_and_inverse_points() {
+        let gen = Bn254::generator();
+        let neg = Bn254::ec_neg(&gen);
+
+        // Identical points must be rejected (must use sw_double instead).
+        assert!(std::panic::catch_unwind(|| gen.sw_add(&gen)).is_err());
+
+        // Additive inverse points must be rejected (point at infinity cannot be represented in affine).
+        assert!(std::panic::catch_unwind(|| gen.sw_add(&neg)).is_err());
     }
 }
