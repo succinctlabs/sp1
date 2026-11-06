@@ -154,10 +154,19 @@ fn affine_to_dalek(point: &AffinePoint<Ed25519>) -> Option<EdwardsPoint> {
     // The caller must supply reduced coordinates for a point on the Ed25519 curve.
     let mut compressed = [0u8; 32];
     let y = point.y.to_bytes_le();
+    if y.len() > 32 {
+        return None;
+    }
     compressed[..y.len()].copy_from_slice(&y);
     compressed[31] |= u8::from(point.x.bit(0)) << 7;
 
-    Some(CompressedEdwardsY(compressed).decompress().expect("edwards point must be valid"))
+    let dalek_point = CompressedEdwardsY(compressed).decompress()?;
+    let reconstructed = dalek_to_affine(&dalek_point);
+    if reconstructed.x == point.x && reconstructed.y == point.y {
+        Some(dalek_point)
+    } else {
+        None
+    }
 }
 
 fn dalek_to_affine(point: &EdwardsPoint) -> AffinePoint<Ed25519> {
@@ -291,5 +300,8 @@ mod tests {
         );
 
         assert_eq!(p.ed_add_biguint(&q), expected);
+        assert_eq!(&p + &q, expected);
+        assert_eq!(p.ed_double(), p.ed_add_biguint(&p));
+        assert_eq!(q.ed_double(), q.ed_add_biguint(&q));
     }
 }
