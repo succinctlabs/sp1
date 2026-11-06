@@ -58,6 +58,10 @@ pub unsafe extern "C" fn sys_panic(msg_ptr: *const u8, len: usize) -> ! {
     syscall_halt(1);
 }
 
+/// Looks up an environment variable. SP1 has no host env, so every var is unset.
+///
+/// libstd reads `usize::MAX` as "not set" (`VarError::NotPresent`). `0` would
+/// mean "found, zero bytes" and give `Ok("")` for every key, so return MAX.
 #[allow(unused_variables)]
 #[no_mangle]
 pub const fn sys_getenv(
@@ -66,7 +70,7 @@ pub const fn sys_getenv(
     varname: *const u8,
     varname_len: usize,
 ) -> usize {
-    0
+    usize::MAX
 }
 
 #[allow(unused_variables)]
@@ -80,5 +84,23 @@ pub const fn sys_alloc_words(nwords: usize) -> *mut u32 {
 pub fn sys_write(fd: u32, write_buf: *const u8, nbytes: usize) {
     unsafe {
         syscall_write(fd, write_buf, nbytes);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The size-query call (null buf, 0 words) must return usize::MAX so libstd
+    // reports NotPresent. See the doc comment on sys_getenv for why.
+    #[test]
+    fn test_sys_getenv_reports_not_found() {
+        let name = b"ANY_ENV_VAR";
+        let n = sys_getenv(core::ptr::null_mut(), 0, name.as_ptr(), name.len());
+        assert_eq!(
+            n,
+            usize::MAX,
+            "sys_getenv must return usize::MAX (not found) so std::env::var returns NotPresent"
+        );
     }
 }
