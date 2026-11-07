@@ -198,6 +198,9 @@ impl<T: AbstractField> Mul for Polynomial<T> {
     type Output = Self;
 
     fn mul(self, other: Self) -> Self {
+        if self.coefficients.is_empty() || other.coefficients.is_empty() {
+            return Self::new(vec![]);
+        }
         let mut result = vec![T::zero(); self.coefficients.len() + other.coefficients.len() - 1];
         for (i, a) in self.coefficients.into_iter().enumerate() {
             for (j, b) in other.coefficients.iter().enumerate() {
@@ -212,6 +215,9 @@ impl<T: AbstractField> Mul for &Polynomial<T> {
     type Output = Polynomial<T>;
 
     fn mul(self, other: Self) -> Polynomial<T> {
+        if self.coefficients.is_empty() || other.coefficients.is_empty() {
+            return Polynomial::new(vec![]);
+        }
         let mut result = vec![T::zero(); self.coefficients.len() + other.coefficients.len() - 1];
         for (i, a) in self.coefficients.iter().enumerate() {
             for (j, b) in other.coefficients.iter().enumerate() {
@@ -273,5 +279,33 @@ impl Polynomial<u8> {
 impl<'a, Var: Into<Expr> + Clone, Expr: Clone> From<Iter<'a, Var>> for Polynomial<Expr> {
     fn from(value: Iter<'a, Var>) -> Self {
         Polynomial::from_coefficients(&value.map(|x| (*x).clone().into()).collect::<Vec<_>>())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::vec;
+
+    use slop_algebra::AbstractField;
+    use slop_koala_bear::KoalaBear;
+
+    use super::Polynomial;
+
+    fn f(value: u32) -> KoalaBear {
+        KoalaBear::from_canonical_u32(value)
+    }
+
+    #[test]
+    fn empty_multiplication_returns_empty_polynomial() {
+        let empty = Polynomial::<KoalaBear>::new(vec![]);
+        let nonempty = Polynomial::new(vec![f(2), f(3)]);
+
+        assert_eq!((empty.clone() * nonempty.clone()).coefficients(), &[]);
+        assert_eq!((nonempty.clone() * empty.clone()).coefficients(), &[]);
+        assert_eq!((empty.clone() * empty.clone()).coefficients(), &[]);
+
+        assert_eq!((&empty * &nonempty).coefficients(), &[]);
+        assert_eq!((&nonempty * &empty).coefficients(), &[]);
+        assert_eq!((&empty * &empty).coefficients(), &[]);
     }
 }
