@@ -27,7 +27,6 @@ benchmark.csv
 crates/perf/data/
 
 # Environment
-.env
 
 # scripts
 crates/prover/maximal_shapes.sh
@@ -61,7 +60,6 @@ examples/fibonacci/fibonacci-groth16.bin
 examples/fibonacci/fibonacci-plonk.bin
 
 # C++
-.vscode/c_cpp_properties.json
 
 **/.yarn
 **/yarn.lock
@@ -72,3 +70,4 @@ examples/fibonacci/fibonacci-plonk.bin
 # Local agent documents
 .claude/local/**
 .claude/settings.json
+config.bat
