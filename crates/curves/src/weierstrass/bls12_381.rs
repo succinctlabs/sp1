@@ -15,6 +15,7 @@ use crate::{AffinePoint, EllipticCurve};
 
 // Serialization flags
 const COMPRESSION_FLAG: u8 = 0b_1000_0000;
+const INFINITY_FLAG: u8 = 0b_0100_0000;
 const Y_IS_ODD_FLAG: u8 = 0b_0010_0000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
