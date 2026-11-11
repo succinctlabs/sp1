@@ -4,7 +4,7 @@ pub mod build;
 /// Build the default toolchain for this version
 pub mod build_toolchain;
 
-/// Install the default toolchain for this verison
+/// Install the default toolchain for this version
 pub mod install_toolchain;
 
 #[cfg(feature = "full")]

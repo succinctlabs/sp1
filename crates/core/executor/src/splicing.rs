@@ -23,9 +23,9 @@ use crate::{
 
 /// A RISC-V VM that uses a [`MinimalTrace`] to create multiple [`SplicedMinimalTrace`]s.
 ///
-/// These new [`SplicedMinimalTrace`]s correspond to exactly 1 execuction shard to be proved.
+/// These new [`SplicedMinimalTrace`]s correspond to exactly 1 execution shard to be proved.
 ///
-/// Note that this is the only time we account for trace area throught the execution pipeline.
+/// Note that this is the only time we account for trace area throughout the execution pipeline.
 ///
 /// The type parameter `M` determines whether page protection checks are enabled.
 pub struct SplicingVM<'a, M: ExecutionMode> {
@@ -586,7 +586,7 @@ impl<'a, M: ExecutionMode> SyscallRuntime<'a, M> for SplicingVM<'a, M> {
     }
 }
 
-/// A minimal trace implentation that starts at a different point in the trace,
+/// A minimal trace implementation that starts at a different point in the trace,
 /// but reuses the same memory reads and hint lens.
 ///
 /// Note: This type implements [`Serialize`] but it is serialized as a [`TraceChunk`].

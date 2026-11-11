@@ -1111,7 +1111,7 @@ impl<M: ExecutionMode> TracingVM<'_, M> {
             b,
             c,
             op_a_0,
-            // SAFETY: We explicity populate the memory of the record on the following callsites:
+            // SAFETY: We explicitly populate the memory of the record on the following callsites:
             // - `execute_load`
             // - `execute_store`
             mem_access: unsafe { record.memory.unwrap_unchecked() },
