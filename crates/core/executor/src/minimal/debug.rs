@@ -442,7 +442,7 @@ pub fn dump_elf_syscall(
         // Permissions will be written directly to the newly dumped ELF.
         let mut current_addr = buffer_addr;
         for Segment { start_page, pages, t, padding_before, padding_after } in mprotect_segments {
-            // mprotect segements shall be all full pages
+            // mprotect segments shall be all full pages
             assert_eq!(padding_before, 0);
             assert_eq!(padding_after, 0);
 

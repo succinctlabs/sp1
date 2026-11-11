@@ -10,7 +10,7 @@ use sp1_jit::{MemValue, TraceChunkHeader};
 ///
 /// - [`TraceChunkHeader`]s layout is stable and safely transmutable.
 ///
-/// - If an argument is passed by a refrence, it must be a valid refrence to read from.
+/// - If an argument is passed by a reference, it must be a valid reference to read from.
 pub(super) struct TraceChunkBuffer {
     inner: MmapMut,
 }

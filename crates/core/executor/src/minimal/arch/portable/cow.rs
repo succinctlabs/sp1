@@ -71,7 +71,7 @@ impl<T: Copy> MaybeCowMemory<T> {
         assert!(addr.is_multiple_of(8), "Address must be a multiple of 8");
 
         let mut duplicated = false;
-        // First we ensure that the copy has the value, if it exisits in the original.
+        // First we ensure that the copy has the value, if it exists in the original.
         match self {
             Self::Cow { copy, original } => match copy.entry(addr) {
                 Entry::Vacant(entry) => {
