@@ -151,13 +151,23 @@ impl AffinePoint<Ed25519> {
 }
 
 fn affine_to_dalek(point: &AffinePoint<Ed25519>) -> Option<EdwardsPoint> {
-    // The caller must supply reduced coordinates for a point on the Ed25519 curve.
+    // Inputs with unreduced coordinates (y >= p) or off-curve coordinates
+    // will not match the reconstructed canonical point and fall back to biguint.
     let mut compressed = [0u8; 32];
     let y = point.y.to_bytes_le();
+    if y.len() > 32 {
+        return None;
+    }
     compressed[..y.len()].copy_from_slice(&y);
     compressed[31] |= u8::from(point.x.bit(0)) << 7;
 
-    Some(CompressedEdwardsY(compressed).decompress().expect("edwards point must be valid"))
+    let dalek_point = CompressedEdwardsY(compressed).decompress()?;
+    let reconstructed = dalek_to_affine(&dalek_point);
+    if reconstructed.x == point.x && reconstructed.y == point.y {
+        Some(dalek_point)
+    } else {
+        None
+    }
 }
 
 fn dalek_to_affine(point: &EdwardsPoint) -> AffinePoint<Ed25519> {
@@ -291,5 +301,25 @@ mod tests {
         );
 
         assert_eq!(p.ed_add_biguint(&q), expected);
+        assert_eq!(&p + &q, expected);
+        assert_eq!(p.ed_double(), p.ed_add_biguint(&p));
+        assert_eq!(q.ed_double(), q.ed_add_biguint(&q));
+
+        // undecompressible y must fall back to ed_add_biguint, not panic
+        let p_undecomp = AffinePoint::<E>::new(BigUint::from(7u32), BigUint::from(2u32));
+        let q_undecomp = AffinePoint::<E>::new(BigUint::from(9u32), BigUint::from(102u32));
+        assert_eq!(&p_undecomp + &q_undecomp, p_undecomp.ed_add_biguint(&q_undecomp));
+
+        // coordinates wider than 32 bytes must be caught by length guard and fall back
+        let wide = AffinePoint::<E>::new(BigUint::from(1u32), BigUint::from(1u32) << 300u32);
+        assert_eq!(wide.ed_double(), wide.ed_add_biguint(&wide));
+
+        // verified valid points must take the dalek fast path
+        let base = E::ec_generator();
+        assert!(affine_to_dalek(&base).is_some());
+        let g2 = E::ec_double(&base);
+        assert!(affine_to_dalek(&g2).is_some());
+        let g3 = &base + &g2;
+        assert!(affine_to_dalek(&g3).is_some());
     }
 }
