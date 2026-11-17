@@ -311,9 +311,7 @@ where
             witness_data.committed_data.into_iter().map(Arc::new).collect::<Rounds<_>>(),
         );
 
-        for round_index in 0..n_rounds {
-            let round_params = &config.round_parameters[round_index];
-
+        for (round_index, round_params) in config.round_parameters.iter().enumerate() {
             let num_nonzero_entries = match &sumcheck_prover.f_vec {
                 KOrEfMle::K(mle) => mle.inner().as_ref().unwrap().num_non_zero_entries(),
                 KOrEfMle::EF(mle) => mle.inner().as_ref().unwrap().num_non_zero_entries(),
