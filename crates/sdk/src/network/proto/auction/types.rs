@@ -4780,6 +4780,8 @@ pub enum ProofRequestError {
     ProgramTooLarge = 7,
     /// The program artifact cannot be decoded.
     InvalidProgram = 8,
+    /// The stdin artifact exceeds the size limit.
+    StdinTooLarge = 9,
 }
 impl ProofRequestError {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -4797,6 +4799,7 @@ impl ProofRequestError {
             Self::ProvingFailure => "PROVING_FAILURE",
             Self::ProgramTooLarge => "PROGRAM_TOO_LARGE",
             Self::InvalidProgram => "INVALID_PROGRAM",
+            Self::StdinTooLarge => "STDIN_TOO_LARGE",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -4811,6 +4814,7 @@ impl ProofRequestError {
             "PROVING_FAILURE" => Some(Self::ProvingFailure),
             "PROGRAM_TOO_LARGE" => Some(Self::ProgramTooLarge),
             "INVALID_PROGRAM" => Some(Self::InvalidProgram),
+            "STDIN_TOO_LARGE" => Some(Self::StdinTooLarge),
             _ => None,
         }
     }
