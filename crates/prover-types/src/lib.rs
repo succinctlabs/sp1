@@ -28,8 +28,6 @@ impl WorkerType {
     pub fn from_task_type(task_type: TaskType) -> Self {
         match task_type {
             TaskType::Controller
-            | TaskType::PlonkWrap
-            | TaskType::Groth16Wrap
             | TaskType::UtilVkeyMapController
             | TaskType::ExecuteOnly
             | TaskType::CoreExecute => WorkerType::Cpu,
@@ -37,6 +35,8 @@ impl WorkerType {
             | TaskType::RecursionReduce
             | TaskType::RecursionDeferred
             | TaskType::ShrinkWrap
+            | TaskType::PlonkWrap
+            | TaskType::Groth16Wrap
             | TaskType::SetupVkey
             | TaskType::UtilVkeyMapChunk => WorkerType::Gpu,
             TaskType::MarkerDeferredRecord | TaskType::UnspecifiedTaskType => WorkerType::None,
