@@ -120,7 +120,7 @@ pub struct ExecutionRecord {
     pub trap_exec_events: Vec<TrapExecEvent>,
     /// A trace of all trap on load and store events.
     pub trap_load_store_events: Vec<(TrapMemInstrEvent, ITypeRecord)>,
-    /// The global culmulative sum.
+    /// The global cumulative sum.
     pub global_cumulative_sum: Arc<Mutex<SepticDigest<u32>>>,
     /// The global interaction event count.
     pub global_interaction_event_count: u32,
