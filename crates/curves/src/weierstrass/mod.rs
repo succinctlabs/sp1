@@ -222,9 +222,12 @@ impl AffinePoint<SwCurve<Secp256k1Parameters>> {
     }
 
     pub fn sw_add_k256(&self, other: &Self) -> Self {
-        // The curve helper historically supports equal points.
-        if self == other {
-            return self.sw_double_k256();
+        if self.x == other.x {
+            if self.y == other.y {
+                panic!("Error: Points are the same. Use sw_double instead.");
+            } else {
+                panic!("Error: Result is the point at infinity.");
+            }
         }
         let (x1, y1) = self.k256_coordinates();
         let (x2, y2) = other.k256_coordinates();
@@ -279,8 +282,12 @@ fn secp256k1_inverse(value: FieldElement) -> FieldElement {
 
 impl<E: WeierstrassParameters> AffinePoint<SwCurve<E>> {
     pub fn sw_add(&self, other: &AffinePoint<SwCurve<E>>) -> AffinePoint<SwCurve<E>> {
-        if self.x == other.x && self.y == other.y {
-            panic!("Error: Points are the same. Use sw_double instead.");
+        if self.x == other.x {
+            if self.y == other.y {
+                panic!("Error: Points are the same. Use sw_double instead.");
+            } else {
+                panic!("Error: Result is the point at infinity.");
+            }
         }
 
         cfg_if::cfg_if! {
@@ -337,6 +344,13 @@ impl<E: WeierstrassParameters> AffinePoint<SwCurve<E>> {
 
     #[cfg(feature = "bigint-rug")]
     pub fn sw_add_rug(&self, other: &AffinePoint<SwCurve<E>>) -> AffinePoint<SwCurve<E>> {
+        if self.x == other.x {
+            if self.y == other.y {
+                panic!("Error: Points are the same. Use sw_double instead.");
+            } else {
+                panic!("Error: Result is the point at infinity.");
+            }
+        }
         use rug::Complete;
         let p = biguint_to_rug(&E::BaseField::modulus());
         let self_x = biguint_to_rug(&self.x);
