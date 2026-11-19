@@ -211,19 +211,14 @@ async fn try_download_dev_artifacts_from_s3(artifact_name: &str, build_dir: &Pat
         .to_str()
         .ok_or_else(|| anyhow!("failed to convert path to string: {:?}", build_dir))?;
 
-    let extract_result = Command::new("tar")
-        .args(["-Pxzf", tar_path_str, "-C", build_dir_str])
-        .output()
-        .await
-        .context("failed to run tar")?;
+    let extract_result = extract_tarball(&tar_path, build_dir).await;
 
     // Remove the tarball regardless of extraction outcome.
     let _ = tokio::fs::remove_file(&tar_path).await;
 
-    if !extract_result.status.success() {
+    if let Err(err) = extract_result {
         let _ = std::fs::remove_dir_all(build_dir);
-        let stderr = String::from_utf8_lossy(&extract_result.stderr);
-        return Err(anyhow!("tar extraction failed: {}", stderr));
+        return Err(err);
     }
 
     tracing::info!("[sp1] successfully downloaded dev artifacts to {}", build_dir_str);
@@ -534,6 +529,30 @@ async fn download_circuit_artifacts(target_dir: &Path, artifacts_type: &str) -> 
     file.flush().await?;
 
     // Extract the tarball to the build directory.
+    let target_dir_str = target_dir
+        .to_str()
+        .ok_or_else(|| anyhow!("failed to convert path to string: {:?}", target_dir))?;
+
+    let extract_result = extract_tarball(&tar_path, target_dir).await;
+
+    // Remove the tarball after extraction.
+    tokio::fs::remove_file(&tar_path).await?;
+
+    extract_result?;
+
+    eprintln!("[sp1] downloaded {} to {}", download_url, target_dir_str);
+    Ok(())
+}
+
+/// Extract a downloaded gzipped tarball into `target_dir`.
+///
+/// This deliberately does not pass tar's `-P` flag. Without it, both GNU tar and bsdtar strip
+/// leading slashes and refuse `..` components, so an archive cannot write outside `target_dir`.
+/// That matters because the archives reaching this function are downloaded over the network, and
+/// a compromised or substituted artifact would otherwise be able to overwrite arbitrary paths on
+/// the machine running the installer. Nothing here needs `-P`: the tarballs are produced with
+/// relative paths (see the `-C <dir> .` invocation in the upload test below).
+async fn extract_tarball(tar_path: &Path, target_dir: &Path) -> Result<()> {
     let tar_path_str = tar_path
         .to_str()
         .ok_or_else(|| anyhow!("failed to convert path to string: {:?}", tar_path))?;
@@ -541,17 +560,17 @@ async fn download_circuit_artifacts(target_dir: &Path, artifacts_type: &str) -> 
         .to_str()
         .ok_or_else(|| anyhow!("failed to convert path to string: {:?}", target_dir))?;
 
-    let res =
-        Command::new("tar").args(["-Pxzf", tar_path_str, "-C", target_dir_str]).output().await?;
-
-    // Remove the tarball after extraction.
-    tokio::fs::remove_file(&tar_path).await?;
+    let res = Command::new("tar")
+        .args(["-xzf", tar_path_str, "-C", target_dir_str])
+        .output()
+        .await
+        .context("failed to run tar")?;
 
     if !res.status.success() {
-        return Err(anyhow!("failed to extract tarball to {}, err: {:?}", target_dir_str, res));
+        let stderr = String::from_utf8_lossy(&res.stderr);
+        return Err(anyhow!("failed to extract tarball to {}: {}", target_dir_str, stderr));
     }
 
-    eprintln!("[sp1] downloaded {} to {}", download_url, target_dir_str);
     Ok(())
 }
 
@@ -655,6 +674,66 @@ mod tests {
         verify::WRAP_VK_BYTES,
         worker::{cpu_worker_builder_with_machine, SP1LocalNodeBuilder},
     };
+
+    /// A downloaded archive must not be able to write above the directory it is extracted into.
+    #[tokio::test]
+    async fn extract_tarball_confines_parent_traversal() {
+        let stage = tempfile::tempdir().unwrap();
+        std::fs::create_dir(stage.path().join("inner")).unwrap();
+        std::fs::write(stage.path().join("pwned"), b"payload").unwrap();
+
+        // `-P` on the producing side is what makes a hostile archive possible in the first place:
+        // it lets the member name be literally `../pwned`.
+        let archive = stage.path().join("evil.tar.gz");
+        let status = Command::new("tar")
+            .args(["-Pczf", archive.to_str().unwrap(), "-C"])
+            .arg(stage.path().join("inner"))
+            .arg("../pwned")
+            .status()
+            .await
+            .unwrap();
+        assert!(status.success(), "failed to build the test archive");
+
+        let dest = tempfile::tempdir().unwrap();
+        let target_dir = dest.path().join("target");
+        std::fs::create_dir(&target_dir).unwrap();
+
+        let _ = super::extract_tarball(&archive, &target_dir).await;
+
+        assert!(
+            !dest.path().join("pwned").exists(),
+            "archive wrote above the extraction directory"
+        );
+    }
+
+    /// An archive carrying absolute member names must not overwrite those paths on the host.
+    #[tokio::test]
+    async fn extract_tarball_confines_absolute_paths() {
+        let stage = tempfile::tempdir().unwrap();
+        let victim = stage.path().join("victim");
+        std::fs::write(&victim, b"original").unwrap();
+
+        let archive = stage.path().join("evil.tar.gz");
+        let status = Command::new("tar")
+            .args(["-Pczf", archive.to_str().unwrap()])
+            .arg(&victim)
+            .status()
+            .await
+            .unwrap();
+        assert!(status.success(), "failed to build the test archive");
+
+        // Change the file so an overwrite from the archive is detectable.
+        std::fs::write(&victim, b"current").unwrap();
+
+        let dest = tempfile::tempdir().unwrap();
+        let _ = super::extract_tarball(&archive, dest.path()).await;
+
+        assert_eq!(
+            std::fs::read(&victim).unwrap(),
+            b"current",
+            "archive overwrote an absolute path outside the extraction directory"
+        );
+    }
 
     #[test]
     fn publish_replaces_incomplete_circuit_artifacts() {
