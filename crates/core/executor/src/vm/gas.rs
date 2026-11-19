@@ -25,6 +25,9 @@ pub struct ReportGenerator {
     /// Whether the last page prot access was external, ie: it was read from a deferred precompile.
     is_last_page_prot_access_external: HashMap<u64, bool>,
 
+    touched_memory_addresses: CompressedMemory,
+    touched_memory_addresses_count: u64,
+
     trace_cost_lookup: EnumMap<RiscvAirId, u64>,
 
     /// Running count of page prot entries.
@@ -53,6 +56,8 @@ impl ReportGenerator {
             local_page_prot_counts: 0,
             is_last_read_external: CompressedMemory::new(),
             is_last_page_prot_access_external: HashMap::new(),
+            touched_memory_addresses: CompressedMemory::new(),
+            touched_memory_addresses_count: 0,
             page_prot_entry_count: 0,
             enable_untrusted_programs,
             shard_start_clk,
@@ -102,10 +107,16 @@ impl ReportGenerator {
             syscall_counts: Box::new(total_syscall_counts),
             cycle_tracker: HashMap::new(),
             invocation_tracker: HashMap::new(),
-            touched_memory_addresses: 0,
+            touched_memory_addresses: self.touched_memory_addresses_count,
             gas: Some(gas),
             exit_code: self.exit_code,
         }
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn touched_memory_addresses(&self) -> u64 {
+        self.touched_memory_addresses_count
     }
 
     // Set the exit code which will be returned when the `ExecutionReport` is generated.
@@ -216,6 +227,10 @@ impl ReportGenerator {
 
         self.local_mem_counts +=
             (is_first_read_this_shard || (is_last_read_external && !is_external)) as u64;
+
+        if addr > 31 && !self.touched_memory_addresses.insert(addr, true) {
+            self.touched_memory_addresses_count += 1;
+        }
     }
 
     #[inline]
@@ -376,4 +391,39 @@ pub fn get_complexity_mapping() -> EnumMap<RiscvAirId, u64> {
 
     let complexity: HashMap<String, u64> = serde_json::from_str(json).unwrap();
     complexity.into_iter().map(|(k, v)| (RiscvAirId::from_str(&k).unwrap(), v)).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ReportGenerator;
+
+    #[test]
+    fn test_touched_memory_addresses_tracking() {
+        let mut generator = ReportGenerator::new(0, false);
+        assert_eq!(generator.generate_report().touched_memory_addresses, 0);
+
+        for reg in 0..=31 {
+            generator.handle_mem_event(reg, 0);
+        }
+        assert_eq!(generator.generate_report().touched_memory_addresses, 0);
+
+        generator.handle_mem_event(0x1000, 0);
+        assert_eq!(generator.generate_report().touched_memory_addresses, 1);
+
+        // Sub-word access within same 8-byte aligned word should not double count.
+        generator.handle_mem_event(0x1004, 0);
+        assert_eq!(generator.generate_report().touched_memory_addresses, 1);
+
+        generator.handle_mem_event(0x1000, 0);
+        assert_eq!(generator.generate_report().touched_memory_addresses, 1);
+
+        generator.handle_mem_event(0x1008, 0);
+        assert_eq!(generator.generate_report().touched_memory_addresses, 2);
+
+        generator.handle_mem_event(0x2000_0000, 0);
+        assert_eq!(generator.generate_report().touched_memory_addresses, 3);
+
+        generator.reset(10);
+        assert_eq!(generator.generate_report().touched_memory_addresses, 0);
+    }
 }
