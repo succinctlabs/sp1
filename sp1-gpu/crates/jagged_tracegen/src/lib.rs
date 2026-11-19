@@ -26,7 +26,7 @@ use sp1_gpu_cudart::sys::kernels::{
     sum_to_trace_kernel,
 };
 use sp1_gpu_cudart::{args, DeviceBuffer, DeviceTensor, PinnedBuffer, TaskScope};
-use sp1_gpu_tracegen::CudaTracegenAir;
+use sp1_gpu_tracegen::{CudaTracegenAir, PinnedStaging};
 use sp1_hypercube::prover::{ProverPermit, ProverSemaphore};
 
 use sp1_core_executor::ELEMENT_THRESHOLD;
@@ -45,8 +45,10 @@ pub const CORE_MAX_TRACE_SIZE: u32 = (ELEMENT_THRESHOLD + (ELEMENT_THRESHOLD >> 
 
 /// The output of the host phase of the tracegen.
 pub struct HostPhaseTracegen<A> {
-    /// Which airs need to be generated on device.
-    pub device_airs: Vec<Arc<A>>,
+    /// Which airs need to be generated on device, each paired with the section of
+    /// the worker's pinned buffer it may use to stage its records before copying
+    /// them to the device.
+    pub device_airs: Vec<(Arc<A>, PinnedStaging)>,
     /// The real traces generated in the host phase.
     pub host_traces: futures::channel::mpsc::UnboundedReceiver<(String, usize, usize, usize)>,
 }
@@ -390,8 +392,31 @@ async fn host_preprocessed_tracegen<A: CudaTracegenAir<Felt>>(
             }
         }
 
-        // Spawn a rayon task to generate the traces on the CPU.
+        // Assign each device air the section of the pinned buffer that follows the
+        // host traces, sized to its full preprocessed trace. A device chip does not
+        // need this section for its trace (it generates that on device), so it reuses
+        // the section to stage its filtered instructions — always smaller than the
+        // trace, so the section can never overflow.
+        let mut device_airs_staged = Vec::with_capacity(device_airs.len());
+        for air in device_airs {
+            let width = air.preprocessed_width();
+            let section = air.preprocessed_num_rows(&program).map_or(0, |h| h * width);
+            let staging = unsafe {
+                PinnedStaging::new(
+                    (buffer_ptr as *mut Felt).add(total_size) as *mut u8,
+                    section * std::mem::size_of::<Felt>(),
+                )
+            };
+            device_airs_staged.push((air, staging));
+            total_size += section;
+        }
+        let mut device_airs = device_airs_staged;
+
+        // Spawn a rayon task to generate the host traces on the CPU. It takes its
+        // own handle to the program so the single-pass bucketing below can run
+        // concurrently on this thread (both only read the program).
         // `traces` is a futures Stream that will immediately begin buffering traces.
+        let program_host = Arc::clone(&program);
         let (host_traces_tx, host_traces) = futures::channel::mpsc::unbounded();
         rayon::spawn(move || {
             jobs.into_par_iter().for_each_with(
@@ -403,7 +428,7 @@ async fn host_preprocessed_tracegen<A: CudaTracegenAir<Felt>>(
                         let slice: &mut [MaybeUninit<Felt>] = unsafe {
                             std::slice::from_raw_parts_mut(base_ptr.add(offset), trace_len)
                         };
-                        air.generate_preprocessed_trace_into(&program, slice);
+                        air.generate_preprocessed_trace_into(&program_host, slice);
                         let start_pointer = unsafe { base_ptr.add(offset) as usize };
                         // Since it's unbounded, it will only error if the receiver is disconnected.
                         // If the receiver dropped (task cancelled), exit gracefully instead of panicking.
@@ -418,8 +443,16 @@ async fn host_preprocessed_tracegen<A: CudaTracegenAir<Felt>>(
             );
             // Make this explicit.
             // If we are the last users of the program, this will expensively drop it.
-            drop(program);
+            drop(program_host);
         });
+
+        // Read the program once, bucketing every device chip's instructions into
+        // its pinned section — instead of each chip re-scanning the whole program
+        // in `generate_preprocessed_trace_device`. Runs concurrently with the host
+        // trace rayon task above (disjoint buffer regions, shared read of program).
+        A::bucket_preprocessed_device_instructions(&program, &mut device_airs);
+        drop(program);
+
         (device_airs, host_traces, total_size)
     })
     .await
@@ -455,12 +488,14 @@ async fn device_preprocessed_tracegen<A: CudaTracegenAir<Felt>>(
     // Stream that, when polled, copies events to the device and generates traces.
     let device_traces = device_airs
         .into_iter()
-        .map(|air| {
+        .map(|(air, staging)| {
             // We want to borrow the program and move the air.
             let program = program.as_ref();
             async move {
-                let maybe_trace =
-                    air.generate_preprocessed_trace_device(program, backend).await.unwrap();
+                let maybe_trace = air
+                    .generate_preprocessed_trace_device(program, staging, backend)
+                    .await
+                    .unwrap();
                 (air, maybe_trace)
             }
         })
@@ -754,6 +789,26 @@ where
                 total_size += air.num_rows(&record).unwrap() * air.width();
             }
 
+            // Assign each device air the section of the pinned buffer that follows the
+            // host traces, sized to its full main trace. A device chip does not need
+            // this section for its trace (it generates that on device), so it reuses
+            // the section to stage its events — always smaller than the trace, so the
+            // section can never overflow.
+            let mut device_airs_staged = Vec::with_capacity(device_airs.len());
+            for air in device_airs {
+                let width = air.width();
+                let section = air.num_rows(&record).map_or(0, |h| h * width);
+                let staging = unsafe {
+                    PinnedStaging::new(
+                        (buffer_ptr as *mut Felt).add(total_size) as *mut u8,
+                        section * std::mem::size_of::<Felt>(),
+                    )
+                };
+                device_airs_staged.push((air, staging));
+                total_size += section;
+            }
+            let device_airs = device_airs_staged;
+
             // Get the smallest cluster containing our tracegen chip set.
             let shard_chips = shape.smallest_cluster(&chip_set).unwrap().clone();
 
@@ -837,13 +892,13 @@ async fn device_main_tracegen<A: CudaTracegenAir<Felt>>(
     // Stream that, when polled, copies events to the device and generates traces.
     let device_traces = device_airs
         .into_iter()
-        .map(|air| {
+        .map(|(air, staging)| {
             // We want to borrow the record and move the chip.
             let record = record.as_ref();
             let outer_span = outer_span.clone();
             async move {
                 let trace = air
-                    .generate_trace_device(record, &mut A::Record::default(), backend)
+                    .generate_trace_device(record, &mut A::Record::default(), staging, backend)
                     .instrument(tracing::trace_span!(parent: &outer_span, "device chip tracegen", chip = %air.name()))
                     .await
                     .unwrap();
