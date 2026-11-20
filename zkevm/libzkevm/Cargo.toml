@@ -65,16 +65,16 @@ p256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-p2
 # SP1's patched `substrate-bn`. At `target_os = "zkvm"` BN254 curve and
 # field operations route through SP1's `BN254_*` precompile syscalls
 # (`BN254_ADD`, `BN254_DOUBLE`, `BN254_FP*`). The
-# release tag uses the `substrate-bn` package (rather than
+# pinned commit uses the `substrate-bn` package (rather than
 # `substrate-bn-succinct-rs`), with a dependency
 # at `sp1-lib = "6.10.0"`. Used by `precompile::bn254::*` (Ethereum
 # precompiles 0x06–0x08, EIP-196 / EIP-197).
-substrate-bn = { git = "https://github.com/sp1-patches/bn", tag = "patch-0.6.0-sp1-6.10.0-substrate-bn", default-features = false }
+substrate-bn = { git = "https://github.com/sp1-patches/bn", rev = "2bc7d524f4e799031701dd7e31c1d7b0011cdfc4", default-features = false }
 
 # SP1's patched `bls12_381` (zkcrypto fork). At `target_os = "zkvm"` G1
 # and G2 arithmetic route through SP1's `BLS12381_*` syscalls. Used by
 # `precompile::bls12_381::*` (Ethereum precompiles 0x0b–0x11, EIP-2537).
-bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", tag = "patch-0.8.0-sp1-6.10.0", default-features = false, features = ["groups", "pairings", "alloc", "experimental"] }
+bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", rev = "5e6c0684642554329cc4c6c2808213f5d1adacda", default-features = false, features = ["groups", "pairings", "alloc", "experimental"] }
 
 # Arbitrary-precision modular exponentiation for `zkvm_modexp`
 # (Ethereum precompile 0x05). SP1 has no syscall for this; we use the

@@ -14,6 +14,8 @@ color-eyre = { workspace = true }
 ed25519-dalek = { workspace = true }
 rand = { workspace = true }
 
+curve25519-dalek-patched = { package = "curve25519-dalek", git = "https://github.com/sp1-patches/curve25519-dalek", rev = "9fad7289094280e236796f1743a008dc081a09ba", default-features = false, features = ["alloc"] }
+
 [features]
 prove = []
 gpu = ["sp1-sdk/cuda"]

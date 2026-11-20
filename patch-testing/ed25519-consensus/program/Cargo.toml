@@ -1,0 +1,18 @@
+[workspace]
+[package]
+name = "ed25519-consensus-program"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "ed25519_consensus_zip215"
+path = "bin/zip215.rs"
+
+[dependencies]
+sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
+ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", rev = "a0d1b818e40a8ebca7f7a21821c0ea06ada66cea" }
+rand_chacha = "0.3"
+rand_core = "0.6"
+
+[patch.crates-io]
+sp1-lib = { path = "../../../crates/zkvm/lib" }

@@ -3,7 +3,7 @@ sp1_zkvm::entrypoint!(main);
 
 use secp256k1::{
     ecdsa::{RecoverableSignature, RecoveryId},
-    Message, PublicKey, Secp256k1,
+    Error, Message, PublicKey, Secp256k1,
 };
 
 pub fn main() {
@@ -24,5 +24,11 @@ fn inner_recover() -> Option<PublicKey> {
     let sig = RecoverableSignature::from_compact(&sig, recid).unwrap();
     let secp = Secp256k1::new();
 
-    secp.recover_ecdsa(&message, &sig).ok()
+    match secp.recover_ecdsa(&message, &sig) {
+        Ok(public_key) => Some(public_key),
+        Err(error) => {
+            assert_eq!(error, Error::InvalidSignature);
+            None
+        }
+    }
 }

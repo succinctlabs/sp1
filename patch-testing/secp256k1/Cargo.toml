@@ -12,6 +12,7 @@ rand = { workspace = true }
 sp1-test = { workspace = true }
 tokio = { workspace = true }
 color-eyre = { workspace = true }
+bincode = "1.3"
 
 [features]
 prove = []

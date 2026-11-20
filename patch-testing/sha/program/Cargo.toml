@@ -33,6 +33,18 @@ required-features = ["v0-11-0"]
 name = "sha3"
 path = "bin/sha3.rs"
 
+[[bin]]
+name = "turbo_shake"
+path = "bin/turbo_shake.rs"
+
+[[bin]]
+name = "shake_xof"
+path = "bin/shake_xof.rs"
+
+[[bin]]
+name = "keccak256"
+path = "bin/keccak256.rs"
+
 [dependencies]
 sp1-zkvm = {  path = "../../../crates/zkvm/entrypoint" }
 serde = { version = "1.0.215", features = ["derive"] }
@@ -43,7 +55,7 @@ sha2-v0-10-8 = { version = "0.10.8", package = "sha2", optional = true }
 sha2-v0-10-9 = { version = "0.10.9", package = "sha2", optional = true }
 sha2-v0-11-0 = { version = "0.11.0", package = "sha2", optional = true }
 
-sha3 = { version = "0.10.8", package = "sha3" }
+sha3 = { version = "=0.10.8", package = "sha3", features = ["reset"] }
 
 [features]
 v0-9-9 = ["dep:sha2-v0-9-9"]
@@ -53,7 +65,7 @@ v0-10-9 = ["dep:sha2-v0-10-9"]
 v0-11-0 = ["dep:sha2-v0-11-0"]
 
 [patch.crates-io]
-sha3 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha3", tag = "patch-sha3-0.10.8-sp1-6.10.0" }
+sha3 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", rev = "39cf27640573dd613006084e825a0e558bfe5f03" }
 
 sha2-v0-9-9 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", tag = "patch-sha2-0.9.9-sp1-6.10.0" }
 sha2-v0-10-6 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", tag = "patch-sha2-0.10.6-sp1-6.10.0" }
