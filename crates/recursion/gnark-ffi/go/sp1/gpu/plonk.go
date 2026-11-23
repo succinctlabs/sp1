@@ -116,7 +116,10 @@ func NewPlonkProver(spr *cs.SparseR1CS, r io.Reader) (*PlonkProver, error) {
 	for _, c := range p.commit.Committed {
 		p.qcpPos = append(p.qcpPos, uint32(p.nbPub+c))
 	}
-	p.piPos = append(append([]uint32{}, p.qcpPos...), uint32(p.nbPub+p.commit.CommitmentIndex), uint32(p.nbPub+spr.GetNbConstraints()-1))
+	p.piPos = append(append([]uint32{}, p.qcpPos...), uint32(p.nbPub+p.commit.CommitmentIndex))
+	if last := spr.GetNbConstraints() - 1; last != p.commit.CommitmentIndex {
+		p.piPos = append(p.piPos, uint32(p.nbPub+last))
+	}
 
 	// The key's points are read while the trace is built.
 	keyRead := make(chan error, 1)
@@ -392,7 +395,7 @@ func (p *PlonkProver) prove(d *device, wWitness fr.Vector) (*plonk_bn254.Proof, 
 			piVals[i].SetBigInt(ins[i])
 		}
 		piVals[len(ins)].SetRandom()
-		piVals[len(ins)+1].SetRandom()
+		piVals[len(piVals)-1].SetRandom()
 		c := p.commitPi(piVals)
 		proof.Bsb22Commitments[0] = c
 		htf.Write(c.Marshal())
