@@ -231,7 +231,7 @@ int msm(void* windows_out, uint32_t* nwindows, const void* scalars_ptr, const vo
   cub::DoubleBuffer<uint32_t> kb(keys[0], keys[1]), vb(vals[0], vals[1]);
   cub::DeviceRadixSort::SortPairs(nullptr, need, kb, vb, (int)n, 0, (int)c, s);
   tmp_bytes = need;
-  cub::DeviceRunLengthEncode::Encode(nullptr, need, keys[0], unique, counts, num, (int)max_segs, s);
+  cub::DeviceRunLengthEncode::Encode(nullptr, need, keys[0], unique, counts, num, (int)std::max(n, max_segs), s);
   tmp_bytes = need > tmp_bytes ? need : tmp_bytes;
   cub::DeviceScan::ExclusiveSum(nullptr, need, counts, offsets, (int)max_segs, s);
   tmp_bytes = need > tmp_bytes ? need : tmp_bytes;
