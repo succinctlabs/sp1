@@ -744,6 +744,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
             .await
             .map_err(TaskError::Fatal)?;
 
+        let permit = self.wrap_prover_init.wrap_air_prover.permits().acquire().await.unwrap();
         let groth16_proof = tokio::task::spawn_blocking(move || -> Result<_, anyhow::Error> {
             let SP1WrapProof { vk, proof } = wrap_proof;
             let input = SP1ShapedWitnessValues {
@@ -774,6 +775,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
             };
             let prover = Groth16Bn254Prover::new();
             let proof = prover.prove(witness, &build_dir);
+            drop(permit);
             prover
                 .verify(
                     &proof,
@@ -811,6 +813,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
 
         let build_dir = try_build_plonk_artifacts_dir(&wrap_proof.vk, &wrap_proof.proof).await?;
 
+        let permit = self.wrap_prover_init.wrap_air_prover.permits().acquire().await.unwrap();
         let plonk_proof = tokio::task::spawn_blocking(move || -> Result<_, anyhow::Error> {
             let SP1WrapProof { vk: wrap_vk, proof: wrap_proof } = wrap_proof;
             let input = SP1ShapedWitnessValues {
@@ -841,6 +844,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
             };
             let prover = PlonkBn254Prover::new();
             let proof = prover.prove(witness, &build_dir);
+            drop(permit);
             prover
                 .verify(
                     &proof,
