@@ -75,15 +75,10 @@ impl<F: PrimeField32> MachineAir<F> for PrefixSumChecksChip {
     }
 
     fn preprocessed_num_rows(&self, program: &Self::Program) -> Option<usize> {
-        let instrs_len = program
-            .inner
-            .iter()
-            .filter_map(|instruction| match instruction.inner() {
-                Instruction::PrefixSumChecks(instr) => Some(instr.addrs.x1.len()),
-                _ => None,
-            })
-            .sum();
-        self.preprocessed_num_rows_with_instrs_len(program, instrs_len)
+        self.preprocessed_num_rows_with_instrs_len(
+            program,
+            program.event_counts.prefix_sum_checks_events,
+        )
     }
 
     fn preprocessed_num_rows_with_instrs_len(

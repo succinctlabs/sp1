@@ -78,15 +78,10 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for Poseidon2Linea
     }
 
     fn preprocessed_num_rows(&self, program: &Self::Program) -> Option<usize> {
-        let instrs_len = program
-            .inner
-            .iter()
-            .filter_map(|instruction| match instruction.inner() {
-                Instruction::Poseidon2LinearLayer(x) => Some(x.as_ref()),
-                _ => None,
-            })
-            .count();
-        self.preprocessed_num_rows_with_instrs_len(program, instrs_len)
+        self.preprocessed_num_rows_with_instrs_len(
+            program,
+            program.event_counts.poseidon2_linear_layer_events,
+        )
     }
 
     fn preprocessed_num_rows_with_instrs_len(

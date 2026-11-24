@@ -12,7 +12,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/field/pool"
 	"github.com/consensys/gnark/constraint"
@@ -31,6 +30,7 @@ type levelSolver struct {
 
 	wires    []uint32
 	sel      [5]selector
+	coeffInv []fr.Element
 	n        int
 	mappings []constraint.HintMapping
 
@@ -39,7 +39,6 @@ type levelSolver struct {
 	termStart []uint32
 	termWidth int
 	cBits     uint
-	a, b, c   []fr.Element
 
 	nbWorkers int
 	epoch     atomic.Uint64
@@ -61,9 +60,7 @@ const (
 	minParallelLevel = 256
 	minChunk         = 4
 	chunkDiv         = 16
-	// Beyond this, cross-core traffic on freshly solved wires costs more than the extra workers gain.
-	maxWorkers = 16
-	epochStop  = ^uint64(0)
+	epochStop        = ^uint64(0)
 	// Levels hold the trace row of a gate, or hintCode with the index of a hint mapping.
 	hintCode = 1 << 31
 	skipCode = ^uint32(0)
@@ -71,8 +68,9 @@ const (
 
 // newSolver solves spr from the wires and selectors of its n-row trace.
 func newSolver(spr *cs.SparseR1CS, wires []uint32, sel [5]selector) (*levelSolver, error) {
-	s := newLevelSolver(spr)
+	s := newLevelSolver(spr, 8)
 	s.wires, s.sel, s.n = wires, sel, len(wires)/3
+	s.coeffInv = fr.BatchInvert(s.Coefficients)
 	row := uint32(len(spr.Public))
 	var c constraint.SparseR1C
 	err := s.compile(func(inst constraint.PackedInstruction, b constraint.Blueprint) (uint32, error) {
@@ -99,7 +97,7 @@ func newR1CSSolver(r1cs *cs.R1CS) (*levelSolver, error) {
 	if r1cs.GkrInfo.Is() {
 		return nil, errors.New("gpu: GKR is not supported")
 	}
-	s := newLevelSolver(r1cs)
+	s := newLevelSolver(r1cs, 16)
 	nbWires, nbCoeffs := len(s.solved), len(r1cs.Coefficients)
 	s.cBits = uint(bits.Len(uint(nbCoeffs - 1)))
 	s.termWidth = (2 + int(s.cBits) + bits.Len(uint(nbWires-1)) + 7) / 8
@@ -169,7 +167,7 @@ func newR1CSSolver(r1cs *cs.R1CS) (*levelSolver, error) {
 	return s, err
 }
 
-func newLevelSolver(system *cs.SparseR1CS) *levelSolver {
+func newLevelSolver(system *cs.SparseR1CS, maxWorkers int) *levelSolver {
 	return &levelSolver{
 		SparseR1CS: system,
 		solved:     make([]bool, len(system.Public)+len(system.Secret)+system.NbInternalVariables),
@@ -244,12 +242,7 @@ func (s *levelSolver) solve(witness fr.Vector, opts ...csolver.Option) error {
 	for i := range len(witness) + offset {
 		s.solved[i] = true
 	}
-	if s.termStart != nil {
-		nb := len(s.termStart) - 1
-		n := ecc.NextPowerOfTwo(uint64(nb))
-		// Only a is reused as scratch for the MSM scalars. FFT padding lives on the device.
-		s.a, s.b, s.c = make([]fr.Element, nb, n), make([]fr.Element, nb), make([]fr.Element, nb)
-	}
+
 	s.err = nil
 	s.failed.Store(false)
 	s.counts = make([]paddedCount, s.nbWorkers)
@@ -390,7 +383,6 @@ func (s *levelSolver) solveR1C(w int, i uint32) error {
 		b.Add(b, &wire)
 	case loc == 2:
 		wire.Mul(a, b).Sub(&wire, c)
-		c.Add(c, &wire)
 	default:
 		// Nothing to solve, or a zero factor leaves the wire at 0: the constraint must already hold.
 		if !check.Mul(a, b).Equal(c) {
@@ -410,7 +402,6 @@ func (s *levelSolver) solveR1C(w int, i uint32) error {
 		}
 		s.set(w, int(unsolved>>(2+s.cBits)), wire)
 	}
-	s.a[i], s.b[i], s.c[i] = *a, *b, *c
 	return nil
 }
 
@@ -431,12 +422,16 @@ func (s *levelSolver) solveGate(w, j int) error {
 		if s.solved[xa] {
 			x, y, qx, qy = xb, xa, qr, ql
 		}
-		den := term(qm, y)
-		den.Add(&den, &s.Coefficients[qx])
+		var den fr.Element
+		if qm == constraint.CoeffIdZero {
+			den = s.coeffInv[qx]
+		} else {
+			den = term(qm, y)
+			den.Add(&den, &s.Coefficients[qx]).Inverse(&den)
+		}
 		if den.IsZero() {
 			return errors.New("division by 0")
 		}
-		den.Inverse(&den)
 		num, o := term(qy, y), term(qo, xc)
 		num.Add(&num, &o).Add(&num, &s.Coefficients[qc]).Mul(&num, &den).Neg(&num)
 		s.set(w, int(x), num)
@@ -448,11 +443,11 @@ func (s *levelSolver) solveGate(w, j int) error {
 		case constraint.CoeffIdOne:
 			o.Neg(&o)
 		default:
-			var den fr.Element
-			if den.Inverse(&s.Coefficients[qo]); den.IsZero() {
+			den := &s.coeffInv[qo]
+			if den.IsZero() {
 				return errors.New("division by 0")
 			}
-			o.Mul(&o, &den).Neg(&o)
+			o.Mul(&o, den).Neg(&o)
 		}
 		s.set(w, int(xc), o)
 	default:

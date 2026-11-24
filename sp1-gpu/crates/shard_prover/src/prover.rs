@@ -18,7 +18,9 @@ use sp1_gpu_cudart::PinnedBuffer;
 use sp1_gpu_cudart::{DeviceMle, DevicePoint, TaskScope};
 use sp1_gpu_jagged_assist::prove_jagged_evaluation_sync;
 use sp1_gpu_jagged_sumcheck::{generate_jagged_sumcheck_poly, jagged_sumcheck};
-use sp1_gpu_jagged_tracegen::{full_tracegen_permit, main_tracegen_permit, CudaShardProverData};
+use sp1_gpu_jagged_tracegen::{
+    full_tracegen_with_preprocessing, main_tracegen_permit, CudaShardProverData,
+};
 use sp1_gpu_logup_gkr::{prove_logup_gkr, CudaLogUpGkrOptions, Interactions};
 use sp1_gpu_merkle_tree::{CudaTcsProver, SingleLayerMerkleTreeProverError};
 use sp1_gpu_tracegen::CudaTracegenAir;
@@ -234,87 +236,33 @@ where
         ShardProof<GC, <PC::C as MultilinearPcsVerifier<GC>>::Proof>,
         ProverPermit,
     ) {
-        // Get the initial global cumulative sum and pc start.
-        let pc_start = program.pc_start();
-        let untrusted_config = program.untrusted_config();
-        let initial_global_cumulative_sum = if let Some(vk) = vk {
-            vk.initial_global_cumulative_sum
-        } else {
-            let program = program.clone();
-            tokio::task::spawn_blocking(move || program.initial_global_cumulative_sum())
-                .instrument(tracing::debug_span!("initial_global_cumulative_sum"))
-                .await
-                .unwrap()
-        };
+        self.prove_record(program, record, vk, prover_permits, None, BTreeMap::new()).await
+    }
 
-        let buffer = self.inner.get_buffer().await;
-
-        let record = Arc::new(record);
-
-        // Generate trace.
-        let (public_values, trace_data, chip_set, permit) = full_tracegen_permit(
-            self.machine(),
-            program,
-            record,
-            &buffer,
-            self.inner.max_trace_size,
-            self.inner.basefold_prover.log_height,
-            self.inner.max_log_row_count,
-            &self.inner.backend,
-            prover_permits,
-            true,
-        )
-        .instrument(tracing::debug_span!("generate all traces"))
-        .await;
-
-        let inner = self.inner.clone();
-        let (pk, vk) = tokio::task::spawn_blocking({
-            let span = tracing::debug_span!("setup_from_preprocessed_data_and_traces");
-            move || {
-                let _guard = span.enter();
-                inner.setup_from_preprocessed_data_and_traces(
-                    pc_start,
-                    initial_global_cumulative_sum,
-                    trace_data,
-                    untrusted_config,
-                )
-            }
-        })
-        .await
-        .unwrap();
-
-        let trace_data = Mutex::new(pk);
-
-        let pk = ProvingKey { vk: vk.clone(), preprocessed_data: trace_data };
-
-        let pk = Arc::new(pk);
-
-        let main_trace_data =
-            MainTraceData { traces: pk, public_values, shard_chips: chip_set, permit };
-
-        // Create a chanllenger
-        let mut challenger = GC::default_challenger();
-        // Observe the preprocessed information.
-        vk.observe_into(&mut challenger);
-
-        let shard_data = ShardData { main_trace_data };
-
-        let inner = self.inner.clone();
-        let (shard_proof, permit) = tokio::task::spawn_blocking({
-            let span = tracing::debug_span!("prove_shard_with_data");
-            move || {
-                let _guard = span.enter();
-                inner.prove_shard_with_data(shard_data, challenger)
-            }
-        })
-        .await
-        .unwrap();
-
-        // tracing::debug_span!("prove shard with data")
-        //     .in_scope(|| self.prove_shard_with_data(shard_data, challenger));
-        drop(buffer);
-
-        (vk, shard_proof, permit)
+    async fn prove_with_cached_setup(
+        &self,
+        program: Arc<<PC::Air as MachineAir<GC::F>>::Program>,
+        pk: Arc<ProvingKey<GC, ShardContextImpl<GC, PC::C, PC::Air>, Self>>,
+        record: <PC::Air as MachineAir<GC::F>>::Record,
+        prover_permits: ProverSemaphore,
+        host_traces: BTreeMap<String, Vec<Felt>>,
+    ) -> (ShardProof<GC, <PC::C as MultilinearPcsVerifier<GC>>::Proof>, ProverPermit) {
+        let setup = pk.preprocessed_data.lock().await;
+        let cached = (setup.preprocessed_traces.clone(), setup.preprocessed_data.clone());
+        drop(setup);
+        let (_, proof, permit) = self
+            .prove_record(
+                program,
+                record,
+                Some(pk.vk.clone()),
+                prover_permits,
+                Some(cached),
+                host_traces,
+            )
+            .await;
+        // Keep the source buffers alive until the shard stream has finished reading them.
+        drop(pk);
+        (proof, permit)
     }
 
     /// Prove a shard with a given proving key.
@@ -383,6 +331,146 @@ where
             .iter()
             .map(|(name, offset)| (name.clone(), offset.poly_size))
             .collect()
+    }
+}
+
+impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>> CudaShardProver<GC, PC>
+where
+    GC::Challenger: DeviceGrindingChallenger<Witness = GC::F>,
+    GC::Challenger: slop_challenger::FieldChallenger<
+        <GC::Challenger as slop_challenger::GrindingChallenger>::Witness,
+    >,
+    SP1PcsProof<GC>: Into<<PC::C as MultilinearPcsVerifier<GC>>::Proof>,
+    TaskScope: sp1_gpu_jagged_assist::BranchingProgramKernel<GC::F, GC::EF, PC::DeviceChallenger>,
+{
+    async fn prove_record(
+        &self,
+        program: Arc<<PC::Air as MachineAir<GC::F>>::Program>,
+        record: <PC::Air as MachineAir<GC::F>>::Record,
+        vk: Option<MachineVerifyingKey<GC>>,
+        prover_permits: ProverSemaphore,
+        cached: Option<(
+            Arc<JaggedTraceMle<Felt, TaskScope>>,
+            Arc<JaggedProverData<GC, CudaStackedPcsProverData<GC>>>,
+        )>,
+        host_traces: BTreeMap<String, Vec<Felt>>,
+    ) -> (
+        MachineVerifyingKey<GC>,
+        ShardProof<GC, <PC::C as MultilinearPcsVerifier<GC>>::Proof>,
+        ProverPermit,
+    ) {
+        let use_private_stream = prover_permits.allows_concurrent_traces();
+        let prove = |scope: TaskScope| async move {
+            let pc_start = program.pc_start();
+            let untrusted_config = program.untrusted_config();
+            let initial_global_cumulative_sum = if let Some(vk) = &vk {
+                vk.initial_global_cumulative_sum
+            } else {
+                let program = program.clone();
+                tokio::task::spawn_blocking(move || program.initial_global_cumulative_sum())
+                    .instrument(tracing::debug_span!("initial_global_cumulative_sum"))
+                    .await
+                    .unwrap()
+            };
+
+            let buffer = self.inner.get_buffer().await;
+
+            let record = Arc::new(record);
+
+            // Generate trace.
+            let (public_values, trace_data, chip_set, permit) = full_tracegen_with_preprocessing(
+                self.machine(),
+                program,
+                record,
+                &buffer,
+                self.inner.max_trace_size,
+                self.inner.basefold_prover.log_height,
+                self.inner.max_log_row_count,
+                &scope,
+                prover_permits,
+                true,
+                cached.as_ref().map(|(prefix, _)| prefix.as_ref()),
+                host_traces,
+            )
+            .instrument(tracing::debug_span!("generate all traces"))
+            .await;
+
+            let inner = self.inner.clone();
+            let (pk, vk) = if let Some((_, data)) = cached.as_ref() {
+                let pk = CudaShardProverData::from_shared(
+                    trace_data,
+                    data.clone(),
+                    inner.max_trace_size,
+                );
+                (pk, vk.unwrap())
+            } else {
+                tokio::task::spawn_blocking({
+                    let span = tracing::debug_span!("setup_from_preprocessed_data_and_traces");
+                    move || {
+                        let _guard = span.enter();
+                        inner.setup_from_preprocessed_data_and_traces(
+                            pc_start,
+                            initial_global_cumulative_sum,
+                            trace_data,
+                            untrusted_config,
+                        )
+                    }
+                })
+                .await
+                .unwrap()
+            };
+
+            let trace_data = Mutex::new(pk);
+
+            let pk = ProvingKey { vk: vk.clone(), preprocessed_data: trace_data };
+
+            let pk = Arc::new(pk);
+
+            let main_trace_data =
+                MainTraceData { traces: pk, public_values, shard_chips: chip_set, permit };
+
+            // Create a chanllenger
+            let mut challenger = GC::default_challenger();
+            // Observe the preprocessed information.
+            vk.observe_into(&mut challenger);
+
+            let shard_data = ShardData { main_trace_data };
+
+            let inner = self.inner.clone();
+            let (shard_proof, permit) = tokio::task::spawn_blocking({
+                let span = tracing::debug_span!("prove_shard_with_data");
+                move || {
+                    let _guard = span.enter();
+                    inner.prove_shard_with_data(shard_data, challenger)
+                }
+            })
+            .await
+            .unwrap();
+
+            // tracing::debug_span!("prove shard with data")
+            //     .in_scope(|| self.prove_shard_with_data(shard_data, challenger));
+            drop(buffer);
+
+            (vk, shard_proof, permit)
+        };
+        if !use_private_stream {
+            return prove(self.inner.backend.clone()).await;
+        }
+        let mut result = None;
+        self.inner
+            .backend
+            .run_in_place(|scope| {
+                let result = &mut result;
+                async move {
+                    *result = Some(prove(scope.clone()).await);
+                    // All device data is private to this proof. Finish its transfers before
+                    // returning the stream to the pool and exposing the host proof.
+                    scope.synchronize().await.unwrap();
+                }
+            })
+            .await
+            .unwrap();
+        result.unwrap()
     }
 }
 
@@ -645,10 +733,10 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
 
         let locked_preprocessed_data = traces.preprocessed_data.blocking_lock();
         let traces = &locked_preprocessed_data.preprocessed_traces;
-        let preprocessed_data = &locked_preprocessed_data.preprocessed_data;
+        let preprocessed_data = locked_preprocessed_data.preprocessed_data.as_ref();
 
         // Commit to the traces.
-        let (main_commit, main_data) =
+        let (main_commit, mut main_data) =
             tracing::debug_span!("commit traces").in_scope(|| self.commit_traces(traces, false));
         // Observe the commitments.
         <GC::Challenger as CanObserve<GC::Digest>>::observe(&mut challenger, main_commit);
@@ -663,13 +751,35 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
             }
         }
 
+        // The first LogUp layer, its folded extension-field layers and the
+        // sumcheck scratch space coexist with the committed main codeword.
+        let interaction_rows: usize = shard_chips
+            .iter()
+            .map(|chip| {
+                traces.main_poly_height(chip.name()).unwrap_or(0)
+                    * (chip.sends().len() + chip.receives().len())
+            })
+            .sum();
+        let mut recompute_first_layer = self.recompute_first_layer;
+        if interaction_rows >= 1 << 25 {
+            if let Ok(mut available) = sp1_gpu_cudart::cuda_pool_available_memory() {
+                // The Merkle tree is sufficient until FRI openings. Re-encode
+                // a large codeword there if keeping it would crowd out LogUp.
+                if available < interaction_rows.saturating_mul(144) {
+                    if let Some(codeword) = main_data.pcs_prover_data.codeword_mle.take() {
+                        available += codeword.total_len() * size_of::<Felt>();
+                    }
+                }
+                recompute_first_layer |= available < interaction_rows.saturating_mul(112);
+            }
+        }
         let logup_gkr_proof = tracing::debug_span!("logup gkr proof").in_scope(|| {
             prove_logup_gkr::<GC, _>(
                 shard_chips,
                 self.all_interactions.clone(),
                 traces,
                 CudaLogUpGkrOptions {
-                    recompute_first_layer: self.recompute_first_layer,
+                    recompute_first_layer,
                     num_row_variables: self.max_log_row_count,
                 },
                 &mut challenger,
@@ -705,7 +815,7 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
         let mut main_host: Vec<GC::EF> = Vec::new();
         let mut has_preprocessed = false;
 
-        let alloc = self.backend.clone();
+        let alloc = traces.backend().clone();
 
         for open_values in shard_open_values.chips.values() {
             let prep_local = &open_values.preprocessed.local;

@@ -934,6 +934,16 @@ impl ByteRecord for ExecutionRecord {
 }
 
 impl ExecutionRecord {
+    /// Merge the nonzero byte multiplicities from dependency workers.
+    pub fn add_byte_lookup_counts(
+        &mut self,
+        counts: impl IntoIterator<Item = (ByteLookupEvent, usize)>,
+    ) {
+        for (event, count) in counts {
+            *self.byte_lookups.entry(event).or_default() += count;
+        }
+    }
+
     #[allow(clippy::type_complexity)]
     fn eval_state<AB: SP1AirBuilder>(
         public_values: &PublicValues<

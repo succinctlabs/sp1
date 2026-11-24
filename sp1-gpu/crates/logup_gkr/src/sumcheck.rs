@@ -1,10 +1,7 @@
 //! Gkr is composed of rounds. Each round corresponds to a layer. Each round is a sumcheck.
 //! For the first layer, the numerator is a base field element and the denominator over extension field elements, so it requires some special treatment.
 use itertools::Itertools;
-use slop_algebra::{
-    interpolate_univariate_polynomial, AbstractExtensionField, AbstractField, Field,
-    UnivariatePolynomial,
-};
+use slop_algebra::{AbstractExtensionField, AbstractField, Field, UnivariatePolynomial};
 use slop_alloc::{Buffer, HasBackend};
 use slop_challenger::{FieldChallenger, IopCtx};
 use slop_multilinear::{Mle, Point};
@@ -31,11 +28,11 @@ use sp1_gpu_cudart::{
         },
         runtime::KernelPtr,
     },
-    DeviceBuffer, DeviceMle, DeviceTensor, TaskScope,
+    DeviceMle, DeviceTensor, TaskScope,
 };
 
 use crate::{
-    layer::JaggedGkrLayer,
+    layer::{FoldLayouts, JaggedGkrLayer},
     utils::{
         generate_test_data, jagged_gkr_layer_to_device, FirstLayerPolynomial, GkrLayer,
         GkrTestData, LogupRoundPolynomial, PolynomialLayer,
@@ -43,15 +40,36 @@ use crate::{
 };
 use rayon::prelude::*;
 use slop_sumcheck::partially_verify_sumcheck_proof;
-use sp1_gpu_utils::{fold_jagged_metadata_dev, DenseData, Ext, Felt, JaggedMle};
+use sp1_gpu_utils::{DenseData, Ext, Felt, JaggedMle};
 
 pub fn get_component_poly_evals(poly: &LogupRoundPolynomial) -> Vec<Ext> {
     match &poly.layer {
         PolynomialLayer::InteractionsLayer(guts) => {
             debug_assert_eq!(guts.sizes(), [4, 1]);
-            DeviceBuffer::from_raw(guts.as_buffer().clone()).to_host().unwrap().to_vec()
+            DeviceTensor::copy_to_host(guts).unwrap().as_slice().to_vec()
         }
         PolynomialLayer::CircuitLayer(_) => unreachable!(),
+    }
+}
+
+// Give short round grids enough blocks to distribute their field arithmetic.
+fn round_blocks(height: usize) -> usize {
+    const BLOCK_SIZE: usize = 256;
+    height.div_ceil(4 * BLOCK_SIZE).min(512).max(height.div_ceil(32 * BLOCK_SIZE))
+}
+
+// Sum small block outputs on the host. The round transcript needs these values
+// on the host anyway, and copying a few more elements saves a reduction launch.
+fn round_sums<const N: usize>(output: Tensor<Ext, TaskScope>) -> [Ext; N] {
+    let blocks = output.sizes()[1];
+    debug_assert_eq!(output.sizes()[0], N);
+    let output = DeviceTensor::from_raw(output);
+    if blocks <= 32 {
+        let values = output.to_host().unwrap();
+        let values = values.as_slice();
+        std::array::from_fn(|i| values[i * blocks..(i + 1) * blocks].iter().copied().sum())
+    } else {
+        output.into_sum_dim(1).to_host().unwrap().as_slice().try_into().unwrap()
     }
 }
 
@@ -60,43 +78,63 @@ fn finalize_univariate(
     univariate_evals: Tensor<Ext, TaskScope>,
     claim: Ext,
 ) -> UnivariatePolynomial<Ext> {
-    let evals = DeviceTensor::from_raw(univariate_evals).sum_dim(1).to_host().unwrap();
-    let mut eval_zero: Ext = *evals[[0]];
-    let mut eval_half: Ext = *evals[[1]];
-    let eq_sum = *evals[[2]];
-    let point_last = *poly.point.last().unwrap();
-
-    // Correct the evaluations by the sum of the eq polynomial, which accounts for the
-    // contribution of padded row for the denominator expression
-    // `\Sum_i eq * denominator_0 * denominator_1`.
-    let eq_correction_term = poly.padding_adjustment - eq_sum;
-    // The evaluation at zero just gets the eq correction term.
-    eval_zero += eq_correction_term * (Ext::one() - point_last);
-    // The evaluation at 1/2 gets the eq correction term times 4, since the denominators
-    // have a 1/2 in them for the rest of the evaluations (so we multiply by 2 twice).
-    eval_half += eq_correction_term * Ext::from_canonical_u16(4);
-
-    // Since the sumcheck polynomial is homogeneous of degree 3, we need to divide by
-    // 8 = 2^3 to account for the evaluations at 1/2 to be double their true value.
-    let eval_half = eval_half * Ext::from_canonical_u16(8).inverse();
-
-    let eval_zero = eval_zero * poly.eq_adjustment;
-    let eval_half = eval_half * poly.eq_adjustment;
-
-    // Get the root of the eq polynomial which gives an evaluation of zero.
-    let b_const = (Ext::one() - point_last) / (Ext::one() - point_last.double());
-
-    let eval_one = claim - eval_zero;
-
-    interpolate_univariate_polynomial(
-        &[
-            Ext::from_canonical_u16(0),
-            Ext::from_canonical_u16(1),
-            Ext::from_canonical_u16(2).inverse(),
-            b_const,
-        ],
-        &[eval_zero, eval_one, eval_half, Ext::zero()],
+    let evals = round_sums::<3>(univariate_evals);
+    interpolate_round(
+        *poly.point.last().unwrap(),
+        poly.eq_adjustment,
+        poly.padding_adjustment - evals[2],
+        evals[0],
+        evals[1],
+        claim,
     )
+}
+
+// Every round polynomial is eq(z, X) times a quadratic. Interpolate that
+// quadratic at 0, 1, and 1/2; multiplying by the linear factor restores the cubic.
+struct EqCubic {
+    intercept: Ext,
+    slope: Ext,
+    inv_zero: Ext,
+    inv_one: Ext,
+}
+
+impl EqCubic {
+    fn new(z: Ext) -> Self {
+        let intercept = Ext::one() - z;
+        let inv = (intercept * z).inverse();
+        Self { intercept, slope: z - intercept, inv_zero: inv * z, inv_one: inv * intercept }
+    }
+
+    fn interpolate(&self, zero: Ext, one: Ext, half: Ext) -> UnivariatePolynomial<Ext> {
+        let a = zero * self.inv_zero;
+        let at_one = one * self.inv_one;
+        // eq(z, 1/2) = 1/2 for every z.
+        let c = (a + at_one - half.double().double()).double();
+        let b = at_one - a - c;
+        UnivariatePolynomial::new(vec![
+            zero,
+            self.intercept * b + self.slope * a,
+            self.intercept * c + self.slope * b,
+            self.slope * c,
+        ])
+    }
+}
+
+// The midpoint sum uses doubled linear factors. Unmaterialized rows have numerator
+// zero and denominator one, and contribute their missing equality-polynomial mass.
+fn interpolate_round(
+    point_last: Ext,
+    adjustment: Ext,
+    missing: Ext,
+    zero: Ext,
+    half: Ext,
+    claim: Ext,
+) -> UnivariatePolynomial<Ext> {
+    let eval_zero = (zero + missing * (Ext::one() - point_last)) * adjustment;
+    let eval_half = (half + missing * Ext::from_canonical_u16(4))
+        * Ext::from_canonical_u16(8).inverse()
+        * adjustment;
+    EqCubic::new(point_last).interpolate(eval_zero, claim - eval_zero, eval_half)
 }
 
 /// One pass over a circuit or leaf layer accumulating the two-round polynomial
@@ -119,7 +157,7 @@ fn two_round_sum_as_poly<D: DenseData<TaskScope>>(
     const BLOCK_SIZE: usize = 256;
     const STRIDE: usize = 32;
     // Each iteration consumes one quad (two pairs).
-    let grid_dim = height.div_ceil(BLOCK_SIZE * STRIDE * 2);
+    let grid_dim = round_blocks(height.div_ceil(2));
     let mut output = Tensor::<Ext, TaskScope>::with_sizes_in([10, grid_dim], scope.clone());
 
     let num_tiles = BLOCK_SIZE.checked_div(STRIDE).unwrap_or(1);
@@ -137,8 +175,7 @@ fn two_round_sum_as_poly<D: DenseData<TaskScope>>(
         scope.launch_kernel(kernel(), grid_dim, BLOCK_SIZE, &args, shared_mem).unwrap();
     }
 
-    let evals = DeviceTensor::from_raw(output).sum_dim(1).to_host().unwrap();
-    evals.as_slice().try_into().unwrap()
+    round_sums(output)
 }
 
 /// Derives the first two round messages from the two-round grid, mirroring
@@ -162,7 +199,6 @@ fn two_round_univariates<C: FieldChallenger<Felt>>(
     let (z_y, z_x) = z;
     let (eq_adjustment, padding_adjustment) = adjustments;
 
-    let half = Ext::from_canonical_u16(2).inverse();
     let inv_eight = Ext::from_canonical_u16(8).inverse();
 
     // Round 1: `g₁(Y) = h(0, Y) + h(1, Y)`, corrected by the eq mass of the virtual padded
@@ -172,22 +208,16 @@ fn two_round_univariates<C: FieldChallenger<Felt>>(
     let eval_half = (h_0_half + h_1_half + eq_correction * Ext::from_canonical_u16(4))
         * inv_eight
         * eq_adjustment;
-    let b_y = (Ext::one() - z_y) / (Ext::one() - z_y.double());
-    let eval_one = claim - eval_zero;
-    let uni_poly = interpolate_univariate_polynomial(
-        &[Ext::zero(), Ext::one(), half, b_y],
-        &[eval_zero, eval_one, eval_half, Ext::zero()],
-    );
+    let basis_y = EqCubic::new(z_y);
+    let uni_poly = basis_y.interpolate(eval_zero, claim - eval_zero, eval_half);
     let alpha_1 = process_univariate_polynomial(uni_poly, challenger, univariate_poly_msgs, point);
     let round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha_1);
 
     // Round 2: `g₂(X) = h(X, α₁)`. Every materialized summand of a grid column carries the
     // `Y`-eq factor, so the columns also vanish at `b_Y`. The `X = ½` column keeps its 2³
     // scale so the corrections below match `finalize_univariate` verbatim.
-    let grid_points = [Ext::zero(), Ext::one(), half, b_y];
     let column_at_alpha_1 = |v_0: Ext, v_1: Ext, v_half: Ext| {
-        interpolate_univariate_polynomial(&grid_points, &[v_0, v_1, v_half, Ext::zero()])
-            .eval_at_point(alpha_1)
+        basis_y.interpolate(v_0, v_1, v_half).eval_at_point(alpha_1)
     };
     let folded_eval_zero = column_at_alpha_1(h_0_0, h_0_1, h_0_half * inv_eight);
     let folded_eval_half = column_at_alpha_1(h_half_0, h_half_1, h_half_half * inv_eight);
@@ -202,12 +232,7 @@ fn two_round_univariates<C: FieldChallenger<Felt>>(
     let eval_zero = (folded_eval_zero + eq_correction * (Ext::one() - z_x)) * eq_adjustment;
     let eval_half =
         (folded_eval_half + eq_correction * Ext::from_canonical_u16(4)) * inv_eight * eq_adjustment;
-    let b_x = (Ext::one() - z_x) / (Ext::one() - z_x.double());
-    let eval_one = round_claim - eval_zero;
-    let uni_poly = interpolate_univariate_polynomial(
-        &[Ext::zero(), Ext::one(), half, b_x],
-        &[eval_zero, eval_one, eval_half, Ext::zero()],
-    );
+    let uni_poly = EqCubic::new(z_x).interpolate(eval_zero, round_claim - eval_zero, eval_half);
     let alpha_2 = process_univariate_polynomial(uni_poly, challenger, univariate_poly_msgs, point);
     let round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha_2);
 
@@ -220,6 +245,7 @@ fn two_round_univariates<C: FieldChallenger<Felt>>(
 /// values. `eq_row` must already be folded by both challenges.
 fn two_round_fix_and_sum<D: DenseData<TaskScope>>(
     jagged_mle: &JaggedMle<D, TaskScope>,
+    layouts: &FoldLayouts,
     height: usize,
     eq_row: &DeviceMle<Ext>,
     eq_interaction: &DeviceMle<Ext>,
@@ -230,9 +256,8 @@ fn two_round_fix_and_sum<D: DenseData<TaskScope>>(
     let backend = jagged_mle.backend();
 
     // Advance the jagged metadata two folds; the intermediate layer is never materialized.
-    let (_, mid_column_heights, _) = fold_jagged_metadata_dev(jagged_mle.column_heights());
-    let (output_interaction_start_indices, output_interaction_row_counts, output_height_u32) =
-        fold_jagged_metadata_dev(&mid_column_heights);
+    let (output_interaction_start_indices, output_interaction_row_counts, output_height_u32, folds) =
+        layouts.after(2, jagged_mle.column_heights());
     let output_height = output_height_u32 as usize;
 
     // Create the doubly-folded layer.
@@ -241,7 +266,7 @@ fn two_round_fix_and_sum<D: DenseData<TaskScope>>(
     let output_col_index: Buffer<u32, TaskScope> =
         Buffer::with_capacity_in(output_height, backend.clone());
 
-    let output_jagged_layer = JaggedGkrLayer::new(output_layer, output_height);
+    let output_jagged_layer = JaggedGkrLayer { layer: output_layer, height: output_height, folds };
     let mut output_jagged_mle = JaggedMle::new(
         output_jagged_layer,
         output_col_index,
@@ -251,8 +276,7 @@ fn two_round_fix_and_sum<D: DenseData<TaskScope>>(
 
     // populate the new layer
     const BLOCK_SIZE: usize = 256;
-    const STRIDE: usize = 32;
-    let grid_size_x = height.div_ceil(BLOCK_SIZE * STRIDE);
+    let grid_size_x = round_blocks(height);
     let grid_size = (grid_size_x, 1, 1);
 
     let mut univariate_evals =
@@ -314,6 +338,7 @@ fn two_round_fix_and_sum_circuit_layer(
 
     let (output_jagged_mle, univariate_evals) = two_round_fix_and_sum(
         &circuit.jagged_mle,
+        &circuit.jagged_mle.dense_data.folds,
         circuit.jagged_mle.dense_data.height,
         &eq_row,
         &eq_interaction,
@@ -364,6 +389,7 @@ fn two_round_fix_and_sum_first_layer(
 
     let (output_jagged_mle, univariate_evals) = two_round_fix_and_sum(
         &layer.jagged_mle,
+        &layer.jagged_mle.dense_data.folds,
         layer.jagged_mle.dense_data.height,
         &eq_row,
         &eq_interaction,
@@ -403,7 +429,7 @@ fn sum_as_poly_first_layer(poly: &FirstLayerPolynomial, claim: Ext) -> Univariat
     const BLOCK_SIZE: usize = 256;
     const STRIDE: usize = 32;
 
-    let grid_dim = height.div_ceil(BLOCK_SIZE).div_ceil(STRIDE);
+    let grid_dim = round_blocks(height);
     let mut output = Tensor::<Ext, TaskScope>::with_sizes_in([3, grid_dim], scope.clone());
 
     let num_tiles = BLOCK_SIZE.checked_div(STRIDE).unwrap_or(1);
@@ -428,39 +454,15 @@ fn sum_as_poly_first_layer(poly: &FirstLayerPolynomial, claim: Ext) -> Univariat
             )
             .unwrap();
     }
-    let evals = DeviceTensor::from_raw(output).sum_dim(1).to_host().unwrap();
+    let evals = round_sums::<3>(output);
 
-    let mut eval_zero: Ext = *evals[[0]];
-    let mut eval_half: Ext = *evals[[1]];
-    let eq_sum = *evals[[2]];
-
-    // Correct the evaluations by the sum of the eq polynomial, which accounts for the
-    // contribution of padded row for the denominator expression
-    // `\Sum_i eq * denominator_0 * denominator_1`.
-    let eq_correction_term = Ext::one() - eq_sum;
-    // The evaluation at zero just gets the eq correction term.
-    eval_zero += eq_correction_term * (Ext::one() - *poly.point.last().unwrap());
-    // The evaluation at 1/2 gets the eq correction term times 4, since the denominators
-    // have a 1/2 in them for the rest of the evaluations (so we multiply by 2 twice).
-    eval_half += eq_correction_term * Ext::from_canonical_u16(4);
-
-    // Since the sumcheck polynomial is homogeneous of degree 3, we need to divide by
-    // 8 = 2^3 to account for the evaluations at 1/2 to be double their true value.
-    let eval_half = eval_half * Ext::from_canonical_u16(8).inverse();
-
-    // Get the root of the eq polynomial which gives an evaluation of zero.
-    let point_last = poly.point.last().unwrap();
-    let b_const = (Ext::one() - *point_last) / (Ext::one() - point_last.double());
-
-    let eval_one = claim - eval_zero;
-    interpolate_univariate_polynomial(
-        &[
-            Ext::from_canonical_u16(0),
-            Ext::from_canonical_u16(1),
-            Ext::from_canonical_u16(2).inverse(),
-            b_const,
-        ],
-        &[eval_zero, eval_one, eval_half, Ext::zero()],
+    interpolate_round(
+        *poly.point.last().unwrap(),
+        Ext::one(),
+        Ext::one() - evals[2],
+        evals[0],
+        evals[1],
+        claim,
     )
 }
 
@@ -482,8 +484,7 @@ fn fix_last_variable_materialized_round(
             let mut output = Tensor::with_sizes_in([4, output_height], backend.clone());
 
             const BLOCK_SIZE: usize = 256;
-            const STRIDE: usize = 32;
-            let grid_size_x = height.div_ceil(BLOCK_SIZE * STRIDE);
+            let grid_size_x = round_blocks(height);
             let grid_size = (grid_size_x, 1, 1);
 
             unsafe {
@@ -573,8 +574,8 @@ fn fix_and_sum_first_layer(
     let height = poly.layer.jagged_mle.dense_data.height >> 1;
 
     // Compute the next layer's start indices and column heights on device.
-    let (output_interaction_start_indices, output_interaction_row_counts, output_height_u32) =
-        poly.layer.jagged_mle.next_start_indices_and_column_heights_dev();
+    let (output_interaction_start_indices, output_interaction_row_counts, output_height_u32, folds) =
+        poly.layer.jagged_mle.dense_data.folds.after(1, poly.layer.jagged_mle.column_heights());
     let output_height = output_height_u32 as usize;
 
     // Create a new layer
@@ -583,7 +584,7 @@ fn fix_and_sum_first_layer(
     let output_col_index: Buffer<u32, TaskScope> =
         Buffer::with_capacity_in(output_height, backend.clone());
 
-    let output_jagged_layer = JaggedGkrLayer::new(output_layer, output_height);
+    let output_jagged_layer = JaggedGkrLayer { layer: output_layer, height: output_height, folds };
     let mut output_jagged_mle = JaggedMle::new(
         output_jagged_layer,
         output_col_index,
@@ -597,7 +598,7 @@ fn fix_and_sum_first_layer(
     // populate the new layer
     const BLOCK_SIZE: usize = 256;
     const STRIDE: usize = 32;
-    let grid_size_x = height.div_ceil(BLOCK_SIZE * STRIDE);
+    let grid_size_x = round_blocks(height);
     let mut univariate_evals =
         Tensor::<Ext, TaskScope>::with_sizes_in([3, grid_size_x], backend.clone());
     let grid_size = (grid_size_x, 1, 1);
@@ -660,7 +661,7 @@ fn sum_as_poly_materialized_round(
 
             const BLOCK_SIZE: usize = 256;
             const STRIDE: usize = 32;
-            let grid_dim = height.div_ceil(BLOCK_SIZE).div_ceil(STRIDE);
+            let grid_dim = round_blocks(height);
             let mut output = Tensor::<Ext, TaskScope>::with_sizes_in([3, grid_dim], scope.clone());
             let num_tiles = BLOCK_SIZE.checked_div(STRIDE).unwrap_or(1);
             let shared_mem = num_tiles * std::mem::size_of::<Ext>();
@@ -713,8 +714,7 @@ fn fix_and_sum_materialized_round(
             let mut output = Tensor::with_sizes_in([4, output_height], backend.clone());
 
             const BLOCK_SIZE: usize = 256;
-            const STRIDE: usize = 32;
-            let grid_size_x = height.div_ceil(BLOCK_SIZE).div_ceil(STRIDE);
+            let grid_size_x = round_blocks(height);
             let grid_size = (grid_size_x, 1, 1);
             let mut univariate_evals =
                 Tensor::<Ext, TaskScope>::with_sizes_in([3, grid_size_x], backend.clone());
@@ -772,8 +772,7 @@ fn fix_and_sum_materialized_round(
                 let eq_row = poly.eq_row.fix_last_variable_constant_padding(alpha, Ext::zero());
 
                 const BLOCK_SIZE: usize = 256;
-                const STRIDE: usize = 32;
-                let grid_size_x = height.div_ceil(BLOCK_SIZE).div_ceil(STRIDE);
+                let grid_size_x = round_blocks(height);
                 let grid_size = (grid_size_x, 1, 1);
                 let mut univariate_evals =
                     Tensor::<Ext, TaskScope>::with_sizes_in([3, grid_size_x], backend.clone());
@@ -819,7 +818,12 @@ fn fix_and_sum_materialized_round(
                     output_interaction_start_indices,
                     output_interaction_row_counts,
                     output_height_u32,
-                ) = circuit.jagged_mle.next_start_indices_and_column_heights_dev();
+                    folds,
+                ) = circuit
+                    .jagged_mle
+                    .dense_data
+                    .folds
+                    .after(1, circuit.jagged_mle.column_heights());
                 let output_height = output_height_u32 as usize;
 
                 // Create a new layer
@@ -828,7 +832,8 @@ fn fix_and_sum_materialized_round(
                 let output_col_index: Buffer<u32, TaskScope> =
                     Buffer::with_capacity_in(output_height, backend.clone());
 
-                let output_jagged_layer = JaggedGkrLayer::new(output_layer, output_height);
+                let output_jagged_layer =
+                    JaggedGkrLayer { layer: output_layer, height: output_height, folds };
                 let mut output_jagged_mle = JaggedMle::new(
                     output_jagged_layer,
                     output_col_index,
@@ -838,8 +843,7 @@ fn fix_and_sum_materialized_round(
 
                 // populate the new layer
                 const BLOCK_SIZE: usize = 256;
-                const STRIDE: usize = 32;
-                let grid_size_x = height.div_ceil(BLOCK_SIZE).div_ceil(STRIDE);
+                let grid_size_x = round_blocks(height);
                 let grid_size = (grid_size_x, 1, 1);
                 let block_dim = BLOCK_SIZE;
 
@@ -940,7 +944,7 @@ where
     // halves that allocation on top of saving a pass over the leaf.
     let use_lookahead = poly.layer.num_row_variables > 2;
 
-    let (mut alpha, mut poly, rounds_processed) = if use_lookahead {
+    let poly = if use_lookahead {
         let grid = two_round_sum_as_poly(
             &poly.layer.jagged_mle,
             poly.layer.jagged_mle.dense_data.height,
@@ -964,13 +968,8 @@ where
         );
         let (uni_poly, next_poly) =
             two_round_fix_and_sum_first_layer(poly, alpha_1, alpha_2, claim_3);
-        let alpha = process_univariate_polynomial(
-            uni_poly,
-            challenger,
-            &mut univariate_poly_msgs,
-            &mut point,
-        );
-        (alpha, next_poly, 3)
+        process_univariate_polynomial(uni_poly, challenger, &mut univariate_poly_msgs, &mut point);
+        next_poly
     } else {
         let uni_poly = sum_as_poly_first_layer(&poly, claim);
 
@@ -986,44 +985,11 @@ where
 
         let (uni_poly, next_poly) = fix_and_sum_first_layer(poly, alpha, round_claim);
 
-        let alpha = process_univariate_polynomial(
-            uni_poly,
-            challenger,
-            &mut univariate_poly_msgs,
-            &mut point,
-        );
-        (alpha, next_poly, 2)
+        process_univariate_polynomial(uni_poly, challenger, &mut univariate_poly_msgs, &mut point);
+        next_poly
     };
 
-    for _ in rounds_processed..num_variables as usize {
-        // Get the round claims from the last round's univariate poly messages.
-        let round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha);
-
-        let (uni_poly, next_poly) = fix_and_sum_materialized_round(poly, alpha, round_claim);
-        poly = next_poly;
-
-        alpha = process_univariate_polynomial(
-            uni_poly,
-            challenger,
-            &mut univariate_poly_msgs,
-            &mut point,
-        );
-    }
-
-    poly = fix_last_variable_materialized_round(poly, *point.first().unwrap());
-
-    let evals = univariate_poly_msgs.last().unwrap().eval_at_point(*point.first().unwrap());
-
-    let component_poly_evals = get_component_poly_evals(&poly);
-
-    (
-        PartialSumcheckProof {
-            univariate_polys: univariate_poly_msgs,
-            claimed_sum: claim,
-            point_and_eval: (point.into(), evals),
-        },
-        component_poly_evals,
-    )
+    finish_sumcheck(poly, challenger, claim, point, univariate_poly_msgs)
 }
 
 pub fn materialized_round_sumcheck<C: FieldChallenger<Felt>>(
@@ -1045,8 +1011,6 @@ pub fn materialized_round_sumcheck<C: FieldChallenger<Felt>>(
         PolynomialLayer::CircuitLayer(circuit) if circuit.num_row_variables > 2
     );
 
-    let mut round_claim;
-    let rounds_processed;
     if use_lookahead {
         let PolynomialLayer::CircuitLayer(circuit) = &poly.layer else { unreachable!() };
         let grid = two_round_sum_as_poly(
@@ -1072,73 +1036,92 @@ pub fn materialized_round_sumcheck<C: FieldChallenger<Felt>>(
         let (uni_poly, next_poly) =
             two_round_fix_and_sum_circuit_layer(poly, alpha_1, alpha_2, claim_3);
         poly = next_poly;
-        let alpha = process_univariate_polynomial(
-            uni_poly,
-            challenger,
-            &mut univariate_poly_msgs,
-            &mut point,
-        );
-        round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha);
-        rounds_processed = 3;
+        process_univariate_polynomial(uni_poly, challenger, &mut univariate_poly_msgs, &mut point);
     } else {
         // First round: compute initial univariate polynomial
         let uni_poly = sum_as_poly_materialized_round(&poly, claim);
-        let alpha = process_univariate_polynomial(
-            uni_poly,
-            challenger,
-            &mut univariate_poly_msgs,
-            &mut point,
-        );
+        process_univariate_polynomial(uni_poly, challenger, &mut univariate_poly_msgs, &mut point);
+    }
+    finish_sumcheck(poly, challenger, claim, point, univariate_poly_msgs)
+}
 
-        // Early return for single variable case
-        if num_variables == 1 {
-            poly = fix_last_variable_materialized_round(poly, alpha);
-            let eval = univariate_poly_msgs[0].eval_at_point(alpha);
-            let component_poly_evals = get_component_poly_evals(&poly);
-
-            return (
-                PartialSumcheckProof {
-                    univariate_polys: univariate_poly_msgs,
-                    claimed_sum: claim,
-                    point_and_eval: (point.into(), eval),
-                },
-                component_poly_evals,
-            );
+fn finish_sumcheck<C: FieldChallenger<Felt>>(
+    mut poly: LogupRoundPolynomial,
+    challenger: &mut C,
+    claimed_sum: Ext,
+    mut point: Vec<Ext>,
+    mut messages: Vec<UnivariatePolynomial<Ext>>,
+) -> (PartialSumcheckProof<Ext>, Vec<Ext>) {
+    let components = loop {
+        let alpha = point[0];
+        let claim = messages.last().unwrap().eval_at_point(alpha);
+        if let PolynomialLayer::InteractionsLayer(guts) = &poly.layer {
+            // For the final small table one download costs less than launching and
+            // synchronizing several kernels for every remaining challenge.
+            if poly.eq_interaction.guts().total_len() <= 512 {
+                break finish_interactions(guts, &poly, challenger, &mut point, &mut messages);
+            }
         }
-
-        round_claim = univariate_poly_msgs[0].eval_at_point(alpha);
-        rounds_processed = 1;
-    }
-
-    // Process remaining rounds
-    for _round in rounds_processed..num_variables as usize {
-        let (uni_poly, next_poly) = fix_and_sum_materialized_round(poly, point[0], round_claim);
-        poly = next_poly;
-
-        let alpha = process_univariate_polynomial(
-            uni_poly,
-            challenger,
-            &mut univariate_poly_msgs,
-            &mut point,
-        );
-        round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha);
-    }
-
-    // Final fix_last_variable
-    poly = fix_last_variable_materialized_round(poly, point[0]);
-
-    // Compute final evaluation
-    let eval = univariate_poly_msgs.last().unwrap().eval_at_point(point[0]);
-    let component_poly_evals = get_component_poly_evals(&poly);
-
+        if poly.num_variables() == 1 {
+            break get_component_poly_evals(&fix_last_variable_materialized_round(poly, alpha));
+        }
+        let (uni, next) = fix_and_sum_materialized_round(poly, alpha, claim);
+        poly = next;
+        process_univariate_polynomial(uni, challenger, &mut messages, &mut point);
+    };
+    let eval = messages.last().unwrap().eval_at_point(point[0]);
     (
         PartialSumcheckProof {
-            univariate_polys: univariate_poly_msgs,
-            claimed_sum: claim,
+            univariate_polys: messages,
+            claimed_sum,
             point_and_eval: (point.into(), eval),
         },
-        component_poly_evals,
+        components,
     )
+}
+
+fn finish_interactions<C: FieldChallenger<Felt>>(
+    guts: &Tensor<Ext, TaskScope>,
+    poly: &LogupRoundPolynomial,
+    challenger: &mut C,
+    point: &mut Vec<Ext>,
+    messages: &mut Vec<UnivariatePolynomial<Ext>>,
+) -> Vec<Ext> {
+    let mut eq = poly.eq_interaction.to_host().unwrap().guts().as_slice().to_vec();
+    let height = guts.sizes()[1];
+    // Both downloads are to pageable host memory and complete before the tables are read.
+    let columns = DeviceTensor::copy_to_host(guts).unwrap();
+    let columns = columns.as_slice();
+    let mut rows = vec![[Ext::zero(), Ext::zero(), Ext::one(), Ext::one()]; eq.len()];
+    for (i, row) in rows[..height].iter_mut().enumerate() {
+        *row = std::array::from_fn(|c| columns[c * height + i]);
+    }
+    let evaluate = |[n0, n1, d0, d1]: [Ext; 4]| (n0 * d1 + n1 * d0) * poly.lambda + d0 * d1;
+    let mut coords = poly.point.iter().rev().skip(1);
+    loop {
+        let alpha = point[0];
+        let claim = messages.last().unwrap().eval_at_point(alpha);
+        let half = eq.len() / 2;
+        for i in 0..half {
+            let (a, b) = (rows[2 * i], rows[2 * i + 1]);
+            rows[i] = std::array::from_fn(|j| a[j] + alpha * (b[j] - a[j]));
+            eq[i] = eq[2 * i] + alpha * (eq[2 * i + 1] - eq[2 * i]);
+        }
+        rows.truncate(half);
+        eq.truncate(half);
+        if half == 1 {
+            return rows[0].to_vec();
+        }
+        let mut zero = Ext::zero();
+        let mut midpoint = Ext::zero();
+        for (pair, e) in rows.chunks_exact(2).zip(eq.chunks_exact(2)) {
+            zero += e[0] * evaluate(pair[0]);
+            midpoint += (e[0] + e[1]) * evaluate(std::array::from_fn(|j| pair[0][j] + pair[1][j]));
+        }
+        let z = *coords.next().unwrap();
+        let uni = interpolate_round(z, poly.eq_adjustment, Ext::zero(), zero, midpoint, claim);
+        process_univariate_polynomial(uni, challenger, messages, point);
+    }
 }
 
 pub fn bench_materialized_sumcheck<GC: IopCtx>(

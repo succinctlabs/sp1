@@ -4,14 +4,12 @@ use core::{
 };
 use std::marker::PhantomData;
 
-use hashbrown::HashMap;
-use itertools::Itertools;
 use slop_air::{Air, BaseAir};
 use slop_algebra::{AbstractField, PrimeField, PrimeField32};
 use slop_matrix::Matrix;
 use slop_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 use sp1_core_executor::{
-    events::{AluEvent, ByteLookupEvent, ByteRecord},
+    events::{AluEvent, ByteRecord},
     ExecutionRecord, Opcode, Program, CLK_INC, PC_INC,
 };
 use sp1_derive::AlignedBorrow;
@@ -87,6 +85,22 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for AddiChip<M> {
         Some(nb_rows)
     }
 
+    fn try_trace_with_dependencies(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> Option<Vec<F>> {
+        let width = <Self as BaseAir<F>>::width(self);
+        let rows = <Self as MachineAir<F>>::num_rows(self, input).unwrap();
+        Some(crate::utils::trace_with_byte_lookups(
+            &input.addi_events,
+            width,
+            rows,
+            output,
+            |event, row, counts| self.populate_row(event, row, counts),
+        ))
+    }
+
     fn generate_trace_into(
         &self,
         input: &ExecutionRecord,
@@ -116,20 +130,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for AddiChip<M> {
 
         values.chunks_mut(chunk_size * width).enumerate().par_bridge().for_each(|(i, rows)| {
             rows.chunks_mut(width).enumerate().for_each(|(j, row)| {
-                let idx = i * chunk_size + j;
-                let cols: &mut AddiCols<F, M> = row.borrow_mut();
-
-                if idx < input.addi_events.len() {
-                    let mut byte_lookup_events = Vec::new();
-                    let event = input.addi_events[idx];
-                    self.event_to_row(&event.0, cols, &mut byte_lookup_events);
-                    cols.state.populate(&mut byte_lookup_events, event.0.clk, event.0.pc);
-                    cols.adapter.populate(&mut byte_lookup_events, event.1);
-                    if !M::IS_TRUSTED {
-                        let cols: &mut AddiCols<F, UserMode> = row.borrow_mut();
-                        cols.adapter_cols.is_trusted = F::from_bool(!event.1.is_untrusted);
-                    }
-                }
+                self.populate_row(&input.addi_events[i * chunk_size + j], row, &mut ());
             });
         });
     }
@@ -146,19 +147,20 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for AddiChip<M> {
         let blu_batches = event_iter
             .par_bridge()
             .map(|events| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                let mut blu = sp1_core_executor::events::ByteLookupCounts::default();
+                let mut row = vec![F::zero(); width];
                 events.iter().for_each(|event| {
-                    let mut row = vec![F::zero(); width];
+                    row.fill(F::zero());
                     let cols: &mut AddiCols<F, M> = row.as_mut_slice().borrow_mut();
                     self.event_to_row(&event.0, cols, &mut blu);
                     cols.state.populate(&mut blu, event.0.clk, event.0.pc);
                     cols.adapter.populate(&mut blu, event.1);
                 });
-                blu
+                blu.finish()
             })
             .collect::<Vec<_>>();
 
-        output.add_byte_lookup_events_from_maps(blu_batches.iter().collect_vec());
+        output.add_byte_lookup_counts(blu_batches.into_iter().flatten());
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -172,6 +174,22 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for AddiChip<M> {
 }
 
 impl<M: TrustMode> AddiChip<M> {
+    fn populate_row<F: PrimeField32>(
+        &self,
+        event: &(AluEvent, sp1_core_executor::ITypeRecord),
+        row: &mut [F],
+        blu: &mut impl ByteRecord,
+    ) {
+        let cols: &mut AddiCols<F, M> = row.borrow_mut();
+        self.event_to_row(&event.0, cols, blu);
+        cols.state.populate(blu, event.0.clk, event.0.pc);
+        cols.adapter.populate(blu, event.1);
+        if !M::IS_TRUSTED {
+            let cols: &mut AddiCols<F, UserMode> = row.borrow_mut();
+            cols.adapter_cols.is_trusted = F::from_bool(!event.1.is_untrusted);
+        }
+    }
+
     /// Create a row from an event.
     fn event_to_row<F: PrimeField>(
         &self,

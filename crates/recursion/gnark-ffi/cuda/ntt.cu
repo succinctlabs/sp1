@@ -38,6 +38,12 @@ __device__ __forceinline__ Fr load(const Fr* d, const sp1_ntt_src& s, uint64_t i
   }
 }
 
+// Accumulate in the evaluation domain so a linear combination needs only one inverse NTT.
+__global__ void k_axpy_source(Fr* acc, sp1_ntt_src source, Fr coeff, uint64_t n) {
+  uint64_t i = blockIdx.x * (uint64_t)blockDim.x + threadIdx.x;
+  if (i < n) acc[i] = acc[i] + coeff * load(nullptr, source, i, n);
+}
+
 // One radix-2^r pass of an iterative DIT NTT over bit-reversed input, covering stages [s0, s0 + r).
 // A block owns the 2^r elements t*2^s0 + low of 2^c consecutive values of low. Element t is first
 // twisted by w_{2^(s0+r)}^(low * bitrev(t)), after which the stages only need 2^r-th roots of unity.
@@ -60,7 +66,7 @@ __global__ void k_dit_pass(Fr* d, uint32_t log_n, uint32_t s0, uint32_t r, uint3
     uint64_t low = low0 + lc, i = base + ((uint64_t)t << s0) + low;
     Fr x = d[i];
     if (coset) x = x * pow_tab(coset, rev(i, log_n));
-    if (s0 > 0) {
+    if (s0 > 0 && low != 0 && t != 0) {
       uint64_t ex = ((low * rev(t, r)) & ((1ull << (s0 + r)) - 1)) << (log_n - s0 - r);
       x = x * pow_tab(tab, ex);
     }
@@ -74,7 +80,8 @@ __global__ void k_dit_pass(Fr* d, uint32_t log_n, uint32_t s0, uint32_t r, uint3
       uint32_t pos = b & ((1u << j) - 1);
       uint32_t i0 = ((b >> j) << (j + 1)) + pos, i1 = i0 + (1u << j);
       Fr u = sh[(i0 << c) + lc];
-      Fr v = sh[(i1 << c) + lc] * roots[pos << (r - j - 1)];
+      Fr v = sh[(i1 << c) + lc];
+      if (pos != 0) v = v * roots[pos << (r - j - 1)];
       sh[(i0 << c) + lc] = u + v;
       sh[(i1 << c) + lc] = u - v;
     }
@@ -123,7 +130,8 @@ __global__ void k_dif_pass(Fr* d, uint32_t log_n, uint32_t s0, uint32_t r, uint3
       uint32_t i0 = ((b >> j) << (j + 1)) + pos, i1 = i0 + (1u << j);
       Fr u = sh[(i0 << c) + lc], v = sh[(i1 << c) + lc];
       sh[(i0 << c) + lc] = u + v;
-      sh[(i1 << c) + lc] = (u - v) * roots[pos << (r - j - 1)];
+      Fr diff = u - v;
+      sh[(i1 << c) + lc] = pos == 0 ? diff : diff * roots[pos << (r - j - 1)];
     }
     __syncthreads();
   }
@@ -132,7 +140,7 @@ __global__ void k_dif_pass(Fr* d, uint32_t log_n, uint32_t s0, uint32_t r, uint3
     uint32_t lc = e & (lanes - 1), t = e >> c;
     uint64_t low = low0 + lc;
     Fr x = sh[e];
-    if (m > 0) x = x * pow_tab(tab, (low * rev(t, r)) << s0);
+    if (m > 0 && low != 0 && t != 0) x = x * pow_tab(tab, (low * rev(t, r)) << s0);
     d[base + ((uint64_t)t << m) + low] = x;
   }
 }
@@ -205,5 +213,11 @@ extern "C" int sp1_ntt_dif(void* data, uint32_t log_n, const void* tab, const sp
 
 extern "C" int sp1_bitrev(void* data, uint32_t log_n, void* stream) {
   k_bitrev<<<blocks(1ull << log_n), THREADS, 0, st(stream)>>>(reinterpret_cast<Fr*>(data), log_n, Fr::one(), false);
+  return err();
+}
+
+extern "C" int sp1_axpy_source(void* acc, const sp1_ntt_src* source, const sp1_fr* coeff, uint64_t n, void* stream) {
+  if (!source || source->kind == SP1_SRC_DATA) return (int)cudaErrorInvalidValue;
+  k_axpy_source<<<blocks(n), THREADS, 0, st(stream)>>>(reinterpret_cast<Fr*>(acc), *source, cst<Fr>(coeff), n);
   return err();
 }

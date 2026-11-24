@@ -4,7 +4,7 @@ use std::{
     num::NonZero,
     sync::{
         atomic::{AtomicUsize, Ordering},
-        Arc, Mutex,
+        Arc, Mutex, OnceLock,
     },
 };
 
@@ -137,8 +137,10 @@ impl SP1NormalizeInputShape {
     }
 }
 
+type NormalizeProgramSlot = Arc<OnceLock<Arc<RecursionProgram<SP1Field>>>>;
+
 pub struct SP1NormalizeCache {
-    lru: Arc<Mutex<LruCache<SP1NormalizeInputShape, Arc<RecursionProgram<SP1Field>>>>>,
+    lru: Arc<Mutex<LruCache<SP1NormalizeInputShape, NormalizeProgramSlot>>>,
     total_calls: AtomicUsize,
     hits: AtomicUsize,
 }
@@ -153,7 +155,9 @@ impl SP1NormalizeCache {
 
     pub fn get(&self, shape: &SP1NormalizeInputShape) -> Option<Arc<RecursionProgram<SP1Field>>> {
         self.total_calls.fetch_add(1, Ordering::Relaxed);
-        if let Some(program) = self.lru.lock().unwrap().get(shape).cloned() {
+        if let Some(program) =
+            self.lru.lock().unwrap().get(shape).and_then(|slot| slot.get().cloned())
+        {
             self.hits.fetch_add(1, Ordering::Relaxed);
             Some(program)
         } else {
@@ -162,7 +166,25 @@ impl SP1NormalizeCache {
     }
 
     pub fn push(&self, shape: SP1NormalizeInputShape, program: Arc<RecursionProgram<SP1Field>>) {
-        self.lru.lock().unwrap().push(shape, program);
+        self.lru.lock().unwrap().push(shape, Arc::new(OnceLock::from(program)));
+    }
+
+    pub(crate) fn get_or_compile(
+        &self,
+        shape: &SP1NormalizeInputShape,
+        compile: impl FnOnce() -> Arc<RecursionProgram<SP1Field>>,
+    ) -> Arc<RecursionProgram<SP1Field>> {
+        self.total_calls.fetch_add(1, Ordering::Relaxed);
+        let slot = self
+            .lru
+            .lock()
+            .unwrap()
+            .get_or_insert_ref(shape, NormalizeProgramSlot::default)
+            .clone();
+        if slot.get().is_some() {
+            self.hits.fetch_add(1, Ordering::Relaxed);
+        }
+        slot.get_or_init(compile).clone()
     }
 
     pub fn stats(&self) -> (usize, usize, f64) {

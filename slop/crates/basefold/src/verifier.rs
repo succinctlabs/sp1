@@ -1,6 +1,7 @@
 use itertools::Itertools;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use slop_algebra::{AbstractExtensionField, AbstractField, TwoAdicField};
+use slop_algebra::{AbstractExtensionField, AbstractField, Field, TwoAdicField};
 use slop_challenger::{
     CanObserve, CanSampleBits, FieldChallenger, GrindingChallenger, IopCtx,
     VariableLengthChallenger,
@@ -330,14 +331,12 @@ where
         let log_max_height = commitments.len() + self.fri_config.log_blowup();
 
         let mut folded_evals = reduced_openings;
-        let mut indices = indices.to_vec();
+        let mut current_indices = indices.to_vec();
 
-        let mut xis = indices
+        let inverse_generator = GC::F::two_adic_generator(log_max_height).inverse();
+        let mut inverse_xs = indices
             .iter()
-            .map(|index| {
-                GC::F::two_adic_generator(log_max_height)
-                    .exp_u64(reverse_bits_len(*index, log_max_height) as u64)
-            })
+            .map(|index| inverse_generator.exp_u64(reverse_bits_len(*index, log_max_height) as u64))
             .collect::<Vec<_>>();
 
         if commitments.len() != query_openings.len() || commitments.len() != betas.len() {
@@ -345,11 +344,7 @@ where
         }
 
         // Loop over the FRI queries.
-        for (round_idx, ((commitment, query_opening), beta)) in (self.fri_config.log_blowup()
-            ..log_max_height)
-            .rev()
-            .zip_eq(commitments.iter().zip_eq(query_openings.iter()).zip_eq(betas))
-        {
+        for (query_opening, beta) in query_openings.iter().zip_eq(betas) {
             let openings = &query_opening.values;
             if !openings.has_valid_shape() || openings.dimensions.sizes().len() != 2 {
                 return Err(BaseFoldVerifierError::IncorrectShape);
@@ -357,61 +352,37 @@ where
 
             if indices.len() != folded_evals.len()
                 || indices.len() != openings.dimensions.sizes()[0]
-                || indices.len() != xis.len()
+                || indices.len() != inverse_xs.len()
             {
                 return Err(BaseFoldVerifierError::IncorrectShape);
             }
 
-            for (((index, folded_eval), opening), x) in indices
+            for (((index, folded_eval), opening), inverse_x) in current_indices
                 .iter_mut()
                 .zip_eq(folded_evals.iter_mut())
                 .zip_eq(openings.split())
-                .zip_eq(xis.iter_mut())
+                .zip_eq(inverse_xs.iter_mut())
             {
-                let index_sibling = *index ^ 1;
-                let index_pair = *index >> 1;
-
                 if opening.total_len() != 2 * <GC::EF as AbstractExtensionField<GC::F>>::D {
                     return Err(BaseFoldVerifierError::IncorrectShape);
                 }
 
-                #[allow(clippy::chunks_exact_to_as_chunks)]
-                let evals: [GC::EF; 2] = opening
-                    .as_slice()
-                    .chunks_exact(GC::EF::D)
-                    .map(GC::EF::from_base_slice)
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .unwrap();
+                let (even, odd) = opening.as_slice().split_at(GC::EF::D);
+                let evals = [GC::EF::from_base_slice(even), GC::EF::from_base_slice(odd)];
 
                 // Check that the folded evaluation is consistent with the FRI query proof opening.
                 if evals[*index % 2] != *folded_eval {
                     return Err(BaseFoldVerifierError::QueryValueMismatch);
                 }
 
-                let mut xs = [*x; 2];
-                xs[index_sibling % 2] *= GC::F::two_adic_generator(1);
-
-                // interpolate and evaluate at beta
-                *folded_eval = evals[0]
-                    + (*beta - xs[0]) * (evals[1] - evals[0]) / GC::EF::from(xs[1] - xs[0]);
-
-                *index = index_pair;
-                *x = x.square();
+                // The pair is evaluated at x_even and -x_even. Their average is the
+                // constant term, and their half-difference divided by x_even is the slope.
+                let inverse_even = if *index % 2 == 0 { *inverse_x } else { -*inverse_x };
+                *folded_eval =
+                    (evals[0] + evals[1] + *beta * ((evals[0] - evals[1]) * inverse_even)).halve();
+                *index >>= 1;
+                *inverse_x = inverse_x.square();
             }
-
-            // Check that the opening is consistent with the commitment.
-            // The magic constant 2 here is the folding factor we use for FRI.
-            self.tcs
-                .verify_tensor_openings(
-                    commitment,
-                    &indices,
-                    &query_opening.values,
-                    GC::EF::D * 2,
-                    round_idx,
-                    &query_opening.proof,
-                )
-                .map_err(BaseFoldVerifierError::TcsError)?;
         }
 
         for folded_eval in folded_evals {
@@ -420,7 +391,24 @@ where
             }
         }
 
-        Ok(())
+        // Each tree authenticates its own round. Its leaf indices are the initial
+        // queries with one low bit removed per fold.
+        commitments.par_iter().zip(query_openings).enumerate().try_for_each(
+            |(round, (commitment, opening))| {
+                let folds = round + 1;
+                let leaves: Vec<_> = indices.iter().map(|index| index >> folds).collect();
+                self.tcs
+                    .verify_tensor_openings(
+                        commitment,
+                        &leaves,
+                        &opening.values,
+                        GC::EF::D * 2,
+                        log_max_height - folds,
+                        &opening.proof,
+                    )
+                    .map_err(BaseFoldVerifierError::TcsError)
+            },
+        )
     }
 
     pub fn verify_untrusted_evaluations(

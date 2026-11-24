@@ -499,9 +499,7 @@ mod ser {
         mem_reads: &Arc<[MemValue]>,
         serializer: S,
     ) -> Result<S::Ok, S::Error> {
-        let as_vec: Vec<MemValue> = Vec::from(&mem_reads[..]);
-
-        Vec::serialize(&as_vec, serializer)
+        mem_reads.as_ref().serialize(serializer)
     }
 
     pub fn deserialize_mem_reads<'a, D: Deserializer<'a>>(

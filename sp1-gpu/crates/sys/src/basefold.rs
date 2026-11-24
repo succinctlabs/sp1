@@ -4,5 +4,6 @@ extern "C" {
     pub fn batch_koala_bear_base_ext_kernel() -> KernelPtr;
     pub fn batch_koala_bear_base_ext_kernel_flattened() -> KernelPtr;
     pub fn transpose_even_odd_koala_bear_base_ext_kernel() -> KernelPtr;
+    pub fn fold_codeword_koala_bear_kernel() -> KernelPtr;
     pub fn flatten_to_base_koala_bear_base_ext_kernel() -> KernelPtr;
 }

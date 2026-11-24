@@ -20,14 +20,14 @@ impl CudaTracegenAir<F> for Poseidon2SBoxChip {
         program: &Self::Program,
         scope: &TaskScope,
     ) -> Result<Option<DeviceMle<F>>, CopyError> {
-        let instrs = program
-            .inner
-            .iter()
-            .filter_map(|instruction| match instruction.inner() {
+        let instrs = super::collect_instructions(
+            program,
+            program.event_counts.poseidon2_sbox_events,
+            |instruction| match instruction {
                 Instruction::Poseidon2SBox(instr) => Some(*instr),
                 _ => None,
-            })
-            .collect::<Vec<_>>();
+            },
+        );
 
         let instrs_device = {
             let mut buf = Buffer::try_with_capacity_in(instrs.len(), scope.clone()).unwrap();

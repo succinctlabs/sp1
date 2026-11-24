@@ -10,7 +10,7 @@ use crate::{
         CommonProverInput, DeferredInputs, ProverMetrics, RangeProofs, RawTaskRequest, TaskContext,
         TaskError, TaskMetadata, WrapAirProverInit,
     },
-    RecursionSC, SP1CircuitWitness, SP1ProverComponents,
+    RecursionSC, SP1CircuitWitness, SP1ProverComponents, WrapSC,
 };
 use core::sync::atomic::AtomicBool;
 use slop_algebra::PrimeField32;
@@ -24,7 +24,7 @@ use slop_futures::pipeline::{
 use sp1_hypercube::{
     inner_perm, koalabears_to_bn254,
     prover::{AirProver, ProverSemaphore, ProvingKey},
-    HashableKey, MachineProof, MachineVerifier, MachineVerifyingKey, MerkleProof, SP1PcsProofInner,
+    HashableKey, MachineVerifier, MachineVerifyingKey, MerkleProof, SP1PcsProofInner,
     SP1PcsProofOuter, SP1RecursionProof, SP1WrapProof, ShardProof, DIGEST_SIZE,
 };
 use sp1_primitives::{SP1ExtensionField, SP1Field, SP1GlobalContext, SP1OuterGlobalContext};
@@ -176,6 +176,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents>
 
         let metrics = ProverMetrics::new();
         Ok(RecursionTask {
+            core_verification: None,
             program,
             witness,
             output,
@@ -185,7 +186,10 @@ impl<A: ArtifactClient, C: SP1ProverComponents>
     }
 }
 
+type CoreVerification = tokio::task::JoinHandle<Result<(), TaskError>>;
+
 pub struct RecursionTask {
+    core_verification: Option<CoreVerification>,
     program: Arc<RecursionProgram<SP1Field>>,
     witness: SP1CircuitWitness,
     range_proofs_to_cleanup: Option<RangeProofs>,
@@ -210,7 +214,14 @@ impl<C: SP1ProverComponents>
         &self,
         input: Result<RecursionTask, TaskError>,
     ) -> Result<ProveRecursionTask<C>, TaskError> {
-        let RecursionTask { program, witness, output, metrics, range_proofs_to_cleanup } = input?;
+        let RecursionTask {
+            core_verification,
+            program,
+            witness,
+            output,
+            metrics,
+            range_proofs_to_cleanup,
+        } = input?;
 
         // Execute the runtime.
         let runtime_span = tracing::debug_span!("execute runtime").entered();
@@ -268,7 +279,14 @@ impl<C: SP1ProverComponents>
             _ => unimplemented!(),
         })?;
 
-        Ok(ProveRecursionTask { record, keys, output, metrics, range_proofs_to_cleanup })
+        Ok(ProveRecursionTask {
+            core_verification,
+            record,
+            keys,
+            output,
+            metrics,
+            range_proofs_to_cleanup,
+        })
     }
 }
 
@@ -281,6 +299,7 @@ enum RecursionKeys<C: SP1ProverComponents> {
 }
 
 pub struct ProveRecursionTask<C: SP1ProverComponents> {
+    core_verification: Option<CoreVerification>,
     record: ExecutionRecord<SP1Field>,
     keys: RecursionKeys<C>,
     output: Artifact,
@@ -290,6 +309,7 @@ pub struct ProveRecursionTask<C: SP1ProverComponents> {
 
 pub struct RecursionProverWorker<A, C: SP1ProverComponents> {
     recursion_prover: Arc<C::RecursionProver>,
+    verifier: MachineVerifier<SP1GlobalContext, RecursionSC>,
     permits: ProverSemaphore,
     artifact_client: A,
     verify_intermediates: bool,
@@ -303,65 +323,55 @@ impl<A: ArtifactClient, C: SP1ProverComponents> RecursionProverWorker<A, C> {
         record: ExecutionRecord<SP1Field>,
         metrics: ProverMetrics,
     ) -> Result<SP1RecursionProof<SP1GlobalContext, SP1PcsProofInner>, TaskError> {
-        let proof = match keys {
+        let (vk, proof, permit) = match keys {
             RecursionKeys::Exists(pk, vk) => {
-                let (proof, permit) = self
-                    .recursion_prover
-                    .prove_shard_with_pk(pk.clone(), record, self.permits.clone())
-                    .await;
-                let duration = permit.release();
-                metrics.increment_permit_time(duration);
-
-                if self.verify_intermediates {
-                    let proof = proof.clone();
-                    let vk = vk.clone();
-                    let parent = tracing::Span::current();
-                    tokio::task::spawn_blocking(move || {
-                        let _guard = parent.enter();
-                        C::compress_verifier()
-                            .verify(&vk, &MachineProof::from(vec![proof]))
-                            .map_err(|e| {
-                                TaskError::Retryable(anyhow::anyhow!(
-                                    "compress verify failed: {}",
-                                    e
-                                ))
-                            })
-                    })
+                // Compose shards can share the immutable preprocessing while each
+                // fills its own main trace on a separately admitted stream.
+                let (proof, permit) = if self.permits.allows_concurrent_traces() {
+                    AirProver::prove_with_cached_setup(
+                        self.recursion_prover.as_ref(),
+                        record.program.clone(),
+                        pk,
+                        record,
+                        self.permits.clone(),
+                        BTreeMap::new(),
+                    )
                     .await
-                    .map_err(|e| TaskError::Fatal(e.into()))??;
-                }
-                let vk_merkle_proof = self.prover_data.recursion_vks.open(&vk)?.1;
-                SP1RecursionProof { vk, proof, vk_merkle_proof }
+                } else {
+                    self.recursion_prover
+                        .prove_shard_with_pk(pk, record, self.permits.clone())
+                        .await
+                };
+                (vk, proof, permit)
             }
             RecursionKeys::Program(program) => {
-                let (vk, proof, permit) = self
-                    .recursion_prover
+                self.recursion_prover
                     .setup_and_prove_shard(program, record, None, self.permits.clone())
-                    .await;
-                let duration = permit.release();
-                metrics.increment_permit_time(duration);
-                if self.verify_intermediates {
-                    let proof = proof.clone();
-                    let vk = vk.clone();
-                    let parent = tracing::Span::current();
-                    tokio::task::spawn_blocking(move || {
-                        let _guard = parent.enter();
-                        C::compress_verifier()
-                            .verify(&vk, &MachineProof::from(vec![proof.clone()]))
-                            .map_err(|e| {
-                                TaskError::Retryable(anyhow::anyhow!(
-                                    "lift/deferred verify failed: {}",
-                                    e
-                                ))
-                            })
-                    })
                     .await
-                    .map_err(|e| TaskError::Fatal(e.into()))??;
-                }
-                let vk_merkle_proof = self.prover_data.recursion_vks.open(&vk)?.1;
-                SP1RecursionProof { vk, proof, vk_merkle_proof }
             }
         };
+        metrics.increment_permit_time(permit.release());
+        let (vk, proof) = if self.verify_intermediates {
+            let verifier = self.verifier.clone();
+            let parent = tracing::Span::current();
+            tokio::task::spawn_blocking(move || {
+                let _guard = parent.enter();
+                let mut challenger = verifier.challenger();
+                vk.observe_into(&mut challenger);
+                verifier.verify_shard(&vk, &proof, &mut challenger).map_err(|err| {
+                    TaskError::Retryable(anyhow::anyhow!(
+                        "recursion shard verification failed: {err}"
+                    ))
+                })?;
+                Ok::<_, TaskError>((vk, proof))
+            })
+            .await
+            .map_err(|e| TaskError::Fatal(e.into()))??
+        } else {
+            (vk, proof)
+        };
+        let vk_merkle_proof = self.prover_data.recursion_vks.open(&vk)?.1;
+        let proof = SP1RecursionProof { vk, proof, vk_merkle_proof };
         Ok(proof)
     }
 }
@@ -375,12 +385,22 @@ impl<A: ArtifactClient, C: SP1ProverComponents>
         input: Result<ProveRecursionTask<C>, TaskError>,
     ) -> Result<TaskMetadata, TaskError> {
         // Get the input or return an error
-        let ProveRecursionTask { record, keys, output, metrics, range_proofs_to_cleanup } = input?;
+        let ProveRecursionTask {
+            core_verification,
+            record,
+            keys,
+            output,
+            metrics,
+            range_proofs_to_cleanup,
+        } = input?;
+        if let Some(verification) = core_verification {
+            verification.await.map_err(|err| TaskError::Fatal(err.into()))??;
+        }
         // Prove the shard
         let proof = self.prove_shard(keys, record, metrics.clone()).await?;
         // Upload the proof
 
-        self.artifact_client.upload(&output, proof.clone()).await?;
+        self.artifact_client.upload(&output, proof).await?;
         let metadata = metrics.to_metadata();
 
         // Delete the proofs to cleanup.
@@ -430,6 +450,7 @@ pub struct SP1RecursionProver<A, C: SP1ProverComponents> {
 }
 
 struct WrapProverInit<C: SP1ProverComponents> {
+    preparing: std::sync::atomic::AtomicBool,
     wrap_air_prover: WrapAirProverInit<C>,
     config: SP1RecursionProverConfig,
     shrink_shape: BTreeMap<String, usize>,
@@ -572,6 +593,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
             // Initialize the prove engine.
             let prove_workers = (0..config.num_recursion_prover_workers)
                 .map(|_| RecursionProverWorker {
+                    verifier: compress_verifier.clone(),
                     prover_data: prover_data.clone(),
                     recursion_prover: compress_prover.clone(),
                     permits: compress_prover_permits.clone(),
@@ -597,6 +619,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
 
             let expected_wrap_vk = bincode::deserialize(WRAP_VK_BYTES).unwrap();
             let wrap_prover_init = WrapProverInit {
+                preparing: Default::default(),
                 wrap_air_prover: wrap_air_prover_init,
                 config: config.clone(),
                 shrink_shape: shrink_prover.shrink_shape.clone(),
@@ -627,8 +650,20 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
         output: Artifact,
         metrics: ProverMetrics,
     ) -> Result<RecursionProveSubmitHandle<A, C>, SubmitError> {
+        self.submit_normalize(program, witness, output, metrics, None).await
+    }
+
+    pub(super) async fn submit_normalize(
+        &self,
+        program: Arc<RecursionProgram<SP1Field>>,
+        witness: SP1CircuitWitness,
+        output: Artifact,
+        metrics: ProverMetrics,
+        core_verification: Option<CoreVerification>,
+    ) -> Result<RecursionProveSubmitHandle<A, C>, SubmitError> {
         self.recursion_prover_pipeline()
             .submit(Ok(RecursionTask {
+                core_verification,
                 program,
                 witness,
                 output,
@@ -645,6 +680,22 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
         let input = ReduceTaskRequest::from_raw(request)?;
         let handle = self.reduce_pipeline.submit(input).await?;
         Ok(handle)
+    }
+
+    /// Compile and set up the fixed wrap circuit during a request that will use it.
+    pub(super) fn prepare_wrap(&self) {
+        use std::sync::atomic::Ordering;
+        if self.wrap_prover.get().is_none()
+            && !self.wrap_prover_init.preparing.swap(true, Ordering::AcqRel)
+        {
+            let prover = self.clone();
+            tokio::spawn(async move {
+                if let Err(err) = prover.wrap_prover().await {
+                    tracing::debug!(?err, "early wrap setup failed");
+                    prover.wrap_prover_init.preparing.store(false, Ordering::Release);
+                }
+            });
+        }
     }
 
     async fn wrap_prover(&self) -> Result<Arc<WrapProver<C>>, TaskError> {
@@ -1021,6 +1072,7 @@ pub struct ShrinkProver<C: SP1ProverComponents> {
     prover: Arc<C::RecursionProver>,
     permits: ProverSemaphore,
     program: Arc<RecursionProgram<SP1Field>>,
+    pk: Arc<CompressProvingKey<C>>,
     pub verifying_key: MachineVerifyingKey<SP1GlobalContext>,
     prover_data: Arc<RecursionProverData<C>>,
     pub shrink_shape: BTreeMap<String, usize>,
@@ -1057,12 +1109,14 @@ impl<C: SP1ProverComponents> ShrinkProver<C> {
             });
             rx.blocking_recv().unwrap()
         };
+        let pk = pk.pk;
         let shrink_shape = {
+            let pk = pk.clone();
             let (tx, rx) = oneshot::channel();
             tokio::task::spawn(async move {
                 let heights = <C::RecursionProver as AirProver<
                     SP1GlobalContext,_
-                >>::preprocessed_table_heights(pk.pk)
+                >>::preprocessed_table_heights(pk)
                 .await;
                 tx.send(heights).ok();
             });
@@ -1075,6 +1129,7 @@ impl<C: SP1ProverComponents> ShrinkProver<C> {
             prover,
             permits,
             program,
+            pk,
             verifying_key: vk,
             prover_data,
             shrink_shape,
@@ -1121,19 +1176,14 @@ impl<C: SP1ProverComponents> ShrinkProver<C> {
             runtime.record
         };
 
-        let (vk, proof, permit) = self
+        let (proof, permit) = self
             .prover
-            .setup_and_prove_shard(
-                self.program.clone(),
-                execution_record,
-                Some(self.verifying_key.clone()),
-                self.permits.clone(),
-            )
+            .prove_shard_with_pk(self.pk.clone(), execution_record, self.permits.clone())
             .await;
         let duration = permit.release();
         metrics.increment_permit_time(duration);
 
-        let vk_merkle_proof = self.prover_data.recursion_vks.open(&vk)?.1;
+        let vk_merkle_proof = self.prover_data.recursion_vks.open(&self.verifying_key)?.1;
         Ok(SP1RecursionProof { vk: self.verifying_key.clone(), proof, vk_merkle_proof })
     }
 
@@ -1156,6 +1206,7 @@ pub struct WrapProver<C: SP1ProverComponents> {
     prover: Arc<C::WrapProver>,
     permits: ProverSemaphore,
     program: Arc<RecursionProgram<SP1Field>>,
+    pk: Arc<ProvingKey<SP1OuterGlobalContext, WrapSC, C::WrapProver>>,
     pub verifying_key: MachineVerifyingKey<SP1OuterGlobalContext>,
     prover_data: Arc<RecursionProverData<C>>,
 }
@@ -1185,7 +1236,7 @@ impl<C: SP1ProverComponents> WrapProver<C> {
             config.vk_verification,
             &wrap_input,
         ));
-        let (_, verifying_key) = {
+        let (pk, verifying_key) = {
             let (prover, program, permits) = (prover.clone(), program.clone(), permits.clone());
             let (tx, rx) = oneshot::channel();
             tokio::task::spawn(async move {
@@ -1194,7 +1245,7 @@ impl<C: SP1ProverComponents> WrapProver<C> {
             rx.blocking_recv().unwrap()
         };
 
-        Self { prover, permits, program, verifying_key, prover_data }
+        Self { prover, permits, program, pk: pk.pk, verifying_key, prover_data }
     }
 
     pub async fn prove(
@@ -1218,14 +1269,9 @@ impl<C: SP1ProverComponents> WrapProver<C> {
             runtime.record
         };
 
-        let (_, proof, permit) = self
+        let (proof, permit) = self
             .prover
-            .setup_and_prove_shard(
-                self.program.clone(),
-                execution_record,
-                Some(self.verifying_key.clone()),
-                self.permits.clone(),
-            )
+            .prove_shard_with_pk(self.pk.clone(), execution_record, self.permits.clone())
             .await;
         let duration = permit.release();
         metrics.increment_permit_time(duration);

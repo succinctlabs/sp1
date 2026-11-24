@@ -1,8 +1,76 @@
-use slop_alloc::{Backend, HasBackend};
+use std::sync::Arc;
+
+use slop_alloc::{Backend, Buffer, HasBackend};
 use slop_tensor::Tensor;
-use sp1_gpu_cudart::TaskScope;
+use sp1_gpu_cudart::{DeviceBuffer, TaskScope};
 
 use sp1_gpu_utils::{DenseData, DenseDataMut, Ext, Felt};
+
+/// Column lengths follow the same recurrence in the circuit and in every sumcheck.
+#[derive(Clone, Default)]
+pub(crate) struct FoldLayouts(Option<Arc<FoldLayout>>);
+
+struct FoldLayout {
+    starts: Buffer<u32, TaskScope>,
+    heights: Buffer<u32, TaskScope>,
+    total: u32,
+    next: FoldLayouts,
+}
+
+impl FoldLayouts {
+    pub(crate) fn new(initial: &[u32], rounds: u32, backend: &TaskScope) -> Self {
+        let mut heights = initial.to_vec();
+        let mut layouts = Vec::with_capacity(rounds as usize);
+        for _ in 0..rounds {
+            for h in &mut heights {
+                *h = h.div_ceil(4) * 2;
+            }
+            let mut starts = Vec::with_capacity(heights.len() + 1);
+            starts.push(0);
+            let mut total = 0;
+            for h in &heights {
+                total += h;
+                starts.push(total);
+            }
+            layouts.push((
+                DeviceBuffer::from_host_slice(&starts, backend).unwrap().into_inner(),
+                DeviceBuffer::from_host_slice(&heights, backend).unwrap().into_inner(),
+                total,
+            ));
+        }
+        layouts.into_iter().rev().fold(Self::default(), |next, (starts, heights, total)| {
+            Self(Some(Arc::new(FoldLayout { starts, heights, total, next })))
+        })
+    }
+
+    pub(crate) fn after(
+        &self,
+        rounds: usize,
+        heights: &Buffer<u32, TaskScope>,
+    ) -> (Buffer<u32, TaskScope>, Buffer<u32, TaskScope>, u32, Self) {
+        let mut cursor = self;
+        for _ in 1..rounds {
+            if let Some(layout) = &cursor.0 {
+                cursor = &layout.next;
+            }
+        }
+        if let Some(layout) = &cursor.0 {
+            return (
+                layout.starts.clone(),
+                layout.heights.clone(),
+                layout.total,
+                layout.next.clone(),
+            );
+        }
+        // A standalone layer constructed from device buffers may have no host layout.
+        let (mut starts, mut next_heights, mut total) =
+            sp1_gpu_utils::fold_jagged_metadata_dev(heights);
+        for _ in 1..rounds {
+            (starts, next_heights, total) = sp1_gpu_utils::fold_jagged_metadata_dev(&next_heights);
+        }
+        (starts, next_heights, total, Self::default())
+    }
+}
 
 /// A layer of the GKR circuit.
 ///
@@ -13,6 +81,7 @@ pub struct JaggedGkrLayer<A: Backend = TaskScope> {
     pub layer: Tensor<Ext, A>,
     /// Half of the height of the layer.
     pub height: usize,
+    pub(crate) folds: FoldLayouts,
 }
 
 /// The raw pointer equivalent of [`JaggedGkrLayer`] for use in cuda kernels.
@@ -32,7 +101,7 @@ pub struct JaggedGkrLayerMutRaw {
 impl<A: Backend> JaggedGkrLayer<A> {
     #[inline]
     pub fn new(layer: Tensor<Ext, A>, height: usize) -> Self {
-        Self { layer, height }
+        Self { layer, height, folds: FoldLayouts::default() }
     }
 
     #[inline]
@@ -76,6 +145,7 @@ pub struct JaggedFirstGkrLayer<A: Backend> {
     pub denominator: Tensor<Ext, A>,
     /// Half of the real height of the layer.
     pub height: usize,
+    pub(crate) folds: FoldLayouts,
 }
 
 /// The raw pointer equivalent of [`JaggedFirstGkrLayer`] for use in cuda kernels.
@@ -97,7 +167,7 @@ pub struct JaggedFirstGkrLayerMutRaw {
 impl<A: Backend> JaggedFirstGkrLayer<A> {
     #[inline]
     pub fn new(numerator: Tensor<Felt, A>, denominator: Tensor<Ext, A>, height: usize) -> Self {
-        Self { numerator, denominator, height }
+        Self { numerator, denominator, height, folds: FoldLayouts::default() }
     }
 
     #[inline]

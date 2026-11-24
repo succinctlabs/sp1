@@ -8,6 +8,7 @@ use sp1_gpu_prover::cuda_worker_builder_with_machine;
 use sp1_primitives::Elf;
 use sp1_prover::worker::{SP1LocalNode, SP1LocalNodeBuilder};
 use sp1_prover::SP1VerifyingKey;
+use sp1_prover_types::network_base_types::ProofMode;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -177,7 +178,27 @@ impl Server {
                     );
                 };
                 let context = SP1Context::builder().proof_nonce(proof_nonce).build();
-                match prover.prove_with_mode(&cached.elf, stdin, context, mode).await {
+                let prepare = async {
+                    if matches!(mode, ProofMode::Groth16 | ProofMode::Plonk) {
+                        let plonk = mode == ProofMode::Plonk;
+                        if let Some(dir) = sp1_prover::build::installed_release_circuit(plonk) {
+                            tokio::task::spawn_blocking(move || {
+                                sp1_recursion_gnark_ffi::ffi::prepare_cuda_prover(&dir, plonk)
+                            })
+                            .await
+                            .map_err(|e| e.to_string())??;
+                        }
+                    }
+                    Ok::<_, String>(())
+                };
+                let (proof, preparation) = tokio::join!(
+                    prover.prove_with_mode(&cached.elf, stdin, context, mode),
+                    prepare
+                );
+                if let Err(e) = preparation {
+                    return Response::ProverError(e);
+                }
+                match proof {
                     Ok(proof) => Response::Proof { proof },
                     Err(e) => Response::ProverError(e.to_string()),
                 }

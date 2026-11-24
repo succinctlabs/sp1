@@ -83,6 +83,14 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for ShaExtendControlChip<M> {
         Some(padded_nb_rows)
     }
 
+    fn try_trace_with_dependencies(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> Option<Vec<F>> {
+        Some(self.generate_trace(input, output).values)
+    }
+
     fn generate_trace_into(
         &self,
         input: &ExecutionRecord,

@@ -18,6 +18,18 @@ mod bind {
 }
 use bind::*;
 
+/// Load the host circuit data for a requested proof while the GPU proves the STARK.
+#[cfg(feature = "cuda")]
+pub fn prepare_cuda_prover(data_dir: &std::path::Path, plonk: bool) -> Result<(), String> {
+    let dir = CString::new(data_dir.as_os_str().as_encoded_bytes()).map_err(|e| e.to_string())?;
+    let err = unsafe { bind::PrepareCudaProver(dir.as_ptr().cast_mut(), plonk.into()) };
+    if err.is_null() {
+        Ok(())
+    } else {
+        Err(unsafe { ptr_to_string_freed(err) })
+    }
+}
+
 enum ProofSystem {
     Plonk,
     Groth16,

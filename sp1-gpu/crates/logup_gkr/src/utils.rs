@@ -197,6 +197,7 @@ pub fn jagged_gkr_layer_to_device(
     backend: &TaskScope,
 ) -> JaggedMle<JaggedGkrLayer<TaskScope>, TaskScope> {
     let jagged_dense_device = JaggedGkrLayer {
+        folds: Default::default(),
         layer: DeviceTensor::from_host(&jagged.dense_data.layer, backend).unwrap().into_inner(),
         height: jagged.dense_data.height,
     };
@@ -213,6 +214,7 @@ pub fn jagged_gkr_layer_to_host(
     jagged: JaggedMle<JaggedGkrLayer<TaskScope>, TaskScope>,
 ) -> JaggedMle<JaggedGkrLayer<CpuBackend>, CpuBackend> {
     let jagged_dense_host = JaggedGkrLayer {
+        folds: Default::default(),
         layer: DeviceTensor::from_raw(jagged.dense_data.layer).to_host().unwrap(),
         height: jagged.dense_data.height,
     };
@@ -230,6 +232,7 @@ pub fn jagged_first_gkr_layer_to_device(
     backend: &TaskScope,
 ) -> JaggedMle<JaggedFirstGkrLayer<TaskScope>, TaskScope> {
     let jagged_dense_device = JaggedFirstGkrLayer {
+        folds: Default::default(),
         numerator: DeviceTensor::from_host(&jagged.dense_data.numerator, backend)
             .unwrap()
             .into_inner(),
@@ -251,6 +254,7 @@ pub fn jagged_first_gkr_layer_to_host(
     jagged: JaggedMle<JaggedFirstGkrLayer<TaskScope>, TaskScope>,
 ) -> JaggedMle<JaggedFirstGkrLayer<CpuBackend>, CpuBackend> {
     let jagged_dense_host = JaggedFirstGkrLayer {
+        folds: Default::default(),
         numerator: DeviceTensor::from_raw(jagged.dense_data.numerator).to_host().unwrap(),
         denominator: DeviceTensor::from_raw(jagged.dense_data.denominator).to_host().unwrap(),
         height: jagged.dense_data.height,

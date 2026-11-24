@@ -225,6 +225,18 @@ where
         self.air.generate_trace_into(input, output, buffer);
     }
 
+    fn generate_main_trace_into(&self, input: &A::Record, buffer: &mut [std::mem::MaybeUninit<F>]) {
+        self.air.generate_main_trace_into(input, buffer);
+    }
+
+    fn try_trace_with_dependencies(
+        &self,
+        input: &A::Record,
+        output: &mut A::Record,
+    ) -> Option<Vec<F>> {
+        self.air.try_trace_with_dependencies(input, output)
+    }
+
     fn generate_dependencies(&self, input: &A::Record, output: &mut A::Record) {
         self.air.generate_dependencies(input, output);
     }

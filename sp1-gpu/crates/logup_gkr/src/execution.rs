@@ -27,8 +27,8 @@ pub fn layer_transition(layer: &GkrLayer) -> GkrLayer {
     let backend = layer.jagged_mle.backend();
     let height = layer.jagged_mle.dense_data.height;
 
-    let (output_interaction_start_indices, output_interaction_row_counts, output_height_u32) =
-        layer.jagged_mle.next_start_indices_and_column_heights_dev();
+    let (output_interaction_start_indices, output_interaction_row_counts, output_height_u32, folds) =
+        layer.jagged_mle.dense_data.folds.after(1, layer.jagged_mle.column_heights());
     let output_height = output_height_u32 as usize;
 
     // Create a new layer
@@ -44,7 +44,8 @@ pub fn layer_transition(layer: &GkrLayer) -> GkrLayer {
     let grid_size = (grid_size_x, 1, 1);
     let block_dim = BLOCK_SIZE;
 
-    let device_output_gkr_layer = JaggedGkrLayer::new(output_layer, output_height);
+    let device_output_gkr_layer =
+        JaggedGkrLayer { layer: output_layer, height: output_height, folds };
     let mut output_jagged_mle = JaggedMle::new(
         device_output_gkr_layer,
         output_col_index,
@@ -75,8 +76,8 @@ pub fn first_layer_transition(layer: &FirstGkrLayer) -> GkrLayer {
 
     // If this is not the last layer, we need to fix the last variable and create a
     // new circuit layer.
-    let (output_interaction_start_indices, output_interaction_row_counts, output_height_u32) =
-        layer.jagged_mle.next_start_indices_and_column_heights_dev();
+    let (output_interaction_start_indices, output_interaction_row_counts, output_height_u32, folds) =
+        layer.jagged_mle.dense_data.folds.after(1, layer.jagged_mle.column_heights());
     let output_height = output_height_u32 as usize;
 
     // Create a new layer
@@ -84,7 +85,7 @@ pub fn first_layer_transition(layer: &FirstGkrLayer) -> GkrLayer {
         Tensor::with_sizes_in([4, 1, output_height * 2], backend.clone());
     let output_col_index: Buffer<u32, _> = Buffer::with_capacity_in(output_height, backend.clone());
 
-    let output_gkr_layer = JaggedGkrLayer::new(output_layer, output_height);
+    let output_gkr_layer = JaggedGkrLayer { layer: output_layer, height: output_height, folds };
     let mut output_jagged_mle = JaggedMle::new(
         output_gkr_layer,
         output_col_index,

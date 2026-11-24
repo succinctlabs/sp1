@@ -528,7 +528,7 @@ pub fn evaluate_jagged_mle_chunked<F: Field>(
         backend.launch_kernel(kernel(), grid_size, (BLOCK_SIZE, 1, 1), &args, shared_mem).unwrap();
     }
 
-    let output_eval = DeviceTensor::from_raw(output_evals).sum_dim(1);
+    let output_eval = DeviceTensor::from_raw(output_evals).into_sum_dim(1);
     output_eval.into_inner()
 }
 

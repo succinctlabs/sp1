@@ -2,13 +2,12 @@ use core::{
     borrow::{Borrow, BorrowMut},
     mem::{size_of, MaybeUninit},
 };
-use std::collections::HashMap;
 
 use crate::{air::ProgramAirBuilder, program::InstructionCols, utils::next_multiple_of_32};
 use slop_air::{Air, BaseAir, PairBuilder};
 use slop_algebra::PrimeField32;
 use slop_matrix::Matrix;
-use slop_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
+use slop_maybe_rayon::prelude::{IndexedParallelIterator, ParallelIterator, ParallelSliceMut};
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::air::{MachineAir, SP1AirBuilder};
@@ -103,11 +102,8 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
         };
         let chunk_size = std::cmp::max((nb_rows + 1) / num_cpus::get(), 1);
 
-        values
-            .chunks_mut(chunk_size * NUM_PROGRAM_PREPROCESSED_COLS)
-            .enumerate()
-            .par_bridge()
-            .for_each(|(i, rows)| {
+        values.par_chunks_mut(chunk_size * NUM_PROGRAM_PREPROCESSED_COLS).enumerate().for_each(
+            |(i, rows)| {
                 rows.chunks_mut(NUM_PROGRAM_PREPROCESSED_COLS).enumerate().for_each(|(j, row)| {
                     let mut idx = i * chunk_size + j;
                     if idx >= nb_rows {
@@ -124,7 +120,8 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
                     let instruction = program.instructions[idx];
                     cols.instruction.populate(&instruction);
                 });
-            });
+            },
+        );
     }
 
     fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
@@ -137,160 +134,57 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
         _output: &mut ExecutionRecord,
         buffer: &mut [MaybeUninit<F>],
     ) {
-        // Generate the trace rows for each event.
-
-        // Collect the number of times each instruction is called from the cpu events.
-        // Store it as a map of PC -> count.
-        let mut instruction_counts = HashMap::new();
-        input.alu_x0_events.iter().for_each(|event| {
-            let pc = event.0.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
-        input.add_events.iter().for_each(|event| {
-            let pc = event.0.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
-        input.addw_events.iter().for_each(|event| {
-            let pc = event.0.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
-        input.addi_events.iter().for_each(|event| {
-            let pc = event.0.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
-        input.sub_events.iter().for_each(|event| {
-            let pc = event.0.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
-        input.subw_events.iter().for_each(|event| {
-            let pc = event.0.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
-        input.bitwise_events.iter().for_each(|event| {
-            let pc = event.0.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
-        input.mul_events.iter().for_each(|event| {
-            let pc = event.0.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
-        input.divrem_events.iter().for_each(|event| {
-            let pc = event.0.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
-        input.lt_events.iter().for_each(|event| {
-            let pc = event.0.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
-        input.shift_left_events.iter().for_each(|event| {
-            let pc = event.0.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
-        input.shift_right_events.iter().for_each(|event| {
-            let pc = event.0.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
-        input.branch_events.iter().for_each(|event| {
-            let pc = event.0.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
-        input.memory_load_byte_events.iter().for_each(|event| {
-            let pc = event.0.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
-        input.memory_load_half_events.iter().for_each(|event| {
-            let pc = event.0.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
-        input.memory_load_word_events.iter().for_each(|event| {
-            let pc = event.0.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
-        input.memory_load_x0_events.iter().for_each(|event| {
-            let pc = event.0.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
-        input.memory_load_double_events.iter().for_each(|event| {
-            let pc = event.0.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
-        input.memory_store_byte_events.iter().for_each(|event| {
-            let pc = event.0.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
-        input.memory_store_half_events.iter().for_each(|event| {
-            let pc = event.0.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
-        input.memory_store_word_events.iter().for_each(|event| {
-            let pc = event.0.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
-        input.memory_store_double_events.iter().for_each(|event| {
-            let pc = event.0.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
-        input.jal_events.iter().for_each(|event| {
-            let pc = event.0.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
-        input.jalr_events.iter().for_each(|event| {
-            let pc = event.0.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
-        input.utype_events.iter().for_each(|event| {
-            let pc = event.0.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
-        input.syscall_events.iter().for_each(|event| {
-            let pc = event.0.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
-        input.trap_load_store_events.iter().for_each(|event| {
-            let pc = event.0.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
-
-        // Note: The program table should only count trusted (i.e. not untrusted instructions.)
-        // However, untrusted instructions are also included in the events vectors.
-        // Intuitively this would cause a mismatch where the program table tries to receive
-        // additional interactions due to thes untrusted instruction events. In reality, there is no
-        // issue because rows are created over the program instructions which do not include
-        // untrusted instructions, and the address space for program instructions are
-        // protected and will never intersect with the address space for untrusted
-        // instructions.
-
-        let padded_nb_rows = <ProgramChip as MachineAir<F>>::num_rows(self, input).unwrap();
-        let nb_instructions = input.program.instructions.len();
-
-        unsafe {
-            let padding_start = nb_instructions * NUM_PROGRAM_MULT_COLS;
-            let padding_size = (padded_nb_rows - nb_instructions) * NUM_PROGRAM_MULT_COLS;
-            if padding_size > 0 {
-                core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
+        let base = input.program.pc_base;
+        let instructions = input.program.instructions.len();
+        let mut counts = vec![0usize; instructions];
+        // Untrusted and unaligned PCs have no row in the trusted program table.
+        let mut count_pc = |pc: u64| {
+            let offset = pc.wrapping_sub(base);
+            if offset.is_multiple_of(4) && offset / 4 < instructions as u64 {
+                counts[(offset / 4) as usize] += 1;
             }
-        }
-
-        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
-        let values = unsafe {
-            core::slice::from_raw_parts_mut(buffer_ptr, nb_instructions * NUM_PROGRAM_MULT_COLS)
         };
-
-        let chunk_size = std::cmp::max(nb_instructions / num_cpus::get(), 1);
-
-        values.chunks_mut(chunk_size * NUM_PROGRAM_MULT_COLS).enumerate().par_bridge().for_each(
-            |(i, rows)| {
-                rows.chunks_mut(NUM_PROGRAM_MULT_COLS).enumerate().for_each(|(j, row)| {
-                    let idx = i * chunk_size + j;
-                    if idx < nb_instructions {
-                        let pc = input.program.pc_base + idx as u64 * 4;
-                        let cols: &mut ProgramMultiplicityCols<F> = row.borrow_mut();
-                        cols.multiplicity =
-                            F::from_canonical_usize(*instruction_counts.get(&pc).unwrap_or(&0));
-                    }
-                });
-            },
+        macro_rules! count_events {
+            ($($field:ident),+ $(,)?) => {
+                $(input.$field.iter().for_each(|event| count_pc(event.0.pc));)+
+            };
+        }
+        count_events!(
+            alu_x0_events,
+            add_events,
+            addw_events,
+            addi_events,
+            sub_events,
+            subw_events,
+            bitwise_events,
+            mul_events,
+            divrem_events,
+            lt_events,
+            shift_left_events,
+            shift_right_events,
+            branch_events,
+            memory_load_byte_events,
+            memory_load_half_events,
+            memory_load_word_events,
+            memory_load_x0_events,
+            memory_load_double_events,
+            memory_store_byte_events,
+            memory_store_half_events,
+            memory_store_word_events,
+            memory_store_double_events,
+            jal_events,
+            jalr_events,
+            utype_events,
+            syscall_events,
+            trap_load_store_events,
         );
+
+        let padded_rows = <Self as MachineAir<F>>::num_rows(self, input).unwrap();
+        const _: () = assert!(NUM_PROGRAM_MULT_COLS == 1);
+        for (row, count) in buffer[..instructions].iter_mut().zip(counts) {
+            row.write(F::from_canonical_usize(count));
+        }
+        buffer[instructions..padded_rows].fill(MaybeUninit::new(F::zero()));
     }
 
     fn included(&self, _: &Self::Record) -> bool {

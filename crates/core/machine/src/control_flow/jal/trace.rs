@@ -1,14 +1,9 @@
 use std::{borrow::BorrowMut, mem::MaybeUninit};
 
-use hashbrown::HashMap;
-use itertools::Itertools;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use slop_air::BaseAir;
 use slop_algebra::PrimeField32;
-use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord},
-    ExecutionRecord, Program,
-};
+use sp1_core_executor::{events::ByteRecord, ExecutionRecord, Program};
 use sp1_hypercube::{air::MachineAir, Word};
 use struct_reflection::StructReflectionHelper;
 
@@ -51,9 +46,10 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for JalChip<M> {
             .chunks(chunk_size)
             .par_bridge()
             .map(|events| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                let mut blu = sp1_core_executor::events::ByteLookupCounts::default();
+                let mut row = vec![F::zero(); width];
                 events.iter().for_each(|event| {
-                    let mut row = vec![F::zero(); width];
+                    row.fill(F::zero());
                     let cols: &mut JalColumns<F, M> = row.as_mut_slice().borrow_mut();
 
                     cols.is_real = F::one();
@@ -66,11 +62,11 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for JalChip<M> {
                     cols.state.populate(&mut blu, event.0.clk, event.0.pc);
                     cols.adapter.populate(&mut blu, event.1);
                 });
-                blu
+                blu.finish()
             })
             .collect::<Vec<_>>();
 
-        output.add_byte_lookup_events_from_maps(blu_batches.iter().collect_vec());
+        output.add_byte_lookup_counts(blu_batches.into_iter().flatten());
     }
 
     fn generate_trace_into(
@@ -102,7 +98,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for JalChip<M> {
         let values = unsafe { core::slice::from_raw_parts_mut(buffer_ptr, num_event_rows * width) };
 
         values.chunks_mut(chunk_size * width).enumerate().par_bridge().for_each(|(i, rows)| {
-            let mut blu = Vec::new();
+            let mut blu = ();
             rows.chunks_mut(width).enumerate().for_each(|(j, row)| {
                 let idx = i * chunk_size + j;
                 if idx < input.jal_events.len() {

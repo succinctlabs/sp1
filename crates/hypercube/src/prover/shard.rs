@@ -75,6 +75,19 @@ pub trait AirProver<GC: IopCtx, SC: ShardContext<GC>>: 'static + Send + Sync + S
         record: Record<GC, SC>,
         prover_permits: ProverSemaphore,
     ) -> impl Future<Output = (ShardProof<GC, PcsProof<GC, SC>>, ProverPermit)> + Send;
+    /// Prove a shard using the preprocessing retained by setup. Backends with
+    /// stream-local workspaces can share the key across simultaneous shards.
+    fn prove_with_cached_setup(
+        &self,
+        _program: Arc<Program<GC, SC>>,
+        pk: Arc<ProvingKey<GC, SC, Self>>,
+        record: Record<GC, SC>,
+        prover_permits: ProverSemaphore,
+        _host_traces: BTreeMap<String, Vec<GC::F>>,
+    ) -> impl Future<Output = (ShardProof<GC, PcsProof<GC, SC>>, ProverPermit)> + Send {
+        self.prove_shard_with_pk(pk, record, prover_permits)
+    }
+
     /// Get all the chips in the machine.
     fn all_chips(&self) -> &[Chip<GC::F, SC::Air>] {
         self.machine().chips()

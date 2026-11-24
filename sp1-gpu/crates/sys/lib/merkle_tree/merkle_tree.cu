@@ -106,6 +106,35 @@ extern "C" void* compress_merkle_tree_bn254_kernel() {
 }
 
 
+// Each block owns an aligned subtree. Its parents can consume the previous level
+// after a block barrier, while every digest remains available for authentication paths.
+template <typename Hasher, typename Params>
+__global__ void compressLayers(
+    Hasher hasher, typename Params::F_t (*digests)[Params::DIGEST_WIDTH],
+    size_t height, size_t levels) {
+    size_t first = size_t(blockIdx.x) * blockDim.x;
+    size_t count = min(size_t(blockDim.x), size_t(1) << height);
+    for (size_t level = 0; level < levels; ++level) {
+        if (threadIdx.x < count) {
+            size_t parent = (size_t(1) << (height - level)) - 1 + first + threadIdx.x;
+            hasher.compress(digests[2 * parent + 1], digests[2 * parent + 2], digests[parent]);
+        }
+        if (level + 1 < levels) {
+            __syncthreads();
+            first >>= 1;
+            count >>= 1;
+        }
+    }
+}
+
+extern "C" void* compress_layers_merkle_tree_koala_bear_16_kernel() {
+    return (void*)compressLayers<poseidon2::KoalaBearHasher, poseidon2_kb31_16::KoalaBear>;
+}
+
+extern "C" void* compress_layers_merkle_tree_bn254_kernel() {
+    return (void*)compressLayers<poseidon2::Bn254Hasher, poseidon2_bn254_3::Bn254>;
+}
+
 // Walks the stored levels of a (possibly truncated) tree. For a truncated tree the caller
 // shifts the leaf indices down to the stored leaf level (`index_shift`) and offsets the
 // output past the recomputed bottom siblings (`path_offset`); `path_stride` stays full.
@@ -255,6 +284,17 @@ __global__ void computeOpenings(
         }
     }
 }
+
+// The single-layer prover opens one column-major matrix at a time.
+__global__ void gatherOpenings(const kb31_t* input, kb31_t* openings, const size_t* indices,
+                               size_t width, size_t height, size_t count) {
+    const size_t i = size_t(blockIdx.x) * blockDim.x + threadIdx.x;
+    if (i < count) {
+        openings[i] = input[(i % width) * height + indices[i / width]];
+    }
+}
+
+extern "C" void* gather_merkle_openings_kernel() { return (void*)gatherOpenings; }
 
 extern "C" void* compute_openings_merkle_tree_koala_bear_16_kernel() {
     return (void*)computeOpenings<

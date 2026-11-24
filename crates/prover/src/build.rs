@@ -464,6 +464,16 @@ pub fn plonk_circuit_artifacts_dir() -> Result<PathBuf> {
     Ok(base_path.join(SP1_CIRCUIT_VERSION))
 }
 
+/// An installed release circuit can be prepared before its wrap proof is available.
+pub fn installed_release_circuit(plonk: bool) -> Option<PathBuf> {
+    if use_development_mode() {
+        return None;
+    }
+    let dir =
+        if plonk { plonk_circuit_artifacts_dir() } else { groth16_circuit_artifacts_dir() }.ok()?;
+    circuit_artifacts_installed(&dir).then_some(dir)
+}
+
 /// Tries to install the circuit artifacts if they are not already installed.
 pub async fn try_install_circuit_artifacts(artifacts_type: &str) -> Result<PathBuf> {
     let build_dir = if artifacts_type == "groth16" {

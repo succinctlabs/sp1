@@ -1,13 +1,11 @@
 use std::{borrow::BorrowMut, mem::MaybeUninit};
 
-use hashbrown::HashMap;
-use itertools::Itertools;
 use slop_algebra::PrimeField32;
 use slop_maybe_rayon::prelude::{
     IndexedParallelIterator, ParallelIterator, ParallelSlice, ParallelSliceMut,
 };
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord, MemoryRecordEnum, PrecompileEvent, ShaCompressEvent},
+    events::{ByteRecord, MemoryRecordEnum, PrecompileEvent, ShaCompressEvent},
     ExecutionRecord, Program, SyscallCode, TrapError,
 };
 use sp1_hypercube::air::MachineAir;
@@ -35,44 +33,106 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
         Some(padded_nb_rows)
     }
 
+    fn try_trace_with_dependencies(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> Option<Vec<F>> {
+        let len = <Self as MachineAir<F>>::num_rows(self, input).unwrap() * NUM_SHA_COMPRESS_COLS;
+        let mut values = Vec::with_capacity(len);
+        let counts = self.fill_trace(
+            input,
+            &mut values.spare_capacity_mut()[..len],
+            sp1_core_executor::events::DenseByteLookupCounts::merge,
+        );
+        if let Some(counts) = counts {
+            output.add_byte_lookup_counts(counts.finish());
+        }
+        // fill_trace initializes the real and padded rows.
+        unsafe {
+            values.set_len(len);
+        }
+        Some(values)
+    }
+
     fn generate_trace_into(
         &self,
         input: &ExecutionRecord,
         _: &mut ExecutionRecord,
         buffer: &mut [MaybeUninit<F>],
     ) {
+        self.fill_trace(input, buffer, |(), ()| ());
+    }
+
+    fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
+        let events = input.get_precompile_events(SyscallCode::SHA_COMPRESS);
+        let chunk_size = (events.len() / num_cpus::get()).max(256);
+
+        let counts = events
+            .par_chunks(chunk_size)
+            .map(|events| {
+                let mut blu = sp1_core_executor::events::DenseByteLookupCounts::default();
+                let mut row = vec![F::zero(); NUM_SHA_COMPRESS_COLS * 80];
+                events.iter().for_each(|(syscall_event, event)| {
+                    let event = if let PrecompileEvent::ShaCompress(event) = event {
+                        event
+                    } else {
+                        unreachable!()
+                    };
+                    self.event_to_rows::<F>(event, &syscall_event.trap_error, &mut row, &mut blu);
+                });
+                blu
+            })
+            .reduce_with(sp1_core_executor::events::DenseByteLookupCounts::merge);
+
+        if let Some(counts) = counts {
+            output.add_byte_lookup_counts(counts.finish());
+        }
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            !shard.get_precompile_events(SyscallCode::SHA_COMPRESS).is_empty()
+        }
+    }
+}
+
+impl ShaCompressChip {
+    fn fill_trace<F: PrimeField32, B: ByteRecord + Default + Send>(
+        &self,
+        input: &ExecutionRecord,
+        buffer: &mut [MaybeUninit<F>],
+        merge: impl Fn(B, B) -> B + Sync + Send,
+    ) -> Option<B> {
         let padded_nb_rows = <ShaCompressChip as MachineAir<F>>::num_rows(self, input).unwrap();
         let events = input.get_precompile_events(SyscallCode::SHA_COMPRESS);
         let num_event_rows = events.len() * 80;
 
-        unsafe {
-            let padding_start = num_event_rows * NUM_SHA_COMPRESS_COLS;
-            let padding_size = (padded_nb_rows - num_event_rows) * NUM_SHA_COMPRESS_COLS;
-            if padding_size > 0 {
-                core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
-            }
-        }
+        let (values, padding) = buffer[..padded_nb_rows * NUM_SHA_COMPRESS_COLS]
+            .split_at_mut(num_event_rows * NUM_SHA_COMPRESS_COLS);
+        padding.fill(MaybeUninit::new(F::zero()));
 
-        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
-        let values = unsafe {
-            core::slice::from_raw_parts_mut(buffer_ptr, num_event_rows * NUM_SHA_COMPRESS_COLS)
-        };
-
-        let compress_area = NUM_SHA_COMPRESS_COLS * 80;
-
-        values.par_chunks_mut(compress_area).enumerate().for_each(|(idx, row)| {
-            let mut blu = Vec::new();
-            let event = &events[idx].1;
-            let event = if let PrecompileEvent::ShaCompress(event) = event {
-                event
-            } else {
-                unreachable!()
-            };
-            unsafe {
-                core::ptr::write_bytes(row.as_mut_ptr(), 0, compress_area);
-            }
-            self.event_to_rows(event, &events[idx].0.trap_error, row, &mut blu);
-        });
+        let chunk = events.len().div_ceil(rayon::current_num_threads()).max(64);
+        let event_width = NUM_SHA_COMPRESS_COLS * 80;
+        let counts = values
+            .par_chunks_mut(chunk * event_width)
+            .zip(events.par_chunks(chunk))
+            .map(|(values, events)| {
+                let mut counts = B::default();
+                for (row, (call, event)) in values.chunks_mut(event_width).zip(events) {
+                    let PrecompileEvent::ShaCompress(event) = event else { unreachable!() };
+                    row.fill(MaybeUninit::new(F::zero()));
+                    // Every field element in this row has been initialized.
+                    let row = unsafe {
+                        std::slice::from_raw_parts_mut(row.as_mut_ptr().cast::<F>(), row.len())
+                    };
+                    self.event_to_rows(event, &call.trap_error, row, &mut counts);
+                }
+                counts
+            })
+            .reduce_with(merge);
 
         // Set the octet_num and octet columns for the padded rows.
         let mut octet_num = 0;
@@ -103,42 +163,9 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
                 octet_num = (octet_num + 1) % 10;
             }
         }
+        counts
     }
 
-    fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        let events = input.get_precompile_events(SyscallCode::SHA_COMPRESS);
-        let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
-
-        let blu_batches = events
-            .par_chunks(chunk_size)
-            .map(|events| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
-                let mut row = vec![F::zero(); NUM_SHA_COMPRESS_COLS * 80];
-                events.iter().for_each(|(syscall_event, event)| {
-                    let event = if let PrecompileEvent::ShaCompress(event) = event {
-                        event
-                    } else {
-                        unreachable!()
-                    };
-                    self.event_to_rows::<F>(event, &syscall_event.trap_error, &mut row, &mut blu);
-                });
-                blu
-            })
-            .collect::<Vec<_>>();
-
-        output.add_byte_lookup_events_from_maps(blu_batches.iter().collect_vec());
-    }
-
-    fn included(&self, shard: &Self::Record) -> bool {
-        if let Some(shape) = shard.shape.as_ref() {
-            shape.included::<F, _>(self)
-        } else {
-            !shard.get_precompile_events(SyscallCode::SHA_COMPRESS).is_empty()
-        }
-    }
-}
-
-impl ShaCompressChip {
     fn event_to_rows<F: PrimeField32>(
         &self,
         event: &ShaCompressEvent,
@@ -308,7 +335,7 @@ impl ShaCompressChip {
             cols.is_real = F::one();
         }
 
-        let mut v: [u32; 8] = (0..8).map(|i| h_array[i]).collect::<Vec<_>>().try_into().unwrap();
+        let mut v = h_array;
 
         octet_num_idx += 1;
         // Store a, b, c, d, e, f, g, h.

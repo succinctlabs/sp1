@@ -10,14 +10,12 @@ use core::{
 };
 use std::marker::PhantomData;
 
-use hashbrown::HashMap;
-use itertools::Itertools;
 use slop_air::{Air, BaseAir};
 use slop_algebra::{AbstractField, PrimeField, PrimeField32};
 use slop_matrix::Matrix;
 use slop_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 use sp1_core_executor::{
-    events::{AluEvent, ByteLookupEvent, ByteRecord},
+    events::{AluEvent, ByteRecord},
     ExecutionRecord, Opcode, Program, CLK_INC, PC_INC,
 };
 use sp1_derive::AlignedBorrow;
@@ -125,7 +123,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for AddwChip<M> {
                 let cols: &mut AddwCols<F, M> = row.borrow_mut();
 
                 if idx < input.addw_events.len() {
-                    let mut byte_lookup_events = Vec::new();
+                    let mut byte_lookup_events = ();
                     let event = input.addw_events[idx];
                     cols.adapter.populate(&mut byte_lookup_events, event.1);
                     cols.state.populate(&mut byte_lookup_events, event.0.clk, event.0.pc);
@@ -151,19 +149,20 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for AddwChip<M> {
         let blu_batches = event_iter
             .par_bridge()
             .map(|events| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                let mut blu = sp1_core_executor::events::ByteLookupCounts::default();
+                let mut row = vec![F::zero(); width];
                 events.iter().for_each(|event| {
-                    let mut row = vec![F::zero(); width];
+                    row.fill(F::zero());
                     let cols: &mut AddwCols<F, M> = row.as_mut_slice().borrow_mut();
                     cols.adapter.populate(&mut blu, event.1);
                     self.event_to_row(&event.0, cols, &mut blu);
                     cols.state.populate(&mut blu, event.0.clk, event.0.pc);
                 });
-                blu
+                blu.finish()
             })
             .collect::<Vec<_>>();
 
-        output.add_byte_lookup_events_from_maps(blu_batches.iter().collect_vec());
+        output.add_byte_lookup_counts(blu_batches.into_iter().flatten());
     }
 
     fn included(&self, shard: &Self::Record) -> bool {

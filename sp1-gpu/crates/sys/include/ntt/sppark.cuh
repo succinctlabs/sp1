@@ -100,6 +100,14 @@ static cudaError_t run_ntt_batch(
             }
         }
 #else
+#if defined(FEATURE_KOALA_BEAR) || defined(FEATURE_GOLDILOCKS)
+        if (order == NTT::InputOutputOrder::NR && !reverse_result &&
+            stride == (size_t(1) << lg_domain_size)) {
+            NTT::GS_batch(stream, data, lg_domain_size, poly_count,
+                          direction == NTT::Direction::inverse);
+            return cudaSuccess;
+        }
+#endif
         for (uint32_t polynomial = 0; polynomial < poly_count; ++polynomial) {
             NTT::Base_dev_ptr(
                 stream,
@@ -129,20 +137,9 @@ extern "C" rustCudaError_t sppark_init(const cudaStream_t stream) {
 #ifdef NVIDIA_NTT
     return CUDA_SUCCESS_CSL;
 #else
-    uint32_t lg_domain_size = 1;
-    uint32_t domain_size = 1U << lg_domain_size;
-
-    std::vector<fr_t> inout(domain_size);
-    inout[0] = fr_t(1);
-    inout[1] = fr_t(1);
+    (void)stream;
     try {
-        NTT::Base(
-            stream,
-            &inout[0],
-            lg_domain_size,
-            NTT::InputOutputOrder::NR,
-            NTT::Direction::forward,
-            NTT::Type::standard);
+        (void)NTTParameters::all();
     } catch (const cuda_error& error) {
         CUDA_OK(static_cast<cudaError_t>(-error.code()));
     }
@@ -213,28 +210,40 @@ extern "C" rustCudaError_t batch_coset_dft(
 #endif
         const bool bit_reversed_input =
             LDE_INPUT_BIT_REVERSED && !direct_bit_reversed_output;
-        for (size_t c = 0; c < poly_count; c++) {
-            fr_t* domain_data = &d_in[c * domain_size];
-            if (bit_reversed_input) {
-                domain_data = &d_out[(c + 1) * ext_domain_size - domain_size];
-                NTT::bit_rev(
-                    domain_data,
-                    &d_in[c * domain_size],
-                    lg_domain_size,
-                    stream);
+        if (!bit_reversed_input && !perform_shift && poly_count != 0) {
+            // A unit coset only needs a zero-padded copy of each polynomial.
+            const size_t width = size_t(domain_size) * sizeof(fr_t);
+            const size_t pitch = size_t(ext_domain_size) * sizeof(fr_t);
+            CUDA_OK(cudaMemcpy2DAsync(d_out, pitch, d_in, width, width, poly_count,
+                                      cudaMemcpyDeviceToDevice, stream));
+            if (pitch != width) {
+                CUDA_OK(cudaMemset2DAsync(d_out + domain_size, pitch, 0, pitch - width,
+                                          poly_count, stream));
             }
+        } else {
+            for (size_t c = 0; c < poly_count; c++) {
+                fr_t* domain_data = &d_in[c * domain_size];
+                if (bit_reversed_input) {
+                    domain_data = &d_out[(c + 1) * ext_domain_size - domain_size];
+                    NTT::bit_rev(
+                        domain_data,
+                        &d_in[c * domain_size],
+                        lg_domain_size,
+                        stream);
+                }
 
-            NTT::LDE_launch(
-                stream,
-                &d_out[c * ext_domain_size],
-                domain_data,
-                gen_powers,
-                lg_domain_size,
-                lg_blowup,
-                bit_reversed_input,
-                perform_shift,
-                shift);
+                NTT::LDE_launch(
+                    stream,
+                    &d_out[c * ext_domain_size],
+                    domain_data,
+                    gen_powers,
+                    lg_domain_size,
+                    lg_blowup,
+                    bit_reversed_input,
+                    perform_shift,
+                    shift);
 
+            }
         }
         CUDA_OK(run_ntt_batch(
             d_out,

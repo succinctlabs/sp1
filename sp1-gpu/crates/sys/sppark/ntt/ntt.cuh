@@ -148,7 +148,11 @@ private:
                        const cudaStream_t stream)
     {
         GS_launcher params{d_inout, lg_domain_size, is_intt, ntt_parameters, stream};
+        GS_steps(params, lg_domain_size);
+    }
 
+    static void GS_steps(GS_launcher& params, int lg_domain_size)
+    {
         if (lg_domain_size <= 10) {
             params.step(lg_domain_size);
         } else if (lg_domain_size <= 17) {
@@ -411,6 +415,23 @@ public:
         NTT_internal(&d_inout[0], lg_domain_size, order, direction, type,
                      stream);
     }
+
+#if defined(FEATURE_KOALA_BEAR) || defined(FEATURE_GOLDILOCKS)
+    static void GS_batch(const cudaStream_t stream, fr_t* data, uint32_t log_size,
+                         uint32_t polynomials, bool inverse)
+    {
+        const auto& twiddles = NTTParameters::all(inverse)[gpu_id()];
+        // CUDA limits grid.y to 65535. Each row of blocks transforms one polynomial.
+        while (polynomials) {
+            uint32_t count = std::min(polynomials, 65535u);
+            GS_launcher params{data, int(log_size), inverse, twiddles, stream, count};
+            GS_steps(params, log_size);
+            data += size_t(count) << log_size;
+            polynomials -= count;
+        }
+        CUDA_UNWRAP_SPPARK(cudaGetLastError());
+    }
+#endif
 
     static void LDE_powers(const cudaStream_t stream, fr_t* d_inout,
                            uint32_t lg_domain_size)

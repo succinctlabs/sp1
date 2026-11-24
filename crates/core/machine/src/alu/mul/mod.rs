@@ -4,13 +4,12 @@ use core::{
 };
 use std::marker::PhantomData;
 
-use hashbrown::HashMap;
 use slop_air::{Air, BaseAir};
 use slop_algebra::{AbstractField, PrimeField, PrimeField32};
 use slop_matrix::Matrix;
 use slop_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
-    events::{AluEvent, ByteLookupEvent, ByteRecord},
+    events::{AluEvent, ByteLookupCounts, ByteRecord},
     ExecutionRecord, Opcode, Program, CLK_INC, PC_INC,
 };
 use sp1_derive::AlignedBorrow;
@@ -101,6 +100,22 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for MulChip<M> {
         Some(nb_rows)
     }
 
+    fn try_trace_with_dependencies(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> Option<Vec<F>> {
+        let width = <Self as BaseAir<F>>::width(self);
+        let rows = <Self as MachineAir<F>>::num_rows(self, input).unwrap();
+        Some(crate::utils::trace_with_byte_lookups(
+            &input.mul_events,
+            width,
+            rows,
+            output,
+            |event, row, counts| self.populate_row(event, row, counts),
+        ))
+    }
+
     fn generate_trace_into(
         &self,
         input: &ExecutionRecord,
@@ -129,22 +144,9 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for MulChip<M> {
         let values = unsafe { core::slice::from_raw_parts_mut(buffer_ptr, nb_rows * width) };
 
         values.chunks_mut(chunk_size * width).enumerate().par_bridge().for_each(|(i, rows)| {
-            rows.chunks_mut(width).enumerate().for_each(|(j, row)| {
-                let idx = i * chunk_size + j;
-                let cols: &mut MulCols<F, M> = row.borrow_mut();
-
-                if idx < nb_rows {
-                    let mut byte_lookup_events = Vec::new();
-                    let event = &input.mul_events[idx];
-                    cols.adapter.populate(&mut byte_lookup_events, event.1);
-                    self.event_to_row(&event.0, cols, &mut byte_lookup_events);
-                    cols.state.populate(&mut byte_lookup_events, event.0.clk, event.0.pc);
-                    if !M::IS_TRUSTED {
-                        let cols: &mut MulCols<F, UserMode> = row.borrow_mut();
-                        cols.adapter_cols.is_trusted = F::from_bool(!event.1.is_untrusted);
-                    }
-                }
-            });
+            for (row, event) in rows.chunks_mut(width).zip(&input.mul_events[i * chunk_size..]) {
+                self.populate_row(event, row, &mut ());
+            }
         });
     }
 
@@ -160,19 +162,16 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for MulChip<M> {
             .mul_events
             .par_chunks(chunk_size)
             .map(|events| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
-                events.iter().for_each(|event| {
-                    let mut row = vec![F::zero(); width];
-                    let cols: &mut MulCols<F, M> = row.as_mut_slice().borrow_mut();
-                    cols.adapter.populate(&mut blu, event.1);
-                    self.event_to_row(&event.0, cols, &mut blu);
-                    cols.state.populate(&mut blu, event.0.clk, event.0.pc);
-                });
-                blu
+                let mut blu = ByteLookupCounts::default();
+                let mut row = vec![F::zero(); width];
+                for event in events {
+                    self.populate_row(event, &mut row, &mut blu);
+                }
+                blu.finish()
             })
             .collect::<Vec<_>>();
 
-        output.add_byte_lookup_events_from_maps(blu_batches.iter().collect::<Vec<_>>());
+        output.add_byte_lookup_counts(blu_batches.into_iter().flatten());
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -186,6 +185,22 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for MulChip<M> {
 }
 
 impl<M: TrustMode> MulChip<M> {
+    fn populate_row<F: PrimeField32>(
+        &self,
+        event: &(AluEvent, sp1_core_executor::RTypeRecord),
+        row: &mut [F],
+        blu: &mut impl ByteRecord,
+    ) {
+        let cols: &mut MulCols<F, M> = row.borrow_mut();
+        self.event_to_row(&event.0, cols, blu);
+        cols.state.populate(blu, event.0.clk, event.0.pc);
+        cols.adapter.populate(blu, event.1);
+        if !M::IS_TRUSTED {
+            let cols: &mut MulCols<F, UserMode> = row.borrow_mut();
+            cols.adapter_cols.is_trusted = F::from_bool(!event.1.is_untrusted);
+        }
+    }
+
     /// Create a row from an event.
     fn event_to_row<F: PrimeField>(
         &self,

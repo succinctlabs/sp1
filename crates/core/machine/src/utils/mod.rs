@@ -23,6 +23,39 @@ use sp1_primitives::{consts::WORD_BYTE_SIZE, utils::reverse_bits_len};
 
 pub use sp1_hypercube::{indices_arr, next_multiple_of_32, pad_rows_fixed};
 
+/// Fill a host trace while counting the byte lookups produced by the same row operations.
+pub(crate) fn trace_with_byte_lookups<F: Field, E: Sync>(
+    events: &[E],
+    width: usize,
+    padded_rows: usize,
+    output: &mut sp1_core_executor::ExecutionRecord,
+    populate: impl Fn(&E, &mut [F], &mut sp1_core_executor::events::DenseByteLookupCounts) + Sync,
+) -> Vec<F> {
+    use rayon::prelude::*;
+    use sp1_core_executor::events::DenseByteLookupCounts;
+
+    if padded_rows == 0 {
+        return Vec::new();
+    }
+    let mut values = vec![F::zero(); padded_rows * width];
+    let chunk = events.len().div_ceil(rayon::current_num_threads()).max(256);
+    let counts = values[..events.len() * width]
+        .par_chunks_mut(chunk * width)
+        .zip(events.par_chunks(chunk))
+        .map(|(rows, events)| {
+            let mut counts = DenseByteLookupCounts::default();
+            for (event, row) in events.iter().zip(rows.chunks_exact_mut(width)) {
+                populate(event, row, &mut counts);
+            }
+            counts
+        })
+        .reduce_with(DenseByteLookupCounts::merge);
+    if let Some(counts) = counts {
+        output.add_byte_lookup_counts(counts.finish());
+    }
+    values
+}
+
 pub fn limbs_to_words<AB: SP1AirBuilder>(limbs: Vec<AB::Var>) -> Vec<Word<AB::Expr>> {
     let base = AB::Expr::from_canonical_u32(1 << 8);
     let result_words: Vec<Word<AB::Expr>> = limbs

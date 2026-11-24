@@ -61,7 +61,7 @@ where
         scope.launch_kernel(kernel(), grid_dim, BLOCK_SIZE, &args, shared_mem).unwrap();
     }
     let univariate_evals = DeviceTensor::from_raw(univariate_evals);
-    let univariate_evals = univariate_evals.sum_dim(2).sum_dim(1);
+    let univariate_evals = univariate_evals.into_sum_dim(2).into_sum_dim(1);
     let host_evals = univariate_evals.to_host().unwrap();
     let [component_eval_zero, component_eval_half] = host_evals.as_slice().try_into().unwrap();
     let eval_zero = component_eval_zero;
@@ -183,7 +183,7 @@ fn interpolate_round_poly(
     claim: Ext,
 ) -> UnivariatePolynomial<Ext> {
     let univariate_evals = DeviceTensor::from_raw(univariate_evals);
-    let host_evals = univariate_evals.sum_dim(1).to_host().unwrap();
+    let host_evals = univariate_evals.into_sum_dim(1).to_host().unwrap();
 
     let [eval_zero, eval_half] = host_evals.as_slice().try_into().unwrap();
 

@@ -31,6 +31,9 @@ typedef struct {
   sp1_fr u, u2;
 } sp1_ntt_src;
 
+// Add coeff times a gather, selector or permutation source to acc in the Lagrange domain.
+int sp1_axpy_source(void* acc, const sp1_ntt_src* source, const sp1_fr* coeff, uint64_t n, void* stream);
+
 // In-place DIF NTT: natural-order input, read from src when not null, to bit-reversed output. Every input
 // is multiplied by scale when it is not null.
 int sp1_ntt_dif(void* data, uint32_t log_n, const void* tab, const sp1_fr* scale, const sp1_ntt_src* src, void* stream);
@@ -72,6 +75,9 @@ int sp1_fr_h_accum(void* h, const void* g, uint64_t n, const void* ctab_inv, con
 int sp1_fr_ratio(void* z, const void* values, const uint32_t* wires, const uint32_t* sigma, uint64_t n, const void* tab_w,
                  const sp1_fr* beta, const sp1_fr* gamma, const sp1_fr* u, const sp1_fr* u2, void* stream);
 int sp1_fr_scan_mul(void* z, uint64_t n, void* stream);
+int sp1_plonk_lagrange_openings(sp1_fr* out, const void* values, const uint32_t* wires, const uint32_t* sigma,
+                                const void* qcp, uint64_t n, const void* tab, const sp1_fr* u, const sp1_fr* u2,
+                                const sp1_fr* zeta, const sp1_fr* scale, void* stream);
 int sp1_fr_eval_partials(sp1_fr* out, const void* p, uint64_t len, const sp1_fr* z, uint64_t chunk, void* stream);
 int sp1_fr_div_xma(void* out, const void* f, uint64_t len, const sp1_fr* a, const sp1_fr* carries, uint64_t chunk,
                    void* stream);
@@ -80,6 +86,11 @@ int sp1_fr_scatter(void* dst, const uint32_t* pos, const sp1_fr* vals, uint64_t 
 // dst[i] = table[idx[i]], with table in host memory.
 int sp1_fr_expand(void* dst, const uint16_t* idx, const sp1_fr* table, uint32_t table_len, uint64_t n, void* stream);
 
+// Materialize Groth16 QAP rows from the checked witness and packed R1CS terms.
+int sp1_qap_rows(void* a, void* b, void* c, const void* values, const void* coeffs, const uint8_t* terms,
+                 const uint32_t* starts, uint32_t width, uint32_t coeff_bits, uint32_t rows, uint32_t n);
+int sp1_memcpy_d2d(void* dst, const void* src, uint64_t size);
+int sp1_free_memory(uint64_t* bytes);
 int sp1_malloc(void** ptr, uint64_t size, void* stream);
 int sp1_free(void* ptr, void* stream);
 int sp1_host_register(void* ptr, uint64_t size);

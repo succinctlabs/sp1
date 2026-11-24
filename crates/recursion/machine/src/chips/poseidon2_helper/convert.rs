@@ -71,15 +71,10 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ConvertChip {
     }
 
     fn preprocessed_num_rows(&self, program: &Self::Program) -> Option<usize> {
-        let instrs_len = program
-            .inner
-            .iter()
-            .filter_map(|instruction| match instruction.inner() {
-                Instruction::ExtFelt(x) => Some(x),
-                _ => None,
-            })
-            .count();
-        self.preprocessed_num_rows_with_instrs_len(program, instrs_len)
+        self.preprocessed_num_rows_with_instrs_len(
+            program,
+            program.event_counts.ext_felt_conversion_events,
+        )
     }
 
     fn preprocessed_num_rows_with_instrs_len(

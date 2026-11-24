@@ -1450,10 +1450,8 @@ where
     // for latency hiding.
     const BLOCK_SIZE_LOW_REG: u32 = 256;
     const BLOCK_SIZE_HIGH_REG: u32 = 64;
-    // Each thread handles this many rows from its tile (matches the old
-    // grid-stride loop's `GRID_STRIDE_ROWS_PER_THREAD` so the reduce
-    // overhead is amortised the same way). Tile size = block_size * this.
-    const ROWS_PER_THREAD: u32 = 4;
+    // Split each chunk into enough tiles to keep short and medium rounds parallel.
+    const ROWS_PER_THREAD: u32 = 2;
 
     let (rest, last) = poly.zeta.split_at(poly.zeta.dimension() - 1);
     let last = *last[0];

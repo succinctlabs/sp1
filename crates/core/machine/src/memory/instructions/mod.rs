@@ -1,6 +1,71 @@
 pub mod load;
 pub mod store;
 
+use std::mem::MaybeUninit;
+
+use rayon::prelude::*;
+use slop_algebra::PrimeField32;
+use sp1_core_executor::{
+    events::{ByteLookupCounts, ByteRecord, MemInstrEvent},
+    ExecutionRecord, ITypeRecord,
+};
+use sp1_hypercube::air::MachineAir;
+
+type MemoryEvent = (MemInstrEvent, ITypeRecord);
+
+trait MemoryInstructionRows<F: PrimeField32>: MachineAir<F, Record = ExecutionRecord> {
+    fn events<'a>(&self, record: &'a ExecutionRecord) -> &'a [MemoryEvent];
+    fn populate(&self, event: &MemoryEvent, row: &mut [F], lookups: &mut impl ByteRecord);
+
+    fn fill_rows<B: ByteRecord + Default, R: Send>(
+        &self,
+        input: &ExecutionRecord,
+        buffer: &mut [MaybeUninit<F>],
+        finish: impl Fn(B) -> R + Sync,
+    ) -> Vec<R> {
+        let width = self.width();
+        let events = self.events(input);
+        let buffer = &mut buffer[..self.num_rows(input).unwrap() * width];
+        let (values, padding) = buffer.split_at_mut(events.len() * width);
+        padding.fill(MaybeUninit::new(F::zero()));
+        let chunk = events.len().div_ceil(rayon::current_num_threads()).max(1);
+        values
+            .par_chunks_mut(chunk * width)
+            .zip(events.par_chunks(chunk))
+            .map(|(values, events)| {
+                values.fill(MaybeUninit::new(F::zero()));
+                // Every selector and data cell in these rows is initialized.
+                let rows = unsafe {
+                    std::slice::from_raw_parts_mut(values.as_mut_ptr().cast::<F>(), values.len())
+                };
+                let mut counts = B::default();
+                for (event, row) in events.iter().zip(rows.chunks_exact_mut(width)) {
+                    self.populate(event, row, &mut counts);
+                }
+                finish(counts)
+            })
+            .collect()
+    }
+
+    fn count_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
+        let events = self.events(input);
+        let chunk = events.len().div_ceil(rayon::current_num_threads()).max(1);
+        let batches: Vec<_> = events
+            .par_chunks(chunk)
+            .map(|events| {
+                let mut counts = ByteLookupCounts::default();
+                let mut row = vec![F::zero(); self.width()];
+                for event in events {
+                    row.fill(F::zero());
+                    self.populate(event, &mut row, &mut counts);
+                }
+                counts.finish()
+            })
+            .collect();
+        output.add_byte_lookup_counts(batches.into_iter().flatten());
+    }
+}
+
 // #[cfg(test)]
 // mod tests {
 //     use std::borrow::BorrowMut;

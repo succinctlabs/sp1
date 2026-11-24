@@ -389,7 +389,7 @@ impl ProofArtifacts {
 
 #[derive(Clone)]
 pub struct InMemoryArtifactClient {
-    artifacts: Arc<RwLock<HashMap<String, Vec<u8>>>>,
+    artifacts: Arc<RwLock<HashMap<String, Arc<Vec<u8>>>>>,
     refs: Arc<Mutex<HashMap<String, HashSet<String>>>>,
     index: ProofArtifacts,
 }
@@ -401,6 +401,15 @@ impl fmt::Debug for InMemoryArtifactClient {
 }
 
 impl InMemoryArtifactClient {
+    async fn bytes(&self, artifact: &impl ArtifactId) -> Result<Arc<Vec<u8>>> {
+        self.artifacts
+            .read()
+            .await
+            .get(artifact.id())
+            .cloned()
+            .ok_or_else(|| anyhow!("artifact not found"))
+    }
+
     pub fn new() -> Self {
         Self::with_index(ProofArtifacts::default())
     }
@@ -430,7 +439,7 @@ impl ArtifactClient for InMemoryArtifactClient {
         data: Vec<u8>,
     ) -> Result<()> {
         let mut artifacts = self.artifacts.write().await;
-        artifacts.insert(artifact.id().to_string(), data.clone());
+        artifacts.insert(artifact.id().to_string(), Arc::new(data));
         Ok(())
     }
 
@@ -439,9 +448,16 @@ impl ArtifactClient for InMemoryArtifactClient {
         artifact: &impl ArtifactId,
         _artifact_type: ArtifactType,
     ) -> Result<Vec<u8>> {
-        let artifacts = self.artifacts.read().await;
-        let bytes = artifacts.get(artifact.id()).ok_or_else(|| anyhow!("artifact not found"))?;
-        Ok(bytes.clone())
+        Ok(Arc::unwrap_or_clone(self.bytes(artifact).await?))
+    }
+
+    async fn download_with_type<T: DeserializeOwned + Send + Sync + 'static>(
+        &self,
+        artifact: &impl ArtifactId,
+        _artifact_type: ArtifactType,
+    ) -> Result<T> {
+        let bytes = self.bytes(artifact).await?;
+        Ok(tokio::task::spawn_blocking(move || bincode::deserialize(&bytes)).await??)
     }
 
     async fn exists(

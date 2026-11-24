@@ -18,7 +18,12 @@ __host__ __device__ __forceinline__ T cst(const U* p) {
 
 // Power tables hold c^i for i < 2^12 followed by c^(2^12 * i), in Montgomery form.
 __device__ __forceinline__ Fr pow_tab(const Fr* tab, uint64_t j) {
-  return tab[j & ((1u << TAB_LO_BITS) - 1)] * tab[(1u << TAB_LO_BITS) + (j >> TAB_LO_BITS)];
+  constexpr uint32_t step = 1u << TAB_LO_BITS;
+  uint32_t low = j & (step - 1);
+  uint64_t high = j >> TAB_LO_BITS;
+  if (high == 0) return tab[low];
+  if (low == 0) return tab[step + high];
+  return tab[low] * tab[step + high];
 }
 
 // The value at position p of the support <w> || u<w> || u^2<w> of the copy constraint permutation.

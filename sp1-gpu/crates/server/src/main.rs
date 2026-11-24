@@ -5,6 +5,12 @@ use tikv_jemallocator::Jemalloc;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
+// Trace records are large and short lived. Return dirty pages between proving stages.
+#[cfg(all(target_os = "linux", target_env = "gnu"))]
+#[export_name = "_rjem_malloc_conf"]
+pub static JEMALLOC_CONF: &std::ffi::c_char =
+    unsafe { &*c"narenas:8,background_thread:true,dirty_decay_ms:250,muzzy_decay_ms:250".as_ptr() };
+
 use clap::Parser;
 use server::Server;
 use sp1_gpu_cudart::run_in_place;
@@ -27,6 +33,17 @@ async fn main() {
     if args.version {
         println!("{}", sp1_primitives::SP1_CRATE_VERSION);
         return;
+    }
+
+    if std::env::var_os("RAYON_NUM_THREADS").is_none()
+        && std::env::var_os("RAYON_RS_NUM_CPUS").is_none()
+    {
+        // Trace generation is bandwidth bound and runs alongside execution and the GPU driver.
+        let threads = num_cpus::get_physical().min(num_cpus::get()).max(1);
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build_global()
+            .expect("failed to initialize the CPU trace workers");
     }
 
     let cuda_device_id = std::env::var("CUDA_VISIBLE_DEVICES")

@@ -202,7 +202,19 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                     #name::#variant_name(x) => <#field_ty as sp1_hypercube::air::MachineAir<F>>::generate_trace_into(x, input, output, buffer)
                 }
             });
+            let generate_main_trace_into_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as sp1_hypercube::air::MachineAir<F>>::generate_main_trace_into(x, input, buffer)
+                }
+            });
 
+            let trace_with_dependencies_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as sp1_hypercube::air::MachineAir<F>>::try_trace_with_dependencies(x, input, output)
+                }
+            });
             let generate_dependencies_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
@@ -291,6 +303,24 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                     ){
                         match self {
                             #(#generate_trace_into_arms,)*
+                        }
+                    }
+
+                    fn generate_main_trace_into(
+                        &self,
+                        input: &#execution_record_path,
+                        buffer: &mut [MaybeUninit<F>],
+                    ){
+                        match self {
+                            #(#generate_main_trace_into_arms,)*
+                        }
+                    }
+
+                    fn try_trace_with_dependencies(
+                        &self, input: &Self::Record, output: &mut Self::Record,
+                    ) -> Option<Vec<F>> {
+                        match self {
+                            #(#trace_with_dependencies_arms,)*
                         }
                     }
 

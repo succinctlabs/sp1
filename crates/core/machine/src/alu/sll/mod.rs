@@ -4,14 +4,14 @@ use core::{
 };
 use std::marker::PhantomData;
 
-use hashbrown::HashMap;
-use itertools::Itertools;
 use slop_air::{Air, AirBuilder, BaseAir};
 use slop_algebra::{AbstractField, Field, PrimeField, PrimeField32};
 use slop_matrix::Matrix;
-use slop_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
+use slop_maybe_rayon::prelude::{
+    IndexedParallelIterator, ParallelIterator, ParallelSlice, ParallelSliceMut,
+};
 use sp1_core_executor::{
-    events::{AluEvent, ByteLookupEvent, ByteRecord},
+    events::{AluEvent, ByteLookupCounts, ByteRecord},
     ALUTypeRecord, ByteOpcode, ExecutionRecord, Opcode, Program, CLK_INC, PC_INC,
 };
 use sp1_derive::AlignedBorrow;
@@ -160,7 +160,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for ShiftLeftChip<M> {
             row
         };
 
-        values.chunks_mut(chunk_size * width).enumerate().par_bridge().for_each(|(i, rows)| {
+        values.par_chunks_mut(chunk_size * width).enumerate().for_each(|(i, rows)| {
             rows.chunks_mut(width).enumerate().for_each(|(j, row)| {
                 let idx = i * chunk_size + j;
                 let cols: &mut ShiftLeftCols<F, M> = row.borrow_mut();
@@ -194,19 +194,19 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for ShiftLeftChip<M> {
             .shift_left_events
             .par_chunks(chunk_size)
             .map(|events| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                let mut blu = ByteLookupCounts::default();
+                let mut row = vec![F::zero(); width];
                 events.iter().for_each(|event| {
-                    let mut row = vec![F::zero(); width];
                     let cols: &mut ShiftLeftCols<F, M> = row.as_mut_slice().borrow_mut();
                     cols.adapter.populate(&mut blu, event.1);
                     self.event_to_row(&event.0, &event.1, cols, &mut blu);
                     cols.state.populate(&mut blu, event.0.clk, event.0.pc);
                 });
-                blu
+                blu.finish()
             })
             .collect::<Vec<_>>();
 
-        output.add_byte_lookup_events_from_maps(blu_batches.iter().collect_vec());
+        output.add_byte_lookup_counts(blu_batches.into_iter().flatten());
     }
 
     fn included(&self, shard: &Self::Record) -> bool {

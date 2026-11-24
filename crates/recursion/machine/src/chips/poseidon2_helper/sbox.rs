@@ -73,15 +73,10 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for Poseidon2SBoxC
     }
 
     fn preprocessed_num_rows(&self, program: &Self::Program) -> Option<usize> {
-        let instrs_len = program
-            .inner
-            .iter()
-            .filter_map(|instruction| match instruction.inner() {
-                Instruction::Poseidon2SBox(x) => Some(x),
-                _ => None,
-            })
-            .count();
-        self.preprocessed_num_rows_with_instrs_len(program, instrs_len)
+        self.preprocessed_num_rows_with_instrs_len(
+            program,
+            program.event_counts.poseidon2_sbox_events,
+        )
     }
 
     fn preprocessed_num_rows_with_instrs_len(

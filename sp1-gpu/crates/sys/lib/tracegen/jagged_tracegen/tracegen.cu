@@ -40,55 +40,25 @@ __global__ void countAndAddKernel(
     felt_t*   __restrict__ src,
     size_t len
 ) {
-    constexpr int NUM_BINS = 320;
-    constexpr int THREADS_PER_BLOCK = 16;
-
-    __shared__ unsigned int s_hist[THREADS_PER_BLOCK][NUM_BINS];
-
-    const int tid = threadIdx.x;
-
-    for (int bin = 0; bin < NUM_BINS; ++bin) {
-        s_hist[tid][bin] = 0;
-    }
+    constexpr unsigned NUM_BINS = 320;
+    __shared__ uint32_t counts[NUM_BINS];
+    for (unsigned bin = threadIdx.x; bin < NUM_BINS; bin += blockDim.x)
+        counts[bin] = 0;
     __syncthreads();
 
-    const size_t total_threads = blockDim.x * gridDim.x;
-    size_t idx = blockIdx.x * blockDim.x + tid;
-
-    while (idx < len) {
-        uint32_t is_real = src[5 * len + idx].as_canonical_u32();
-        if (is_real == 1) {
-            uint32_t v = src[idx].as_canonical_u32();
-            s_hist[tid][v] += 1;
-            v = src[len + idx].as_canonical_u32();
-            s_hist[tid][v] += 1;
-            v = src[2 * len + idx].as_canonical_u32();
-            s_hist[tid][v] += 1;
-            v = src[3 * len + idx].as_canonical_u32();
-            s_hist[tid][v] += 1;
-            v = src[4 * len + idx].as_canonical_u32();
-            s_hist[tid][v + 256] += 1;
+    for (size_t row = size_t(blockIdx.x) * blockDim.x + threadIdx.x; row < len;
+         row += size_t(gridDim.x) * blockDim.x) {
+        if (src[5 * len + row].as_canonical_u32() == 1) {
+#pragma unroll
+            for (unsigned col = 0; col < 4; ++col)
+                atomicAdd(&counts[src[col * len + row].as_canonical_u32()], 1u);
+            atomicAdd(&counts[256 + src[4 * len + row].as_canonical_u32()], 1u);
         }
-        idx += total_threads;
     }
     __syncthreads();
-
-    for (int stride = THREADS_PER_BLOCK / 2; stride > 0; stride >>= 1) {
-        if (tid < stride) {
-            for (int bin = 0; bin < NUM_BINS; ++bin) {
-                s_hist[tid][bin] += s_hist[tid + stride][bin];
-            }
-        }
-        __syncthreads();
-    }
-
-    if (tid == 0) {
-        for (int bin = 0; bin < NUM_BINS; ++bin) {
-            unsigned int c = s_hist[0][bin];
-            if (c != 0) {
-                atomicAdd(&dst[bin], c);
-            }
-        }
+    for (unsigned bin = threadIdx.x; bin < NUM_BINS; bin += blockDim.x) {
+        if (counts[bin] != 0)
+            atomicAdd(&dst[bin], counts[bin]);
     }
 }
 

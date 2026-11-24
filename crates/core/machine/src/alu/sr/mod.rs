@@ -4,14 +4,14 @@ use core::{
 };
 use std::marker::PhantomData;
 
-use hashbrown::HashMap;
-use itertools::Itertools;
 use slop_air::{Air, AirBuilder, BaseAir};
 use slop_algebra::{AbstractField, Field, PrimeField, PrimeField32};
 use slop_matrix::Matrix;
-use slop_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
+use slop_maybe_rayon::prelude::{
+    IndexedParallelIterator, ParallelIterator, ParallelSlice, ParallelSliceMut,
+};
 use sp1_core_executor::{
-    events::{AluEvent, ByteLookupEvent, ByteRecord},
+    events::{AluEvent, ByteLookupCounts, ByteRecord},
     ByteOpcode, ExecutionRecord, Opcode, Program, CLK_INC, PC_INC,
 };
 use sp1_derive::AlignedBorrow;
@@ -135,6 +135,30 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for ShiftRightChip<M> {
         Some(nb_rows)
     }
 
+    fn try_trace_with_dependencies(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> Option<Vec<F>> {
+        let width = <Self as BaseAir<F>>::width(self);
+        let rows = <Self as MachineAir<F>>::num_rows(self, input).unwrap();
+        if rows == 0 {
+            return Some(Vec::new());
+        }
+        let mut values = crate::utils::trace_with_byte_lookups(
+            &input.shift_right_events,
+            width,
+            rows,
+            output,
+            |event, row, counts| self.populate_row(event, row, counts),
+        );
+        let padding = self.padding_row(width);
+        for row in values[input.shift_right_events.len() * width..].chunks_exact_mut(width) {
+            row.copy_from_slice(&padding);
+        }
+        Some(values)
+    }
+
     fn generate_trace_into(
         &self,
         input: &ExecutionRecord,
@@ -162,34 +186,13 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for ShiftRightChip<M> {
         let buffer_ptr = buffer.as_mut_ptr() as *mut F;
         let values = unsafe { core::slice::from_raw_parts_mut(buffer_ptr, padded_nb_rows * width) };
 
-        let padded_row_template = {
-            let mut row = vec![F::zero(); width];
-            let cols: &mut ShiftRightCols<F, M> = row.as_mut_slice().borrow_mut();
-            cols.v_01 = F::from_canonical_u32(16);
-            cols.v_012 = F::from_canonical_u32(256);
-            cols.v_0123 = F::from_canonical_u32(65536);
-            row
-        };
+        let padded_row_template = self.padding_row(width);
 
-        values.chunks_mut(chunk_size * width).enumerate().par_bridge().for_each(|(i, rows)| {
+        values.par_chunks_mut(chunk_size * width).enumerate().for_each(|(i, rows)| {
             rows.chunks_mut(width).enumerate().for_each(|(j, row)| {
                 let idx = i * chunk_size + j;
-                let cols: &mut ShiftRightCols<F, M> = row.borrow_mut();
-
-                if idx < nb_rows {
-                    let mut byte_lookup_events = Vec::new();
-                    let event = &input.shift_right_events[idx];
-                    cols.adapter.populate(&mut byte_lookup_events, event.1);
-                    self.event_to_row(&event.0, cols, &mut byte_lookup_events);
-                    cols.state.populate(&mut byte_lookup_events, event.0.clk, event.0.pc);
-                    cols.is_w_imm = F::from_bool(
-                        (event.0.opcode == Opcode::SRLW || event.0.opcode == Opcode::SRAW)
-                            && event.1.is_imm,
-                    );
-                    if !M::IS_TRUSTED {
-                        let cols: &mut ShiftRightCols<F, UserMode> = row.borrow_mut();
-                        cols.adapter_cols.is_trusted = F::from_bool(!event.1.is_untrusted);
-                    }
+                if let Some(event) = input.shift_right_events.get(idx) {
+                    self.populate_row(event, row, &mut ());
                 } else {
                     row.copy_from_slice(&padded_row_template);
                 }
@@ -209,19 +212,19 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for ShiftRightChip<M> {
             .shift_right_events
             .par_chunks(chunk_size)
             .map(|events| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                let mut blu = ByteLookupCounts::default();
+                let mut row = vec![F::zero(); width];
                 events.iter().for_each(|event| {
-                    let mut row = vec![F::zero(); width];
                     let cols: &mut ShiftRightCols<F, M> = row.as_mut_slice().borrow_mut();
                     cols.adapter.populate(&mut blu, event.1);
                     self.event_to_row(&event.0, cols, &mut blu);
                     cols.state.populate(&mut blu, event.0.clk, event.0.pc);
                 });
-                blu
+                blu.finish()
             })
             .collect::<Vec<_>>();
 
-        output.add_byte_lookup_events_from_maps(blu_batches.iter().collect_vec());
+        output.add_byte_lookup_counts(blu_batches.into_iter().flatten());
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -235,6 +238,33 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for ShiftRightChip<M> {
 }
 
 impl<M: TrustMode> ShiftRightChip<M> {
+    fn padding_row<F: PrimeField32>(&self, width: usize) -> Vec<F> {
+        let mut row = vec![F::zero(); width];
+        let cols: &mut ShiftRightCols<F, M> = row.as_mut_slice().borrow_mut();
+        cols.v_01 = F::from_canonical_u32(16);
+        cols.v_012 = F::from_canonical_u32(256);
+        cols.v_0123 = F::from_canonical_u32(65536);
+        row
+    }
+
+    fn populate_row<F: PrimeField32>(
+        &self,
+        event: &(AluEvent, sp1_core_executor::ALUTypeRecord),
+        row: &mut [F],
+        blu: &mut impl ByteRecord,
+    ) {
+        let cols: &mut ShiftRightCols<F, M> = row.borrow_mut();
+        self.event_to_row(&event.0, cols, blu);
+        cols.state.populate(blu, event.0.clk, event.0.pc);
+        cols.adapter.populate(blu, event.1);
+        cols.is_w_imm =
+            F::from_bool(matches!(event.0.opcode, Opcode::SRLW | Opcode::SRAW) && event.1.is_imm);
+        if !M::IS_TRUSTED {
+            let cols: &mut ShiftRightCols<F, UserMode> = row.borrow_mut();
+            cols.adapter_cols.is_trusted = F::from_bool(!event.1.is_untrusted);
+        }
+    }
+
     /// Create a row from an event.
     fn event_to_row<F: PrimeField>(
         &self,

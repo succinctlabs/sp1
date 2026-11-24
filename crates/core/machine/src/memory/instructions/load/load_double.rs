@@ -1,3 +1,4 @@
+use crate::memory::instructions::{MemoryEvent, MemoryInstructionRows};
 use slop_air::{Air, BaseAir};
 use slop_matrix::Matrix;
 use sp1_derive::AlignedBorrow;
@@ -20,12 +21,9 @@ use crate::{
     utils::next_multiple_of_32,
     SupervisorMode, TrustMode, UserMode,
 };
-use hashbrown::HashMap;
-use itertools::Itertools;
-use rayon::iter::{ParallelBridge, ParallelIterator};
 use slop_algebra::{AbstractField, PrimeField32};
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord, MemInstrEvent, MemoryAccessPosition},
+    events::{ByteLookupCounts, ByteRecord, MemInstrEvent, MemoryAccessPosition},
     ExecutionRecord, Opcode, Program, CLK_INC, PC_INC,
 };
 
@@ -104,52 +102,16 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for LoadDoubleChip<M> {
         output: &mut ExecutionRecord,
         buffer: &mut [MaybeUninit<F>],
     ) {
-        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
-            return;
-        }
-        let chunk_size =
-            std::cmp::max((input.memory_load_double_events.len()) / num_cpus::get(), 1);
-        let padded_nb_rows = <LoadDoubleChip<M> as MachineAir<F>>::num_rows(self, input).unwrap();
-        let num_event_rows = input.memory_load_double_events.len();
-        let width = <LoadDoubleChip<M> as BaseAir<F>>::width(self);
+        let batches = self.fill_rows(input, buffer, ByteLookupCounts::finish);
+        output.add_byte_lookup_counts(batches.into_iter().flatten());
+    }
 
-        unsafe {
-            let padding_start = num_event_rows * width;
-            let padding_size = (padded_nb_rows - num_event_rows) * width;
-            if padding_size > 0 {
-                core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
-            }
-        }
+    fn generate_main_trace_into(&self, input: &ExecutionRecord, buffer: &mut [MaybeUninit<F>]) {
+        self.fill_rows(input, buffer, |()| ());
+    }
 
-        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
-        let values = unsafe { core::slice::from_raw_parts_mut(buffer_ptr, padded_nb_rows * width) };
-
-        let blu_events = values
-            .chunks_mut(chunk_size * width)
-            .enumerate()
-            .par_bridge()
-            .map(|(i, rows)| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
-                rows.chunks_mut(width).enumerate().for_each(|(j, row)| {
-                    let idx = i * chunk_size + j;
-                    let cols: &mut LoadDoubleColumns<F, M> = row.borrow_mut();
-
-                    if idx < input.memory_load_double_events.len() {
-                        let event = &input.memory_load_double_events[idx];
-                        self.event_to_row(&event.0, cols, &mut blu);
-                        cols.state.populate(&mut blu, event.0.clk, event.0.pc);
-                        cols.adapter.populate(&mut blu, event.1);
-                        if !M::IS_TRUSTED {
-                            let cols: &mut LoadDoubleColumns<F, UserMode> = row.borrow_mut();
-                            cols.adapter_cols.is_trusted = F::from_bool(!event.1.is_untrusted);
-                        }
-                    }
-                });
-                blu
-            })
-            .collect::<Vec<_>>();
-
-        output.add_byte_lookup_events_from_maps(blu_events.iter().collect_vec());
+    fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
+        <Self as MemoryInstructionRows<F>>::count_dependencies(self, input, output);
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -166,12 +128,33 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for LoadDoubleChip<M> {
     }
 }
 
+impl<F: PrimeField32, M: TrustMode> MemoryInstructionRows<F> for LoadDoubleChip<M> {
+    fn events<'a>(&self, input: &'a ExecutionRecord) -> &'a [MemoryEvent] {
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            &[]
+        } else {
+            &input.memory_load_double_events
+        }
+    }
+
+    fn populate(&self, event: &MemoryEvent, row: &mut [F], blu: &mut impl ByteRecord) {
+        let cols: &mut LoadDoubleColumns<F, M> = row.borrow_mut();
+        self.event_to_row(&event.0, cols, blu);
+        cols.state.populate(blu, event.0.clk, event.0.pc);
+        cols.adapter.populate(blu, event.1);
+        if !M::IS_TRUSTED {
+            let cols: &mut LoadDoubleColumns<F, UserMode> = row.borrow_mut();
+            cols.adapter_cols.is_trusted = F::from_bool(!event.1.is_untrusted);
+        }
+    }
+}
+
 impl<M: TrustMode> LoadDoubleChip<M> {
     fn event_to_row<F: PrimeField32>(
         &self,
         event: &MemInstrEvent,
         cols: &mut LoadDoubleColumns<F, M>,
-        blu: &mut HashMap<ByteLookupEvent, usize>,
+        blu: &mut impl ByteRecord,
     ) {
         // Populate memory accesses for reading from memory.
         cols.memory_access.populate(event.mem_access, blu);

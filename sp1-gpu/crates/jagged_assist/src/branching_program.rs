@@ -158,7 +158,7 @@ where
             .unwrap();
     }
 
-    let mut results = DeviceTensor::from_raw(bp_results).sum_dim(1).into_inner();
+    let mut results = DeviceTensor::from_raw(bp_results).into_sum_dim(1).into_inner();
 
     let mut sampled_value =
         Buffer::with_capacity_in(randomness_point.dimension() + 1, backend.clone());

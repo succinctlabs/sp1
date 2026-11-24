@@ -13,6 +13,20 @@ use sp1_recursion_machine::RecursionAir;
 
 use crate::{CudaTracegenAir, F};
 
+fn collect_instructions<T>(
+    program: &sp1_recursion_executor::RecursionProgram<F>,
+    count: usize,
+    select: impl Fn(&sp1_recursion_executor::Instruction<F>) -> Option<T>,
+) -> Vec<T> {
+    let mut result = Vec::with_capacity(count);
+    if count > 0 {
+        program.inner.for_each_basic_block(&mut |block| {
+            result.extend(block.iter().filter_map(|instruction| select(instruction.inner())));
+        });
+    }
+    result
+}
+
 impl<const DEGREE: usize, const VAR_EVENTS_PER_ROW: usize> CudaTracegenAir<F>
     for RecursionAir<F, DEGREE, VAR_EVENTS_PER_ROW>
 {
@@ -129,6 +143,9 @@ pub(crate) mod tests {
         let instrs =
             core::iter::repeat_with(|| make_instr(&mut rng)).take(1000).collect::<Vec<_>>();
 
+        let event_counts = sp1_recursion_executor::ExecutionRecord::compute_event_counts(
+            instrs.iter().map(|instruction| instruction.inner()),
+        );
         // SAFETY: We don't actually execute the program, which requires that the invariants hold.
         // We only generate preprocessed traces, which do not require that the invariants hold.
         let program = unsafe {
@@ -136,7 +153,7 @@ pub(crate) mod tests {
                 inner: RawProgram { seq_blocks: vec![SeqBlock::Basic(BasicBlock { instrs })] },
                 total_memory: 0, // Will be filled in.
                 shape: None,
-                event_counts: Default::default(),
+                event_counts,
             })
         };
 

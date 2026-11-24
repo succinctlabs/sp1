@@ -6,7 +6,7 @@ use slop_maybe_rayon::prelude::{IndexedParallelIterator, ParallelIterator, Paral
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::{air::MachineAir, next_multiple_of_32};
 use sp1_recursion_executor::{
-    instruction::{HintAddCurveInstr, HintBitsInstr, HintExt2FeltsInstr, HintInstr},
+    instruction::{HintBitsInstr, HintExt2FeltsInstr, HintInstr},
     Block, ExecutionRecord, Instruction, RecursionProgram,
 };
 use std::{borrow::BorrowMut, iter::zip, marker::PhantomData, mem::MaybeUninit};
@@ -60,31 +60,7 @@ impl<F: PrimeField32, const VAR_EVENTS_PER_ROW: usize> MachineAir<F>
     }
 
     fn preprocessed_num_rows(&self, program: &Self::Program) -> Option<usize> {
-        let instrs_len = program
-            .inner
-            .iter()
-            // .par_bridge() // Using `rayon` here provides a big speedup. TODO put rayon back
-            .flat_map(|instruction| match instruction.inner() {
-                Instruction::Hint(HintInstr { output_addrs_mults })
-                | Instruction::HintBits(HintBitsInstr {
-                    output_addrs_mults,
-                    input_addr: _, // No receive interaction for the hint operation
-                }) => output_addrs_mults.iter().collect(),
-                Instruction::HintExt2Felts(HintExt2FeltsInstr {
-                    output_addrs_mults,
-                    input_addr: _, // No receive interaction for the hint operation
-                }) => output_addrs_mults.iter().collect(),
-                Instruction::HintAddCurve(instr) => {
-                    let HintAddCurveInstr {
-                    output_x_addrs_mults,
-                    output_y_addrs_mults, .. // No receive interaction for the hint operation
-                } = instr.as_ref();
-                    output_x_addrs_mults.iter().chain(output_y_addrs_mults.iter()).collect()
-                }
-                _ => vec![],
-            })
-            .count();
-        self.preprocessed_num_rows_with_instrs_len(program, instrs_len)
+        self.preprocessed_num_rows_with_instrs_len(program, program.event_counts.mem_var_events)
     }
 
     fn preprocessed_num_rows_with_instrs_len(
@@ -101,31 +77,27 @@ impl<F: PrimeField32, const VAR_EVENTS_PER_ROW: usize> MachineAir<F>
         program: &Self::Program,
         buffer: &mut [MaybeUninit<F>],
     ) {
-        // Allocating an intermediate `Vec` is faster.
-        let accesses = program
-            .inner
-            .iter()
-            // .par_bridge() // Using `rayon` here provides a big speedup. TODO put rayon back
-            .flat_map(|instruction| match instruction.inner() {
-                Instruction::Hint(HintInstr { output_addrs_mults })
-                | Instruction::HintBits(HintBitsInstr {
-                    output_addrs_mults,
-                    input_addr: _, // No receive interaction for the hint operation
-                }) => output_addrs_mults.iter().collect(),
-                Instruction::HintExt2Felts(HintExt2FeltsInstr {
-                    output_addrs_mults,
-                    input_addr: _, // No receive interaction for the hint operation
-                }) => output_addrs_mults.iter().collect(),
-                Instruction::HintAddCurve(instr) => {
-                    let HintAddCurveInstr {
-                        output_x_addrs_mults,
-                        output_y_addrs_mults, .. // No receive interaction for the hint operation
-                    } = instr.as_ref();
-                    output_x_addrs_mults.iter().chain(output_y_addrs_mults.iter()).collect()
+        let mut accesses = Vec::with_capacity(program.event_counts.mem_var_events);
+        program.inner.for_each_basic_block(&mut |block| {
+            for instruction in block {
+                match instruction.inner() {
+                    Instruction::Hint(HintInstr { output_addrs_mults })
+                    | Instruction::HintBits(HintBitsInstr { output_addrs_mults, .. }) => {
+                        accesses.extend_from_slice(output_addrs_mults);
+                    }
+                    Instruction::HintExt2Felts(HintExt2FeltsInstr {
+                        output_addrs_mults, ..
+                    }) => {
+                        accesses.extend_from_slice(output_addrs_mults);
+                    }
+                    Instruction::HintAddCurve(instr) => {
+                        accesses.extend_from_slice(&instr.output_x_addrs_mults);
+                        accesses.extend_from_slice(&instr.output_y_addrs_mults);
+                    }
+                    _ => {}
                 }
-                _ => vec![],
-            })
-            .collect::<Vec<_>>();
+            }
+        });
 
         let padded_nb_rows =
             self.preprocessed_num_rows_with_instrs_len(program, accesses.len()).unwrap();
@@ -152,7 +124,7 @@ impl<F: PrimeField32, const VAR_EVENTS_PER_ROW: usize> MachineAir<F>
         values[..populate_len]
             .par_chunks_mut(NUM_MEM_ACCESS_COLS)
             .zip_eq(accesses)
-            .for_each(|(row, &(addr, mult))| *row.borrow_mut() = MemoryAccessCols { addr, mult });
+            .for_each(|(row, (addr, mult))| *row.borrow_mut() = MemoryAccessCols { addr, mult });
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {

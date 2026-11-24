@@ -240,6 +240,21 @@ pub mod raw {
     }
 
     impl<T> RawProgram<T> {
+        /// Visit contiguous instruction slices in execution order without traversing the
+        /// parallel-block hierarchy again for each instruction.
+        pub fn for_each_basic_block<'a>(&'a self, visit: &mut impl FnMut(&'a [T])) {
+            for block in &self.seq_blocks {
+                match block {
+                    SeqBlock::Basic(block) => visit(&block.instrs),
+                    SeqBlock::Parallel(children) => {
+                        for child in children {
+                            child.for_each_basic_block(visit);
+                        }
+                    }
+                }
+            }
+        }
+
         pub fn iter(&self) -> impl Iterator<Item = &'_ T> {
             self.seq_blocks.iter().flatten()
         }

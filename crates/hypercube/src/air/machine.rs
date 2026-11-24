@@ -61,6 +61,16 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
         self.generate_trace(input, output);
     }
 
+    /// Fill a row-major trace and its dependencies together when the AIR supports it.
+    /// Returning None leaves output untouched so the caller can use the ordinary dependency pass.
+    fn try_trace_with_dependencies(
+        &self,
+        _input: &Self::Record,
+        _output: &mut Self::Record,
+    ) -> Option<Vec<F>> {
+        None
+    }
+
     /// Generate the trace into a slice of `MaybeUninit<F>`.
     fn generate_trace_into(
         &self,
@@ -68,6 +78,11 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
         output: &mut Self::Record,
         buffer: &mut [MaybeUninit<F>],
     );
+
+    /// Fill the main trace after its lookup dependencies have already been collected.
+    fn generate_main_trace_into(&self, input: &Self::Record, buffer: &mut [MaybeUninit<F>]) {
+        self.generate_trace_into(input, &mut Self::Record::default(), buffer);
+    }
 
     /// Whether this execution record contains events for this air.
     fn included(&self, shard: &Self::Record) -> bool;

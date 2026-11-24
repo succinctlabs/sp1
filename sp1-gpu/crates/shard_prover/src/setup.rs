@@ -70,6 +70,8 @@ where
         .await
         .unwrap();
 
+        // Shards can read the immutable preprocessing on other CUDA streams.
+        self.backend.synchronize().await.unwrap();
         let pk = Mutex::new(pk);
 
         let pk = ProvingKey { vk: vk.clone(), preprocessed_data: pk };
@@ -104,7 +106,11 @@ where
             untrusted_config,
         };
 
-        let pk = CudaShardProverData::new(preprocessed_traces, preprocessed_data);
+        let pk = CudaShardProverData::with_max_trace_size(
+            preprocessed_traces,
+            preprocessed_data,
+            self.max_trace_size,
+        );
 
         (pk, vk)
     }

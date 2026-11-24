@@ -75,15 +75,7 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
     }
 
     fn preprocessed_num_rows(&self, program: &Self::Program) -> Option<usize> {
-        let instrs_len = program
-            .inner
-            .iter()
-            .filter_map(|instruction| match instruction.inner() {
-                Instruction::BaseAlu(x) => Some(x),
-                _ => None,
-            })
-            .count();
-        self.preprocessed_num_rows_with_instrs_len(program, instrs_len)
+        self.preprocessed_num_rows_with_instrs_len(program, program.event_counts.base_alu_events)
     }
 
     fn preprocessed_num_rows_with_instrs_len(

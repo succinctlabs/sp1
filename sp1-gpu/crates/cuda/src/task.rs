@@ -618,7 +618,16 @@ impl DeviceMemory for TaskScope {
         size: usize,
         direction: CopyDirection,
     ) -> Result<(), CopyError> {
-        self.stream.copy_nonoverlapping(src, dst, size, direction)
+        if size == 0 {
+            return Ok(());
+        }
+        self.stream.copy_nonoverlapping(src, dst, size, direction)?;
+        // Buffer and Tensor expose their host data immediately after this call. A
+        // borrowed host slice can also be dropped or reused as soon as it returns.
+        if direction != CopyDirection::DeviceToDevice {
+            self.synchronize_blocking().map_err(|_| CopyError)?;
+        }
+        Ok(())
     }
 
     #[inline]

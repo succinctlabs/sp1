@@ -1,5 +1,3 @@
-use hashbrown::HashMap;
-use itertools::Itertools;
 use slop_algebra::PrimeField32;
 use slop_maybe_rayon::prelude::{
     IndexedParallelIterator, ParallelIterator, ParallelSlice, ParallelSliceMut,
@@ -32,50 +30,45 @@ impl<F: PrimeField32> MachineAir<F> for ShaExtendChip {
         Some(padded_nb_rows)
     }
 
+    fn try_trace_with_dependencies(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> Option<Vec<F>> {
+        let len = <Self as MachineAir<F>>::num_rows(self, input).unwrap() * NUM_SHA_EXTEND_COLS;
+        let mut values = Vec::with_capacity(len);
+        let counts = self.fill_trace(
+            input,
+            &mut values.spare_capacity_mut()[..len],
+            sp1_core_executor::events::DenseByteLookupCounts::merge,
+        );
+        if let Some(counts) = counts {
+            output.add_byte_lookup_counts(counts.finish());
+        }
+        // fill_trace initializes the real and padded rows.
+        unsafe {
+            values.set_len(len);
+        }
+        Some(values)
+    }
+
     fn generate_trace_into(
         &self,
         input: &ExecutionRecord,
         _: &mut ExecutionRecord,
         buffer: &mut [MaybeUninit<F>],
     ) {
-        let padded_nb_rows = <ShaExtendChip as MachineAir<F>>::num_rows(self, input).unwrap();
-        let events = input.get_precompile_events(SyscallCode::SHA_EXTEND);
-
-        let num_event_rows = events.len() * 48;
-
-        unsafe {
-            let padding_start = num_event_rows * NUM_SHA_EXTEND_COLS;
-            let padding_size = (padded_nb_rows - num_event_rows) * NUM_SHA_EXTEND_COLS;
-            if padding_size > 0 {
-                core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
-            }
-        }
-
-        let buffer_ptr = buffer.as_mut_ptr() as *mut F;
-        let values = unsafe {
-            core::slice::from_raw_parts_mut(buffer_ptr, num_event_rows * NUM_SHA_EXTEND_COLS)
-        };
-
-        values.par_chunks_mut(NUM_SHA_EXTEND_COLS * 48).enumerate().for_each(|(idx, row)| {
-            let mut blu = Vec::new();
-            let event = &events[idx].1;
-            let event =
-                if let PrecompileEvent::ShaExtend(event) = event { event } else { unreachable!() };
-            unsafe {
-                core::ptr::write_bytes(row.as_mut_ptr(), 0, NUM_SHA_EXTEND_COLS * 48);
-            }
-            self.event_to_rows(event, &events[idx].0.trap_error, row, &mut blu);
-        });
+        self.fill_trace(input, buffer, |(), ()| ());
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
         let events = input.get_precompile_events(SyscallCode::SHA_EXTEND);
-        let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
+        let chunk_size = (events.len() / num_cpus::get()).max(256);
 
-        let blu_batches = events
+        let counts = events
             .par_chunks(chunk_size)
             .map(|events| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                let mut blu = sp1_core_executor::events::DenseByteLookupCounts::default();
                 let mut row = vec![F::zero(); NUM_SHA_EXTEND_COLS * 48];
                 events.iter().for_each(|(syscall_event, event)| {
                     let event = if let PrecompileEvent::ShaExtend(event) = event {
@@ -87,9 +80,11 @@ impl<F: PrimeField32> MachineAir<F> for ShaExtendChip {
                 });
                 blu
             })
-            .collect::<Vec<_>>();
+            .reduce_with(sp1_core_executor::events::DenseByteLookupCounts::merge);
 
-        output.add_byte_lookup_events_from_maps(blu_batches.iter().collect_vec());
+        if let Some(counts) = counts {
+            output.add_byte_lookup_counts(counts.finish());
+        }
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -102,6 +97,44 @@ impl<F: PrimeField32> MachineAir<F> for ShaExtendChip {
 }
 
 impl ShaExtendChip {
+    fn fill_trace<F: PrimeField32, B: ByteRecord + Default + Send>(
+        &self,
+        input: &ExecutionRecord,
+        buffer: &mut [MaybeUninit<F>],
+        merge: impl Fn(B, B) -> B + Sync + Send,
+    ) -> Option<B> {
+        let padded_nb_rows = <ShaExtendChip as MachineAir<F>>::num_rows(self, input).unwrap();
+        let events = input.get_precompile_events(SyscallCode::SHA_EXTEND);
+
+        let num_event_rows = events.len() * 48;
+
+        let (values, padding) = buffer[..padded_nb_rows * NUM_SHA_EXTEND_COLS]
+            .split_at_mut(num_event_rows * NUM_SHA_EXTEND_COLS);
+        padding.fill(MaybeUninit::new(F::zero()));
+
+        let chunk = events.len().div_ceil(rayon::current_num_threads()).max(64);
+        let event_width = NUM_SHA_EXTEND_COLS * 48;
+        let counts = values
+            .par_chunks_mut(chunk * event_width)
+            .zip(events.par_chunks(chunk))
+            .map(|(values, events)| {
+                let mut counts = B::default();
+                for (row, (call, event)) in values.chunks_mut(event_width).zip(events) {
+                    let PrecompileEvent::ShaExtend(event) = event else { unreachable!() };
+                    row.fill(MaybeUninit::new(F::zero()));
+                    // Every field element in this row has been initialized.
+                    let row = unsafe {
+                        std::slice::from_raw_parts_mut(row.as_mut_ptr().cast::<F>(), row.len())
+                    };
+                    self.event_to_rows(event, &call.trap_error, row, &mut counts);
+                }
+                counts
+            })
+            .reduce_with(merge);
+
+        counts
+    }
+
     fn event_to_rows<F: PrimeField32>(
         &self,
         event: &ShaExtendEvent,

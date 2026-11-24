@@ -2,7 +2,7 @@ use std::{marker::PhantomData, sync::Arc};
 
 use serde::Serialize;
 use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
-use sp1_jit::{MemReads, MemValue, MinimalTrace, TraceChunk};
+use sp1_jit::{MemReads, MinimalTrace};
 use sp1_primitives::consts::LOG_PAGE_SIZE;
 
 use crate::{
@@ -589,9 +589,9 @@ impl<'a, M: ExecutionMode> SyscallRuntime<'a, M> for SplicingVM<'a, M> {
 /// A minimal trace implentation that starts at a different point in the trace,
 /// but reuses the same memory reads and hint lens.
 ///
-/// Note: This type implements [`Serialize`] but it is serialized as a [`TraceChunk`].
+/// Note: This type implements [`Serialize`] but it is serialized as a [`sp1_jit::TraceChunk`].
 ///
-/// In order to deserialize this type, you must use the [`TraceChunk`] type.
+/// In order to deserialize this type, you must use the [`sp1_jit::TraceChunk`] type.
 #[derive(Debug, Clone)]
 pub struct SplicedMinimalTrace<T: MinimalTrace> {
     inner: T,
@@ -689,23 +689,18 @@ impl<T: MinimalTrace> Serialize for SplicedMinimalTrace<T> {
         S: serde::Serializer,
     {
         let len = self.last_mem_reads_idx - self.memory_reads_idx;
-        let mem_reads = unsafe {
-            let mem_reads_buf = Arc::new_uninit_slice(len);
-            let start_mem_reads = self.mem_reads();
-            let src_ptr = start_mem_reads.head_raw();
-            std::ptr::copy_nonoverlapping(src_ptr, mem_reads_buf.as_ptr() as *mut MemValue, len);
-            mem_reads_buf.assume_init()
-        };
-
-        let trace = TraceChunk {
-            start_registers: self.start_registers,
-            pc_start: self.start_pc,
-            clk_start: self.start_clk,
-            clk_end: self.last_clk,
-            mem_reads,
-        };
-
-        trace.serialize(serializer)
+        let reads = self.mem_reads();
+        assert!(len <= reads.len());
+        // The splice borrows its parent trace for this complete serialization.
+        let mem_reads = unsafe { std::slice::from_raw_parts(reads.head_raw(), len) };
+        use serde::ser::SerializeStruct;
+        let mut trace = serializer.serialize_struct("TraceChunk", 5)?;
+        trace.serialize_field("start_registers", &self.start_registers)?;
+        trace.serialize_field("pc_start", &self.start_pc)?;
+        trace.serialize_field("clk_start", &self.start_clk)?;
+        trace.serialize_field("clk_end", &self.last_clk)?;
+        trace.serialize_field("mem_reads", mem_reads)?;
+        trace.end()
     }
 }
 
@@ -848,7 +843,7 @@ impl<'a> SplicingVMEnum<'a> {
 
 #[cfg(test)]
 mod tests {
-    use sp1_jit::MemValue;
+    use sp1_jit::{MemValue, TraceChunk};
 
     use super::*;
 

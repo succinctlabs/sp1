@@ -1,12 +1,10 @@
 use std::{borrow::BorrowMut, mem::MaybeUninit};
 
-use hashbrown::HashMap;
-use itertools::Itertools;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use slop_air::BaseAir;
 use slop_algebra::PrimeField32;
 use sp1_core_executor::{
-    events::{BranchEvent, ByteLookupEvent, ByteRecord},
+    events::{BranchEvent, ByteRecord},
     ExecutionRecord, Opcode, Program,
 };
 use sp1_hypercube::air::MachineAir;
@@ -51,20 +49,37 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for BranchChip<M> {
             .chunks(chunk_size)
             .par_bridge()
             .map(|events| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                let mut blu = sp1_core_executor::events::ByteLookupCounts::default();
+                let mut row = vec![F::zero(); width];
                 events.iter().for_each(|event| {
-                    let mut row = vec![F::zero(); width];
+                    row.fill(F::zero());
                     let cols: &mut BranchColumns<F, M> = row.as_mut_slice().borrow_mut();
 
                     self.event_to_row(&event.0, cols, &mut blu);
                     cols.state.populate(&mut blu, event.0.clk, event.0.pc);
                     cols.adapter.populate(&mut blu, event.1);
                 });
-                blu
+                blu.finish()
             })
             .collect::<Vec<_>>();
 
-        output.add_byte_lookup_events_from_maps(blu_batches.iter().collect_vec());
+        output.add_byte_lookup_counts(blu_batches.into_iter().flatten());
+    }
+
+    fn try_trace_with_dependencies(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> Option<Vec<F>> {
+        let width = <Self as BaseAir<F>>::width(self);
+        let rows = <Self as MachineAir<F>>::num_rows(self, input).unwrap();
+        Some(crate::utils::trace_with_byte_lookups(
+            &input.branch_events,
+            width,
+            rows,
+            output,
+            |event, row, counts| self.populate_row(event, row, counts),
+        ))
     }
 
     fn generate_trace_into(
@@ -96,20 +111,10 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for BranchChip<M> {
         let values = unsafe { core::slice::from_raw_parts_mut(buffer_ptr, num_event_rows * width) };
 
         values.chunks_mut(chunk_size * width).enumerate().par_bridge().for_each(|(i, rows)| {
-            let mut blu = Vec::new();
             rows.chunks_mut(width).enumerate().for_each(|(j, row)| {
                 let idx = i * chunk_size + j;
-                let cols: &mut BranchColumns<F, M> = row.borrow_mut();
-
-                if idx < input.branch_events.len() {
-                    let event = input.branch_events[idx];
-                    self.event_to_row(&event.0, cols, &mut blu);
-                    cols.state.populate(&mut blu, event.0.clk, event.0.pc);
-                    cols.adapter.populate(&mut blu, event.1);
-                    if !M::IS_TRUSTED {
-                        let cols: &mut BranchColumns<F, UserMode> = row.borrow_mut();
-                        cols.adapter_cols.is_trusted = F::from_bool(!event.1.is_untrusted);
-                    }
+                if let Some(event) = input.branch_events.get(idx) {
+                    self.populate_row(event, row, &mut ());
                 }
             });
         });
@@ -130,6 +135,22 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for BranchChip<M> {
 }
 
 impl<M: TrustMode> BranchChip<M> {
+    fn populate_row<F: PrimeField32>(
+        &self,
+        event: &(BranchEvent, sp1_core_executor::ITypeRecord),
+        row: &mut [F],
+        blu: &mut impl ByteRecord,
+    ) {
+        let cols: &mut BranchColumns<F, M> = row.borrow_mut();
+        self.event_to_row(&event.0, cols, blu);
+        cols.state.populate(blu, event.0.clk, event.0.pc);
+        cols.adapter.populate(blu, event.1);
+        if !M::IS_TRUSTED {
+            let cols: &mut BranchColumns<F, UserMode> = row.borrow_mut();
+            cols.adapter_cols.is_trusted = F::from_bool(!event.1.is_untrusted);
+        }
+    }
+
     /// Create a row from an event.
     fn event_to_row<F: PrimeField32>(
         &self,

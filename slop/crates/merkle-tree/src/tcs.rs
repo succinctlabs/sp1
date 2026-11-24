@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::fmt::Debug;
 
-use itertools::Itertools;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_alloc::Backend;
@@ -136,40 +136,55 @@ impl<GC: IopCtx> MerkleTreeTcs<GC> {
             return Err(MerkleTreeTcsError::IncorrectShape);
         }
 
-        for (i, (index, path)) in indices.iter().zip_eq(proof.paths.split()).enumerate() {
-            // Collect the lead slices of the claimed values.
-            let claimed_values_slices = opening.get(i).unwrap().as_slice();
-            // Check that the proof is the correct length.
-            if claimed_values_slices.len() != proof.width {
-                return Err(MerkleTreeTcsError::IncorrectShape);
+        let mut order: Vec<_> = (0..indices.len()).collect();
+        order.sort_unstable_by_key(|&i| indices[i]);
+        order.par_chunks(8).try_for_each(|chunk| {
+            let mut ancestors = Vec::with_capacity(expected_path_len.saturating_add(1));
+            let mut previous = None::<usize>;
+            for &i in chunk {
+                let values = opening.get(i).unwrap().as_slice();
+                let path = proof.paths.get(i).unwrap().as_slice();
+                let mut index = indices[i];
+                if values.len() != proof.width
+                    || path.len() != expected_path_len
+                    || (usize::BITS - index.leading_zeros()) as usize > expected_path_len
+                {
+                    return Err(MerkleTreeTcsError::IncorrectShape);
+                }
+                let mut root = self.hasher.hash_slice(values);
+                // Adjacent leaves often share the upper path. Reuse a checked suffix only
+                // when both its input digest and every supplied sibling match.
+                let common =
+                    previous.map(|j| (usize::BITS - (index ^ indices[j]).leading_zeros()) as usize);
+                for level in 0..=path.len() {
+                    if common == Some(level)
+                        && root == ancestors[level]
+                        && path[level..]
+                            == proof.paths.get(previous.unwrap()).unwrap().as_slice()[level..]
+                    {
+                        root = proof.merkle_root;
+                        break;
+                    }
+                    if previous.is_some() {
+                        ancestors[level] = root;
+                    } else {
+                        ancestors.push(root);
+                    }
+                    if level == path.len() {
+                        break;
+                    }
+                    let sibling = path[level];
+                    let pair = if index & 1 == 0 { [root, sibling] } else { [sibling, root] };
+                    root = self.compressor.compress(pair);
+                    index >>= 1;
+                }
+                if root != proof.merkle_root {
+                    return Err(MerkleTreeTcsError::RootMismatch);
+                }
+                previous = Some(i);
             }
-
-            let path = path.as_slice();
-
-            // Iterate the path and compute the root.
-            let digest = self.hasher.hash_iter_slices(vec![claimed_values_slices]);
-
-            let mut root = digest;
-            let mut index = *index;
-
-            if path.len() != expected_path_len {
-                return Err(MerkleTreeTcsError::IncorrectShape);
-            }
-
-            for sibling in path.iter().cloned() {
-                let (left, right) = if index & 1 == 0 { (root, sibling) } else { (sibling, root) };
-                root = self.compressor.compress([left, right]);
-                index >>= 1;
-            }
-
-            if root != proof.merkle_root {
-                return Err(MerkleTreeTcsError::RootMismatch);
-            }
-
-            if index != 0 {
-                return Err(MerkleTreeTcsError::IncorrectShape);
-            }
-        }
+            Ok(())
+        })?;
 
         if proof.log_tensor_height >= GC::F::ORDER_U32 as usize
             || proof.width >= GC::F::ORDER_U32 as usize

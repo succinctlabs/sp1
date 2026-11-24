@@ -10,6 +10,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+rayon = { workspace = true }
 p3-merkle-tree = { workspace = true }
 slop-futures = { workspace = true }
 

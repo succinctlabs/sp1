@@ -3,7 +3,6 @@
 package sp1
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
@@ -24,6 +23,13 @@ var (
 	groth16CudaProvers = map[string]*gpu.Groth16Prover{}
 )
 
+// PrepareGroth16 loads the host proving key while the STARK proof is running.
+func PrepareGroth16(dataDir string) {
+	groth16CudaMu.Lock()
+	defer groth16CudaMu.Unlock()
+	loadGroth16CudaProver(dataDir)
+}
+
 // loadGroth16CudaProver keeps the circuit and its proving key in host memory for the life of the process.
 func loadGroth16CudaProver(dataDir string) *gpu.Groth16Prover {
 	if p, ok := groth16CudaProvers[dataDir]; ok {
@@ -39,20 +45,52 @@ func loadGroth16CudaProver(dataDir string) *gpu.Groth16Prover {
 	if err != nil {
 		panic(err)
 	}
-	defer pkFile.Close()
+	loaded := false
+	defer func() {
+		if !loaded {
+			pkFile.Close()
+		}
+	}()
 	// The dump marker and the FFT domain, whose last byte asks for twiddle tables that the prover does not use.
 	var head [8 + 8 + 5*fr.Bytes + 1]byte
 	if _, err := io.ReadFull(pkFile, head[:]); err != nil {
 		panic(err)
 	}
 	head[len(head)-1] = 0
-	p, err := gpu.NewGroth16Prover(r1cs.(*cs.R1CS), io.MultiReader(bytes.NewReader(head[:]), &parallelReader{pkFile, int64(len(head))}))
+	stat, err := pkFile.Stat()
+	if err != nil {
+		panic(err)
+	}
+	reader := io.NewSectionReader(&groth16KeyFile{pkFile, head[:]}, 0, stat.Size())
+	p, err := gpu.NewGroth16Prover(r1cs.(*cs.R1CS), reader)
 	if err != nil {
 		panic(err)
 	}
 	groth16CudaProvers[dataDir] = p
+	loaded = true
 	debug.FreeOSMemory()
 	return p
+}
+
+// Read the patched domain header and the native tables through the same random-access view.
+type groth16KeyFile struct {
+	file   *os.File
+	header []byte
+}
+
+func (r *groth16KeyFile) ReadAt(p []byte, off int64) (int, error) {
+	n := 0
+	if off < int64(len(r.header)) {
+		n = copy(p, r.header[off:])
+	}
+	if n == len(p) {
+		return n, nil
+	}
+	m, err := (&parallelReader{r.file, off + int64(n)}).Read(p[n:])
+	if n+m != len(p) && err == nil {
+		err = io.ErrUnexpectedEOF
+	}
+	return n + m, err
 }
 
 // parallelReader reads a file from off, splitting large reads into concurrent ones so that the page faults of the

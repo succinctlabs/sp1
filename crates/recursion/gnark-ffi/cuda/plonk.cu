@@ -128,6 +128,75 @@ __global__ void k_ratio(Fr* z, const Fr* values, const uint32_t* wires, const ui
   }
 }
 
+// Evaluate the six unblinded PLONK polynomials with the same Lagrange weights.
+// A product tree gives all denominators in a tile with one field inversion.
+constexpr int EVAL_TILE = 128;
+__global__ void k_lagrange_openings(Fr* partial, const Fr* values, const uint32_t* wires,
+                                    const uint32_t* sigma, const Fr* qcp, uint64_t n, const Fr* tab,
+                                    Fr u, Fr u2, Fr zeta, Fr scale) {
+  __shared__ Fr tree[2 * EVAL_TILE];
+  const int lane = threadIdx.x;
+  Fr sums[6] = {};
+  for (uint64_t base = (uint64_t)blockIdx.x * EVAL_TILE; base < n; base += (uint64_t)gridDim.x * EVAL_TILE) {
+    uint64_t i = base + lane;
+    Fr w = pow_tab(tab, i % n);
+    Fr weight;
+    if (scale.is_zero()) {
+      // zeta is itself a node of the interpolation domain.
+      weight = w == zeta ? Fr::one() : Fr::zero();
+    } else {
+      tree[EVAL_TILE + lane] = i < n ? zeta - w : Fr::one();
+      for (int width = EVAL_TILE / 2; width; width /= 2) {
+        __syncthreads();
+        if (lane < width) tree[width + lane] = tree[2 * (width + lane)] * tree[2 * (width + lane) + 1];
+      }
+      if (lane == 0) tree[1] = tree[1].inverse();
+      for (int width = 1; width < EVAL_TILE; width *= 2) {
+        __syncthreads();
+        if (lane < width) {
+          int child = 2 * (width + lane);
+          Fr left = tree[child], right = tree[child + 1], parent = tree[width + lane];
+          tree[child] = parent * right;
+          tree[child + 1] = parent * left;
+        }
+      }
+      __syncthreads();
+      weight = scale * w * tree[EVAL_TILE + lane];
+    }
+    if (i < n) {
+#pragma unroll
+      for (int j = 0; j < 3; j++) sums[j] = sums[j] + weight * values[wires[(uint64_t)j * n + i]];
+#pragma unroll
+      for (int j = 0; j < 2; j++) sums[j + 3] = sums[j + 3] + weight * id_value(sigma[(uint64_t)j * n + i], n, tab, u, u2);
+      if (!qcp[i].is_zero()) sums[5] = sums[5] + weight;
+    }
+    __syncthreads();
+  }
+#pragma unroll
+  for (int j = 0; j < 6; j++) {
+    tree[lane] = sums[j];
+    for (int stride = EVAL_TILE / 2; stride; stride /= 2) {
+      __syncthreads();
+      if (lane < stride) tree[lane] = tree[lane] + tree[lane + stride];
+    }
+    if (lane == 0) partial[(uint64_t)j * gridDim.x + blockIdx.x] = tree[0];
+    __syncthreads();
+  }
+}
+
+__global__ void k_opening_totals(Fr* out, const Fr* partial, int count) {
+  __shared__ Fr sums[EVAL_TILE];
+  int lane = threadIdx.x;
+  Fr sum = Fr::zero();
+  for (int i = lane; i < count; i += EVAL_TILE) sum = sum + partial[blockIdx.x * count + i];
+  sums[lane] = sum;
+  for (int stride = EVAL_TILE / 2; stride; stride /= 2) {
+    __syncthreads();
+    if (lane < stride) sums[lane] = sums[lane] + sums[lane + stride];
+  }
+  if (lane == 0) out[blockIdx.x] = sums[0];
+}
+
 // out[t] = sum_{i in chunk t} p_i z^(i - t*chunk).
 __global__ void k_eval_partials(Fr* out, const Fr* p, uint64_t len, Fr z, uint64_t chunk) {
   uint64_t t = blockIdx.x * (uint64_t)blockDim.x + threadIdx.x;
@@ -173,6 +242,33 @@ T* upload_tmp(const void* host, uint64_t count, cudaStream_t s) {
   if (cudaMallocAsync(&d, count * sizeof(T), s) != cudaSuccess) return nullptr;
   cudaMemcpyAsync(d, host, count * sizeof(T), cudaMemcpyHostToDevice, s);
   return d;
+}
+
+__global__ void k_qap_rows(Fr* a, Fr* b, Fr* c, const Fr* values, const Fr* coeffs, const uint8_t* terms,
+                           const uint32_t* starts, uint32_t width, uint32_t coeff_bits, uint32_t rows, uint32_t n) {
+  uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i >= n) return;
+  Fr left = Fr::zero(), right = Fr::zero();
+  if (i < rows) {
+    for (uint32_t j = starts[i]; j < starts[i + 1]; ++j) {
+      const uint8_t* data = terms + (uint64_t)j * width;
+      uint64_t t = 0;
+      for (uint32_t k = 0; k < width; ++k) t |= (uint64_t)data[k] << (8 * k);
+      const uint32_t side = t & 3;
+      if (side == 2) break;  // Terms are packed in L, R, O order.
+      const uint32_t cid = (t >> 2) & ((1ull << coeff_bits) - 1);
+      if (cid == 0) continue;
+      Fr v = values[t >> (2 + coeff_bits)];
+      if (cid == 2) v = v.dbl();
+      else if (cid == 3) v = -v;
+      else if (cid != 1) v = v * coeffs[cid];
+      if (side == 0) left = left + v;
+      else right = right + v;
+    }
+  }
+  a[i] = left;
+  b[i] = right;
+  c[i] = left * right;
 }
 
 }  // namespace
@@ -273,6 +369,23 @@ int sp1_fr_scan_mul(void* z, uint64_t n, void* s) {
   return err();
 }
 
+int sp1_plonk_lagrange_openings(sp1_fr* out, const void* values, const uint32_t* wires, const uint32_t* sigma,
+                                const void* qcp, uint64_t n, const void* tab, const sp1_fr* u, const sp1_fr* u2,
+                                const sp1_fr* zeta, const sp1_fr* scale, void* stream) {
+  auto s = st(stream);
+  int count = (int)std::min<uint64_t>((n + EVAL_TILE - 1) / EVAL_TILE, 8192);
+  Fr* scratch;
+  auto status = cudaMallocAsync(&scratch, (6 * count + 6) * sizeof(Fr), s);
+  if (status != cudaSuccess) return (int)status;
+  Fr* result = scratch + 6 * count;
+  k_lagrange_openings<<<count, EVAL_TILE, 0, s>>>(scratch, dev<Fr>(values), wires, sigma, dev<Fr>(qcp), n,
+      dev<Fr>(tab), cst<Fr>(u), cst<Fr>(u2), cst<Fr>(zeta), cst<Fr>(scale));
+  k_opening_totals<<<6, EVAL_TILE, 0, s>>>(result, scratch, count);
+  status = cudaMemcpyAsync(out, result, 6 * sizeof(Fr), cudaMemcpyDeviceToHost, s);
+  cudaFreeAsync(scratch, s);
+  return (int)(status == cudaSuccess ? cudaStreamSynchronize(s) : status);
+}
+
 int sp1_fr_eval_partials(sp1_fr* out, const void* p, uint64_t len, const sp1_fr* z, uint64_t chunk, void* s) {
   uint64_t nt = (len + chunk - 1) / chunk;
   Fr* d;
@@ -311,6 +424,24 @@ int sp1_fr_expand(void* dst, const uint16_t* idx, const sp1_fr* table, uint32_t 
   cudaFreeAsync(d, st(s));
   cudaStreamSynchronize(st(s));
   return err();
+}
+
+int sp1_qap_rows(void* a, void* b, void* c, const void* values, const void* coeffs, const uint8_t* terms,
+                 const uint32_t* starts, uint32_t width, uint32_t coeff_bits, uint32_t rows, uint32_t n) {
+  k_qap_rows<<<blocks(n), THREADS>>>((Fr*)a, (Fr*)b, (Fr*)c, (const Fr*)values, (const Fr*)coeffs,
+                                    terms, starts, width, coeff_bits, rows, n);
+  return err();
+}
+
+int sp1_memcpy_d2d(void* dst, const void* src, uint64_t size) {
+  return (int)cudaMemcpyAsync(dst, src, size, cudaMemcpyDeviceToDevice);
+}
+
+int sp1_free_memory(uint64_t* bytes) {
+  size_t available = 0, total = 0;
+  auto result = cudaMemGetInfo(&available, &total);
+  *bytes = available;
+  return (int)result;
 }
 
 // Large buffers are not taken from the stream-ordered pool, whose caching costs gigabytes at these sizes.

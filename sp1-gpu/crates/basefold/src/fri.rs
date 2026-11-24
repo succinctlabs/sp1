@@ -1,10 +1,10 @@
 use itertools::Itertools;
 use std::{marker::PhantomData, sync::Arc};
 
-use slop_algebra::{AbstractExtensionField, AbstractField, ExtensionField, TwoAdicField};
-use slop_alloc::{Buffer, HasBackend};
+use slop_algebra::{AbstractExtensionField, AbstractField, ExtensionField, Field, TwoAdicField};
+use slop_alloc::HasBackend;
 use slop_basefold::{BasefoldProof, FriConfig, BATCH_GRINDING_BITS};
-use slop_basefold_prover::{host_fold_even_odd, BasefoldProverError};
+use slop_basefold_prover::BasefoldProverError;
 use slop_challenger::{CanObserve, CanSampleBits, FieldChallenger, IopCtx};
 use slop_commit::{Message, Rounds};
 use slop_merkle_tree::MerkleTreeOpeningAndProof;
@@ -17,7 +17,7 @@ use sp1_gpu_cudart::{
     sys::{
         basefold::{
             batch_koala_bear_base_ext_kernel, batch_koala_bear_base_ext_kernel_flattened,
-            flatten_to_base_koala_bear_base_ext_kernel,
+            flatten_to_base_koala_bear_base_ext_kernel, fold_codeword_koala_bear_kernel,
             transpose_even_odd_koala_bear_base_ext_kernel,
         },
         runtime::KernelPtr,
@@ -199,7 +199,7 @@ where
     #[allow(clippy::type_complexity)]
     fn commit_phase_round(
         &self,
-        current_mle: Mle<GC::EF, TaskScope>,
+        current_mle: DeviceMle<GC::EF>,
         current_codeword: Tensor<GC::F, TaskScope>,
         challenger: &mut GC::Challenger,
     ) -> Result<
@@ -247,62 +247,27 @@ where
         let beta: GC::EF = challenger.sample_ext_element();
 
         // Fold the mle.
-        let folded_mle: Mle<_, TaskScope> = {
-            let device_mle = DeviceMle::from(current_mle);
-            device_mle.fold(beta).into()
-        };
-        let folded_num_variables = folded_mle.num_variables();
-
-        if folded_num_variables < 4 {
-            let current_codeword_transposed =
-                DeviceTensor::from_raw(current_codeword.clone()).transpose();
-            let current_codeword_vec = current_codeword_transposed.to_host().unwrap();
-            let current_codeword_vec =
-                current_codeword_vec.into_buffer().into_extension::<GC::EF>().into_vec();
-            let folded_codeword_vec = host_fold_even_odd(current_codeword_vec, beta);
-            let folded_codeword_storage =
-                Buffer::from(folded_codeword_vec).flatten_to_base::<GC::F>();
-            let mut new_size = current_codeword.sizes().to_vec();
-            new_size[1] /= 2;
-            let folded_codeword =
-                DeviceBuffer::from_host(&folded_codeword_storage, folded_mle.backend())
-                    .unwrap()
-                    .into_inner();
-            let folded_codeword = Tensor::from(folded_codeword).reshape([new_size[1], new_size[0]]);
-            let folded_codeword = DeviceTensor::from_raw(folded_codeword).transpose().into_inner();
-            return Ok((beta, folded_mle, folded_codeword, commit, leaves, prover_data));
-        }
-
-        let folded_height = 1 << folded_num_variables;
-        let mut folded_mle_flattened = Tensor::<GC::F, TaskScope>::with_sizes_in(
-            [<GC::EF as AbstractExtensionField<GC::F>>::D, folded_height],
-            scope.clone(),
-        );
-
-        // Fully overwritten by `encode_batch`.
+        let folded_mle = current_mle.fold(beta).into();
         let mut folded_codeword = Tensor::<GC::F, TaskScope>::with_sizes_in(
-            [<GC::EF as AbstractExtensionField<GC::F>>::D, folded_height << self.config.log_blowup],
+            [batch_size, output_codeword_size],
             scope.clone(),
         );
-
-        let block_dim = 256;
-        let grid_dim = folded_height.div_ceil(block_dim);
+        let log_height = output_codeword_size.ilog2();
+        let inverse_generator = Felt::two_adic_generator(log_height as usize + 1).inverse();
+        let half_beta = beta.halve();
         unsafe {
-            let args =
-                args!(folded_mle.guts().as_ptr(), folded_mle_flattened.as_mut_ptr(), folded_height);
-            folded_mle_flattened.assume_init();
+            let args = args!(
+                leaves.as_ptr(),
+                folded_codeword.as_mut_ptr(),
+                log_height,
+                inverse_generator,
+                half_beta
+            );
             scope
-                .launch_kernel(TaskScope::flatten_to_base_kernel(), grid_dim, block_dim, &args, 0)
+                .launch_kernel(fold_codeword_koala_bear_kernel(), grid_dim, block_dim, &args, 0)
                 .unwrap();
+            folded_codeword.assume_init();
         }
-        let encoder = CudaDftKoalaBear::default();
-        encode_batch(
-            encoder,
-            self.config.log_blowup as u32,
-            folded_mle_flattened.as_view(),
-            &mut folded_codeword,
-        )
-        .unwrap();
 
         Ok((beta, folded_mle, folded_codeword, commit, leaves, prover_data))
     }
@@ -397,13 +362,8 @@ where
         for _ in 0..eval_point.dimension() {
             // Compute claims for `g(X_0, X_1, ..., X_{d-1}, 0)` and `g(X_0, X_1, ..., X_{d-1}, 1)`.
             let last_coord = eval_point.remove_last_coordinate();
-            let zero_values = {
-                use sp1_gpu_cudart::DeviceMle;
-                let device_mle = DeviceMle::from(current_mle.clone());
-                let evals = device_mle.fixed_at_zero(&eval_point);
-                evals.to_host_vec().unwrap()
-            };
-            let zero_val = zero_values[0];
+            let device_mle = DeviceMle::from(current_mle);
+            let zero_val = device_mle.fixed_at_zero(&eval_point).to_host_vec().unwrap()[0];
             let one_val = (current_batched_eval_claim - zero_val) / last_coord + zero_val;
             let uni_poly = [zero_val, one_val];
             univariate_messages.push(uni_poly);
@@ -413,7 +373,7 @@ where
             // Perform a single round of the FRI commit phase, returning the commitment, folded
             // codeword, and folding parameter.
             let (beta, folded_mle, folded_codeword, commitment, leaves, prover_data) = self
-                .commit_phase_round(current_mle, current_codeword, challenger)
+                .commit_phase_round(device_mle, current_codeword, challenger)
                 .map_err(BasefoldProverError::CommitPhaseError)?;
 
             fri_commitments.push(commitment);

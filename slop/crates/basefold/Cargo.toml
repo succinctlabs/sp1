@@ -10,6 +10,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+rayon = { workspace = true }
 slop-algebra = { workspace = true }
 slop-multilinear = { workspace = true }
 slop-challenger = { workspace = true }

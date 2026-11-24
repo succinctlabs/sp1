@@ -62,6 +62,8 @@ type PlonkProver struct {
 	lroWires           []uint32
 	qcpPos, piPos      []uint32
 	bsbPoints          []curve.G1Affine
+	bsbCompressed      []byte
+	decodedSRS         int
 	tabW, tabWInv      []fr.Element
 	tabC, tabCInv      [4][]fr.Element
 	solver             *levelSolver
@@ -72,7 +74,30 @@ type PlonkProver struct {
 	uploaded           unsafe.Pointer
 }
 
-// NewPlonkProver prepares a circuit for proving, reading what it needs from the proving key that gnark wrote to r.
+// PlonkTrace contains the CPU-only circuit data shared by all witnesses.
+type plonkTrace struct {
+	wires, sigma []uint32
+	sel          [5]selector
+	solver       *levelSolver
+}
+
+// PreparePlonkTrace builds the trace while the STARK prover is using the GPU.
+func preparePlonkTrace(spr *cs.SparseR1CS) (*plonkTrace, error) {
+	n := int(ecc.NextPowerOfTwo(uint64(spr.GetNbConstraints() + len(spr.Public))))
+	wires, sel, err := newTrace(spr, n)
+	if err != nil {
+		return nil, err
+	}
+	sigma := permutation(wires, len(spr.Public)+len(spr.Secret)+spr.NbInternalVariables)
+	solver, err := newSolver(spr, wires, sel)
+	if err != nil {
+		return nil, err
+	}
+	return &plonkTrace{wires: wires, sel: sel, sigma: sigma, solver: solver}, nil
+}
+
+// NewPlonkProver prepares the host circuit and reads the proving key. The first proof
+// decompresses its points once it has the GPU.
 func NewPlonkProver(spr *cs.SparseR1CS, r io.Reader) (*PlonkProver, error) {
 	vk := &plonk_bn254.VerifyingKey{}
 	if _, err := vk.ReadFrom(r); err != nil {
@@ -135,16 +160,8 @@ func NewPlonkProver(spr *cs.SparseR1CS, r io.Reader) (*PlonkProver, error) {
 			}
 			p.srs = make([]curve.G1Affine, n+3)
 			pin(p.srs)
-			const chunk = 1 << 22
-			comp := make([]byte, chunk*curve.SizeOfG1AffineCompressed)
-			for i := 0; i < len(p.srs); i += chunk {
-				m := min(chunk, len(p.srs)-i)
-				if _, err = io.ReadFull(r, comp[:m*curve.SizeOfG1AffineCompressed]); err != nil {
-					return err
-				}
-				if err = decompressG1(p.srs[i:i+m], comp[:m*curve.SizeOfG1AffineCompressed]); err != nil {
-					return err
-				}
+			if _, err = io.ReadFull(r, p.compressedSRS()); err != nil {
+				return err
 			}
 			if _, err = io.CopyN(io.Discard, r, int64(int(nb)-n-3)*curve.SizeOfG1AffineCompressed); err != nil {
 				return err
@@ -158,7 +175,7 @@ func NewPlonkProver(spr *cs.SparseR1CS, r io.Reader) (*PlonkProver, error) {
 				order[i] = i
 			}
 			slices.SortFunc(order, func(a, b int) int { return cmp.Compare(p.piPos[a], p.piPos[b]) })
-			comp = make([]byte, len(p.piPos)*curve.SizeOfG1AffineCompressed)
+			comp := make([]byte, len(p.piPos)*curve.SizeOfG1AffineCompressed)
 			var buf [curve.SizeOfG1AffineCompressed]byte
 			next := 0
 			for _, i := range order {
@@ -178,23 +195,21 @@ func NewPlonkProver(spr *cs.SparseR1CS, r io.Reader) (*PlonkProver, error) {
 				copy(comp[i*curve.SizeOfG1AffineCompressed:], buf[:])
 			}
 			p.bsbPoints = make([]curve.G1Affine, len(p.piPos))
-			return decompressG1(p.bsbPoints, comp)
+			p.bsbCompressed = comp
+			return nil
 		}()
 	}()
 
-	var err error
-	var sel [5]selector
-	if p.lroWires, sel, err = newTrace(spr, n); err != nil {
+	trace, err := preparePlonkTrace(spr)
+	keyErr := <-keyRead
+	if err != nil {
 		return nil, err
 	}
-	p.ql, p.qr, p.qm, p.qo, p.qk = sel[0], sel[1], sel[2], sel[3], sel[4]
-	p.sigma = permutation(p.lroWires, len(spr.Public)+len(spr.Secret)+spr.NbInternalVariables)
-	if p.solver, err = newSolver(spr, p.lroWires, sel); err != nil {
-		return nil, err
+	if keyErr != nil {
+		return nil, keyErr
 	}
-	if err = <-keyRead; err != nil {
-		return nil, err
-	}
+	p.lroWires, p.sigma, p.solver = trace.wires, trace.sigma, trace.solver
+	p.ql, p.qr, p.qm, p.qo, p.qk = trace.sel[0], trace.sel[1], trace.sel[2], trace.sel[3], trace.sel[4]
 
 	for _, v := range [][]uint16{p.ql.idx, p.qr.idx, p.qm.idx, p.qo.idx, p.qk.idx} {
 		pin(v)
@@ -203,6 +218,33 @@ func NewPlonkProver(spr *cs.SparseR1CS, r io.Reader) (*PlonkProver, error) {
 	pin(p.lroWires)
 	p.copyStream, p.computeDone, p.copyDone, p.uploaded = newStream(), newEvent(), newEvent(), newEvent()
 	return p, nil
+}
+
+// Store compressed points in the upper half of their eventual destination. Decoding
+// forward consumes each input chunk before its output can reach any unread bytes.
+func (p *PlonkProver) compressedSRS() []byte {
+	size := len(p.srs) * curve.SizeOfG1AffineUncompressed
+	return unsafe.Slice((*byte)(unsafe.Pointer(&p.srs[0])), size)[size/2:]
+}
+
+func (p *PlonkProver) decodeKey() error {
+	const chunk = 1 << 21
+	for p.decodedSRS < len(p.srs) {
+		i := p.decodedSRS
+		end := min(i+chunk, len(p.srs))
+		encoded := p.compressedSRS()[i*curve.SizeOfG1AffineCompressed : end*curve.SizeOfG1AffineCompressed]
+		if err := decompressG1(p.srs[i:end], encoded); err != nil {
+			return err
+		}
+		p.decodedSRS = end
+	}
+	if p.bsbCompressed != nil {
+		if err := decompressG1(p.bsbPoints, p.bsbCompressed); err != nil {
+			return err
+		}
+		p.bsbCompressed = nil
+	}
+	return nil
 }
 
 // powTable returns c^i for i < 2^12 followed by c^(2^12 * i) for i < 2^14.
@@ -230,6 +272,9 @@ func (p *PlonkProver) Prove(fullWitness fr.Vector) (proof *plonk_bn254.Proof, er
 			err = fmt.Errorf("gpu: %v", r)
 		}
 	}()
+	if err := p.decodeKey(); err != nil {
+		return nil, err
+	}
 	return p.prove(p.newDevice(), fullWitness)
 }
 
@@ -281,15 +326,13 @@ func (p *PlonkProver) uploadSrs(d *device) {
 // waitUploads makes the work queued after it wait for the uploads started so far.
 func (p *PlonkProver) waitUploads() { after(nil, p.copyStream, p.uploaded) }
 
-// hostBuffers page-locks the host memory that device buffers are moved to, once.
-func (p *PlonkProver) hostBuffers() {
-	if p.hostG[0] != nil {
-		return
+// hostBuffer allocates a pinned coset only when the device cannot hold it.
+func (p *PlonkProver) hostBuffer(i int) []fr.Element {
+	if p.hostG[i] == nil {
+		p.hostG[i] = make([]fr.Element, p.n)
+		pin(p.hostG[i])
 	}
-	for k := range p.hostG {
-		p.hostG[k] = make([]fr.Element, p.n)
-		pin(p.hostG[k])
-	}
+	return p.hostG[i]
 }
 
 func (p *PlonkProver) dropSrs(d *device) {
@@ -352,12 +395,18 @@ func (p *PlonkProver) sparseCanonical(d *device, dst, pos dvec, vals []fr.Elemen
 	p.lagrangeCanonical(d, dst, nil)
 }
 
-func (p *PlonkProver) qcpCanonical(d *device, dst dvec) {
+func (p *PlonkProver) qcpLagrange(d *device, dst dvec) {
 	ones := make([]fr.Element, len(p.qcpPos))
 	for i := range ones {
 		ones[i].SetOne()
 	}
-	p.sparseCanonical(d, dst, d.qcpPos, ones)
+	memset0(dst, p.n*fr.Bytes)
+	scatter(dst, d.qcpPos, ones)
+}
+
+func (p *PlonkProver) qcpCanonical(d *device, dst dvec) {
+	p.qcpLagrange(d, dst)
+	p.lagrangeCanonical(d, dst, nil)
 }
 
 type blinding struct {
@@ -448,20 +497,24 @@ func (p *PlonkProver) prove(d *device, wWitness fr.Vector) (*plonk_bn254.Proof, 
 		return nil, err
 	}
 
-	// The quotient needs the memory the SRS and z take.
+	// Five coset buffers and the three quotient chunks can stay on larger devices.
+	// Leave room for the sparse selector overrides and temporary CUDA allocations.
 	p.dropSrs(d)
-	p.hostBuffers()
-	// The third coset's spill buffer is idle until that coset has been evaluated.
-	d2h(unsafe.Pointer(&p.hostG[2][0]), z, n*fr.Bytes)
-	z.free()
+	if freeMemory() < uint64(5*n)*fr.Bytes+(256<<20) {
+		// The third spill buffer is idle until that coset has been evaluated.
+		d2h(unsafe.Pointer(&p.hostBuffer(2)[0]), z, n*fr.Bytes)
+		z.free()
+		z = dvec{}
+	}
 	qk := make([]fr.Element, len(p.qkPos))
 	copy(qk, public)
 	qk[len(public)] = commitmentVal
-	h := p.quotient(d, piVals, qk, bp, alpha, beta, gamma)
+	h := p.quotient(d, z, piVals, qk, bp, alpha, beta, gamma)
 
-	// Committing to h needs the circuit state only to recompute z.
-	z = alloc(n + 3)
-	p.zCanonical(d, z, beta, gamma)
+	if z.p == nil {
+		z = alloc(n + 3)
+		p.zCanonical(d, z, beta, gamma)
+	}
 	d.dropState()
 	p.uploadSrs(d)
 	p.waitUploads()
@@ -501,31 +554,19 @@ func (p *PlonkProver) prove(d *device, wWitness fr.Vector) (*plonk_bn254.Proof, 
 	p.dropSrs(d)
 	p.uploadState(d)
 
-	// Evaluations at zeta.
-	evalBlinded := func(v dvec, b []fr.Element) fr.Element {
-		r := p.eval(v, n, zeta)
-		be := evalPoly(b, zeta)
-		be.Mul(&be, &zhZeta)
-		r.Add(&r, &be)
-		return r
-	}
+	// Interpolate all six polynomials at zeta with the same barycentric weights.
 	tmp = alloc(n)
-	var lro [3]fr.Element
+	p.qcpLagrange(d, tmp)
+	var scale fr.Element
+	scale.Mul(&zhZeta, &p.domain0.CardinalityInv)
+	openings := lagrangeOpenings(d, tmp, n, p.u, p.u2, zeta, scale)
 	for i, b := range [][]fr.Element{bp.l, bp.r, bp.o} {
-		p.lroCanonical(d, tmp, i)
-		bitrev(tmp, p.logN)
-		lro[i] = evalBlinded(tmp, b)
+		blind := evalPoly(b, zeta)
+		blind.Mul(&blind, &zhZeta)
+		openings[i].Add(&openings[i], &blind)
 	}
-	lZeta, rZeta, oZeta := lro[0], lro[1], lro[2]
-	p.sCanonical(d, tmp, 0)
-	bitrev(tmp, p.logN)
-	s1Zeta := p.eval(tmp, n, zeta)
-	p.sCanonical(d, tmp, 1)
-	bitrev(tmp, p.logN)
-	s2Zeta := p.eval(tmp, n, zeta)
-	p.qcpCanonical(d, tmp)
-	bitrev(tmp, p.logN)
-	qcpZeta := p.eval(tmp, n, zeta)
+	lZeta, rZeta, oZeta := openings[0], openings[1], openings[2]
+	s1Zeta, s2Zeta, qcpZeta := openings[3], openings[4], openings[5]
 
 	// The linearized polynomial, written over the blinded Z one term at a time.
 	c := p.linearizationConstants(lZeta, rZeta, oZeta, s1Zeta, s2Zeta, alpha, beta, gamma, zeta, zetaN,
@@ -539,15 +580,15 @@ func (p *PlonkProver) prove(d *device, wWitness fr.Vector) (*plonk_bn254.Proof, 
 	hz.free()
 	p.uploadSrs(d)
 	acc := alloc(n)
-	p.sCanonical(d, acc, 2)
-	vscale(acc, c.s1, n)
-	// ql, qr, qm, qo and the circuit's qk, without the public inputs.
+	memset0(acc, n*fr.Bytes)
+	axpySource(acc, srcSigma(d.sigma.at(2*n, 4), d.tabW, p.u, p.u2), c.s1, n)
 	for i, coeff := range []fr.Element{lZeta, rZeta, c.rl, oZeta, one} {
-		p.selectorCanonical(d, tmp, i, nil)
-		axpy(acc, tmp, coeff, n)
+		axpySource(acc, srcExpand(d.selTab[i], d.sel[i]), coeff, n)
 	}
-	p.sparseCanonical(d, tmp, d.piPos, piVals)
+	memset0(tmp, n*fr.Bytes)
+	scatter(tmp, d.piPos, piVals)
 	axpy(acc, tmp, qcpZeta, n)
+	p.lagrangeCanonical(d, acc, nil)
 	bitrev(acc, p.logN)
 	vadd(z, acc, n)
 	acc.free()
@@ -568,19 +609,17 @@ func (p *PlonkProver) prove(d *device, wWitness fr.Vector) (*plonk_bn254.Proof, 
 	tmp, acc = alloc(n), alloc(n)
 	memset0(acc, n*fr.Bytes)
 	for i, b := range [][]fr.Element{bp.l, bp.r, bp.o} {
-		p.lroCanonical(d, tmp, i)
-		axpy(acc, tmp, g, n)
+		axpySource(acc, srcGather(d.values, d.wires.at(i*n, 4)), g, n)
 		p.addBlindingTerms(z, n, g, b)
 		g.Mul(&g, &foldGamma)
 	}
-	p.sCanonical(d, tmp, 0)
+	for i := range 2 {
+		axpySource(acc, srcSigma(d.sigma.at(i*n, 4), d.tabW, p.u, p.u2), g, n)
+		g.Mul(&g, &foldGamma)
+	}
+	p.qcpLagrange(d, tmp)
 	axpy(acc, tmp, g, n)
-	g.Mul(&g, &foldGamma)
-	p.sCanonical(d, tmp, 1)
-	axpy(acc, tmp, g, n)
-	g.Mul(&g, &foldGamma)
-	p.qcpCanonical(d, tmp)
-	axpy(acc, tmp, g, n)
+	p.lagrangeCanonical(d, acc, nil)
 	bitrev(acc, p.logN)
 	vadd(z, acc, n)
 	tmp.free()
@@ -600,7 +639,7 @@ func (p *PlonkProver) commitPi(vals []fr.Element) curve.G1Affine {
 }
 
 // quotient returns the coefficients of h on the device; gnark's h1, h2, h3 are its chunks of n+2.
-func (p *PlonkProver) quotient(d *device, piVals, qk []fr.Element, bp blinding, alpha, beta, gamma fr.Element) dvec {
+func (p *PlonkProver) quotient(d *device, z dvec, piVals, qk []fr.Element, bp blinding, alpha, beta, gamma fr.Element) dvec {
 	n := p.n
 	var nInv, one fr.Element
 	one.SetOne()
@@ -615,6 +654,27 @@ func (p *PlonkProver) quotient(d *device, piVals, qk []fr.Element, bp blinding, 
 	w4Inv.Inverse(&w4)
 	uNInv.Inverse(&uN)
 
+	var h dvec
+	var saved [3]dvec
+	const reserve = 256 << 20
+	if free := freeMemory(); free >= uint64(3*n+8)*fr.Bytes+reserve {
+		h = alloc(3*n + 8)
+	} else if free > reserve {
+		for i := range min(len(saved), int((free-reserve)/(uint64(n)*fr.Bytes))) {
+			saved[i] = alloc(n)
+		}
+	}
+	// A canonical polynomial is independent of the coset. Retain as many as
+	// fit alongside the quotient workspace, starting with L (used twice per coset).
+	available := freeMemory()
+	var canonical [13]dvec // L, R, O, three permutations, five selectors, pi, qcp.
+	if available > reserve && h.p != nil {
+		count := min(len(canonical), int((available-reserve)/(uint64(n)*fr.Bytes)))
+		for i := range count {
+			canonical[i] = alloc(n)
+		}
+	}
+	var ready [len(canonical)]bool
 	var weights [4][4]fr.Element
 	for k := 0; k < 4; k++ {
 		c := p.cosets[k]
@@ -628,19 +688,27 @@ func (p *PlonkProver) quotient(d *device, piVals, qk []fr.Element, bp blinding, 
 			}
 			blindCoset(dst, n, d.tabW, c, r)
 		}
-		evalBitrev := func(v dvec) { nttDIT(v, p.logN, d.tabW, d.tabC[k]) }
+		evaluate := func(dst dvec, index int, makeCoeffs func(dvec)) {
+			if cached := canonical[index]; cached.p != nil {
+				if !ready[index] {
+					makeCoeffs(cached)
+					ready[index] = true
+				}
+				d2d(dst, cached, n*fr.Bytes)
+			} else {
+				makeCoeffs(dst)
+			}
+			nttDIT(dst, p.logN, d.tabW, d.tabC[k])
+		}
 		lro := func(dst dvec, j int, b []fr.Element) {
-			p.lroCanonical(d, dst, j)
-			evalBitrev(dst)
+			evaluate(dst, j, func(v dvec) { p.lroCanonical(d, v, j) })
 			blind(dst, b)
 		}
 		sel := func(dst dvec, i int, overrides []fr.Element) {
-			p.selectorCanonical(d, dst, i, overrides)
-			evalBitrev(dst)
+			evaluate(dst, 6+i, func(v dvec) { p.selectorCanonical(d, v, i, overrides) })
 		}
 		sigma := func(dst dvec, j int) {
-			p.sCanonical(d, dst, j)
-			evalBitrev(dst)
+			evaluate(dst, 3+j, func(v dvec) { p.sCanonical(d, v, j) })
 		}
 
 		// Gate constraint, with x, y, t holding l, r, o.
@@ -648,7 +716,7 @@ func (p *PlonkProver) quotient(d *device, piVals, qk []fr.Element, bp blinding, 
 		lro(y, 1, bp.r)
 		lro(t, 2, bp.o)
 		sel(sv, 0, nil)
-		if k > 0 {
+		if h.p == nil && k > 0 {
 			after(nil, p.copyStream, p.copyDone)
 		}
 		vmul(a, sv, x, n)
@@ -677,22 +745,24 @@ func (p *PlonkProver) quotient(d *device, piVals, qk []fr.Element, bp blinding, 
 		sigma(sv, 0)
 		permS(y, t, sv, n, beta, gamma, false)
 
-		if k < len(p.hostG) {
-			h2dElements(sv, p.hostG[2])
+		if z.p != nil {
+			p.cosetEval(d, sv, z, k)
 		} else {
-			p.zCanonical(d, sv, beta, gamma)
+			if k < len(p.hostG) {
+				h2dElements(sv, p.hostG[2])
+			} else {
+				p.zCanonical(d, sv, beta, gamma)
+			}
+			p.cosetEval(d, sv, sv, k)
 		}
-		p.cosetEval(d, sv, sv, k)
 		blind(sv, bp.z)
 		var a2l1 fr.Element
 		a2l1.Square(&alpha).Mul(&a2l1, &cn1).Mul(&a2l1, &nInv)
 		zCombine(a, x, y, sv, n, d.tabW, c, alpha, a2l1)
 
 		// The bsb22 commitment's gate term.
-		p.sparseCanonical(d, x, d.piPos, piVals)
-		evalBitrev(x)
-		p.qcpCanonical(d, y)
-		evalBitrev(y)
+		evaluate(x, 11, func(v dvec) { p.sparseCanonical(d, v, d.piPos, piVals) })
+		evaluate(y, 12, func(v dvec) { p.qcpCanonical(d, v) })
 		vfma(a, x, y, n)
 
 		// The bit-reversed coefficients of g(c_k X), which hAccum turns into those of g.
@@ -709,21 +779,41 @@ func (p *PlonkProver) quotient(d *device, piVals, qk []fr.Element, bp blinding, 
 			weights[k][t] = w
 			uPow.Mul(&uPow, &uNInv)
 		}
-		if k < 3 {
-			after(p.copyStream, nil, p.computeDone)
-			d2hAsync(unsafe.Pointer(&p.hostG[k][0]), a, n*fr.Bytes, p.copyStream)
+		if h.p != nil {
+			hAccum(h, a, n, d.tabCInv[k], weights[k], k == 0)
+		} else if k < len(saved) {
+			if saved[k].p != nil {
+				a, saved[k] = saved[k], a
+			} else {
+				after(p.copyStream, nil, p.computeDone)
+				d2hAsync(unsafe.Pointer(&p.hostBuffer(k)[0]), a, n*fr.Bytes, p.copyStream)
+			}
+		}
+	}
+	for _, v := range canonical {
+		if v.p != nil {
+			v.free()
 		}
 	}
 	for _, b := range []dvec{x, y, t, sv} {
 		b.free()
 	}
 
-	syncStream(p.copyStream)
-	h := alloc(3*n + 8)
-	hAccum(h, a, n, d.tabCInv[3], weights[3], true)
-	for k := 0; k < 3; k++ {
-		h2d(a, unsafe.Pointer(&p.hostG[k][0]), n*fr.Bytes)
-		hAccum(h, a, n, d.tabCInv[k], weights[k], false)
+	if h.p == nil {
+		syncStream(p.copyStream)
+		h = alloc(3*n + 8)
+		hAccum(h, a, n, d.tabCInv[3], weights[3], true)
+		for k := 0; k < 3; k++ {
+			src := saved[k]
+			if src.p == nil {
+				h2d(a, unsafe.Pointer(&p.hostG[k][0]), n*fr.Bytes)
+				src = a
+			}
+			hAccum(h, src, n, d.tabCInv[k], weights[k], false)
+			if saved[k].p != nil {
+				saved[k].free()
+			}
+		}
 	}
 	a.free()
 	return h

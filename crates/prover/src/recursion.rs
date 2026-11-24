@@ -144,11 +144,10 @@ impl RecursionVks {
     ) -> Result<([SP1Field; DIGEST_SIZE], MerkleProof<SP1GlobalContext>), TaskError> {
         let index = if self.vk_verification {
             let digest = vk.hash_koalabear();
-            let index = self
-                .map
-                .get(&digest)
-                .copied()
-                .ok_or(TaskError::Fatal(anyhow::anyhow!("vk not allowed")))?;
+            let index =
+                self.map.get(&digest).copied().ok_or_else(|| {
+                    TaskError::Fatal(anyhow::anyhow!("vk not allowed: {digest:?}"))
+                })?;
             index
         } else {
             let vk_digest = vk.hash_koalabear();

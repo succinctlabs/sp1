@@ -149,7 +149,8 @@ pub fn generate_first_layer<'a>(
 
     // Height is half of the actual height of the numerator tensor.
     let height = numerator.sizes()[2] / 2;
-    let jagged_layer = JaggedFirstGkrLayer { numerator, denominator, height };
+    let folds = crate::layer::FoldLayouts::new(&interaction_row_counts, num_row_variables, backend);
+    let jagged_layer = JaggedFirstGkrLayer { numerator, denominator, height, folds };
 
     let interaction_row_counts_dev =
         DeviceBuffer::from_host_slice(&interaction_row_counts, backend).unwrap().into_inner();

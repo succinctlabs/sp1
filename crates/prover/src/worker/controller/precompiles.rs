@@ -45,10 +45,19 @@ impl DeferredEvents {
         // to avoid blocking the async runtime.
         let chunk_data = tokio::task::spawn_blocking(move || {
             let mut chunk_data = Vec::new();
-            for (code, events) in record.precompile_events.events.iter() {
-                let threshold = split_opts.syscall_threshold[*code];
-                for chunk in events.chunks(threshold) {
-                    chunk_data.push((*code, chunk.to_vec()));
+            for (code, events) in record.precompile_events.events {
+                if events.is_empty() {
+                    continue;
+                }
+                let threshold = split_opts.syscall_threshold[code];
+                if events.len() <= threshold {
+                    chunk_data.push((code, events));
+                } else {
+                    assert!(threshold > 0, "empty precompile chunk");
+                    let mut events = events.into_iter();
+                    while events.len() > 0 {
+                        chunk_data.push((code, events.by_ref().take(threshold).collect()));
+                    }
                 }
             }
             chunk_data

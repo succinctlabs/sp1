@@ -88,16 +88,17 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
         memory_events.sort_by_key(|event| event.addr);
 
         let chunk_size = std::cmp::max(memory_events.len() / num_cpus::get(), 1);
-        let indices = (0..memory_events.len()).collect::<Vec<_>>();
-        let blu_batches = indices
+        let blu_batches = memory_events
             .par_chunks(chunk_size)
-            .map(|chunk| {
-                let mut blu = Vec::new();
+            .enumerate()
+            .map(|(chunk_idx, chunk)| {
+                let mut blu = sp1_core_executor::events::ByteLookupCounts::default();
                 let mut row = [F::zero(); NUM_MEMORY_INIT_COLS];
                 let cols: &mut MemoryInitCols<F> = row.as_mut_slice().borrow_mut();
-                chunk.iter().for_each(|&i| {
-                    let addr = memory_events[i].addr;
-                    let value = memory_events[i].value;
+                chunk.iter().enumerate().for_each(|(offset, event)| {
+                    let i = chunk_idx * chunk_size + offset;
+                    let addr = event.addr;
+                    let value = event.value;
                     let prev_addr = if i == 0 { previous_addr } else { memory_events[i - 1].addr };
                     blu.add_u16_range_checks(&u64_to_u16_limbs(value));
                     blu.add_u16_range_checks(&u64_to_u16_limbs(prev_addr)[0..3]);
@@ -109,10 +110,10 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
                         cols.lt_cols.populate_unsigned(&mut blu, 1, prev_addr, addr);
                     }
                 });
-                blu
+                blu.finish()
             })
             .collect::<Vec<_>>();
-        output.add_byte_lookup_events(blu_batches.into_iter().flatten().collect());
+        output.add_byte_lookup_counts(blu_batches.into_iter().flatten());
 
         let events = memory_events.into_iter().map(|event| {
             let interaction_clk_high = if is_receive { (event.timestamp >> 24) as u32 } else { 0 };

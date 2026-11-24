@@ -287,8 +287,9 @@ mod tests {
         let prover = Poseidon2KoalaBear16Prover::default();
         let (commitment, data) = prover.commit_tensors(tensors.clone()).unwrap();
 
-        let indices = (0..num_indices).map(|_| rng.gen_range(0..height)).collect_vec();
-        let proof = prover.prove_openings_at_indices(data, &indices).unwrap();
+        let mut indices = vec![0, 0, 1];
+        indices.extend((0..num_indices).map(|_| rng.gen_range(2..height)));
+        let mut proof = prover.prove_openings_at_indices(data, &indices).unwrap();
         let openings = prover.compute_openings_at_indices(tensors, &indices);
 
         let tcs = MerkleTreeTcs::<KoalaBearDegree4Duplex>::default();
@@ -302,5 +303,19 @@ mod tests {
             &proof,
         )
         .unwrap();
+
+        // Even a duplicate leaf must authenticate every supplied sibling.
+        let depth = slop_utils::log2_strict_usize(height);
+        proof.paths.as_mut_slice()[2 * depth - 1][0] += KoalaBear::one();
+        assert!(tcs
+            .verify_tensor_openings(
+                &commitment,
+                &indices,
+                &openings,
+                width * num_tensors,
+                depth,
+                &proof,
+            )
+            .is_err());
     }
 }

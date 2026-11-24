@@ -118,8 +118,7 @@ impl<F: DeviceCopy + Field> DeviceMleEval<F> {
 
     /// Copies the evaluations to the host and returns them as a Vec.
     pub fn to_host_vec(&self) -> Result<Vec<F>, CopyError> {
-        let device_tensor = DeviceTensor::from_raw(self.raw.evaluations().clone());
-        let host_tensor = device_tensor.to_host()?;
+        let host_tensor = DeviceTensor::copy_to_host(self.raw.evaluations())?;
         Ok(host_tensor.into_buffer().into_vec())
     }
 }

@@ -131,7 +131,7 @@ fn two_round_sum_as_poly<'a>(poly: &JaggedFirstRoundPoly<'a>) -> [Ext; 8] {
 
     // Sum the per-block partial sums of each grid value.
     let evaluations = DeviceTensor::from_raw(evaluations);
-    let evaluations = evaluations.sum_dim(1).to_host().unwrap();
+    let evaluations = evaluations.into_sum_dim(1).to_host().unwrap();
     evaluations.as_slice().try_into().unwrap()
 }
 
@@ -191,7 +191,7 @@ fn fix_two_and_sum_first_rounds<'a>(
 
     // Sum the evaluations across all dimensions.
     let evaluations = DeviceTensor::from_raw(evaluations);
-    let evaluations = evaluations.sum_dim(1).to_host().unwrap();
+    let evaluations = evaluations.into_sum_dim(1).to_host().unwrap();
     let [eval_zero, eval_half] = evaluations.as_slice().try_into().unwrap();
 
     let eval_one = claim - eval_zero;

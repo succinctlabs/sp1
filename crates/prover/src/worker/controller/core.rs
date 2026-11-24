@@ -133,11 +133,24 @@ impl CoreExecuteTaskRequest {
 #[derive(Serialize, Deserialize)]
 pub enum TraceData {
     /// A core record to be proven.
-    Core(Vec<u8>),
+    Core(#[serde(with = "trace_bytes")] Vec<u8>),
     // Precompile data. Several `PrecompileArtifactSlice`s, and the type of precompile.
     Precompile(Vec<PrecompileArtifactSlice>, SyscallCode),
     /// Memory data.
     Memory(Box<GlobalMemoryShard>),
+}
+
+// Keep the bincode wire representation while copying a whole chunk in one operation.
+mod trace_bytes {
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(chunk: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_bytes(chunk)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
+        bytes::Bytes::deserialize(deserializer).map(Vec::from)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -10,6 +10,8 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	"io"
+	"runtime"
 	"sync"
 	"unsafe"
 
@@ -61,6 +63,27 @@ func allocBytes(size, n int) dvec {
 	return dvec{p, n}
 }
 
+func qapRows(v [3]dvec, s *levelSolver, n int) {
+	values, coeffs := upload(s.values), upload(s.Coefficients)
+	terms, starts := upload(s.terms), upload(s.termStart)
+	check(C.sp1_qap_rows(v[0].p, v[1].p, v[2].p, values.p, coeffs.p, (*C.uint8_t)(terms.p),
+		(*C.uint32_t)(starts.p), C.uint32_t(s.termWidth), C.uint32_t(s.cBits),
+		C.uint32_t(len(s.termStart)-1), C.uint32_t(n)), "qap_rows")
+	for _, buf := range []dvec{values, coeffs, terms, starts} {
+		buf.free()
+	}
+}
+
+func d2d(dst, src dvec, size int) {
+	check(C.sp1_memcpy_d2d(dst.p, src.p, C.uint64_t(size)), "memcpy_d2d")
+}
+
+func freeMemory() uint64 {
+	var size C.uint64_t
+	check(C.sp1_free_memory(&size), "mem_get_info")
+	return uint64(size)
+}
+
 func alloc(n int) dvec { return allocBytes(n*fr.Bytes, n) }
 
 func (d dvec) free() {
@@ -84,6 +107,49 @@ func freeAll() {
 func upload[T any](v []T) dvec {
 	d := allocBytes(len(v)*int(unsafe.Sizeof(v[0])), len(v))
 	h2d(d, unsafe.Pointer(&v[0]), len(v)*int(unsafe.Sizeof(v[0])))
+	return d
+}
+
+// Groth16 provers share two pinned slots. Read the next chunk from the key
+// while the default CUDA stream copies the current chunk to the device.
+var keyStaging struct {
+	sync.Mutex
+	slots [2][]byte
+	pages runtime.Pinner
+}
+
+// uploadKeyPoints uploads either an in-memory table or a range in the native dump.
+func uploadKeyPoints[T any](points []T, r *io.SectionReader, n int) dvec {
+	if r == nil {
+		return upload(points[:n])
+	}
+	var point T
+	size := n * int(unsafe.Sizeof(point))
+	if int64(size) > r.Size() {
+		panic("gpu: short Groth16 point table")
+	}
+	d := allocBytes(size, n)
+	keyStaging.Lock()
+	defer keyStaging.Unlock()
+	defer syncStream(nil)
+	for i := range keyStaging.slots {
+		if keyStaging.slots[i] == nil {
+			slot := make([]byte, 16<<20)
+			pin(slot)
+			keyStaging.pages.Pin(&slot[0])
+			keyStaging.slots[i] = slot
+		}
+	}
+	for off, i := 0, 0; off < size; i ^= 1 {
+		slot := keyStaging.slots[i]
+		chunk := slot[:min(len(slot), size-off)]
+		if _, err := r.ReadAt(chunk, int64(off)); err != nil {
+			panic(err)
+		}
+		syncStream(nil)
+		h2d(dvec{p: unsafe.Add(d.p, off)}, unsafe.Pointer(&chunk[0]), len(chunk))
+		off += len(chunk)
+	}
 	return d
 }
 
@@ -197,6 +263,10 @@ func vadd(acc, a dvec, n int) { check(C.sp1_fr_add(acc.p, a.p, C.uint64_t(n), ni
 
 func vsub(acc, a dvec, n int) { check(C.sp1_fr_sub(acc.p, a.p, C.uint64_t(n), nil), "sub") }
 
+func axpySource(acc dvec, src *nttSrc, coeff fr.Element, n int) {
+	check(C.sp1_axpy_source(acc.p, src, cfr(&coeff), C.uint64_t(n), nil), "axpy source")
+}
+
 func axpy(acc, x dvec, s fr.Element, n int) {
 	check(C.sp1_fr_axpy(acc.p, x.p, cfr(&s), C.uint64_t(n), nil), "axpy")
 }
@@ -232,6 +302,13 @@ func ratio(z, values, wires, sigma dvec, n int, tabW dvec, beta, gamma, u, u2 fr
 }
 
 func scanMul(z dvec, n int) { check(C.sp1_fr_scan_mul(z.p, C.uint64_t(n), nil), "scan_mul") }
+
+func lagrangeOpenings(d *device, qcp dvec, n int, u, u2, zeta, scale fr.Element) (out [6]fr.Element) {
+	check(C.sp1_plonk_lagrange_openings(cfr(&out[0]), d.values.p, (*C.uint32_t)(d.wires.p),
+		(*C.uint32_t)(d.sigma.p), qcp.p, C.uint64_t(n), d.tabW.p, cfr(&u), cfr(&u2), cfr(&zeta), cfr(&scale), nil),
+		"Lagrange openings")
+	return
+}
 
 func evalPartials(p dvec, n int, z fr.Element, chunk int) []fr.Element {
 	out := make([]fr.Element, (n+chunk-1)/chunk)
@@ -309,20 +386,25 @@ func msmG2(scalars, points dvec, n int) curve.G2Affine {
 
 // msmHost is msm for host-resident points and scalars, which are uploaded for the call.
 func msmHost(points []curve.G1Affine, scalars []fr.Element) curve.G1Affine {
+	return msmKeyPoints(points, nil, scalars)
+}
+
+func msmKeyPoints(points []curve.G1Affine, source *io.SectionReader, scalars []fr.Element) curve.G1Affine {
 	if len(scalars) == 0 {
 		return curve.G1Affine{}
 	}
-	dp, ds := upload(points[:len(scalars)]), upload(scalars)
+	dp := uploadKeyPoints(points, source, len(scalars))
+	ds := upload(scalars)
 	defer dp.free()
 	defer ds.free()
 	return msm(ds, dp, len(scalars))
 }
 
-func msmHostG2(points []curve.G2Affine, scalars []fr.Element) curve.G2Affine {
+func msmHostG2(points []curve.G2Affine, source *io.SectionReader, scalars []fr.Element) curve.G2Affine {
 	if len(scalars) == 0 {
 		return curve.G2Affine{}
 	}
-	dp, ds := upload(points[:len(scalars)]), upload(scalars)
+	dp, ds := uploadKeyPoints(points, source, len(scalars)), upload(scalars)
 	defer dp.free()
 	defer ds.free()
 	return msmG2(ds, dp, len(scalars))

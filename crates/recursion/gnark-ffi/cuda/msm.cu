@@ -73,22 +73,18 @@ constexpr uint32_t SIGN = 1u << 31;
 constexpr uint32_t SEGMENT = SP1_SEGMENT;
 
 // The signed c-bit digit d of window w of each scalar becomes key |d| - 1, or the sentinel 2^(c-1) when
-// d = 0, paired with the point index and the sign of d. The carries of the lower windows are recomputed.
+// d = 0, paired with the point index and the sign of d. The previous window’s high bit supplies the incoming carry.
 __global__ void k_digits(const Fr* scalars, uint32_t n, uint32_t c, uint32_t window, uint32_t* keys, uint32_t* vals) {
   uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
   if (i >= n) return;
   Fr k = scalars[i].to_canonical();
   const uint32_t half = 1u << (c - 1);
-  uint32_t carry = 0;
-  int64_t d = 0;
-  for (uint32_t w = 0; w <= window; w++) {
-    uint32_t bit = w * c, limb = bit / 64, sh = bit % 64;
-    uint64_t bits = limb < 4 ? k.v[limb] >> sh : 0;
-    if (sh + c > 64 && limb + 1 < 4) bits |= k.v[limb + 1] << (64 - sh);
-    d = (int64_t)(bits & ((1ull << c) - 1)) + carry;
-    carry = d > half;
-    if (carry) d -= (int64_t)1 << c;
-  }
+  uint32_t bit = window * c, limb = bit / 64, sh = bit % 64;
+  uint64_t bits = limb < 4 ? k.v[limb] >> sh : 0;
+  if (sh + c > 64 && limb + 1 < 4) bits |= k.v[limb + 1] << (64 - sh);
+  uint32_t raw = (uint32_t)bits & ((1u << c) - 1);
+  uint32_t prev = bit == 0 || bit > 256 ? 0 : (k.v[(bit - 1) / 64] >> ((bit - 1) % 64)) & 1;
+  int32_t d = (int32_t)(raw + prev) - (int32_t)((raw >> (c - 1)) << c);
   keys[i] = d == 0 ? half : (uint32_t)(d < 0 ? -d : d) - 1;
   vals[i] = i | (d < 0 ? SIGN : 0);
 }

@@ -12,15 +12,17 @@ use sp1_gpu_cudart::{
     args,
     sys::{
         merkle_tree::{
-            compress_merkle_tree_bn254_kernel, compress_merkle_tree_koala_bear_16_kernel,
-            compute_openings_merkle_tree_bn254_kernel,
+            compress_layers_merkle_tree_bn254_kernel,
+            compress_layers_merkle_tree_koala_bear_16_kernel, compress_merkle_tree_bn254_kernel,
+            compress_merkle_tree_koala_bear_16_kernel, compute_openings_merkle_tree_bn254_kernel,
             compute_openings_merkle_tree_koala_bear_16_kernel,
             compute_paths_merkle_tree_bn254_kernel, compute_paths_merkle_tree_koala_bear_16_kernel,
-            leaf_hash_merkle_tree_bn254_kernel, leaf_hash_merkle_tree_koala_bear_16_kernel,
+            gather_merkle_openings_kernel, leaf_hash_merkle_tree_bn254_kernel,
+            leaf_hash_merkle_tree_koala_bear_16_kernel,
             recompute_bottom_paths_merkle_tree_bn254_kernel,
             recompute_bottom_paths_merkle_tree_koala_bear_16_kernel,
         },
-        runtime::{Dim3, KernelPtr},
+        runtime::KernelPtr,
     },
     CudaError, DeviceTensor, TaskScope,
 };
@@ -38,11 +40,19 @@ pub unsafe trait MerkleTreeSingleLayerKernels<GC: IopCtx>: 'static + Send + Sync
 
     fn compress_layer_kernel() -> KernelPtr;
 
+    fn compress_layers_kernel() -> Option<KernelPtr> {
+        None
+    }
+
     fn compute_paths_kernel() -> KernelPtr;
 
     fn recompute_bottom_paths_kernel() -> KernelPtr;
 
     fn compute_openings_kernel() -> KernelPtr;
+
+    fn gather_openings_kernel() -> Option<KernelPtr> {
+        None
+    }
 }
 
 pub trait Hasher<F: Field, const WIDTH: usize>: 'static + Send + Sync {
@@ -136,13 +146,22 @@ where
             scope.launch_kernel(K::leaf_hash_kernel(), grid_dim, block_dim, &args, 0)?;
         }
 
-        // Iterate over the layers and compute the compressions.
-        for k in (0..height).rev() {
-            let block_dim: Dim3 = (512u32, 1, 1).into();
-            let grid_dim: Dim3 = ((1u32 << k).div_ceil(block_dim.x), 1, 1).into();
-            let args = args!(hasher_device.as_raw(), tree.digests.as_mut_ptr(), k);
-            unsafe {
-                scope.launch_kernel(K::compress_layer_kernel(), grid_dim, block_dim, &args, 0)?;
+        let mut remaining = height;
+        while remaining > 0 {
+            let k = remaining - 1;
+            let block = 256usize.min(1 << k);
+            let grid = (1usize << k).div_ceil(block);
+            if let Some(kernel) = K::compress_layers_kernel() {
+                // At the top one block can finish the tree. Lower down, keep enough
+                // independent subtrees to occupy the device across launches.
+                let levels = if grid == 1 { remaining } else { 4 };
+                let args = args!(hasher_device.as_raw(), tree.digests.as_mut_ptr(), k, levels);
+                unsafe { scope.launch_kernel(kernel, grid, block, &args, 0)? };
+                remaining -= levels;
+            } else {
+                let args = args!(hasher_device.as_raw(), tree.digests.as_mut_ptr(), k);
+                unsafe { scope.launch_kernel(K::compress_layer_kernel(), grid, block, &args, 0)? };
+                remaining -= 1;
             }
         }
 
@@ -158,11 +177,7 @@ where
 
         let (hasher, compressor) = GC::default_hasher_and_compressor();
 
-        // Copy root digest from device to host synchronously
-        let root = unsafe {
-            let digests = tree.digests.owned_unchecked();
-            digests[0].copy_into_host(scope)
-        };
+        let root = unsafe { tree.digests.owned_unchecked()[0].copy_into_host(scope) };
 
         let total_width = tensor.sizes()[0];
         let hash = hasher.hash_iter([
@@ -252,6 +267,29 @@ where
     ) -> Tensor<GC::F> {
         let openings = {
             let num_opening_values = tensors.sizes()[0];
+            if let Some(kernel) = K::gather_openings_kernel() {
+                let scope = tensors.backend();
+                let mut openings =
+                    Tensor::with_sizes_in([indices.len(), num_opening_values], scope.clone());
+                let count = openings.total_len();
+                if count != 0 {
+                    let mut device_indices = Buffer::with_capacity_in(indices.len(), scope.clone());
+                    device_indices.extend_from_host_slice(indices).unwrap();
+                    let args = args!(
+                        tensors.as_ptr(),
+                        openings.as_mut_ptr(),
+                        device_indices.as_ptr(),
+                        num_opening_values,
+                        tensors.sizes()[1],
+                        count
+                    );
+                    unsafe {
+                        scope.launch_kernel(kernel, count.div_ceil(256), 256, &args, 0).unwrap();
+                        openings.assume_init();
+                    }
+                }
+                return DeviceTensor::from_raw(openings).to_host().unwrap();
+            }
             let (tensor_ptrs_host, widths_host): (Vec<_>, Vec<usize>) =
                 (vec![tensors.as_ptr()], vec![num_opening_values]);
             let scope = tensors.backend();
@@ -383,6 +421,11 @@ unsafe impl MerkleTreeSingleLayerKernels<SP1GlobalContext> for Poseidon2SP1Field
     }
 
     #[inline]
+    fn compress_layers_kernel() -> Option<KernelPtr> {
+        Some(unsafe { compress_layers_merkle_tree_koala_bear_16_kernel() })
+    }
+
+    #[inline]
     fn compute_paths_kernel() -> KernelPtr {
         unsafe { compute_paths_merkle_tree_koala_bear_16_kernel() }
     }
@@ -395,6 +438,10 @@ unsafe impl MerkleTreeSingleLayerKernels<SP1GlobalContext> for Poseidon2SP1Field
     #[inline]
     fn compute_openings_kernel() -> KernelPtr {
         unsafe { compute_openings_merkle_tree_koala_bear_16_kernel() }
+    }
+
+    fn gather_openings_kernel() -> Option<KernelPtr> {
+        Some(unsafe { gather_merkle_openings_kernel() })
     }
 }
 
@@ -412,6 +459,11 @@ unsafe impl MerkleTreeSingleLayerKernels<BNGC<SP1Field, SP1ExtensionField>>
     }
 
     #[inline]
+    fn compress_layers_kernel() -> Option<KernelPtr> {
+        Some(unsafe { compress_layers_merkle_tree_bn254_kernel() })
+    }
+
+    #[inline]
     fn compute_paths_kernel() -> KernelPtr {
         unsafe { compute_paths_merkle_tree_bn254_kernel() }
     }
@@ -424,6 +476,10 @@ unsafe impl MerkleTreeSingleLayerKernels<BNGC<SP1Field, SP1ExtensionField>>
     #[inline]
     fn compute_openings_kernel() -> KernelPtr {
         unsafe { compute_openings_merkle_tree_bn254_kernel() }
+    }
+
+    fn gather_openings_kernel() -> Option<KernelPtr> {
+        Some(unsafe { gather_merkle_openings_kernel() })
     }
 }
 

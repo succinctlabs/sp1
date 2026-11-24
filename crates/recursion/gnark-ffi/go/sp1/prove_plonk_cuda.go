@@ -28,18 +28,18 @@ var (
 	plonkCudaProvers = map[string]*plonkCudaProver{}
 )
 
+// PreparePlonk loads and compiles the circuit using only host memory.
+func PreparePlonk(dataDir string) {
+	plonkCudaMu.Lock()
+	defer plonkCudaMu.Unlock()
+	loadPlonkCudaProver(dataDir)
+}
+
 // loadPlonkCudaProver keeps the circuit and its GPU proving key resident for the life of the process.
 func loadPlonkCudaProver(dataDir string) *plonkCudaProver {
 	if p, ok := plonkCudaProvers[dataDir]; ok {
 		return p
 	}
-	scs := plonk.NewCS(ecc.BN254)
-	if err := readCircuit(dataDir+"/"+plonkCircuitPath, scs.(*cs.SparseR1CS)); err != nil {
-		panic(err)
-	}
-	// Returns the reader's buffers before the key adds gigabytes.
-	debug.FreeOSMemory()
-
 	pkFile, err := os.Open(dataDir + "/" + plonkPkPath)
 	if err != nil {
 		panic(err)
@@ -55,12 +55,16 @@ func loadPlonkCudaProver(dataDir string) *plonkCudaProver {
 		panic(err)
 	}
 
-	prover, err := gpu.NewPlonkProver(scs.(*cs.SparseR1CS), bufio.NewReaderSize(pkFile, 1024*1024))
+	spr := plonk.NewCS(ecc.BN254).(*cs.SparseR1CS)
+	if err = readCircuit(dataDir+"/"+plonkCircuitPath, spr); err != nil {
+		panic(err)
+	}
+	debug.FreeOSMemory()
+	prover, err := gpu.NewPlonkProver(spr, bufio.NewReaderSize(pkFile, 1024*1024))
 	if err != nil {
 		panic(err)
 	}
 	// A smaller heap leaves huge pages for the solver's random access.
-	runtime.GC()
 	debug.FreeOSMemory()
 
 	p := &plonkCudaProver{prover: prover, vk: vk.(*plonk_bn254.VerifyingKey)}

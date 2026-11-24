@@ -171,6 +171,16 @@ impl<T: DeviceCopy> DeviceTensor<T>
 where
     TaskScope: DeviceSumKernel<T>,
 {
+    /// A length-one reduction on an owned tensor only changes its shape.
+    pub fn into_sum_dim(self, dim: usize) -> DeviceTensor<T> {
+        if self.raw.sizes()[dim] == 1 {
+            let mut shape = self.raw.sizes().to_vec();
+            shape.remove(dim);
+            return Self { raw: self.raw.reshape(shape) };
+        }
+        self.sum_dim(dim)
+    }
+
     pub fn sum_dim(&self, dim: usize) -> DeviceTensor<T> {
         let src = &self.raw;
         let mut sizes = src.sizes().to_vec();

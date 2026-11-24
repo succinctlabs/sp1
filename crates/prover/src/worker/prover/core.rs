@@ -8,6 +8,8 @@ use std::{
 };
 
 use anyhow::anyhow;
+use sha2::{Digest, Sha256};
+use slop_air::BaseAir;
 use slop_futures::pipeline::{AsyncEngine, AsyncWorker, Pipeline, SubmitError, SubmitHandle};
 use sp1_core_executor::{
     events::{PrecompileEvent, SyscallEvent},
@@ -16,8 +18,9 @@ use sp1_core_executor::{
 use sp1_core_machine::executor::trace_chunk;
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{
+    air::MachineAir,
     prover::{shape_from_record, CoreProofShape, ProverSemaphore, ProvingKey},
-    InnerSC, Machine, MachineProof, MachineVerifier, SP1VerifyingKey,
+    InnerSC, Machine, MachineRecord, MachineVerifier, MachineVerifyingKey, SP1VerifyingKey,
 };
 use sp1_jit::TraceChunk;
 use sp1_primitives::{SP1Field, SP1GlobalContext};
@@ -235,18 +238,16 @@ pub fn get_normalize_program(
         log_blowup: verifier.fri_config().log_blowup,
         log_stacking_height: verifier.log_stacking_height() as usize,
     };
-    if let Some(program) = cache.as_ref().and_then(|c| c.get(&shape)) {
-        return program.clone();
+    let compile = || {
+        let input = shape.dummy_input(vk);
+        let mut program = normalize_program_from_input(recursive_verifier, &input);
+        program.shape = Some(reduce_shape.shape.clone());
+        Arc::new(program)
+    };
+    match cache {
+        Some(cache) => cache.get_or_compile(&shape, compile),
+        None => compile(),
     }
-
-    let input = shape.dummy_input(vk);
-    let mut program = normalize_program_from_input(recursive_verifier, &input);
-    program.shape = Some(reduce_shape.shape.clone());
-    let program = Arc::new(program);
-    if let Some(c) = cache {
-        c.push(shape, program.clone());
-    }
-    program
 }
 
 /// Unified worker that combines tracing, core proving, and normalize proving.
@@ -260,6 +261,7 @@ pub struct CoreWorker<A, W, C: SP1ProverComponents> {
     permits: ProverSemaphore,
     /// Optional fixed PK cache shared across workers.
     pk: Option<CoreProvingKeyCache<C>>,
+    last_setup: LastSetup<C>,
     verify_intermediates: bool,
     record_write_dir_and_frequency: Option<(String, usize)>,
 }
@@ -275,6 +277,7 @@ impl<A, W, C: SP1ProverComponents> CoreWorker<A, W, C> {
         recursion_prover: SP1RecursionProver<A, C>,
         permits: ProverSemaphore,
         pk: Option<CoreProvingKeyCache<C>>,
+        last_setup: LastSetup<C>,
         verify_intermediates: bool,
         record_write_dir_and_frequency: Option<(String, usize)>,
     ) -> Self {
@@ -287,6 +290,7 @@ impl<A, W, C: SP1ProverComponents> CoreWorker<A, W, C> {
             recursion_prover,
             permits,
             pk,
+            last_setup,
             verify_intermediates,
             record_write_dir_and_frequency,
         }
@@ -319,6 +323,10 @@ where
             self.artifact_client.download::<TraceData>(&input.record),
         )?;
 
+        if matches!(common_input.mode, ProofMode::Groth16 | ProofMode::Plonk) {
+            self.recursion_prover.prepare_wrap();
+        }
+
         if let Some((dir, _)) = self.record_write_dir_and_frequency.as_ref() {
             let dir = PathBuf::from(dir);
             let mut file = std::fs::File::create(dir.join("program.bin"))
@@ -332,6 +340,15 @@ where
             None
         };
 
+        let digest: [u8; 32] = Sha256::digest(&elf).into();
+        let (cached_program, cached_pk) = self
+            .last_setup
+            .lock()
+            .unwrap()
+            .as_ref()
+            .filter(|entry| entry.digest == digest && entry.vk == common_input.vk.vk)
+            .map(|entry| (Some(entry.program.clone()), entry.pk.clone()))
+            .unwrap_or_default();
         let span = tracing::debug_span!("into_record");
         let (program, mut record, deferred_record, is_precompile) = tokio::task::spawn_blocking({
             let artifact_client = self.artifact_client.clone();
@@ -339,10 +356,12 @@ where
             move || {
                 let _guard = span.enter();
                 {
-                    let program = Program::from(&elf).map_err(|e| {
-                        TaskError::Fatal(anyhow::anyhow!("failed to disassemble program: {}", e))
-                    })?;
-                    let program = Arc::new(program);
+                    let program = match cached_program {
+                        Some(program) => program,
+                        None => Arc::new(Program::from(&elf).map_err(|e| {
+                            TaskError::Fatal(anyhow!("failed to disassemble program: {e}"))
+                        })?),
+                    };
                     let (record, deferred_record, is_precompile) = match record {
                         TraceData::Core(chunk_bytes) => {
                             let chunk: TraceChunk =
@@ -357,14 +376,17 @@ where
                                 chunk.clk_start,
                                 chunk.clk_end
                             );
-                            // Here, we reserve 1/8 of the shard size for common events. In other words,
-                            // we assume that no event will take up more than 1/8 of the shard's events.
+                            // Size the event vectors for this trace. A short final shard can
+                            // contain far fewer instructions than the configured maximum.
+                            let cycles = chunk.clk_end.saturating_sub(chunk.clk_start)
+                                / u64::from(sp1_core_executor::CLK_INC);
+                            let reserve = cycles.min(opts.shard_size as u64) as usize >> 3;
                             let record = tracing::debug_span!("allocating record").in_scope(|| {
                                 ExecutionRecord::new_preallocated(
                                     program.clone(),
                                     common_input.nonce,
                                     opts.global_dependencies_opt,
-                                    opts.shard_size >> 3,
+                                    reserve,
                                 )
                             });
                             let (_, mut record, _) = trace_chunk::<SP1Field>(
@@ -503,12 +525,11 @@ where
                                     .events
                                     .get_mut(&code)
                                     .unwrap()
-                                    .append(
-                                        &mut events
+                                    .extend(
+                                        events
                                             .into_iter()
                                             .skip(start_idx)
-                                            .take(end_idx - start_idx)
-                                            .collect(),
+                                            .take(end_idx - start_idx),
                                     );
                             }
 
@@ -571,11 +592,38 @@ where
         // Generate dependencies on the main record.
         let span = tracing::debug_span!("generate dependencies");
         let machine_clone = self.machine().clone();
-        let record = tokio::task::spawn_blocking(move || {
+        let retain_traces = cached_pk.is_some() && self.pk.is_none();
+        let (record, host_traces) = tokio::task::spawn_blocking(move || {
             let _guard = span.enter();
-            let record_iter = std::iter::once(&mut record);
-            machine_clone.generate_dependencies(record_iter, None);
-            record
+            let mut host_traces = std::collections::BTreeMap::new();
+            // RISC-V dependencies append byte multiplicities. The byte and range AIRs
+            // read the completed table later, during trace generation. Accumulate into
+            // the existing table directly instead of rehashing it after each chip.
+            let mut retained_cells = 0;
+            for chip in machine_clone.chips() {
+                let mut output = ExecutionRecord {
+                    byte_lookups: std::mem::take(&mut record.byte_lookups),
+                    ..Default::default()
+                };
+                // Reuse rows produced alongside their lookups. Limit retained host
+                // storage per shard until device admission releases the rows.
+                let trace = if retain_traces
+                    && chip.included(&record)
+                    && chip.num_rows(&record).unwrap() * chip.width() <= (64 << 20) - retained_cells
+                {
+                    chip.try_trace_with_dependencies(&record, &mut output)
+                } else {
+                    None
+                };
+                if let Some(trace) = trace {
+                    retained_cells += trace.len();
+                    host_traces.insert(chip.name().to_owned(), trace);
+                } else {
+                    chip.generate_dependencies(&record, &mut output);
+                }
+                record.append(&mut output);
+            }
+            (record, host_traces)
         })
         .await
         .map_err(|e| TaskError::Fatal(e.into()))?;
@@ -628,7 +676,6 @@ where
         let permits = self.permits.clone();
 
         let (proof, permit) = if let Some(pk_cache) = &self.pk {
-            // We have a fixed PK cache - use get_or_init to ensure only one worker does setup
             let pk = pk_cache
                 .get_or_init(|| async {
                     tracing::info!("Initializing fixed PK cache");
@@ -641,13 +688,22 @@ where
                 })
                 .await;
 
-            tracing::debug!("Using fixed PK");
             self.core_prover
                 .prove_shard_with_pk(pk.clone(), record, permits)
                 .instrument(tracing::debug_span!("core prove with pk"))
                 .await
+        } else if let Some(pk) = cached_pk {
+            sp1_hypercube::prover::AirProver::prove_with_cached_setup(
+                self.core_prover.as_ref(),
+                program.clone(),
+                pk,
+                record,
+                permits,
+                host_traces,
+            )
+            .instrument(tracing::debug_span!("core prove with cached setup"))
+            .await
         } else {
-            // No fixed PK cache - always do setup and prove
             let (_, proof, permit) = self
                 .core_prover
                 .setup_and_prove_shard(
@@ -664,46 +720,50 @@ where
         let duration = permit.release();
         metrics.increment_permit_time(duration);
 
-        let vk_clone = common_input.vk.vk.clone();
-        let proof_clone = proof.clone();
-
-        if self.verify_intermediates {
-            let parent = tracing::Span::current();
-            let machine = self.machine().clone();
+        let verify = |proof| {
+            let vk = common_input.vk.vk.clone();
+            let compiler = self.normalize_program_compiler.clone();
             tokio::task::spawn_blocking(move || {
-                let _guard = parent.enter();
-                let machine_proof = MachineProof::from(vec![proof_clone]);
-                C::core_verifier(machine)
-                    .verify(&vk_clone, &machine_proof)
-                    .map_err(|e| TaskError::Retryable(anyhow!("shard verification failed: {e}")))
+                let mut challenger = compiler.verifier.challenger();
+                vk.observe_into(&mut challenger);
+                compiler
+                    .verifier
+                    .verify_shard(&vk, &proof, &mut challenger)
+                    .map_err(|e| TaskError::Retryable(anyhow!("shard verification failed: {e}")))?;
+                Ok::<_, TaskError>(proof)
             })
-            .await
-            .map_err(|e| TaskError::Fatal(e.into()))??;
-        }
+            .instrument(tracing::debug_span!("verify shard"))
+        };
 
         let output = input.output;
-        if common_input.mode != ProofMode::Core {
-            let recursion_program = recursion_program_handle
-                .ok_or_else(|| {
-                    TaskError::Fatal(anyhow::anyhow!("recursion program handle not found"))
-                })?
-                .await
-                .map_err(|e| TaskError::Fatal(e.into()))?;
-            let input = self.recursion_prover.get_normalize_witness(
+        if let Some(program_handle) = recursion_program_handle {
+            let witness = SP1CircuitWitness::Core(self.recursion_prover.get_normalize_witness(
                 &common_input,
                 &proof,
                 false,
                 is_precompile,
-            );
-            let witness = SP1CircuitWitness::Core(input);
+            ));
+            // The recursion executor can consume its witness while the host verifies the
+            // same shard. The recursion prover waits for this result before producing output.
+            let verification = self.verify_intermediates.then(|| {
+                let task = verify(proof);
+                tokio::spawn(async move {
+                    task.await.map_err(|e| TaskError::Fatal(e.into()))?.map(drop)
+                })
+            });
+            let program = program_handle.await.map_err(|e| TaskError::Fatal(e.into()))?;
             self.recursion_prover
-                .submit_prove_shard(recursion_program, witness, output, metrics.clone())
+                .submit_normalize(program, witness, output, metrics.clone(), verification)
                 .instrument(tracing::debug_span!("normalize prove shard"))
                 .await?
                 .await
                 .map_err(|e| TaskError::Fatal(e.into()))??;
         } else {
-            // Upload the proof
+            let proof = if self.verify_intermediates {
+                verify(proof).await.map_err(|e| TaskError::Fatal(e.into()))??
+            } else {
+                proof
+            };
             self.artifact_client.upload(&output, proof).await?;
         }
 
@@ -745,8 +805,18 @@ pub type CoreProvingKey<C> =
 /// The Core Proving Key cache is initialized once and shared across all CoreAndNormalizeWorkers.
 pub type CoreProvingKeyCache<C> = Arc<OnceCell<Arc<CoreProvingKey<C>>>>;
 
+struct CachedSetup<C: SP1ProverComponents> {
+    pk: Option<Arc<CoreProvingKey<C>>>,
+    digest: [u8; 32],
+    program: Arc<Program>,
+    vk: MachineVerifyingKey<SP1GlobalContext>,
+}
+
+type LastSetup<C> = Arc<std::sync::Mutex<Option<CachedSetup<C>>>>;
+
 /// Worker for handling setup tasks only.
 pub struct CoreAndNormalizeWorker<A, C: SP1ProverComponents> {
+    last_setup: LastSetup<C>,
     artifact_client: A,
     core_prover: Arc<C::CoreProver>,
     permits: ProverSemaphore,
@@ -759,7 +829,13 @@ impl<A, C: SP1ProverComponents> CoreAndNormalizeWorker<A, C> {
         core_prover: Arc<C::CoreProver>,
         permits: ProverSemaphore,
     ) -> Self {
-        Self { artifact_client, core_prover, permits, _marker: std::marker::PhantomData }
+        Self {
+            artifact_client,
+            core_prover,
+            permits,
+            last_setup: Default::default(),
+            _marker: std::marker::PhantomData,
+        }
     }
 }
 
@@ -772,11 +848,27 @@ impl<A: ArtifactClient, C: SP1ProverComponents>
 
         let elf = self.artifact_client.download_program(&elf).await?;
 
-        let program = Program::from(&elf)?;
-        let program = Arc::new(program);
-
-        let permits = self.permits.clone();
-        let (_pk, vk) = self.core_prover.setup(program, permits).await;
+        // The local controller uses a fresh artifact id for each request. Setup depends
+        // only on the ELF and this worker's machine.
+        let digest: [u8; 32] = Sha256::digest(&elf).into();
+        let cached = self
+            .last_setup
+            .lock()
+            .unwrap()
+            .as_ref()
+            .filter(|entry| entry.digest == digest)
+            .map(|entry| entry.vk.clone());
+        let vk = match cached {
+            Some(vk) => vk,
+            None => {
+                let program = Arc::new(Program::from(&elf)?);
+                let (pk, vk) = self.core_prover.setup(program.clone(), self.permits.clone()).await;
+                let pk = self.permits.allows_concurrent_traces().then_some(pk);
+                *self.last_setup.lock().unwrap() =
+                    Some(CachedSetup { digest, program, pk, vk: vk.clone() });
+                vk
+            }
+        };
         tracing::debug!("setup completed for task {}", id);
 
         // Upload the vk
@@ -911,6 +1003,7 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A
             record_write_dir.map(|dir| (dir, record_write_frequency));
 
         // Initialize the unified core engine (handles both tracing and proving)
+        let last_setup = Arc::default();
         let core_workers = (0..config.num_core_workers)
             .map(|_| {
                 CoreWorker::new(
@@ -922,6 +1015,7 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A
                     recursion_prover.clone(),
                     permits.clone(),
                     pk_cache.clone(),
+                    Arc::clone(&last_setup),
                     config.verify_intermediates,
                     record_write_dir_and_frequency.clone(),
                 )
@@ -931,8 +1025,9 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A
 
         // Make the setup engine
         let setup_workers = (0..config.num_setup_workers)
-            .map(|_| {
-                CoreAndNormalizeWorker::new(
+            .map(|_| CoreAndNormalizeWorker {
+                last_setup: Arc::clone(&last_setup),
+                ..CoreAndNormalizeWorker::new(
                     artifact_client.clone(),
                     air_prover.clone(),
                     permits.clone(),
