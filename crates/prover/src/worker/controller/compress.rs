@@ -342,8 +342,8 @@ impl CompressTree {
         let mut max_range = ShardBoundary::initial()..ShardBoundary::initial();
         // Keep track of the number of pending tasks.
         let mut pending_tasks = 0;
-        // Create a channel to send the proofs to the proof queue.
-        let (proof_tx, mut proof_rx) = mpsc::unbounded_channel::<RecursionProof>();
+        // Create a channel to send `(proof, is_reduced)` pairs to the proof queue.
+        let (proof_tx, mut proof_rx) = mpsc::unbounded_channel::<(RecursionProof, bool)>();
         // Create a subscriber for the reduction tasks.
         let (subscriber, mut event_stream) =
             worker_client.subscriber(context.proof_id.clone()).await?.stream();
@@ -400,18 +400,22 @@ impl CompressTree {
                         // Send the last core proof to the proof queue if it hasn't been sent yet
                         // by the core proof event stream receive task below.
                         if let Some(proof) = last_core_proof.take() {
-                            proof_tx.send(proof).map_err(|_| TaskError::Fatal(anyhow::anyhow!("Compress tree panicked")))?;
+                            proof_tx
+                                .send((proof, false))
+                                .map_err(|_| TaskError::Fatal(anyhow::anyhow!("Compress tree panicked")))?;
                         }
                     }
                 }
-                Some(proof) = proof_rx.recv() => {
+                Some((proof, is_reduced)) = proof_rx.recv() => {
                     // Mark that this is a completed task.
                     pending_tasks -= 1;
-                    if self.is_complete(&proof.shard_range, pending_tasks, &full_range) {
+                    // Only a reduced proof can terminate the tree; an unreduced single core
+                    // proof still needs a final `RecursionReduce` task to produce `output`.
+                    if is_reduced && self.is_complete(&proof.shard_range, pending_tasks, &full_range) {
                         return Ok(());
                     }
                     // Check if there is a neighboring range.
-                    if let Some(sibling) = self.sibling(&proof) {
+                    let (proofs, full_batch) = if let Some(sibling) = self.sibling(&proof) {
                         tracing::debug!("Found sibling");
                         let mut proofs = match sibling {
                             Sibling::Left(mut proofs) => {
@@ -439,35 +443,38 @@ impl CompressTree {
                             panic!("Proofs are larger than the batch size: {:?}", proofs.len());
                         }
 
-                        let is_complete = self.is_complete(&proofs.shard_range, pending_tasks, &full_range);
-                        if proofs.len() == self.batch_size || is_complete {
-                            let shard_range = proofs.shard_range;
-                            // Create an artifact for the output proof.
-                            let output_artifact = if is_complete { output.clone() } else { artifact_client.create_artifact()? };
-                            let task_request = ReduceTaskRequest {
-                                range_proofs: proofs,
-                                is_complete,
-                                output: output_artifact.clone(),
-                                context: context.clone(),
-                            };
-                            let raw_task_request = task_request.into_raw()?;
-                            let task_id = worker_client.submit_task(TaskType::RecursionReduce, raw_task_request).await?;
-                            // Update the proof map mapping the task id to the proof.
-                            proof_map.insert(task_id.clone(), RecursionProof { shard_range, proof: output_artifact });
-                            // Subscribe to the task.
-                            subscriber.subscribe(task_id).map_err(|_| TaskError::Fatal(anyhow::anyhow!("Subscriver closed")))?;
-                            // Update the number of pending tasks.
-                            pending_tasks += 1;
-                        } else {
-                            self.insert(proofs);
-                        }
+                        let full_batch = proofs.len() == self.batch_size;
+                        (proofs, full_batch)
                     } else {
                         tracing::debug!("No neighboring range found, adding proof to tree");
-                        // If there is no neighboring range, add the proof to the tree.
+                        // If there is no neighboring range, wrap the proof so it can either be
+                        // inserted into the tree or reduced directly if it is the complete proof.
                         let mut queue = VecDeque::with_capacity(self.batch_size);
                         let range = proof.shard_range;
                         queue.push_back(proof);
-                        let proofs = RangeProofs::new(range, queue);
+                        (RangeProofs::new(range, queue), false)
+                    };
+
+                    let is_complete = self.is_complete(&proofs.shard_range, pending_tasks, &full_range);
+                    if full_batch || is_complete {
+                        let shard_range = proofs.shard_range;
+                        // Create an artifact for the output proof.
+                        let output_artifact = if is_complete { output.clone() } else { artifact_client.create_artifact()? };
+                        let task_request = ReduceTaskRequest {
+                            range_proofs: proofs,
+                            is_complete,
+                            output: output_artifact.clone(),
+                            context: context.clone(),
+                        };
+                        let raw_task_request = task_request.into_raw()?;
+                        let task_id = worker_client.submit_task(TaskType::RecursionReduce, raw_task_request).await?;
+                        // Update the proof map mapping the task id to the proof.
+                        proof_map.insert(task_id.clone(), RecursionProof { shard_range, proof: output_artifact });
+                        // Subscribe to the task.
+                        subscriber.subscribe(task_id).map_err(|_| TaskError::Fatal(anyhow::anyhow!("Subscriver closed")))?;
+                        // Update the number of pending tasks.
+                        pending_tasks += 1;
+                    } else {
                         self.insert(proofs);
                     }
                     // `full_range.is_some()` implies every core proof has completed and been
@@ -491,10 +498,11 @@ impl CompressTree {
                             (anyhow::anyhow!("Reduction task {} failed", task_id))
                         );
                     }
-                    let proof = proof_map.remove(&task_id);
-                    if let Some(proof) = proof {
-                        // Send the proof to the proof queue.
-                        proof_tx.send(proof).map_err(|_| TaskError::Fatal(anyhow::anyhow!("Compress tree panicked")))?;
+                    if let Some(proof) = proof_map.remove(&task_id) {
+                        // Send the reduced proof to the proof queue.
+                        proof_tx
+                            .send((proof, true))
+                            .map_err(|_| TaskError::Fatal(anyhow::anyhow!("Compress tree panicked")))?;
                     }
                     else {
                         tracing::debug!("Proof not found for task id: {}", task_id);
@@ -526,7 +534,9 @@ impl CompressTree {
                         // we know it's not the last one.
                         if let Some(proof) = previous_core_proof {
                             // Send the proof to the proof queue.
-                            proof_tx.send(proof).map_err(|_| TaskError::Fatal(anyhow::anyhow!("Compress tree panicked")))?;
+                            proof_tx
+                                .send((proof, false))
+                                .map_err(|_| TaskError::Fatal(anyhow::anyhow!("Compress tree panicked")))?;
                         }
 
                         // Mark this as a pending task for the compress tree.
@@ -542,7 +552,9 @@ impl CompressTree {
                                 // Send the last core proof to the proof queue.
                                 tracing::debug!("Sending last core proof to proof queue: {:?}", last_core_proof);
                                 let last_core_proof = last_core_proof.take().unwrap();
-                                proof_tx.send(last_core_proof).map_err(|_| TaskError::Fatal(anyhow::anyhow!("Compress tree panicked")))?;
+                                proof_tx
+                                    .send((last_core_proof, false))
+                                    .map_err(|_| TaskError::Fatal(anyhow::anyhow!("Compress tree panicked")))?;
                                 // Close the core proofs event stream.
                                 core_proofs_event_stream.close();
                             }
@@ -978,5 +990,160 @@ mod test_utils {
 
         let err = result.expect_err("overlapping ranges must fail, not complete");
         assert!(err.to_string().contains("compress tree wedged"), "unexpected error: {err}");
+    }
+
+    async fn run_compress_tree_recording_reduce(
+        ranges: Vec<ShardRange>,
+    ) -> (Vec<(usize, bool, Artifact)>, InMemoryArtifactClient, Artifact) {
+        use crate::worker::{LocalWorkerClient, TaskMetadata};
+
+        let (worker_client, mut channels) = LocalWorkerClient::init();
+        let artifact_client = InMemoryArtifactClient::new();
+        let mut compress_tree = CompressTree::new(DEFAULT_ARITY);
+
+        let recorded_reduces = Arc::new(Mutex::new(Vec::<(usize, bool, Artifact)>::new()));
+
+        let mut prove_shard_rx = channels.task_receivers.remove(&TaskType::ProveShard).unwrap();
+        tokio::spawn({
+            let worker_client = worker_client.clone();
+            async move {
+                while let Some((task_id, request)) = prove_shard_rx.recv().await {
+                    worker_client
+                        .complete_task(
+                            request.context.proof_id,
+                            task_id,
+                            TaskMetadata { gpu_ms: None },
+                        )
+                        .await
+                        .unwrap();
+                }
+            }
+        });
+
+        let mut reduce_rx = channels.task_receivers.remove(&TaskType::RecursionReduce).unwrap();
+        tokio::spawn({
+            let worker_client = worker_client.clone();
+            let artifact_client = artifact_client.clone();
+            let recorded_reduces = recorded_reduces.clone();
+            async move {
+                while let Some((task_id, raw_request)) = reduce_rx.recv().await {
+                    let request = ReduceTaskRequest::from_raw(raw_request).unwrap();
+                    let proof_id = request.context.proof_id.clone();
+                    recorded_reduces.lock().unwrap().push((
+                        request.range_proofs.len(),
+                        request.is_complete,
+                        request.output.clone(),
+                    ));
+                    artifact_client
+                        .upload(&request.output, b"reduced_proof".to_vec())
+                        .await
+                        .unwrap();
+                    worker_client
+                        .complete_task(proof_id, task_id, TaskMetadata { gpu_ms: None })
+                        .await
+                        .unwrap();
+                }
+            }
+        });
+
+        let context = TaskContext {
+            proof_id: ProofId::new("test_compress_tree_reduce_recording"),
+            parent_id: None,
+            parent_context: None,
+            requester_id: RequesterId::new("test_compress_tree_reduce_recording"),
+        };
+
+        let (core_proofs_tx, core_proofs_rx_inner) = mpsc::unbounded_channel::<Vec<u8>>();
+        let core_proofs_rx = MessageReceiver::<ProofData>::new(core_proofs_rx_inner);
+
+        let elf_artifact = artifact_client.create_artifact().unwrap();
+        let common_input_artifact = artifact_client.create_artifact().unwrap();
+
+        for range in ranges {
+            create_dummy_prove_shard_task(
+                range,
+                elf_artifact.clone(),
+                common_input_artifact.clone(),
+                context.clone(),
+                &core_proofs_tx,
+                &worker_client,
+                &artifact_client,
+            )
+            .await;
+        }
+        drop(core_proofs_tx);
+
+        let output = artifact_client.create_artifact().unwrap();
+
+        tokio::time::timeout(
+            Duration::from_secs(30),
+            compress_tree.reduce_proofs(
+                context,
+                output.clone(),
+                core_proofs_rx,
+                &artifact_client,
+                &worker_client,
+            ),
+        )
+        .await
+        .expect("reduce_proofs did not terminate")
+        .unwrap();
+
+        let recorded = recorded_reduces.lock().unwrap().clone();
+        (recorded, artifact_client, output)
+    }
+
+    #[tokio::test]
+    async fn test_compress_tree_single_shard_submits_reduce() {
+        setup_logger();
+        let range = ShardRange {
+            timestamp_range: (1, 2),
+            initialized_address_range: (0, 0),
+            finalized_address_range: (0, 0),
+            initialized_page_index_range: (0, 0),
+            finalized_page_index_range: (0, 0),
+            deferred_proof_range: (0, 0),
+        };
+
+        let (recorded, artifact_client, output) =
+            run_compress_tree_recording_reduce(vec![range]).await;
+
+        assert_eq!(recorded.len(), 1);
+        assert_eq!(recorded[0], (1, true, output.clone()));
+        assert!(artifact_client
+            .exists(&output, ArtifactType::UnspecifiedArtifactType)
+            .await
+            .unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_compress_tree_multi_shard_reduces_to_output() {
+        setup_logger();
+        let ranges = (1..=5)
+            .map(|i| ShardRange {
+                timestamp_range: (i, i + 1),
+                initialized_address_range: (0, 0),
+                finalized_address_range: (0, 0),
+                initialized_page_index_range: (0, 0),
+                finalized_page_index_range: (0, 0),
+                deferred_proof_range: (0, 0),
+            })
+            .collect();
+
+        let (recorded, artifact_client, output) = run_compress_tree_recording_reduce(ranges).await;
+
+        assert!(recorded.len() > 1);
+        let (last_arity, last_is_complete, last_output) = recorded.last().unwrap();
+        assert!(*last_arity > 1);
+        assert!(*last_is_complete);
+        assert_eq!(last_output, &output);
+        for (_, is_complete, task_output) in &recorded[..recorded.len() - 1] {
+            assert!(!is_complete);
+            assert_ne!(task_output, &output);
+        }
+        assert!(artifact_client
+            .exists(&output, ArtifactType::UnspecifiedArtifactType)
+            .await
+            .unwrap());
     }
 }
