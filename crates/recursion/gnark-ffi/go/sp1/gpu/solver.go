@@ -247,7 +247,8 @@ func (s *levelSolver) solve(witness fr.Vector, opts ...csolver.Option) error {
 	if s.termStart != nil {
 		nb := len(s.termStart) - 1
 		n := ecc.NextPowerOfTwo(uint64(nb))
-		s.a, s.b, s.c = make([]fr.Element, nb, n), make([]fr.Element, nb, n), make([]fr.Element, nb, n)
+		// Only a is reused as scratch for the MSM scalars. FFT padding lives on the device.
+		s.a, s.b, s.c = make([]fr.Element, nb, n), make([]fr.Element, nb), make([]fr.Element, nb)
 	}
 	s.err = nil
 	s.failed.Store(false)

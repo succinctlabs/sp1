@@ -40,14 +40,14 @@ func readCircuit(path string, system *cs.R1CS) error {
 	go func() {
 		defer wg.Done()
 		calldata := make([]byte, calldataLen)
-		if _, callDataErr = f.ReadAt(calldata, calldataStart); callDataErr == nil {
+		if _, callDataErr = io.ReadFull(&parallelReader{f, calldataStart}, calldata); callDataErr == nil {
 			callData, callDataErr = decodeCalldata(calldata)
 		}
 	}()
 	defer wg.Wait()
 	start := calldataStart + int64(calldataLen)
 	body := make([]byte, le.Uint64(head[56:]))
-	if _, err := f.ReadAt(body, start); err != nil {
+	if _, err := io.ReadFull(&parallelReader{f, start}, body); err != nil {
 		return err
 	}
 	end := start + int64(len(body))

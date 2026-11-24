@@ -41,7 +41,7 @@ where
     let cpu_challenger: DuplexChallenger<F, _> = challenger.clone().into();
 
     let mut result = DeviceBuffer::with_capacity_in(1, scope.clone());
-    let mut found_flag = DeviceBuffer::<bool>::with_capacity_in(1, scope.clone());
+    let mut found_flag = DeviceBuffer::from_host_slice(&[0u32], scope).unwrap();
     let mut gpu_challenger = cpu_challenger.to_device_sync(scope).unwrap();
 
     let block_dim: usize = 512;
@@ -50,7 +50,6 @@ where
 
     unsafe {
         result.assume_init();
-        found_flag.assume_init();
         let args = args!(
             gpu_challenger.as_mut_raw(),
             result.as_mut_ptr(),
@@ -102,16 +101,16 @@ where
     let cpu_challenger: MultiField32Challenger<F, PF, _> = challenger.clone().into();
 
     let mut result = DeviceBuffer::with_capacity_in(1, scope.clone());
-    let mut found_flag = DeviceBuffer::<bool>::with_capacity_in(1, scope.clone());
+    let mut found_flag = DeviceBuffer::from_host_slice(&[0u32], scope).unwrap();
     let mut gpu_challenger = cpu_challenger.to_device_sync(scope).unwrap();
 
-    let block_dim: usize = 512;
-    let grid_dim: usize = 1;
+    // Cover the expected search space in parallel, including across SMs.
+    let block_dim = 128usize;
+    let grid_dim = (1usize << bits.min(SP1_PROOF_OF_WORK_BITS)).div_ceil(block_dim);
     let n = F::ORDER_U64;
 
     unsafe {
         result.assume_init();
-        found_flag.assume_init();
         let args = args!(
             gpu_challenger.as_mut_raw(),
             result.as_mut_ptr(),
@@ -142,6 +141,27 @@ mod tests {
     use slop_algebra::AbstractField;
     use slop_challenger::{CanObserve, CanSample, GrindingChallenger};
     use sp1_hypercube::inner_perm;
+
+    #[test]
+    fn test_multi_field_grinding() {
+        use slop_challenger::IopCtx;
+        use sp1_primitives::{SP1Field, SP1OuterGlobalContext};
+
+        sp1_gpu_cudart::run_sync_in_place(|scope| {
+            let mut challenger = SP1OuterGlobalContext::default_challenger();
+            for bits in [0, 8, 16, 1, 16] {
+                challenger.observe(SP1Field::from_canonical_usize(bits));
+                let mut verifier = challenger.clone();
+                let witness =
+                    grind_multi_field32_challenger_on_device(&mut challenger, bits, &scope);
+                assert!(verifier.check_witness(bits, witness));
+                let expected: SP1Field = verifier.sample();
+                let actual: SP1Field = challenger.sample();
+                assert_eq!(actual, expected);
+            }
+        })
+        .unwrap();
+    }
 
     #[test]
     fn test_grinding() {

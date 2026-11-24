@@ -1,4 +1,5 @@
 #pragma once
+#include <cuda/atomic>
 #include "fields/kb31_t.cuh"
 #include "poseidon2/poseidon2_kb31_16.cuh"
 #include "poseidon2/poseidon2_bn254_3.cuh"
@@ -112,7 +113,7 @@ class DuplexChallenger {
     }
 
     __device__ __forceinline__ void
-    grind(size_t bits, kb31_t* result, volatile bool* found_flag, size_t n) {
+    grind(size_t bits, kb31_t* result, uint32_t* found_flag, size_t n) {
         size_t idx = threadIdx.x + blockIdx.x * blockDim.x;
 
         size_t original_buffer_size = buffer_sizes[0];
@@ -137,7 +138,9 @@ class DuplexChallenger {
         // Local copy of challenger state for each thread in each iteration.
         kb31_t local_state[NUM_ELEMENTS];
         size_t buffer_sizes[2];
-        for (size_t i = idx; i < n && !*found_flag; i += blockDim.x * gridDim.x) {
+        cuda::atomic_ref<uint32_t, cuda::thread_scope_device> found(*found_flag);
+        for (size_t i = idx; i < n && !found.load(cuda::memory_order_relaxed);
+             i += blockDim.x * gridDim.x) {
             buffer_sizes[0] = original_buffer_size;
             buffer_sizes[1] = original_output_buffer_size;
             // Reset the local state to the shared state.
@@ -149,9 +152,8 @@ class DuplexChallenger {
 
             kb31_t witness = kb31_t((int)i);
             if (temp_challenger.check_witness(bits, &witness)) {
-                result[0] = witness;
-                atomicExch((int*)found_flag, 1);
-                __threadfence();
+                if (found.exchange(1, cuda::memory_order_relaxed) == 0)
+                    result[0] = witness;
                 return;
             }
         }
@@ -289,7 +291,7 @@ class MultiField32Challenger {
     }
 
     __device__ __forceinline__ void
-    grind(size_t bits, kb31_t* result, volatile bool* found_flag, size_t n) {
+    grind(size_t bits, kb31_t* result, uint32_t* found_flag, size_t n) {
         size_t idx = threadIdx.x + blockIdx.x * blockDim.x;
 
         size_t original_buffer_sizes[NUM_BUFFER_SIZES];
@@ -322,7 +324,9 @@ class MultiField32Challenger {
         kb31_t local_output_buffer[OUTPUT_BUFFER_SIZE];
         size_t local_buffer_sizes[NUM_BUFFER_SIZES];
 
-        for (size_t i = idx; i < n && !*found_flag; i += blockDim.x * gridDim.x) {
+        cuda::atomic_ref<uint32_t, cuda::thread_scope_device> found(*found_flag);
+        for (size_t i = idx; i < n && !found.load(cuda::memory_order_relaxed);
+             i += blockDim.x * gridDim.x) {
             // Reset local state from shared memory.
             for (size_t j = 0; j < NUM_BUFFER_SIZES; j++) {
                 local_buffer_sizes[j] = original_buffer_sizes[j];
@@ -342,9 +346,8 @@ class MultiField32Challenger {
 
             kb31_t witness = kb31_t((int)i);
             if (temp_challenger.check_witness(bits, &witness)) {
-                result[0] = witness;
-                atomicExch((int*)found_flag, 1);
-                __threadfence();
+                if (found.exchange(1, cuda::memory_order_relaxed) == 0)
+                    result[0] = witness;
                 return;
             }
         }

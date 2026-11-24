@@ -450,8 +450,10 @@ func (p *PlonkProver) prove(d *device, wWitness fr.Vector) (*plonk_bn254.Proof, 
 
 	// The quotient needs the memory the SRS and z take.
 	p.dropSrs(d)
-	z.free()
 	p.hostBuffers()
+	// The third coset's spill buffer is idle until that coset has been evaluated.
+	d2h(unsafe.Pointer(&p.hostG[2][0]), z, n*fr.Bytes)
+	z.free()
 	qk := make([]fr.Element, len(p.qkPos))
 	copy(qk, public)
 	qk[len(public)] = commitmentVal
@@ -675,7 +677,11 @@ func (p *PlonkProver) quotient(d *device, piVals, qk []fr.Element, bp blinding, 
 		sigma(sv, 0)
 		permS(y, t, sv, n, beta, gamma, false)
 
-		p.zCanonical(d, sv, beta, gamma)
+		if k < len(p.hostG) {
+			h2dElements(sv, p.hostG[2])
+		} else {
+			p.zCanonical(d, sv, beta, gamma)
+		}
 		p.cosetEval(d, sv, sv, k)
 		blind(sv, bp.z)
 		var a2l1 fr.Element

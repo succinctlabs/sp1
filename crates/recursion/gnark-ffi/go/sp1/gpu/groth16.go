@@ -73,7 +73,16 @@ func NewGroth16Prover(r1cs *cs.R1CS, r io.Reader) (*Groth16Prover, error) {
 }
 
 // Prove computes a Groth16 proof for the given full witness.
-func (p *Groth16Prover) Prove(fullWitness witness.Witness) (proof *groth16_bn254.Proof, err error) {
+func (p *Groth16Prover) Prove(fullWitness witness.Witness) (*groth16_bn254.Proof, error) {
+	values, ok := fullWitness.Vector().(fr.Vector)
+	if !ok {
+		return nil, fmt.Errorf("gpu: expected a BN254 witness")
+	}
+	return p.ProveVector(values)
+}
+
+// ProveVector accepts the public and secret wires in gnark witness order.
+func (p *Groth16Prover) ProveVector(fullWitness fr.Vector) (proof *groth16_bn254.Proof, err error) {
 	defer freeAll()
 	defer func() {
 		if r := recover(); r != nil {
@@ -113,7 +122,7 @@ func (p *Groth16Prover) Prove(fullWitness witness.Witness) (proof *groth16_bn254
 		return nil
 	})
 	defer func() { p.solver.values, p.solver.a, p.solver.b, p.solver.c = nil, nil, nil, nil }()
-	if err := p.solver.solve(fullWitness.Vector().(fr.Vector), hint); err != nil {
+	if err := p.solver.solve(fullWitness, hint); err != nil {
 		return nil, err
 	}
 	wireValues := p.solver.values
@@ -189,6 +198,7 @@ func (p *Groth16Prover) Prove(fullWitness witness.Witness) (proof *groth16_bn254
 	toRemove = append(toRemove, commitmentInfo.CommitmentIndexes()...)
 	nbPub := p.r1cs.GetNbPublicVariables()
 	var krs, p1 curve.G1Jac
+	slices.Sort(toRemove)
 	k := msmHost(pk.G1.K, without(scalars, wireValues[nbPub:], nbPub, toRemove))
 	krs.FromAffine(&k)
 	krs.AddMixed(&deltas[2])
@@ -245,15 +255,20 @@ func withoutInfinity(dst, v []fr.Element, infinity []bool) []fr.Element {
 	return r
 }
 
-// without overwrites dst with v without the elements whose index plus first is in remove.
+// without copies the runs between the sorted wire indices to remove.
 func without(dst, v []fr.Element, first int, remove []int) []fr.Element {
-	remove = slices.Clone(remove)
-	slices.Sort(remove)
 	r := dst[:0]
-	for i := range v {
-		if _, found := slices.BinarySearch(remove, i+first); !found {
-			r = append(r, v[i])
+	start := 0
+	for _, wire := range remove {
+		i := wire - first
+		if i < start {
+			continue
 		}
+		if i >= len(v) {
+			break
+		}
+		r = append(r, v[start:i]...)
+		start = i + 1
 	}
-	return r
+	return append(r, v[start:]...)
 }
