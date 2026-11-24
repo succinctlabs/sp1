@@ -69,8 +69,9 @@ pub trait HashableKey {
     fn bytes32_raw(&self) -> [u8; 32] {
         let vkey_digest_bn254 = self.hash_bn254();
         let vkey_bytes = vkey_digest_bn254.as_canonical_biguint().to_bytes_be();
+        assert!(vkey_bytes.len() <= 32, "Bn254Fr digest exceeded 32 bytes");
         let mut result = [0u8; 32];
-        result[1..].copy_from_slice(&vkey_bytes);
+        result[32 - vkey_bytes.len()..].copy_from_slice(&vkey_bytes);
         result
     }
 
@@ -134,5 +135,64 @@ where
             .collect::<Vec<_>>()
             .try_into()
             .unwrap()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct TestKey([SP1Field; DIGEST_SIZE]);
+
+    impl HashableKey for TestKey {
+        fn hash_koalabear(&self) -> [SP1Field; DIGEST_SIZE] {
+            self.0
+        }
+
+        fn hash_u32(&self) -> [u32; DIGEST_SIZE] {
+            self.0.map(|f| f.as_canonical_u32())
+        }
+    }
+
+    fn decode_bytes32(hex_str: &str) -> [u8; 32] {
+        let hex_digits = hex_str.strip_prefix("0x").expect("bytes32 should have 0x prefix");
+        assert_eq!(hex_digits.len(), 64);
+        let mut out = [0u8; 32];
+        for (i, byte) in out.iter_mut().enumerate() {
+            *byte = u8::from_str_radix(&hex_digits[i * 2..i * 2 + 2], 16).unwrap();
+        }
+        out
+    }
+
+    #[test]
+    fn test_bytes32_raw_leading_zero_bytes() {
+        // digest[0] < 2^23 produces a <= 30-byte big-endian representation (< 2^240).
+        let mut digest = [SP1Field::zero(); DIGEST_SIZE];
+        digest[0] = SP1Field::from_canonical_u32((1 << 23) - 1);
+        digest[1] = SP1Field::one();
+        let key = TestKey(digest);
+        assert_eq!(key.hash_bn254().as_canonical_biguint().to_bytes_be().len(), 30);
+        assert_eq!(key.bytes32_raw(), decode_bytes32(&key.bytes32()));
+    }
+
+    #[test]
+    fn test_bytes32_raw_zero_digest() {
+        // Zero digest produces a 1-byte ([0]) big-endian representation.
+        let key = TestKey([SP1Field::zero(); DIGEST_SIZE]);
+        assert_eq!(key.hash_bn254().as_canonical_biguint().to_bytes_be(), vec![0]);
+        assert_eq!(key.bytes32_raw(), [0u8; 32]);
+        assert_eq!(key.bytes32_raw(), decode_bytes32(&key.bytes32()));
+    }
+
+    #[test]
+    fn test_bytes32_raw_full_31_bytes() {
+        // digest[0] >= 2^23 produces a 31-byte big-endian representation (>= 2^240).
+        let mut digest = [SP1Field::zero(); DIGEST_SIZE];
+        digest[0] = SP1Field::from_canonical_u32(1 << 23);
+        let key = TestKey(digest);
+        assert_eq!(key.hash_bn254().as_canonical_biguint().to_bytes_be().len(), 31);
+        let raw = key.bytes32_raw();
+        assert_eq!(raw[0], 0);
+        assert_eq!(raw, decode_bytes32(&key.bytes32()));
     }
 }
