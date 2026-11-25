@@ -205,7 +205,7 @@ impl CudaTracegenAir<F> for GlobalChip {
         // Wrap the trace so we can use it in concurrent tasks.
         let trace = Arc::new(trace);
 
-        let global_sum = if height == 0 {
+        let global_sum = if events.is_empty() {
             SepticDigest(SepticCurve::convert(SepticDigest::<F>::zero().0, |x| {
                 F::as_canonical_u32(&x)
             }))
@@ -292,10 +292,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_global_generate_trace() {
-        sp1_gpu_cudart::spawn(inner_test_global_generate_trace).await.unwrap();
+        for count in [0, 1, 32, 512, 513, 1000] {
+            sp1_gpu_cudart::spawn(move |scope| inner_test_global_generate_trace(scope, count))
+                .await
+                .unwrap();
+        }
     }
 
-    async fn inner_test_global_generate_trace(scope: TaskScope) {
+    async fn inner_test_global_generate_trace(scope: TaskScope, count: usize) {
         let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
         let events = core::iter::repeat_with(|| GlobalInteractionEvent {
             // These seem to be the numerical bounds that make a `GlobalInteractionEvent` valid.
@@ -303,7 +307,7 @@ mod tests {
             is_receive: rng.gen(),
             kind: rng.gen_range(0..(1 << 6)),
         })
-        .take(1000)
+        .take(count)
         .collect::<Vec<_>>();
 
         let [shard, gpu_shard] = core::array::from_fn(|_| ExecutionRecord {
