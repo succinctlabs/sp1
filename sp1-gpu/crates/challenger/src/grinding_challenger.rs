@@ -104,8 +104,9 @@ where
     let mut found_flag = DeviceBuffer::from_host_slice(&[0u32], scope).unwrap();
     let mut gpu_challenger = cpu_challenger.to_device_sync(scope).unwrap();
 
-    let block_dim: usize = 512;
-    let grid_dim: usize = 1;
+    // Cover the expected search space in parallel, including across SMs.
+    let block_dim = 128usize;
+    let grid_dim = (1usize << bits.min(SP1_PROOF_OF_WORK_BITS)).div_ceil(block_dim);
     let n = F::ORDER_U64;
 
     unsafe {
