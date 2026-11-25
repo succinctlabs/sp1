@@ -112,25 +112,24 @@ pub async fn cuda_worker_builder_with_machine(
     // Get the core options.
     let opts = local_gpu_opts();
 
-    // One host trace can be prepared while the GPU proves another. Every stage uses the same
-    // GPU permit, so two pinned buffers suffice for the entire worker, including across shards.
-    let core_allocation = core_trace_allocation(&opts);
+    // A core shard can generate host rows while a recursive shard fills its own buffers.
+    // Compress, shrink and wrap reuse the recursion queue.
     let buffers = trace_buffers(
-        core_allocation
-            .max(RECURSION_TRACE_ALLOCATION)
-            .max(SHRINK_TRACE_ALLOCATION)
-            .max(WRAP_TRACE_ALLOCATION),
-        2,
+        RECURSION_TRACE_ALLOCATION.max(SHRINK_TRACE_ALLOCATION).max(WRAP_TRACE_ALLOCATION),
+        4,
     );
     let core_verifier = SP1CudaProverComponents::core_verifier(machine.clone());
-    let core_prover = Arc::new(new_cuda_prover_with_buffers(
-        &core_verifier,
-        core_allocation,
-        buffers.clone(),
-        opts.recompute_gkr_trace,
-        opts.drop_ldes,
-        scope.clone(),
-    ));
+    let core_prover = Arc::new(
+        new_cuda_prover(
+            &core_verifier,
+            core_trace_allocation(&opts),
+            4,
+            opts.recompute_gkr_trace,
+            opts.drop_ldes,
+            scope.clone(),
+        )
+        .await,
+    );
     let recursion_prover = Arc::new(new_cuda_prover_with_buffers(
         &SP1CudaProverComponents::compress_verifier(),
         RECURSION_TRACE_ALLOCATION,
