@@ -7145,10 +7145,10 @@ version = "6.10.0"
 dependencies = [
  "anyhow",
  "cargo_metadata",
- "chrono",
  "clap",
  "dirs",
  "sp1-primitives 6.10.0",
+ "time",
 ]
 
 [[package]]
@@ -8029,7 +8029,6 @@ dependencies = [
  "anyhow",
  "async-scoped",
  "bincode",
- "chrono",
  "clap",
  "dotenv",
  "rustyline",
@@ -8044,6 +8043,7 @@ dependencies = [
  "sp1-sdk",
  "test-artifacts",
  "thiserror 1.0.69",
+ "time",
  "tokio",
  "tracing",
 ]
@@ -8157,7 +8157,6 @@ dependencies = [
  "anyhow",
  "async-scoped",
  "bincode",
- "chrono",
  "futures-util",
  "hashbrown 0.14.5",
  "mti",
@@ -8166,6 +8165,7 @@ dependencies = [
  "sp1-core-machine",
  "sp1-hypercube",
  "sp1-primitives 6.10.0",
+ "time",
  "tokio",
  "tonic 0.14.6",
  "tonic-prost",

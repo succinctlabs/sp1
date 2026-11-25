@@ -14,12 +14,12 @@ use std::{
 };
 
 use anyhow::Context;
-use chrono::Utc;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use rustyline::{error::ReadlineError, history::FileHistory, Editor};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_perf::{get_input, get_program};
 use sp1_sdk::{network::NetworkMode, prelude::*, NetworkProver, ProverClient, SP1ProofMode};
+use time::UtcDateTime;
 use tracing::Instrument;
 
 const CSV_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/data/measurements.csv");
@@ -50,7 +50,7 @@ impl CsvLogger {
         let line = format!(
             "{ts},{program},{param},{mode},{cycles},{gas},{elf_bytes},\
              {execute:.6},{setup:.6},{prove:.6},{khz:.3},{mgas:.3}\n",
-            ts = Utc::now().to_rfc3339(),
+            ts = csv_timestamp(UtcDateTime::now()),
             program = csv_escape(&m.program),
             param = csv_escape(&m.param),
             mode = m.mode.as_str(),
@@ -66,6 +66,18 @@ impl CsvLogger {
         self.file.write_all(line.as_bytes())?;
         self.file.flush()
     }
+}
+
+fn csv_timestamp(now: UtcDateTime) -> String {
+    let (hour, minute, second, nanos) = now.as_hms_nano();
+    // Existing CSV files use zero, three, six or nine fractional digits and a numeric UTC offset.
+    let fraction = match nanos {
+        0 => String::new(),
+        n if n.is_multiple_of(1_000_000) => format!(".{:03}", n / 1_000_000),
+        n if n.is_multiple_of(1_000) => format!(".{:06}", n / 1_000),
+        n => format!(".{n:09}"),
+    };
+    format!("{}T{hour:02}:{minute:02}:{second:02}{fraction}+00:00", now.date())
 }
 
 struct Measurement {
@@ -601,4 +613,26 @@ async fn main() {
         let _ = editor.save_history(p);
     }
     eprintln!("[sp1-perf] bye");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn csv_timestamp_preserves_fractional_precision_and_utc_offset() {
+        let instant = time::macros::utc_datetime!(2024-02-29 23:07:05);
+        for (nanos, fraction) in [
+            (0, ""),
+            (10_000_000, ".010"),
+            (10_000, ".000010"),
+            (10, ".000000010"),
+            (123_456_789, ".123456789"),
+        ] {
+            assert_eq!(
+                csv_timestamp(instant.replace_nanosecond(nanos).unwrap()),
+                format!("2024-02-29T23:07:05{fraction}+00:00"),
+            );
+        }
+    }
 }

@@ -1,5 +1,5 @@
-use chrono::prelude::*;
 use std::{env, path::Path};
+use time::{macros::format_description, UtcDateTime};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Add /usr/include if it exists
@@ -21,7 +21,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(_) => "unknown".to_string(),
     };
 
-    let pretty_time = Utc::now().format("%Y-%m-%dT%H:%M:%S");
+    let pretty_time = UtcDateTime::now()
+        .format(format_description!("[year]-[month]-[day]T[hour]:[minute]:[second]"))?;
     let version_string = format!("{} {}", git_sha, pretty_time);
     println!("cargo:rustc-env=BUILD_VERSION={}", version_string);
     Ok(())

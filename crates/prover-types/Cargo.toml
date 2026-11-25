@@ -33,7 +33,7 @@ async-scoped.workspace = true
 
 [build-dependencies]
 tonic-prost-build.workspace = true
-chrono = { workspace = true, features = ["clock"] }
+time.workspace = true
 
 [features]
 

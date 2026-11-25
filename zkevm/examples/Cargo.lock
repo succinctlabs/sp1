@@ -4028,6 +4028,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "num_threads"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cabcc654086861f9e1bc5115258de62ef92c79b20f4615a1b0cc57c4e82027d4"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "number_prefix"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6313,10 +6322,10 @@ version = "6.10.0"
 dependencies = [
  "anyhow",
  "cargo_metadata",
- "chrono",
  "clap",
  "dirs",
  "sp1-primitives 6.10.0",
+ "time",
 ]
 
 [[package]]
@@ -6659,7 +6668,6 @@ dependencies = [
  "anyhow",
  "async-scoped",
  "bincode",
- "chrono",
  "futures-util",
  "hashbrown 0.14.5",
  "mti",
@@ -6668,6 +6676,7 @@ dependencies = [
  "sp1-core-machine",
  "sp1-hypercube",
  "sp1-primitives 6.10.0",
+ "time",
  "tokio",
  "tonic",
  "tonic-prost",
@@ -7212,7 +7221,9 @@ checksum = "743bd48c283afc0388f9b8827b976905fb217ad9e647fae3a379a9283c4def2c"
 dependencies = [
  "deranged",
  "itoa",
+ "libc",
  "num-conv",
+ "num_threads",
  "powerfmt",
  "serde_core",
  "time-core",

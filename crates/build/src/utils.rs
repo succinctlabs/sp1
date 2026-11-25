@@ -1,11 +1,12 @@
 use std::path::{Path, PathBuf};
 
 use cargo_metadata::Metadata;
-use chrono::Local;
+use time::{macros::format_description, OffsetDateTime};
 
 pub(crate) fn current_datetime() -> String {
-    let now = Local::now();
-    now.format("%Y-%m-%d %H:%M:%S").to_string()
+    let now = OffsetDateTime::now_local().unwrap_or_else(|_| OffsetDateTime::now_utc());
+    now.format(format_description!("[year]-[month]-[day] [hour]:[minute]:[second]"))
+        .expect("local date and time contain all timestamp components")
 }
 
 /// Re-run the cargo command if the Cargo.toml or Cargo.lock file changes.
