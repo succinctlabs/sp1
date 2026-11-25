@@ -142,6 +142,14 @@ Three rotated pairs per build measured the following local candidates at the sam
 
 | Eight-shard Fibonacci experiment | Mode | Revised LogUp budget | With additional change |
 | --- | --- | ---: | ---: |
+| Separate large host trace and device admission | Core | 5.245 s / 7.16 GiB | 5.145 s / 7.17 GiB |
+| Separate large host trace and device admission | Compressed | 7.298 s / 7.50 GiB | 6.388 s / 7.45 GiB |
+| Merge addition byte counts before hash insertion | Core | 6.514 s / 7.32 GiB | 6.446 s / 7.32 GiB |
+| Merge addition byte counts before hash insertion | Compressed | 9.453 s / 7.47 GiB | 9.197 s / 7.47 GiB |
+| Generate integer multiplication rows without temporary vectors | Core | 6.453 s / 7.34 GiB | 6.480 s / 7.35 GiB |
+| Generate integer multiplication rows without temporary vectors | Compressed | 9.273 s / 7.48 GiB | 9.313 s / 7.52 GiB |
+| Limit each batch of NTT rows to a fraction of device cache | Core | 4.959 s / 6.85 GiB | 5.079 s / 7.18 GiB |
+| Limit each batch of NTT rows to a fraction of device cache | Compressed | 6.972 s / 7.54 GiB | 7.005 s / 7.52 GiB |
 | Allocate page-locked storage for individual host traces of at least 64 MiB | Core | 5.095 s / 7.15 GiB | 7.676 s / 7.47 GiB |
 | Allocate page-locked storage for individual host traces of at least 64 MiB | Compressed | 7.296 s / 7.51 GiB | 9.961 s / 7.70 GiB |
 

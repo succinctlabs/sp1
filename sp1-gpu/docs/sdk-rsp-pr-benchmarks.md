@@ -56,12 +56,27 @@ Build order rotated within each comparison. The first table identifies the revis
 | Move local artifact bytes and share typed download snapshots | Compressed | 3 | 39.465 s | 39.425 s | 13.70 GiB | 13.60 GiB |
 | Serialize owned and spliced trace data in bulk | Core | 3 | 21.072 s | 21.954 s | 12.68 GiB | 12.60 GiB |
 | Serialize owned and spliced trace data in bulk | Compressed | 3 | 39.465 s | 39.837 s | 13.70 GiB | 13.40 GiB |
+| Generate integer multiplication rows without temporary vectors | Core | 3 | 21.702 s | 22.466 s | 12.72 GiB | 12.69 GiB |
+| Generate integer multiplication rows without temporary vectors | Compressed | 3 | 40.141 s | 40.152 s | 13.63 GiB | 13.75 GiB |
 | Move uploaded artifact bytes into the existing map | Core | 2 | 21.355 s | 21.438 s | 12.63 GiB | 12.65 GiB |
 | Move uploaded artifact bytes into the existing map | Compressed | 2 | 39.486 s | 39.627 s | 13.78 GiB | 13.63 GiB |
 | Borrow memory reads when serializing a trace | Core | 2 | 21.355 s | 21.270 s | 12.63 GiB | 12.63 GiB |
 | Borrow memory reads when serializing a trace | Compressed | 2 | 39.486 s | 39.626 s | 13.78 GiB | 13.65 GiB |
 | Encode and decode the core trace byte vector in bulk | Core | 2 | 21.355 s | 21.013 s | 12.63 GiB | 12.81 GiB |
 | Encode and decode the core trace byte vector in bulk | Compressed | 2 | 39.486 s | 39.303 s | 13.78 GiB | 13.41 GiB |
+| Skip discarded byte lookup vectors while writing CPU trace rows | Core | 3 | 21.702 s | 21.566 s | 12.72 GiB | 12.66 GiB |
+| Skip discarded byte lookup vectors while writing CPU trace rows | Compressed | 3 | 40.141 s | 40.925 s | 13.63 GiB | 13.45 GiB |
+
+### CPU multiplication and lookup generation
+
+Each of nine alternating release-process pairs populated 250,000 multiplication rows with identical checksums. Removing the temporary vectors reduced the median per trace row from 240.0 to 157.2 ns and per dependency row from 456.0 to 390.1 ns. Core RSP proof time increased in all three end-to-end pairs.
+
+A second change skipped byte lookups that the CPU trace writer immediately discarded. Five release-process pairs replayed each captured shard using 16 Rayon threads. Both builds produced the same digest of every field element and sorted byte-lookup multiplicity for every affected AIR present. The table gives median time to generate the trace matrices. The installed-server RSP compressed proof took longer in each of its three pairs.
+
+| Captured record | AIRs | Matched trace cells | Main | Skip discarded lookups |
+| --- | ---: | ---: | ---: | ---: |
+| RSP | 12 | 49,236,288 | 30.4 ms | 29.1 ms |
+| Four-million-iteration Fibonacci | 7 | 282,934,016 | 150.7 ms | 139.1 ms |
 
 ## LogUp on two RSP shard sizes
 
