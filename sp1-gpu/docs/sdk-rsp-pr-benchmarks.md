@@ -46,6 +46,12 @@ The original CUDA wrapper at `6f14261e8`, round one at `03adf8d0c`, and round tw
 | 2× Groth16 | 98.198 s / 21.19 GiB | 96.987 s / 14.90 GiB | 67.418 s / 8.55 GiB | 30.5% | 42.6% |
 | 2× PLONK | 107.547 s / 20.69 GiB | 104.530 s / 14.54 GiB | 75.506 s / 9.55 GiB | 27.8% | 34.3% |
 
+### Where time went in the 102-shard core proof
+
+A separate instrumented round-two core proof verified the same block header in 25.995 s. CUPTI recorded 159,919 kernels and 152,172 copies. Their non-overlapping wall-clock coverage was 14.694 s, leaving 11.301 s outside recorded device work. Host-to-device transfers totaled 23.40 GiB and device-to-host transfers totaled 0.20 GiB. At least one host thread was inside a stream or device synchronization call for 6.757 s. These intervals can overlap device work.
+
+A simultaneous 14-second server CPU sample attributed 3.92 CPU-seconds to the tracing VM execution loop, 3.23 to base-field inversion and 2.58 to merging byte lookup counts. These are sampled times summed over threads. The uninstrumented runs in the preceding table provide the proof-time comparison.
+
 ## Additional independent candidates measured locally
 
 Build order rotated within each comparison. The first table identifies the revisions submitted for review.

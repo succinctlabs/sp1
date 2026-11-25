@@ -138,7 +138,7 @@ A separate call-stack capture on round two recorded stream synchronizations last
 | Read back the grinding witness | 6 | 0.239 s | 6 | 0.240 s |
 | Generate the first LogUp layer | 14 | 0.090 s | 25 | 0.117 s |
 
-Three rotated pairs per build measured the following local candidates at the same input and shard height.
+Three rotated pairs per build measured each candidate at the same input and shard height. Median external CPU use was 0.4 logical cores during the separate-admission comparison and 2.9 during the addition-lookup comparison. Each row has its own contemporaneous control.
 
 | Eight-shard Fibonacci experiment | Mode | Revised LogUp budget | With additional change |
 | --- | --- | ---: | ---: |
@@ -146,12 +146,27 @@ Three rotated pairs per build measured the following local candidates at the sam
 | Separate large host trace and device admission | Compressed | 7.298 s / 7.50 GiB | 6.388 s / 7.45 GiB |
 | Merge addition byte counts before hash insertion | Core | 6.514 s / 7.32 GiB | 6.446 s / 7.32 GiB |
 | Merge addition byte counts before hash insertion | Compressed | 9.453 s / 7.47 GiB | 9.197 s / 7.47 GiB |
+| Fence a group of ready AIR uploads once | Core | 6.771 s / 7.31 GiB | 6.727 s / 7.39 GiB |
+| Fence a group of ready AIR uploads once | Compressed | 9.871 s / 7.44 GiB | 9.752 s / 7.52 GiB |
 | Generate integer multiplication rows without temporary vectors | Core | 6.453 s / 7.34 GiB | 6.480 s / 7.35 GiB |
 | Generate integer multiplication rows without temporary vectors | Compressed | 9.273 s / 7.48 GiB | 9.313 s / 7.52 GiB |
 | Limit each batch of NTT rows to a fraction of device cache | Core | 4.959 s / 6.85 GiB | 5.079 s / 7.18 GiB |
 | Limit each batch of NTT rows to a fraction of device cache | Compressed | 6.972 s / 7.54 GiB | 7.005 s / 7.52 GiB |
 | Allocate page-locked storage for individual host traces of at least 64 MiB | Core | 5.095 s / 7.15 GiB | 7.676 s / 7.47 GiB |
 | Allocate page-locked storage for individual host traces of at least 64 MiB | Compressed | 7.296 s / 7.51 GiB | 9.961 s / 7.70 GiB |
+| Upload the sequential and GKR dispatch tables once per zero-check round | Core | 6.854 s / 7.33 GiB | 6.848 s / 7.36 GiB |
+| Upload the sequential and GKR dispatch tables once per zero-check round | Compressed | 9.735 s / 7.46 GiB | 9.582 s / 7.44 GiB |
+
+### Core worker and Rayon settings
+
+The same installed revised-budget binary ran three rotated sessions per mode at each setting. The machine has 16 physical cores and 32 logical CPUs.
+
+| Core workers | Rayon threads | Core median / maximum RSS | Compressed median / maximum RSS |
+| ---: | ---: | ---: | ---: |
+| 3 | 16 | 7.001 s / 7.37 GiB | 9.777 s / 7.47 GiB |
+| 4 | 16 | 6.359 s / 9.10 GiB | 8.920 s / 9.15 GiB |
+| 3 | 32 | 6.995 s / 7.45 GiB | 9.908 s / 7.50 GiB |
+| 4 | 32 | 6.650 s / 9.16 GiB | 9.048 s / 9.20 GiB |
 
 The installed release server hashes were round one `02e9d9aee8ef`, round two `fb40f2a31cdc`, and revised budget `318ea60fb907`. The SDK client hash was `b6c573ae9ff2`. [Individual trials](sdk-proof-benchmark-trials.csv)
 
