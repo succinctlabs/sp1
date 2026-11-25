@@ -286,6 +286,9 @@ private:
                 CUDA_UNWRAP_SPPARK(cudaSetDevice(id));
                 forward.emplace_back(false);
                 inverse.emplace_back(true);
+                // The twiddle kernels use this thread's default stream. Publish both
+                // tables only after they are ready for the prover's nonblocking streams.
+                CUDA_UNWRAP_SPPARK(cudaStreamSynchronize(nullptr));
             }
 
             CUDA_UNWRAP_SPPARK(cudaSetDevice(current_id));

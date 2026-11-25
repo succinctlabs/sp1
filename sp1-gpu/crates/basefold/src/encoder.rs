@@ -188,6 +188,17 @@ mod tests {
         }
     }
 
+    #[cfg(not(feature = "nvidia-ntt"))]
+    #[test]
+    fn test_sppark_coalesced_ntt_on_concurrent_streams() {
+        // At log degree 16 the narrow GS kernel uses multiple warps and a coalesced transpose.
+        std::thread::scope(|threads| {
+            for ordering in [DftOrdering::Normal, DftOrdering::BitReversed] {
+                threads.spawn(move || check_batch_coset_dft(16, 1, 2, SP1Field::one(), ordering));
+            }
+        });
+    }
+
     #[test]
     fn test_batch_coset_dft_orders_and_shifts() {
         for log_degree in [1, 8, 15] {
