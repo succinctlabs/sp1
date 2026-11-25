@@ -235,3 +235,5 @@ A closing calibration repeated the eight-shard SHA-256 stock round-two build thr
 | Compressed | 3.772 s / 4.26 GiB | 3.771 s / 4.19 GiB |
 | 2× Groth16 | 19.376 s / 8.64 GiB | 19.855 s / 8.43 GiB |
 | 2× PLONK | 27.465 s / 8.06 GiB | 28.065 s / 7.91 GiB |
+
+Separate main-branch builds measure the changes submitted for review on a 102-shard Ethereum block. [RSP timings for the individual PRs](sdk-rsp-pr-benchmarks.md)

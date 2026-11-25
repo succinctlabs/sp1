@@ -135,3 +135,5 @@ The runner rotated workload order and alternated which build ran first. A prefli
 The accompanying evidence archive includes the reproducible source patch, sampler, SDK runner, build hashes, per-sample RSS and verification logs.
 
 The follow-up benchmarks measured individual changes in both prover commits for each proof mode. [Per-change timings and peak RSS](sdk-proof-improvement-breakdown.md)
+
+The main-branch PR comparisons re-executed an Ethereum block at 36 and 102 core shards. [RSP timings and combined peak RSS](sdk-rsp-pr-benchmarks.md)
