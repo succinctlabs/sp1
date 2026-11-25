@@ -350,12 +350,18 @@ func (p *PlonkProver) sparseCanonical(d *device, dst, pos dvec, vals []fr.Elemen
 	p.lagrangeCanonical(d, dst, nil)
 }
 
-func (p *PlonkProver) qcpCanonical(d *device, dst dvec) {
+func (p *PlonkProver) qcpLagrange(d *device, dst dvec) {
 	ones := make([]fr.Element, len(p.qcpPos))
 	for i := range ones {
 		ones[i].SetOne()
 	}
-	p.sparseCanonical(d, dst, d.qcpPos, ones)
+	memset0(dst, p.n*fr.Bytes)
+	scatter(dst, d.qcpPos, ones)
+}
+
+func (p *PlonkProver) qcpCanonical(d *device, dst dvec) {
+	p.qcpLagrange(d, dst)
+	p.lagrangeCanonical(d, dst, nil)
 }
 
 type blinding struct {
@@ -503,31 +509,19 @@ func (p *PlonkProver) prove(d *device, wWitness fr.Vector) (*plonk_bn254.Proof, 
 	p.dropSrs(d)
 	p.uploadState(d)
 
-	// Evaluations at zeta.
-	evalBlinded := func(v dvec, b []fr.Element) fr.Element {
-		r := p.eval(v, n, zeta)
-		be := evalPoly(b, zeta)
-		be.Mul(&be, &zhZeta)
-		r.Add(&r, &be)
-		return r
-	}
+	// Interpolate all six polynomials at zeta with the same barycentric weights.
 	tmp = alloc(n)
-	var lro [3]fr.Element
+	p.qcpLagrange(d, tmp)
+	var scale fr.Element
+	scale.Mul(&zhZeta, &p.domain0.CardinalityInv)
+	openings := lagrangeOpenings(d, tmp, n, p.u, p.u2, zeta, scale)
 	for i, b := range [][]fr.Element{bp.l, bp.r, bp.o} {
-		p.lroCanonical(d, tmp, i)
-		bitrev(tmp, p.logN)
-		lro[i] = evalBlinded(tmp, b)
+		blind := evalPoly(b, zeta)
+		blind.Mul(&blind, &zhZeta)
+		openings[i].Add(&openings[i], &blind)
 	}
-	lZeta, rZeta, oZeta := lro[0], lro[1], lro[2]
-	p.sCanonical(d, tmp, 0)
-	bitrev(tmp, p.logN)
-	s1Zeta := p.eval(tmp, n, zeta)
-	p.sCanonical(d, tmp, 1)
-	bitrev(tmp, p.logN)
-	s2Zeta := p.eval(tmp, n, zeta)
-	p.qcpCanonical(d, tmp)
-	bitrev(tmp, p.logN)
-	qcpZeta := p.eval(tmp, n, zeta)
+	lZeta, rZeta, oZeta := openings[0], openings[1], openings[2]
+	s1Zeta, s2Zeta, qcpZeta := openings[3], openings[4], openings[5]
 
 	// The linearized polynomial, written over the blinded Z one term at a time.
 	c := p.linearizationConstants(lZeta, rZeta, oZeta, s1Zeta, s2Zeta, alpha, beta, gamma, zeta, zetaN,

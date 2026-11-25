@@ -250,6 +250,13 @@ func ratio(z, values, wires, sigma dvec, n int, tabW dvec, beta, gamma, u, u2 fr
 
 func scanMul(z dvec, n int) { check(C.sp1_fr_scan_mul(z.p, C.uint64_t(n), nil), "scan_mul") }
 
+func lagrangeOpenings(d *device, qcp dvec, n int, u, u2, zeta, scale fr.Element) (out [6]fr.Element) {
+	check(C.sp1_plonk_lagrange_openings(cfr(&out[0]), d.values.p, (*C.uint32_t)(d.wires.p),
+		(*C.uint32_t)(d.sigma.p), qcp.p, C.uint64_t(n), d.tabW.p, cfr(&u), cfr(&u2), cfr(&zeta), cfr(&scale), nil),
+		"Lagrange openings")
+	return
+}
+
 func evalPartials(p dvec, n int, z fr.Element, chunk int) []fr.Element {
 	out := make([]fr.Element, (n+chunk-1)/chunk)
 	check(C.sp1_fr_eval_partials(cfr(&out[0]), p.p, C.uint64_t(n), cfr(&z), C.uint64_t(chunk), nil), "eval_partials")

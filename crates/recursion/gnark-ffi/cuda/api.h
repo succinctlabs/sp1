@@ -72,6 +72,9 @@ int sp1_fr_h_accum(void* h, const void* g, uint64_t n, const void* ctab_inv, con
 int sp1_fr_ratio(void* z, const void* values, const uint32_t* wires, const uint32_t* sigma, uint64_t n, const void* tab_w,
                  const sp1_fr* beta, const sp1_fr* gamma, const sp1_fr* u, const sp1_fr* u2, void* stream);
 int sp1_fr_scan_mul(void* z, uint64_t n, void* stream);
+int sp1_plonk_lagrange_openings(sp1_fr* out, const void* values, const uint32_t* wires, const uint32_t* sigma,
+                                const void* qcp, uint64_t n, const void* tab, const sp1_fr* u, const sp1_fr* u2,
+                                const sp1_fr* zeta, const sp1_fr* scale, void* stream);
 int sp1_fr_eval_partials(sp1_fr* out, const void* p, uint64_t len, const sp1_fr* z, uint64_t chunk, void* stream);
 int sp1_fr_div_xma(void* out, const void* f, uint64_t len, const sp1_fr* a, const sp1_fr* carries, uint64_t chunk,
                    void* stream);
