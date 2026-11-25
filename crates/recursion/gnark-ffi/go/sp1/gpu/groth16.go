@@ -124,7 +124,7 @@ func (p *Groth16Prover) ProveVector(fullWitness fr.Vector) (proof *groth16_bn254
 		res.BigInt(out[0])
 		return nil
 	})
-	defer func() { p.solver.values, p.solver.a, p.solver.b, p.solver.c = nil, nil, nil, nil }()
+	defer func() { p.solver.values = nil }()
 	if err := p.solver.solve(fullWitness, hint); err != nil {
 		return nil, err
 	}
@@ -146,10 +146,8 @@ func (p *Groth16Prover) ProveVector(fullWitness fr.Vector) (proof *groth16_bn254
 		return nil, err
 	}
 
-	h := p.computeH(p.solver.a, p.solver.b, p.solver.c)
-	// The scalars of the MSMs below reuse a's memory, which computeH no longer needs.
-	scalars := p.solver.a[:0]
-	p.solver.a, p.solver.b, p.solver.c = nil, nil, nil
+	h := p.computeH()
+	scalars := make([]fr.Element, 0, len(wireValues))
 
 	var r, s big.Int
 	var _r, _s, _kr fr.Element
@@ -214,7 +212,7 @@ func (p *Groth16Prover) ProveVector(fullWitness fr.Vector) (proof *groth16_bn254
 }
 
 // computeH returns the coefficients of (a*b - c) / (X^n - 1) in bit-reversed order, as gnark does.
-func (p *Groth16Prover) computeH(a, b, c []fr.Element) dvec {
+func (p *Groth16Prover) computeH() dvec {
 	d := &p.pk.Domain
 	n := int(d.Cardinality)
 	tabW, tabWInv, tabC, tabCInv := upload(p.tabW), upload(p.tabWInv), upload(p.tabC), upload(p.tabCInv)
@@ -223,11 +221,10 @@ func (p *Groth16Prover) computeH(a, b, c []fr.Element) dvec {
 	den.Exp(d.FrMultiplicativeGen, big.NewInt(int64(n)))
 	den.Sub(&den, &one).Inverse(&den)
 
-	var v [3]dvec
-	for i, host := range [][]fr.Element{a, b, c} {
-		v[i] = alloc(n)
-		memset0(v[i], n*fr.Bytes)
-		h2dElements(v[i], host)
+	v := [3]dvec{alloc(n), alloc(n), alloc(n)}
+	// The checked witness determines both inputs and their product on every R1CS row.
+	qapRows(v, p.solver, n)
+	for i := range v {
 		ntt(v[i], p.logN, tabWInv, &d.CardinalityInv)
 		scalePow(v[i], v[i], n, tabC)
 		ntt(v[i], p.logN, tabW, nil)

@@ -61,6 +61,17 @@ func allocBytes(size, n int) dvec {
 	return dvec{p, n}
 }
 
+func qapRows(v [3]dvec, s *levelSolver, n int) {
+	values, coeffs := upload(s.values), upload(s.Coefficients)
+	terms, starts := upload(s.terms), upload(s.termStart)
+	check(C.sp1_qap_rows(v[0].p, v[1].p, v[2].p, values.p, coeffs.p, (*C.uint8_t)(terms.p),
+		(*C.uint32_t)(starts.p), C.uint32_t(s.termWidth), C.uint32_t(s.cBits),
+		C.uint32_t(len(s.termStart)-1), C.uint32_t(n)), "qap_rows")
+	for _, buf := range []dvec{values, coeffs, terms, starts} {
+		buf.free()
+	}
+}
+
 func alloc(n int) dvec { return allocBytes(n*fr.Bytes, n) }
 
 func (d dvec) free() {

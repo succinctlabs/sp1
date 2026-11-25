@@ -175,6 +175,34 @@ T* upload_tmp(const void* host, uint64_t count, cudaStream_t s) {
   return d;
 }
 
+__global__ void k_qap_rows(Fr* a, Fr* b, Fr* c, const Fr* values, const Fr* coeffs, const uint8_t* terms,
+                           const uint32_t* starts, uint32_t width, uint32_t coeff_bits, uint32_t rows, uint32_t n) {
+  uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i >= n) return;
+  Fr left = Fr::zero(), right = Fr::zero();
+  if (i < rows) {
+    for (uint32_t j = starts[i]; j < starts[i + 1]; ++j) {
+      const uint8_t* data = terms + (uint64_t)j * width;
+      uint64_t t = 0;
+      for (uint32_t k = 0; k < width; ++k) t |= (uint64_t)data[k] << (8 * k);
+      const uint32_t side = t & 3;
+      if (side == 2) break;  // Terms are packed in L, R, O order.
+      const uint32_t cid = (t >> 2) & ((1ull << coeff_bits) - 1);
+      // gnark reserves coefficient IDs 0, 1, 2 and 3 for 0, 1, 2 and -1.
+      if (cid == 0) continue;
+      Fr v = values[t >> (2 + coeff_bits)];
+      if (cid == 2) v = v.dbl();
+      else if (cid == 3) v = -v;
+      else if (cid != 1) v = v * coeffs[cid];
+      if (side == 0) left = left + v;
+      else right = right + v;
+    }
+  }
+  a[i] = left;
+  b[i] = right;
+  c[i] = left * right;
+}
+
 }  // namespace
 
 extern "C" {
@@ -310,6 +338,13 @@ int sp1_fr_expand(void* dst, const uint16_t* idx, const sp1_fr* table, uint32_t 
   k_expand<<<blocks(n), THREADS, 0, st(s)>>>(dev<Fr>(dst), idx, d, n);
   cudaFreeAsync(d, st(s));
   cudaStreamSynchronize(st(s));
+  return err();
+}
+
+int sp1_qap_rows(void* a, void* b, void* c, const void* values, const void* coeffs, const uint8_t* terms,
+                 const uint32_t* starts, uint32_t width, uint32_t coeff_bits, uint32_t rows, uint32_t n) {
+  k_qap_rows<<<blocks(n), THREADS>>>((Fr*)a, (Fr*)b, (Fr*)c, (const Fr*)values, (const Fr*)coeffs,
+                                    terms, starts, width, coeff_bits, rows, n);
   return err();
 }
 

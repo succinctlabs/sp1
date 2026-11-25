@@ -12,7 +12,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/field/pool"
 	"github.com/consensys/gnark/constraint"
@@ -39,7 +38,6 @@ type levelSolver struct {
 	termStart []uint32
 	termWidth int
 	cBits     uint
-	a, b, c   []fr.Element
 
 	nbWorkers int
 	epoch     atomic.Uint64
@@ -244,11 +242,7 @@ func (s *levelSolver) solve(witness fr.Vector, opts ...csolver.Option) error {
 	for i := range len(witness) + offset {
 		s.solved[i] = true
 	}
-	if s.termStart != nil {
-		nb := len(s.termStart) - 1
-		n := ecc.NextPowerOfTwo(uint64(nb))
-		s.a, s.b, s.c = make([]fr.Element, nb, n), make([]fr.Element, nb, n), make([]fr.Element, nb, n)
-	}
+
 	s.err = nil
 	s.failed.Store(false)
 	s.counts = make([]paddedCount, s.nbWorkers)
@@ -383,13 +377,10 @@ func (s *levelSolver) solveR1C(w int, i uint32) error {
 	switch {
 	case loc == 0 && !b.IsZero():
 		wire.Div(c, b).Sub(&wire, a)
-		a.Add(a, &wire)
 	case loc == 1 && !a.IsZero():
 		wire.Div(c, a).Sub(&wire, b)
-		b.Add(b, &wire)
 	case loc == 2:
 		wire.Mul(a, b).Sub(&wire, c)
-		c.Add(c, &wire)
 	default:
 		// Nothing to solve, or a zero factor leaves the wire at 0: the constraint must already hold.
 		if !check.Mul(a, b).Equal(c) {
@@ -409,7 +400,6 @@ func (s *levelSolver) solveR1C(w int, i uint32) error {
 		}
 		s.set(w, int(unsolved>>(2+s.cBits)), wire)
 	}
-	s.a[i], s.b[i], s.c[i] = *a, *b, *c
 	return nil
 }
 
