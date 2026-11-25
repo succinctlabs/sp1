@@ -38,6 +38,23 @@ Fibonacci executed four million iterations. SHA-256 hashed two MiB of zero bytes
 | Fibonacci, 4,000,000 | 8 | 2× PLONK | CUDA out of memory | 40.26 | 12.16 |
 | Fibonacci, 4,000,000 | 8 | Core | CUDA out of memory | 6.16 | 7.10 |
 
+### Retried with more device memory on 25 November
+
+After other applications closed, these sessions started with 21.99–22.15 GiB free on the RTX 4090. All eight previously failing round-one cases completed. Each row uses one fresh session per commit with the same guest, input and default shard limit. The SDK verified each proof. The installed release servers matched the archived SHA-256 hashes listed below.
+
+| Guest | Core shards | Mode | Round 1 time | Round 2 time | Round 1 peak RSS | Round 2 peak RSS |
+| --- | ---: | --- | ---: | ---: | ---: | ---: |
+| SHA-256, 2 MiB | 6 | Core | 3.666 s | 3.556 s | 7.65 GiB | 5.20 GiB |
+| SHA-256, 2 MiB | 6 | Compressed | 4.976 s | 4.638 s | 7.82 GiB | 5.29 GiB |
+| SHA-256, 2 MiB | 6 | 2× Groth16 | 24.741 s | 19.746 s | 15.56 GiB | 9.44 GiB |
+| SHA-256, 2 MiB | 6 | 2× PLONK | 33.136 s | 24.529 s | 14.74 GiB | 9.64 GiB |
+| Fibonacci, 4,000,000 | 8 | Core | 3.912 s | 4.676 s | 9.29 GiB | 7.43 GiB |
+| Fibonacci, 4,000,000 | 8 | Compressed | 5.855 s | 6.547 s | 9.41 GiB | 7.53 GiB |
+| Fibonacci, 4,000,000 | 8 | 2× Groth16 | 25.598 s | 22.264 s | 17.82 GiB | 11.97 GiB |
+| Fibonacci, 4,000,000 | 8 | 2× PLONK | 33.824 s | 28.369 s | 16.77 GiB | 12.06 GiB |
+
+Round two used less combined host memory in all eight comparisons. On four-million-iteration Fibonacci, core took 0.764 s longer and compressed took 0.692 s longer. Both two-proof wrapping sessions finished faster. The CSV identifies these one-session runs as `reference-retry` and `candidate-retry`. [Individual session timings and RSS](sdk-proof-benchmark-trials.csv)
+
 ## Prover changes
 
 Groth16 streams large proving-key tables through bounded pinned host buffers. PLONK and Groth16 overlap key preparation with the STARK prover. Core shards reuse immutable program preprocessing and allocate host traces per AIR. The GPU prover estimates host and device workspace before admitting concurrent shards. When a large LogUp proof needs the memory occupied by an encoded trace, the prover releases it and re-encodes it for the FRI opening. Batched transforms, Merkle tree compression and direct FRI folding reduce GPU work.
@@ -46,13 +63,13 @@ Four repeated CPU/GPU transform comparisons passed under NVIDIA Compute Sanitize
 
 ## Measurement conditions
 
-The same release SDK client launched the installed `~/.sp1/bin/sp1-gpu-server` for each trial. Each proof was independently verified by the SDK. A monotonic clock bracketed each `prove` call. SDK setup and independent verification fall outside those timers. The two-proof total includes both the first and repeat calls. The GPU server process and its proving-key cache started fresh in every session. Installed circuit files used the operating system’s normal page cache.
+Within each comparison, the same release SDK client launched the installed `~/.sp1/bin/sp1-gpu-server` for each trial. Each proof was independently verified by the SDK. A monotonic clock bracketed each `prove` call. SDK setup and independent verification fall outside those timers. The two-proof total includes both the first and repeat calls. The GPU server process and its proving-key cache started fresh in every session. Installed circuit files used the operating system’s normal page cache.
 
 The sampler read resident pages for both PIDs from `/proc/<pid>/statm` and slept 4 ms between observations. It took the maximum of the simultaneous sum over setup, proving, verification and shutdown. Linux counts shared resident pages toward each process. GPU device memory is separate. Measurements cover the supplied guests, inputs and hardware.
 
-The GPU had 17.86 to 19.60 GiB of device memory free at the start of the recorded sessions.
+The GPU had 17.86 to 19.60 GiB of device memory free at the start of the 24 November sessions.
 
-The highest sample occurred during Fibonacci, 4,000,000 in 2× PLONK mode. The client accounted for 48.7 MiB and the server accounted for 12.113 GiB.
+The highest optimized sample occurred during the 24 November Fibonacci, 4,000,000 run in 2× PLONK mode. The client accounted for 48.7 MiB and the server accounted for 12.113 GiB.
 
 Including transient helpers in the SDK process group, the highest observed optimized peak was 12.16 GiB. The trial data also records wall time from client launch through exit.
 
@@ -65,7 +82,8 @@ The runner rotated workload order and alternated which build ran first. A prefli
 | Software | Linux 7.2.9, NVIDIA 615.71.09, CUDA 13.4.92, SP1 circuits v6.1.0 |
 | Reference server SHA-256 | `02e9d9aee8ef282fd16a420afcd17b8cefc7ca0e8039e65f3c0d97a3c53ab06c` |
 | Optimized server SHA-256 | `fb40f2a31cdc337eb724426c82bf103b9756e7f7c79ceb0f6c2363b01351c87a` |
-| SDK runner SHA-256 | `0b4369451fcdbcec2f693e85a82f2b2d9388bacf8b2afa5f60704cbc9d502e64` |
+| 24 November SDK runner SHA-256 | `0b4369451fcdbcec2f693e85a82f2b2d9388bacf8b2afa5f60704cbc9d502e64` |
+| 25 November SDK runner SHA-256 | `e707bf90474e68ebc6e6b173304ac968d46f9f45e00afca2ab273635187bd0f0` |
 | Source patch SHA-256 | `7e9a0f0b18624afd9c1724fce1d472be0e61ef334be4c76409bf0def2748b8f4` |
 
 The accompanying evidence archive includes the reproducible source patch, sampler, SDK runner, build hashes, per-sample RSS and verification logs.
