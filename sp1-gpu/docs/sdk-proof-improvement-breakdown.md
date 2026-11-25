@@ -236,4 +236,4 @@ A closing calibration repeated the eight-shard SHA-256 stock round-two build thr
 | 2× Groth16 | 19.376 s / 8.64 GiB | 19.855 s / 8.43 GiB |
 | 2× PLONK | 27.465 s / 8.06 GiB | 28.065 s / 7.91 GiB |
 
-Separate main-branch builds measure the changes submitted for review on a 102-shard Ethereum block. [RSP timings for the individual PRs](sdk-rsp-pr-benchmarks.md)
+On a 102-shard Ethereum block, round two reduced peak SDK-plus-server RSS from round one by 20.4% for core, 30.2% for compressed, 42.6% for two Groth16 proofs and 34.3% for two PLONK proofs. The corresponding proof-time reductions were 11.5%, 27.0%, 30.5% and 27.8%. Each build used one fresh session per mode. [Combined rounds and independent PR measurements](sdk-rsp-pr-benchmarks.md#the-two-combined-cuda-prover-rounds)

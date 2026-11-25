@@ -99,8 +99,10 @@ Separate CUPTI captures recorded each installed server and mode. Durations are u
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | round1 | Core | 4.412 s | 2.077 s | 2.335 s | 6.61 GiB | 0.02 GiB | 0.000 s |
 | round2 | Core | 5.746 s | 2.834 s | 2.912 s | 6.58 GiB | 0.02 GiB | 0.679 s |
+| cuda-budget | Core | 5.172 s | 2.357 s | 2.815 s | 6.58 GiB | 0.02 GiB | 0.396 s |
 | round2 | Compressed | 7.789 s | 3.600 s | 4.189 s | 7.78 GiB | 0.03 GiB | 1.014 s |
 | round1 | Compressed | 6.583 s | 3.042 s | 3.541 s | 7.81 GiB | 0.03 GiB | 0.000 s |
+| cuda-budget | Compressed | 7.731 s | 3.253 s | 4.478 s | 7.78 GiB | 0.03 GiB | 0.715 s |
 
 CUPTI also recorded the size and duration of every individual host-to-device transfer inside the proof call. Summing the large transfers gives the following subset.
 
@@ -110,6 +112,38 @@ CUPTI also recorded the size and duration of every individual host-to-device tra
 | round2 | Core | 43 | 6.41 GiB | 0.876 s |
 | round1 | Compressed | 43 | 6.41 GiB | 0.481 s |
 | round2 | Compressed | 43 | 6.41 GiB | 0.894 s |
+
+### Batched NTT row count
+
+The four shapes with the greatest cumulative NTT kernel time in the revised-budget profiles were replayed directly with its release CUDA object. Each timing is the median of five CUDA event measurements. Every output element matched a transform submitted one polynomial at a time. L2 limits give the size of the active rows relative to the measured device cache.
+
+| Domain | Polynomials | Transform | Full batch | L2 / 2 |
+| ---: | ---: | --- | ---: | ---: |
+| 4,194,304 | 34 | Forward | 7.597 ms | 4.000 ms |
+| 4,194,304 | 34 | Inverse | 4.226 ms | 2.749 ms |
+| 4,194,304 | 52 | Forward | 6.889 ms | 4.265 ms |
+| 4,194,304 | 52 | Inverse | 6.623 ms | 3.983 ms |
+| 8,388,608 | 4 | Forward | 1.041 ms | 0.758 ms |
+| 8,388,608 | 4 | Inverse | 1.038 ms | 0.719 ms |
+| 8,388,608 | 136 | Forward | 34.334 ms | 21.237 ms |
+| 8,388,608 | 136 | Inverse | 35.304 ms | 21.519 ms |
+
+### Where the server waited on CUDA
+
+A separate call-stack capture on round two recorded stream synchronizations lasting at least 150 microseconds. Wait time is the union of the intervals at each call site inside the SDK proof. A thread waiting here may be waiting for earlier kernels on the same stream.
+
+| Round-two call site | Core calls | Core wait | Compressed calls | Compressed wait |
+| --- | ---: | ---: | ---: | ---: |
+| Upload zero-check dispatch descriptors | 168 | 0.235 s | 393 | 0.438 s |
+| Read back the grinding witness | 6 | 0.239 s | 6 | 0.240 s |
+| Generate the first LogUp layer | 14 | 0.090 s | 25 | 0.117 s |
+
+Three rotated pairs per build measured the following local candidates at the same input and shard height.
+
+| Eight-shard Fibonacci experiment | Mode | Revised LogUp budget | With additional change |
+| --- | --- | ---: | ---: |
+| Allocate page-locked storage for individual host traces of at least 64 MiB | Core | 5.095 s / 7.15 GiB | 7.676 s / 7.47 GiB |
+| Allocate page-locked storage for individual host traces of at least 64 MiB | Compressed | 7.296 s / 7.51 GiB | 9.961 s / 7.70 GiB |
 
 The installed release server hashes were round one `02e9d9aee8ef`, round two `fb40f2a31cdc`, and revised budget `318ea60fb907`. The SDK client hash was `b6c573ae9ff2`. [Individual trials](sdk-proof-benchmark-trials.csv)
 

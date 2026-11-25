@@ -35,6 +35,17 @@ Each comparison pairs the PR with main at `0cd151a8d` on the same workload. The 
 
 The initial three-session SHA-256 core comparison suggested a 34.2% reduction. Across ten alternating pairs on the same eight-shard input, core fell from 2.770 to 2.557 s (7.7%) and compressed from 4.670 to 4.415 s (5.5%). The PR was faster in all twenty pairs. Constructing the RISC-V machine took 237 ms per request. Cloning the configured machine took 0.019 ms. The original baseline varied from 6.784 to 14.963 s, and the multi-second difference did not reproduce. [All forty proofs and the construction benchmark](https://github.com/succinctlabs/sp1/pull/3046)
 
+## The two combined CUDA prover rounds
+
+The original CUDA wrapper at `6f14261e8`, round one at `03adf8d0c`, and round two at `c98af6e40` all used the GPU for gnark. Round one and round two ran consecutively on the same 102-shard block, once per build and mode. Each wrapping session verified two proofs with Go defaults. Both the original CUDA PR core and compressed figures use one fresh session. The original CUDA PR wrapping figures come from the three earlier sessions per mode in the outer STARK comparison below.
+
+| Mode | CUDA PR baseline time / peak | Round 1 time / peak | Round 2 time / peak | Time saved in round 2 | Peak RSS saved in round 2 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Core | 22.203 s / 12.61 GiB | 20.868 s / 6.74 GiB | 18.462 s / 5.37 GiB | 11.5% | 20.4% |
+| Compressed | 39.214 s / 13.77 GiB | 39.725 s / 7.84 GiB | 29.001 s / 5.47 GiB | 27.0% | 30.2% |
+| 2× Groth16 | 98.198 s / 21.19 GiB | 96.987 s / 14.90 GiB | 67.418 s / 8.55 GiB | 30.5% | 42.6% |
+| 2× PLONK | 107.547 s / 20.69 GiB | 104.530 s / 14.54 GiB | 75.506 s / 9.55 GiB | 27.8% | 34.3% |
+
 ## Additional independent candidates measured locally
 
 Build order rotated within each comparison. The first table identifies the revisions submitted for review.
