@@ -197,10 +197,7 @@ mod patched_residues {
     include!("../program/residue_cases.rs");
 }
 
-fn residue_cases(
-    stdin: &mut sp1_sdk::SP1Stdin,
-    mode: u8,
-) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+fn residue_cases(stdin: &mut sp1_sdk::SP1Stdin, mode: u8) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     let original = original_residues::run(mode);
     let patched = patched_residues::run(mode);
     assert_eq!(patched, original, "native patch vs original crate");

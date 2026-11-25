@@ -477,9 +477,8 @@ async fn test_g2_conversion_rejects_invalid_points() {
 
     for (case, (x, y)) in cases.into_iter().enumerate() {
         let mut coordinates = [[0u8; 32]; 4];
-        for (value, bytes) in [x.real(), x.imaginary(), y.real(), y.imaginary()]
-            .into_iter()
-            .zip(&mut coordinates)
+        for (value, bytes) in
+            [x.real(), x.imaginary(), y.real(), y.imaginary()].into_iter().zip(&mut coordinates)
         {
             value.to_big_endian(bytes).unwrap();
         }
@@ -501,8 +500,14 @@ async fn test_g2_conversion_rejects_invalid_points() {
                     } else {
                         let panic = result.err().expect("invalid finite point must panic");
                         let message = panic.downcast_ref::<String>().expect("validation panic");
-                        assert!(message.contains("G2 point must be on the curve and in the subgroup"));
-                        assert!(message.contains(if case == 2 { "NotInSubgroup" } else { "NotOnCurve" }));
+                        assert!(
+                            message.contains("G2 point must be on the curve and in the subgroup")
+                        );
+                        assert!(message.contains(if case == 2 {
+                            "NotInSubgroup"
+                        } else {
+                            "NotOnCurve"
+                        }));
                     }
                 }};
             }
@@ -524,9 +529,7 @@ async fn test_g2_conversion_rejects_invalid_points() {
 }
 
 #[sp1_test::sp1_test("bn_test_affine_conversions", syscalls = [BN254_FP_MUL], gpu, prove)]
-pub fn test_affine_conversions(
-    _: &mut sp1_sdk::SP1Stdin,
-) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+pub fn test_affine_conversions(_: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     use substrate_bn::{AffineG1, AffineG2, Fq, Fr, Group, G1, G2};
 
     let mut expected = Vec::new();
@@ -547,9 +550,8 @@ pub fn test_affine_conversions(
             .map(|p| (p.x().real(), p.x().imaginary(), p.y().real(), p.y().imaginary()))
             .unwrap_or((Fq::zero(), Fq::zero(), Fq::one(), Fq::zero()));
         let mut encoded = vec![0u8; 192];
-        for (coordinate, bytes) in [x1, y1, x20, x21, y20, y21]
-            .into_iter()
-            .zip(encoded.chunks_mut(32))
+        for (coordinate, bytes) in
+            [x1, y1, x20, x21, y20, y21].into_iter().zip(encoded.chunks_mut(32))
         {
             coordinate.to_big_endian(bytes).unwrap();
         }

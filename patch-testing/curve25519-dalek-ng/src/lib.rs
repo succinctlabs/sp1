@@ -25,9 +25,7 @@ fn test_decompressed_noncanonical(
     let expected: Vec<_> = inputs
         .iter()
         .map(|bytes| {
-            CompressedEdwardsY(*bytes)
-                .decompress()
-                .map(|point| point.compress().to_bytes())
+            CompressedEdwardsY(*bytes).decompress().map(|point| point.compress().to_bytes())
         })
         .collect();
     let native_patched: Vec<_> = inputs
@@ -39,13 +37,7 @@ fn test_decompressed_noncanonical(
         })
         .collect();
     assert_eq!(native_patched, expected);
-    assert_eq!(
-        expected[38..76]
-            .iter()
-            .filter(|point| point.is_some())
-            .count(),
-        24
-    );
+    assert_eq!(expected[38..76].iter().filter(|point| point.is_some()).count(), 24);
     assert_eq!(&expected[..38], &expected[38..76]);
     stdin.write(&inputs);
     move |mut public| {
