@@ -75,6 +75,18 @@ A host OOM interrupted sampling. The failed rows give the highest observed simul
 
 The matched successful PLONK runs used `GOMEMLIMIT=23GiB GOGC=30 GOMAXPROCS=16`. Each row started with a fresh server. The successful rows include two successive calls.
 
+### Earlier in-process core failures
+
+The earlier in-process benchmark also exhausted CUDA memory on million-iteration Fibonacci at default height. The first two rows rerun the archived node binaries with their original CLI. Their RSS is the kernel process high-water mark. The CLI used `--program local-fibonacci --param 1000000 --mode core -n 1`. The other rows use the SDK and installed server on the same guest and report simultaneous RSS. The SDK core proofs had 3 shards.
+
+| Build and entry point | Core proof | Peak host RSS |
+| --- | ---: | ---: |
+| Original baseline, in-process | 1.674 s | 11.93 GiB |
+| Archived first-round candidate (v6), in-process | 1.276 s | 7.07 GiB |
+| Original CUDA PR, SDK and installed server | 1.584 s | 12.41 GiB |
+| Round 1, SDK and installed server | 1.449 s | 6.46 GiB |
+| Round 2, SDK and installed server | 1.444 s | 4.64 GiB |
+
 <details><summary>Five other allocation failures found in the tuning logs</summary>
 
 These one-session controls used the archived release servers and the same archived SDK binary. The SHA-256 input produced eight shards. The three-worker PLONK pilot used 16 Rayon threads and the original three core workers. The early Fibonacci core log labels its input `fib2m`. The retry used 2,000,000 iterations at the default shard height.
