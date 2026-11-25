@@ -1,6 +1,8 @@
 # SDK and CUDA server proof benchmarks
 
-24 November 2026. Benchmarked the working tree against branch commit `03adf8d0c35560902d23fba30e9140aac2eb7a0f` on one GeForce RTX 4090. Across the three workloads that completed on both builds, the requested modes cut median proving time by at least 26.4% and peak host RSS by at least 33.2%. The highest observed optimized peak across all five workloads and all four measured modes was 12.16 GiB.
+On 24 November 2026, compressed proofs and pairs of Groth16 or PLONK proofs took 26.4–30.0% less time on round two (`c98af6e40`) than on round one (`03adf8d0c`) across three guests. Their combined SDK-client-plus-server peak RSS fell by 33.2–56.2%. Raw core proof time fell by 13.9–42.7%. The highest round-two peak across five guests and four modes in those sessions was 12.16 GiB.
+
+On 25 November, all eight round-one CUDA allocation failures verified with 21.99–22.15 GiB of free device memory. Round two used less host memory in every matched retry. Six-shard SHA-256 finished faster in every mode. Eight-shard Fibonacci finished faster in both two-proof wrapping modes and slower in core and compressed. Three further rotated comparisons reproduced the Fibonacci slowdown. [Retry measurements](#retried-with-more-device-memory-on-25-november) · [Repeated Fibonacci comparisons](#default-height-follow-up-with-three-rotated-builds)
 
 ## Completed baseline comparisons
 
@@ -54,6 +56,62 @@ After other applications closed, these sessions started with 21.99–22.15 GiB f
 | Fibonacci, 4,000,000 | 8 | 2× PLONK | 33.824 s | 28.369 s | 16.77 GiB | 12.06 GiB |
 
 Round two used less combined host memory in all eight comparisons. On four-million-iteration Fibonacci, core took 0.764 s longer and compressed took 0.692 s longer. Both two-proof wrapping sessions finished faster. The CSV identifies these one-session runs as `reference-retry` and `candidate-retry`. [Individual session timings and RSS](sdk-proof-benchmark-trials.csv)
+
+### Default-height follow-up with three rotated builds
+
+The release CUDA servers used the same SDK client and default shard height of 4,194,304. Each cell gives median SDK proof time and the largest simultaneous SDK-plus-server peak RSS. Each Groth16 and PLONK session verified two proofs. The revised LogUp budget estimates per-round workspace before deciding whether to retain the main codeword. [LogUp PR](https://github.com/succinctlabs/sp1/pull/3052)
+
+| Default-height guest | Mode | Sessions per build | Round 1 | Round 2 | Round 2 with revised LogUp budget |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Fibonacci, 4,000,000 (8 shards) | Core | 3 | 3.799 s / 9.51 GiB | 4.870 s / 7.09 GiB | 4.417 s / 6.98 GiB |
+| Fibonacci, 4,000,000 (8 shards) | Compressed | 3 | 5.711 s / 9.67 GiB | 6.928 s / 7.52 GiB | 6.745 s / 7.52 GiB |
+| SHA-256, 2 MiB (6 shards) | 2× Groth16 | 1 | — | 18.822 s / 9.94 GiB | 18.419 s / 9.06 GiB |
+| SHA-256, 2 MiB (6 shards) | 2× PLONK | 1 | — | 25.305 s / 9.92 GiB | 25.263 s / 9.88 GiB |
+| Fibonacci, 4,000,000 (8 shards) | 2× Groth16 | 1 | — | 23.076 s / 11.87 GiB | 22.633 s / 11.86 GiB |
+| Fibonacci, 4,000,000 (8 shards) | 2× PLONK | 3 | — | 30.813 s / 12.44 GiB | 30.490 s / 12.46 GiB |
+
+<details><summary>Paired controls for the default-height Fibonacci slowdown</summary>
+
+Two fresh sessions per mode and setting used the same instrumented round-two binary. Each control used the full round-two settings except in the last pair of rows, where both builds used two staging slots. The earlier ablation table documents the settings and their interactions. [Earlier ablations](sdk-proof-improvement-breakdown.md)
+
+| Eight-shard Fibonacci configuration | Mode | Control | Changed | Median paired time saved | Median paired RSS saved |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Regenerate dependency rows | Core | 5.182 s / 7.16 GiB | 5.169 s / 6.72 GiB | +0.013 s | +0.23 GiB |
+| Regenerate dependency rows | Compressed | 7.372 s / 7.52 GiB | 7.329 s / 7.13 GiB | +0.043 s | +0.42 GiB |
+| Recompute preprocessing | Core | 5.182 s / 7.16 GiB | 5.427 s / 7.06 GiB | -0.245 s | -0.11 GiB |
+| Recompute preprocessing | Compressed | 7.372 s / 7.52 GiB | 7.497 s / 7.51 GiB | -0.125 s | +0.01 GiB |
+| Serialize device admission | Core | 5.182 s / 7.16 GiB | 5.431 s / 7.06 GiB | -0.248 s | -0.16 GiB |
+| Serialize device admission | Compressed | 7.372 s / 7.52 GiB | 7.071 s / 7.10 GiB | +0.301 s | +0.47 GiB |
+| Original worker counts | Core | 5.182 s / 7.16 GiB | 5.306 s / 8.46 GiB | -0.123 s | -1.35 GiB |
+| Original worker counts | Compressed | 7.372 s / 7.52 GiB | 6.773 s / 8.32 GiB | +0.599 s | -0.76 GiB |
+| Reduce per-AIR staging to two slots | Core | 5.182 s / 7.16 GiB | 5.525 s / 7.20 GiB | -0.343 s | -0.31 GiB |
+| Reduce per-AIR staging to two slots | Compressed | 7.372 s / 7.52 GiB | 7.126 s / 7.46 GiB | +0.246 s | +0.18 GiB |
+| Two maximum-sized pinned buffers versus two per-AIR slots | Core | 5.525 s / 7.20 GiB | 4.927 s / 8.61 GiB | +0.599 s | -1.41 GiB |
+| Two maximum-sized pinned buffers versus two per-AIR slots | Compressed | 7.126 s / 7.46 GiB | 6.290 s / 8.64 GiB | +0.836 s | -1.30 GiB |
+
+</details>
+
+### CUDA activity on eight-shard Fibonacci
+
+Separate CUPTI captures recorded each installed server and mode. Durations are unions of overlapping intervals inside the SDK proof window. Host stream synchronization can overlap device execution. Round two waits for borrowed host copies to finish before the caller can reuse their memory. Round one predates that lifetime fix. Profiling adds overhead. [Host copy lifetime fix](https://github.com/succinctlabs/sp1/pull/3047)
+
+| Profiled build | Mode | SDK proof time | Kernels or transfers active | Outside kernels and transfers | Host to device | Device to host | Host threads inside a stream synchronization |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| round1 | Core | 4.412 s | 2.077 s | 2.335 s | 6.61 GiB | 0.02 GiB | 0.000 s |
+| round2 | Core | 5.746 s | 2.834 s | 2.912 s | 6.58 GiB | 0.02 GiB | 0.679 s |
+| round2 | Compressed | 7.789 s | 3.600 s | 4.189 s | 7.78 GiB | 0.03 GiB | 1.014 s |
+| round1 | Compressed | 6.583 s | 3.042 s | 3.541 s | 7.81 GiB | 0.03 GiB | 0.000 s |
+
+CUPTI also recorded the size and duration of every individual host-to-device transfer inside the proof call. Summing the large transfers gives the following subset.
+
+| Build | Mode | Uploads of at least 64 MiB | Total uploaded | Sum of upload durations |
+| --- | --- | ---: | ---: | ---: |
+| round1 | Core | 43 | 6.41 GiB | 0.486 s |
+| round2 | Core | 43 | 6.41 GiB | 0.876 s |
+| round1 | Compressed | 43 | 6.41 GiB | 0.481 s |
+| round2 | Compressed | 43 | 6.41 GiB | 0.894 s |
+
+The installed release server hashes were round one `02e9d9aee8ef`, round two `fb40f2a31cdc`, and revised budget `318ea60fb907`. The SDK client hash was `b6c573ae9ff2`. [Individual trials](sdk-proof-benchmark-trials.csv)
 
 ### Intermediate PLONK repeat proof
 
