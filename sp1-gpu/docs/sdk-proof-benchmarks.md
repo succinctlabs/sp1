@@ -69,3 +69,5 @@ The runner rotated workload order and alternated which build ran first. A prefli
 | Source patch SHA-256 | `7e9a0f0b18624afd9c1724fce1d472be0e61ef334be4c76409bf0def2748b8f4` |
 
 The accompanying evidence archive includes the reproducible source patch, sampler, SDK runner, build hashes, per-sample RSS and verification logs.
+
+The follow-up benchmarks measured individual changes in both prover commits for each proof mode. [Per-change timings and peak RSS](sdk-proof-improvement-breakdown.md)
