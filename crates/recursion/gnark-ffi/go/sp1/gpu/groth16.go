@@ -3,12 +3,14 @@
 package gpu
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"math/big"
 	"math/bits"
 	"runtime"
 	"slices"
+	"unsafe"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
@@ -23,17 +25,68 @@ import (
 	fcs "github.com/consensys/gnark/frontend/cs"
 )
 
-// Groth16Prover holds one circuit's proving key in host memory.
+// Groth16Prover caches one circuit and streams large native key tables when available.
 type Groth16Prover struct {
 	r1cs                         *cs.R1CS
 	solver                       *levelSolver
 	pk                           *groth16_bn254.ProvingKey
+	files                        groth16KeyFiles
 	logN                         int
 	tabW, tabWInv, tabC, tabCInv []fr.Element
 }
 
-// NewGroth16Prover prepares a circuit for proving and reads its proving key, as gnark dumped it, from r. The key's
-// points are page-locked, as they are uploaded for each proof.
+// A native gnark dump stores these affine tables uncompressed.
+type groth16KeyFiles struct {
+	a, b, z, k, b2 *io.SectionReader
+}
+
+// ReadDump allocates the final slices before reading their native bytes. Leave
+// large tables file-backed and check their destination and length after decoding.
+type dumpReader struct {
+	source   *io.SectionReader
+	pk       *groth16_bn254.ProvingKey
+	pos      int64
+	elements uint64
+	tables   map[*byte]*io.SectionReader
+}
+
+func (r *dumpReader) Read(b []byte) (int, error) {
+	size := uint64(len(b))
+	if size >= 64<<20 && r.elements != 0 && size%r.elements == 0 &&
+		r.pk.InfinityB != nil && r.pk.G2.B == nil && int64(size) <= r.source.Size()-r.pos {
+		switch size / r.elements {
+		case uint64(unsafe.Sizeof(curve.G1Affine{})), uint64(unsafe.Sizeof(curve.G2Affine{})):
+			r.tables[&b[0]] = io.NewSectionReader(r.source, r.pos, int64(size))
+			r.pos += int64(size)
+			r.elements = 0
+			return len(b), nil
+		}
+	}
+	n, err := r.source.ReadAt(b, r.pos)
+	r.pos += int64(n)
+	r.elements = 0
+	if n == 8 && n == len(b) {
+		r.elements = binary.LittleEndian.Uint64(b)
+	}
+	return n, err
+}
+
+func takeDumpTable[T any](r *dumpReader, points *[]T) *io.SectionReader {
+	if len(*points) == 0 {
+		return nil
+	}
+	first := (*byte)(unsafe.Pointer(&(*points)[0]))
+	table := r.tables[first]
+	if table == nil || table.Size() != int64(len(*points))*int64(unsafe.Sizeof((*points)[0])) {
+		return nil
+	}
+	delete(r.tables, first)
+	*points = nil
+	return table
+}
+
+// NewGroth16Prover reads a native gnark key. A section reader at the start of an
+// immutable key must stay available for the prover lifetime and permits streamed MSMs.
 func NewGroth16Prover(r1cs *cs.R1CS, r io.Reader) (*Groth16Prover, error) {
 	// Debug info only describes failed constraints in errors.
 	r1cs.DebugInfo, r1cs.MDebug = nil, nil
@@ -44,7 +97,31 @@ func NewGroth16Prover(r1cs *cs.R1CS, r io.Reader) (*Groth16Prover, error) {
 	// Lets the key reuse the memory of the calldata that the solver freed.
 	runtime.GC()
 	pk := &groth16_bn254.ProvingKey{}
-	if err := pk.ReadDump(r); err != nil {
+	var dump *dumpReader
+	if source, ok := r.(*io.SectionReader); ok {
+		if pos, err := source.Seek(0, io.SeekCurrent); err == nil && pos == 0 {
+			dump = &dumpReader{source: source, pk: pk, tables: make(map[*byte]*io.SectionReader)}
+			r = dump
+		}
+	}
+	err = pk.ReadDump(r)
+	var files groth16KeyFiles
+	if dump != nil {
+		if err == nil {
+			files.a = takeDumpTable(dump, &pk.G1.A)
+			files.b = takeDumpTable(dump, &pk.G1.B)
+			files.z = takeDumpTable(dump, &pk.G1.Z)
+			files.k = takeDumpTable(dump, &pk.G1.K)
+			files.b2 = takeDumpTable(dump, &pk.G2.B)
+		}
+		if len(dump.tables) != 0 {
+			// A different decoder layout needs the ordinary, fully populated key.
+			files = groth16KeyFiles{}
+			pk = &groth16_bn254.ProvingKey{}
+			err = pk.ReadDump(io.NewSectionReader(dump.source, 0, dump.source.Size()))
+		}
+	}
+	if err != nil {
 		return nil, err
 	}
 	d := &pk.Domain
@@ -57,14 +134,18 @@ func NewGroth16Prover(r1cs *cs.R1CS, r io.Reader) (*Groth16Prover, error) {
 	var gInv fr.Element
 	gInv.Inverse(&d.FrMultiplicativeGen)
 	p := &Groth16Prover{
-		r1cs: r1cs, solver: solver, pk: pk, logN: bits.TrailingZeros64(d.Cardinality),
+		r1cs: r1cs, solver: solver, pk: pk, files: files, logN: bits.TrailingZeros64(d.Cardinality),
 		tabW: powTable(d.Generator), tabWInv: powTable(d.GeneratorInv),
 		tabC: powTable(d.FrMultiplicativeGen), tabCInv: powTable(gInv),
 	}
 	for _, v := range [][]curve.G1Affine{pk.G1.A, pk.G1.B, pk.G1.K, pk.G1.Z} {
-		pin(v)
+		if len(v) > 0 {
+			pin(v)
+		}
 	}
-	pin(pk.G2.B)
+	if len(pk.G2.B) != 0 {
+		pin(pk.G2.B)
+	}
 	for _, k := range pk.CommitmentKeys {
 		pin(k.Basis)
 		pin(k.BasisExpSigma)
@@ -163,14 +244,14 @@ func (p *Groth16Prover) ProveVector(fullWitness fr.Vector) (proof *groth16_bn254
 	deltas := curve.BatchScalarMultiplicationG1(&pk.G1.Delta, []fr.Element{_r, _s, _kr})
 
 	sizeH := int(pk.Domain.Cardinality - 1) // deg(H) = (n-1) + (n-1) - n = n-2
-	z := upload(pk.G1.Z[:sizeH])
+	z := uploadKeyPoints(pk.G1.Z, p.files.z, sizeH)
 	krs2 := msm(h, z, sizeH)
 	z.free()
 	h.free()
 
 	scalars = withoutInfinity(scalars, wireValues, pk.InfinityA)
 	var ar curve.G1Jac
-	a := msmHost(pk.G1.A, scalars)
+	a := msmKeyPoints(pk.G1.A, p.files.a, scalars)
 	ar.FromAffine(&a)
 	ar.AddMixed(&pk.G1.Alpha)
 	ar.AddMixed(&deltas[0])
@@ -178,13 +259,13 @@ func (p *Groth16Prover) ProveVector(fullWitness fr.Vector) (proof *groth16_bn254
 
 	scalars = withoutInfinity(scalars, wireValues, pk.InfinityB)
 	var bs1 curve.G1Jac
-	b1 := msmHost(pk.G1.B, scalars)
+	b1 := msmKeyPoints(pk.G1.B, p.files.b, scalars)
 	bs1.FromAffine(&b1)
 	bs1.AddMixed(&pk.G1.Beta)
 	bs1.AddMixed(&deltas[1])
 
 	var bs, deltaS curve.G2Jac
-	b2 := msmHostG2(pk.G2.B, scalars)
+	b2 := msmHostG2(pk.G2.B, p.files.b2, scalars)
 	bs.FromAffine(&b2)
 	deltaS.FromAffine(&pk.G2.Delta)
 	deltaS.ScalarMultiplication(&deltaS, &s)
@@ -199,7 +280,7 @@ func (p *Groth16Prover) ProveVector(fullWitness fr.Vector) (proof *groth16_bn254
 	toRemove = append(toRemove, commitmentInfo.CommitmentIndexes()...)
 	nbPub := p.r1cs.GetNbPublicVariables()
 	var krs, p1 curve.G1Jac
-	k := msmHost(pk.G1.K, without(scalars, wireValues[nbPub:], nbPub, toRemove))
+	k := msmKeyPoints(pk.G1.K, p.files.k, without(scalars, wireValues[nbPub:], nbPub, toRemove))
 	krs.FromAffine(&k)
 	krs.AddMixed(&deltas[2])
 	krs.AddMixed(&krs2)
