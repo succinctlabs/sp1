@@ -33,12 +33,18 @@ jobs:
         id: pr
         run: |
           # Get the PR number from the workflow run
-          PR_NUMBER=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }} --jq '.pull_requests[0].number')
+          PR_NUMBER=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }} --jq 'first(.pull_requests[].number) // empty')
           echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: "Skip when no PR is attached to the workflow run"
+        if: steps.pr.outputs.number == ''
+        run: |
+          echo "No PR attached to workflow run ${{ github.event.workflow_run.id }}; skipping patch testing comment."
+
       - name: "Post comment to PR"
+        if: steps.pr.outputs.number != ''
         run: |
           cd ./patch-testing
           RUST_BACKTRACE=full cargo run --bin post-to-github
