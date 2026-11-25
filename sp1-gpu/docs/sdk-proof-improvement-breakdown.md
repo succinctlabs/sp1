@@ -209,7 +209,9 @@ Round 1 parallelized the outer proof-of-work search, saving 3.54 s per pair. Sha
 
 The larger default-height guests exercised a different limit. The round-one server exhausted CUDA memory on both 2 MiB SHA-256 (six core shards) and four-million-iteration Fibonacci (eight core shards) in all four modes. The round-two server verified all four modes on both guests. Its highest observed combined host RSS was **12.16 GiB**, for two PLONK proofs of the larger Fibonacci input.
 
-Releasing the encoded main trace before a large LogUp proof and re-encoding it for FRI made a measurable difference to completion. An intermediate build that retained the trace verified the first PLONK proof on the larger Fibonacci guest in 21.10 s, then exhausted CUDA memory during the repeat. The final configuration completed three two-proof sessions, with a median total of 40.26 s. The failed repeat establishes the capacity difference. [Default-height benchmark results](sdk-proof-benchmarks.md)
+Releasing the encoded main trace before a large LogUp proof and re-encoding it for FRI made a measurable difference to completion. An intermediate build that retained the trace verified the first PLONK proof on the larger Fibonacci guest in 21.10 s, then exhausted CUDA memory during the repeat. The final configuration completed three two-proof sessions, with a median total of 40.26 s. The failed repeat established a capacity difference under the original device load. [Default-height benchmark results](sdk-proof-benchmarks.md)
+
+After other applications were closed, all eight original round-one failures verified, and the intermediate server completed both proofs on the same eight-shard Fibonacci input. Peak host RSS on round two ranged from 5.20 to 12.06 GiB across these matched runs. Round two was slower in the core and compressed Fibonacci runs. [Retry conditions, times and simultaneous SDK-plus-server RSS](sdk-proof-benchmarks.md#retried-with-more-device-memory-on-25-november)
 
 ## Measurement and attribution
 

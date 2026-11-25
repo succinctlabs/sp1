@@ -55,6 +55,40 @@ After other applications closed, these sessions started with 21.99–22.15 GiB f
 
 Round two used less combined host memory in all eight comparisons. On four-million-iteration Fibonacci, core took 0.764 s longer and compressed took 0.692 s longer. Both two-proof wrapping sessions finished faster. The CSV identifies these one-session runs as `reference-retry` and `candidate-retry`. [Individual session timings and RSS](sdk-proof-benchmark-trials.csv)
 
+### Intermediate PLONK repeat proof
+
+The intermediate release server that kept the main trace codeword originally verified the first four-million-iteration Fibonacci proof in 21.098 s and exhausted device memory during its second proof. The archived server SHA-256 is `595e0b4d65e9ad492e1981ed7563df1fa1e22bffaad9e88efe4bba58351af6d4`. The retry started with 22.16 GiB of free VRAM. Both proofs verified in 15.076 s and 13.579 s, totaling 28.654 s. The SDK client and server together peaked at 12.51 GiB host RSS and the server peaked at 21.32 GiB of device memory.
+
+### Native gnark PLONK on nine-shard Fibonacci
+
+The original uncapped native gnark attempt on the Poseidon2 PR was killed by the Linux OOM killer near 44 GiB combined RSS. After memory was freed, a guard stopped a second attempt near 56.39 GiB. A third original-settings attempt ran without that guard in an isolated memory cgroup sized from available RAM, reserving 128 MiB. The kernel reported a memory-cgroup OOM and killed the GPU server.
+
+| Build and Go runtime | Available RAM at launch | First proof | Repeat proof | Peak combined host RSS | Result |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Main, defaults | 57.10 GiB | — | — | 54.57 GiB | Kernel OOM at 56.98 GiB cgroup limit |
+| #3050, defaults | 57.52 GiB | — | — | 56.38 GiB | Kernel OOM at 57.40 GiB cgroup limit |
+| Main, lower heap | 57.63 GiB | 297.197 s | 300.123 s | 45.99 GiB | Verified |
+| #3049, lower heap | 57.85 GiB | 295.608 s | 294.520 s | 45.22 GiB | Verified |
+| #3050, lower heap | 57.56 GiB | 300.146 s | 294.029 s | 45.27 GiB | Verified |
+
+A host OOM interrupted sampling. The failed rows give the highest observed simultaneous SDK and server RSS, a lower bound. At the kill the kernel separately reported server RSS of 56.83 GiB on main and 57.22 GiB on #3050.
+
+The matched successful PLONK runs used `GOMEMLIMIT=23GiB GOGC=30 GOMAXPROCS=16`. Each row started with a fresh server. The successful rows include two successive calls.
+
+<details><summary>Five other allocation failures found in the tuning logs</summary>
+
+These one-session controls used the archived release servers and the same archived SDK binary. The SHA-256 input produced eight shards. The three-worker PLONK pilot used 16 Rayon threads and the original three core workers. The early Fibonacci core log labels its input `fib2m`. The retry used 2,000,000 iterations at the default shard height.
+
+| Archived server (SHA-256 prefix) | Guest | Mode | Original outcome | Free VRAM at retry | Retry first / repeat | Peak host RSS | Retry outcome |
+| --- | --- | --- | --- | ---: | ---: | ---: | --- |
+| Earlier shard scheduling (`82875aadece1`) | Fibonacci, 2,000,000 | Core | CUDA OOM before first proof | 22.15 GiB | 2.435 s | 7.08 GiB | Verified |
+| SHA-256 scheduling build Y (`da26a63e9566`) | SHA-256, 1 MiB | 2× Groth16 | Repeat CUDA OOM after 11.189 s first proof | 22.15 GiB | 9.460 s / 6.808 s | 11.70 GiB | Verified |
+| SHA-256 scheduling build Z (`44f86b3fdde1`) | SHA-256, 1 MiB | 2× Groth16 | Repeat CUDA OOM after 11.688 s first proof | 22.15 GiB | 9.134 s / 6.661 s | 11.43 GiB | Verified |
+| Three-worker tuning run (`8626f5e98eca`) | Fibonacci, 4,000,000 | 2× PLONK | Repeat CUDA OOM after 20.071 s first proof | 22.15 GiB | 15.293 s / 13.779 s | 11.70 GiB | Verified |
+| Earlier CUDA stream startup (`6b7cd17832cd`) | Fibonacci, 4,000,000 | Compressed | CUDA OOM at startup | 22.15 GiB | 6.121 s | 8.31 GiB | Verified |
+
+</details>
+
 ## Prover changes
 
 Groth16 streams large proving-key tables through bounded pinned host buffers. PLONK and Groth16 overlap key preparation with the STARK prover. Core shards reuse immutable program preprocessing and allocate host traces per AIR. The GPU prover estimates host and device workspace before admitting concurrent shards. When a large LogUp proof needs the memory occupied by an encoded trace, the prover releases it and re-encodes it for the FRI opening. Batched transforms, Merkle tree compression and direct FRI folding reduce GPU work.
