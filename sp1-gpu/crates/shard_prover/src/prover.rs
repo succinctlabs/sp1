@@ -15,7 +15,7 @@ use sp1_gpu_basefold::{
 };
 use sp1_gpu_challenger::FromHostChallengerSync;
 use sp1_gpu_cudart::PinnedBuffer;
-use sp1_gpu_cudart::{DeviceMle, DevicePoint, TaskScope};
+use sp1_gpu_cudart::{cuda_pool_available_memory, DeviceMle, DevicePoint, TaskScope};
 use sp1_gpu_jagged_assist::prove_jagged_evaluation_sync;
 use sp1_gpu_jagged_sumcheck::{generate_jagged_sumcheck_poly, jagged_sumcheck};
 use sp1_gpu_jagged_tracegen::{full_tracegen_permit, main_tracegen_permit, CudaShardProverData};
@@ -672,16 +672,18 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
                     * (chip.sends().len() + chip.receives().len())
             })
             .sum();
-        // These are empirical workspace budgets in bytes per interaction row.
-        // Below 2^25 rows, keep the existing allocation policy without querying CUDA.
-        const KEEP_CODEWORD_BYTES_PER_ROW: usize = 144;
-        const RETAIN_FIRST_LAYER_BYTES_PER_ROW: usize = 112;
+        // Per four interaction rows, the first layer stores four base-field numerators,
+        // four extension-field denominators and one column index (21 bytes per row).
+        // The shrinking materialized layers add about 33 bytes per row. Round up for
+        // padding and leave room for kernel scratch before deciding to re-encode the trace.
+        const LOGUP_BYTES_PER_ROW: usize = 56;
+        const SCRATCH_BYTES: usize = 256 << 20;
         let mut recompute_first_layer = self.recompute_first_layer;
         if interaction_rows >= 1 << 25 {
-            if let Ok(mut available) = sp1_gpu_cudart::cuda_pool_available_memory() {
-                // The Merkle tree is sufficient until FRI openings. Re-encode
-                // a large codeword there if keeping it would crowd out LogUp.
-                if available < interaction_rows.saturating_mul(KEEP_CODEWORD_BYTES_PER_ROW) {
+            let workspace =
+                interaction_rows.saturating_mul(LOGUP_BYTES_PER_ROW).saturating_add(SCRATCH_BYTES);
+            if let Ok(mut available) = cuda_pool_available_memory() {
+                if available < workspace {
                     if let Some(codeword) = main_data.pcs_prover_data.codeword_mle.take() {
                         let codeword_bytes = codeword.total_len() * size_of::<Felt>();
                         tracing::debug!(
@@ -690,11 +692,10 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
                             codeword_bytes,
                             "Re-encoding main codeword at FRI openings"
                         );
-                        available += codeword_bytes;
+                        available = available.saturating_add(codeword_bytes);
                     }
+                    recompute_first_layer |= available < workspace;
                 }
-                recompute_first_layer |=
-                    available < interaction_rows.saturating_mul(RETAIN_FIRST_LAYER_BYTES_PER_ROW);
             }
         }
         let logup_gkr_proof = tracing::debug_span!("logup gkr proof").in_scope(|| {
