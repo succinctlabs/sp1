@@ -28,10 +28,29 @@ Each comparison pairs the PR with main at `0cd151a8d` on the same workload. The 
 | [#3051](https://github.com/succinctlabs/sp1/pull/3051) Shared recursive trace buffers | Compressed | 3 | 39.256 s | 39.115 s | -0.4% | 14.35 GiB | 12.09 GiB |
 | [#3052](https://github.com/succinctlabs/sp1/pull/3052) LogUp device-memory budget | Core | 2 | 20.169 s | 20.083 s | -0.4% | 13.25 GiB | 13.09 GiB |
 | [#3052](https://github.com/succinctlabs/sp1/pull/3052) LogUp device-memory budget | Compressed | 2 | 39.102 s | 39.562 s | +1.2% | 14.02 GiB | 13.87 GiB |
+| [#3054](https://github.com/succinctlabs/sp1/pull/3054) Release idle allocator pages | Core | 3 | 21.072 s | 20.775 s | -1.4% | 12.68 GiB | 12.13 GiB |
+| [#3054](https://github.com/succinctlabs/sp1/pull/3054) Release idle allocator pages | Compressed | 3 | 39.465 s | 39.300 s | -0.4% | 13.70 GiB | 12.89 GiB |
 
 ## SHA-256 control for RISC-V machine reuse
 
 The initial three-session SHA-256 core comparison suggested a 34.2% reduction. Across ten alternating pairs on the same eight-shard input, core fell from 2.770 to 2.557 s (7.7%) and compressed from 4.670 to 4.415 s (5.5%). The PR was faster in all twenty pairs. Constructing the RISC-V machine took 237 ms per request. Cloning the configured machine took 0.019 ms. The original baseline varied from 6.784 to 14.963 s, and the multi-second difference did not reproduce. [All forty proofs and the construction benchmark](https://github.com/succinctlabs/sp1/pull/3046)
+
+## Additional independent candidates measured locally
+
+Build order rotated within each comparison. The first table identifies the revisions submitted for review.
+
+| Local main-branch candidate | Mode | Sessions per build | Main proof time | Candidate proof time | Main peak RSS | Candidate peak RSS |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Move local artifact bytes and share typed download snapshots | Core | 3 | 21.072 s | 21.054 s | 12.68 GiB | 12.71 GiB |
+| Move local artifact bytes and share typed download snapshots | Compressed | 3 | 39.465 s | 39.425 s | 13.70 GiB | 13.60 GiB |
+| Serialize owned and spliced trace data in bulk | Core | 3 | 21.072 s | 21.954 s | 12.68 GiB | 12.60 GiB |
+| Serialize owned and spliced trace data in bulk | Compressed | 3 | 39.465 s | 39.837 s | 13.70 GiB | 13.40 GiB |
+| Move uploaded artifact bytes into the existing map | Core | 2 | 21.355 s | 21.438 s | 12.63 GiB | 12.65 GiB |
+| Move uploaded artifact bytes into the existing map | Compressed | 2 | 39.486 s | 39.627 s | 13.78 GiB | 13.63 GiB |
+| Borrow memory reads when serializing a trace | Core | 2 | 21.355 s | 21.270 s | 12.63 GiB | 12.63 GiB |
+| Borrow memory reads when serializing a trace | Compressed | 2 | 39.486 s | 39.626 s | 13.78 GiB | 13.65 GiB |
+| Encode and decode the core trace byte vector in bulk | Core | 2 | 21.355 s | 21.013 s | 12.63 GiB | 12.81 GiB |
+| Encode and decode the core trace byte vector in bulk | Compressed | 2 | 39.486 s | 39.303 s | 13.78 GiB | 13.41 GiB |
 
 ## LogUp on two RSP shard sizes
 
