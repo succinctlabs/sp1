@@ -86,7 +86,8 @@ impl Poseidon2ByteHash {
         // This ensures inputs of different lengths that zero-pad identically still
         // produce different hashes.
         // The length is encoded as little-endian bytes and packed into field elements
-        // using the same 3-bytes-per-element scheme, supporting lengths up to 2^192.
+        // using the same 3-bytes-per-element scheme. `usize::to_le_bytes` yields 8 bytes, so
+        // the whole length always fits in the first block.
         let len_bytes = input.len().to_le_bytes();
         let mut len_block = [0u8; BYTE_BLOCK_SIZE];
         len_block[..len_bytes.len()].copy_from_slice(&len_bytes);
