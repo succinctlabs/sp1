@@ -14,7 +14,7 @@ tokio = { workspace = true }
 color-eyre = { workspace = true }
 substrate-bn = { workspace = true }
 substrate-bn-patched = { workspace = true }
-substrate-bn-substrate = { git = "https://github.com/sp1-patches/bn", rev = "2bc7d524f4e799031701dd7e31c1d7b0011cdfc4", package = "substrate-bn" }
+substrate-bn-substrate = { git = "https://github.com/sp1-patches/bn", tag = "patch-0.6.0-sp1-6.10.0-substrate-bn-r1", package = "substrate-bn" }
 
 [features]
 prove = []

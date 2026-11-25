@@ -27,4 +27,4 @@ num-bigint = "0.4.0"
 crypto-bigint = { version = "0.5.5", features = ["alloc"] }
 
 [patch.crates-io]
-crypto-bigint = { git = "https://github.com/sp1-patches/RustCrypto-bigint", rev = "802362f306944944b5b251570e3c62c745f92c71" }
+crypto-bigint = { git = "https://github.com/sp1-patches/RustCrypto-bigint", tag = "patch-0.5.5-sp1-6.10.0-r1" }

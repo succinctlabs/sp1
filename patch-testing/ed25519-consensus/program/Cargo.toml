@@ -10,7 +10,7 @@ path = "bin/zip215.rs"
 
 [dependencies]
 sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
-ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", rev = "a0d1b818e40a8ebca7f7a21821c0ea06ada66cea" }
+ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", tag = "patch-2.1.0-sp1-6.10.0-r1" }
 rand_chacha = "0.3"
 rand_core = "0.6"
 

@@ -90,7 +90,7 @@ dependencies = [
 [[package]]
 name = "bls12_381"
 version = "0.8.0"
-source = "git+https://github.com/sp1-patches/bls12_381?rev=5e6c0684642554329cc4c6c2808213f5d1adacda#5e6c0684642554329cc4c6c2808213f5d1adacda"
+source = "git+https://github.com/sp1-patches/bls12_381?tag=patch-0.8.0-sp1-6.10.0-r1#5e6c0684642554329cc4c6c2808213f5d1adacda"
 dependencies = [
  "cfg-if",
  "digest",
@@ -1232,7 +1232,7 @@ checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
 [[package]]
 name = "substrate-bn"
 version = "0.6.0"
-source = "git+https://github.com/sp1-patches/bn?rev=2bc7d524f4e799031701dd7e31c1d7b0011cdfc4#2bc7d524f4e799031701dd7e31c1d7b0011cdfc4"
+source = "git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-6.10.0-substrate-bn-r1#2bc7d524f4e799031701dd7e31c1d7b0011cdfc4"
 dependencies = [
  "bytemuck",
  "byteorder",

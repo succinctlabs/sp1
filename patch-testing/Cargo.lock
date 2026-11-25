@@ -413,7 +413,7 @@ dependencies = [
 [[package]]
 name = "bls12_381"
 version = "0.8.0"
-source = "git+https://github.com/sp1-patches/bls12_381?rev=5e6c0684642554329cc4c6c2808213f5d1adacda#5e6c0684642554329cc4c6c2808213f5d1adacda"
+source = "git+https://github.com/sp1-patches/bls12_381?tag=patch-0.8.0-sp1-6.10.0-r1#5e6c0684642554329cc4c6c2808213f5d1adacda"
 dependencies = [
  "cfg-if",
  "ff",
@@ -453,8 +453,8 @@ dependencies = [
  "sp1-test",
  "sp1-zkvm",
  "substrate-bn 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "substrate-bn 0.6.0 (git+https://github.com/sp1-patches/bn?rev=2bc7d524f4e799031701dd7e31c1d7b0011cdfc4)",
- "substrate-bn-succinct-rs 0.6.1 (git+https://github.com/sp1-patches/bn?rev=c6d3743ec76bd072e01a482bfabdd163c2b504d2)",
+ "substrate-bn 0.6.0 (git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-6.10.0-substrate-bn-r1)",
+ "substrate-bn-succinct-rs",
  "tokio",
 ]
 
@@ -463,9 +463,9 @@ name = "build-host"
 version = "1.1.0"
 dependencies = [
  "bls12_381",
- "crypto-bigint 0.5.5 (git+https://github.com/sp1-patches/RustCrypto-bigint?rev=802362f306944944b5b251570e3c62c745f92c71)",
- "curve25519-dalek 4.1.3 (git+https://github.com/sp1-patches/curve25519-dalek?rev=9fad7289094280e236796f1743a008dc081a09ba)",
- "curve25519-dalek-ng 4.1.1 (git+https://github.com/sp1-patches/curve25519-dalek-ng.git?rev=bfe4a61a64de4dcc14961fec4dfa6b3b7f95f3af)",
+ "crypto-bigint 0.5.5 (git+https://github.com/sp1-patches/RustCrypto-bigint?tag=patch-0.5.5-sp1-6.10.0-r1)",
+ "curve25519-dalek 4.1.3 (git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.10.0-r1)",
+ "curve25519-dalek-ng 4.1.1 (git+https://github.com/sp1-patches/curve25519-dalek-ng.git?tag=patch-4.1.1-sp1-6.10.0-r1)",
  "rsa 0.9.6",
  "secp256k1",
  "sha2 0.10.6",
@@ -473,10 +473,10 @@ dependencies = [
  "sha2 0.10.9 (git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.10.9-sp1-6.10.0)",
  "sha2 0.11.0",
  "sha2 0.9.9 (git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.9.9-sp1-6.10.0)",
- "sha3 0.10.8 (git+https://github.com/sp1-patches/RustCrypto-hashes?rev=39cf27640573dd613006084e825a0e558bfe5f03)",
+ "sha3 0.10.8 (git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha3-0.10.8-sp1-6.10.0-r1)",
  "sp1-lib",
  "sp1-zkvm",
- "substrate-bn-succinct-rs 0.6.1 (git+https://github.com/sp1-patches/bn?rev=c6d3743ec76bd072e01a482bfabdd163c2b504d2)",
+ "substrate-bn-succinct-rs",
  "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.10.0)",
 ]
 
@@ -909,7 +909,7 @@ dependencies = [
 [[package]]
 name = "crypto-bigint"
 version = "0.5.5"
-source = "git+https://github.com/sp1-patches/RustCrypto-bigint?rev=802362f306944944b5b251570e3c62c745f92c71#802362f306944944b5b251570e3c62c745f92c71"
+source = "git+https://github.com/sp1-patches/RustCrypto-bigint?tag=patch-0.5.5-sp1-6.10.0-r1#802362f306944944b5b251570e3c62c745f92c71"
 dependencies = [
  "rand_core 0.6.4",
  "serdect",
@@ -941,7 +941,7 @@ version = "1.1.0"
 dependencies = [
  "color-eyre",
  "curve25519-dalek 4.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "curve25519-dalek 4.1.3 (git+https://github.com/sp1-patches/curve25519-dalek?rev=9fad7289094280e236796f1743a008dc081a09ba)",
+ "curve25519-dalek 4.1.3 (git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.10.0-r1)",
  "ed25519-dalek",
  "rand 0.8.5",
  "sp1-build",
@@ -973,11 +973,11 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek"
 version = "4.1.3"
-source = "git+https://github.com/sp1-patches/curve25519-dalek?rev=9fad7289094280e236796f1743a008dc081a09ba#9fad7289094280e236796f1743a008dc081a09ba"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.10.0-r1#9fad7289094280e236796f1743a008dc081a09ba"
 dependencies = [
  "cfg-if",
  "cpufeatures 0.2.17",
- "curve25519-dalek-derive 0.1.1 (git+https://github.com/sp1-patches/curve25519-dalek?rev=9fad7289094280e236796f1743a008dc081a09ba)",
+ "curve25519-dalek-derive 0.1.1 (git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.10.0-r1)",
  "fiat-crypto",
  "rustc_version",
  "sp1-lib",
@@ -999,7 +999,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-derive"
 version = "0.1.1"
-source = "git+https://github.com/sp1-patches/curve25519-dalek?rev=9fad7289094280e236796f1743a008dc081a09ba#9fad7289094280e236796f1743a008dc081a09ba"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.10.0-r1#9fad7289094280e236796f1743a008dc081a09ba"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1012,7 +1012,7 @@ version = "1.1.0"
 dependencies = [
  "color-eyre",
  "curve25519-dalek-ng 4.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "curve25519-dalek-ng 4.1.1 (git+https://github.com/sp1-patches/curve25519-dalek-ng.git?rev=bfe4a61a64de4dcc14961fec4dfa6b3b7f95f3af)",
+ "curve25519-dalek-ng 4.1.1 (git+https://github.com/sp1-patches/curve25519-dalek-ng.git?tag=patch-4.1.1-sp1-6.10.0-r1)",
  "rand 0.8.5",
  "sp1-build",
  "sp1-core-executor",
@@ -1031,6 +1031,20 @@ dependencies = [
  "digest 0.9.0",
  "rand_core 0.6.4",
  "serde",
+ "subtle-ng",
+ "zeroize",
+]
+
+[[package]]
+name = "curve25519-dalek-ng"
+version = "4.1.1"
+source = "git+https://github.com/sp1-patches/curve25519-dalek-ng.git?tag=patch-4.1.1-sp1-6.10.0-r1#bfe4a61a64de4dcc14961fec4dfa6b3b7f95f3af"
+dependencies = [
+ "byteorder",
+ "cfg-if",
+ "digest 0.9.0",
+ "rand_core 0.6.4",
+ "sp1-lib",
  "subtle-ng",
  "zeroize",
 ]
@@ -1344,7 +1358,7 @@ dependencies = [
 [[package]]
 name = "ed25519-consensus"
 version = "2.1.0"
-source = "git+https://github.com/sp1-patches/ed25519-consensus?rev=a0d1b818e40a8ebca7f7a21821c0ea06ada66cea#a0d1b818e40a8ebca7f7a21821c0ea06ada66cea"
+source = "git+https://github.com/sp1-patches/ed25519-consensus?tag=patch-2.1.0-sp1-6.10.0-r1#a0d1b818e40a8ebca7f7a21821c0ea06ada66cea"
 dependencies = [
  "curve25519-dalek-ng 4.1.1 (git+https://github.com/sp1-patches/curve25519-dalek-ng.git?rev=bfe4a61a64de4dcc14961fec4dfa6b3b7f95f3af)",
  "hex",
@@ -1362,7 +1376,7 @@ dependencies = [
  "color-eyre",
  "curve25519-dalek-ng 4.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "ed25519-consensus 2.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "ed25519-consensus 2.1.0 (git+https://github.com/sp1-patches/ed25519-consensus?rev=a0d1b818e40a8ebca7f7a21821c0ea06ada66cea)",
+ "ed25519-consensus 2.1.0 (git+https://github.com/sp1-patches/ed25519-consensus?tag=patch-2.1.0-sp1-6.10.0-r1)",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
  "sha2 0.9.9 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3872,7 +3886,7 @@ dependencies = [
 [[package]]
 name = "rsa"
 version = "0.9.6"
-source = "git+https://github.com/sp1-patches/RustCrypto-RSA/?rev=42f7ff51ff690fbcc41933cce903e75c38c86dbe#42f7ff51ff690fbcc41933cce903e75c38c86dbe"
+source = "git+https://github.com/sp1-patches/RustCrypto-RSA/?tag=patch-0.9.6-sp1-6.10.0-r1#42f7ff51ff690fbcc41933cce903e75c38c86dbe"
 dependencies = [
  "bytemuck",
  "cfg-if",
@@ -3962,7 +3976,7 @@ version = "1.1.0"
 dependencies = [
  "color-eyre",
  "crypto-bigint 0.5.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "crypto-bigint 0.5.5 (git+https://github.com/sp1-patches/RustCrypto-bigint?rev=802362f306944944b5b251570e3c62c745f92c71)",
+ "crypto-bigint 0.5.5 (git+https://github.com/sp1-patches/RustCrypto-bigint?tag=patch-0.5.5-sp1-6.10.0-r1)",
  "num-bigint 0.4.6",
  "rand 0.8.5",
  "sp1-build",
@@ -4106,7 +4120,7 @@ dependencies = [
 [[package]]
 name = "secp256k1"
 version = "0.29.1"
-source = "git+https://github.com/sp1-patches/rust-secp256k1?rev=0ebf8527c9fd51482c603554ef1b7aca76b23709#0ebf8527c9fd51482c603554ef1b7aca76b23709"
+source = "git+https://github.com/sp1-patches/rust-secp256k1?tag=patch-0.29.1-sp1-6.10.0-r1#0ebf8527c9fd51482c603554ef1b7aca76b23709"
 dependencies = [
  "cfg-if",
  "k256 0.13.4 (git+https://github.com/sp1-patches/elliptic-curves?tag=patch-k256-13.4-sp1-6.10.0)",
@@ -4133,7 +4147,7 @@ dependencies = [
 [[package]]
 name = "secp256k1-sys"
 version = "0.10.0"
-source = "git+https://github.com/sp1-patches/rust-secp256k1?rev=0ebf8527c9fd51482c603554ef1b7aca76b23709#0ebf8527c9fd51482c603554ef1b7aca76b23709"
+source = "git+https://github.com/sp1-patches/rust-secp256k1?tag=patch-0.29.1-sp1-6.10.0-r1#0ebf8527c9fd51482c603554ef1b7aca76b23709"
 dependencies = [
  "cc",
 ]
@@ -4279,7 +4293,7 @@ dependencies = [
  "rand 0.8.5",
  "sha2 0.9.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "sha3 0.10.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "sha3 0.10.8 (git+https://github.com/sp1-patches/RustCrypto-hashes?rev=39cf27640573dd613006084e825a0e558bfe5f03)",
+ "sha3 0.10.8 (git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha3-0.10.8-sp1-6.10.0-r1)",
  "sp1-build",
  "sp1-core-executor",
  "sp1-sdk",
@@ -4383,7 +4397,7 @@ dependencies = [
 [[package]]
 name = "sha3"
 version = "0.10.8"
-source = "git+https://github.com/sp1-patches/RustCrypto-hashes?rev=39cf27640573dd613006084e825a0e558bfe5f03#39cf27640573dd613006084e825a0e558bfe5f03"
+source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha3-0.10.8-sp1-6.10.0-r1#39cf27640573dd613006084e825a0e558bfe5f03"
 dependencies = [
  "digest 0.10.7",
  "keccak",
@@ -5375,7 +5389,7 @@ dependencies = [
  "sp1-recursion-executor",
  "sp1-recursion-machine",
  "strum",
- "substrate-bn-succinct-rs 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "substrate-bn-succinct-rs",
  "thiserror 2.0.18",
 ]
 
@@ -5504,7 +5518,7 @@ dependencies = [
 [[package]]
 name = "substrate-bn"
 version = "0.6.0"
-source = "git+https://github.com/sp1-patches/bn?rev=2bc7d524f4e799031701dd7e31c1d7b0011cdfc4#2bc7d524f4e799031701dd7e31c1d7b0011cdfc4"
+source = "git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-6.10.0-substrate-bn-r1#2bc7d524f4e799031701dd7e31c1d7b0011cdfc4"
 dependencies = [
  "bytemuck",
  "byteorder",
@@ -5519,25 +5533,9 @@ dependencies = [
 
 [[package]]
 name = "substrate-bn-succinct-rs"
-version = "0.6.1"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc5ad6ccb8ae10730213d4d5bdb0a9c4ddf351210e7c6ad9c66c02f2ad0b4256"
-dependencies = [
- "bytemuck",
- "byteorder",
- "cfg-if",
- "crunchy",
- "lazy_static",
- "num-bigint 0.4.6",
- "rand 0.8.5",
- "rustc-hex",
- "sp1-lib",
-]
-
-[[package]]
-name = "substrate-bn-succinct-rs"
-version = "0.6.1"
-source = "git+https://github.com/sp1-patches/bn?rev=c6d3743ec76bd072e01a482bfabdd163c2b504d2#c6d3743ec76bd072e01a482bfabdd163c2b504d2"
+checksum = "e96045ac8bc2bc3b1dbb0d3c94adc4913d61e52400cd9ba03a8e90cc52fc1753"
 dependencies = [
  "bytemuck",
  "byteorder",

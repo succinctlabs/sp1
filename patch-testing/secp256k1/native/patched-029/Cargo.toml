@@ -15,7 +15,7 @@ default = []
 v030 = []
 
 [dependencies]
-secp256k1 = { version = "=0.29.1", git = "https://github.com/sp1-patches/rust-secp256k1", rev = "0ebf8527c9fd51482c603554ef1b7aca76b23709", features = ["recovery"] }
+secp256k1 = { version = "=0.29.1", git = "https://github.com/sp1-patches/rust-secp256k1", tag = "patch-0.29.1-sp1-6.10.0-r1", features = ["recovery"] }
 bincode = "1.3"
 
 [patch.crates-io]

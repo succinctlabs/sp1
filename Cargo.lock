@@ -1733,7 +1733,7 @@ dependencies = [
 [[package]]
 name = "bls12_381"
 version = "0.8.0"
-source = "git+https://github.com/sp1-patches/bls12_381?rev=5e6c0684642554329cc4c6c2808213f5d1adacda#5e6c0684642554329cc4c6c2808213f5d1adacda"
+source = "git+https://github.com/sp1-patches/bls12_381?tag=patch-0.8.0-sp1-6.10.0-r1#5e6c0684642554329cc4c6c2808213f5d1adacda"
 dependencies = [
  "cfg-if",
  "digest 0.10.7",
@@ -8524,7 +8524,7 @@ dependencies = [
 [[package]]
 name = "substrate-bn"
 version = "0.6.0"
-source = "git+https://github.com/sp1-patches/bn?rev=2bc7d524f4e799031701dd7e31c1d7b0011cdfc4#2bc7d524f4e799031701dd7e31c1d7b0011cdfc4"
+source = "git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-6.10.0-substrate-bn-r1#2bc7d524f4e799031701dd7e31c1d7b0011cdfc4"
 dependencies = [
  "bytemuck",
  "byteorder",
@@ -8539,9 +8539,9 @@ dependencies = [
 
 [[package]]
 name = "substrate-bn-succinct-rs"
-version = "0.6.1"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc5ad6ccb8ae10730213d4d5bdb0a9c4ddf351210e7c6ad9c66c02f2ad0b4256"
+checksum = "e96045ac8bc2bc3b1dbb0d3c94adc4913d61e52400cd9ba03a8e90cc52fc1753"
 dependencies = [
  "bytemuck",
  "byteorder",

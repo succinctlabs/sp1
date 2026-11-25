@@ -733,7 +733,7 @@ dependencies = [
 [[package]]
 name = "secp256k1"
 version = "0.30.0"
-source = "git+https://github.com/sp1-patches/rust-secp256k1?rev=046080d207a4064773cdfa609856f26f92a7ca81#046080d207a4064773cdfa609856f26f92a7ca81"
+source = "git+https://github.com/sp1-patches/rust-secp256k1?tag=patch-0.30.0-sp1-6.10.0-r1#046080d207a4064773cdfa609856f26f92a7ca81"
 dependencies = [
  "bitcoin_hashes",
  "cfg-if",
@@ -745,7 +745,7 @@ dependencies = [
 [[package]]
 name = "secp256k1-sys"
 version = "0.10.0"
-source = "git+https://github.com/sp1-patches/rust-secp256k1?rev=046080d207a4064773cdfa609856f26f92a7ca81#046080d207a4064773cdfa609856f26f92a7ca81"
+source = "git+https://github.com/sp1-patches/rust-secp256k1?tag=patch-0.30.0-sp1-6.10.0-r1#046080d207a4064773cdfa609856f26f92a7ca81"
 dependencies = [
  "cc",
 ]

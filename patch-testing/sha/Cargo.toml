@@ -15,7 +15,7 @@ sp1-test = { workspace = true }
 tokio = { workspace = true }
 color-eyre = { workspace = true }
 sha3 = { version = "=0.10.8", features = ["reset"] }
-sha3-patched = { package = "sha3", git = "https://github.com/sp1-patches/RustCrypto-hashes", rev = "39cf27640573dd613006084e825a0e558bfe5f03", features = ["reset"] }
+sha3-patched = { package = "sha3", git = "https://github.com/sp1-patches/RustCrypto-hashes", tag = "patch-sha3-0.10.8-sp1-6.10.0-r1", features = ["reset"] }
 
 [features]
 prove = []
