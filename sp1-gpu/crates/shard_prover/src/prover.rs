@@ -648,7 +648,7 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
         let preprocessed_data = &locked_preprocessed_data.preprocessed_data;
 
         // Commit to the traces.
-        let (main_commit, main_data) =
+        let (main_commit, mut main_data) =
             tracing::debug_span!("commit traces").in_scope(|| self.commit_traces(traces, false));
         // Observe the commitments.
         <GC::Challenger as CanObserve<GC::Digest>>::observe(&mut challenger, main_commit);
@@ -663,13 +663,47 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
             }
         }
 
+        // The first LogUp layer, its folded extension-field layers and the
+        // sumcheck scratch space coexist with the committed main codeword.
+        let interaction_rows: usize = shard_chips
+            .iter()
+            .map(|chip| {
+                traces.main_poly_height(chip.name()).unwrap_or(0)
+                    * (chip.sends().len() + chip.receives().len())
+            })
+            .sum();
+        // These are empirical workspace budgets in bytes per interaction row.
+        // Below 2^25 rows, keep the existing allocation policy without querying CUDA.
+        const KEEP_CODEWORD_BYTES_PER_ROW: usize = 144;
+        const RETAIN_FIRST_LAYER_BYTES_PER_ROW: usize = 112;
+        let mut recompute_first_layer = self.recompute_first_layer;
+        if interaction_rows >= 1 << 25 {
+            if let Ok(mut available) = sp1_gpu_cudart::cuda_pool_available_memory() {
+                // The Merkle tree is sufficient until FRI openings. Re-encode
+                // a large codeword there if keeping it would crowd out LogUp.
+                if available < interaction_rows.saturating_mul(KEEP_CODEWORD_BYTES_PER_ROW) {
+                    if let Some(codeword) = main_data.pcs_prover_data.codeword_mle.take() {
+                        let codeword_bytes = codeword.total_len() * size_of::<Felt>();
+                        tracing::debug!(
+                            interaction_rows,
+                            available,
+                            codeword_bytes,
+                            "Re-encoding main codeword at FRI openings"
+                        );
+                        available += codeword_bytes;
+                    }
+                }
+                recompute_first_layer |=
+                    available < interaction_rows.saturating_mul(RETAIN_FIRST_LAYER_BYTES_PER_ROW);
+            }
+        }
         let logup_gkr_proof = tracing::debug_span!("logup gkr proof").in_scope(|| {
             prove_logup_gkr::<GC, _>(
                 shard_chips,
                 self.all_interactions.clone(),
                 traces,
                 CudaLogUpGkrOptions {
-                    recompute_first_layer: self.recompute_first_layer,
+                    recompute_first_layer,
                     num_row_variables: self.max_log_row_count,
                 },
                 &mut challenger,
