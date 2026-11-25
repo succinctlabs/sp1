@@ -16,7 +16,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/backend/groth16"
 	cs "github.com/consensys/gnark/constraint/bn254"
-	"github.com/consensys/gnark/frontend"
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1/gpu"
 )
 
@@ -113,12 +112,11 @@ func ProveGroth16(dataDir string, witnessPath string) Proof {
 	if err := json.Unmarshal(data, &witnessInput); err != nil {
 		panic(err)
 	}
-	assignment := NewCircuit(witnessInput)
-	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+	witness, err := WitnessVector(witnessInput)
 	if err != nil {
 		panic(err)
 	}
-	bn254Proof, err := p.Prove(witness)
+	bn254Proof, err := p.ProveVector(witness)
 	if err != nil {
 		panic(err)
 	}

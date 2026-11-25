@@ -72,14 +72,26 @@ func NewGroth16Prover(r1cs *cs.R1CS, r io.Reader) (*Groth16Prover, error) {
 	return p, nil
 }
 
+func recoverGroth16Error(err *error) {
+	if r := recover(); r != nil {
+		*err = fmt.Errorf("gpu: %v", r)
+	}
+}
+
 // Prove computes a Groth16 proof for the given full witness.
-func (p *Groth16Prover) Prove(fullWitness witness.Witness) (proof *groth16_bn254.Proof, err error) {
+func (p *Groth16Prover) Prove(fullWitness witness.Witness) (_ *groth16_bn254.Proof, err error) {
+	defer recoverGroth16Error(&err)
+	values, ok := fullWitness.Vector().(fr.Vector)
+	if !ok {
+		return nil, fmt.Errorf("gpu: expected a BN254 witness")
+	}
+	return p.ProveVector(values)
+}
+
+// ProveVector accepts the public and secret wires in gnark witness order.
+func (p *Groth16Prover) ProveVector(fullWitness fr.Vector) (proof *groth16_bn254.Proof, err error) {
 	defer freeAll()
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("gpu: %v", r)
-		}
-	}()
+	defer recoverGroth16Error(&err)
 	pk := p.pk
 	commitmentInfo := p.r1cs.CommitmentInfo.(constraint.Groth16Commitments)
 	proof = &groth16_bn254.Proof{Commitments: make([]curve.G1Affine, len(commitmentInfo))}
@@ -113,7 +125,7 @@ func (p *Groth16Prover) Prove(fullWitness witness.Witness) (proof *groth16_bn254
 		return nil
 	})
 	defer func() { p.solver.values, p.solver.a, p.solver.b, p.solver.c = nil, nil, nil, nil }()
-	if err := p.solver.solve(fullWitness.Vector().(fr.Vector), hint); err != nil {
+	if err := p.solver.solve(fullWitness, hint); err != nil {
 		return nil, err
 	}
 	wireValues := p.solver.values

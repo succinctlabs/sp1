@@ -5,6 +5,7 @@ package sp1
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"os"
 	"runtime"
 	"runtime/debug"
@@ -68,13 +69,17 @@ func loadPlonkCudaProver(dataDir string) *plonkCudaProver {
 	return p
 }
 
-// witnessVector lays out the witness as frontend.NewWitness does for Circuit: the public inputs, then
+// WitnessVector lays out the witness as frontend.NewWitness does for Circuit: the public inputs, then
 // Vars, Felts and the limbs of Exts.
 func WitnessVector(w WitnessInput) (fr.Vector, error) {
-	strs := []string{w.VkeyHash, w.CommittedValuesDigest, w.ExitCode, w.VkRoot, w.ProofNonce}
+	strs := make([]string, 0, 5+len(w.Vars)+len(w.Felts)+4*len(w.Exts))
+	strs = append(strs, w.VkeyHash, w.CommittedValuesDigest, w.ExitCode, w.VkRoot, w.ProofNonce)
 	strs = append(strs, w.Vars...)
 	strs = append(strs, w.Felts...)
-	for _, e := range w.Exts {
+	for i, e := range w.Exts {
+		if len(e) != 4 {
+			return nil, fmt.Errorf("extension witness %d has %d limbs, expected 4", i, len(e))
+		}
 		strs = append(strs, e...)
 	}
 	v := make(fr.Vector, len(strs))
