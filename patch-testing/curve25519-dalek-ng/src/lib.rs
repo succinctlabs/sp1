@@ -1,54 +1,50 @@
-#[sp1_test::sp1_test("curve25519_ng_decompress", syscalls = [ED_DECOMPRESS], prove)]
+#[sp1_test::sp1_test("curve25519_ng_encoding", syscalls = [ED_DECOMPRESS], prove)]
 fn test_decompressed_noncanonical(
-    _stdin: &mut sp1_sdk::SP1Stdin,
+    stdin: &mut sp1_sdk::SP1Stdin,
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     use curve25519_dalek_ng::edwards::CompressedEdwardsY;
 
-    // non-canonical point
-    let mut bytes: [u8; 32] = [255; 32];
-    bytes[0] = 253;
-    bytes[31] = 127;
-    let compressed = CompressedEdwardsY(bytes);
-    println!("{:?}", compressed.decompress());
-
-    // y = 0 with sign off
-    let bytes: [u8; 32] = [0; 32];
-    let compressed = CompressedEdwardsY(bytes);
-    println!("{:?}", compressed.decompress());
-
-    // y = 0 with sign on
-    let mut bytes: [u8; 32] = [0; 32];
-    bytes[31] = 128;
-    let compressed = CompressedEdwardsY(bytes);
-    println!("{:?}", compressed.decompress());
-
-    // x = 0 with sign off
-    let mut bytes: [u8; 32] = [0; 32];
-    bytes[0] = 1;
-    let compressed = CompressedEdwardsY(bytes);
-    println!("{:?}", compressed.decompress());
-
-    // x = 0 with sign on
-    let mut bytes: [u8; 32] = [0; 32];
-    bytes[0] = 1;
-    bytes[31] = 128;
-    let compressed = CompressedEdwardsY(bytes);
-    println!("{:?}", compressed.decompress());
-
-    // x = 0 with sign off
-    let mut bytes: [u8; 32] = [255u8; 32];
-    bytes[0] = 255 - 19;
-    bytes[31] = 127;
-    let compressed = CompressedEdwardsY(bytes);
-    println!("{:?}", compressed.decompress());
-
-    // x = 0 with sign on
-    let mut bytes: [u8; 32] = [255u8; 32];
-    bytes[0] = 255 - 19;
-    let compressed = CompressedEdwardsY(bytes);
-    println!("{:?}", compressed.decompress());
-
-    move |_| {}
+    let mut inputs = Vec::new();
+    for noncanonical in [false, true] {
+        for offset in 0..19u8 {
+            for sign in [0u8, 0x80] {
+                let mut bytes = if noncanonical { [255; 32] } else { [0; 32] };
+                bytes[0] = if noncanonical { 237 + offset } else { offset };
+                bytes[31] = if noncanonical { 0x7f | sign } else { sign };
+                inputs.push(bytes);
+            }
+        }
+    }
+    // Include the upper canonical boundary and both signs of its zero X.
+    for sign in [0u8, 0x80] {
+        let mut bytes = [255; 32];
+        bytes[0] = 236;
+        bytes[31] = 0x7f | sign;
+        inputs.push(bytes);
+    }
+    let expected: Vec<_> = inputs
+        .iter()
+        .map(|bytes| {
+            CompressedEdwardsY(*bytes).decompress().map(|point| point.compress().to_bytes())
+        })
+        .collect();
+    let native_patched: Vec<_> = inputs
+        .iter()
+        .map(|bytes| {
+            curve25519_dalek_ng_patched::edwards::CompressedEdwardsY(*bytes)
+                .decompress()
+                .map(|point| point.compress().to_bytes())
+        })
+        .collect();
+    assert_eq!(native_patched, expected);
+    assert_eq!(expected[38..76].iter().filter(|point| point.is_some()).count(), 24);
+    assert_eq!(&expected[..38], &expected[38..76]);
+    stdin.write(&inputs);
+    move |mut public| {
+        for point in expected {
+            assert_eq!(public.read::<Option<[u8; 32]>>(), point);
+        }
+    }
 }
 
 #[sp1_test::sp1_test("curve25519_ng_add_then_multiply", syscalls = [ED_ADD, ED_DECOMPRESS], prove)]

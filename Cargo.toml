@@ -246,7 +246,6 @@ blake3 = { version = "1.6.1", default-features = false }
 bytes = "1.10.1"
 cargo_metadata = "0.18.1"
 cfg-if = "1.0.3"
-chrono = { version = "0.4.38", default-features = false }
 clap = "4.5.9"
 crash-handler = "0.7.0"
 critical-section = "1.2.0"
@@ -319,6 +318,7 @@ sysinfo = "0.30.13"
 target-lexicon = "0.12.15"
 tempfile = "3.10.1"
 thiserror = "1.0"
+time = { version = "0.3.47", features = ["formatting", "macros"] }
 tiny-keccak = "2.0.2"
 tokio = { version = "1.42.0", default-features = false }
 tonic = { version = "0.14.6", features = ["tls-ring"] }

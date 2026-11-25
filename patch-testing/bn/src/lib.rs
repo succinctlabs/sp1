@@ -446,3 +446,125 @@ pub fn test_bn_test_g1_double_100(
 pub fn test_field_checks(_: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     |mut public| assert!(public.read::<bool>())
 }
+
+include!("../program/affine_conversions.rs");
+include!("../program/g2_validation.rs");
+
+// Expected guest panics use the same execution pattern as invalid-hint tests.
+#[tokio::test]
+async fn test_g2_conversion_rejects_invalid_points() {
+    use sp1_sdk::{include_elf, Elf, Prover, SP1Stdin};
+    use substrate_bn::{AffineG2, Fq, Fq2, Group, GroupError, G2};
+
+    sp1_test::setup().await;
+    const ELF: Elf = include_elf!("bn_test_g2_validation");
+    let client = sp1_test::sp1_cpu_prover().await;
+    let wrong_subgroup = (0..100)
+        .find_map(|i| {
+            let x = Fq2::new(Fq::from_str(&i.to_string()).unwrap(), Fq::one());
+            let y = (x * x * x + G2::b()).sqrt()?;
+            matches!(AffineG2::new(x, y), Err(GroupError::NotInSubgroup)).then_some((x, y))
+        })
+        .expect("a curve point outside the subgroup");
+    let generator = G2::one();
+    let cases = [
+        (Fq2::zero(), Fq2::zero()),
+        // The affine infinity sentinel is invalid when used as a finite point.
+        (Fq2::zero(), Fq2::one()),
+        wrong_subgroup,
+        (generator.x(), generator.y()),
+    ];
+
+    for (case, (x, y)) in cases.into_iter().enumerate() {
+        let mut coordinates = [[0u8; 32]; 4];
+        for (value, bytes) in
+            [x.real(), x.imaginary(), y.real(), y.imaginary()].into_iter().zip(&mut coordinates)
+        {
+            value.to_big_endian(bytes).unwrap();
+        }
+        for scaled in [false, true] {
+            let original = validation_point!(substrate_bn, coordinates, scaled);
+            let original = AffineG2::from_jacobian(original).unwrap();
+            let checked = AffineG2::new(original.x(), original.y());
+            match case {
+                0 | 1 => assert!(matches!(checked, Err(GroupError::NotOnCurve))),
+                2 => assert!(matches!(checked, Err(GroupError::NotInSubgroup))),
+                _ => assert!(checked.is_ok()),
+            }
+            macro_rules! check_native {
+                ($bn:ident) => {{
+                    let point = validation_point!($bn, coordinates, scaled);
+                    let result = std::panic::catch_unwind(|| $bn::AffineG2::from(point));
+                    if case == 3 {
+                        assert!(result.is_ok());
+                    } else {
+                        let panic = result.err().expect("invalid finite point must panic");
+                        let message = panic.downcast_ref::<String>().expect("validation panic");
+                        assert!(
+                            message.contains("G2 point must be on the curve and in the subgroup")
+                        );
+                        assert!(message.contains(if case == 2 {
+                            "NotInSubgroup"
+                        } else {
+                            "NotOnCurve"
+                        }));
+                    }
+                }};
+            }
+            check_native!(substrate_bn_patched);
+            check_native!(substrate_bn_substrate);
+
+            for substrate in [false, true] {
+                let mut stdin = SP1Stdin::new();
+                stdin.write(&substrate);
+                stdin.write(&coordinates);
+                stdin.write(&scaled);
+                let (public, report) = client.execute(ELF, stdin).await.unwrap();
+                assert_eq!(report.exit_code, if case == 3 { 0 } else { 1 });
+                let markers: &[u8] = if case == 3 { &[1, 2] } else { &[1] };
+                assert_eq!(public.as_slice(), markers);
+            }
+        }
+    }
+}
+
+#[sp1_test::sp1_test("bn_test_affine_conversions", syscalls = [BN254_FP_MUL], gpu, prove)]
+pub fn test_affine_conversions(_: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+    use substrate_bn::{AffineG1, AffineG2, Fq, Fr, Group, G1, G2};
+
+    let mut expected = Vec::new();
+    for scalar in [
+        Fr::from_str("2").unwrap(),
+        Fr::zero(),
+        Fr::one(),
+        Fr::from_str("3").unwrap(),
+        Fr::from_str("17").unwrap(),
+        Fr::from_str("1337").unwrap(),
+        -Fr::one(),
+    ] {
+        // Upstream affine types do not represent the identity.
+        let (x1, y1) = AffineG1::from_jacobian(G1::one() * scalar)
+            .map(|p| (p.x(), p.y()))
+            .unwrap_or((Fq::zero(), Fq::one()));
+        let (x20, x21, y20, y21) = AffineG2::from_jacobian(G2::one() * scalar)
+            .map(|p| (p.x().real(), p.x().imaginary(), p.y().real(), p.y().imaginary()))
+            .unwrap_or((Fq::zero(), Fq::zero(), Fq::one(), Fq::zero()));
+        let mut encoded = vec![0u8; 192];
+        for (coordinate, bytes) in
+            [x1, y1, x20, x21, y20, y21].into_iter().zip(encoded.chunks_mut(32))
+        {
+            coordinate.to_big_endian(bytes).unwrap();
+        }
+        expected.push(encoded);
+    }
+
+    let native_succinct = check_conversions!(substrate_bn_patched);
+    let native_substrate = check_conversions!(substrate_bn_substrate);
+    assert_eq!(native_succinct, expected);
+    assert_eq!(native_substrate, expected);
+
+    move |mut public| {
+        assert_eq!(public.read::<Vec<Vec<u8>>>(), native_succinct);
+        assert_eq!(public.read::<Vec<Vec<u8>>>(), native_substrate);
+    }
+}

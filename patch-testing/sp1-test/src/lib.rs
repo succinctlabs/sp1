@@ -61,6 +61,8 @@ pub async fn setup() {
         .get_or_init(|| async {
             #[cfg(tokio_unstable)]
             console_subscriber::init();
+            #[cfg(not(tokio_unstable))]
+            sp1_sdk::utils::setup_logger();
         })
         .await;
 }

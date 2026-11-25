@@ -1,0 +1,19 @@
+[workspace]
+
+[package]
+name = "secp-native-original-029"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "secp-native-original-029"
+path = "../main.rs"
+
+[features]
+default = []
+v030 = []
+
+[dependencies]
+secp256k1 = { version = "=0.29.1", features = ["recovery"] }
+bincode = "1.3"

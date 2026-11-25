@@ -1,6 +1,7 @@
 use sp1_build::BuildArgs;
 
 fn main() {
+    println!("cargo:rerun-if-changed=program/xof_cases.rs");
     sp1_build::build_program_with_args(
         "./program",
         BuildArgs { features: vec!["v0-9-9".to_string()], ..Default::default() },

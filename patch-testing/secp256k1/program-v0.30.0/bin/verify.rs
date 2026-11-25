@@ -1,7 +1,7 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use secp256k1::{ecdsa::Signature, Message, PublicKey};
+use secp256k1::{ecdsa::Signature, Error, Message, PublicKey};
 
 pub fn main() {
     let times = sp1_zkvm::io::read::<u8>();
@@ -20,5 +20,11 @@ fn inner_verify() -> bool {
     let pubkey = sp1_zkvm::io::read::<PublicKey>();
     let secp = secp256k1::Secp256k1::new();
 
-    secp.verify_ecdsa(&message, &signature, &pubkey).is_ok()
+    match secp.verify_ecdsa(&message, &signature, &pubkey) {
+        Ok(()) => true,
+        Err(error) => {
+            assert_eq!(error, Error::IncorrectSignature);
+            false
+        }
+    }
 }

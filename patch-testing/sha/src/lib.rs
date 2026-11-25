@@ -1,8 +1,65 @@
 #[cfg(test)]
+#[path = "../program/xof_cases.rs"]
+mod xof_cases;
+
+#[cfg(test)]
+mod patched_xof_cases {
+    use sha3_patched as sha3;
+    include!("../program/xof_cases.rs");
+}
+
+#[cfg(test)]
 mod tests {
     use sha2::Digest;
     use sp1_sdk::SP1PublicValues;
     use sp1_test::sp1_test;
+
+    fn assert_xof_outputs(actual: Vec<Vec<u8>>, expected: &[Vec<u8>]) {
+        assert_eq!(actual.len(), expected.len());
+        for (index, (actual, expected)) in actual.iter().zip(expected).enumerate() {
+            assert_eq!(actual, expected, "XOF case {index}");
+        }
+    }
+
+    #[sp1_test("keccak256", syscalls = [KECCAK_PERMUTE], gpu, prove)]
+    fn test_keccak256_precompile(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(SP1PublicValues) {
+        use sha3::Digest;
+
+        let lengths = [0, 1, 135, 136, 137, 271, 272, 273, 1024];
+        stdin.write(&lengths.len());
+        let expected: Vec<[u8; 32]> = lengths
+            .into_iter()
+            .map(|len| {
+                let input: Vec<u8> = (0..len).map(|i| i as u8).collect();
+                let original: [u8; 32] = sha3::Keccak256::digest(&input).into();
+                let patched: [u8; 32] = sha3_patched::Keccak256::digest(&input).into();
+                assert_eq!(patched, original);
+                stdin.write_slice(&input);
+                original
+            })
+            .collect();
+        move |mut public| {
+            for digest in expected {
+                assert_eq!(public.read::<[u8; 32]>(), digest);
+            }
+        }
+    }
+
+    #[sp1_test("turbo_shake", gpu, prove)]
+    fn test_turbo_shake_boundaries(_: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(SP1PublicValues) {
+        let expected = super::xof_cases::turbo_shake_cases();
+        assert_eq!(expected.len(), 576);
+        assert_xof_outputs(super::patched_xof_cases::turbo_shake_cases(), &expected);
+        move |mut public| assert_xof_outputs(public.read::<Vec<Vec<u8>>>(), &expected)
+    }
+
+    #[sp1_test("shake_xof", syscalls = [KECCAK_PERMUTE], gpu, prove)]
+    fn test_shake_xof_boundaries(_: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(SP1PublicValues) {
+        let expected = super::xof_cases::shake_cases();
+        assert_eq!(expected.len(), 144);
+        assert_xof_outputs(super::patched_xof_cases::shake_cases(), &expected);
+        move |mut public| assert_xof_outputs(public.read::<Vec<Vec<u8>>>(), &expected)
+    }
 
     #[sp1_test("sha2_v0_9_9", syscalls = [SHA_COMPRESS, SHA_EXTEND], gpu, prove)]
     fn test_sha2_v0_9_9_expected_digest_lte_100_times(

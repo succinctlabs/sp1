@@ -1,5 +1,9 @@
 # Patch Testing
 
+Run `bash ./fetch-patch-deps.sh` from this directory to fetch the pinned patch commits and dependencies for the host tests, guest programs and native secp256k1 references.
+
+The secp256k1 native references are separate Cargo projects under `secp256k1/native`. They compare exact original crate versions with the same patch commits used by the guests. Their lockfiles are checked in and their build outputs stay under Cargo's build directory. They do not need local patch checkouts.
+
 Patch tests are done by creating a bin per test case, which is then used to autogenerate a harness to run as regular tests.
 
 A single package (a member of a workspace) can contain multiple bins, and you can name the bins in the Cargo.toml.

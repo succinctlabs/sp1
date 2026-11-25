@@ -1,11 +1,12 @@
 use std::path::{Path, PathBuf};
 
 use cargo_metadata::Metadata;
-use chrono::Local;
+use time::{macros::format_description, OffsetDateTime};
 
 pub(crate) fn current_datetime() -> String {
-    let now = Local::now();
-    now.format("%Y-%m-%d %H:%M:%S").to_string()
+    let now = OffsetDateTime::now_local().unwrap_or_else(|_| OffsetDateTime::now_utc());
+    now.format(format_description!("[year]-[month]-[day] [hour]:[minute]:[second]"))
+        .expect("local date and time contain all timestamp components")
 }
 
 /// Re-run the cargo command if the Cargo.toml or Cargo.lock file changes.
@@ -28,15 +29,13 @@ pub(crate) fn cargo_rerun_if_changed(metadata: &Metadata, program_dir: &Path) {
     // workspace, this will be the program's Cargo.lock.
     println!("cargo:rerun-if-changed={}", metadata.workspace_root.join("Cargo.lock").as_str());
 
-    // Re-run if any local dependency changes.
+    // Watch resolved local packages, including crates redirected by [patch].
     for package in &metadata.packages {
-        for dependency in &package.dependencies {
-            if let Some(path) = &dependency.path {
-                for path in
-                    paths_excluding(path.as_std_path(), metadata.target_directory.as_std_path())
-                {
-                    println!("cargo:rerun-if-changed={}", path.display());
-                }
+        if package.source.is_none() {
+            let path = package.manifest_path.parent().unwrap();
+            for path in paths_excluding(path.as_std_path(), metadata.target_directory.as_std_path())
+            {
+                println!("cargo:rerun-if-changed={}", path.display());
             }
         }
     }

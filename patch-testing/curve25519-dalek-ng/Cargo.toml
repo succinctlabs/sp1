@@ -13,6 +13,8 @@ tokio = { workspace = true }
 color-eyre = { workspace = true }
 rand = { workspace = true }
 
+curve25519-dalek-ng-patched = { package = "curve25519-dalek-ng", git = "https://github.com/sp1-patches/curve25519-dalek-ng.git", tag = "patch-4.1.1-sp1-6.10.0-r1", default-features = false, features = ["u32_backend", "alloc"] }
+
 [features]
 prove = []
 gpu = ["sp1-sdk/cuda"]

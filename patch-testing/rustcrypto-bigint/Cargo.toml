@@ -12,7 +12,10 @@ rand = { workspace = true }
 sp1-test = { workspace = true }
 tokio = { workspace = true }
 color-eyre = { workspace = true }
-crypto-bigint = { workspace = true }
+crypto-bigint = { workspace = true, features = ["alloc"] }
+crypto-bigint-patched = { git = "https://github.com/sp1-patches/RustCrypto-bigint", tag = "patch-0.5.5-sp1-6.10.0-r1", package = "crypto-bigint", features = ["alloc"] }
+
+num-bigint = "0.4"
 
 [features]
 prove = []
