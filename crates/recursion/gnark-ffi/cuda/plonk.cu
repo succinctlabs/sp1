@@ -348,6 +348,13 @@ int sp1_qap_rows(void* a, void* b, void* c, const void* values, const void* coef
   return err();
 }
 
+int sp1_free_memory(uint64_t* bytes) {
+  size_t available = 0, total = 0;
+  auto result = cudaMemGetInfo(&available, &total);
+  *bytes = available;
+  return (int)result;
+}
+
 // Large buffers are not taken from the stream-ordered pool, whose caching costs gigabytes at these sizes.
 int sp1_malloc(void** ptr, uint64_t size, void*) { return (int)cudaMalloc(ptr, size); }
 

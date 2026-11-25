@@ -281,15 +281,13 @@ func (p *PlonkProver) uploadSrs(d *device) {
 // waitUploads makes the work queued after it wait for the uploads started so far.
 func (p *PlonkProver) waitUploads() { after(nil, p.copyStream, p.uploaded) }
 
-// hostBuffers page-locks the host memory that device buffers are moved to, once.
-func (p *PlonkProver) hostBuffers() {
-	if p.hostG[0] != nil {
-		return
+// hostBuffer allocates a pinned coset only when the device cannot hold it.
+func (p *PlonkProver) hostBuffer(i int) []fr.Element {
+	if p.hostG[i] == nil {
+		p.hostG[i] = make([]fr.Element, p.n)
+		pin(p.hostG[i])
 	}
-	for k := range p.hostG {
-		p.hostG[k] = make([]fr.Element, p.n)
-		pin(p.hostG[k])
-	}
+	return p.hostG[i]
 }
 
 func (p *PlonkProver) dropSrs(d *device) {
@@ -448,18 +446,24 @@ func (p *PlonkProver) prove(d *device, wWitness fr.Vector) (*plonk_bn254.Proof, 
 		return nil, err
 	}
 
-	// The quotient needs the memory the SRS and z take.
+	// Five coset buffers and the three quotient chunks can stay on larger devices.
+	// Leave room for the sparse selector overrides and temporary CUDA allocations.
 	p.dropSrs(d)
-	z.free()
-	p.hostBuffers()
+	if freeMemory() < uint64(5*n)*fr.Bytes+(256<<20) {
+		// The third spill buffer is idle until that coset has been evaluated.
+		d2h(unsafe.Pointer(&p.hostBuffer(2)[0]), z, n*fr.Bytes)
+		z.free()
+		z = dvec{}
+	}
 	qk := make([]fr.Element, len(p.qkPos))
 	copy(qk, public)
 	qk[len(public)] = commitmentVal
-	h := p.quotient(d, piVals, qk, bp, alpha, beta, gamma)
+	h := p.quotient(d, z, piVals, qk, bp, alpha, beta, gamma)
 
-	// Committing to h needs the circuit state only to recompute z.
-	z = alloc(n + 3)
-	p.zCanonical(d, z, beta, gamma)
+	if z.p == nil {
+		z = alloc(n + 3)
+		p.zCanonical(d, z, beta, gamma)
+	}
 	d.dropState()
 	p.uploadSrs(d)
 	p.waitUploads()
@@ -598,7 +602,7 @@ func (p *PlonkProver) commitPi(vals []fr.Element) curve.G1Affine {
 }
 
 // quotient returns the coefficients of h on the device; gnark's h1, h2, h3 are its chunks of n+2.
-func (p *PlonkProver) quotient(d *device, piVals, qk []fr.Element, bp blinding, alpha, beta, gamma fr.Element) dvec {
+func (p *PlonkProver) quotient(d *device, z dvec, piVals, qk []fr.Element, bp blinding, alpha, beta, gamma fr.Element) dvec {
 	n := p.n
 	var nInv, one fr.Element
 	one.SetOne()
@@ -613,6 +617,16 @@ func (p *PlonkProver) quotient(d *device, piVals, qk []fr.Element, bp blinding, 
 	w4Inv.Inverse(&w4)
 	uNInv.Inverse(&uN)
 
+	var h dvec
+	var saved [3]dvec
+	const reserve = 256 << 20
+	if free := freeMemory(); free >= uint64(3*n+8)*fr.Bytes+reserve {
+		h = alloc(3*n + 8)
+	} else if free > reserve {
+		for i := range min(len(saved), int((free-reserve)/(uint64(n)*fr.Bytes))) {
+			saved[i] = alloc(n)
+		}
+	}
 	var weights [4][4]fr.Element
 	for k := 0; k < 4; k++ {
 		c := p.cosets[k]
@@ -646,7 +660,7 @@ func (p *PlonkProver) quotient(d *device, piVals, qk []fr.Element, bp blinding, 
 		lro(y, 1, bp.r)
 		lro(t, 2, bp.o)
 		sel(sv, 0, nil)
-		if k > 0 {
+		if h.p == nil && k > 0 {
 			after(nil, p.copyStream, p.copyDone)
 		}
 		vmul(a, sv, x, n)
@@ -675,8 +689,16 @@ func (p *PlonkProver) quotient(d *device, piVals, qk []fr.Element, bp blinding, 
 		sigma(sv, 0)
 		permS(y, t, sv, n, beta, gamma, false)
 
-		p.zCanonical(d, sv, beta, gamma)
-		p.cosetEval(d, sv, sv, k)
+		if z.p != nil {
+			p.cosetEval(d, sv, z, k)
+		} else {
+			if k < len(p.hostG) {
+				h2dElements(sv, p.hostG[2])
+			} else {
+				p.zCanonical(d, sv, beta, gamma)
+			}
+			p.cosetEval(d, sv, sv, k)
+		}
 		blind(sv, bp.z)
 		var a2l1 fr.Element
 		a2l1.Square(&alpha).Mul(&a2l1, &cn1).Mul(&a2l1, &nInv)
@@ -703,21 +725,36 @@ func (p *PlonkProver) quotient(d *device, piVals, qk []fr.Element, bp blinding, 
 			weights[k][t] = w
 			uPow.Mul(&uPow, &uNInv)
 		}
-		if k < 3 {
-			after(p.copyStream, nil, p.computeDone)
-			d2hAsync(unsafe.Pointer(&p.hostG[k][0]), a, n*fr.Bytes, p.copyStream)
+		if h.p != nil {
+			hAccum(h, a, n, d.tabCInv[k], weights[k], k == 0)
+		} else if k < len(saved) {
+			if saved[k].p != nil {
+				a, saved[k] = saved[k], a
+			} else {
+				after(p.copyStream, nil, p.computeDone)
+				d2hAsync(unsafe.Pointer(&p.hostBuffer(k)[0]), a, n*fr.Bytes, p.copyStream)
+			}
 		}
 	}
 	for _, b := range []dvec{x, y, t, sv} {
 		b.free()
 	}
 
-	syncStream(p.copyStream)
-	h := alloc(3*n + 8)
-	hAccum(h, a, n, d.tabCInv[3], weights[3], true)
-	for k := 0; k < 3; k++ {
-		h2d(a, unsafe.Pointer(&p.hostG[k][0]), n*fr.Bytes)
-		hAccum(h, a, n, d.tabCInv[k], weights[k], false)
+	if h.p == nil {
+		syncStream(p.copyStream)
+		h = alloc(3*n + 8)
+		hAccum(h, a, n, d.tabCInv[3], weights[3], true)
+		for k := 0; k < 3; k++ {
+			src := saved[k]
+			if src.p == nil {
+				h2d(a, unsafe.Pointer(&p.hostG[k][0]), n*fr.Bytes)
+				src = a
+			}
+			hAccum(h, src, n, d.tabCInv[k], weights[k], false)
+			if saved[k].p != nil {
+				saved[k].free()
+			}
+		}
 	}
 	a.free()
 	return h

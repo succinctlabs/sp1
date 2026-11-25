@@ -72,6 +72,12 @@ func qapRows(v [3]dvec, s *levelSolver, n int) {
 	}
 }
 
+func freeMemory() uint64 {
+	var size C.uint64_t
+	check(C.sp1_free_memory(&size), "mem_get_info")
+	return uint64(size)
+}
+
 func alloc(n int) dvec { return allocBytes(n*fr.Bytes, n) }
 
 func (d dvec) free() {

@@ -83,6 +83,7 @@ int sp1_fr_expand(void* dst, const uint16_t* idx, const sp1_fr* table, uint32_t 
 // Materialize Groth16 QAP rows from the checked witness and packed R1CS terms.
 int sp1_qap_rows(void* a, void* b, void* c, const void* values, const void* coeffs, const uint8_t* terms,
                  const uint32_t* starts, uint32_t width, uint32_t coeff_bits, uint32_t rows, uint32_t n);
+int sp1_free_memory(uint64_t* bytes);
 int sp1_malloc(void** ptr, uint64_t size, void* stream);
 int sp1_free(void* ptr, void* stream);
 int sp1_host_register(void* ptr, uint64_t size);
