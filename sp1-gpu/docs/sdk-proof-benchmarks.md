@@ -157,6 +157,15 @@ Three rotated pairs per build measured each candidate at the same input and shar
 | Upload the sequential and GKR dispatch tables once per zero-check round | Core | 6.854 s / 7.33 GiB | 6.848 s / 7.36 GiB |
 | Upload the sequential and GKR dispatch tables once per zero-check round | Compressed | 9.735 s / 7.46 GiB | 9.582 s / 7.44 GiB |
 
+### When to generate the CPU trace rows
+
+Three rotated sets on eight-shard Fibonacci compared the revised device budget, separate host admission, and generating the rows after host admission. The third build collects byte lookups in the dependency pass and generates each trace when the GPU trace pipeline requests it.
+
+| Mode | Revised budget | Separate host admission | Separate admission and generate rows later |
+| --- | ---: | ---: | ---: |
+| Core | 6.138 s / 7.35 GiB | 5.859 s / 7.33 GiB | 5.739 s / 6.96 GiB |
+| Compressed | 8.774 s / 7.45 GiB | 7.740 s / 7.40 GiB | 7.579 s / 6.99 GiB |
+
 ### Core worker and Rayon settings
 
 The same installed revised-budget binary ran three rotated sessions per mode at each setting. The machine has 16 physical cores and 32 logical CPUs.
