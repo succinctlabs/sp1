@@ -30,6 +30,7 @@ type levelSolver struct {
 
 	wires    []uint32
 	sel      [5]selector
+	coeffInv []fr.Element
 	n        int
 	mappings []constraint.HintMapping
 
@@ -71,6 +72,7 @@ const (
 func newSolver(spr *cs.SparseR1CS, wires []uint32, sel [5]selector) (*levelSolver, error) {
 	s := newLevelSolver(spr)
 	s.wires, s.sel, s.n = wires, sel, len(wires)/3
+	s.coeffInv = fr.BatchInvert(s.Coefficients)
 	row := uint32(len(spr.Public))
 	var c constraint.SparseR1C
 	err := s.compile(func(inst constraint.PackedInstruction, b constraint.Blueprint) (uint32, error) {
@@ -420,12 +422,16 @@ func (s *levelSolver) solveGate(w, j int) error {
 		if s.solved[xa] {
 			x, y, qx, qy = xb, xa, qr, ql
 		}
-		den := term(qm, y)
-		den.Add(&den, &s.Coefficients[qx])
+		var den fr.Element
+		if qm == constraint.CoeffIdZero {
+			den = s.coeffInv[qx]
+		} else {
+			den = term(qm, y)
+			den.Add(&den, &s.Coefficients[qx]).Inverse(&den)
+		}
 		if den.IsZero() {
 			return errors.New("division by 0")
 		}
-		den.Inverse(&den)
 		num, o := term(qy, y), term(qo, xc)
 		num.Add(&num, &o).Add(&num, &s.Coefficients[qc]).Mul(&num, &den).Neg(&num)
 		s.set(w, int(x), num)
@@ -437,11 +443,11 @@ func (s *levelSolver) solveGate(w, j int) error {
 		case constraint.CoeffIdOne:
 			o.Neg(&o)
 		default:
-			var den fr.Element
-			if den.Inverse(&s.Coefficients[qo]); den.IsZero() {
+			den := &s.coeffInv[qo]
+			if den.IsZero() {
 				return errors.New("division by 0")
 			}
-			o.Mul(&o, &den).Neg(&o)
+			o.Mul(&o, den).Neg(&o)
 		}
 		s.set(w, int(xc), o)
 	default:
