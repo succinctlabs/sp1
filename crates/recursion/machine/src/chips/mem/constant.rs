@@ -4,7 +4,7 @@ use slop_air::{Air, BaseAir, PairBuilder};
 use slop_algebra::PrimeField32;
 use slop_matrix::Matrix;
 use sp1_derive::AlignedBorrow;
-use sp1_hypercube::{air::MachineAir, next_multiple_of_32};
+use sp1_hypercube::{air::MachineAir, pad_rows_recursion};
 use sp1_recursion_executor::{
     Block, ExecutionRecord, Instruction, MemAccessKind, MemInstr, RecursionProgram,
 };
@@ -84,7 +84,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryConstChip<F> {
         instrs_len: usize,
     ) -> Option<usize> {
         let height = program.shape.as_ref().and_then(|shape| shape.height(self));
-        Some(next_multiple_of_32(instrs_len, height))
+        Some(pad_rows_recursion(instrs_len, height))
     }
 
     fn generate_preprocessed_trace_into(
@@ -146,7 +146,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryConstChip<F> {
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
         let height = input.program.shape.as_ref().and_then(|shape| shape.height(self));
         let num_rows = input.mem_const_count.div_ceil(NUM_CONST_MEM_ENTRIES_PER_ROW);
-        let padded_nb_rows = next_multiple_of_32(num_rows, height);
+        let padded_nb_rows = pad_rows_recursion(num_rows, height);
         Some(padded_nb_rows)
     }
 

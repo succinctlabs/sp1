@@ -1,3 +1,4 @@
+use crate::utils::pad_rows_core;
 use core::{
     borrow::{Borrow, BorrowMut},
     mem::{size_of, MaybeUninit},
@@ -31,7 +32,6 @@ use crate::{
         LtOperationUnsignedInput, MulOperation, MulOperationInput, U16MSBOperation,
         U16MSBOperationInput,
     },
-    utils::next_multiple_of_32,
     SupervisorMode, TrustMode, UserMode,
 };
 
@@ -223,8 +223,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for DivRemChip<M> {
         if input.program.enable_untrusted_programs == M::IS_TRUSTED {
             return Some(0);
         }
-        let nb_rows =
-            next_multiple_of_32(input.divrem_events.len(), input.fixed_log2_rows::<F, _>(self));
+        let nb_rows = pad_rows_core(input.divrem_events.len());
         Some(nb_rows)
     }
 

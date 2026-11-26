@@ -4,7 +4,7 @@ use slop_algebra::{Field, PrimeField32};
 use slop_matrix::Matrix;
 use slop_maybe_rayon::prelude::{IndexedParallelIterator, ParallelIterator, ParallelSliceMut};
 use sp1_derive::AlignedBorrow;
-use sp1_hypercube::{air::MachineAir, next_multiple_of_32};
+use sp1_hypercube::{air::MachineAir, pad_rows_recursion};
 use sp1_primitives::SP1Field;
 use sp1_recursion_executor::{
     Address, ExecutionRecord, Instruction, RecursionProgram, SelectInstr, SelectIo,
@@ -72,7 +72,7 @@ impl<F: PrimeField32> MachineAir<F> for SelectChip {
         instrs_len: usize,
     ) -> Option<usize> {
         let height = program.shape.as_ref().and_then(|shape| shape.height(self));
-        Some(next_multiple_of_32(instrs_len, height))
+        Some(pad_rows_recursion(instrs_len, height))
     }
 
     fn generate_preprocessed_trace_into(
@@ -133,7 +133,7 @@ impl<F: PrimeField32> MachineAir<F> for SelectChip {
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
         let height = input.program.shape.as_ref().and_then(|shape| shape.height(self));
         let events = &input.select_events;
-        Some(next_multiple_of_32(events.len(), height))
+        Some(pad_rows_recursion(events.len(), height))
     }
 
     fn generate_trace_into(

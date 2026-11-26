@@ -1,8 +1,8 @@
 use super::ShaExtendControlChip;
+use crate::utils::pad_rows_core;
 use crate::{
     air::SP1CoreAirBuilder,
     operations::{AddrAddOperation, AddressSlicePageProtOperation, SyscallAddrOperation},
-    utils::next_multiple_of_32,
     SupervisorMode, TrustMode, UserMode,
 };
 use core::borrow::Borrow;
@@ -78,8 +78,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for ShaExtendControlChip<M> {
             return Some(0);
         }
         let nb_rows = input.get_precompile_events(SyscallCode::SHA_EXTEND).len();
-        let size_log2 = input.fixed_log2_rows::<F, _>(self);
-        let padded_nb_rows = next_multiple_of_32(nb_rows, size_log2);
+        let padded_nb_rows = pad_rows_core(nb_rows);
         Some(padded_nb_rows)
     }
 
