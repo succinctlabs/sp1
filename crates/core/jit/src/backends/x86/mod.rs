@@ -890,6 +890,38 @@ impl TranspilerBackend {
         }
     }
 
+    fn end_jalr(&mut self, jump_target: Option<u64>) {
+        self.branch_generated = true;
+        if self.may_early_exit {
+            self.exit_if_trace_exceeds(self.max_trace_size);
+        }
+
+        if let Some(target_pc) = jump_target {
+            if let Some(label) = self.label_for_pc(target_pc) {
+                // A compile-time register value may be stale when JALR is a jump target.
+                // Only use its direct jump if it agrees with the runtime PC.
+                if target_pc as i64 == (target_pc as i32) as i64 {
+                    dynasm! {
+                        self;
+                        .arch x64;
+                        cmp rax, target_pc as i32;
+                        je =>label
+                    }
+                } else {
+                    do_load_imm_var!(self, TEMP_A, target_pc);
+                    dynasm! {
+                        self;
+                        .arch x64;
+                        cmp rax, Rq(TEMP_A);
+                        je =>label
+                    }
+                }
+            }
+        }
+
+        self.jump_to_pc();
+    }
+
     fn end_branch(&mut self, jump_target: Option<u64>) {
         self.branch_generated = true;
 

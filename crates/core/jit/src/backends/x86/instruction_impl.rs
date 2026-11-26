@@ -803,14 +803,15 @@ impl ControlFlowInstructions for TranspilerBackend {
         // ------------------------------------
         // 2. Update PC value
         // ------------------------------------
-        self.emit_risc_operand_load(rs1.into(), TEMP_A);
+        // Keep the runtime target in RAX through the clock and trace checks.
+        self.emit_risc_operand_load(rs1.into(), Rq::RAX as u8);
         dynasm! {
             self;
             .arch x64;
 
-            add Rq(TEMP_A), imm as i32;
-            and Rq(TEMP_A), -2;
-            mov QWORD [Rq(CONTEXT) + PC_OFFSET], Rq(TEMP_A)
+            add rax, imm as i32;
+            and rax, -2;
+            mov QWORD [Rq(CONTEXT) + PC_OFFSET], rax
         }
 
         // ------------------------------------
@@ -822,7 +823,7 @@ impl ControlFlowInstructions for TranspilerBackend {
         // Add the base amount of cycles for the instruction.
         self.bump_clk();
 
-        self.end_branch(jump_target);
+        self.end_jalr(jump_target);
     }
 
     fn beq(&mut self, rs1: RiscRegister, rs2: RiscRegister, imm: u64) {

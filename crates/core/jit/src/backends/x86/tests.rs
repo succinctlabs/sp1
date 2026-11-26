@@ -928,6 +928,55 @@ mod control_flow {
     }
 
     #[test]
+    fn test_jalr_wide_cached_target() {
+        const PC_BASE: u64 = 0x2_0000_0000;
+
+        for skip_auipc in [true, false] {
+            let mut backend =
+                TranspilerBackend::new(9, 1024 * 2, 1000, PC_BASE, PC_BASE, 8).unwrap();
+
+            backend.start_instr();
+            backend.auipc(RiscRegister::X5, 0);
+            backend.end_instr();
+            backend.start_instr();
+            if skip_auipc {
+                backend.beq(RiscRegister::X0, RiscRegister::X0, 8);
+            } else {
+                backend.bne(RiscRegister::X0, RiscRegister::X0, 8);
+            }
+            backend.end_instr();
+            backend.start_instr();
+            backend.auipc(RiscRegister::X5, 0);
+            backend.end_instr();
+            backend.start_instr();
+            backend.jalr(RiscRegister::X5, RiscRegister::X5, 16);
+            backend.end_instr();
+            backend.start_instr();
+            backend.add(RiscRegister::X7, RiscOperand::Immediate(1), RiscOperand::Immediate(0));
+            backend.end_instr();
+            backend.start_instr();
+            backend.jal(RiscRegister::X0, 12);
+            backend.end_instr();
+            backend.start_instr();
+            backend.add(RiscRegister::X7, RiscOperand::Immediate(2), RiscOperand::Immediate(0));
+            backend.end_instr();
+            backend.start_instr();
+            backend.add(RiscRegister::X8, RiscOperand::Immediate(0), RiscOperand::Immediate(0));
+            backend.end_instr();
+            backend.start_instr();
+            if skip_auipc {
+                backend.inspect_register(RiscRegister::X7, assert_register_is!(1));
+            } else {
+                backend.inspect_register(RiscRegister::X7, assert_register_is!(2));
+            }
+            backend.inspect_register(RiscRegister::X5, assert_register_is!(0x2_0000_0010));
+            backend.end_instr();
+
+            run_test(backend);
+        }
+    }
+
+    #[test]
     fn test_set_pc() {
         let mut backend = new_backend();
 
