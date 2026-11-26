@@ -1,3 +1,11 @@
+#[sp1_test::sp1_test("bigint_test_mul_wide_u128", syscalls = [UINT256_MUL], prove)]
+pub fn test_bigint_mul_wide_u128(
+    stdin: &mut sp1_sdk::SP1Stdin,
+) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+    stdin.write(&(1u128 << 64, 1u128 << 64));
+    |mut public| assert_eq!(public.read::<[u64; 4]>(), [0, 0, 1, 0])
+}
+
 #[sp1_test::sp1_test("bigint_test_mul_mod_special", syscalls = [UINT256_MUL], gpu, prove)]
 pub fn test_bigint_mul_mod_special(
     stdin: &mut sp1_sdk::SP1Stdin,
