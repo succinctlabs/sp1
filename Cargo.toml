@@ -316,7 +316,7 @@ subenum = "1.1.2"
 syn = "1.0"
 sysinfo = "0.30.13"
 target-lexicon = "0.12.15"
-tempfile = "3.10.1"
+tempfile = "3.20.0"
 thiserror = "1.0"
 time = { version = "0.3.47", features = ["formatting", "macros"] }
 tiny-keccak = "2.0.2"
