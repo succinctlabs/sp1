@@ -25,12 +25,15 @@ namespace {
 constexpr uint32_t SECTION_SIZE = 512;
 constexpr uint32_t BLOCK_DIM = SECTION_SIZE / 2;
 
-// Apply `h.div_ceil(4) * 2` element-wise. Pure inline so the compiler folds
-// it into the load.
-__device__ __forceinline__ uint32_t fold_transform(uint32_t h) {
-    return ((h + 3u) / 4u) * 2u;
+template <unsigned FOLDS>
+__device__ __forceinline__ uint32_t fold_transform(uint32_t height) {
+    static_assert(FOLDS == 1 || FOLDS == 2);
+    // One fold gives 2*ceil(h/4); applying it twice gives 2*ceil(h/8).
+    constexpr uint32_t GROUP_SIZE = 1u << (FOLDS + 1);
+    return ((height + GROUP_SIZE - 1) / GROUP_SIZE) * 2u;
 }
 
+template <bool SINGLE_BLOCK, unsigned FOLDS>
 __global__ void jaggedFoldMetadata(
     const uint32_t* __restrict__ column_heights,
     uint32_t n_columns,
@@ -45,7 +48,11 @@ __global__ void jaggedFoldMetadata(
     // alone doesn't give us that).
     __shared__ uint32_t bid_s;
     if (threadIdx.x == 0) {
-        bid_s = atomicAdd(block_counter, 1u);
+        if constexpr (SINGLE_BLOCK) {
+            bid_s = 0;
+        } else {
+            bid_s = atomicAdd(block_counter, 1u);
+        }
     }
     __syncthreads();
     const uint32_t bid = bid_s;
@@ -60,8 +67,8 @@ __global__ void jaggedFoldMetadata(
     // transformed values are the inputs to the scan AND the output of
     // `new_column_heights`.
     __shared__ uint32_t aux[SECTION_SIZE];
-    uint32_t h0 = (i0 < n_columns) ? fold_transform(column_heights[i0]) : 0u;
-    uint32_t h1 = (i1 < n_columns) ? fold_transform(column_heights[i1]) : 0u;
+    uint32_t h0 = (i0 < n_columns) ? fold_transform<FOLDS>(column_heights[i0]) : 0u;
+    uint32_t h1 = (i1 < n_columns) ? fold_transform<FOLDS>(column_heights[i1]) : 0u;
     if (i0 < n_columns) {
         new_column_heights[i0] = h0;
     }
@@ -94,12 +101,16 @@ __global__ void jaggedFoldMetadata(
     // proceed.
     __shared__ uint32_t previous_sum;
     if (tid == 0) {
-        while (atomicAdd(&flags[bid], 0u) == 0u) {
+        if constexpr (SINGLE_BLOCK) {
+            previous_sum = 0;
+        } else {
+            while (atomicAdd(&flags[bid], 0u) == 0u) {
+            }
+            previous_sum = scan_values[bid];
+            scan_values[bid + 1u] = aux[SECTION_SIZE - 1u] + previous_sum;
+            __threadfence();
+            atomicAdd(&flags[bid + 1u], 1u);
         }
-        previous_sum = scan_values[bid];
-        scan_values[bid + 1u] = aux[SECTION_SIZE - 1u] + previous_sum;
-        __threadfence();
-        atomicAdd(&flags[bid + 1u], 1u);
     }
     __syncthreads();
 
@@ -120,7 +131,7 @@ __global__ void jaggedFoldMetadata(
 }  // namespace
 
 extern "C" void* jagged_fold_metadata_kernel() {
-    return (void*)jaggedFoldMetadata;
+    return (void*)jaggedFoldMetadata<false, 1>;
 }
 
 extern "C" uint32_t jagged_fold_metadata_block_dim() {
@@ -129,4 +140,11 @@ extern "C" uint32_t jagged_fold_metadata_block_dim() {
 
 extern "C" uint32_t jagged_fold_metadata_section_size() {
     return SECTION_SIZE;
+}
+
+extern "C" void* jagged_fold_metadata_specialized_kernel(uint32_t folds, bool single) {
+    if (folds == 2) {
+        return single ? (void*)jaggedFoldMetadata<true, 2> : (void*)jaggedFoldMetadata<false, 2>;
+    }
+    return single ? (void*)jaggedFoldMetadata<true, 1> : (void*)jaggedFoldMetadata<false, 1>;
 }

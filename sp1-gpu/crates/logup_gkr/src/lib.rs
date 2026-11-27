@@ -47,6 +47,7 @@ fn prove_materialized_round<C: FieldChallenger<Felt>>(
     numerator_eval: Ext,
     denominator_eval: Ext,
     challenger: &mut C,
+    heights: &[Option<usize>],
 ) -> LogupGkrRoundProof<Ext> {
     let lambda = challenger.sample_ext_element::<Ext>();
     let claim = numerator_eval * lambda + denominator_eval;
@@ -70,8 +71,12 @@ fn prove_materialized_round<C: FieldChallenger<Felt>>(
     };
 
     // Produce the sumcheck proof.
-    let (sumcheck_proof, openings) =
-        sumcheck::materialized_round_sumcheck(sumcheck_poly, challenger, claim);
+    let (sumcheck_proof, openings) = sumcheck::materialized_round_sumcheck_with_heights(
+        sumcheck_poly,
+        challenger,
+        claim,
+        heights,
+    );
     let [numerator_0, numerator_1, denominator_0, denominator_1] = openings.try_into().unwrap();
 
     LogupGkrRoundProof { numerator_0, numerator_1, denominator_0, denominator_1, sumcheck_proof }
@@ -83,6 +88,7 @@ fn prove_first_round<C: FieldChallenger<Felt>>(
     numerator_eval: Ext,
     denominator_eval: Ext,
     challenger: &mut C,
+    heights: &[Option<usize>],
 ) -> LogupGkrRoundProof<Ext> {
     let lambda = challenger.sample_ext_element::<Ext>();
     let claim = numerator_eval * lambda + denominator_eval;
@@ -101,7 +107,7 @@ fn prove_first_round<C: FieldChallenger<Felt>>(
 
     // Produce the sumcheck proof.
     let (sumcheck_proof, openings) =
-        sumcheck::first_round_sumcheck(sumcheck_poly, challenger, claim);
+        sumcheck::first_round_sumcheck_with_heights(sumcheck_poly, challenger, claim, heights);
     let [numerator_0, numerator_1, denominator_0, denominator_1] = openings.try_into().unwrap();
     LogupGkrRoundProof { numerator_0, numerator_1, denominator_0, denominator_1, sumcheck_proof }
 }
@@ -113,6 +119,17 @@ pub fn prove_round<'a, C: FieldChallenger<Felt>>(
     denominator_eval: Ext,
     challenger: &mut C,
 ) -> LogupGkrRoundProof<Ext> {
+    prove_round_with_heights(circuit, eval_point, numerator_eval, denominator_eval, challenger, &[])
+}
+
+fn prove_round_with_heights<'a, C: FieldChallenger<Felt>>(
+    circuit: GkrCircuitLayer<'a>,
+    eval_point: &Point<Ext>,
+    numerator_eval: Ext,
+    denominator_eval: Ext,
+    challenger: &mut C,
+    heights: &[Option<usize>],
+) -> LogupGkrRoundProof<Ext> {
     match circuit {
         GkrCircuitLayer::Materialized(layer) => prove_materialized_round(
             layer,
@@ -120,10 +137,16 @@ pub fn prove_round<'a, C: FieldChallenger<Felt>>(
             numerator_eval,
             denominator_eval,
             challenger,
+            heights,
         ),
-        GkrCircuitLayer::FirstLayer(layer) => {
-            prove_first_round(layer, eval_point, numerator_eval, denominator_eval, challenger)
-        }
+        GkrCircuitLayer::FirstLayer(layer) => prove_first_round(
+            layer,
+            eval_point,
+            numerator_eval,
+            denominator_eval,
+            challenger,
+            heights,
+        ),
         GkrCircuitLayer::FirstLayerVirtual(_) => unreachable!(),
     }
 }
@@ -138,6 +161,16 @@ pub fn prove_gkr_circuit<'a, C: FieldChallenger<Felt>>(
     challenger: &mut C,
     recompute_first_layer: bool,
 ) -> (Point<Ext>, Vec<LogupGkrRoundProof<Ext>>) {
+    // Generation and restriction apply the same height recurrence to each column.
+    // Reuse the measured sizes; metadata itself is still computed on the GPU.
+    let mut heights = Vec::new();
+    for layer in &circuit.materialized_layers {
+        if let GkrCircuitLayer::Materialized(layer) = layer {
+            let depth = layer.num_row_variables as usize;
+            heights.resize(heights.len().max(depth + 1), None);
+            heights[depth] = Some(layer.jagged_mle.dense_data.height);
+        }
+    }
     let mut round_proofs = Vec::new();
     // Follow the GKR protocol layer by layer.
     let mut numerator_eval = numerator_value;
@@ -145,8 +178,14 @@ pub fn prove_gkr_circuit<'a, C: FieldChallenger<Felt>>(
     let mut eval_point = eval_point;
     while let Some(layer) = circuit.next(recompute_first_layer) {
         // Generate the round proof.
-        let round_proof =
-            prove_round(layer, &eval_point, numerator_eval, denominator_eval, challenger);
+        let round_proof = prove_round_with_heights(
+            layer,
+            &eval_point,
+            numerator_eval,
+            denominator_eval,
+            challenger,
+            &heights,
+        );
 
         // Observe the prover message.
         challenger.observe_ext_element::<Ext>(round_proof.numerator_0);

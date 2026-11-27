@@ -34,3 +34,7 @@
 extern "C" void* jagged_fold_metadata_kernel();
 extern "C" uint32_t jagged_fold_metadata_block_dim();
 extern "C" uint32_t jagged_fold_metadata_section_size();
+
+// folds must be 1 or 2. single requires a one-block launch and allows null
+// block_counter, flags, and scan_values pointers (no bookkeeping is accessed).
+extern "C" void* jagged_fold_metadata_specialized_kernel(uint32_t folds, bool single);
