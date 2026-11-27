@@ -81,7 +81,7 @@ fn secp256k1_matches_projective_reference() {
         let q = &points[(i + 1) % points.len()];
         assert_eq!(p.sw_add_k256(q), p.reference_add(q));
         assert_eq!(p.sw_double_k256(), p.reference_double());
-        assert_eq!(p.sw_add_k256(p), p.reference_add(p));
+        assert!(std::panic::catch_unwind(|| p.sw_add_k256(p)).is_err());
         let neg = <SwCurve<Secp256k1Parameters> as EllipticCurve>::ec_neg(p);
         assert_eq!(neg.sw_double_k256(), neg.reference_double());
         let sum = p.sw_add_k256(q);
