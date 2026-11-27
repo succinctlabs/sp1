@@ -5,7 +5,8 @@ use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{prover::ProverSemaphore, Machine};
 use sp1_primitives::SP1Field;
 use sp1_prover_types::{
-    ArtifactClient, ArtifactType, InMemoryArtifactClient, ProofArtifacts, TaskStatus, TaskType,
+    ArtifactClient, ArtifactType, InMemoryArtifactClient, ProofArtifacts, SerializableRiscvMachine,
+    TaskStatus, TaskType,
 };
 use tokio::{sync::mpsc, task::JoinSet};
 use tracing::Instrument;
@@ -163,7 +164,12 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                 while let Some((task_id, request)) = execute_rx.recv().await {
                     let span = tracing::debug_span!("CoreExecute", proof_id = %request.context.proof_id, task_id = %task_id);
                     let proof_id = request.context.proof_id.clone();
-                    match crate::worker::CoreExecuteTaskRequest::from_raw(request.clone()) {
+                    // Local requests originate from this node's configured machine.
+                    let req = crate::worker::CoreExecuteTaskRequest::from_raw_with_machine(
+                        request,
+                        |SerializableRiscvMachine| worker.controller().verifier.core.machine().clone(),
+                    );
+                    match req {
                         Ok(req) => {
                             if let Err(e) =
                                 worker.controller().execute(task_id.clone(), req).instrument(span).await

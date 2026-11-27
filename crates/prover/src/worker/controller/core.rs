@@ -81,6 +81,13 @@ pub struct CoreExecuteTaskRequest {
 
 impl CoreExecuteTaskRequest {
     pub fn from_raw(request: RawTaskRequest) -> Result<Self, TaskError> {
+        Self::from_raw_with_machine(request, Into::into)
+    }
+
+    pub(crate) fn from_raw_with_machine(
+        request: RawTaskRequest,
+        resolve_machine: impl FnOnce(SerializableRiscvMachine) -> Machine<SP1Field, RiscvAir<SP1Field>>,
+    ) -> Result<Self, TaskError> {
         let RawTaskRequest { inputs, outputs, context } = request;
         let [elf, stdin, common_input, metadata] = inputs
             .try_into()
@@ -100,7 +107,7 @@ impl CoreExecuteTaskRequest {
             num_deferred_proofs,
             cycle_limit,
             context,
-            machine: machine.into(),
+            machine: resolve_machine(machine),
             stdin_private,
         })
     }
