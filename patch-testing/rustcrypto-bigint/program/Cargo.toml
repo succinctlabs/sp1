@@ -5,6 +5,10 @@ version = "0.1.0"
 edition = "2021"
 
 [[bin]]
+name = "bigint_test_mul_wide_u128"
+path = "bin/mul_wide_u128.rs"
+
+[[bin]]
 name = "bigint_test_mul_mod_special"
 path = "bin/mul_mod_special.rs"
 
@@ -27,4 +31,4 @@ num-bigint = "0.4.0"
 crypto-bigint = { version = "0.5.5", features = ["alloc"] }
 
 [patch.crates-io]
-crypto-bigint = { git = "https://github.com/sp1-patches/RustCrypto-bigint", tag = "patch-0.5.5-sp1-6.10.0-r1" }
+crypto-bigint = { git = "https://github.com/sp1-patches/RustCrypto-bigint", tag = "patch-0.5.5-sp1-6.10.0-r2" }
