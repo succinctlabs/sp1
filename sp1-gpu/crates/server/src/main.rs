@@ -5,6 +5,13 @@ use tikv_jemallocator::Jemalloc;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
+// jemalloc reads this C string before main. Release the short-lived trace pages between stages.
+#[cfg(all(target_os = "linux", target_env = "gnu"))]
+#[export_name = "_rjem_malloc_conf"]
+static JEMALLOC_CONF: &u8 =
+    &c"narenas:8,background_thread:true,dirty_decay_ms:250,muzzy_decay_ms:250".to_bytes_with_nul()
+        [0];
+
 use clap::Parser;
 use server::Server;
 use sp1_gpu_cudart::run_in_place;
