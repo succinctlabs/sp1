@@ -40,8 +40,8 @@ impl<T: DeviceCopy> DeviceBuffer<T> {
     ///
     /// # Safety
     ///
-    /// The memory being copied to might be pinned, so the copy will not block. Therefore, the
-    /// caller must ensure that the source buffer lives long enough for the copy to complete.
+    /// The device buffer must contain initialized values of type `T`. On success, the
+    /// stream has finished writing them to `dst`, including when `dst` is pinned.
     pub unsafe fn copy_to_host_slice(&self, dst: &mut [MaybeUninit<T>]) -> Result<(), CopyError> {
         self.buf.copy_into_host(dst)
     }
@@ -79,8 +79,7 @@ impl<T: DeviceCopy> DeviceBuffer<T> {
     pub fn to_host(&self) -> Result<Vec<T>, CopyError> {
         let len = self.buf.len();
         let mut host_vec = Vec::with_capacity(len);
-        // Safety: The memory being allocated is not pinned, so the copy will block until completed.
-        // After copying, we set the length since the copy has initialized the memory.
+        // Safety: A successful copy initializes all `len` elements before returning.
         unsafe {
             self.copy_to_host_slice(host_vec.spare_capacity_mut())?;
             host_vec.set_len(len);
@@ -106,12 +105,12 @@ impl<T: DeviceCopy> DeviceBuffer<T> {
 
     #[allow(clippy::ptr_arg)]
     pub fn extend_from_vec(&mut self, host_data: &Vec<T>) -> Result<(), CopyError> {
-        // Safety: The memory being copied from is not pinned, so the copy will block until completed.
+        // Safety: TaskScope completes the copy while the host data is borrowed.
         unsafe { self.extend_from_host_slice(host_data) }
     }
 
     pub fn extend(&mut self, host_data: &Buffer<T>) -> Result<(), CopyError> {
-        // Safety: The memory being copied from is not pinned, so the copy will block until completed.
+        // Safety: TaskScope completes the copy while the host data is borrowed.
         unsafe { self.extend_from_host_slice(host_data) }
     }
 
@@ -125,7 +124,7 @@ impl<T: DeviceCopy> DeviceBuffer<T> {
     /// Creates a DeviceBuffer by copying data from a host slice.
     pub fn from_host_slice(host_slice: &[T], scope: &TaskScope) -> Result<Self, CopyError> {
         let mut device_buf = Self::with_capacity_in(host_slice.len(), scope.clone());
-        // Safety: The memory being copied from is not pinned, so the copy will block until completed.
+        // Safety: TaskScope completes the copy while the host data is borrowed.
         unsafe { device_buf.extend_from_host_slice(host_slice)? };
         Ok(device_buf)
     }
