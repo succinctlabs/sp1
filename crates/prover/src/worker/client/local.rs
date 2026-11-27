@@ -123,23 +123,36 @@ impl LocalWorkerClient {
 
         status_tx.send(status).map_err(|_| anyhow::anyhow!("failed to send status to task"))?;
 
-        if matches!(
-            status,
-            TaskStatus::Succeeded | TaskStatus::FailedFatal | TaskStatus::FailedRetryable
-        ) {
+        if matches!(status, TaskStatus::Succeeded | TaskStatus::FailedFatal) {
             self.inner.task_channels.write().await.remove(&task_id);
         }
 
         Ok(())
     }
 
-    /// Re-submits a retryable task, with bounded attempts per logical task. Returns
-    /// `Ok(None)` once the retry budget is exhausted.
+    async fn enqueue_task(
+        &self,
+        kind: TaskType,
+        task_id: TaskId,
+        task: RawTaskRequest,
+    ) -> anyhow::Result<()> {
+        self.inner.input_task_queues[&kind]
+            .send((task_id, task))
+            .await
+            .map_err(|e| anyhow::anyhow!("failed to send task of kind {:?} to queue: {e}", kind))
+    }
+
+    /// Re-submits a retryable task under its original `TaskId`, with bounded attempts per logical
+    /// task. Returns `Ok(None)` once the retry budget is exhausted.
     pub async fn resubmit_task(
         &self,
+        task_id: TaskId,
         kind: TaskType,
         task: RawTaskRequest,
     ) -> anyhow::Result<Option<TaskId>> {
+        if !self.inner.db.read().await.contains_key(&task_id) {
+            anyhow::bail!("task {task_id} does not exist");
+        }
         let key = format!(
             "{}:{}:{}",
             task.context.proof_id,
@@ -154,7 +167,8 @@ impl LocalWorkerClient {
             }
             *count += 1;
         }
-        self.submit_task(kind, task).await.map(Some)
+        self.enqueue_task(kind, task_id.clone(), task).await?;
+        Ok(Some(task_id))
     }
 
     /// Delete the artifacts a completed proof leaked - whatever is still tracked
@@ -211,10 +225,7 @@ impl WorkerClient for LocalWorkerClient {
         let (tx, rx) = watch::channel(TaskStatus::Pending);
         self.inner.db.write().await.insert(task_id.clone(), (tx, rx));
         // Send the task to the input queue.
-        self.inner.input_task_queues[&kind]
-            .send((task_id.clone(), task))
-            .await
-            .map_err(|e| anyhow::anyhow!("failed to send task of kind {:?} to queue: {e}", kind))?;
+        self.enqueue_task(kind, task_id.clone(), task).await?;
         Ok(task_id)
     }
 
@@ -471,5 +482,92 @@ mod tests {
                 "leaked artifact not deleted after proof {i}"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn resubmit_task_preserves_task_id_and_completes_wait_task() {
+        let (client, mut channels) = LocalWorkerClient::init();
+        let shard_rx = channels.task_receivers.get_mut(&TaskType::ProveShard).unwrap();
+
+        let proof_id = ProofId::new("proof-resubmit");
+        let output = Artifact("shard-out".to_string());
+        let request = RawTaskRequest {
+            inputs: vec![],
+            outputs: vec![output],
+            context: TaskContext {
+                proof_id: proof_id.clone(),
+                parent_id: None,
+                parent_context: None,
+                requester_id: RequesterId::new("test"),
+            },
+        };
+
+        let task_id = client.submit_task(TaskType::ProveShard, request).await.unwrap();
+        let (initial_id, initial_req) = shard_rx.recv().await.unwrap();
+        assert_eq!(initial_id, task_id);
+
+        let subscriber = client.subscriber(proof_id.clone()).await.unwrap().per_task();
+        let wait_handle = tokio::spawn({
+            let subscriber = subscriber.clone();
+            let task_id = task_id.clone();
+            async move { subscriber.wait_task(task_id).await }
+        });
+
+        let mut msg_rx = client.subscribe_task_messages(&task_id).await.unwrap();
+        let retried_id =
+            client.resubmit_task(task_id.clone(), TaskType::ProveShard, initial_req).await.unwrap();
+        assert_eq!(retried_id, Some(task_id.clone()));
+
+        let (queued_id, _) = shard_rx.recv().await.unwrap();
+        assert_eq!(queued_id, task_id);
+
+        client.send_task_message(&task_id, b"progress".to_vec()).await.unwrap();
+        assert_eq!(msg_rx.recv().await.unwrap(), b"progress");
+
+        client
+            .complete_task(proof_id, task_id.clone(), TaskMetadata { gpu_ms: None })
+            .await
+            .unwrap();
+
+        let status = tokio::time::timeout(std::time::Duration::from_secs(2), wait_handle)
+            .await
+            .expect("wait_task timed out after resubmit_task")
+            .unwrap()
+            .unwrap();
+        assert_eq!(status, TaskStatus::Succeeded);
+    }
+
+    #[tokio::test]
+    async fn resubmit_task_enforces_retry_budget() {
+        let (client, mut channels) = LocalWorkerClient::init();
+        let shard_rx = channels.task_receivers.get_mut(&TaskType::ProveShard).unwrap();
+
+        let proof_id = ProofId::new("proof-budget");
+        let request = RawTaskRequest {
+            inputs: vec![],
+            outputs: vec![Artifact("shard-out".to_string())],
+            context: TaskContext {
+                proof_id: proof_id.clone(),
+                parent_id: None,
+                parent_context: None,
+                requester_id: RequesterId::new("test"),
+            },
+        };
+
+        let task_id = client.submit_task(TaskType::ProveShard, request).await.unwrap();
+        let (_, mut req) = shard_rx.recv().await.unwrap();
+
+        for _ in 0..MAX_LOCAL_TASK_RETRIES {
+            let retried =
+                client.resubmit_task(task_id.clone(), TaskType::ProveShard, req).await.unwrap();
+            assert_eq!(retried, Some(task_id.clone()));
+            let (queued_id, next_req) = shard_rx.recv().await.unwrap();
+            assert_eq!(queued_id, task_id);
+            req = next_req;
+        }
+
+        let exhausted =
+            client.resubmit_task(task_id.clone(), TaskType::ProveShard, req).await.unwrap();
+        assert_eq!(exhausted, None);
     }
 }

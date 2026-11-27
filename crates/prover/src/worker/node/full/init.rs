@@ -663,7 +663,7 @@ impl TaskOutput {
             }
             TaskStatus::FailedRetryable => {
                 let task = task_data.unwrap();
-                match worker_client.resubmit_task(task_type, task).await {
+                match worker_client.resubmit_task(task_id.clone(), task_type, task).await {
                     Ok(Some(_)) => {}
                     Ok(None) => {
                         tracing::error!(
