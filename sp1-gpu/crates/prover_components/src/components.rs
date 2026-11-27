@@ -1,6 +1,5 @@
 use std::{collections::BTreeMap, sync::Arc};
 
-use sp1_gpu_air::ir::DagBuilder;
 use sp1_gpu_challenger::{DuplexChallenger, MultiField32Challenger};
 use sp1_gpu_cudart::{PinnedBuffer, TaskScope};
 
@@ -12,8 +11,7 @@ use sp1_core_machine::riscv::RiscvAir;
 use sp1_gpu_basefold::FriCudaProver;
 use sp1_gpu_merkle_tree::{CudaTcsProver, Poseidon2Bn254CudaProver, Poseidon2SP1Field16CudaProver};
 use sp1_gpu_shard_prover::{CudaShardProver, CudaShardProverComponents};
-use sp1_gpu_tracegen::CudaTracegenAir;
-use sp1_hypercube::{air::MachineAir, prover::ZerocheckAir, SP1InnerPcs, SP1OuterPcs, SP1SC};
+use sp1_hypercube::{air::MachineAir, SP1InnerPcs, SP1OuterPcs, SP1SC};
 use sp1_primitives::{SP1ExtensionField, SP1Field, SP1GlobalContext, SP1OuterGlobalContext};
 use sp1_prover::{CompressAir, ReadyWrapProverBuilder, SP1ProverComponents, WrapAir};
 
@@ -56,6 +54,14 @@ impl CudaShardProverComponents<SP1OuterGlobalContext> for CudaProverWrapComponen
     type DeviceChallenger = MultiField32Challenger<SP1Field, Bn254Fr, TaskScope>;
 }
 
+pub(crate) type TraceBuffers = Arc<WorkerQueue<PinnedBuffer<SP1Field>>>;
+
+pub(crate) fn trace_buffers(capacity: usize, workers: usize) -> TraceBuffers {
+    Arc::new(WorkerQueue::new(
+        (0..workers).map(|_| PinnedBuffer::with_capacity(capacity)).collect(),
+    ))
+}
+
 pub async fn new_cuda_prover<GC, PC>(
     verifier: &sp1_hypercube::MachineVerifier<GC, SP1SC<GC, PC::Air>>,
     max_trace_size: usize,
@@ -68,10 +74,31 @@ where
     GC: IopCtx<F = SP1Field, EF = SP1ExtensionField>,
     PC: CudaShardProverComponents<GC>,
     PC::P: CudaTcsProver<GC>,
-    PC::Air: CudaTracegenAir<GC::F>
-        + for<'a> slop_air::Air<DagBuilder<'a>>
-        + ZerocheckAir<GC::F, GC::EF>
-        + std::fmt::Debug,
+    PC::Air: std::fmt::Debug,
+{
+    new_cuda_prover_with_buffers(
+        verifier,
+        max_trace_size,
+        trace_buffers(max_trace_size, num_workers),
+        recompute_first_layer,
+        drop_ldes,
+        scope,
+    )
+}
+
+pub(crate) fn new_cuda_prover_with_buffers<GC, PC>(
+    verifier: &sp1_hypercube::MachineVerifier<GC, SP1SC<GC, PC::Air>>,
+    max_trace_size: usize,
+    trace_buffers: TraceBuffers,
+    recompute_first_layer: bool,
+    drop_ldes: bool,
+    scope: TaskScope,
+) -> CudaShardProver<GC, PC>
+where
+    GC: IopCtx<F = SP1Field, EF = SP1ExtensionField>,
+    PC: CudaShardProverComponents<GC>,
+    PC::P: CudaTcsProver<GC>,
+    PC::Air: std::fmt::Debug,
 {
     let machine = verifier.machine().clone();
 
@@ -96,13 +123,6 @@ where
         all_interactions.insert(chip.name().to_string(), Arc::new(device_interactions));
     }
 
-    let mut trace_buffers = Vec::with_capacity(num_workers);
-    for _ in 0..num_workers {
-        let pinned_buffer = PinnedBuffer::<GC::F>::with_capacity(max_trace_size);
-        trace_buffers.push(pinned_buffer);
-    }
-
-    let trace_buffers = Arc::new(WorkerQueue::new(trace_buffers));
     CudaShardProver::<GC, PC>::new(
         trace_buffers,
         max_log_row_count as u32,
