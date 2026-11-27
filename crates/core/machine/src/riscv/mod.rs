@@ -2169,6 +2169,34 @@ pub mod tests {
     }
 
     #[tokio::test]
+    async fn test_jalr_skipped_auipc_prove() {
+        setup_logger();
+
+        // At PC 4, x29 = 4. The branch skips the AUIPC at PC 12, so JALR at
+        // PC 16 must jump to PC 20. The skipped AUIPC would set x29 = 12.
+        // If the JIT uses that value when compiling JALR, it jumps to PC 28
+        // while the runtime PC still says 20. The wrong path skips the only
+        // load, so the prover cannot replay the required memory read.
+        let mut instructions = vec![
+            Instruction::new(Opcode::LUI, 28, 0x10000, 0x10000, true, true), // PC 0
+            Instruction::new(Opcode::AUIPC, 29, 0, 0, true, true),           // PC 4
+            Instruction::new(Opcode::BEQ, 0, 0, 8, false, true),             // PC 8 -> 16
+            Instruction::new(Opcode::AUIPC, 29, 0, 0, true, true),           // PC 12, skipped
+            Instruction::new(Opcode::JALR, 0, 29, 16, false, true),          // PC 16 -> 20
+            Instruction::new(Opcode::LD, 30, 28, 0, false, true),            // PC 20, correct
+            Instruction::new(Opcode::JAL, 0, 12, 0, true, true),             // PC 24 -> 36
+            Instruction::new(Opcode::JAL, 0, 8, 0, true, true),              // PC 28 -> 36, wrong
+            Instruction::new(Opcode::ADD, 31, 0, 0, false, false),           // PC 32, skipped
+        ];
+        add_halt(&mut instructions);
+        let mut program = Program::new(instructions, 0, 0);
+        program.memory_image = Arc::new(HashMap::from([(0x10000, 0x42)]));
+
+        // Both the portable executor and native JIT must include the load.
+        run_test(Arc::new(program), SP1Stdin::new()).await.unwrap();
+    }
+
+    #[tokio::test]
     async fn test_alu_x0_prove() {
         setup_logger();
 
