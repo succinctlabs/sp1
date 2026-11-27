@@ -169,6 +169,7 @@ extern "C" {
         memPool: CudaMemPool,
         threshold: u64,
     ) -> CudaRustError;
+    pub fn cuda_pool_available_memory(available: *mut usize) -> CudaRustError;
 }
 
 #[derive(Debug, Clone, Copy)]

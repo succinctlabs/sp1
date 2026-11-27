@@ -19,6 +19,15 @@ pub fn cuda_memory_info() -> Result<(usize, usize), CudaError> {
     Ok((free, total))
 }
 
+/// Free device memory plus reusable pages in the current CUDA memory pool.
+pub fn cuda_pool_available_memory() -> Result<usize, CudaError> {
+    let mut available = 0;
+    CudaError::result_from_ffi(unsafe {
+        sp1_gpu_sys::runtime::cuda_pool_available_memory(&mut available)
+    })?;
+    Ok(available)
+}
+
 /// Returns the name of the CUDA device the calling thread is bound to, e.g. `"NVIDIA L4"`.
 ///
 /// The name is queried once and cached for the lifetime of the process, because the underlying

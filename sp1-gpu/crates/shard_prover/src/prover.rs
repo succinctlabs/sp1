@@ -15,7 +15,7 @@ use sp1_gpu_basefold::{
 };
 use sp1_gpu_challenger::FromHostChallengerSync;
 use sp1_gpu_cudart::PinnedBuffer;
-use sp1_gpu_cudart::{DeviceMle, DevicePoint, TaskScope};
+use sp1_gpu_cudart::{cuda_pool_available_memory, DeviceMle, DevicePoint, TaskScope};
 use sp1_gpu_jagged_assist::prove_jagged_evaluation_sync;
 use sp1_gpu_jagged_sumcheck::{generate_jagged_sumcheck_poly, jagged_sumcheck};
 use sp1_gpu_jagged_tracegen::{full_tracegen_permit, main_tracegen_permit, CudaShardProverData};
@@ -648,7 +648,7 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
         let preprocessed_data = &locked_preprocessed_data.preprocessed_data;
 
         // Commit to the traces.
-        let (main_commit, main_data) =
+        let (main_commit, mut main_data) =
             tracing::debug_span!("commit traces").in_scope(|| self.commit_traces(traces, false));
         // Observe the commitments.
         <GC::Challenger as CanObserve<GC::Digest>>::observe(&mut challenger, main_commit);
@@ -663,13 +663,48 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
             }
         }
 
+        // The first LogUp layer, its folded extension-field layers and the
+        // sumcheck scratch space coexist with the committed main codeword.
+        let interaction_rows: usize = shard_chips
+            .iter()
+            .map(|chip| {
+                traces.main_poly_height(chip.name()).unwrap_or(0)
+                    * (chip.sends().len() + chip.receives().len())
+            })
+            .sum();
+        // Per four interaction rows, the first layer stores four base-field numerators,
+        // four extension-field denominators and one column index (21 bytes per row).
+        // The shrinking materialized layers add about 33 bytes per row. Round up for
+        // padding and leave room for kernel scratch before deciding to re-encode the trace.
+        const LOGUP_BYTES_PER_ROW: usize = 56;
+        const SCRATCH_BYTES: usize = 256 << 20;
+        let mut recompute_first_layer = self.recompute_first_layer;
+        if interaction_rows >= 1 << 25 {
+            let workspace =
+                interaction_rows.saturating_mul(LOGUP_BYTES_PER_ROW).saturating_add(SCRATCH_BYTES);
+            if let Ok(mut available) = cuda_pool_available_memory() {
+                if available < workspace {
+                    if let Some(codeword) = main_data.pcs_prover_data.codeword_mle.take() {
+                        let codeword_bytes = codeword.total_len() * size_of::<Felt>();
+                        tracing::debug!(
+                            interaction_rows,
+                            available,
+                            codeword_bytes,
+                            "Re-encoding main codeword at FRI openings"
+                        );
+                        available = available.saturating_add(codeword_bytes);
+                    }
+                    recompute_first_layer |= available < workspace;
+                }
+            }
+        }
         let logup_gkr_proof = tracing::debug_span!("logup gkr proof").in_scope(|| {
             prove_logup_gkr::<GC, _>(
                 shard_chips,
                 self.all_interactions.clone(),
                 traces,
                 CudaLogUpGkrOptions {
-                    recompute_first_layer: self.recompute_first_layer,
+                    recompute_first_layer,
                     num_row_variables: self.max_log_row_count,
                 },
                 &mut challenger,
