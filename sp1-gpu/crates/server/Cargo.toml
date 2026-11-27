@@ -18,7 +18,7 @@ sp1-prover = { workspace = true, features = ["native-gnark"] }
 sp1-primitives = { workspace = true }
 sp1-gpu-prover = { workspace = true }
 sp1-gpu-cudart = { workspace = true }
-sp1-recursion-gnark-ffi = { workspace = true }
+sp1-recursion-gnark-ffi = { workspace = true, features = ["cuda"] }
 sha2 = "0.10.9"
 bincode = "1.3.3"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
@@ -42,4 +42,3 @@ mprotect = [
   "sp1-gpu-prover/mprotect",
   "sp1-prover/mprotect",
 ]
-groth16-cuda = ["sp1-recursion-gnark-ffi/groth16-cuda"]
