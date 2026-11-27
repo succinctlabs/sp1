@@ -91,16 +91,22 @@ impl<'a, P: Prover> ExecuteRequest<'a, P> {
         self
     }
 
-    /// Whether to enable deferred proof verification in the executor.
+    /// Whether to verify the deferred proofs supplied in the stdin.
     ///
     /// # Arguments
-    /// * `value` - Whether to enable deferred proof verification in the executor.
+    /// * `value` - Whether to verify the deferred proofs supplied in the stdin.
     ///
     /// # Details
-    /// Default: `true`. If set to `false`, the executor will skip deferred proof verification.
-    /// This is useful for reducing the execution time of the program and optimistically assuming
-    /// that the deferred proofs are correct. Can also be used for mock proof setups that require
-    /// verifying mock compressed proofs.
+    /// Default: `true`. When enabled, each proof added with `SP1Stdin::write_proof` is verified on
+    /// the host against its own verifying key, alongside execution. If set to `false`, this check
+    /// is skipped. This is useful for reducing the execution time of the program and optimistically
+    /// assuming that the deferred proofs are correct. Can also be used for mock proof setups that
+    /// require verifying mock compressed proofs.
+    ///
+    /// This check does not validate the verifying key and public values digest that the program
+    /// passes to `verify_sp1_proof`: the executor treats that syscall as a no-op, so a program
+    /// whose claim does not match the supplied proof still executes successfully. The mismatch is
+    /// only rejected when the proof is generated.
     ///
     /// # Example
     /// ```rust,no_run
