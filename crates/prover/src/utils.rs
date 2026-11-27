@@ -63,8 +63,8 @@ pub fn is_recursion_public_values_valid(public_values: &RecursionPublicValues<SP
 
 impl SP1CoreProofData {
     pub fn save(&self, path: &str) -> Result<(), std::io::Error> {
-        let data = serde_json::to_string(self).unwrap();
-        fs::write(path, data).unwrap();
+        let data = serde_json::to_string(self).map_err(std::io::Error::other)?;
+        fs::write(path, data)?;
         Ok(())
     }
 }
@@ -156,4 +156,32 @@ pub fn generate_nonce() -> [u32; 4] {
         u32::from_be_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]),
         u32::from_be_bytes([bytes[12], bytes[13], bytes[14], bytes[15]]),
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `save` should return an `Err` instead of panicking when the file cannot be written.
+    #[test]
+    fn save_returns_err_on_missing_directory() {
+        let proof_data = SP1CoreProofData(Vec::new());
+
+        let result = proof_data.save("/path/that/does/not/exist/file.json");
+
+        assert!(result.is_err(), "saving to a non-existent directory should return an error");
+    }
+
+    /// `save` should still write the proof data when the path is valid.
+    #[test]
+    fn save_writes_proof_data_to_disk() {
+        let dir = std::env::temp_dir().join("sp1-core-proof-data-save-test");
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("proof.json");
+
+        let proof_data = SP1CoreProofData(Vec::new());
+        proof_data.save(path.to_str().unwrap()).unwrap();
+
+        assert_eq!(fs::read_to_string(&path).unwrap(), "[]");
+    }
 }
