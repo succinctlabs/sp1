@@ -448,6 +448,33 @@ mod tests {
     use super::*;
     use slop_merkle_tree::{ComputeTcsOpenings, TensorCsProver};
 
+    #[test]
+    fn outer_poseidon2_matches_cpu_across_packed_limb_boundaries() {
+        use slop_merkle_tree::BnProver;
+
+        sp1_gpu_cudart::run_sync_in_place(|scope| {
+            let cpu = BnProver::<SP1Field, SP1ExtensionField>::default();
+            let gpu = Poseidon2Bn254CudaProver::new(&scope);
+            for width in 1..=17 {
+                // Four strided rows exercise zero, maximal, single-bit and mixed digits.
+                let rows = (0..4 * width)
+                    .map(|i| match i / width {
+                        0 => SP1Field::zero(),
+                        1 => -SP1Field::one(),
+                        2 => SP1Field::from_canonical_u32(1 << ((i % width * 7) % 31)),
+                        _ => -SP1Field::from_canonical_usize(i + 1),
+                    })
+                    .collect::<Tensor<_>>()
+                    .reshape([4, width]);
+                let device = DeviceTensor::from_host(&rows.transpose(), &scope).unwrap();
+                let (expected, _) = cpu.commit_tensors([rows].into_iter().collect()).unwrap();
+                let (actual, _) = gpu.commit_tensors(&device.into_inner()).unwrap();
+                assert_eq!(actual, expected, "row width {width}");
+            }
+        })
+        .unwrap();
+    }
+
     #[tokio::test]
     async fn test_poseidon2_koala_bear_16() {
         let (machine, record, program) =

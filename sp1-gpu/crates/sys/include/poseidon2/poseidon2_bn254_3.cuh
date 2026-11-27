@@ -798,11 +798,12 @@ class Bn254 {
     static constexpr pF_t MONTY_INVERSE = constants::MONTY_INVERSE;
 
     __device__ static void internalLinearLayer(F_t state[WIDTH], pF_t*, F_t _) {
-        F_t s = state[0] + state[1] + state[2];
-        for (int i = 0; i < WIDTH; i++) {
-            state[i] *= MAT_INTERNAL_DIAG_M1[i];
-            state[i] += s;
-        }
+        // The width-three internal matrix is the all-ones matrix plus diag(1, 1, 2).
+        F_t sum = state[0] + state[1] + state[2];
+        state[0] += sum;
+        state[1] += sum;
+        state[2] += state[2];
+        state[2] += sum;
     }
 
     __device__ static void externalLinearLayer(F_t state[WIDTH]) {
@@ -813,99 +814,28 @@ class Bn254 {
     }
 };
 
-static __device__ __constant__ __align__(16) const uint32_t ALT_BN128_1ls31[8] = {
-    /* (1<<31) % P_bn254 */
-    0x8adc5ced,
-    0x49f3c432,
-    0x582f50aa,
-    0x8b6f9213,
-    0x98155c1c,
-    0x0938dba1,
-    0x76361137,
-    0x035e01bf,
-};
+constexpr size_t N = 8;
 
-template <int SIZE>
-__device__ void mul_u32_p(uint32_t v, const uint32_t p[SIZE], uint32_t result[SIZE + 1]) {
-    uint64_t carry = 0;
-    for (int ii = 0; ii < SIZE; ++ii) {
-        uint64_t temp = (uint64_t)(v)*p[ii] + carry;
-        result[ii] = temp & 0xFFFFFFFF;
-        carry = temp >> 32;
-    }
-    result[SIZE] = (uint32_t)carry;
-}
-
-template <int SIZE>
-__device__ void substract(uint32_t* a, const uint32_t* b) {
-    uint64_t borrow = 0;
-    for (int ii = 0; ii < SIZE; ++ii) {
-        uint64_t sub = (uint64_t)a[ii] - b[ii] - borrow;
-        a[ii] = (uint32_t)(sub & 0xFFFFFFFF);
-        borrow = (sub >> 32) & 1;
-    }
-}
-
-template <int SIZE>
-__device__ bool greaterThan(const uint32_t* a, uint32_t* b) {
-    for (int i = SIZE - 1; i >= 0; --i) {
-        if (a[i] > b[i]) {
-            return true;
+__device__ inline bn254_t reduceKoalaBear(
+    const kb31_t* src1, const kb31_t* src2, int n1, int n2, int stride1 = 1, int stride2 = 1) {
+    // Eight little-endian base-2^31 digits fit below the BN254 scalar modulus.
+    // Limb i contains the high bits of digit i and the low bits of digit i+1.
+    assert(n1 + n2 <= N);
+    bn254_t result;
+    uint32_t next = 0;
+#pragma unroll
+    for (int i = N - 1; i >= 0; --i) {
+        uint32_t digit = 0;
+        if (i < n1) {
+            digit = src1[i * stride1].as_canonical_u32();
+        } else if (i < n1 + n2) {
+            digit = src2[(i - n1) * stride2].as_canonical_u32();
         }
-        if (a[i] < b[i]) {
-            return false;
-        }
+        result[i] = (digit >> i) | (next << (31 - i));
+        next = digit;
     }
-    return false;
-}
-
-template <int SIZE>
-__device__ void
-modulo_p(uint32_t v[SIZE + 1], const uint32_t p[SIZE], uint32_t left, uint32_t rigth) {
-    uint32_t prod[SIZE + 1] = {0};
-    while (left <= rigth) {
-        uint32_t mid = left + (rigth - left) / 2;
-        mul_u32_p<SIZE>(mid, p, prod);
-        if (greaterThan<SIZE + 1>(prod, v)) {
-            rigth = mid - 1;
-        } else {
-            if (left == mid)
-                break;
-            left = mid;
-        }
-    }
-    substract<SIZE + 1>(v, prod);
-}
-
-const size_t N = 8;
-
-__device__ inline bn254_t kb31_to_bn254(kb31_t in) {
-    // The hard-coded constant is the inverse of 1<<32 mod p.
-    uint32_t canonical = (0x3f010000ULL * in.val) % (uint64_t)kb31_t::MOD;
-    uint32_t v[N + 1] = {0};
-    mul_u32_p<N>(canonical, device::ALT_BN128_rone, v);
-    // NOTE: likely not the optimal modulo implementation
-    // Max 31 large (8 uint32) multiplications
-    modulo_p<N>(v, device::ALT_BN128_r, 0x00000000u, kb31_t::MOD);
-    return bn254_t(v);
-}
-
-__device__ inline bn254_t
-reduceKoalaBear(kb31_t* src1, kb31_t* src2, int n1, int n2, int stride1 = 1, int stride2 = 1) {
-    const bn254_t po2 = bn254_t(ALT_BN128_1ls31);
-    bn254_t res;
-    res.set_to_zero();
-    if (n2 > 0) {
-        for (int ii = (n2 - 1) * stride2; ii >= 0; ii -= stride2) {
-            res = res * po2 + kb31_to_bn254(src2[ii]);
-        }
-    }
-    if (n1 > 0) {
-        for (int ii = (n1 - 1) * stride1; ii >= 0; ii -= stride1) {
-            res = res * po2 + kb31_to_bn254(src1[ii]);
-        }
-    }
-    return res;
+    result.to();
+    return result;
 }
 
 template <typename Hasher_t, typename HasherState_t>
