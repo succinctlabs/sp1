@@ -129,20 +129,9 @@ extern "C" rustCudaError_t sppark_init(const cudaStream_t stream) {
 #ifdef NVIDIA_NTT
     return CUDA_SUCCESS_CSL;
 #else
-    uint32_t lg_domain_size = 1;
-    uint32_t domain_size = 1U << lg_domain_size;
-
-    std::vector<fr_t> inout(domain_size);
-    inout[0] = fr_t(1);
-    inout[1] = fr_t(1);
+    (void)stream;
     try {
-        NTT::Base(
-            stream,
-            &inout[0],
-            lg_domain_size,
-            NTT::InputOutputOrder::NR,
-            NTT::Direction::forward,
-            NTT::Type::standard);
+        (void)NTTParameters::all();
     } catch (const cuda_error& error) {
         CUDA_OK(static_cast<cudaError_t>(-error.code()));
     }

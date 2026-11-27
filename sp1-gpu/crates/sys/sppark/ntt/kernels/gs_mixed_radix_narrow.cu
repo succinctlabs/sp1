@@ -165,6 +165,9 @@ void _GS_NTT(const unsigned int radix, const unsigned int lg_domain_size,
     idx1 = (idx1 & ~mask) | (rotw & mask);
 
     if (coalesced) {
+        // The last butterfly can read another warp's shared exchange slots.
+        // Finish those reads before the output transpose reuses the same storage.
+        __syncthreads();
         transpose<z_count>(r[0]);
         __syncwarp();
         transpose<z_count>(r[1]);
